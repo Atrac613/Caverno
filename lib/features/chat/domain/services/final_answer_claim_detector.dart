@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../entities/tool_call_info.dart';
+import 'file_mutation_evidence_policy.dart';
 import 'tool_call_execution_policy.dart';
 import 'tool_definition_search_service.dart';
 
@@ -10,6 +11,8 @@ class FinalAnswerClaimDetector {
   });
 
   final ToolCallExecutionPolicy toolCallExecutionPolicy;
+
+  static const _fileMutationEvidencePolicy = FileMutationEvidencePolicy();
 
   static const unexecutedFileSideEffectNotice =
       'The requested file save was not executed because no successful file-operation tool result is available. '
@@ -1046,16 +1049,8 @@ class FinalAnswerClaimDetector {
         actionMarkers.any(value.contains);
   }
 
-  bool isFileMutationToolName(String toolName) {
-    switch (toolName.trim().toLowerCase()) {
-      case 'write_file':
-      case 'edit_file':
-      case 'delete_file':
-      case 'rollback_last_file_change':
-        return true;
-    }
-    return false;
-  }
+  bool isFileMutationToolName(String toolName) =>
+      _fileMutationEvidencePolicy.isMutationToolName(toolName);
 
   bool isSuccessfulFileMutationToolResult(ToolResultInfo toolResult) {
     final normalized = toolResult.result.trim().toLowerCase();

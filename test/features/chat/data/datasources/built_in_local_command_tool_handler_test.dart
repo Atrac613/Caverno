@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:caverno/features/chat/data/datasources/background_process_monitor_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
 import 'package:caverno/features/chat/data/datasources/built_in_local_command_tool_handler.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 typedef _CommandCall = ({String command, String workingDirectory});
@@ -18,8 +19,20 @@ typedef _ProcessListCall = ({
   int? limit,
 });
 
+ChatTurnOwner _turnOwner({
+  String conversationId = 'local-command-handler',
+  int generation = 1,
+}) {
+  return ChatTurnOwner(
+    conversationId: conversationId,
+    interactionGeneration: generation,
+  );
+}
+
 void main() {
   group('BuiltInLocalCommandToolHandler', () {
+    final owner = _turnOwner();
+
     test('owns the exact ordered local command family', () {
       final unsupportedTools = _FakeBackgroundProcessTools(supported: false);
       final unsupportedHandler = BuiltInLocalCommandToolHandler(
@@ -78,6 +91,47 @@ void main() {
       );
     });
 
+    test('requires an exact owner for background process state', () async {
+      final tools = _FakeBackgroundProcessTools();
+      final monitor = _FakeBackgroundProcessMonitorService();
+      addTearDown(monitor.dispose);
+      final handler = BuiltInLocalCommandToolHandler(
+        backgroundProcessTools: tools,
+        backgroundProcessMonitorService: monitor,
+      );
+      const cases = <(String, Map<String, dynamic>)>[
+        (
+          'local_execute_command',
+          {
+            'command': 'sleep 1',
+            'working_directory': '/tmp',
+            'background': true,
+          },
+        ),
+        ('process_start', {'command': 'sleep 1', 'working_directory': '/tmp'}),
+        ('process_status', {'job_id': 'job'}),
+        ('process_tail', {'job_id': 'job'}),
+        ('process_wait', {'job_id': 'job'}),
+        ('process_cancel', {'job_id': 'job'}),
+        ('process_list', {}),
+      ];
+
+      for (final testCase in cases) {
+        final result = await handler.execute(
+          name: testCase.$1,
+          arguments: testCase.$2,
+        );
+        expect(result.isSuccess, isFalse, reason: testCase.$1);
+        expect(
+          jsonDecode(result.result),
+          containsPair('code', 'chat_turn_owner_required'),
+          reason: testCase.$1,
+        );
+      }
+      expect(tools.totalCalls, 0);
+      expect(monitor.listCalls, isEmpty);
+    });
+
     test(
       'rejects missing required arguments without invoking dependencies',
       () async {
@@ -118,6 +172,7 @@ void main() {
 
         for (final testCase in cases) {
           final result = await handler.execute(
+            owner: owner,
             name: testCase.$1,
             arguments: testCase.$2,
           );
@@ -142,6 +197,7 @@ void main() {
       );
 
       final result = await handler.execute(
+        owner: owner,
         name: 'local_execute_command',
         arguments: const {
           'command': '  echo ok<|im_end|>  ',
@@ -169,6 +225,7 @@ void main() {
       );
 
       final result = await handler.execute(
+        owner: owner,
         name: 'local_execute_command',
         arguments: const {
           'command': 'flutter test',
@@ -189,6 +246,7 @@ void main() {
       );
 
       final result = await handler.execute(
+        owner: owner,
         name: 'local_execute_command',
         arguments: const {
           'command': 'flutter test',
@@ -216,6 +274,7 @@ void main() {
 
       for (final value in <Object>[true, 1, -1, 'true', ' 1 ', 'YES']) {
         final result = await handler.execute(
+          owner: owner,
           name: 'local_execute_command',
           arguments: <String, dynamic>{
             'command': ' sleep 1 ',
@@ -253,6 +312,7 @@ void main() {
 
       for (final value in <Object?>[null, false, 0, 'false', 'no', const []]) {
         final result = await handler.execute(
+          owner: owner,
           name: 'local_execute_command',
           arguments: <String, dynamic>{
             'command': 'echo ok',
@@ -305,6 +365,7 @@ void main() {
 
       for (final testCase in cases) {
         final result = await handler.execute(
+          owner: owner,
           name: testCase.$1,
           arguments: testCase.$2,
         );
@@ -331,6 +392,7 @@ void main() {
       };
 
       final localBackground = await handler.execute(
+        owner: owner,
         name: 'local_execute_command',
         arguments: const {
           'command': 'sleep 1',
@@ -346,6 +408,7 @@ void main() {
       );
 
       final processStart = await handler.execute(
+        owner: owner,
         name: 'process_start',
         arguments: const {'command': 'sleep 1', 'working_directory': '/tmp'},
       );
@@ -363,6 +426,7 @@ void main() {
         'process_cancel',
       ]) {
         final result = await handler.execute(
+          owner: owner,
           name: name,
           arguments: const {'job_id': 'missing'},
         );
@@ -380,6 +444,7 @@ void main() {
       }
 
       final processList = await handler.execute(
+        owner: owner,
         name: 'process_list',
         arguments: const {},
       );
@@ -433,7 +498,11 @@ void main() {
       ];
 
       for (final call in calls) {
-        final result = await handler.execute(name: call.$1, arguments: call.$2);
+        final result = await handler.execute(
+          owner: owner,
+          name: call.$1,
+          arguments: call.$2,
+        );
         expect(result.result, failure, reason: call.$1);
         expect(result.isSuccess, isTrue, reason: call.$1);
         expect(result.errorMessage, isNull, reason: call.$1);
@@ -455,6 +524,7 @@ void main() {
         );
 
         await handler.execute(
+          owner: owner,
           name: 'process_start',
           arguments: const {
             'command': ' sleep 1<|end|> ',
@@ -463,18 +533,22 @@ void main() {
           },
         );
         await handler.execute(
+          owner: owner,
           name: 'process_status',
           arguments: const {'job_id': ' job ', 'tail_chars': 123.9},
         );
         await handler.execute(
+          owner: owner,
           name: 'process_tail',
           arguments: const {'job_id': ' job ', 'max_chars': 456.8},
         );
         await handler.execute(
+          owner: owner,
           name: 'process_wait',
           arguments: const {'job_id': ' job ', 'wait_ms': 789.7},
         );
         await handler.execute(
+          owner: owner,
           name: 'process_cancel',
           arguments: const {'job_id': ' job '},
         );
@@ -490,8 +564,59 @@ void main() {
         expect(tools.tailCalls, const [(jobId: 'job', value: 456)]);
         expect(tools.waitCalls, const [(jobId: 'job', value: 789)]);
         expect(tools.cancelCalls, const ['job']);
+        expect(tools.startOwners, [same(owner)]);
+        expect(tools.statusOwners, [same(owner)]);
+        expect(tools.tailOwners, [same(owner)]);
+        expect(tools.waitOwners, [same(owner)]);
+        expect(tools.cancelOwners, [same(owner)]);
       },
     );
+
+    test('keeps process jobs invisible to a different turn owner', () async {
+      final peerOwner = _turnOwner(generation: 2);
+      const visibleResult =
+          '{"ok":true,"job_id":"shared-job","status":"running"}';
+      final tools = _FakeBackgroundProcessTools(
+        visibleOwner: owner,
+        statusResult: visibleResult,
+        tailResult: visibleResult,
+        waitResult: visibleResult,
+        cancelResult: visibleResult,
+      );
+      final handler = BuiltInLocalCommandToolHandler(
+        backgroundProcessTools: tools,
+      );
+      const operations = <String>[
+        'process_status',
+        'process_tail',
+        'process_wait',
+        'process_cancel',
+      ];
+
+      for (final name in operations) {
+        final visible = await handler.execute(
+          owner: owner,
+          name: name,
+          arguments: const {'job_id': 'shared-job'},
+        );
+        final hidden = await handler.execute(
+          owner: peerOwner,
+          name: name,
+          arguments: const {'job_id': 'shared-job'},
+        );
+
+        expect(jsonDecode(visible.result), containsPair('ok', true));
+        expect(
+          jsonDecode(hidden.result),
+          containsPair('code', 'job_not_found'),
+          reason: name,
+        );
+      }
+      expect(tools.statusOwners, [same(owner), same(peerOwner)]);
+      expect(tools.tailOwners, [same(owner), same(peerOwner)]);
+      expect(tools.waitOwners, [same(owner), same(peerOwner)]);
+      expect(tools.cancelOwners, [same(owner), same(peerOwner)]);
+    });
 
     test('rejects invalid process_list job_ids before monitor calls', () async {
       final monitor = _FakeBackgroundProcessMonitorService();
@@ -501,6 +626,7 @@ void main() {
       );
 
       final result = await handler.execute(
+        owner: owner,
         name: 'process_list',
         arguments: const {'job_ids': 'job-a'},
       );
@@ -540,6 +666,7 @@ void main() {
         );
 
         final result = await handler.execute(
+          owner: owner,
           name: 'process_list',
           arguments: const {
             'job_ids': [' job-a ', 3, '', 'job-b', null],
@@ -575,6 +702,7 @@ void main() {
       );
 
       await handler.execute(
+        owner: owner,
         name: 'process_list',
         arguments: const {'refresh': true},
       );
@@ -595,6 +723,7 @@ void main() {
       );
 
       await handler.execute(
+        owner: owner,
         name: 'process_list',
         arguments: const {
           'job_ids': [' job-a ', false, 'job-b'],
@@ -614,10 +743,61 @@ void main() {
       expect(monitor.listCalls.single.limit, 1);
     });
 
+    test('keeps process_list snapshots isolated by exact owner', () async {
+      final peerOwner = _turnOwner(
+        conversationId: owner.conversationId,
+        generation: 2,
+      );
+      final ownerSnapshot = _snapshot(jobId: 'owner-job', status: 'running');
+      final peerSnapshot = _snapshot(jobId: 'peer-job', status: 'running');
+      final monitor = _FakeBackgroundProcessMonitorService(
+        snapshotsByOwner: {
+          owner: [ownerSnapshot],
+          peerOwner: [peerSnapshot],
+        },
+        activeByOwner: {
+          owner: [ownerSnapshot],
+          peerOwner: [peerSnapshot],
+        },
+      );
+      addTearDown(monitor.dispose);
+      final handler = BuiltInLocalCommandToolHandler(
+        backgroundProcessMonitorService: monitor,
+      );
+
+      final ownerResult = await handler.execute(
+        owner: owner,
+        name: 'process_list',
+        arguments: const {},
+      );
+      final peerResult = await handler.execute(
+        owner: peerOwner,
+        name: 'process_list',
+        arguments: const {},
+      );
+
+      final ownerJobs =
+          (jsonDecode(ownerResult.result) as Map<String, dynamic>)['jobs']
+              as List<dynamic>;
+      final peerJobs =
+          (jsonDecode(peerResult.result) as Map<String, dynamic>)['jobs']
+              as List<dynamic>;
+      expect(
+        ownerJobs.single as Map<String, dynamic>,
+        containsPair('job_id', 'owner-job'),
+      );
+      expect(
+        peerJobs.single as Map<String, dynamic>,
+        containsPair('job_id', 'peer-job'),
+      );
+      expect(monitor.listOwners, [same(owner), same(peerOwner)]);
+    });
+
     test('returns the exact run_tests approval sentinel', () async {
       final handler = BuiltInLocalCommandToolHandler();
 
       final result = await handler.execute(
+        owner: owner,
         name: 'run_tests',
         arguments: const {},
       );
@@ -644,6 +824,7 @@ void main() {
 
       expect(
         () => handler.execute(
+          owner: owner,
           name: 'local_execute_command',
           arguments: const {'command': 'echo ok', 'working_directory': '/tmp'},
         ),
@@ -681,6 +862,7 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     this.tailResult = '{}',
     this.waitResult = '{}',
     this.cancelResult = '{}',
+    this.visibleOwner,
   });
 
   final bool supported;
@@ -689,11 +871,17 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   final String tailResult;
   final String waitResult;
   final String cancelResult;
+  final ChatTurnOwner? visibleOwner;
   final List<_ProcessStartCall> startCalls = <_ProcessStartCall>[];
   final List<_ProcessValueCall> statusCalls = <_ProcessValueCall>[];
   final List<_ProcessValueCall> tailCalls = <_ProcessValueCall>[];
   final List<_ProcessValueCall> waitCalls = <_ProcessValueCall>[];
   final List<String> cancelCalls = <String>[];
+  final List<ChatTurnOwner> startOwners = <ChatTurnOwner>[];
+  final List<ChatTurnOwner> statusOwners = <ChatTurnOwner>[];
+  final List<ChatTurnOwner> tailOwners = <ChatTurnOwner>[];
+  final List<ChatTurnOwner> waitOwners = <ChatTurnOwner>[];
+  final List<ChatTurnOwner> cancelOwners = <ChatTurnOwner>[];
 
   int get totalCalls =>
       startCalls.length +
@@ -707,10 +895,12 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
 
   @override
   Future<String> start({
+    required ChatTurnOwner owner,
     required String command,
     required String workingDirectory,
     String? label,
   }) async {
+    startOwners.add(owner);
     startCalls.add((
       command: command,
       workingDirectory: workingDirectory,
@@ -720,27 +910,58 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 
   @override
-  Future<String> status({required String jobId, int? tailChars}) async {
+  Future<String> status({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? tailChars,
+  }) async {
+    statusOwners.add(owner);
     statusCalls.add((jobId: jobId, value: tailChars));
-    return statusResult;
+    return _ownerResult(owner, jobId, statusResult);
   }
 
   @override
-  Future<String> tail({required String jobId, int? maxChars}) async {
+  Future<String> tail({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? maxChars,
+  }) async {
+    tailOwners.add(owner);
     tailCalls.add((jobId: jobId, value: maxChars));
-    return tailResult;
+    return _ownerResult(owner, jobId, tailResult);
   }
 
   @override
-  Future<String> wait({required String jobId, int? waitMs}) async {
+  Future<String> wait({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? waitMs,
+  }) async {
+    waitOwners.add(owner);
     waitCalls.add((jobId: jobId, value: waitMs));
-    return waitResult;
+    return _ownerResult(owner, jobId, waitResult);
   }
 
   @override
-  Future<String> cancel({required String jobId}) async {
+  Future<String> cancel({
+    required ChatTurnOwner owner,
+    required String jobId,
+  }) async {
+    cancelOwners.add(owner);
     cancelCalls.add(jobId);
-    return cancelResult;
+    return _ownerResult(owner, jobId, cancelResult);
+  }
+
+  String _ownerResult(ChatTurnOwner owner, String jobId, String result) {
+    if (visibleOwner == null || owner == visibleOwner) {
+      return result;
+    }
+    return jsonEncode({
+      'ok': false,
+      'code': 'job_not_found',
+      'job_id': jobId,
+      'error': 'No background process job exists for job_id: $jobId',
+    });
   }
 }
 
@@ -749,43 +970,65 @@ class _FakeBackgroundProcessMonitorService
   _FakeBackgroundProcessMonitorService({
     List<BackgroundProcessMonitorSnapshot> snapshots = const [],
     List<BackgroundProcessMonitorSnapshot> active = const [],
+    Map<ChatTurnOwner, List<BackgroundProcessMonitorSnapshot>>
+        snapshotsByOwner =
+        const {},
+    Map<ChatTurnOwner, List<BackgroundProcessMonitorSnapshot>> activeByOwner =
+        const {},
   }) : _snapshots = snapshots,
        _active = active,
+       _snapshotsByOwner = snapshotsByOwner,
+       _activeByOwner = activeByOwner,
        super(tools: BackgroundProcessTools());
 
   final List<BackgroundProcessMonitorSnapshot> _snapshots;
   final List<BackgroundProcessMonitorSnapshot> _active;
+  final Map<ChatTurnOwner, List<BackgroundProcessMonitorSnapshot>>
+  _snapshotsByOwner;
+  final Map<ChatTurnOwner, List<BackgroundProcessMonitorSnapshot>>
+  _activeByOwner;
   final List<_ProcessListCall> listCalls = <_ProcessListCall>[];
+  final List<ChatTurnOwner> listOwners = <ChatTurnOwner>[];
   int refreshActiveCalls = 0;
+  final List<ChatTurnOwner> refreshActiveOwners = <ChatTurnOwner>[];
   final List<List<String>> refreshJobCalls = <List<String>>[];
+  final List<ChatTurnOwner> refreshJobOwners = <ChatTurnOwner>[];
 
   @override
-  List<BackgroundProcessMonitorSnapshot> get activeSnapshots => _active;
+  List<BackgroundProcessMonitorSnapshot> activeSnapshots(ChatTurnOwner owner) =>
+      _activeByOwner[owner] ?? _active;
 
   @override
-  List<BackgroundProcessMonitorSnapshot> listJobs({
+  List<BackgroundProcessMonitorSnapshot> listJobs(
+    ChatTurnOwner owner, {
     Iterable<String>? jobIds,
     bool includeFinished = true,
     int? limit,
   }) {
+    listOwners.add(owner);
     listCalls.add((
       jobIds: jobIds?.toList(growable: false),
       includeFinished: includeFinished,
       limit: limit,
     ));
-    return _snapshots;
+    return _snapshotsByOwner[owner] ?? _snapshots;
   }
 
   @override
-  Future<List<BackgroundProcessMonitorSnapshot>> refreshActiveJobs() async {
+  Future<List<BackgroundProcessMonitorSnapshot>> refreshActiveJobs(
+    ChatTurnOwner owner,
+  ) async {
     refreshActiveCalls += 1;
+    refreshActiveOwners.add(owner);
     return const <BackgroundProcessMonitorSnapshot>[];
   }
 
   @override
   Future<List<BackgroundProcessMonitorSnapshot>> refreshJobs(
+    ChatTurnOwner owner,
     Iterable<String> jobIds,
   ) async {
+    refreshJobOwners.add(owner);
     refreshJobCalls.add(jobIds.toList(growable: false));
     return const <BackgroundProcessMonitorSnapshot>[];
   }

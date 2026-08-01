@@ -139,7 +139,6 @@ void registerChatNotifierGoalAutoContinueTests() {
         status: ConversationGoalStatus.active,
         turnBudget: 1,
       );
-
       final chatNotifier = container.read(chatNotifierProvider.notifier);
       final sendFuture = chatNotifier.sendMessage(
         'Implement the TODO CLI.',
@@ -639,7 +638,7 @@ void registerChatNotifierGoalAutoContinueTests() {
       );
 
       final chatNotifier = container.read(chatNotifierProvider.notifier);
-      await chatNotifier.sendMessage(
+      final turnOwner = await chatNotifier.sendMessage(
         'Run the first saved task.',
         bypassPlanMode: true,
       );
@@ -647,7 +646,9 @@ void registerChatNotifierGoalAutoContinueTests() {
 
       expect(dataSource.initialRequestMessages, hasLength(1));
       expect(
-        chatNotifier.takeLatestToolResults().map((result) => result.name),
+        chatNotifier
+            .takeLatestToolResults(turnOwner!)
+            .map((result) => result.name),
         contains('analyze_project'),
       );
       expect(
@@ -2178,7 +2179,15 @@ void registerChatNotifierGoalAutoContinueTests() {
       );
 
       final chatNotifier = container.read(chatNotifierProvider.notifier);
+      final owner = ChatTurnOwner(
+        conversationId: container
+            .read(conversationsNotifierProvider)
+            .currentConversation!
+            .id,
+        interactionGeneration: 1,
+      );
       chatNotifier.recordExecutedVerifierReplayCandidateForTest(
+        owner,
         ToolCallInfo(
           id: 'task-1-verifier',
           name: 'run_tests',
@@ -2186,7 +2195,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         ),
       );
       expect(
-        chatNotifier.hasVerifierReplayCandidateForCurrentTaskForTest(),
+        chatNotifier.hasVerifierReplayCandidateForOwnerForTest(owner),
         isTrue,
       );
 
@@ -2209,10 +2218,11 @@ void registerChatNotifierGoalAutoContinueTests() {
       );
 
       expect(
-        chatNotifier.hasVerifierReplayCandidateForCurrentTaskForTest(),
+        chatNotifier.hasVerifierReplayCandidateForOwnerForTest(owner),
         isFalse,
       );
       chatNotifier.recordExecutedVerifierReplayCandidateForTest(
+        owner,
         ToolCallInfo(
           id: 'task-2-verifier',
           name: 'local_execute_command',
@@ -2220,12 +2230,11 @@ void registerChatNotifierGoalAutoContinueTests() {
         ),
       );
       expect(
-        chatNotifier.hasVerifierReplayCandidateForCurrentTaskForTest(),
+        chatNotifier.hasVerifierReplayCandidateForOwnerForTest(owner),
         isTrue,
       );
     },
   );
-
   test('cancelStreaming clears the goal auto-continue indicator', () async {
     final hiddenPromptGate = Completer<void>();
     final dataSource = _GoalAutoContinueChatDataSource(

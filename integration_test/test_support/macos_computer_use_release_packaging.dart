@@ -100,6 +100,7 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
   final pbxproj = _read(root, 'macos/Runner.xcodeproj/project.pbxproj');
   final signingConfig = _read(root, 'macos/Runner/Configs/Signing.xcconfig');
   final appInfoConfig = _read(root, 'macos/Runner/Configs/AppInfo.xcconfig');
+  final releaseConfig = _read(root, 'macos/Runner/Configs/Release.xcconfig');
   final signingLocalExample = _read(
     root,
     'macos/Runner/Configs/Signing.local.xcconfig.example',
@@ -135,9 +136,9 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
     root,
     'tool/run_macos_sparkle_s3_preflight.sh',
   );
-  final sparkleS3PublicReadScript = _read(
+  final sparkleCloudFrontConfigScript = _read(
     root,
-    'tool/configure_macos_sparkle_s3_public_read.sh',
+    'tool/configure_macos_sparkle_cloudfront.sh',
   );
   final sparklePublicReleaseVerifierScript = _read(
     root,
@@ -322,11 +323,18 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
             'SPARKLE_PUBLIC_ED_KEY =',
             '#include "Signing.xcconfig"',
           ) &&
-          signingLocalExample?.contains('SPARKLE_FEED_URL') == true &&
+          releaseConfig?.contains(
+                r'SPARKLE_FEED_URL = https:/$()/d1ap7clvx8zf86.cloudfront.net/caverno/macos/appcast.xml',
+              ) ==
+              true &&
           signingLocalExample?.contains('SPARKLE_PUBLIC_ED_KEY') == true,
       nextAction:
-          'Keep release appcast URL and public EdDSA key injected through local signing configuration.',
-      details: <String, Object?>{'path': 'macos/Runner/Info.plist'},
+          'Keep the production CloudFront appcast URL in Release.xcconfig and inject the public EdDSA key through local signing configuration.',
+      details: <String, Object?>{
+        'path': 'macos/Runner/Configs/Release.xcconfig',
+        'defaultAppcastUrl':
+            'https://d1ap7clvx8zf86.cloudfront.net/caverno/macos/appcast.xml',
+      },
     ),
     _check(
       id: 'sparkle_menu_update_check',
@@ -395,35 +403,60 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
           sparkleS3PreflightScript?.contains('head-bucket') == true &&
           sparkleS3PreflightScript?.contains('s3 cp') == true &&
           sparkleS3PreflightScript?.contains('--dryrun') == true &&
-          sparkleS3PreflightScript?.contains('BlockPublicPolicy=false') ==
+          sparkleS3PreflightScript?.contains(
+                'https://d1ap7clvx8zf86.cloudfront.net/caverno/macos',
+              ) ==
+              true &&
+          sparkleS3PreflightScript?.contains('ALLOW_PRIVATE_BUCKET="yes"') ==
               true &&
           sparkleS3PreflightScript?.contains('get-public-access-block') == true,
       nextAction:
-          'Use tool/run_macos_sparkle_s3_preflight.sh before the first real S3 publish.',
+          'Use tool/run_macos_sparkle_s3_preflight.sh before a real S3 publish through CloudFront.',
       details: <String, Object?>{
         'path': 'tool/run_macos_sparkle_s3_preflight.sh',
       },
     ),
     _check(
       id: 'sparkle_s3_public_read_config',
-      label: 'Sparkle S3 public read config',
+      label: 'Sparkle CloudFront and S3 OAC config',
       ok:
-          sparkleS3PublicReadScript?.contains(
+          sparkleCloudFrontConfigScript?.contains(
                 's3://caverno-macos-releases/caverno/macos',
               ) ==
               true &&
-          sparkleS3PublicReadScript?.contains('--apply') == true &&
-          sparkleS3PublicReadScript?.contains('put-public-access-block') ==
+          sparkleCloudFrontConfigScript?.contains('--apply') == true &&
+          sparkleCloudFrontConfigScript?.contains(
+                'create-origin-access-control',
+              ) ==
               true &&
-          sparkleS3PublicReadScript?.contains('put-bucket-policy') == true &&
-          sparkleS3PublicReadScript?.contains(
-                'PublicReadCavernoMacosUpdates',
+          sparkleCloudFrontConfigScript?.contains('create-cache-policy') ==
+              true &&
+          sparkleCloudFrontConfigScript?.contains('create-distribution') ==
+              true &&
+          sparkleCloudFrontConfigScript?.contains('put-public-access-block') ==
+              true &&
+          sparkleCloudFrontConfigScript?.contains('put-bucket-policy') ==
+              true &&
+          sparkleCloudFrontConfigScript?.contains(
+                'AllowCloudFrontReadCavernoMacosUpdates',
+              ) ==
+              true &&
+          sparkleCloudFrontConfigScript?.contains(
+                '"Principal": {"Service": "cloudfront.amazonaws.com"}',
+              ) ==
+              true &&
+          sparkleCloudFrontConfigScript?.contains('AWS:SourceArn') == true &&
+          sparkleCloudFrontConfigScript?.contains('--retire-direct-s3-read') ==
+              true &&
+          sparkleCloudFrontConfigScript?.contains(
+                'LegacyPublicReadCavernoMacosUpdates',
               ) ==
               true,
       nextAction:
-          'Use tool/configure_macos_sparkle_s3_public_read.sh to review or apply direct-S3 public read settings.',
+          'Use tool/configure_macos_sparkle_cloudfront.sh to review or apply the OAC-backed distribution and migration-safe S3 policy.',
       details: <String, Object?>{
-        'path': 'tool/configure_macos_sparkle_s3_public_read.sh',
+        'path': 'tool/configure_macos_sparkle_cloudfront.sh',
+        'legacyCheckId': 'sparkle_s3_public_read_config',
       },
     ),
     _check(
@@ -431,7 +464,7 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
       label: 'Sparkle public release verifier',
       ok:
           sparklePublicReleaseVerifierScript?.contains(
-                'https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml',
+                'https://d1ap7clvx8zf86.cloudfront.net/caverno/macos/appcast.xml',
               ) ==
               true &&
           sparklePublicReleaseVerifierScript?.contains('curl') == true &&
@@ -448,9 +481,11 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
           sparklePublicReleaseVerifierScript?.contains('max-age=300,public') ==
               true,
       nextAction:
-          'Use tool/verify_macos_sparkle_public_release.sh after each real S3 publish.',
+          'Use tool/verify_macos_sparkle_public_release.sh after each real S3 publish through CloudFront.',
       details: <String, Object?>{
         'path': 'tool/verify_macos_sparkle_public_release.sh',
+        'defaultAppcastUrl':
+            'https://d1ap7clvx8zf86.cloudfront.net/caverno/macos/appcast.xml',
       },
     ),
     _check(

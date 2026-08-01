@@ -5,115 +5,105 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierErrorHandling on ChatNotifier {
-  void _handleError(String error) {
-    appLog('[ChatNotifier] _handleError called');
-    appLog('[ChatNotifier]   raw error: $error');
-    if (!ref.mounted || state.messages.isEmpty) {
+  Future<void> _handleTurnOwnerSnapshotUnavailable(int generation) async {
+    final owner = _activeResponseRegistry.ownerForGeneration(generation);
+    if (owner == null) {
       appLog(
-        '[ChatNotifier]   skipped: mounted=${ref.mounted}, messages.isEmpty=${state.messages.isEmpty}',
+        '[ChatNotifier] Turn owner snapshot unavailable for unregistered '
+        'generation $generation',
+      );
+      _failRuntimeTurn(
+        generation,
+        code: 'turn_owner_snapshot_unavailable',
+        message: 'Turn owner snapshot unavailable',
       );
       return;
     }
+    await _handleError('Turn owner snapshot unavailable', owner: owner);
+  }
 
-    final displayError = _buildDisplayError(error);
+  Future<void> _handleError(
+    Object error, {
+    required ChatTurnOwner owner,
+  }) async {
+    appLog('[ChatNotifier] _handleError called');
+    appLog('[ChatNotifier]   raw error: $error');
+    final displayError = ChatErrorMessageBuilder.build(
+      error.toString(),
+      baseUrl: _settings.baseUrl,
+    );
+    if (!_activeResponseRegistry.containsOwner(owner)) {
+      final runtimeFailure = _runtimeFailureClassifier.classify(
+        error.toString(),
+      );
+      _failRuntimeTurn(
+        owner.interactionGeneration,
+        code: runtimeFailure.code,
+        message: displayError,
+        exitCode: runtimeFailure.exitCode,
+      );
+      appLog('[ChatNotifier]   terminalized unregistered runtime owner');
+      return;
+    }
+
     appLog('[ChatNotifier]   displayError: $displayError');
 
-    final updatedMessages = [...state.messages];
-    final lastIndex = updatedMessages.length - 1;
-    final lastMessage = updatedMessages[lastIndex];
-    updatedMessages[lastIndex] = lastMessage.copyWith(
-      isStreaming: false,
-      error: displayError,
+    final updatedMessages = TurnErrorMessageProjection.apply(
+      messages:
+          _activeResponseRegistry.messagesForOwner(owner) ?? const <Message>[],
+      displayError: displayError,
+      createAssistant: () => Message(
+        id: _uuid.v4(),
+        content: '',
+        role: MessageRole.assistant,
+        timestamp: DateTime.now(),
+        error: displayError,
+      ),
     );
 
-    state = state.copyWith(
-      messages: updatedMessages,
-      isLoading: false,
-      error: displayError,
-    );
-    final runtimeFailure = _runtimeFailureClassifier.classify(error);
+    _activeResponseRegistry.cacheMessagesForOwner(owner, updatedMessages);
+    final ownerIsVisible = conversationId == owner.conversationId;
+    if (ownerIsVisible && ref.mounted) {
+      state = state.copyWith(
+        messages: updatedMessages,
+        isLoading: false,
+        error: displayError,
+      );
+    }
+    final runtimeFailure = _runtimeFailureClassifier.classify(error.toString());
     _failRuntimeTurn(
-      _interactionGeneration,
+      owner.interactionGeneration,
       code: runtimeFailure.code,
       message: displayError,
       exitCode: runtimeFailure.exitCode,
     );
-    _clearTurnDiffCapture();
-    _dispatchExternalToolHook('Stop', error: displayError);
-  }
-
-  String _buildDisplayError(String rawError) {
-    final cleanedError = _cleanRawError(rawError);
-    final lower = cleanedError.toLowerCase();
-
-    if (cleanedError.contains("Only 'text' content type is supported")) {
-      return 'This LLM server does not support image input. Please send text only.\nDetails: $cleanedError';
+    if (owner.interactionGeneration == _interactionGeneration) {
+      _clearTurnDiffCapture();
     }
-    if (lower.contains('failed host lookup') ||
-        lower.contains('socketexception')) {
-      return 'Could not connect to LLM server. Check your network connection and endpoint URL. (${_settings.baseUrl})\nDetails: $cleanedError';
+    if (!ref.mounted) return;
+    if (ownerIsVisible) {
+      _dispatchExternalToolHook('Stop', error: displayError);
     }
-    if (lower.contains('connection refused')) {
-      return 'Could not connect to LLM server. Make sure the server is running. (${_settings.baseUrl})\nDetails: $cleanedError';
-    }
-    if (lower.contains('timed out') || lower.contains('timeout')) {
-      return 'LLM request timed out. Please wait and try again.\nDetails: $cleanedError';
-    }
-    if (lower.contains('401') || lower.contains('unauthorized')) {
-      return 'Authentication failed. Please check your API key.\nDetails: $cleanedError';
-    }
-    if (lower.contains('403') || lower.contains('forbidden')) {
-      return 'Access denied. Please check your API key permissions or server settings.\nDetails: $cleanedError';
-    }
-    if (lower.contains('404') || lower.contains('not found')) {
-      return 'Endpoint or model not found. Please check your settings.\nDetails: $cleanedError';
-    }
-    if (lower.contains('429') || lower.contains('rate limit')) {
-      return 'Too many requests. Please wait a moment and try again.\nDetails: $cleanedError';
-    }
-    if (AppleFoundationModelsException.isUnsupportedLanguageOrLocaleText(
-      cleanedError,
-    )) {
-      return 'The selected local model rejected this language or locale. Try an English prompt, reduce system/tool context, or switch to an OpenAI-compatible provider for this task.\nDetails: $cleanedError';
-    }
-    if (AppleFoundationModelsException.isProviderUnavailableText(
-      cleanedError,
-    )) {
-      return 'Apple Foundation Models is not ready on this device. Check Apple Intelligence, model readiness, device eligibility, and OS support, or switch to an OpenAI-compatible provider.\nDetails: $cleanedError';
-    }
-    if (lower.contains('500') ||
-        lower.contains('502') ||
-        lower.contains('503') ||
-        lower.contains('504') ||
-        lower.contains('server error') ||
-        lower.contains('internal server error')) {
-      return 'An error occurred on the LLM server. Please check the server logs.\nDetails: $cleanedError';
-    }
-    if (lower.contains('json') ||
-        lower.contains('decode') ||
-        lower.contains('parse') ||
-        lower.contains('unexpected')) {
-      return 'Could not parse the response from the LLM server.\nDetails: $cleanedError';
-    }
-
-    return cleanedError;
-  }
-
-  String _cleanRawError(String rawError) {
-    var cleaned = rawError.trim();
-    const prefixes = [
-      'Exception: ',
-      'Bad state: ',
-      'ClientException: ',
-      'Invalid argument(s): ',
-    ];
-
-    for (final prefix in prefixes) {
-      if (cleaned.startsWith(prefix)) {
-        cleaned = cleaned.substring(prefix.length);
+    final messagesToSave = updatedMessages
+        .where((message) => !message.isStreaming)
+        .where(
+          (message) =>
+              message.error != null ||
+              _messagePersistence.shouldKeepVisibleMessage(message),
+        )
+        .toList(growable: false);
+    if (messagesToSave.isNotEmpty) {
+      try {
+        await _messagePersistence.persistMessages(
+          owner.conversationId,
+          messagesToSave,
+        );
+      } catch (persistenceError) {
+        appLog(
+          '[ChatNotifier] Failed to persist turn error for '
+          '${owner.conversationId}: $persistenceError',
+        );
       }
     }
-
-    return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 }

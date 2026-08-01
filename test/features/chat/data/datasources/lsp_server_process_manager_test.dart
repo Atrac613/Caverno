@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -5,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
 import 'package:caverno/features/chat/data/datasources/lsp_server_process_manager.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 
 void main() {
   group('LspServerCommandResolver', () {
@@ -57,6 +59,7 @@ void main() {
 
   group('LspServerProcessManager', () {
     test('starts and reuses a running language server process', () async {
+      final owner = _owner('conversation-a', 1);
       final root = await Directory.systemTemp.createTemp(
         'caverno_lsp_manager_reuse_',
       );
@@ -75,6 +78,7 @@ void main() {
         },
       );
       final manager = LspServerProcessManager(
+        owner: owner,
         backgroundProcessTools: tools,
         executableProbe: const _AvailableLspServerExecutableProbe(),
       );
@@ -96,9 +100,12 @@ void main() {
       expect(tools.startCalls, hasLength(1));
       expect(tools.startCalls.single['command'], 'pyright-langserver --stdio');
       expect(tools.startCalls.single['label'], 'LSP python');
+      expect(tools.startCalls.single['owner'], same(owner));
+      expect(tools.statusCalls.single['owner'], same(owner));
     });
 
     test('replaces an exited language server process', () async {
+      final owner = _owner('conversation-a', 2);
       final root = await Directory.systemTemp.createTemp(
         'caverno_lsp_manager_restart_',
       );
@@ -123,6 +130,7 @@ void main() {
         },
       );
       final manager = LspServerProcessManager(
+        owner: owner,
         backgroundProcessTools: tools,
         executableProbe: const _AvailableLspServerExecutableProbe(),
       );
@@ -140,6 +148,10 @@ void main() {
       expect(second.ok, isTrue);
       expect(second.session!.jobId, 'lsp_2');
       expect(tools.startCalls, hasLength(2));
+      expect(
+        tools.startCalls.map((call) => call['owner']),
+        everyElement(same(owner)),
+      );
     });
 
     test('does not start a process when no language server matches', () async {
@@ -150,6 +162,7 @@ void main() {
       final changedFile = await _writeFile(root, 'README.md', '# Notes\n');
       final tools = _FakeBackgroundProcessTools(startResults: const []);
       final manager = LspServerProcessManager(
+        owner: _owner('conversation-a', 3),
         backgroundProcessTools: tools,
         executableProbe: const _AvailableLspServerExecutableProbe(),
       );
@@ -175,6 +188,7 @@ void main() {
         supported: false,
       );
       final manager = LspServerProcessManager(
+        owner: _owner('conversation-a', 4),
         backgroundProcessTools: tools,
         executableProbe: const _AvailableLspServerExecutableProbe(),
       );
@@ -201,6 +215,7 @@ void main() {
         ],
       );
       final manager = LspServerProcessManager(
+        owner: _owner('conversation-a', 5),
         backgroundProcessTools: tools,
         executableProbe: const _AvailableLspServerExecutableProbe(),
       );
@@ -229,6 +244,7 @@ void main() {
       );
       final tools = _FakeBackgroundProcessTools(startResults: const []);
       final manager = LspServerProcessManager(
+        owner: _owner('conversation-a', 6),
         backgroundProcessTools: tools,
         executableProbe: const _MissingLspServerExecutableProbe(),
       );
@@ -245,7 +261,95 @@ void main() {
       expect(result.metadata, isNotNull);
       expect(tools.startCalls, isEmpty);
     });
+
+    test('clears and retires only the exact turn owner', () async {
+      final owner = _owner('conversation-a', 7);
+      final peerOwner = _owner('conversation-a', 8);
+      final root = await Directory.systemTemp.createTemp(
+        'caverno_lsp_manager_clear_',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final changedFile = await _writeFile(root, 'src/app.py', 'print("hi")\n');
+      final tools = _FakeBackgroundProcessTools(
+        startResults: [
+          jsonEncode({'ok': true, 'status': 'running', 'job_id': 'lsp_1'}),
+        ],
+      );
+      final manager = LspServerProcessManager(
+        owner: owner,
+        backgroundProcessTools: tools,
+        executableProbe: const _AvailableLspServerExecutableProbe(),
+      );
+
+      await manager.ensureStarted(
+        projectRoot: root.path,
+        changedPaths: [changedFile.path],
+      );
+      await manager.clear();
+      await manager.clear();
+      final retired = await manager.ensureStarted(
+        projectRoot: root.path,
+        changedPaths: [changedFile.path],
+      );
+
+      expect(manager.sessions, isEmpty);
+      expect(tools.clearOwnerCalls, [same(owner)]);
+      expect(tools.clearOwnerCalls, isNot(contains(peerOwner)));
+      expect(retired.ok, isFalse);
+      expect(retired.code, 'language_server_owner_retired');
+      expect(tools.startCalls, hasLength(1));
+    });
+
+    test(
+      'does not restore a session after owner cleanup races start',
+      () async {
+        final owner = _owner('conversation-b', 1);
+        final startCompleter = Completer<String>();
+        final root = await Directory.systemTemp.createTemp(
+          'caverno_lsp_manager_late_start_',
+        );
+        addTearDown(() => root.delete(recursive: true));
+        final changedFile = await _writeFile(
+          root,
+          'src/app.py',
+          'print("hi")\n',
+        );
+        final tools = _FakeBackgroundProcessTools(
+          startResults: const [],
+          startHandler: () => startCompleter.future,
+        );
+        final manager = LspServerProcessManager(
+          owner: owner,
+          backgroundProcessTools: tools,
+          executableProbe: const _AvailableLspServerExecutableProbe(),
+        );
+
+        final pendingStart = manager.ensureStarted(
+          projectRoot: root.path,
+          changedPaths: [changedFile.path],
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(tools.startCalls, hasLength(1));
+        await manager.clear();
+        startCompleter.complete(
+          jsonEncode({'ok': true, 'status': 'running', 'job_id': 'late_lsp'}),
+        );
+
+        final result = await pendingStart;
+        expect(result.ok, isFalse);
+        expect(result.code, 'language_server_owner_retired');
+        expect(manager.sessions, isEmpty);
+        expect(tools.clearOwnerCalls, [same(owner)]);
+      },
+    );
   });
+}
+
+ChatTurnOwner _owner(String conversationId, int interactionGeneration) {
+  return ChatTurnOwner(
+    conversationId: conversationId,
+    interactionGeneration: interactionGeneration,
+  );
 }
 
 Future<File> _writeFile(
@@ -263,12 +367,16 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     required this.startResults,
     this.statusResults = const {},
     this.supported = true,
+    this.startHandler,
   });
 
   final List<String> startResults;
   final Map<String, String> statusResults;
   final bool supported;
+  final Future<String> Function()? startHandler;
   final List<Map<String, dynamic>> startCalls = [];
+  final List<Map<String, dynamic>> statusCalls = [];
+  final List<ChatTurnOwner> clearOwnerCalls = [];
   var _startIndex = 0;
 
   @override
@@ -276,15 +384,23 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
 
   @override
   Future<String> start({
+    required ChatTurnOwner owner,
     required String command,
     required String workingDirectory,
     String? label,
   }) async {
-    final call = {'command': command, 'working_directory': workingDirectory};
+    final call = {
+      'owner': owner,
+      'command': command,
+      'working_directory': workingDirectory,
+    };
     if (label != null) {
       call['label'] = label;
     }
     startCalls.add(call);
+    if (startHandler != null) {
+      return startHandler!();
+    }
     if (_startIndex >= startResults.length) {
       return jsonEncode({
         'ok': false,
@@ -298,7 +414,12 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 
   @override
-  Future<String> status({required String jobId, int? tailChars}) async {
+  Future<String> status({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? tailChars,
+  }) async {
+    statusCalls.add({'owner': owner, 'job_id': jobId, 'tail_chars': tailChars});
     return statusResults[jobId] ??
         jsonEncode({
           'ok': false,
@@ -306,6 +427,11 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
           'job_id': jobId,
           'error': 'No background process job exists for job_id: $jobId',
         });
+  }
+
+  @override
+  Future<void> clearOwner({required ChatTurnOwner owner}) async {
+    clearOwnerCalls.add(owner);
   }
 }
 

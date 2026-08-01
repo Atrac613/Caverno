@@ -5,6 +5,87 @@ part of 'chat_notifier_test.dart';
 // (docs/large_file_refactor_plan.md). These tests share the library's
 // private test doubles via the part-of relationship.
 void registerChatNotifierContinuationRecoveryTests() {
+  test('turn finalization recovery selects the owning generation evidence', () {
+    const ownerGeneration = 41;
+    const visibleGeneration = 42;
+    const completedAnswer = 'The Dart implementation completed.';
+    final controller = StreamController<String>();
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(
+          _StreamingChatDataSource(controller),
+        ),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(null),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      if (controller.hasListener) {
+        await controller.close();
+      } else {
+        unawaited(controller.close());
+      }
+    });
+    final notifier = container.read(chatNotifierProvider.notifier);
+    notifier.cacheStreamedToolResultFinalAnswerForTest(
+      generation: ownerGeneration,
+      answer: completedAnswer,
+    );
+    notifier.cacheStreamedToolResultFinalAnswerForTest(
+      generation: visibleGeneration,
+      answer: 'I will inspect the Python source.',
+    );
+    final ownerResults = [
+      ToolResultInfo(
+        id: 'owner-write',
+        name: 'write_file',
+        arguments: const {'path': 'lib/main.dart'},
+        result: jsonEncode({'path': 'lib/main.dart', 'bytes_written': 24}),
+      ),
+    ];
+    final visibleOwnerResults = [
+      ToolResultInfo(
+        id: 'visible-timeout',
+        name: 'local_execute_command',
+        arguments: const {
+          'command': 'dart test',
+          'working_directory': '/workspace/visible',
+        },
+        result: jsonEncode({'error': 'Command timed out.', 'timed_out': true}),
+      ),
+    ];
+
+    expect(
+      notifier.shouldSkipCompletedToolResultFinalAnswerRecoveryForTest(
+        generation: ownerGeneration,
+        candidateResponse: completedAnswer,
+        toolResults: ownerResults,
+      ),
+      isTrue,
+    );
+    expect(
+      notifier.shouldSkipCompletedToolResultFinalAnswerRecoveryForTest(
+        generation: visibleGeneration,
+        candidateResponse: completedAnswer,
+        toolResults: visibleOwnerResults,
+      ),
+      isFalse,
+    );
+  });
+
   test(
     'sendMessage skips continuation recovery for completed tool-role command response',
     () async {
@@ -834,7 +915,7 @@ todo_app.md \u3092\u8aad\u3093\u3067Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30
             () => _FixedCodingProjectsNotifier(project),
           ),
           mcpToolServiceProvider.overrideWithValue(toolService),
-          skillsNotifierProvider.overrideWith(_RecordingSkillsNotifier.new),
+          skillRepositoryProvider.overrideWithValue(SkillRepository.inMemory()),
           appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
           backgroundTaskServiceProvider.overrideWithValue(
             _TestBackgroundTaskService(),

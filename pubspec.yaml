@@ -146,6 +146,8 @@ dev_dependencies:
     sdk: flutter
 
   # Testing
+  analyzer: ^10.2.0
+  coverage: ^1.15.1
   mocktail: ^1.0.5
   # Used by test/quality/lexical_guard_advisory_test.dart to resolve relative
   # imports; hand-rolled path normalization is exactly where that test first

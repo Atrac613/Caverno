@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
@@ -1073,6 +1074,10 @@ PendingLocalCommand _pendingLocalCommand({
   required String workingDirectory,
 }) {
   return PendingLocalCommand(
+    owner: ChatTurnOwner(
+      conversationId: 'plan-mode-live-harness',
+      interactionGeneration: 1,
+    ),
     id: 'local-command',
     command: command,
     workingDirectory: workingDirectory,

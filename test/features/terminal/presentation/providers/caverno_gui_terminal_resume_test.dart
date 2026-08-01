@@ -12,6 +12,7 @@ import 'package:caverno/features/chat/data/datasources/app_database.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/tool_result_artifact_store.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
@@ -343,7 +344,7 @@ final class _TerminalResumeChatNotifier extends ChatNotifier {
   }
 
   @override
-  Future<void> sendMessage(
+  Future<ChatTurnOwner?> sendMessage(
     String content, {
     String? imageBase64,
     String? imageMimeType,
@@ -390,6 +391,7 @@ final class _TerminalResumeChatNotifier extends ChatNotifier {
     state = state.copyWith(messages: messages);
     handle.emitAssistantDelta(reply);
     handle.complete(content: reply);
+    return null;
   }
 
   @override

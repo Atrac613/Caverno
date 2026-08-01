@@ -62,7 +62,7 @@ void main() {
       final runner = ParticipantCompletionRunner(meshRunner: meshRunner);
       final chunks = <String>[];
 
-      await runner.stream(
+      final metadata = await runner.stream(
         primary: _FakeChatDataSource('primary', chunks: ['primary']),
         settings: _settings(endpoints: [endpoint]),
         request: ParticipantCompletionRequest(
@@ -77,6 +77,7 @@ void main() {
       );
 
       expect(chunks, ['mesh']);
+      expect(metadata?.finishReason, 'stop');
       expect(builtDataSources.single.requests.single.model, 'mesh-model');
       expect(builtDataSources.single.requests.single.temperature, 0.25);
       expect(builtDataSources.single.requests.single.maxTokens, 123);
@@ -96,7 +97,7 @@ void main() {
     final runner = ParticipantCompletionRunner(meshRunner: meshRunner);
     final chunks = <String>[];
 
-    await runner.stream(
+    final metadata = await runner.stream(
       primary: primary,
       settings: _settings(endpoints: [endpoint]),
       request: ParticipantCompletionRequest(
@@ -111,6 +112,7 @@ void main() {
     );
 
     expect(chunks, ['fallback']);
+    expect(metadata?.finishReason, 'stop');
     expect(primary.requests.single.model, 'primary-model');
     expect(health.isUnhealthy(endpoint.id), isTrue);
   });
@@ -126,7 +128,7 @@ void main() {
     final chunks = <String>[];
     var checks = 0;
 
-    await runner.stream(
+    final metadata = await runner.stream(
       primary: _FakeChatDataSource('primary', chunks: ['a', 'b']),
       settings: _settings(endpoints: const []),
       request: ParticipantCompletionRequest(
@@ -141,6 +143,7 @@ void main() {
     );
 
     expect(chunks, ['a']);
+    expect(metadata, isNull);
   });
 
   test('executes participant tools and streams the follow-up answer', () async {
@@ -169,6 +172,11 @@ void main() {
           completion: ChatCompletionResult(
             content: 'Final answer',
             finishReason: 'stop',
+            usage: const TokenUsage(
+              promptTokens: 20,
+              completionTokens: 5,
+              totalTokens: 25,
+            ),
           ),
         ),
       ],
@@ -183,7 +191,7 @@ void main() {
     final chunks = <String>[];
     final toolCalls = <ToolCallInfo>[];
 
-    await runner.stream(
+    final metadata = await runner.stream(
       primary: primary,
       settings: _settings(endpoints: const []),
       request: ParticipantCompletionRequest(
@@ -207,6 +215,8 @@ void main() {
     );
 
     expect(chunks, ['Final answer']);
+    expect(metadata?.finishReason, 'stop');
+    expect(metadata?.usage.totalTokens, 25);
     expect(toolCalls.single.name, 'read_file');
     expect(primary.toolRequests, hasLength(2));
     expect(_toolNames(primary.toolRequests.first.tools), ['read_file']);
@@ -271,7 +281,7 @@ class _FakeChatDataSource extends ChatDataSource {
   int _toolResponseIndex = 0;
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
@@ -287,9 +297,14 @@ class _FakeChatDataSource extends ChatDataSource {
     );
     final streamError = error;
     if (streamError != null) {
-      return Stream<String>.error(streamError);
+      return StreamedChatCompletion.fromStream(
+        Stream<String>.error(streamError),
+      );
     }
-    return Stream<String>.fromIterable(chunks);
+    return StreamedChatCompletion.fromStream(
+      Stream<String>.fromIterable(chunks),
+      finishReason: 'stop',
+    );
   }
 
   @override

@@ -5,6 +5,7 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
@@ -95,7 +96,7 @@ class _SlashChatNotifier extends ChatNotifier {
   }
 
   @override
-  Future<void> sendMessage(
+  Future<ChatTurnOwner?> sendMessage(
     String content, {
     String? imageBase64,
     String? imageMimeType,
@@ -107,6 +108,7 @@ class _SlashChatNotifier extends ChatNotifier {
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
   }) async {
     sentMessages.add(content);
+    return null;
   }
 }
 
@@ -373,7 +375,9 @@ class _SlashConversationsNotifier extends ConversationsNotifier {
   }
 
   @override
-  Future<void> ensureCurrentPlanArtifactBackfilled() async {}
+  Future<void> ensureCurrentPlanArtifactBackfilled({
+    String? conversationId,
+  }) async {}
 
   void _replaceCurrentConversation(Conversation updated) {
     state = state.copyWith(

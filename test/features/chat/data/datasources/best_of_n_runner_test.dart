@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/chat/data/datasources/best_of_n_runner.dart';
 import 'package:caverno/features/chat/data/datasources/file_rollback_checkpoint_store.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/best_of_n_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/coding_verification_feedback_service.dart';
@@ -80,6 +81,7 @@ void main() {
     late Directory tempDir;
     late File target;
     late FileRollbackCheckpointStore store;
+    late ChatTurnOwner owner;
 
     setUp(() {
       tempDir = Directory.systemTemp.createTempSync('best_of_n_runner_test_');
@@ -87,6 +89,10 @@ void main() {
         ..createSync(recursive: true)
         ..writeAsStringSync('original');
       store = FileRollbackCheckpointStore();
+      owner = ChatTurnOwner(
+        conversationId: 'best-of-n',
+        interactionGeneration: 1,
+      );
     });
 
     tearDown(() {
@@ -97,13 +103,11 @@ void main() {
     // filesystem tools do before a write), then write the new content.
     BestOfNGenerationStep editingGenerator(String Function(int) contentFor) {
       return (index) async {
-        store.push(
-          TextFileSnapshot(
-            path: target.path,
-            exists: true,
-            content: target.readAsStringSync(),
-          ),
-        );
+        // Capture the way the filesystem tools do, rather than assembling a
+        // snapshot by hand: a hand-built one carries no resolvedPathKey, so the
+        // checkpoint records a lexical key while rollback compares the resolved
+        // one, and on macOS /var and /tmp are symlinks — the two never match.
+        store.push(owner, await FilesystemTools.captureTextSnapshot(target.path));
         target.writeAsStringSync(contentFor(index));
         return BestOfNGeneration(
           summary: 'edited a.dart',
@@ -115,6 +119,7 @@ void main() {
     test('discards a non-winning candidate, restoring the file', () async {
       final runner = CheckpointVerificationBestOfNRunner(
         checkpointStore: store,
+        owner: owner,
         verifier: _QueuedVerifier([false]),
         generate: editingGenerator((i) => 'candidate $i'),
       );
@@ -128,9 +133,51 @@ void main() {
       expect(target.readAsStringSync(), 'original', reason: 'no residue');
     });
 
+    test('discard never alters another owner checkpoint', () async {
+      final otherOwner = ChatTurnOwner(
+        conversationId: 'best-of-n-peer',
+        interactionGeneration: owner.interactionGeneration,
+      );
+      final otherTarget = File('${tempDir.path}/lib/peer.dart')
+        ..writeAsStringSync('peer original');
+      store.beginFileTurnCheckpoint(otherOwner, 'peer_turn');
+      store.push(
+        otherOwner,
+        await FilesystemTools.captureTextSnapshot(otherTarget.path),
+      );
+      otherTarget.writeAsStringSync('peer edit');
+      store.endFileTurnCheckpoint(otherOwner);
+
+      final runner = CheckpointVerificationBestOfNRunner(
+        checkpointStore: store,
+        owner: owner,
+        verifier: _QueuedVerifier([false]),
+        generate: editingGenerator((i) => 'candidate $i'),
+      );
+
+      await runner.generateCandidate(0);
+      await runner.discardCandidate(0);
+
+      expect(target.readAsStringSync(), 'original');
+      expect(otherTarget.readAsStringSync(), 'peer edit');
+      expect(
+        (await store.previewLastFileTurnCheckpoint(otherOwner))?.turnId,
+        'peer_turn',
+      );
+
+      final peerPreview = await store.previewLastFileTurnCheckpoint(otherOwner);
+      final peerRollback = await store.rollbackLastFileTurnCheckpoint(
+        otherOwner,
+        peerPreview!.checkpointToken,
+      );
+      expect(peerRollback.isSuccess, isTrue);
+      expect(otherTarget.readAsStringSync(), 'peer original');
+    });
+
     test('keeps a winning candidate in place', () async {
       final runner = CheckpointVerificationBestOfNRunner(
         checkpointStore: store,
+        owner: owner,
         verifier: _QueuedVerifier([true]),
         generate: editingGenerator((i) => 'winner $i'),
       );
@@ -145,8 +192,9 @@ void main() {
       'a no-edit candidate never rolls back a pre-existing checkpoint',
       () async {
         // A prior user turn edited the file and sits on the checkpoint stack.
-        store.beginFileTurnCheckpoint('user_turn');
+        store.beginFileTurnCheckpoint(owner, 'user_turn');
         store.push(
+          owner,
           TextFileSnapshot(
             path: target.path,
             exists: true,
@@ -154,10 +202,11 @@ void main() {
           ),
         );
         target.writeAsStringSync('user edit');
-        store.endFileTurnCheckpoint();
+        store.endFileTurnCheckpoint(owner);
 
         final runner = CheckpointVerificationBestOfNRunner(
           checkpointStore: store,
+          owner: owner,
           verifier: _QueuedVerifier([false]),
           generate: (index) async =>
               const BestOfNGeneration(summary: 'no changes', changedPaths: []),
@@ -176,6 +225,7 @@ void main() {
       final verifier = _QueuedVerifier([false]);
       final runner = CheckpointVerificationBestOfNRunner(
         checkpointStore: store,
+        owner: owner,
         verifier: verifier,
         generate: editingGenerator((i) => 'c$i'),
       );
@@ -192,6 +242,7 @@ void main() {
       () async {
         final runner = CheckpointVerificationBestOfNRunner(
           checkpointStore: store,
+          owner: owner,
           verifier: _QueuedVerifier([false, true]),
           generate: editingGenerator((i) => 'candidate $i'),
         );

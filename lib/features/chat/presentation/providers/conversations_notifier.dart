@@ -25,6 +25,7 @@ import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
+import 'mcp_tool_provider.dart';
 
 /// State for the conversation list.
 class ConversationsState {
@@ -80,6 +81,13 @@ class ConversationsState {
       return null;
     }
   }
+
+  Conversation? conversationForId(String? conversationId) =>
+      conversationId == null
+      ? currentConversation
+      : conversations
+            .where((candidate) => candidate.id == conversationId)
+            .firstOrNull;
 
   List<Conversation> get visibleConversations {
     if (!activeWorkspaceMode.usesConversations) {
@@ -551,6 +559,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
   /// Deletes a conversation.
   Future<void> deleteConversation(String id) async {
+    await _retireRollbacks([id]);
     await _repository.delete(id);
     await _deleteToolResultArtifactsForIds([id]);
     _removeSemanticIndex([id]);
@@ -574,6 +583,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final visibleConversationIds = state.visibleConversations
         .map((conversation) => conversation.id)
         .toList(growable: false);
+    await _retireRollbacks(visibleConversationIds);
     for (final id in visibleConversationIds) {
       await _repository.delete(id);
     }
@@ -603,6 +613,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         )
         .map((conversation) => conversation.id)
         .toList(growable: false);
+    await _retireRollbacks(targetIds);
     for (final id in targetIds) {
       await _repository.delete(id);
     }
@@ -800,6 +811,13 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     }
   }
 
+  Future<void> _retireRollbacks(Iterable<String> conversationIds) async {
+    final store = ref.read(fileRollbackCheckpointStoreProvider);
+    for (final id in conversationIds) {
+      await store.retireConversation(id);
+    }
+  }
+
   /// The semantic indexer, or null when semantic search is off or its provider
   /// chain is unavailable (e.g. unit tests without a settings override). Never
   /// throws — indexing is best-effort and must not break the chat loop.
@@ -902,8 +920,9 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     DateTime? workflowDerivedAt,
     bool clearWorkflowSpec = false,
     bool preserveWorkflowProjection = false,
+    String? conversationId,
   }) async {
-    final conversation = state.currentConversation;
+    final conversation = state.conversationForId(conversationId);
     if (conversation == null) return;
 
     final nextStage = workflowStage ?? conversation.workflowStage;
@@ -934,7 +953,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     );
 
     await _persistUpdatedConversation(updatedConversation);
-    await ensureCurrentPlanArtifactBackfilled();
+    await ensureCurrentPlanArtifactBackfilled(conversationId: conversation.id);
   }
 
   /// Writes the plan artifact to [conversationId], or to the visible thread
@@ -945,11 +964,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     bool clearPlanArtifact = false,
     String? conversationId,
   }) async {
-    final conversation = conversationId == null
-        ? state.currentConversation
-        : state.conversations
-              .where((candidate) => candidate.id == conversationId)
-              .firstOrNull;
+    final conversation = state.conversationForId(conversationId);
     if (conversation == null) return;
 
     final nextPlanArtifact = clearPlanArtifact
@@ -1111,14 +1126,18 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   /// produced an ack and the transition was lexical-only, which meant a model
   /// that followed the tool's own instruction ("prose is not how the goal is
   /// finished") could finish the work and leave the goal running forever.
+  ///
+  /// [conversationId] targets a detached owner explicitly. Omitting it keeps
+  /// the current-conversation behavior used by UI actions and existing callers.
   Future<bool> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
         const ToolResultCompletionEvidence(),
     bool toolCompletionClaimed = false,
+    String? conversationId,
   }) async {
-    final conversation = state.currentConversation;
+    final conversation = state.conversationForId(conversationId);
     final goal = conversation?.goal;
     if (conversation == null || goal == null || !goal.isActive) {
       return false;
@@ -1197,12 +1216,15 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       );
     }
 
-    await _persistCurrentGoal(nextGoal);
+    await _persistCurrentGoal(nextGoal, conversationId: conversation.id);
     return lexicalCompleted;
   }
 
-  Future<void> _persistCurrentGoal(ConversationGoal goal) async {
-    final conversation = state.currentConversation;
+  Future<void> _persistCurrentGoal(
+    ConversationGoal goal, {
+    String? conversationId,
+  }) async {
+    final conversation = state.conversationForId(conversationId);
     if (conversation == null) {
       return;
     }
@@ -1232,8 +1254,13 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     ConversationExecutionTaskEventType? eventType,
     String? eventSummary,
     DateTime? eventTimestamp,
+    String? conversationId,
   }) async {
-    final conversation = state.currentConversation;
+    final conversation = conversationId == null
+        ? state.currentConversation
+        : state.conversations
+              .where((candidate) => candidate.id == conversationId)
+              .firstOrNull;
     if (conversation == null) {
       return;
     }
@@ -1318,8 +1345,12 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     await _persistUpdatedConversation(updatedConversation);
   }
 
-  Future<void> recordCurrentMutationGeneration() async {
-    final conversation = state.currentConversation;
+  Future<void> recordMutationGeneration({
+    required String conversationId,
+  }) async {
+    final conversation = state.conversations
+        .where((candidate) => candidate.id == conversationId)
+        .firstOrNull;
     if (conversation == null) return;
     await _persistUpdatedConversation(
       conversation.copyWith(
@@ -1329,8 +1360,12 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     );
   }
 
-  Future<void> recordCurrentVerificationGeneration() async {
-    final conversation = state.currentConversation;
+  Future<void> recordVerificationGeneration({
+    required String conversationId,
+  }) async {
+    final conversation = state.conversations
+        .where((candidate) => candidate.id == conversationId)
+        .firstOrNull;
     if (conversation == null) return;
     await _persistUpdatedConversation(
       conversation.copyWith(
@@ -1338,6 +1373,12 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         updatedAt: DateTime.now(),
       ),
     );
+  }
+
+  Future<void> recordCurrentVerificationGeneration() async {
+    final currentConversationId = state.currentConversationId;
+    if (currentConversationId == null) return;
+    await recordVerificationGeneration(conversationId: currentConversationId);
   }
 
   Future<void> updateCurrentExecutionTaskProgressFromAssistantTurn({
@@ -1610,8 +1651,14 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     await _persistUpdatedConversation(updatedConversation);
   }
 
-  Future<void> ensureCurrentPlanArtifactBackfilled() async {
-    final conversation = state.currentConversation;
+  Future<void> ensureCurrentPlanArtifactBackfilled({
+    String? conversationId,
+  }) async {
+    final conversation = conversationId == null
+        ? state.currentConversation
+        : state.conversations
+              .where((candidate) => candidate.id == conversationId)
+              .firstOrNull;
     if (conversation == null ||
         conversation.hasPlanArtifact ||
         !conversation.hasWorkflowContext) {

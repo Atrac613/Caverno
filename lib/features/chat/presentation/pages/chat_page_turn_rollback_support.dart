@@ -71,7 +71,7 @@ extension _ChatPageTurnRollbackSupport on _ChatPageState {
 
     final result = await ref
         .read(chatNotifierProvider.notifier)
-        .rollbackLastFileTurnChanges();
+        .rollbackLastFileTurnChanges(preview.owner, preview.checkpointToken);
     if (!mounted) {
       return;
     }

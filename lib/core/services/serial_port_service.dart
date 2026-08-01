@@ -15,11 +15,13 @@ class _OpenPort {
     required this.port,
     required this.reader,
     required this.config,
+    required this.sessionFingerprint,
   });
 
   final SerialPort port;
   final SerialPortReader reader;
   final SerialPortConfig config;
+  final String sessionFingerprint;
 
   /// Set immediately after construction (the subscription needs `this`).
   late final StreamSubscription<Uint8List> subscription;
@@ -33,6 +35,8 @@ class _OpenPort {
   /// Last error emitted by the read stream (e.g. device unplugged).
   String? lastError;
 }
+
+enum SerialPortConditionalCloseKind { closed, alreadyAbsent, sessionMismatch }
 
 /// Manages serial port discovery and buffered read/write sessions.
 ///
@@ -53,6 +57,7 @@ class SerialPortService {
   static const int _readerTimeoutMs = 500;
 
   final Map<String, _OpenPort> _openPorts = {};
+  int _lastSessionEpoch = 0;
 
   /// Serial ports are only available on desktop platforms.
   static bool get isSupported =>
@@ -155,7 +160,13 @@ class SerialPortService {
       port.config = config;
 
       final reader = SerialPortReader(port, timeout: _readerTimeoutMs);
-      final open = _OpenPort(port: port, reader: reader, config: config);
+      final sessionFingerprint = 'serial-session-${++_lastSessionEpoch}';
+      final open = _OpenPort(
+        port: port,
+        reader: reader,
+        config: config,
+        sessionFingerprint: sessionFingerprint,
+      );
       open.subscription = reader.stream.listen(
         (data) => _appendToBuffer(open, data),
         onError: (Object e) {
@@ -175,6 +186,7 @@ class SerialPortService {
         'parity': parity,
         'stop_bits': stopBits,
         'flow_control': flowControl,
+        'session_fingerprint': sessionFingerprint,
         'message': 'Port opened. Incoming data is now buffered; '
             'call serial_read to retrieve it.',
       });
@@ -348,6 +360,33 @@ class SerialPortService {
       'port': portName,
       'message': 'Closed $portName',
     });
+  }
+
+  /// Returns the opaque identity of the currently open session, if any.
+  String? sessionFingerprint(String portName) {
+    return _openPorts[portName]?.sessionFingerprint;
+  }
+
+  /// Closes only the session that still matches [expectedFingerprint].
+  ///
+  /// The map entry is removed before the first asynchronous suspension, so a
+  /// successor session cannot be detached by cleanup for an expired owner.
+  Future<SerialPortConditionalCloseKind> closeIfSessionMatches(
+    String portName,
+    String expectedFingerprint,
+  ) async {
+    final open = _openPorts[portName];
+    if (open == null) return SerialPortConditionalCloseKind.alreadyAbsent;
+    if (expectedFingerprint.trim().isEmpty ||
+        open.sessionFingerprint != expectedFingerprint) {
+      return SerialPortConditionalCloseKind.sessionMismatch;
+    }
+    if (!identical(_openPorts.remove(portName), open)) {
+      return SerialPortConditionalCloseKind.sessionMismatch;
+    }
+    await _disposeOpenPort(open);
+    appLog('[SerialPortService] conditionally closed $portName');
+    return SerialPortConditionalCloseKind.closed;
   }
 
   /// Release every open port. Call on provider disposal.

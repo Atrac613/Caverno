@@ -18,6 +18,7 @@ import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
@@ -526,7 +527,7 @@ class _WeatherCodeLiveDataSource implements ChatDataSource {
   }
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
@@ -1091,6 +1092,13 @@ class _WeatherCodeToolService extends McpToolService {
       },
     ];
   }
+
+  @override
+  Future<McpToolResult> executeFileTool({
+    required ChatTurnOwner owner,
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) => executeTool(name: name, arguments: arguments);
 
   @override
   Future<McpToolResult> executeTool({

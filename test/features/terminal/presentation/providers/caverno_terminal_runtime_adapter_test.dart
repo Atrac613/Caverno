@@ -48,7 +48,10 @@ void main() {
   });
 
   test('resolves a production local-command pending action', () async {
+    final owner = notifier.registerApprovalOwnerForTest('terminal-test');
+    notifier.conversationId = owner.conversationId;
     final result = notifier.requestLocalCommand(
+      owner: owner,
       command: 'dart test',
       workingDirectory: '/tmp/project',
     );
@@ -58,6 +61,232 @@ void main() {
 
     expect((await result).approved, isTrue);
     expect(container.read(chatNotifierProvider).pendingLocalCommand, isNull);
+  });
+
+  test('rejects a stale approval without clearing its successor', () async {
+    final ownerA = notifier.registerApprovalOwnerForTest('terminal-test');
+    notifier.conversationId = ownerA.conversationId;
+    final resultA = notifier.requestLocalCommand(
+      owner: ownerA,
+      command: 'dart test stale',
+      workingDirectory: '/tmp/project',
+    );
+    final idA = container.read(chatNotifierProvider).pendingLocalCommand!.id;
+
+    final ownerB = notifier.registerApprovalOwnerForTest('terminal-test');
+    final resultB = notifier.requestLocalCommand(
+      owner: ownerB,
+      command: 'dart test current',
+      workingDirectory: '/tmp/project',
+    );
+    final pendingB = container.read(chatNotifierProvider).pendingLocalCommand!;
+
+    await adapter.resolveApproval(id: idA, approved: true);
+
+    expect((await resultA).approved, isFalse);
+    expect(
+      container.read(chatNotifierProvider).pendingLocalCommand,
+      same(pendingB),
+    );
+    notifier.resolveLocalCommand(
+      id: pendingB.id,
+      approval: const LocalCommandApproval(approved: true),
+    );
+    expect((await resultB).approved, isTrue);
+  });
+
+  test('clearMessages settles pending command approvals as denied', () async {
+    final owner = notifier.registerApprovalOwnerForTest('terminal-test');
+    notifier.conversationId = owner.conversationId;
+    final result = notifier.requestLocalCommand(
+      owner: owner,
+      command: 'dart test',
+      workingDirectory: '/tmp/project',
+    );
+    final id = container.read(chatNotifierProvider).pendingLocalCommand!.id;
+
+    notifier.clearMessages();
+
+    expect((await result).approved, isFalse);
+    expect(container.read(chatNotifierProvider).pendingLocalCommand, isNull);
+    notifier.resolveLocalCommand(
+      id: id,
+      approval: const LocalCommandApproval(approved: true),
+    );
+    expect(container.read(chatNotifierProvider).pendingLocalCommand, isNull);
+  });
+
+  test('resolves a production browser pending action', () async {
+    final owner = notifier.registerApprovalOwnerForTest('terminal-test');
+    notifier.conversationId = owner.conversationId;
+    final result = notifier.requestBrowserAction(
+      owner: owner,
+      toolName: 'browser_click',
+      title: 'Click an element',
+      riskLabel: 'Page interaction',
+      warningMessage: 'This action changes browser state.',
+      approveLabel: 'Click',
+      summary: 'Click the submit button',
+      details: const <String>['Tool: browser_click'],
+      targetSummary: 'Submit button',
+    );
+    final id = container.read(chatNotifierProvider).pendingBrowserAction!.id;
+
+    await adapter.resolveApproval(id: id, approved: true);
+
+    expect(await result, isTrue);
+    expect(container.read(chatNotifierProvider).pendingBrowserAction, isNull);
+  });
+
+  test('stale browser approval cannot clear its successor', () async {
+    final ownerA = notifier.registerApprovalOwnerForTest('terminal-test');
+    notifier.conversationId = ownerA.conversationId;
+    final resultA = notifier.requestBrowserAction(
+      owner: ownerA,
+      toolName: 'browser_click',
+      title: 'Click stale element',
+      riskLabel: 'Page interaction',
+      warningMessage: 'This action changes browser state.',
+      approveLabel: 'Click',
+      summary: 'Click the stale button',
+      details: const <String>['Tool: browser_click'],
+    );
+    final idA = container.read(chatNotifierProvider).pendingBrowserAction!.id;
+
+    final ownerB = notifier.registerApprovalOwnerForTest('terminal-test');
+    final resultB = notifier.requestBrowserAction(
+      owner: ownerB,
+      toolName: 'browser_submit',
+      title: 'Submit current form',
+      riskLabel: 'Page interaction',
+      warningMessage: 'This action submits the current form.',
+      approveLabel: 'Submit',
+      summary: 'Submit the current form',
+      details: const <String>['Tool: browser_submit'],
+    );
+    final pendingB = container.read(chatNotifierProvider).pendingBrowserAction!;
+
+    await adapter.resolveApproval(id: idA, approved: true);
+
+    expect(await resultA, isFalse);
+    expect(
+      container.read(chatNotifierProvider).pendingBrowserAction,
+      same(pendingB),
+    );
+
+    await adapter.resolveApproval(id: pendingB.id, approved: true);
+
+    expect(await resultB, isTrue);
+    expect(container.read(chatNotifierProvider).pendingBrowserAction, isNull);
+  });
+
+  test(
+    'stale participant approval resolution is an idempotent no-op',
+    () async {
+      const staleId = 'stale-participant-approval';
+
+      expect(
+        notifier.resolveParticipantToolApproval(id: staleId, approved: true),
+        isFalse,
+      );
+
+      await adapter.resolveApproval(id: staleId, approved: true);
+
+      expect(
+        notifier.resolveParticipantToolApproval(id: staleId, approved: false),
+        isFalse,
+      );
+      expect(
+        container.read(chatNotifierProvider).pendingParticipantToolApproval,
+        isNull,
+      );
+    },
+  );
+
+  test('clearMessages safely settles pending device approvals', () async {
+    final owner = notifier.registerApprovalOwnerForTest('terminal-test');
+    notifier.conversationId = owner.conversationId;
+    final browserResult = notifier.requestBrowserAction(
+      owner: owner,
+      toolName: 'browser_click',
+      title: 'Click an element',
+      riskLabel: 'Page interaction',
+      warningMessage: 'This action changes browser state.',
+      approveLabel: 'Click',
+      summary: 'Click the submit button',
+      details: const <String>['Tool: browser_click'],
+    );
+    final bleResult = notifier.requestBleConnect(
+      owner: owner,
+      deviceId: 'device-1',
+      deviceName: 'Test device',
+    );
+    final serialResult = notifier.requestSerialOpen(
+      owner: owner,
+      portName: '/dev/tty.test',
+      baudRate: 115200,
+    );
+    final browserId = container
+        .read(chatNotifierProvider)
+        .pendingBrowserAction!
+        .id;
+    final bleId = container.read(chatNotifierProvider).pendingBleConnect!.id;
+    final serialId = container.read(chatNotifierProvider).pendingSerialOpen!.id;
+
+    notifier.clearMessages();
+
+    expect(await browserResult, isFalse);
+    expect(await bleResult, isFalse);
+    expect(await serialResult, isFalse);
+    expect(container.read(chatNotifierProvider).pendingBrowserAction, isNull);
+    expect(container.read(chatNotifierProvider).pendingBleConnect, isNull);
+    expect(container.read(chatNotifierProvider).pendingSerialOpen, isNull);
+
+    await adapter.resolveApproval(id: browserId, approved: true);
+    await adapter.resolveApproval(id: bleId, approved: true);
+    await adapter.resolveApproval(id: serialId, approved: true);
+
+    expect(container.read(chatNotifierProvider).pendingBrowserAction, isNull);
+    expect(container.read(chatNotifierProvider).pendingBleConnect, isNull);
+    expect(container.read(chatNotifierProvider).pendingSerialOpen, isNull);
+  });
+
+  test('terminal approval always denies Computer Use actions', () async {
+    final owner = notifier.registerApprovalOwnerForTest('terminal-test');
+    notifier.conversationId = owner.conversationId;
+    final result = notifier.requestComputerUseAction(
+      owner: owner,
+      toolName: 'macos_click',
+      title: 'Click a control',
+      riskCategory: 'interaction',
+      riskLabel: 'Computer interaction',
+      warningMessage: 'This action controls the computer.',
+      approveLabel: 'Click',
+      requiresUserApproval: true,
+      requiresSmokeArming: false,
+      emergencyStop: false,
+      approvalBoundaries: const <String>['One click'],
+      approvalBlockerCodes: const <String>[],
+      summary: 'Click the Save button',
+      details: const <String>['App: Test'],
+      targetSummary: 'Save button',
+      targetDetails: const <String>['Window: Test'],
+    );
+    final id = container
+        .read(chatNotifierProvider)
+        .pendingComputerUseAction!
+        .id;
+
+    await adapter.resolveApproval(id: id, approved: true);
+
+    final decision = await result;
+    expect(decision.approved, isFalse);
+    expect(decision.armed, isFalse);
+    expect(decision.blockerCode, 'approval_denied');
+    expect(
+      container.read(chatNotifierProvider).pendingComputerUseAction,
+      isNull,
+    );
   });
 
   test(

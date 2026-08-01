@@ -468,7 +468,7 @@ class _FakeDiagnosticDataSource implements ChatDataSource {
   }
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
@@ -594,7 +594,7 @@ class _UnsupportedLanguageDataSource implements ChatDataSource {
   }
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,

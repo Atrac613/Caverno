@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/routines/data/routine_repository.dart';
 import 'package:caverno/features/routines/data/routine_execution_service.dart';
 import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/routines/presentation/providers/routines_notifier.dart';
@@ -22,6 +24,7 @@ void main() {
     RoutineExecutionService? executionService,
     NotificationService? notificationService,
     GoogleChatDeliveryService? googleChatDeliveryService,
+    RoutineRepositoryApi? repository,
     AppSettings? settings,
   }) async {
     SharedPreferences.setMockInitialValues({
@@ -34,6 +37,8 @@ void main() {
     return ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
+        if (repository != null)
+          routineRepositoryProvider.overrideWithValue(repository),
         settingsNotifierProvider.overrideWith(
           () => _FixedSettingsNotifier(settings ?? AppSettings.defaults()),
         ),
@@ -85,7 +90,601 @@ void main() {
     );
   }
 
+  Future<RoutineCreationReceipt> createReceipt(
+    RoutinesNotifier notifier, {
+    String name = 'Morning summary',
+    RoutineCreationReceiptBinding? binding,
+  }) async {
+    final attempt = await notifier.attemptRoutineCreationWithReceipt(
+      binding: binding ?? _receiptBinding(),
+      preEffectOwnerIsCurrent: (_) => true,
+      name: name,
+      prompt: 'Summarize the latest updates.',
+      intervalValue: 1,
+      intervalUnit: RoutineIntervalUnit.hours,
+      scheduleMode: RoutineScheduleMode.interval,
+      timeOfDayMinutes: 0,
+      enabled: true,
+      notifyOnCompletion: true,
+      toolsEnabled: false,
+      completionAction: RoutineCompletionAction.none,
+      googleChatRule: RoutineGoogleChatRule.onFailure,
+    );
+    expect(attempt.disposition, RoutineCreationCommitDisposition.committed);
+    return attempt.receipt;
+  }
+
+  Future<RoutineCreationAttempt> createAttempt(
+    RoutinesNotifier notifier, {
+    required RoutineCreationReceiptBinding binding,
+    String name = 'Morning summary',
+    RoutineCreationPreEffectGuard? preEffectOwnerIsCurrent,
+  }) {
+    return notifier.attemptRoutineCreationWithReceipt(
+      binding: binding,
+      preEffectOwnerIsCurrent: preEffectOwnerIsCurrent ?? (_) => true,
+      name: name,
+      prompt: 'Summarize the latest updates.',
+      intervalValue: 1,
+      intervalUnit: RoutineIntervalUnit.hours,
+      scheduleMode: RoutineScheduleMode.interval,
+      timeOfDayMinutes: 0,
+      enabled: true,
+      notifyOnCompletion: true,
+      toolsEnabled: false,
+      completionAction: RoutineCompletionAction.none,
+      googleChatRule: RoutineGoogleChatRule.onFailure,
+    );
+  }
+
+  Future<void> createLocalRoutine(
+    RoutinesNotifier notifier, {
+    String name = 'Local routine',
+  }) => notifier.createRoutine(
+    name: name,
+    prompt: 'Summarize the latest updates.',
+    intervalValue: 1,
+    intervalUnit: RoutineIntervalUnit.hours,
+    scheduleMode: RoutineScheduleMode.interval,
+    timeOfDayMinutes: 0,
+    enabled: true,
+    notifyOnCompletion: true,
+    toolsEnabled: false,
+    completionAction: RoutineCompletionAction.none,
+    googleChatRule: RoutineGoogleChatRule.onFailure,
+  );
+
   group('RoutinesNotifier', () {
+    test('settles an exact routine creation receipt', () async {
+      final container = await createContainer(initialRoutines: const []);
+      addTearDown(container.dispose);
+      final notifier = container.read(routinesNotifierProvider.notifier);
+
+      final receipt = await createReceipt(notifier);
+
+      expect(notifier.findRoutine(receipt.routine.id), receipt.routine);
+      expect(
+        await notifier.prepareRoutineCreationSettlement(receipt.claim),
+        RoutineCreationSettlementDisposition.prepared,
+      );
+      expect(
+        await notifier.releaseRoutineCreationSettlement(receipt.claim),
+        isTrue,
+      );
+      expect(
+        await notifier.prepareRoutineCreationSettlement(receipt.claim),
+        RoutineCreationSettlementDisposition.released,
+      );
+      expect(notifier.findRoutine(receipt.routine.id), receipt.routine);
+    });
+
+    test('reverts an unchanged routine creation exactly once', () async {
+      final container = await createContainer(initialRoutines: const []);
+      addTearDown(container.dispose);
+      final notifier = container.read(routinesNotifierProvider.notifier);
+      final receipt = await createReceipt(notifier);
+
+      final disposition = await notifier.compensateRoutineCreation(
+        receipt.claim,
+      );
+
+      expect(disposition, RoutineCreationCompensationDisposition.reverted);
+      expect(notifier.findRoutine(receipt.routine.id), isNull);
+      expect(
+        await notifier.compensateRoutineCreation(receipt.claim),
+        RoutineCreationCompensationDisposition.reverted,
+      );
+    });
+
+    test('refuses to remove a routine changed after creation', () async {
+      final container = await createContainer(initialRoutines: const []);
+      addTearDown(container.dispose);
+      final notifier = container.read(routinesNotifierProvider.notifier);
+      final receipt = await createReceipt(notifier);
+      await notifier.toggleRoutine(receipt.routine.id, false);
+
+      final disposition = await notifier.compensateRoutineCreation(
+        receipt.claim,
+      );
+
+      expect(disposition, RoutineCreationCompensationDisposition.conflict);
+      expect(notifier.findRoutine(receipt.routine.id)?.enabled, isFalse);
+    });
+
+    test(
+      'accepts a separately deleted created routine as already absent',
+      () async {
+        final container = await createContainer(initialRoutines: const []);
+        addTearDown(container.dispose);
+        final notifier = container.read(routinesNotifierProvider.notifier);
+        final receipt = await createReceipt(notifier);
+        await notifier.deleteRoutine(receipt.routine.id);
+
+        final disposition = await notifier.compensateRoutineCreation(
+          receipt.claim,
+        );
+
+        expect(
+          disposition,
+          RoutineCreationCompensationDisposition.alreadyAbsent,
+        );
+        expect(notifier.findRoutine(receipt.routine.id), isNull);
+      },
+    );
+
+    test('rejects cross-owner, call, and digest receipt poison', () async {
+      final container = await createContainer(initialRoutines: const []);
+      addTearDown(container.dispose);
+      final notifier = container.read(routinesNotifierProvider.notifier);
+      final receipt = await createReceipt(notifier, binding: _receiptBinding());
+      final poisons = [
+        _receiptBinding(conversationId: 'conversation-b'),
+        _receiptBinding(toolCallId: 'call-b'),
+        _receiptBinding(argumentDigest: 'argument-b'),
+        _receiptBinding(requestDigest: 'request-b'),
+      ];
+
+      for (final binding in poisons) {
+        final poison = RoutineCreationReceiptClaim(
+          token: receipt.token,
+          binding: binding,
+          routineDigest: receipt.routineDigest,
+        );
+        expect(notifier.pendingCreationReceipt(poison), isNull);
+        expect(
+          await notifier.prepareRoutineCreationSettlement(poison),
+          RoutineCreationSettlementDisposition.conflict,
+        );
+        expect(
+          await notifier.compensateRoutineCreation(poison),
+          RoutineCreationCompensationDisposition.conflict,
+        );
+      }
+      final digestPoison = RoutineCreationReceiptClaim(
+        token: receipt.token,
+        binding: receipt.binding,
+        routineDigest: 'different-routine-digest',
+      );
+      expect(
+        await notifier.prepareRoutineCreationSettlement(digestPoison),
+        RoutineCreationSettlementDisposition.conflict,
+      );
+      expect(
+        await notifier.compensateRoutineCreation(digestPoison),
+        RoutineCreationCompensationDisposition.conflict,
+      );
+      expect(notifier.findRoutine(receipt.routine.id), receipt.routine);
+    });
+
+    test('reconciles a repository commit that throws afterward', () async {
+      final repository = _ControlledRoutineRepository()
+        ..throwAfterNextCommit = true;
+      final container = await createContainer(
+        initialRoutines: const [],
+        repository: repository,
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(routinesNotifierProvider.notifier);
+
+      final receipt = await createReceipt(notifier, binding: _receiptBinding());
+
+      expect(receipt.phase, RoutineCreationReceiptPhase.committed);
+      expect(repository.loadAll(), contains(receipt.routine));
+      expect(notifier.pendingCreationReceipt(receipt.claim), receipt);
+    });
+
+    test(
+      'local creation reconciles commit-then-throw without a receipt',
+      () async {
+        final repository = _ControlledRoutineRepository()
+          ..throwAfterNextCommit = true;
+        final container = await createContainer(
+          initialRoutines: const [],
+          repository: repository,
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(routinesNotifierProvider.notifier);
+
+        await createLocalRoutine(notifier);
+
+        expect(notifier.routinesSnapshot, hasLength(1));
+        expect(repository.loadAll(), notifier.routinesSnapshot);
+        expect(notifier.pendingCreationReceiptCount, 0);
+      },
+    );
+
+    test('local creation rolls back an exact readback mismatch', () async {
+      final repository = _ControlledRoutineRepository()..ignoreNextSave = true;
+      final container = await createContainer(
+        initialRoutines: const [],
+        repository: repository,
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(routinesNotifierProvider.notifier);
+
+      await expectLater(createLocalRoutine(notifier), throwsStateError);
+
+      expect(notifier.routinesSnapshot, isEmpty);
+      expect(repository.loadAll(), isEmpty);
+      expect(notifier.pendingCreationReceiptCount, 0);
+    });
+
+    test('local creation repairs a compatible partial catalog write', () async {
+      final first = buildRoutine(id: 'routine-a', name: 'Routine A');
+      final second = buildRoutine(id: 'routine-b', name: 'Routine B');
+      final repository = _ControlledRoutineRepository([first, second])
+        ..transformNextSave = (routines) {
+          final created = routines.singleWhere(
+            (routine) => routine.name == 'Local routine',
+          );
+          return [first, created];
+        };
+      final container = await createContainer(
+        initialRoutines: [first, second],
+        repository: repository,
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(routinesNotifierProvider.notifier);
+
+      await createLocalRoutine(notifier);
+
+      expect(repository.loadAll(), notifier.routinesSnapshot);
+      expect(repository.loadAll().map((routine) => routine.id).toSet(), {
+        first.id,
+        second.id,
+        notifier.routinesSnapshot
+            .singleWhere((routine) => routine.name == 'Local routine')
+            .id,
+      });
+      expect(repository.saveCount, 2);
+      expect(notifier.pendingCreationReceiptCount, 0);
+    });
+
+    test(
+      'classifies preparation failure before allocating a receipt',
+      () async {
+        final repository = _ControlledRoutineRepository();
+        final container = await createContainer(
+          initialRoutines: const [],
+          repository: repository,
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(routinesNotifierProvider.notifier);
+
+        await expectLater(
+          notifier.attemptRoutineCreationWithReceipt(
+            binding: _receiptBinding(toolCallId: 'overflowing-schedule'),
+            preEffectOwnerIsCurrent: (_) => true,
+            name: 'Overflow',
+            prompt: 'Overflow DateTime range.',
+            intervalValue: 1 << 62,
+            intervalUnit: RoutineIntervalUnit.days,
+            scheduleMode: RoutineScheduleMode.interval,
+            timeOfDayMinutes: 0,
+            enabled: true,
+            notifyOnCompletion: true,
+            toolsEnabled: false,
+            completionAction: RoutineCompletionAction.none,
+            googleChatRule: RoutineGoogleChatRule.onFailure,
+          ),
+          throwsA(isA<RoutineCreationPreEffectRejection>()),
+        );
+
+        expect(repository.saveCount, 0);
+        expect(notifier.routinesSnapshot, isEmpty);
+        expect(notifier.pendingCreationReceiptCount, 0);
+      },
+    );
+
+    test('retains and compensates a readback mismatch receipt', () async {
+      final repository = _ControlledRoutineRepository()..ignoreNextSave = true;
+      final container = await createContainer(
+        initialRoutines: const [],
+        repository: repository,
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(routinesNotifierProvider.notifier);
+
+      final attempt = await createAttempt(notifier, binding: _receiptBinding());
+
+      expect(
+        attempt.disposition,
+        RoutineCreationCommitDisposition.effectUncertain,
+      );
+      expect(
+        notifier.pendingCreationReceipt(attempt.receipt.claim)?.phase,
+        RoutineCreationReceiptPhase.effectUncertain,
+      );
+      expect(
+        await notifier.compensateRoutineCreation(attempt.receipt.claim),
+        RoutineCreationCompensationDisposition.alreadyAbsent,
+      );
+      expect(notifier.routinesSnapshot, isEmpty);
+    });
+
+    test(
+      'checks owner validity inside the serialized pre-effect boundary',
+      () async {
+        final repository = _ControlledRoutineRepository()..delayNextSave();
+        final container = await createContainer(
+          initialRoutines: const [],
+          repository: repository,
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(routinesNotifierProvider.notifier);
+        final blocker = notifier.deleteRoutine('missing');
+        await repository.nextSaveStarted.future;
+        var current = true;
+        RoutineCreationReceiptBinding? checkedBinding;
+        final binding = _receiptBinding(toolCallId: 'queued-call');
+
+        final attempt = createAttempt(
+          notifier,
+          binding: binding,
+          preEffectOwnerIsCurrent: (candidate) {
+            checkedBinding = candidate;
+            return current;
+          },
+        );
+        current = false;
+        repository.releaseDelayedSave();
+        await blocker;
+        final completion = await attempt;
+
+        expect(
+          completion.disposition,
+          RoutineCreationCommitDisposition.ownerExpiredBeforeEffect,
+        );
+        expect(checkedBinding, binding);
+        expect(repository.saveCount, 1);
+        expect(notifier.routinesSnapshot, isEmpty);
+        expect(notifier.pendingCreationReceiptCount, 0);
+      },
+    );
+
+    test(
+      'serializes delayed compensation before a successor same-name create',
+      () async {
+        final repository = _ControlledRoutineRepository();
+        final container = await createContainer(
+          initialRoutines: const [],
+          repository: repository,
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(routinesNotifierProvider.notifier);
+        final first = await createReceipt(notifier, binding: _receiptBinding());
+        repository.delayNextSave();
+
+        final compensation = notifier.compensateRoutineCreation(first.claim);
+        await repository.nextSaveStarted.future;
+        final settlement = notifier.prepareRoutineCreationSettlement(
+          first.claim,
+        );
+        final successor = createReceipt(
+          notifier,
+          name: first.routine.name,
+          binding: _receiptBinding(toolCallId: 'call-successor'),
+        );
+        repository.releaseDelayedSave();
+
+        expect(
+          await compensation,
+          RoutineCreationCompensationDisposition.reverted,
+        );
+        expect(await settlement, RoutineCreationSettlementDisposition.conflict);
+        final second = await successor;
+        expect(notifier.findRoutine(first.routine.id), isNull);
+        expect(notifier.findRoutine(second.routine.id), second.routine);
+        expect(repository.loadAll(), [second.routine]);
+      },
+    );
+
+    test(
+      'preserves a delayed successor update while compensating another create',
+      () async {
+        final repository = _ControlledRoutineRepository();
+        final container = await createContainer(
+          initialRoutines: const [],
+          repository: repository,
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(routinesNotifierProvider.notifier);
+        final first = await createReceipt(notifier, binding: _receiptBinding());
+        final successor = await createReceipt(
+          notifier,
+          name: 'Successor',
+          binding: _receiptBinding(toolCallId: 'call-successor'),
+        );
+        repository.delayNextSave();
+
+        final compensation = notifier.compensateRoutineCreation(first.claim);
+        await repository.nextSaveStarted.future;
+        final update = notifier.toggleRoutine(successor.routine.id, false);
+        repository.releaseDelayedSave();
+
+        expect(
+          await compensation,
+          RoutineCreationCompensationDisposition.reverted,
+        );
+        await update;
+        expect(notifier.findRoutine(first.routine.id), isNull);
+        expect(notifier.findRoutine(successor.routine.id)?.enabled, isFalse);
+        expect(repository.loadAll().map((routine) => routine.id), [
+          successor.routine.id,
+        ]);
+      },
+    );
+
+    test('reconciles compensation that commits before throwing', () async {
+      final repository = _ControlledRoutineRepository();
+      final container = await createContainer(
+        initialRoutines: const [],
+        repository: repository,
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(routinesNotifierProvider.notifier);
+      final receipt = await createReceipt(notifier, binding: _receiptBinding());
+      repository.throwAfterNextCommit = true;
+
+      final disposition = await notifier.compensateRoutineCreation(
+        receipt.claim,
+      );
+
+      expect(disposition, RoutineCreationCompensationDisposition.reverted);
+      expect(repository.loadAll(), isEmpty);
+      expect(notifier.routinesSnapshot, isEmpty);
+      expect(notifier.pendingCreationReceiptCount, 0);
+    });
+
+    test('repairs duplicate-ID partial compensation readback', () async {
+      final first = buildRoutine(id: 'routine-a', name: 'Routine A');
+      final second = buildRoutine(id: 'routine-b', name: 'Routine B');
+      final repository = _ControlledRoutineRepository([first, second]);
+      final container = await createContainer(
+        initialRoutines: [first, second],
+        repository: repository,
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(routinesNotifierProvider.notifier);
+      final receipt = await createReceipt(
+        notifier,
+        binding: _receiptBinding(toolCallId: 'partial-compensation'),
+      );
+      repository.transformNextSave = (routines) => [
+        routines.first,
+        routines.first,
+      ];
+
+      final disposition = await notifier.compensateRoutineCreation(
+        receipt.claim,
+      );
+
+      expect(disposition, RoutineCreationCompensationDisposition.reverted);
+      expect(repository.loadAll(), notifier.routinesSnapshot);
+      expect(repository.loadAll().map((routine) => routine.id).toSet(), {
+        first.id,
+        second.id,
+      });
+      expect(repository.loadAll(), hasLength(2));
+      expect(notifier.pendingCreationReceiptCount, 0);
+    });
+
+    test('revalidates settlement after queued mutation completes', () async {
+      final repository = _ControlledRoutineRepository();
+      final container = await createContainer(
+        initialRoutines: const [],
+        repository: repository,
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(routinesNotifierProvider.notifier);
+      final receipt = await createReceipt(
+        notifier,
+        binding: _receiptBinding(toolCallId: 'settlement-race'),
+      );
+      repository.delayNextSave();
+      final blocker = notifier.deleteRoutine('missing');
+      await repository.nextSaveStarted.future;
+      final update = notifier.toggleRoutine(receipt.routine.id, false);
+      final settlement = notifier.prepareRoutineCreationSettlement(
+        receipt.claim,
+      );
+      repository.releaseDelayedSave();
+
+      await blocker;
+      await update;
+      expect(await settlement, RoutineCreationSettlementDisposition.conflict);
+      expect(
+        notifier.pendingCreationReceipt(receipt.claim)?.phase,
+        RoutineCreationReceiptPhase.committed,
+      );
+      expect(notifier.findRoutine(receipt.routine.id)?.enabled, isFalse);
+    });
+
+    test('settlement wins when enqueued before compensation', () async {
+      final repository = _ControlledRoutineRepository();
+      final container = await createContainer(
+        initialRoutines: const [],
+        repository: repository,
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(routinesNotifierProvider.notifier);
+      final receipt = await createReceipt(notifier, binding: _receiptBinding());
+
+      final settlement = notifier.prepareRoutineCreationSettlement(
+        receipt.claim,
+      );
+      final release = notifier.releaseRoutineCreationSettlement(receipt.claim);
+      final compensation = notifier.compensateRoutineCreation(receipt.claim);
+
+      expect(await settlement, RoutineCreationSettlementDisposition.prepared);
+      expect(await release, isTrue);
+      expect(
+        await compensation,
+        RoutineCreationCompensationDisposition.conflict,
+      );
+      expect(notifier.findRoutine(receipt.routine.id), receipt.routine);
+      expect(repository.loadAll(), contains(receipt.routine));
+      expect(notifier.pendingCreationReceiptCount, 0);
+    });
+
+    test(
+      'fails at receipt capacity before another repository effect',
+      () async {
+        final repository = _ControlledRoutineRepository();
+        final container = await createContainer(
+          initialRoutines: const [],
+          repository: repository,
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(routinesNotifierProvider.notifier);
+        for (var index = 0; index < 64; index += 1) {
+          await createReceipt(
+            notifier,
+            name: 'Routine $index',
+            binding: _receiptBinding(toolCallId: 'call-$index'),
+          );
+        }
+        final saveCount = repository.saveCount;
+
+        await expectLater(
+          createReceipt(
+            notifier,
+            name: 'Overflow',
+            binding: _receiptBinding(toolCallId: 'call-overflow'),
+          ),
+          throwsA(
+            isA<RoutineCreationPreEffectRejection>().having(
+              (error) => error.message,
+              'message',
+              'Too many routine creation receipts are awaiting settlement.',
+            ),
+          ),
+        );
+        expect(repository.saveCount, saveCount);
+        expect(notifier.routinesSnapshot, hasLength(64));
+      },
+    );
+
     test('duplicateRoutine creates a clean copy without run history', () async {
       final source = buildRoutine(
         id: 'routine-1',
@@ -453,6 +1052,66 @@ class _FixedSettingsNotifier extends SettingsNotifier {
   AppSettings build() => _settings;
 }
 
+RoutineCreationReceiptBinding _receiptBinding({
+  String conversationId = 'conversation-a',
+  String toolCallId = 'call-a',
+  String argumentDigest = 'argument-a',
+  String requestDigest = 'request-a',
+}) => RoutineCreationReceiptBinding(
+  conversationId: conversationId,
+  interactionGeneration: 7,
+  toolCallId: toolCallId,
+  toolName: 'create_routine',
+  argumentDigest: argumentDigest,
+  requestDigest: requestDigest,
+);
+
+final class _ControlledRoutineRepository implements RoutineRepositoryApi {
+  _ControlledRoutineRepository([List<Routine> initial = const []])
+    : _routines = [...initial];
+
+  List<Routine> _routines;
+  bool throwAfterNextCommit = false;
+  bool ignoreNextSave = false;
+  List<Routine> Function(List<Routine> routines)? transformNextSave;
+  bool _delayNextSave = false;
+  int saveCount = 0;
+  Completer<void> nextSaveStarted = Completer<void>();
+  Completer<void>? _delayedSaveRelease;
+
+  @override
+  List<Routine> loadAll() => List<Routine>.unmodifiable(_routines);
+
+  void delayNextSave() {
+    _delayNextSave = true;
+    nextSaveStarted = Completer<void>();
+    _delayedSaveRelease = Completer<void>();
+  }
+
+  void releaseDelayedSave() => _delayedSaveRelease?.complete();
+
+  @override
+  Future<void> saveAll(List<Routine> routines) async {
+    saveCount += 1;
+    if (ignoreNextSave) {
+      ignoreNextSave = false;
+      return;
+    }
+    if (_delayNextSave) {
+      _delayNextSave = false;
+      nextSaveStarted.complete();
+      await _delayedSaveRelease!.future;
+    }
+    final transform = transformNextSave;
+    transformNextSave = null;
+    _routines = transform == null ? [...routines] : transform([...routines]);
+    if (throwAfterNextCommit) {
+      throwAfterNextCommit = false;
+      throw StateError('commit completed before transport failure');
+    }
+  }
+}
+
 class _FakeRoutineExecutionService extends RoutineExecutionService {
   _FakeRoutineExecutionService({this.generatedPlanDraft})
     : super(
@@ -528,7 +1187,7 @@ class _StubChatDataSource implements ChatDataSource {
   }
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,

@@ -43,7 +43,7 @@ class ParticipantCompletionRunner {
 
   final MeshSecondaryCompletionRunner<ChatDataSource> meshRunner;
 
-  Future<void> stream({
+  Future<ChatCompletionTerminalMetadata?> stream({
     required ChatDataSource primary,
     required AppSettings settings,
     required ParticipantCompletionRequest request,
@@ -53,7 +53,7 @@ class ParticipantCompletionRunner {
     final endpointId = settings.llmProvider == LlmProvider.openAiCompatible
         ? request.participant.endpointId
         : '';
-    return meshRunner.run<void>(
+    return meshRunner.run<ChatCompletionTerminalMetadata?>(
       primary: primary,
       primaryBaseUrl: settings.baseUrl,
       primaryApiKey: settings.apiKey,
@@ -63,16 +63,15 @@ class ParticipantCompletionRunner {
       fallbackModel: settings.model,
       call: (dataSource, resolvedModel) async {
         if (request.hasToolSupport) {
-          await _streamWithTools(
+          return _streamWithTools(
             dataSource: dataSource,
             request: request,
             resolvedModel: resolvedModel,
             shouldContinue: shouldContinue,
             onChunk: onChunk,
           );
-          return;
         }
-        await _streamPlain(
+        return _streamPlain(
           dataSource: dataSource,
           request: request,
           resolvedModel: resolvedModel,
@@ -83,7 +82,7 @@ class ParticipantCompletionRunner {
     );
   }
 
-  Future<void> _streamPlain({
+  Future<ChatCompletionTerminalMetadata?> _streamPlain({
     required ChatDataSource dataSource,
     required ParticipantCompletionRequest request,
     required String resolvedModel,
@@ -98,13 +97,15 @@ class ParticipantCompletionRunner {
     );
     await for (final chunk in stream) {
       if (!shouldContinue()) {
-        return;
+        return null;
       }
       await onChunk(chunk);
     }
+    if (!shouldContinue()) return null;
+    return stream.terminal;
   }
 
-  Future<void> _streamWithTools({
+  Future<ChatCompletionTerminalMetadata?> _streamWithTools({
     required ChatDataSource dataSource,
     required ParticipantCompletionRequest request,
     required String resolvedModel,
@@ -113,21 +114,22 @@ class ParticipantCompletionRunner {
   }) async {
     final executeToolCall = request.executeToolCall;
     if (executeToolCall == null) {
-      await _streamPlain(
+      return _streamPlain(
         dataSource: dataSource,
         request: request,
         resolvedModel: resolvedModel,
         shouldContinue: shouldContinue,
         onChunk: onChunk,
       );
-      return;
     }
 
     final messages = [...request.messages];
     final executedToolCallKeys = <String>{};
     final maxToolIterations = request.maxToolIterations.clamp(1, 8);
+    ChatCompletionTerminalMetadata? lastMetadata;
 
     for (var iteration = 0; iteration < maxToolIterations; iteration += 1) {
+      if (!shouldContinue()) return null;
       final result = dataSource.streamChatCompletionWithTools(
         messages: messages,
         tools: request.toolDefinitions,
@@ -138,15 +140,19 @@ class ParticipantCompletionRunner {
       final streamedContent = StringBuffer();
       await for (final chunk in result.stream) {
         if (!shouldContinue()) {
-          return;
+          return null;
         }
         streamedContent.write(chunk);
       }
 
       final completion = await result.completion;
       if (!shouldContinue()) {
-        return;
+        return null;
       }
+      lastMetadata = ChatCompletionTerminalMetadata(
+        finishReason: completion.finishReason,
+        usage: completion.usage,
+      );
 
       if (!completion.hasToolCalls) {
         final visibleContent = streamedContent.isNotEmpty
@@ -155,13 +161,13 @@ class ParticipantCompletionRunner {
         if (visibleContent.isNotEmpty) {
           await onChunk(visibleContent);
         }
-        return;
+        return lastMetadata;
       }
 
       final toolResults = <ToolResultInfo>[];
       for (final toolCall in completion.toolCalls!) {
         if (!shouldContinue()) {
-          return;
+          return null;
         }
         final toolCallKey = _toolCallKey(toolCall);
         if (!executedToolCallKeys.add(toolCallKey)) {
@@ -169,6 +175,7 @@ class ParticipantCompletionRunner {
           continue;
         }
         final toolResult = await executeToolCall(toolCall);
+        if (!shouldContinue()) return null;
         toolResults.add(_toPromptToolResult(toolCall, toolResult));
       }
 
@@ -198,6 +205,7 @@ class ParticipantCompletionRunner {
         '\n\nParticipant tool calls stopped after reaching the safety limit.',
       );
     }
+    return lastMetadata;
   }
 
   ToolResultInfo _toPromptToolResult(

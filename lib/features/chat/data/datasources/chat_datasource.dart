@@ -1,7 +1,125 @@
+import 'dart:async';
 import 'dart:convert';
 
+import '../../domain/entities/chat_completion_terminal_metadata.dart';
 import '../../domain/entities/message.dart';
-import 'chat_remote_datasource.dart';
+import '../../domain/entities/tool_call_info.dart';
+
+export '../../domain/entities/chat_completion_terminal_metadata.dart';
+
+/// Result of a streaming chat completion with tool support.
+final class StreamWithToolsResult {
+  StreamWithToolsResult({required this.stream, required this.completion}) {
+    unawaited(
+      completion.then<void>((_) {}, onError: (Object _, StackTrace _) {}),
+    );
+  }
+
+  final Stream<String> stream;
+  final Future<ChatCompletionResult> completion;
+}
+
+/// Atomic result of a non-streaming or tool-aware completion.
+final class ChatCompletionResult {
+  ChatCompletionResult({
+    required this.content,
+    this.toolCalls,
+    required this.finishReason,
+    this.usage = TokenUsage.zero,
+  });
+
+  final String content;
+  final List<ToolCallInfo>? toolCalls;
+  final String finishReason;
+  final TokenUsage usage;
+
+  bool get hasToolCalls => toolCalls != null && toolCalls!.isNotEmpty;
+}
+
+final class ChatCompletionStreamCancelledException implements Exception {
+  const ChatCompletionStreamCancelledException();
+
+  @override
+  String toString() => 'Chat completion stream was cancelled.';
+}
+
+/// A content stream paired with metadata from that exact request.
+final class StreamedChatCompletion extends Stream<String> {
+  StreamedChatCompletion({required this.stream, required this.terminal});
+
+  /// Wraps a content stream whose terminal response facts are already known.
+  factory StreamedChatCompletion.fromStream(
+    Stream<String> stream, {
+    String? finishReason,
+    TokenUsage usage = TokenUsage.zero,
+  }) {
+    return StreamedChatCompletion.capture(
+      stream: stream,
+      terminalMetadata: () => ChatCompletionTerminalMetadata(
+        finishReason: finishReason,
+        usage: usage,
+      ),
+    );
+  }
+
+  factory StreamedChatCompletion.capture({
+    required Stream<String> stream,
+    required FutureOr<ChatCompletionTerminalMetadata> Function()
+    terminalMetadata,
+    void Function(ChatCompletionTerminalMetadata metadata)? onTerminal,
+  }) {
+    final completer = Completer<ChatCompletionTerminalMetadata>();
+    final terminal = completer.future;
+    unawaited(
+      terminal.then<void>((_) {}, onError: (Object _, StackTrace _) {}),
+    );
+
+    Stream<String> guardedStream() async* {
+      var completedNormally = false;
+      try {
+        await for (final chunk in stream) {
+          yield chunk;
+        }
+        final metadata = await terminalMetadata();
+        completer.complete(metadata);
+        onTerminal?.call(metadata);
+        completedNormally = true;
+      } catch (error, stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+        rethrow;
+      } finally {
+        if (!completedNormally && !completer.isCompleted) {
+          completer.completeError(
+            const ChatCompletionStreamCancelledException(),
+            StackTrace.current,
+          );
+        }
+      }
+    }
+
+    return StreamedChatCompletion(stream: guardedStream(), terminal: terminal);
+  }
+
+  final Stream<String> stream;
+  final Future<ChatCompletionTerminalMetadata> terminal;
+
+  @override
+  StreamSubscription<String> listen(
+    void Function(String event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    return stream.listen(
+      onData,
+      onError: onError,
+      onDone: onDone,
+      cancelOnError: cancelOnError,
+    );
+  }
+}
 
 /// Opt-in capability for data sources that track the finish reason of their
 /// most recent completion (e.g. `'stop'`, `'length'`). Read by the chat loop to
@@ -15,7 +133,7 @@ abstract interface class FinishReasonAware {
 ///
 /// Both [ChatRemoteDataSource] (real API) and [DemoDataSource] implement this.
 abstract class ChatDataSource {
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,

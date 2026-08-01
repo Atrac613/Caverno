@@ -1,24 +1,22 @@
-// Same-library extension on [ChatNotifier]; see chat_notifier_git_handlers.dart
-// for the rationale behind the `ignore_for_file` directive.
+// Same-library extension; the ignore matches sibling handler parts.
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
 
 extension ChatNotifierTurnRollbackHandlers on ChatNotifier {
-  Future<FileTurnRollbackPreview?> previewLastFileTurnRollback() async {
-    return _mcpToolService?.previewLastFileTurnCheckpoint();
-  }
+  Future<FileTurnRollbackPreview?> previewLastFileTurnRollback() =>
+      _fileTurnRollbackService.preview(conversationId: conversationId);
+  Future<McpToolResult> rollbackLastFileTurnChanges(
+    ChatTurnOwner owner,
+    int checkpointToken,
+  ) => _fileTurnRollbackService.rollback(
+    owner: owner,
+    checkpointToken: checkpointToken,
+  );
 
-  Future<McpToolResult> rollbackLastFileTurnChanges() async {
-    final toolService = _mcpToolService;
-    if (toolService == null) {
-      return const McpToolResult(
-        toolName: 'rollback_last_turn_file_changes',
-        result: '',
-        isSuccess: false,
-        errorMessage: 'No file checkpoint service is available',
+  FileTurnRollbackService get _fileTurnRollbackService =>
+      FileTurnRollbackService.fromCallbacks(
+        _mcpToolService?.previewFsTurn,
+        _mcpToolService?.rollbackLastFileTurnCheckpoint,
       );
-    }
-    return toolService.rollbackLastFileTurnCheckpoint();
-  }
 }

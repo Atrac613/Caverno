@@ -39,7 +39,7 @@ class _FakeChatDataSource extends ChatDataSource {
   }
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,

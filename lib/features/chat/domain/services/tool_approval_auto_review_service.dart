@@ -1,14 +1,21 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../../../../core/security/tool_perimeter_context.dart';
 import '../entities/message.dart';
 
 enum ToolApprovalAutoReviewOutcome { allow, deny }
 
-/// Which permission boundary the auto-reviewer is judging. Swaps the system
-/// prompt so the same JSON contract serves coding writes, browser actions, and
-/// device/remote connections.
 enum ToolApprovalAutoReviewDomain { coding, browser, connection, participant }
+
+typedef ToolApprovalGateAuditRecorder =
+    Future<void> Function({
+      required String outcome,
+      required String decisionSource,
+      String? rationale,
+      String? riskLevel,
+    });
 
 class ToolApprovalAutoReviewDecision {
   const ToolApprovalAutoReviewDecision({
@@ -63,10 +70,6 @@ class ToolApprovalAutoReviewRequest {
   final String? warningTitle;
   final String? warningMessage;
   final String? preview;
-
-  /// SEC2: whether untrusted (remote/MCP) content has influenced this turn, so
-  /// the reviewer scrutinizes a privileged action that untrusted content may be
-  /// trying to drive.
   final bool hasUntrustedInfluence;
 }
 
@@ -76,11 +79,88 @@ class ToolApprovalAutoReviewService {
   static const int _maxConversationEntries = 8;
   static const int _maxConversationContentChars = 900;
   static const int _maxPreviewChars = 12000;
-
-  /// SEC1: classify the action so the reviewer sees what kind of capability it
-  /// exercises and whether it yields untrusted content.
   static const ToolPerimeterClassifier _perimeterClassifier =
       ToolPerimeterClassifier();
+
+  static Future<ToolApprovalGateDecision> resolveGate({
+    required bool hasCachedApproval,
+    required ToolApprovalMode mode,
+    required bool fullAccessEligible,
+    required Future<ToolApprovalAutoReviewDecision?> Function() review,
+    required ToolApprovalGateAuditRecorder recordAudit,
+    required bool Function() ownerIsCurrent,
+    required bool deniedEscalates,
+    required bool hasUntrustedInfluence,
+    void Function()? onCachedApproval,
+  }) async {
+    const expiredRationale = 'The approval turn expired before execution';
+    Future<ToolApprovalGateDecision> owned(
+      ToolApprovalGateDecision decision,
+    ) async {
+      if (ownerIsCurrent()) return decision;
+      await recordAudit(
+        outcome: 'denied',
+        decisionSource: 'owner_expired',
+        rationale: expiredRationale,
+      );
+      return ToolApprovalGateDecision.denied(expiredRationale);
+    }
+
+    if (!ownerIsCurrent()) {
+      return owned(ToolApprovalGateDecision.needsManualApproval);
+    }
+    if (hasCachedApproval) {
+      await recordAudit(outcome: 'allowed', decisionSource: 'cached_approval');
+      onCachedApproval?.call();
+      return owned(ToolApprovalGateDecision.cachedApproval);
+    }
+    if (mode == ToolApprovalMode.fullAccess) {
+      if (fullAccessEligible) {
+        await recordAudit(outcome: 'allowed', decisionSource: 'full_access');
+        return owned(ToolApprovalGateDecision.fullAccess);
+      }
+      await recordAudit(
+        outcome: 'manual_fallback',
+        decisionSource: 'full_access_ineligible',
+      );
+      return owned(ToolApprovalGateDecision.needsManualApproval);
+    }
+    if (mode != ToolApprovalMode.autoReview) {
+      return owned(ToolApprovalGateDecision.needsManualApproval);
+    }
+    final decision = await review();
+    if (decision == null) {
+      await recordAudit(
+        outcome: 'review_unavailable',
+        decisionSource: 'auto_review',
+      );
+      return owned(ToolApprovalGateDecision.needsManualApproval);
+    }
+    if (decision.isAllowed) {
+      await recordAudit(
+        outcome: 'allowed',
+        decisionSource: 'auto_review',
+        rationale: decision.rationale,
+        riskLevel: decision.riskLevel,
+      );
+      return owned(ToolApprovalGateDecision.autoReviewAllowed);
+    }
+    final gateDecision = deniedEscalates
+        ? ToolApprovalGateDecision.fromAutoReviewDenial(
+            decision.rationale,
+            hasUntrustedInfluence: hasUntrustedInfluence,
+          )
+        : ToolApprovalGateDecision.denied(decision.rationale);
+    await recordAudit(
+      outcome: gateDecision.escalatedFromAutoReviewDenial
+          ? 'denied_escalated_manual'
+          : 'denied',
+      decisionSource: 'auto_review',
+      rationale: decision.rationale,
+      riskLevel: decision.riskLevel,
+    );
+    return owned(gateDecision);
+  }
 
   static List<ToolApprovalConversationEntry> buildConversationTail(
     List<Message> messages,

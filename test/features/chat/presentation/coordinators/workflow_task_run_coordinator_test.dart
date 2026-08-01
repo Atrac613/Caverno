@@ -3,11 +3,13 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
+import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -46,6 +48,7 @@ class _ValidationConversationsNotifier extends ConversationsNotifier {
     ConversationExecutionTaskEventType? eventType,
     String? eventSummary,
     DateTime? eventTimestamp,
+    String? conversationId,
   }) async {
     final currentConversation = state.currentConversation;
     if (currentConversation == null) {
@@ -93,6 +96,7 @@ class _ValidationConversationsNotifier extends ConversationsNotifier {
     DateTime? workflowDerivedAt,
     bool clearWorkflowSpec = false,
     bool preserveWorkflowProjection = false,
+    String? conversationId,
   }) async {
     final currentConversation = state.currentConversation;
     if (currentConversation == null) {
@@ -161,8 +165,9 @@ class _ValidationChatNotifier extends ChatNotifier {
   final List<String> hiddenPrompts = [];
   final List<String> sentLanguageCodes = [];
   final List<bool> sentBypassPlanModes = [];
-  List<ToolResultInfo> _latestToolResults = const [];
-  String? _latestHiddenAssistantResponse;
+  final Map<ChatTurnOwner, List<ToolResultInfo>> _toolResultsByOwner = {};
+  final Map<ChatTurnOwner, String> _hiddenAssistantResponsesByOwner = {};
+  var _interactionGeneration = 0;
   var toolResultReadCount = 0;
 
   bool get hasPendingTurns =>
@@ -173,7 +178,7 @@ class _ValidationChatNotifier extends ChatNotifier {
   ChatState build() => ChatState.initial();
 
   @override
-  Future<void> sendMessage(
+  Future<ChatTurnOwner?> sendMessage(
     String content, {
     String? imageBase64,
     String? imageMimeType,
@@ -187,40 +192,35 @@ class _ValidationChatNotifier extends ChatNotifier {
     sentMessages.add(content);
     sentLanguageCodes.add(languageCode);
     sentBypassPlanModes.add(bypassPlanMode);
-    await _runTurn(_visibleTurns, kind: 'visible');
+    return _runTurn(_visibleTurns, kind: 'visible');
   }
 
   @override
-  Future<void> sendHiddenPrompt(
+  Future<ChatTurnOwner?> sendHiddenPrompt(
     String instruction, {
     bool isVoiceMode = false,
     String languageCode = 'en',
     bool persistAssistantResponse = false,
-    bool preserveGoalAutoContinueEvidence = false,
+    ToolResultCompletionEvidence? initialGoalCompletionEvidence,
     bool replayVerifierImmediatelyAfterMutation = false,
     bool verifierOnlyContinuation = false,
     Set<String>? allowedToolNames,
   }) async {
     hiddenPrompts.add(instruction);
-    await _runTurn(_hiddenTurns, kind: 'hidden');
+    return _runTurn(_hiddenTurns, kind: 'hidden');
   }
 
   @override
-  List<ToolResultInfo> takeLatestToolResults() {
+  List<ToolResultInfo> takeLatestToolResults(ChatTurnOwner owner) {
     toolResultReadCount += 1;
-    final results = _latestToolResults;
-    _latestToolResults = const [];
-    return results;
+    return _toolResultsByOwner.remove(owner) ?? const [];
   }
 
   @override
-  String? takeLatestHiddenAssistantResponse() {
-    final response = _latestHiddenAssistantResponse;
-    _latestHiddenAssistantResponse = null;
-    return response;
-  }
+  String? takeLatestHiddenAssistantResponse(ChatTurnOwner? owner) =>
+      owner == null ? null : _hiddenAssistantResponsesByOwner.remove(owner);
 
-  Future<void> _runTurn(
+  Future<ChatTurnOwner> _runTurn(
     Queue<_ScriptedChatTurn> turns, {
     required String kind,
   }) async {
@@ -236,8 +236,16 @@ class _ValidationChatNotifier extends ChatNotifier {
     if (gate != null) {
       await gate;
     }
-    _latestToolResults = turn.toolResults;
-    _latestHiddenAssistantResponse = turn.hiddenAssistantResponse;
+    final owner = ChatTurnOwner(
+      conversationId: 'workflow-coordinator-test',
+      interactionGeneration: ++_interactionGeneration,
+    );
+    _toolResultsByOwner[owner] = turn.toolResults;
+    final hiddenAssistantResponse = turn.hiddenAssistantResponse;
+    if (hiddenAssistantResponse != null) {
+      _hiddenAssistantResponsesByOwner[owner] = hiddenAssistantResponse;
+    }
+    return owner;
   }
 }
 

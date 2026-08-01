@@ -20,6 +20,7 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
@@ -1863,6 +1864,13 @@ class _SandboxCodingToolService extends McpToolService {
   }
 
   @override
+  Future<McpToolResult> executeFileTool({
+    required ChatTurnOwner owner,
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) => executeTool(name: name, arguments: arguments);
+
+  @override
   Future<McpToolResult> executeTool({
     required String name,
     required Map<String, dynamic> arguments,
@@ -2236,7 +2244,7 @@ class _CodingGoalLiveEditDataSource implements ChatDataSource {
   }
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,

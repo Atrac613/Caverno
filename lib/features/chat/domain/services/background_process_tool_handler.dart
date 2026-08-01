@@ -1,0 +1,450 @@
+import '../../data/datasources/local_shell_tools.dart';
+import '../../../settings/domain/services/local_command_permission_service.dart';
+import '../entities/mcp_tool_entity.dart';
+import '../entities/tool_call_info.dart';
+import 'background_process_path_policy.dart';
+import 'background_process_start_contract.dart';
+import 'background_process_tool_contract.dart';
+import 'background_process_tool_results.dart';
+import 'local_command_tool_handler.dart';
+import 'process_start_result_policy.dart';
+
+export 'background_process_tool_contract.dart';
+
+// ChatNotifier decomposition collaborator: background-process-tool-handler
+typedef _Request = BackgroundProcessToolRequest;
+typedef _Approval = LocalCommandApprovalRequest;
+
+final class BackgroundProcessToolHandler {
+  BackgroundProcessToolHandler({
+    required BackgroundProcessExecutionPort executionPort,
+    required BackgroundProcessLookupPort lookupPort,
+    required LocalCommandApprovalPort approvalPort,
+    required CommandPermissionRuleStorePort permissionRuleStorePort,
+    ProcessStartResultPolicy startResultPolicy =
+        const ProcessStartResultPolicy(),
+    BackgroundProcessPathPolicy pathPolicy =
+        const BackgroundProcessPathPolicy(),
+    BackgroundProcessStartContract startContract =
+        const BackgroundProcessStartContract(),
+    BackgroundProcessToolResults results = const BackgroundProcessToolResults(),
+    DateTime Function()? clock,
+  }) : _executionPort = executionPort,
+       _lookupPort = lookupPort,
+       _approvalPort = approvalPort,
+       _permissionRuleStorePort = permissionRuleStorePort,
+       _startResultPolicy = startResultPolicy,
+       _pathPolicy = pathPolicy,
+       _startContract = startContract,
+       _results = results,
+       _clock = clock ?? DateTime.now;
+
+  static const _missingCommandMessage =
+      'command is required and working_directory must be provided or inferred '
+      'from the selected coding project';
+  static const _cancelWarningMessage =
+      'This stops a running local command and may leave partial side effects.';
+
+  final BackgroundProcessExecutionPort _executionPort;
+  final BackgroundProcessLookupPort _lookupPort;
+  final LocalCommandApprovalPort _approvalPort;
+  final CommandPermissionRuleStorePort _permissionRuleStorePort;
+  final ProcessStartResultPolicy _startResultPolicy;
+  final BackgroundProcessPathPolicy _pathPolicy;
+  final BackgroundProcessStartContract _startContract;
+  final BackgroundProcessToolResults _results;
+  final DateTime Function() _clock;
+  Future<McpToolResult> handle(BackgroundProcessToolRequest request) {
+    return switch (request.toolName) {
+      'process_start' => _handleStart(request),
+      'process_cancel' => _handleCancel(request),
+      _ => throw ArgumentError.value(
+        request.toolName,
+        'toolName',
+        'Unsupported background process tool',
+      ),
+    };
+  }
+
+  Future<McpToolResult> _handleStart(_Request request) async {
+    final dispatchedAt = _clock();
+    final command = LocalShellTools.normalizeCommand(
+      (request.arguments['command'] as String?)?.trim() ?? '',
+    );
+    final workingDirectory = _pathPolicy.resolveWorkingDirectory(request);
+    if (command.isEmpty || workingDirectory == null) {
+      return _results.failure(request.toolName, _missingCommandMessage);
+    }
+    if (!_pathPolicy.isAllowedWorkingDirectory(
+      workingDirectory,
+      request.allowedWorkingDirectoryRoot,
+    )) {
+      return _results.outsideProject(request.toolName);
+    }
+
+    final execution = LocalCommandExecutionRequest(
+      toolCallId: request.toolCallId,
+      toolName: request.toolName,
+      command: command,
+      workingDirectory: workingDirectory,
+      arguments: {
+        ...request.arguments,
+        'command': command,
+        'working_directory': workingDirectory,
+      },
+    );
+    final permission = _permissionRuleStorePort.evaluate(
+      request.owner,
+      CommandPermissionRuleRequest(
+        command: command,
+        workingDirectory: workingDirectory,
+      ),
+    );
+    final requiresExplicit =
+        LocalCommandPermissionService.requiresExplicitApproval(command);
+    if (permission == CommandPermissionRuleDecision.deny) {
+      return _results.failure(
+        request.toolName,
+        'Local command was denied by a saved permission rule',
+      );
+    }
+    if (_isExpired(request)) return _results.expired(request.toolName);
+    if ((!request.isRemoteInteraction &&
+            permission == CommandPermissionRuleDecision.allow &&
+            !requiresExplicit) ||
+        (LocalShellTools.isReadOnly(command) && !requiresExplicit)) {
+      return _executeStart(request, execution, dispatchedAt);
+    }
+
+    final warning = LocalCommandPermissionService.riskWarningFor(command);
+    final approval = LocalCommandApprovalRequest(
+      toolCallId: request.toolCallId,
+      execution: execution,
+      reason: request.arguments['reason'] as String?,
+      warningTitle: warning?.title,
+      warningMessage: warning?.message,
+    );
+    return _withApproval(
+      request,
+      approval,
+      denialMessage: 'User denied background process start',
+      ruleRequest: CommandPermissionRuleRequest(
+        command: command,
+        workingDirectory: workingDirectory,
+      ),
+      canRememberRule: !request.isRemoteInteraction,
+      run: (cacheRequest) => _executeStart(
+        request,
+        execution,
+        dispatchedAt,
+        cacheRequest: cacheRequest,
+      ),
+    );
+  }
+
+  Future<McpToolResult> _handleCancel(_Request request) async {
+    final processId = request.arguments['job_id']?.toString().trim() ?? '';
+    if (processId.isEmpty) {
+      return _results.missingProcessId(request.toolName);
+    }
+    final execution = LocalCommandExecutionRequest(
+      toolCallId: request.toolCallId,
+      toolName: request.toolName,
+      command: 'process_cancel $processId',
+      workingDirectory: _pathPolicy.cancelWorkingDirectory(request),
+      arguments: {'job_id': processId},
+    );
+    final approval = LocalCommandApprovalRequest(
+      toolCallId: request.toolCallId,
+      execution: execution,
+      reason: 'Cancel background process $processId',
+      warningTitle: 'Cancel background process?',
+      warningMessage: _cancelWarningMessage,
+    );
+    return _withApproval(
+      request,
+      approval,
+      denialMessage: 'User denied background process cancellation',
+      run: (cacheRequest) => _executeCancel(request, processId, cacheRequest),
+    );
+  }
+
+  Future<McpToolResult> _executeCancel(
+    _Request request,
+    String processId,
+    _Approval? cacheRequest,
+  ) async {
+    final lookupCompletion = await _lookupPort.lookup(
+      request.owner,
+      request.toolCallId,
+      processId,
+    );
+    if (_completionExpired(lookupCompletion, request)) {
+      return _results.expired(request.toolName);
+    }
+    final identity = lookupCompletion.value;
+    if (_isExpired(request)) return _results.expired(request.toolName);
+    if (identity == null) {
+      return _cacheResult(
+        request,
+        cacheRequest,
+        _results.processNotFound(request.toolName, processId),
+      );
+    }
+    if (identity.externalProcessId != processId) {
+      throw StateError('Background process lookup ID mismatch.');
+    }
+    late final LocalCommandCompletion<McpToolResult> cancelCompletion;
+    try {
+      cancelCompletion = await _executionPort.cancel(
+        request.owner,
+        request.toolCallId,
+        identity,
+      );
+    } catch (_) {
+      if (_isExpired(request)) {
+        return _results.effectUncertain(request.toolName);
+      }
+      rethrow;
+    }
+    if (!_belongsToRequest(cancelCompletion, request) ||
+        cancelCompletion.disposition ==
+            LocalCommandCompletionDisposition.ownerExpired ||
+        _isExpired(request)) {
+      return _results.effectUncertain(request.toolName);
+    }
+    final cancelled = cancelCompletion.value!;
+    return _cacheResult(
+      request,
+      cacheRequest,
+      cancelled,
+      sideEffectMayHaveOccurred: true,
+    );
+  }
+
+  Future<McpToolResult> _withApproval(
+    _Request request,
+    _Approval approval, {
+    required String denialMessage,
+    required Future<McpToolResult> Function(_Approval? cacheRequest) run,
+    CommandPermissionRuleRequest? ruleRequest,
+    bool canRememberRule = false,
+  }) async {
+    if (_isExpired(request)) return _results.expired(request.toolName);
+    final cached = _approvalPort.lookupDenial(request.owner, approval);
+    if (cached != null) {
+      if (!_belongsToRequest(cached, request) ||
+          cached.disposition ==
+              LocalCommandCompletionDisposition.ownerExpired ||
+          _isExpired(request)) {
+        return _results.expired(request.toolName);
+      }
+      return _results.requireToolName(cached.value!, request.toolName);
+    }
+    final gateCompletion = await _approvalPort.resolveGate(
+      request.owner,
+      approval,
+    );
+    if (_completionExpired(gateCompletion, request)) {
+      return _results.expired(request.toolName);
+    }
+    final gate = gateCompletion.value!;
+    if (gate.isDenied) {
+      return _rememberDenial(
+        request,
+        approval,
+        _results.autoReviewDenied(
+          request.toolName,
+          gate.deniedRationale ?? 'No rationale was provided.',
+        ),
+      );
+    }
+    if (gate.needsManual) {
+      final completion = await _approvalPort.requestManualApproval(
+        request.owner,
+        approval,
+        gate,
+      );
+      if (_completionExpired(completion, request)) {
+        return _results.expired(request.toolName);
+      }
+      final manual = completion.value!;
+      if (_isExpired(request)) return _results.expired(request.toolName);
+      if (manual.shouldRemember && canRememberRule && ruleRequest != null) {
+        final ruleCompletion = await _permissionRuleStorePort.remember(
+          request.owner,
+          request.toolCallId,
+          RememberedCommandPermissionRule(
+            action: manual.rememberedAction!,
+            match: manual.rememberedMatch!,
+            command: ruleRequest.command,
+            workingDirectory: ruleRequest.workingDirectory,
+          ),
+        );
+        if (_completionExpired(ruleCompletion, request)) {
+          return _results.expired(request.toolName);
+        }
+      }
+      if (!manual.approved) {
+        return _rememberDenial(
+          request,
+          approval,
+          _results.failure(request.toolName, denialMessage),
+        );
+      }
+    }
+    if (_isExpired(request)) return _results.expired(request.toolName);
+    return run(gate.bypassedApproval ? null : approval);
+  }
+
+  Future<McpToolResult> _executeStart(
+    _Request request,
+    LocalCommandExecutionRequest execution,
+    DateTime dispatchedAt, {
+    _Approval? cacheRequest,
+  }) async {
+    late final LocalCommandCompletion<BackgroundProcessStartResult> completion;
+    try {
+      completion = await _executionPort.start(request.owner, execution);
+    } catch (_) {
+      if (_isExpired(request)) {
+        return _results.effectUncertain(request.toolName);
+      }
+      rethrow;
+    }
+    if (!_belongsToRequest(completion, request) ||
+        completion.disposition ==
+            LocalCommandCompletionDisposition.ownerExpired) {
+      return _results.effectUncertain(request.toolName);
+    }
+    final started = completion.value!;
+    final rawResult = started.result;
+    final assessment = _startContract.assess(
+      started,
+      expectedToolName: request.toolName,
+    );
+    if (!assessment.isValid) {
+      return _results.effectUncertain(request.toolName);
+    }
+    if (_isExpired(request)) {
+      return _rollbackStart(request, assessment);
+    }
+    final result =
+        _startResultPolicy.buildStaleGuardResult(
+          ToolCallInfo(
+            id: request.toolCallId,
+            name: execution.toolName,
+            arguments: execution.arguments,
+          ),
+          rawResult,
+          dispatchedAt: dispatchedAt,
+        ) ??
+        rawResult;
+    if (result.toolName != request.toolName) {
+      return _results.effectUncertain(request.toolName);
+    }
+    return _cacheResult(
+      request,
+      cacheRequest,
+      result,
+      sideEffectMayHaveOccurred: true,
+    );
+  }
+
+  Future<McpToolResult> _rollbackStart(
+    _Request request,
+    BackgroundProcessStartAssessment assessment,
+  ) async {
+    final identity = assessment.identity;
+    if (!assessment.startedNewProcess ||
+        identity == null ||
+        !identity.isRunning) {
+      return _results.expired(request.toolName);
+    }
+    try {
+      final completion = await _executionPort.cancel(
+        request.owner,
+        request.toolCallId,
+        identity,
+        requireTermination: true,
+      );
+      if (!_belongsToRequest(completion, request)) {
+        return _results.effectUncertain(request.toolName);
+      }
+      if (completion.disposition ==
+          LocalCommandCompletionDisposition.ownerExpired) {
+        return _results.expired(request.toolName);
+      }
+    } catch (_) {
+      return _results.effectUncertain(request.toolName);
+    }
+    return _results.expired(request.toolName);
+  }
+
+  McpToolResult _cacheResult(
+    _Request request,
+    _Approval? approval,
+    McpToolResult result, {
+    bool sideEffectMayHaveOccurred = false,
+  }) {
+    final exactResult = _results.requireToolName(result, request.toolName);
+    if (approval == null) {
+      return _isExpired(request) && sideEffectMayHaveOccurred
+          ? _results.effectUncertain(request.toolName)
+          : exactResult;
+    }
+    final acknowledgement = _approvalPort.rememberResult(
+      request.owner,
+      approval,
+      exactResult,
+    );
+    final accepted =
+        _belongsToRequest(acknowledgement, request) &&
+        acknowledgement.disposition ==
+            LocalCommandCompletionDisposition.completed &&
+        !_isExpired(request);
+    if (accepted) return exactResult;
+    return sideEffectMayHaveOccurred
+        ? _results.effectUncertain(request.toolName)
+        : _results.expired(request.toolName);
+  }
+
+  bool _completionExpired<T>(
+    LocalCommandCompletion<T> completion,
+    _Request request,
+  ) {
+    if (completion.owner != request.owner ||
+        completion.toolCallId != request.toolCallId) {
+      throw StateError('Background process completion scope mismatch.');
+    }
+    return completion.disposition ==
+        LocalCommandCompletionDisposition.ownerExpired;
+  }
+
+  bool _belongsToRequest<T>(
+    LocalCommandCompletion<T> completion,
+    _Request request,
+  ) => completion.belongsTo(request.owner, request.toolCallId);
+
+  bool _isExpired(_Request request) =>
+      _approvalPort.isExpired(request.owner, request.toolCallId);
+  McpToolResult _rememberDenial(
+    _Request request,
+    _Approval approval,
+    McpToolResult result,
+  ) {
+    final exactResult = _results.requireToolName(result, request.toolName);
+    if (_isExpired(request)) return _results.expired(request.toolName);
+    final acknowledgement = _approvalPort.rememberDenial(
+      request.owner,
+      approval,
+      exactResult,
+    );
+    return _belongsToRequest(acknowledgement, request) &&
+            acknowledgement.disposition ==
+                LocalCommandCompletionDisposition.completed &&
+            !_isExpired(request)
+        ? exactResult
+        : _results.expired(request.toolName);
+  }
+}

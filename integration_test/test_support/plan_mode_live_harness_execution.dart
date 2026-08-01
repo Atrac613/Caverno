@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:caverno/core/utils/logger.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/git_tools.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
@@ -444,7 +445,7 @@ Future<bool> _runHarnessTaskTurn(
   final conversationsNotifier = container.read(
     conversationsNotifierProvider.notifier,
   );
-  await _sendHarnessPromptWithApprovals(
+  final turnOwner = await _sendHarnessPromptWithApprovals(
     container,
     scenarioDir: scenarioDir,
     task: task,
@@ -467,9 +468,11 @@ Future<bool> _runHarnessTaskTurn(
     return false;
   }
 
-  final toolResults = chatNotifier.takeLatestToolResults();
+  final toolResults = turnOwner == null
+      ? const <ToolResultInfo>[]
+      : chatNotifier.takeLatestToolResults(turnOwner);
   final hiddenAssistantResponse = chatNotifier
-      .takeLatestHiddenAssistantResponse();
+      .takeLatestHiddenAssistantResponse(turnOwner);
   final conversation = container
       .read(conversationsNotifierProvider)
       .currentConversation;
@@ -568,20 +571,20 @@ assessPlanModeHarnessTaskCompletion({
   );
 }
 
-Future<void> _sendHarnessPromptWithApprovals(
+Future<ChatTurnOwner?> _sendHarnessPromptWithApprovals(
   ProviderContainer container, {
   required Directory scenarioDir,
   required ConversationWorkflowTask task,
-  required Future<void> Function() send,
+  required Future<ChatTurnOwner?> Function() send,
   required PlanModeHarnessCancellationSignal cancellationSignal,
 }) async {
   final chatNotifier = container.read(chatNotifierProvider.notifier);
-  final completion = Completer<void>();
+  final completion = Completer<ChatTurnOwner?>();
   unawaited(
     send()
-        .then((_) {
+        .then((owner) {
           if (!completion.isCompleted) {
-            completion.complete();
+            completion.complete(owner);
           }
         })
         .catchError((Object error, StackTrace stackTrace) {
@@ -637,7 +640,7 @@ Future<void> _sendHarnessPromptWithApprovals(
     await Future<void>.delayed(const Duration(milliseconds: 100));
   }
 
-  await completion.future;
+  return completion.future;
 }
 
 bool _isSafeHarnessFileOperation(

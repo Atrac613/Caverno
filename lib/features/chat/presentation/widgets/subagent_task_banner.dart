@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../providers/subagent_task_notifier.dart';
 
@@ -10,11 +11,16 @@ import '../providers/subagent_task_notifier.dart';
 /// Collapses to zero height when there are no tasks. Tapping it opens a sheet to
 /// inspect each task's output and cancel running tasks or clear finished ones.
 class SubagentTaskBanner extends ConsumerWidget {
-  const SubagentTaskBanner({super.key});
+  const SubagentTaskBanner({super.key, this.conversationId});
+
+  final String? conversationId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tasks = ref.watch(subagentTaskNotifierProvider);
+    final tasks = _tasksForConversation(
+      ref.watch(subagentTaskNotifierProvider),
+      conversationId,
+    );
     if (tasks.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -73,17 +79,22 @@ class SubagentTaskBanner extends ConsumerWidget {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (_) => const _SubagentTaskSheet(),
+      builder: (_) => _SubagentTaskSheet(conversationId: conversationId),
     );
   }
 }
 
 class _SubagentTaskSheet extends ConsumerWidget {
-  const _SubagentTaskSheet();
+  const _SubagentTaskSheet({required this.conversationId});
+
+  final String? conversationId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tasks = ref.watch(subagentTaskNotifierProvider);
+    final tasks = _tasksForConversation(
+      ref.watch(subagentTaskNotifierProvider),
+      conversationId,
+    );
     final notifier = ref.read(subagentTaskNotifierProvider.notifier);
     final theme = Theme.of(context);
     final hasFinished = tasks.any((task) => task.isTerminal);
@@ -105,7 +116,11 @@ class _SubagentTaskSheet extends ConsumerWidget {
                 ),
                 if (hasFinished)
                   TextButton(
-                    onPressed: notifier.clearFinished,
+                    onPressed: () {
+                      for (final owner in _ownersOf(tasks)) {
+                        notifier.clearFinished(owner);
+                      }
+                    },
                     child: Text('subagent.clear_finished'.tr()),
                   ),
               ],
@@ -124,7 +139,10 @@ class _SubagentTaskSheet extends ConsumerWidget {
                   separatorBuilder: (_, _) => const Divider(height: 16),
                   itemBuilder: (context, index) => _SubagentTaskTile(
                     task: tasks[index],
-                    onCancel: () => notifier.cancel(tasks[index].id),
+                    onCancel: () => notifier.cancel(
+                      _ownerOf(tasks[index]),
+                      tasks[index].id,
+                    ),
                   ),
                 ),
               ),
@@ -134,6 +152,24 @@ class _SubagentTaskSheet extends ConsumerWidget {
     );
   }
 }
+
+List<SubagentTask> _tasksForConversation(
+  SubagentTaskState state,
+  String? conversationId,
+) {
+  final normalized = conversationId?.trim() ?? '';
+  return normalized.isEmpty
+      ? const <SubagentTask>[]
+      : state.tasksForConversation(normalized);
+}
+
+ChatTurnOwner _ownerOf(SubagentTask task) => ChatTurnOwner(
+  conversationId: task.conversationId,
+  interactionGeneration: task.interactionGeneration,
+);
+
+Set<ChatTurnOwner> _ownersOf(Iterable<SubagentTask> tasks) =>
+    tasks.map(_ownerOf).toSet();
 
 class _SubagentTaskTile extends StatelessWidget {
   const _SubagentTaskTile({required this.task, required this.onCancel});
@@ -185,10 +221,7 @@ class _SubagentTaskTile extends StatelessWidget {
           ),
         ),
         if (task.isActive)
-          TextButton(
-            onPressed: onCancel,
-            child: Text('subagent.cancel'.tr()),
-          ),
+          TextButton(onPressed: onCancel, child: Text('subagent.cancel'.tr())),
       ],
     );
   }

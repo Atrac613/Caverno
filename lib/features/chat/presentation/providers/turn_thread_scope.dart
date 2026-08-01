@@ -1,6 +1,7 @@
 import 'dart:async';
 
 final Object _turnThreadZoneKey = Object();
+final Object _turnGenerationZoneKey = Object();
 
 /// The thread a turn belongs to, carried across the awaits of its tool
 /// dispatch.
@@ -23,6 +24,27 @@ final class TurnThread {
     return runZoned(
       body,
       zoneValues: {_turnThreadZoneKey: TurnThread(conversationId)},
+    );
+  }
+}
+
+/// The exact generation that owns callbacks raised during a turn dispatch.
+///
+/// Deep tool and approval handlers cannot safely read the notifier's newest
+/// generation because another thread may become visible while they await.
+final class TurnGeneration {
+  const TurnGeneration(this.value);
+
+  final int value;
+
+  static int? get current =>
+      (Zone.current[_turnGenerationZoneKey] as TurnGeneration?)?.value;
+
+  static T runScoped<T>(int? generation, T Function() body) {
+    if (generation == null) return body();
+    return runZoned(
+      body,
+      zoneValues: {_turnGenerationZoneKey: TurnGeneration(generation)},
     );
   }
 }

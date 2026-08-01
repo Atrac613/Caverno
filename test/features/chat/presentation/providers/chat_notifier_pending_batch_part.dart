@@ -40,7 +40,9 @@ void registerChatNotifierPendingBatchTests() {
       _activatePendingBatchProject(container, project);
 
       final notifier = container.read(chatNotifierProvider.notifier);
-      await notifier.sendMessage('Finish the declared file write');
+      final turnOwner = await notifier.sendMessage(
+        'Finish the declared file write',
+      );
 
       expect(target.readAsStringSync(), 'const generated = true;\n');
       expect(toolService.executedToolNames.last, 'write_file');
@@ -50,9 +52,9 @@ void registerChatNotifierPendingBatchTests() {
       );
       expect(dataSource.toolResultBatches, hasLength(15));
       expect(
-        notifier.takeLatestToolResults().any(
-          (result) => result.result.contains('tool_call_not_executed'),
-        ),
+        notifier
+            .takeLatestToolResults(turnOwner!)
+            .any((result) => result.result.contains('tool_call_not_executed')),
         isFalse,
       );
       final finalPrompt = dataSource.finalAnswerMessages
@@ -150,7 +152,9 @@ void registerChatNotifierPendingBatchTests() {
     _activatePendingBatchProject(container, project);
 
     final notifier = container.read(chatNotifierProvider.notifier);
-    await notifier.sendMessage('Apply the corrected pending edit');
+    final turnOwner = await notifier.sendMessage(
+      'Apply the corrected pending edit',
+    );
 
     expect(pendingTarget.readAsStringSync(), expectedContent);
     expect(toolService.executedEditNewTexts, [
@@ -173,9 +177,9 @@ void registerChatNotifierPendingBatchTests() {
       hasLength(1),
     );
     expect(
-      notifier.takeLatestToolResults().any(
-        (result) => result.result.contains('tool_call_not_executed'),
-      ),
+      notifier
+          .takeLatestToolResults(turnOwner!)
+          .any((result) => result.result.contains('tool_call_not_executed')),
       isFalse,
     );
   });
@@ -229,14 +233,14 @@ void registerChatNotifierPendingBatchTests() {
         id: pending.id,
         approval: const LocalCommandApproval(approved: false),
       );
-      await sendFuture.timeout(const Duration(seconds: 5));
+      final turnOwner = await sendFuture.timeout(const Duration(seconds: 5));
 
       expect(
         toolService.executedToolNames,
         isNot(contains('local_execute_command')),
       );
       expect(dataSource.toolResultBatches, hasLength(15));
-      final results = notifier.takeLatestToolResults();
+      final results = notifier.takeLatestToolResults(turnOwner!);
       expect(
         results.any(
           (result) =>
@@ -286,10 +290,12 @@ void registerChatNotifierPendingBatchTests() {
     _activatePendingBatchProject(container, project);
 
     final notifier = container.read(chatNotifierProvider.notifier);
-    await notifier.sendMessage('Exercise the final dispatch failure');
+    final turnOwner = await notifier.sendMessage(
+      'Exercise the final dispatch failure',
+    );
 
     expect(dataSource.toolResultBatches, hasLength(15));
-    final results = notifier.takeLatestToolResults();
+    final results = notifier.takeLatestToolResults(turnOwner!);
     expect(
       results.any(
         (result) =>
@@ -400,7 +406,11 @@ void _activatePendingBatchProject(
       );
 }
 
-class _PendingBatchMcpToolService extends McpToolService {
+// The owner-aware delegate mirrors production: the file mutation runtime
+// executes raw mutations through the service's owner-fenced boundary, so a
+// double that only overrides executeTool never observes them.
+class _PendingBatchMcpToolService extends McpToolService
+    with FileTools, OwnerAwareMcpToolTestDelegate {
   _PendingBatchMcpToolService(this.root);
 
   final Directory root;

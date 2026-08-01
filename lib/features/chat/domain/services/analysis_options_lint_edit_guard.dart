@@ -1,6 +1,9 @@
 import 'dart:convert';
 
+import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
+
+// ChatNotifier decomposition collaborator: analysis-options-lint-edit-guard
 
 class AnalysisOptionsLintEditIssue {
   const AnalysisOptionsLintEditIssue({
@@ -42,6 +45,30 @@ class AnalysisOptionsLintEditIssue {
 /// executed Dart analyzer command in the current turn can ground a new rule.
 class AnalysisOptionsLintEditGuard {
   const AnalysisOptionsLintEditGuard();
+
+  McpToolResult? buildResult({
+    required ToolCallInfo toolCall,
+    required List<ToolResultInfo> executedToolResults,
+  }) {
+    final issue = detectIssue(
+      toolCall: toolCall,
+      executedToolResults: executedToolResults,
+    );
+    if (issue == null) {
+      return null;
+    }
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: jsonEncode({
+        'ok': false,
+        ...issue.toJson(),
+        'error': issue.summary,
+        'required_action': issue.instruction,
+      }),
+      isSuccess: false,
+      errorMessage: issue.summary,
+    );
+  }
 
   AnalysisOptionsLintEditIssue? detectIssue({
     required ToolCallInfo toolCall,
@@ -337,9 +364,6 @@ class AnalysisOptionsLintEditGuard {
       final decoded = jsonDecode(raw);
       if (decoded is Map<String, dynamic>) {
         return decoded;
-      }
-      if (decoded is Map) {
-        return decoded.map((key, value) => MapEntry(key.toString(), value));
       }
     } catch (_) {
       return null;

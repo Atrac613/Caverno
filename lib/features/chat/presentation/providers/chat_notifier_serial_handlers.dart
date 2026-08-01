@@ -5,7 +5,10 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierSerialHandlers on ChatNotifier {
-  Future<McpToolResult> _handleSerialOpen(ToolCallInfo toolCall) async {
+  Future<McpToolResult> _handleSerialOpen(
+    ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
+  ) async {
     final port = (toolCall.arguments['port'] as String?)?.trim() ?? '';
     if (port.isEmpty) {
       return McpToolResult(
@@ -31,15 +34,14 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
       'stop_bits': stopBits,
       'flow_control': flowControl,
     };
-    final cachedResult = _lookupToolApprovalResult(
+    final cachedResult = approvalCache.lookupDenial(
       toolCall.name,
       cacheArguments,
     );
-    if (cachedResult != null) {
-      return cachedResult;
-    }
+    if (cachedResult != null) return cachedResult;
 
     final gate = await _resolveToolApprovalGate(
+      approvalCache,
       toolCall: toolCall,
       actionKind: 'serial_open',
       mode: _settings.chatApprovalMode,
@@ -47,6 +49,7 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
       fullAccessEligible: true,
       approvalCacheArguments: cacheArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
+        approvalCache.owner,
         toolCall: toolCall,
         actionKind: 'serial_open',
         arguments: cacheArguments,
@@ -54,7 +57,7 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalDenial(
+      return approvalCache.rememberDenial(
         toolCall.name,
         cacheArguments,
         _autoReviewDeniedResult(
@@ -65,11 +68,12 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
     }
     if (gate.needsManual) {
       final approved = await requestSerialOpen(
+        owner: approvalCache.owner,
         portName: port,
         baudRate: baudRate,
       );
-      if (!approved) {
-        return _rememberToolApprovalDenial(
+      if (!approved && _isApprovalOwnerCurrent(approvalCache.owner)) {
+        return approvalCache.rememberDenial(
           toolCall.name,
           cacheArguments,
           McpToolResult(
@@ -81,19 +85,27 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
         );
       }
     }
+    final expired = _expiredApproval(toolCall.name, approvalCache);
+    if (expired != null) return expired;
 
+    final serialPortService = ref.read(serialPortServiceProvider);
     try {
-      final resultJson = await ref
-          .read(serialPortServiceProvider)
-          .open(
-            port,
-            baudRate: baudRate,
-            dataBits: dataBits,
-            parity: parity,
-            stopBits: stopBits,
-            flowControl: flowControl,
-          );
+      final resultJson = await serialPortService.open(
+        port,
+        baudRate: baudRate,
+        dataBits: dataBits,
+        parity: parity,
+        stopBits: stopBits,
+        flowControl: flowControl,
+      );
       final succeeded = !_serialResultIsError(resultJson);
+      final expiredAfterOpen = await _rollbackExpiredApproval(
+        toolCall.name,
+        approvalCache,
+        target: port,
+        rollback: succeeded ? () => serialPortService.close(port) : null,
+      );
+      if (expiredAfterOpen != null) return expiredAfterOpen;
       final result = McpToolResult(
         toolName: toolCall.name,
         result: resultJson,
@@ -104,10 +116,12 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
       // returning a stale failure. Full access never caches, so re-opening stays
       // possible without a stale result.
       return (succeeded && !gate.bypassedApproval)
-          ? _rememberToolApprovalResult(toolCall.name, cacheArguments, result)
+          ? approvalCache.rememberResult(toolCall.name, cacheArguments, result)
           : result;
     } catch (e) {
       appLog('[Tool] Serial open failed: $e');
+      final stale = _expiredApproval(toolCall.name, approvalCache);
+      if (stale != null) return stale;
       return McpToolResult(
         toolName: toolCall.name,
         result: '',
@@ -117,38 +131,30 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
     }
   }
 
-  /// Puts a pending serial-open request into state and returns a future that
-  /// completes with `true` (approved) or `false` (denied).
   Future<bool> requestSerialOpen({
+    required ChatTurnOwner owner,
     required String portName,
     required int baudRate,
   }) {
     final completer = Completer<bool>();
     final pending = PendingSerialOpen(
+      owner: owner,
       id: const Uuid().v4(),
       portName: portName,
       baudRate: baudRate,
       completer: completer,
     );
-    _routeApproval((s) => s.copyWith(pendingSerialOpen: pending));
-    _emitRuntimeApprovalRequired(
-      id: pending.id,
-      capability: 'serial_connection',
-      summary: 'Open $portName at $baudRate baud',
-      target: portName,
+    return _registerPendingToolApproval(
+      pending,
+      (s) => s.copyWith(pendingSerialOpen: pending),
+      'serial_connection',
+      'Open $portName at $baudRate baud',
+      portName,
     );
-    return completer.future;
   }
 
-  /// Resolves a pending serial-open dialog from the UI layer.
-  void resolveSerialOpen({required String id, required bool approved}) {
-    final pending = state.pendingSerialOpen;
-    if (pending == null || pending.id != id) return;
-    if (!pending.completer.isCompleted) {
-      pending.completer.complete(approved);
-    }
-    state = state.copyWith(pendingSerialOpen: null);
-  }
+  bool resolveSerialOpen({required String id, required bool approved}) =>
+      _completeApproval<bool, PendingSerialOpen>(id, (_) => approved);
 
   bool _serialResultIsError(String resultJson) {
     try {

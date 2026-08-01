@@ -1,4 +1,9 @@
+// ignore_for_file: annotate_overrides, curly_braces_in_flow_control_structures
+
 import 'dart:convert';
+
+export 'mcp_tool_service_facades.dart';
+export 'local_command_tool_runtime_adapter.dart';
 
 import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/browser_session_service.dart';
@@ -29,6 +34,7 @@ import 'built_in_network_tool_handler.dart';
 import 'built_in_serial_tool_handler.dart';
 import 'built_in_ssh_tool_handler.dart';
 import 'built_in_wifi_tool_handler.dart';
+import 'chat_turn_owner_required_tool_result.dart';
 import 'conversation_search_tool.dart';
 import 'file_rollback_checkpoint_store.dart';
 import 'filesystem_tools.dart';
@@ -39,19 +45,17 @@ import 'installed_dependency_grounding_service.dart';
 import 'local_shell_tools.dart';
 import 'mcp_client.dart';
 import 'mcp_goal_routine_tool_definitions.dart';
+import 'mcp_tool_service_facades.dart';
 import 'mcp_tool_result_normalizer.dart';
 import 'os_log_tools.dart';
 import 'python_script_tools.dart';
 import 'remote_mcp_connection_manager.dart';
 import 'searxng_client.dart';
 
-/// MCP tool management service.
-///
-/// Fetches tools dynamically from an MCP server and executes them.
-/// Falls back to SearXNG when the MCP server is unavailable.
+/// Manages built-in and remote MCP tool discovery and execution.
 part 'mcp_tool_service_builtin_tool_definitions.dart';
 
-class McpToolService {
+class McpToolService extends McpToolServiceFacadeBase {
   static const Set<String> _reservedToolNames = {
     'get_current_datetime',
     ConversationSearchTool.toolName,
@@ -97,6 +101,7 @@ class McpToolService {
     this.scriptRuntimeRegistry,
     this.backgroundProcessTools,
     this.backgroundProcessMonitorService,
+    FileRollbackCheckpointStore? fileRollbackCheckpointStore,
     BuiltInNetworkToolHandler? networkToolHandler,
     BuiltInFilesystemToolHandler? filesystemToolHandler,
     BuiltInLocalCommandToolHandler? localCommandToolHandler,
@@ -112,8 +117,15 @@ class McpToolService {
     this.semanticConversationRanker,
     this.disabledBuiltInTools = const {},
   }) : networkToolHandler = networkToolHandler ?? BuiltInNetworkToolHandler(),
+       assert(
+         fileRollbackCheckpointStore == null || filesystemToolHandler == null,
+         'Provide either a file rollback store or filesystem handler, not both',
+       ),
        filesystemToolHandler =
-           filesystemToolHandler ?? BuiltInFilesystemToolHandler(),
+           filesystemToolHandler ??
+           BuiltInFilesystemToolHandler(
+             checkpointStore: fileRollbackCheckpointStore,
+           ),
        localCommandToolHandler =
            localCommandToolHandler ??
            BuiltInLocalCommandToolHandler(
@@ -658,10 +670,8 @@ class McpToolService {
       return GitFinishWorktreeSessionTool.execute(arguments);
     }
 
-    // SSH connection and command approvals remain upstream in ChatNotifier.
-    if (sshToolHandler.handles(name)) {
-      return sshToolHandler.execute(name: name, arguments: arguments);
-    }
+    if (sshToolHandler.handles(name))
+      return OwnerRequiredToolResult.create(name);
 
     // Built-in BLE tools.
     if (bleToolHandler.isAvailable && bleToolHandler.handles(name)) {
@@ -729,26 +739,6 @@ class McpToolService {
       isSuccess: false,
       errorMessage: 'No matching tool available: $name',
     );
-  }
-
-  Future<FileRollbackPreview?> previewLastFileRollbackChange() async {
-    return filesystemToolHandler.previewLastFileRollbackChange();
-  }
-
-  void beginFileTurnCheckpoint(String turnId) {
-    filesystemToolHandler.beginFileTurnCheckpoint(turnId);
-  }
-
-  void endFileTurnCheckpoint() {
-    filesystemToolHandler.endFileTurnCheckpoint();
-  }
-
-  Future<FileTurnRollbackPreview?> previewLastFileTurnCheckpoint() async {
-    return filesystemToolHandler.previewLastFileTurnCheckpoint();
-  }
-
-  Future<McpToolResult> rollbackLastFileTurnCheckpoint() async {
-    return filesystemToolHandler.rollbackLastFileTurnCheckpoint();
   }
 
   static Map<String, dynamic> get _spawnSubagentTool => {

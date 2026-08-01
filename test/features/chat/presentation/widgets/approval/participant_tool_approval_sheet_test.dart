@@ -6,6 +6,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/widgets/approval/participant_tool_approval_sheet.dart';
 
@@ -98,7 +99,12 @@ Future<void> _pumpHarness(
                           await ParticipantToolApprovalSheet.show(
                             sheetContext,
                             PendingParticipantToolApproval(
+                              owner: ChatTurnOwner(
+                                conversationId: 'thread-a',
+                                interactionGeneration: 7,
+                              ),
                               id: 'participant-tool-test',
+                              participantId: 'researcher',
                               participantName: 'Researcher',
                               participantRoleLabel: 'Reviewer',
                               toolName: 'search_files',

@@ -1,10 +1,12 @@
-import 'dart:convert';
-
+import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
+import 'built_in_filesystem_mutation_effect_boundary.dart';
 import 'file_rollback_checkpoint_store.dart';
 import 'built_in_filesystem_tool_definitions.dart';
-import 'command_payload_facts.dart';
+import 'file_mutation_runtime_contract.dart';
 import 'filesystem_tools.dart';
+
+part 'built_in_filesystem_mutation_runtime_facade.dart';
 
 typedef BuiltInFilesystemOperationRunner =
     Future<String> Function({
@@ -20,9 +22,11 @@ class BuiltInFilesystemToolHandler {
   BuiltInFilesystemToolHandler({
     BuiltInFilesystemOperationRunner? operationRunner,
     BuiltInFilesystemSnapshotReader? snapshotReader,
+    BuiltInFilesystemMutationSnapshotRestorer? snapshotRestorer,
     FileRollbackCheckpointStore? checkpointStore,
   }) : _operationRunner = operationRunner ?? _runFilesystemOperation,
        _snapshotReader = snapshotReader ?? FilesystemTools.captureTextSnapshot,
+       _snapshotRestorer = snapshotRestorer,
        _checkpointStore = checkpointStore ?? FileRollbackCheckpointStore();
 
   static const List<String> inspectionToolNames = <String>[
@@ -49,7 +53,17 @@ class BuiltInFilesystemToolHandler {
 
   final BuiltInFilesystemOperationRunner _operationRunner;
   final BuiltInFilesystemSnapshotReader _snapshotReader;
+  final BuiltInFilesystemMutationSnapshotRestorer? _snapshotRestorer;
   final FileRollbackCheckpointStore _checkpointStore;
+  late final BuiltInFilesystemMutationEffectBoundary _mutationEffectBoundary =
+      BuiltInFilesystemMutationEffectBoundary(
+        operationRunner: _operationRunner,
+        snapshotReader: _snapshotReader,
+        snapshotRestorer: _snapshotRestorer,
+        checkpointStore: _checkpointStore,
+      );
+
+  FileRollbackCheckpointStore get checkpointStore => _checkpointStore;
 
   List<Map<String, dynamic>> get inspectionDefinitions =>
       <Map<String, dynamic>>[
@@ -72,6 +86,7 @@ class BuiltInFilesystemToolHandler {
   Future<McpToolResult> execute({
     required String name,
     required Map<String, dynamic> arguments,
+    ChatTurnOwner? owner,
   }) async {
     if (!handles(name)) {
       throw ArgumentError.value(name, 'name', 'Unknown filesystem tool');
@@ -180,6 +195,7 @@ class BuiltInFilesystemToolHandler {
           return _validationFailure(name, 'path is required');
         }
         return _executeMutation(
+          owner: owner,
           name: name,
           path: path,
           arguments: <String, dynamic>{
@@ -195,6 +211,7 @@ class BuiltInFilesystemToolHandler {
           return _validationFailure(name, 'path is required');
         }
         return _executeMutation(
+          owner: owner,
           name: name,
           path: path,
           arguments: <String, dynamic>{
@@ -211,61 +228,43 @@ class BuiltInFilesystemToolHandler {
           return _validationFailure(name, 'path is required');
         }
         return _executeMutation(
+          owner: owner,
           name: name,
           path: path,
           arguments: <String, dynamic>{'path': path},
           deriveSuccessFromPayload: true,
         );
       case 'rollback_last_file_change':
-        return _checkpointStore.rollbackLastFileChange(toolName: name);
+        return owner == null
+            ? _validationFailure(
+                name,
+                'No recent file change is available to roll back',
+              )
+            : _checkpointStore.rollbackLastFileChange(
+                owner: owner,
+                toolName: name,
+              );
     }
 
     throw StateError('Unhandled filesystem tool: $name');
   }
 
-  Future<FileRollbackPreview?> previewLastFileRollbackChange() {
-    return _checkpointStore.previewLastFileRollbackChange();
-  }
-
-  void beginFileTurnCheckpoint(String turnId) {
-    _checkpointStore.beginFileTurnCheckpoint(turnId);
-  }
-
-  void endFileTurnCheckpoint() {
-    _checkpointStore.endFileTurnCheckpoint();
-  }
-
-  Future<FileTurnRollbackPreview?> previewLastFileTurnCheckpoint() {
-    return _checkpointStore.previewLastFileTurnCheckpoint();
-  }
-
-  Future<McpToolResult> rollbackLastFileTurnCheckpoint() {
-    return _checkpointStore.rollbackLastFileTurnCheckpoint();
-  }
-
   Future<McpToolResult> _executeMutation({
+    required ChatTurnOwner? owner,
     required String name,
     required String path,
     required Map<String, dynamic> arguments,
     required bool deriveSuccessFromPayload,
   }) async {
-    final snapshot = await _snapshotReader(path);
-    final result = await _operationRunner(name: name, arguments: arguments);
-    final payloadSuccess = _isFilesystemPayloadSuccess(result);
-    if (payloadSuccess) {
-      _checkpointStore.push(snapshot);
-    }
-    final success = deriveSuccessFromPayload ? payloadSuccess : true;
-    return McpToolResult(
-      toolName: name,
-      result: result,
-      isSuccess: success,
-      errorMessage: success ? null : 'Failed to delete file',
-      // A successful mutation that changed nothing is the fact worth carrying;
-      // a failed one has no effect to describe.
-      outcome: payloadSuccess
-          ? CommandPayloadFacts.mutationOutcome(result)
-          : null,
+    assert(
+      deriveSuccessFromPayload == (name == 'delete_file'),
+      'Only delete_file derives result success from its payload.',
+    );
+    return _mutationEffectBoundary.executeLegacy(
+      owner: owner,
+      name: name,
+      path: path,
+      arguments: arguments,
     );
   }
 
@@ -276,16 +275,6 @@ class BuiltInFilesystemToolHandler {
       isSuccess: false,
       errorMessage: message,
     );
-  }
-
-  static bool _isFilesystemPayloadSuccess(String payload) {
-    try {
-      final decoded = jsonDecode(payload);
-      return decoded is! Map<String, dynamic> ||
-          (decoded['error'] == null && decoded['already_applied'] != true);
-    } catch (_) {
-      return true;
-    }
   }
 
   static Future<String> _runFilesystemOperation({

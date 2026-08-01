@@ -78,14 +78,15 @@ class _TestSettingsNotifier extends SettingsNotifier {
 /// Streams one short answer, so a turn starts and finishes normally.
 class _StreamingDataSource implements ChatDataSource {
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) async* {
-    yield 'done';
-  }
+  }) => StreamedChatCompletion.fromStream(
+    Stream<String>.value('done'),
+    finishReason: 'stop',
+  );
 
   @override
   Future<ChatCompletionResult> createChatCompletion({

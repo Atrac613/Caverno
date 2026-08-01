@@ -9,6 +9,9 @@ part of 'subagent_task.dart';
 _SubagentTask _$SubagentTaskFromJson(Map<String, dynamic> json) =>
     _SubagentTask(
       id: json['id'] as String,
+      conversationId: json['conversationId'] as String? ?? '',
+      interactionGeneration:
+          (json['interactionGeneration'] as num?)?.toInt() ?? -1,
       status:
           $enumDecodeNullable(_$SubagentTaskStatusEnumMap, json['status']) ??
           SubagentTaskStatus.pending,
@@ -31,6 +34,8 @@ _SubagentTask _$SubagentTaskFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$SubagentTaskToJson(_SubagentTask instance) =>
     <String, dynamic>{
       'id': instance.id,
+      'conversationId': instance.conversationId,
+      'interactionGeneration': instance.interactionGeneration,
       'status': _$SubagentTaskStatusEnumMap[instance.status]!,
       'description': instance.description,
       'parentToolUseId': instance.parentToolUseId,

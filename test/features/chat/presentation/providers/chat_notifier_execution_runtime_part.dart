@@ -414,13 +414,18 @@ void registerChatNotifierExecutionRuntimeTests() {
     });
 
     final chatNotifier = runtimeContainer.read(chatNotifierProvider.notifier);
-    final sendFuture = chatNotifier.sendMessage('Prepare the change');
-    await Future<void>.delayed(Duration.zero);
+    final owner = await chatNotifier.sendMessage('Prepare the change');
+    expect(owner, isNotNull);
+    final generation = owner!.interactionGeneration;
 
-    final approvalFuture = chatNotifier.requestLocalCommand(
-      command: 'dart test',
-      workingDirectory: '/workspace',
-      reason: 'Verify the implementation',
+    final approvalFuture = TurnGeneration.runScoped(
+      generation,
+      () => chatNotifier.requestLocalCommand(
+        owner: owner,
+        command: 'dart test',
+        workingDirectory: '/workspace',
+        reason: 'Verify the implementation',
+      ),
     );
     final pendingApproval = chatNotifier.state.pendingLocalCommand!;
     chatNotifier.resolveLocalCommand(
@@ -428,17 +433,19 @@ void registerChatNotifierExecutionRuntimeTests() {
       approval: const LocalCommandApproval(approved: false),
     );
     await approvalFuture;
-
-    final questionFuture = chatNotifier.requestAskUserQuestion(
-      question: 'Which target should be used?',
-      help: 'Choose one target.',
-      options: const [
-        AskUserQuestionOption(id: 'local', label: 'Local'),
-        AskUserQuestionOption(id: 'remote', label: 'Remote'),
-      ],
-      allowMultiple: false,
-      allowOther: false,
-      otherPlaceholder: '',
+    final questionFuture = TurnGeneration.runScoped(
+      generation,
+      () => chatNotifier.requestAskUserQuestion(
+        question: 'Which target should be used?',
+        help: 'Choose one target.',
+        options: const [
+          AskUserQuestionOption(id: 'local', label: 'Local'),
+          AskUserQuestionOption(id: 'remote', label: 'Remote'),
+        ],
+        allowMultiple: false,
+        allowOther: false,
+        otherPlaceholder: '',
+      ),
     );
     final pendingQuestion = chatNotifier.state.pendingAskUserQuestion!;
     chatNotifier.resolveAskUserQuestion(id: pendingQuestion.id);
@@ -446,7 +453,6 @@ void registerChatNotifierExecutionRuntimeTests() {
 
     streamController.add('Stopped before execution.');
     await streamController.close();
-    await sendFuture;
     await terminalEvent.future.timeout(const Duration(seconds: 5));
 
     final approval = events.whereType<CavernoRuntimeApprovalRequired>().single;

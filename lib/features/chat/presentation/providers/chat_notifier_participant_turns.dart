@@ -1,75 +1,114 @@
-// Same-library extension on [ChatNotifier]; see chat_notifier_git_handlers.dart
-// for the rationale behind the `ignore_for_file` directive.
+// Same-library extension; see chat_notifier_git_handlers.dart for lint context.
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
 
-class _ParticipantTurnCompletion {
-  const _ParticipantTurnCompletion({
-    required this.content,
-    this.handoffTargetParticipantId,
-  });
-
-  final String content;
-  final String? handoffTargetParticipantId;
-}
+typedef _ParticipantTurn = ({int generation, String ownerId});
+typedef _ParticipantTurnCompletion = ({String content, String? handoffId});
 
 extension ChatNotifierParticipantTurns on ChatNotifier {
   void requestParticipantTurnStop() {
+    final ownerConversationId = conversationId;
     final runtime = state.participantTurnRuntime;
-    if (runtime == null || runtime.paused) return;
-    _participantTurnStopRequested = true;
-    state = state.copyWith(
-      participantTurnRuntime: runtime.copyWith(stopRequested: true),
+    if (ownerConversationId == null || runtime == null || runtime.paused) {
+      return;
+    }
+    final generation = _activeResponseGenerationForConversation(
+      ownerConversationId,
+    );
+    if (generation == null) return;
+    final owner = ChatTurnOwner(
+      conversationId: ownerConversationId,
+      interactionGeneration: generation,
+    );
+    if (!_participantTurnControls.requestStop(owner)) return;
+    _routeThreadState(
+      ownerConversationId,
+      (s) => s.copyWith(
+        participantTurnRuntime: runtime.copyWith(stopRequested: true),
+      ),
     );
   }
 
   Future<void> continueParticipantTurns() async {
     if (state.isLoading) return;
-    final cursor = _pausedParticipantTurnCursor;
-    final config = _pausedParticipantTurnConfig;
-    final targetConversationId = _pausedParticipantTurnConversationId;
-    if (cursor == null || config == null || targetConversationId == null) {
-      return;
-    }
-
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (currentConversation?.id != targetConversationId) {
-      return;
-    }
-
-    final participants = _pausedParticipantTurnParticipants;
+    final targetConversationId = conversationId;
+    if (targetConversationId == null) return;
+    final pausedOwner = _participantTurnControls.pausedOwnerForConversation(
+      targetConversationId,
+    );
+    if (pausedOwner == null) return;
+    final paused = _participantTurnControls.resume(pausedOwner);
+    if (paused == null) return;
+    final participants = paused.participants;
     if (participants.isEmpty) {
-      _clearPausedParticipantTurn();
-      state = state.copyWith(participantTurnRuntime: null);
+      _participantTurnControls.consumeCursor(pausedOwner);
+      _participantTurnControls.dispose(pausedOwner);
+      _routeThreadState(
+        targetConversationId,
+        (s) => s.copyWith(participantTurnRuntime: null),
+      );
       return;
     }
-
-    _participantTurnStopRequested = false;
-    final interactionGeneration = _beginInteractionGeneration();
+    final generation = _beginInteractionGeneration();
+    final turn = (generation: generation, ownerId: targetConversationId);
+    final owner = _participantTurnOwner(turn);
     conversationId = targetConversationId;
-    _trackActiveResponse(interactionGeneration, targetConversationId);
-    state = state.copyWith(
-      isLoading: true,
-      error: null,
-      participantTurnRuntime: state.participantTurnRuntime?.copyWith(
-        paused: false,
-        stopRequested: false,
+    _trackActiveResponse(turn.generation, turn.ownerId);
+    if (await _startRuntimeTurn(
+          generation: turn.generation,
+          ownerConversationId: turn.ownerId,
+          hidden: false,
+        ) ==
+        null) {
+      _participantTurnControls.clear(pausedOwner);
+      _clearActiveResponseForGeneration(turn.generation);
+      return;
+    }
+    if (!_participantTurnControls.begin(owner)) {
+      _participantTurnControls.clear(pausedOwner);
+      _failRuntimeTurn(
+        turn.generation,
+        code: 'participant_control_state_unavailable',
+        message: 'Participant turn control state could not be initialized.',
+      );
+      return;
+    }
+    final cursor = _participantTurnControls.consumeCursor(pausedOwner);
+    if (cursor == null) {
+      _participantTurnControls.dispose(owner);
+      _participantTurnControls.clear(pausedOwner);
+      _failRuntimeTurn(
+        turn.generation,
+        code: 'participant_resume_cursor_unavailable',
+        message: 'The paused participant turn cursor is unavailable.',
+      );
+      return;
+    }
+    _participantTurnControls.dispose(pausedOwner);
+    _routeThreadState(
+      turn.ownerId,
+      (s) => s.copyWith(
+        isLoading: true,
+        error: null,
+        participantTurnRuntime: s.participantTurnRuntime?.copyWith(
+          paused: false,
+          stopRequested: false,
+        ),
       ),
     );
     _onSendStarted();
     try {
       await _runParticipantTurnLoop(
-        interactionGeneration: interactionGeneration,
-        targetConversationId: targetConversationId,
+        turn: turn,
         participants: participants,
-        config: config,
+        config: paused.config,
         initialCursor: cursor,
-        initialPreferredParticipantId: _pausedParticipantTurnPreferredId,
-        initialLastSpeakerParticipantId: _pausedParticipantTurnLastSpeakerId,
+        initialPreferredParticipantId: paused.preferredParticipantId,
+        initialLastSpeakerParticipantId: paused.lastSpeakerParticipantId,
       );
+    } catch (error) {
+      await _failParticipantTurn(turn, error);
     } finally {
       _activeInteractionOrigin = ChatInteractionOrigin.local;
     }
@@ -80,43 +119,70 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
     required Conversation currentConversation,
     required ConversationsNotifier conversationsNotifier,
   }) async {
-    _clearPausedParticipantTurn();
-    _participantTurnStopRequested = false;
     const coordinator = ParticipantTurnCoordinator();
-    var participants = coordinator.normalizeParticipants(
-      participants: currentConversation.participants,
-      primaryModel: _settings.effectiveModel,
+    final ownerId = _activeResponseConversationIdForGeneration(
+      interactionGeneration,
     );
-    if (!_sameParticipants(participants, currentConversation.participants)) {
-      await conversationsNotifier.updateConversationParticipants(
-        currentConversation.id,
-        participants: participants,
+    if (ownerId == null || ownerId != currentConversation.id) {
+      _failRuntimeTurn(
+        interactionGeneration,
+        code: 'participant_owner_mismatch',
+        message: 'The participant turn owner could not be resolved.',
       );
-      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-    }
-
-    final enabledParticipants = coordinator.orderedEnabledParticipants(
-      participants,
-    );
-    if (enabledParticipants.isEmpty) {
-      state = state.copyWith(isLoading: false, participantTurnRuntime: null);
-      _clearActiveResponseForGeneration(interactionGeneration);
-      await _drainQueuedChatMessagesIfIdle();
       return;
     }
-
-    await _runParticipantTurnLoop(
-      interactionGeneration: interactionGeneration,
-      targetConversationId: currentConversation.id,
-      participants: participants,
-      config: currentConversation.participantTurnConfig,
-      initialCursor: const ParticipantTurnCursor(),
+    final turn = (generation: interactionGeneration, ownerId: ownerId);
+    final owner = _participantTurnOwner(turn);
+    final pausedOwner = _participantTurnControls.pausedOwnerForConversation(
+      ownerId,
     );
+    if (pausedOwner != null && pausedOwner != owner) {
+      _participantTurnControls.dispose(pausedOwner);
+    }
+    if (!_participantTurnControls.begin(owner)) {
+      _failRuntimeTurn(
+        interactionGeneration,
+        code: 'participant_control_state_unavailable',
+        message: 'Participant turn control state could not be initialized.',
+      );
+      return;
+    }
+    try {
+      final participants = List<ConversationParticipant>.unmodifiable(
+        coordinator.normalizeParticipants(
+          participants: currentConversation.participants,
+          primaryModel: _settings.effectiveModel,
+        ),
+      );
+      if (!listEquals(participants, currentConversation.participants)) {
+        await conversationsNotifier.updateConversationParticipants(
+          ownerId,
+          participants: participants,
+        );
+        if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+      }
+      if (coordinator.orderedEnabledParticipants(participants).isEmpty) {
+        _denyTools(interactionGeneration);
+        await _completeParticipantTurns(
+          turn,
+          '',
+          exitReason: 'participant_turn_empty_roster',
+        );
+        return;
+      }
+      await _runParticipantTurnLoop(
+        turn: turn,
+        participants: participants,
+        config: currentConversation.participantTurnConfig,
+        initialCursor: const ParticipantTurnCursor(),
+      );
+    } catch (error) {
+      await _failParticipantTurn(turn, error);
+    }
   }
 
   Future<void> _runParticipantTurnLoop({
-    required int interactionGeneration,
-    required String targetConversationId,
+    required _ParticipantTurn turn,
     required List<ConversationParticipant> participants,
     required ParticipantTurnConfig config,
     required ParticipantTurnCursor initialCursor,
@@ -128,8 +194,7 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
     String completedContent = '';
     String? preferredParticipantId = initialPreferredParticipantId;
     String? lastSpeakerParticipantId = initialLastSpeakerParticipantId;
-
-    while (_isCurrentInteractionGeneration(interactionGeneration)) {
+    while (_isCurrentInteractionGeneration(turn.generation)) {
       final decision = coordinator.nextSpeaker(
         participants: participants,
         config: config,
@@ -139,37 +204,33 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       );
       preferredParticipantId = null;
       if (!decision.hasParticipant) {
-        await _completeParticipantTurns(
-          generation: interactionGeneration,
-          completedContent: completedContent,
-        );
+        await _completeParticipantTurns(turn, completedContent);
         return;
       }
-
       final participant = decision.participant!;
       final isFinalTurn = decision.completed;
       _setParticipantTurnRuntime(
-        participant: participant,
-        config: config,
-        roundNumber: decision.roundNumber,
-        paused: false,
+        turn,
+        participant,
+        config,
+        decision.roundNumber,
       );
       final completion = await _streamParticipantTurn(
-        interactionGeneration: interactionGeneration,
-        participant: participant,
-        participants: participants,
-        isFinalTurn: isFinalTurn,
+        turn,
+        participant,
+        participants,
+        isFinalTurn,
       );
+      if (completion == null) return;
       completedContent = completion.content;
       lastSpeakerParticipantId = participant.id;
-      preferredParticipantId = completion.handoffTargetParticipantId;
-      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-
+      preferredParticipantId = completion.handoffId;
+      if (!_isCurrentInteractionGeneration(turn.generation)) return;
       cursor = decision.cursor;
-      if (_participantTurnStopRequested && !isFinalTurn) {
+      if (_participantTurnControls.stopRequested(_participantTurnOwner(turn)) &&
+          !isFinalTurn) {
         await _pauseParticipantTurns(
-          generation: interactionGeneration,
-          targetConversationId: targetConversationId,
+          turn: turn,
           participants: participants,
           config: config,
           cursor: cursor,
@@ -179,78 +240,72 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
         );
         return;
       }
-
       if (isFinalTurn) {
-        await _completeParticipantTurns(
-          generation: interactionGeneration,
-          completedContent: completedContent,
-        );
+        await _completeParticipantTurns(turn, completedContent);
         return;
       }
     }
   }
 
-  Future<_ParticipantTurnCompletion> _streamParticipantTurn({
-    required int interactionGeneration,
-    required ConversationParticipant participant,
-    required List<ConversationParticipant> participants,
-    required bool isFinalTurn,
-  }) async {
-    final participantMessage = Message(
-      id: _uuid.v4(),
-      content: '',
-      role: MessageRole.assistant,
-      timestamp: DateTime.now(),
-      isStreaming: true,
-      participantId: participant.id,
-      participantDisplayName: participant.effectiveDisplayName,
-      participantRoleLabel: participant.effectiveRoleLabel,
-      participantColorValue: participant.colorValue,
-    );
-    _appendParticipantPlaceholder(
-      generation: interactionGeneration,
-      message: participantMessage,
-    );
-    _startResponseMetricsTimer(interactionGeneration);
-
-    final model = participant.model.trim().isEmpty
-        ? _settings.effectiveModel
-        : participant.model.trim();
-    const coordinator = ParticipantTurnCoordinator();
-    final participantRolePrompt = coordinator.buildRolePromptForParticipant(
-      target: participant,
-      participants: participants,
-    );
-    final promptMessages = coordinator.buildMessagesForParticipant(
-      target: participant,
-      participants: participants,
-      transcript: _prepareMessagesForLLM(
-        interactionGeneration: interactionGeneration,
-        participantRolePrompt: participantRolePrompt,
-      ),
-      includeRolePrompt: false,
-    );
-    final participantToolDefinitions = _participantToolDefinitionsFor(
-      participant,
-    );
-    final usedParticipantToolNames = <String>[];
-
+  Future<_ParticipantTurnCompletion?> _streamParticipantTurn(
+    _ParticipantTurn turn,
+    ConversationParticipant participant,
+    List<ConversationParticipant> participants,
+    bool isFinalTurn,
+  ) async {
+    final owner = _participantTurnOwner(turn);
     try {
+      final participantMessage = Message(
+        id: _uuid.v4(),
+        content: '',
+        role: MessageRole.assistant,
+        timestamp: DateTime.now(),
+        isStreaming: true,
+        participantId: participant.id,
+        participantDisplayName: participant.effectiveDisplayName,
+        participantRoleLabel: participant.effectiveRoleLabel,
+        participantColorValue: participant.colorValue,
+      );
+      _appendParticipantPlaceholder(turn.generation, participantMessage);
+      if (!_responseMetadata.start(owner)) {
+        throw StateError(
+          'Participant response metadata state could not be initialized.',
+        );
+      }
+      final model = participant.model.trim().isEmpty
+          ? _settings.effectiveModel
+          : participant.model.trim();
+      const coordinator = ParticipantTurnCoordinator();
+      final participantRolePrompt = coordinator.buildRolePromptForParticipant(
+        target: participant,
+        participants: participants,
+      );
+      final promptMessages = coordinator.buildMessagesForParticipant(
+        target: participant,
+        participants: participants,
+        transcript: _prepareMessagesForLLM(
+          interactionGeneration: turn.generation,
+          participantRolePrompt: participantRolePrompt,
+        ),
+        includeRolePrompt: false,
+      );
+      final participantToolDefinitions = _toolDefinitionsFor(participant);
+      final participantToolNames = participantToolDefinitions
+          .map(ParticipantToolPolicy.toolNameFromDefinition)
+          .nonNulls
+          .toSet();
+      _activeResponseRegistry.setTools(turn.generation, participantToolNames);
+      final usedParticipantToolNames = <String>[];
       final participantLogContext =
-          _llmSessionLogContextForGeneration(
-            interactionGeneration,
-          ).withParticipant(
+          _llmSessionLogContextForGeneration(turn.generation).withParticipant(
             participantId: participant.id,
             participantName: participant.effectiveDisplayName,
             participantRoleLabel: participant.effectiveRoleLabel,
             toolsEnabled: participant.toolsEnabled,
-            toolNames: participantToolDefinitions
-                .map(ParticipantToolPolicy.toolNameFromDefinition)
-                .nonNulls
-                .toList(growable: false),
+            toolNames: participantToolNames.toList(growable: false),
             phase: 'participant_turn',
           );
-      await LlmSessionLogContext.run(
+      final terminalMetadata = await LlmSessionLogContext.run(
         participantLogContext,
         () => _participantCompletionRunner.stream(
           primary: _dataSource,
@@ -267,7 +322,8 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
                 : (toolCall) async {
                     final result = await _executeParticipantToolCall(
                       toolCall,
-                      participant: participant,
+                      turn,
+                      participant,
                     );
                     if (result.isSuccess) {
                       usedParticipantToolNames.add(toolCall.name);
@@ -276,59 +332,60 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
                   },
           ),
           shouldContinue: () =>
-              _isCurrentInteractionGeneration(interactionGeneration),
+              _isCurrentInteractionGeneration(turn.generation),
           onChunk: (chunk) {
             _appendToLastMessageForGeneration(
-              interactionGeneration,
+              turn.generation,
               chunk,
               scanForTools: false,
             );
           },
         ),
       );
-    } catch (error, stackTrace) {
-      appLog(
-        '[ParticipantTurn] stream failed for ${participant.id}: ${error.runtimeType}: $error',
-      );
-      appLog('[ParticipantTurn] stackTrace: $stackTrace');
-      if (_isCurrentInteractionGeneration(interactionGeneration)) {
-        state = state.copyWith(participantTurnRuntime: null);
-        _handleError(error.toString());
+      if (terminalMetadata == null) {
+        _responseMetadata.discard(owner);
+        return (content: '', handoffId: null);
       }
-      return const _ParticipantTurnCompletion(content: '');
+      if (!_responseMetadata.capture(owner, terminalMetadata)) {
+        return (content: '', handoffId: null);
+      }
+      if (!_isCurrentInteractionGeneration(turn.generation)) {
+        _responseMetadata.discard(owner);
+        return (content: '', handoffId: null);
+      }
+      return await _finalizeParticipantMessage(
+        turn,
+        isFinalTurn,
+        participant,
+        participants,
+        usedParticipantToolNames,
+      );
+    } catch (error) {
+      _responseMetadata.discard(owner);
+      await _failParticipantTurn(turn, error);
+      return null;
     }
-
-    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
-      return const _ParticipantTurnCompletion(content: '');
-    }
-    return _finalizeParticipantTurnMessage(
-      generation: interactionGeneration,
-      isFinalTurn: isFinalTurn,
-      participant: participant,
-      participants: participants,
-      participantToolNames: usedParticipantToolNames,
-    );
   }
 
-  List<Map<String, dynamic>> _participantToolDefinitionsFor(
+  List<Map<String, dynamic>> _toolDefinitionsFor(
     ConversationParticipant participant,
   ) {
-    if (!participant.toolsEnabled || !_supportsToolAwareRequests) {
-      return const <Map<String, dynamic>>[];
-    }
-    final mcpToolService = _mcpToolService;
-    if (mcpToolService == null) {
+    final service = _mcpToolService;
+    if (!participant.toolsEnabled ||
+        !_supportsToolAwareRequests ||
+        service == null) {
       return const <Map<String, dynamic>>[];
     }
     return const ParticipantToolPolicy().filterDefinitions(
-      mcpToolService.getOpenAiToolDefinitions(),
+      service.getOpenAiToolDefinitions(),
     );
   }
 
   Future<McpToolResult> _executeParticipantToolCall(
-    ToolCallInfo toolCall, {
-    required ConversationParticipant participant,
-  }) async {
+    ToolCallInfo toolCall,
+    _ParticipantTurn turn,
+    ConversationParticipant participant,
+  ) async {
     final denied = const ParticipantToolPolicy().enforce(toolCall);
     if (denied != null) {
       appLog(
@@ -337,7 +394,6 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       );
       return denied;
     }
-
     final mcpToolService = _mcpToolService;
     if (mcpToolService == null) {
       return McpToolResult(
@@ -347,77 +403,91 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
         errorMessage: 'Participant tool service is unavailable.',
       );
     }
-
+    final approvalCache = _approvalCacheForGeneration(turn.generation);
+    if (approvalCache == null || !_ownsParticipantTurn(turn)) {
+      return _inactiveToolResult(toolCall.name);
+    }
     final approvalFailure = await _resolveParticipantToolApproval(
       toolCall,
-      participant: participant,
+      turn,
+      participant,
+      approvalCache,
     );
-    if (approvalFailure != null) {
-      return approvalFailure;
+    if (approvalFailure != null) return approvalFailure;
+    if (!_isApprovalOwnerCurrent(approvalCache.owner)) {
+      return _inactiveToolResult(toolCall.name);
     }
-
     appLog(
       '[ParticipantTool] executing ${toolCall.name} for ${participant.id} '
       'with approvalMode=${participant.toolApprovalMode.name}',
     );
-    _setParticipantToolActivity(
-      participant: participant,
-      toolName: toolCall.name,
-    );
+    _setParticipantToolActivity(turn, participant, toolCall.name);
     try {
       final result = await mcpToolService.executeTool(
         name: toolCall.name,
         arguments: toolCall.arguments,
       );
-      ToolResultTaintRecorder.record(_conversationTaintState, result);
+      ToolResultTaintRecorder.record(
+        state: _conversationTaintState,
+        owner: approvalCache.owner,
+        result: result,
+      );
       return result;
     } finally {
-      _clearParticipantToolActivity(
-        participant: participant,
-        toolName: toolCall.name,
-      );
+      _setParticipantToolActivity(turn, participant, '');
     }
   }
 
   Future<McpToolResult?> _resolveParticipantToolApproval(
-    ToolCallInfo toolCall, {
-    required ConversationParticipant participant,
-  }) async {
+    ToolCallInfo toolCall,
+    _ParticipantTurn turn,
+    ConversationParticipant participant,
+    OwnerToolApprovalCache approvalCache,
+  ) async {
+    final ownerMessages = _activeResponseMessagesForGeneration(turn.generation);
+    if (ownerMessages == null) {
+      return _inactiveToolResult(toolCall.name);
+    }
     final gate = await _resolveToolApprovalGate(
+      approvalCache,
       toolCall: toolCall,
       actionKind: 'participant_read_only_tool',
       mode: participant.toolApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.participant,
       fullAccessEligible: true,
       buildReviewRequest: () async => _buildAutoReviewRequest(
+        approvalCache.owner,
         toolCall: toolCall,
         actionKind: 'participant_read_only_tool',
-        arguments: _participantToolReviewArguments(
-          toolCall,
-          participant: participant,
-        ),
+        arguments: {
+          'participantId': participant.id,
+          'participantName': participant.effectiveDisplayName,
+          'participantRoleLabel': participant.effectiveRoleLabel,
+          'toolArguments': toolCall.arguments,
+        },
         reason: toolCall.arguments['reason'] as String?,
+        conversationMessages: List<Message>.unmodifiable(ownerMessages),
       ),
     );
-
+    if (!_isApprovalOwnerCurrent(approvalCache.owner)) {
+      return _inactiveToolResult(toolCall.name);
+    }
     if (gate.isDenied) {
       return _autoReviewDeniedResult(
         toolName: toolCall.name,
         rationale: gate.deniedRationale!,
       );
     }
-
-    if (!gate.needsManual) {
-      return null;
-    }
-
-    final approved = await requestParticipantToolApproval(
-      toolCall: toolCall,
-      participant: participant,
+    if (!gate.needsManual) return null;
+    final approved = await _requestParticipantToolApproval(
+      toolCall,
+      approvalCache.owner,
+      participant,
     );
-    if (approved) {
-      return null;
+    if (!_isApprovalOwnerCurrent(approvalCache.owner)) {
+      return _inactiveToolResult(toolCall.name);
     }
+    if (approved) return null;
     return McpToolResult(
       toolName: toolCall.name,
       result: jsonEncode({
@@ -432,26 +502,23 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
     );
   }
 
-  Map<String, dynamic> _participantToolReviewArguments(
-    ToolCallInfo toolCall, {
-    required ConversationParticipant participant,
-  }) {
-    return {
-      'participantId': participant.id,
-      'participantName': participant.effectiveDisplayName,
-      'participantRoleLabel': participant.effectiveRoleLabel,
-      'toolArguments': toolCall.arguments,
-    };
-  }
-
-  Future<bool> requestParticipantToolApproval({
-    required ToolCallInfo toolCall,
-    required ConversationParticipant participant,
-  }) {
+  McpToolResult _inactiveToolResult(String toolName) => McpToolResult(
+    toolName: toolName,
+    result: '',
+    isSuccess: false,
+    errorMessage: 'The participant turn is no longer active.',
+  );
+  Future<bool> _requestParticipantToolApproval(
+    ToolCallInfo toolCall,
+    ChatTurnOwner owner,
+    ConversationParticipant participant,
+  ) {
     final completer = Completer<bool>();
     final reason = toolCall.arguments['reason'] as String?;
     final pending = PendingParticipantToolApproval(
+      owner: owner,
       id: const Uuid().v4(),
+      participantId: participant.id,
       participantName: participant.effectiveDisplayName,
       participantRoleLabel: participant.effectiveRoleLabel,
       toolName: toolCall.name,
@@ -459,100 +526,82 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       reason: reason,
       completer: completer,
     );
-    _routeApproval((s) => s.copyWith(pendingParticipantToolApproval: pending));
-    _emitRuntimeApprovalRequired(
-      id: pending.id,
-      capability: 'participant_tool',
-      summary: reason?.trim().isNotEmpty == true
-          ? reason!.trim()
-          : '${participant.effectiveDisplayName}: ${toolCall.name}',
-      target: participant.effectiveDisplayName,
+    return _registerPendingToolApproval(
+      pending,
+      (s) => s.copyWith(pendingParticipantToolApproval: pending),
+      'participant_tool',
+      _approvalSummary(
+        reason,
+        '${participant.effectiveDisplayName}: ${toolCall.name}',
+      ),
+      participant.effectiveDisplayName,
     );
-    return completer.future;
   }
 
-  void resolveParticipantToolApproval({
+  bool resolveParticipantToolApproval({
     required String id,
     required bool approved,
-  }) {
-    final pending = state.pendingParticipantToolApproval;
-    if (pending == null || pending.id != id) return;
-    if (!pending.completer.isCompleted) {
-      pending.completer.complete(approved);
-    }
-    state = state.copyWith(pendingParticipantToolApproval: null);
+  }) => _completeApproval<bool, PendingParticipantToolApproval>(
+    id,
+    (_) => approved,
+  );
+
+  void _setParticipantToolActivity(
+    _ParticipantTurn turn,
+    ConversationParticipant participant,
+    String activeToolName,
+  ) {
+    if (!_ownsParticipantTurn(turn)) return;
+    _routeThreadState(turn.ownerId, (s) {
+      final runtime = s.participantTurnRuntime;
+      if (runtime == null || runtime.activeParticipantId != participant.id) {
+        return s;
+      }
+      return s.copyWith(
+        participantTurnRuntime: runtime.copyWith(
+          activeToolName: activeToolName,
+        ),
+      );
+    });
   }
 
-  void _setParticipantToolActivity({
-    required ConversationParticipant participant,
-    required String toolName,
-  }) {
-    final runtime = state.participantTurnRuntime;
-    if (runtime == null || runtime.activeParticipantId != participant.id) {
-      return;
+  void _appendParticipantPlaceholder(int generation, Message message) {
+    final messages = [
+      ...?_activeResponseMessagesForGeneration(generation),
+      message,
+    ];
+    _cacheActiveResponseMessagesForGeneration(generation, messages);
+    if (!_isActiveResponseDetachedForGeneration(generation) && ref.mounted) {
+      state = state.copyWith(messages: messages);
     }
-    state = state.copyWith(
-      participantTurnRuntime: runtime.copyWith(activeToolName: toolName),
-    );
   }
 
-  void _clearParticipantToolActivity({
-    required ConversationParticipant participant,
-    required String toolName,
-  }) {
-    final runtime = state.participantTurnRuntime;
-    if (runtime == null ||
-        runtime.activeParticipantId != participant.id ||
-        runtime.activeToolName != toolName) {
-      return;
-    }
-    state = state.copyWith(
-      participantTurnRuntime: runtime.copyWith(activeToolName: ''),
-    );
-  }
-
-  void _appendParticipantPlaceholder({
-    required int generation,
-    required Message message,
-  }) {
-    if (_isActiveResponseDetachedForGeneration(generation)) {
-      final activeMessages =
-          _activeResponseMessagesForGeneration(generation) ?? const <Message>[];
-      _cacheActiveResponseMessagesForGeneration(generation, [
-        ...activeMessages,
-        message,
-      ]);
-      return;
-    }
-
-    if (!ref.mounted) return;
-    state = state.copyWith(messages: [...state.messages, message]);
-    _cacheActiveResponseMessagesForGeneration(generation, state.messages);
-  }
-
-  Future<_ParticipantTurnCompletion> _finalizeParticipantTurnMessage({
-    required int generation,
-    required bool isFinalTurn,
-    required ConversationParticipant participant,
-    required List<ConversationParticipant> participants,
+  Future<_ParticipantTurnCompletion> _finalizeParticipantMessage(
+    _ParticipantTurn turn,
+    bool isFinalTurn,
+    ConversationParticipant participant,
+    List<ConversationParticipant> participants, [
     List<String> participantToolNames = const <String>[],
-  }) async {
-    if (!_isCurrentInteractionGeneration(generation)) {
-      return const _ParticipantTurnCompletion(content: '');
+  ]) async {
+    final owner = _participantTurnOwner(turn);
+    if (!_isCurrentInteractionGeneration(turn.generation)) {
+      _responseMetadata.discard(owner);
+      return (content: '', handoffId: null);
     }
-
-    final isDetached = _isActiveResponseDetachedForGeneration(generation);
-    final sourceMessages = isDetached
-        ? _activeResponseMessagesForGeneration(generation)
-        : state.messages;
+    final isDetached = _isActiveResponseDetachedForGeneration(turn.generation);
+    final sourceMessages = _activeResponseMessagesForGeneration(
+      turn.generation,
+    );
     if (sourceMessages == null || sourceMessages.isEmpty) {
-      return const _ParticipantTurnCompletion(content: '');
+      _responseMetadata.discard(owner);
+      return (content: '', handoffId: null);
     }
-
     final updatedMessages = [...sourceMessages];
     final lastIndex = updatedMessages.length - 1;
     final lastMessage = updatedMessages[lastIndex];
-    final isTruncated = _isCompletionTruncated(_latestFinishReason() ?? '');
+    final isTruncated = _isCompletionTruncated(
+      _responseMetadata.finishReasonFor(owner) ?? '',
+    );
     final handoff = isTruncated
         ? null
         : const ParticipantTurnCoordinator().extractHandoffDirective(
@@ -560,21 +609,20 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
             participants: participants,
             sourceParticipantId: participant.id,
           );
-    final handoffTarget = _participantTurnHandoffTarget(
-      participants: participants,
-      targetParticipantId: handoff?.targetParticipantId,
-    );
+    final handoffId = handoff?.targetParticipantId?.trim();
+    final handoffTarget = handoffId?.isNotEmpty == true
+        ? participants.where((item) => item.id == handoffId).firstOrNull
+        : null;
     final visibleContent = handoff?.content ?? lastMessage.content;
     final shouldDropLastAssistant =
         lastMessage.role == MessageRole.assistant &&
         !_assistantMessageHasVisibleContent(visibleContent);
-
-    _updateTokenUsage();
+    _updateTokenUsage(owner);
     final responseMetrics = shouldDropLastAssistant
         ? null
-        : _takeResponseMetricsForGeneration(generation);
+        : _responseMetadata.consume(owner);
     if (shouldDropLastAssistant) {
-      _discardResponseMetricsForGeneration(generation);
+      _responseMetadata.discard(owner);
       updatedMessages.removeAt(lastIndex);
     } else {
       final finalizedContent = isTruncated
@@ -583,46 +631,33 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       updatedMessages[lastIndex] = lastMessage.copyWith(
         content: finalizedContent,
         isStreaming: false,
-        participantToolNames: _dedupeParticipantToolNames(participantToolNames),
+        participantToolNames: participantToolNames
+            .map((name) => name.trim())
+            .where((name) => name.isNotEmpty)
+            .toSet()
+            .toList(growable: false),
         handoffTargetParticipantId: handoffTarget?.id,
         handoffTargetDisplayName: handoffTarget?.effectiveDisplayName,
         handoffTargetRoleLabel: handoffTarget?.effectiveRoleLabel,
         responseMetrics: responseMetrics,
       );
     }
-
-    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
-    if (isDetached) {
-      final targetConversationId = _activeResponseConversationIdForGeneration(
-        generation,
-      );
-      if (targetConversationId == null) {
-        return _ParticipantTurnCompletion(
-          content: '',
-          handoffTargetParticipantId: handoff?.targetParticipantId,
-        );
-      }
-      final messagesToSave = updatedMessages
-          .where((message) => !message.isStreaming)
-          .where(_shouldKeepVisibleMessage)
-          .toList(growable: false);
-      await _onConversationMessagesChanged(
-        targetConversationId,
-        messagesToSave,
-      );
-    } else {
+    _cacheActiveResponseMessagesForGeneration(turn.generation, updatedMessages);
+    if (!isDetached) {
       state = state.copyWith(
         messages: updatedMessages,
         isLoading: !isFinalTurn,
       );
-      await _saveMessages();
     }
-
+    await _messagePersistence.persistMessages(
+      turn.ownerId,
+      updatedMessages
+          .where((message) => !message.isStreaming)
+          .where(_messagePersistence.shouldKeepVisibleMessage)
+          .toList(growable: false),
+    );
     if (shouldDropLastAssistant || updatedMessages.isEmpty) {
-      return _ParticipantTurnCompletion(
-        content: '',
-        handoffTargetParticipantId: handoff?.targetParticipantId,
-      );
+      return (content: '', handoffId: handoff?.targetParticipantId);
     }
     final finalizedLastMessage = updatedMessages.last;
     if (!isDetached &&
@@ -632,44 +667,14 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
         finalizedLastMessage.content.isNotEmpty) {
       _onAutoRead(finalizedLastMessage.content);
     }
-    return _ParticipantTurnCompletion(
+    return (
       content: finalizedLastMessage.content,
-      handoffTargetParticipantId: handoff?.targetParticipantId,
+      handoffId: handoff?.targetParticipantId,
     );
   }
 
-  List<String> _dedupeParticipantToolNames(List<String> toolNames) {
-    final seen = <String>{};
-    final deduped = <String>[];
-    for (final toolName in toolNames) {
-      final normalized = toolName.trim();
-      if (normalized.isEmpty || !seen.add(normalized)) {
-        continue;
-      }
-      deduped.add(normalized);
-    }
-    return deduped;
-  }
-
-  ConversationParticipant? _participantTurnHandoffTarget({
-    required List<ConversationParticipant> participants,
-    required String? targetParticipantId,
-  }) {
-    final normalizedTargetId = targetParticipantId?.trim();
-    if (normalizedTargetId == null || normalizedTargetId.isEmpty) {
-      return null;
-    }
-    for (final participant in participants) {
-      if (participant.id == normalizedTargetId) {
-        return participant;
-      }
-    }
-    return null;
-  }
-
   Future<void> _pauseParticipantTurns({
-    required int generation,
-    required String targetConversationId,
+    required _ParticipantTurn turn,
     required List<ConversationParticipant> participants,
     required ParticipantTurnConfig config,
     required ParticipantTurnCursor cursor,
@@ -677,86 +682,173 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
     required String? lastSpeakerParticipantId,
     required String completedContent,
   }) async {
-    _pausedParticipantTurnCursor = cursor;
-    _pausedParticipantTurnParticipants = List.unmodifiable(participants);
-    _pausedParticipantTurnConfig = config;
-    _pausedParticipantTurnConversationId = targetConversationId;
-    _pausedParticipantTurnPreferredId = preferredParticipantId;
-    _pausedParticipantTurnLastSpeakerId = lastSpeakerParticipantId;
-    _participantTurnStopRequested = false;
-    final runtime = state.participantTurnRuntime;
-    state = state.copyWith(
-      isLoading: false,
-      participantTurnRuntime: runtime?.copyWith(
-        activeParticipantId: null,
-        activeParticipantName: '',
-        activeParticipantRoleLabel: '',
-        activeParticipantColorValue: null,
-        stopRequested: true,
-        paused: true,
+    final owner = _participantTurnOwner(turn);
+    final paused = _participantTurnControls.pause(
+      owner,
+      ParticipantTurnPauseSnapshot(
+        cursor: cursor,
+        participants: participants,
+        config: config,
+        preferredParticipantId: preferredParticipantId,
+        lastSpeakerParticipantId: lastSpeakerParticipantId,
       ),
     );
-    _clearActiveResponseForGeneration(generation);
-    _contentToolContinuationCount = 0;
-    _onResponseCompleted(completedContent);
-    await _drainQueuedChatMessagesIfIdle();
-  }
-
-  Future<void> _completeParticipantTurns({
-    required int generation,
-    required String completedContent,
-  }) async {
-    _clearPausedParticipantTurn();
-    _participantTurnStopRequested = false;
-    state = state.copyWith(isLoading: false, participantTurnRuntime: null);
-    _clearActiveResponseForGeneration(generation);
-    _contentToolContinuationCount = 0;
-    _onResponseCompleted(completedContent);
-    await _drainQueuedChatMessagesIfIdle();
-  }
-
-  void _setParticipantTurnRuntime({
-    required ConversationParticipant participant,
-    required ParticipantTurnConfig config,
-    required int roundNumber,
-    required bool paused,
-  }) {
-    final multiRound = config.depth == ParticipantTurnDepth.multiRound;
-    final maxRounds = multiRound
-        ? (config.maxRounds < 1 ? 1 : config.maxRounds)
-        : 1;
-    state = state.copyWith(
-      participantTurnRuntime: ParticipantTurnRuntime(
-        activeParticipantId: participant.id,
-        activeParticipantName: participant.effectiveDisplayName,
-        activeParticipantRoleLabel: participant.effectiveRoleLabel,
-        activeParticipantColorValue: participant.colorValue,
-        currentRound: roundNumber,
-        maxRounds: maxRounds,
-        multiRound: multiRound,
-        stopRequested: _participantTurnStopRequested,
-        paused: paused,
-      ),
-    );
-  }
-
-  void _clearPausedParticipantTurn() {
-    _pausedParticipantTurnCursor = null;
-    _pausedParticipantTurnParticipants = const [];
-    _pausedParticipantTurnConfig = null;
-    _pausedParticipantTurnConversationId = null;
-    _pausedParticipantTurnPreferredId = null;
-    _pausedParticipantTurnLastSpeakerId = null;
-  }
-
-  bool _sameParticipants(
-    List<ConversationParticipant> a,
-    List<ConversationParticipant> b,
-  ) {
-    if (a.length != b.length) return false;
-    for (var index = 0; index < a.length; index += 1) {
-      if (a[index] != b[index]) return false;
+    if (!paused) {
+      await _failParticipantTurn(
+        turn,
+        StateError('Participant turn control state is unavailable.'),
+      );
+      return;
     }
-    return true;
+    _routeThreadState(
+      turn.ownerId,
+      (s) => s.copyWith(
+        isLoading: false,
+        participantTurnRuntime: s.participantTurnRuntime?.copyWith(
+          activeParticipantId: null,
+          activeParticipantName: '',
+          activeParticipantRoleLabel: '',
+          activeParticipantColorValue: null,
+          stopRequested: true,
+          paused: true,
+        ),
+      ),
+    );
+    await _terminalizeParticipantTurn(
+      turn,
+      completedContent,
+      'participant_turn_paused',
+    );
   }
+
+  Future<void> _completeParticipantTurns(
+    _ParticipantTurn turn,
+    String completedContent, {
+    String exitReason = 'participant_turn_completed',
+  }) async {
+    _participantTurnControls.dispose(_participantTurnOwner(turn));
+    _routeThreadState(
+      turn.ownerId,
+      (s) => s.copyWith(isLoading: false, participantTurnRuntime: null),
+    );
+    await _terminalizeParticipantTurn(turn, completedContent, exitReason);
+  }
+
+  Future<void> _terminalizeParticipantTurn(
+    _ParticipantTurn turn,
+    String content,
+    String exitReason,
+  ) async {
+    _onResponseCompleted(content);
+    _completeRuntimeTurn(
+      turn.generation,
+      content: content,
+      exitReason: exitReason,
+    );
+    await _drainQueuedChatMessagesForThreadIfIdle(turn.ownerId);
+  }
+
+  void _setParticipantTurnRuntime(
+    _ParticipantTurn turn,
+    ConversationParticipant participant,
+    ParticipantTurnConfig config,
+    int roundNumber,
+  ) {
+    if (!_ownsParticipantTurn(turn)) return;
+    final multiRound = config.depth == ParticipantTurnDepth.multiRound;
+    _routeThreadState(
+      turn.ownerId,
+      (s) => s.copyWith(
+        participantTurnRuntime: ParticipantTurnRuntime(
+          activeParticipantId: participant.id,
+          activeParticipantName: participant.effectiveDisplayName,
+          activeParticipantRoleLabel: participant.effectiveRoleLabel,
+          activeParticipantColorValue: participant.colorValue,
+          currentRound: roundNumber,
+          maxRounds: multiRound
+              ? (config.maxRounds < 1 ? 1 : config.maxRounds)
+              : 1,
+          multiRound: multiRound,
+          stopRequested: _participantTurnControls.stopRequested(
+            _participantTurnOwner(turn),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _failParticipantTurn(_ParticipantTurn turn, Object error) async {
+    if (!_ownsParticipantTurn(turn)) return;
+    final displayError = ChatErrorMessageBuilder.build(
+      error.toString(),
+      baseUrl: _settings.baseUrl,
+    );
+    final sourceMessages =
+        _activeResponseMessagesForGeneration(turn.generation) ??
+        const <Message>[];
+    final updatedMessages = [...sourceMessages];
+    if (updatedMessages.isNotEmpty &&
+        updatedMessages.last.role == MessageRole.assistant) {
+      updatedMessages[updatedMessages.length - 1] = updatedMessages.last
+          .copyWith(isStreaming: false, error: displayError);
+    } else {
+      updatedMessages.add(
+        Message(
+          id: _uuid.v4(),
+          content: '',
+          role: MessageRole.assistant,
+          timestamp: DateTime.now(),
+          error: displayError,
+        ),
+      );
+    }
+    _cacheActiveResponseMessagesForGeneration(turn.generation, updatedMessages);
+    try {
+      await _messagePersistence.persistMessages(
+        turn.ownerId,
+        updatedMessages
+            .where((message) => !message.isStreaming)
+            .where(
+              (message) =>
+                  message.error != null ||
+                  _messagePersistence.shouldKeepVisibleMessage(message),
+            )
+            .toList(growable: false),
+      );
+    } catch (persistenceError) {
+      appLog('[ParticipantTurn] failure persistence failed: $persistenceError');
+    }
+    if (!_ownsParticipantTurn(turn)) return;
+    if (conversationId == turn.ownerId) {
+      state = state.copyWith(messages: updatedMessages);
+    }
+    _routeThreadState(
+      turn.ownerId,
+      (s) => s.copyWith(
+        isLoading: false,
+        error: displayError,
+        participantTurnRuntime: null,
+      ),
+    );
+    _participantTurnControls.dispose(_participantTurnOwner(turn));
+    final runtimeFailure = _runtimeFailureClassifier.classify(error.toString());
+    _failRuntimeTurn(
+      turn.generation,
+      code: runtimeFailure.code,
+      message: displayError,
+      exitCode: runtimeFailure.exitCode,
+    );
+  }
+
+  bool _ownsParticipantTurn(_ParticipantTurn turn) {
+    final owner = _turnOwnerForGeneration(turn.generation);
+    return owner != null &&
+        owner.conversationId == turn.ownerId &&
+        _isApprovalOwnerCurrent(owner);
+  }
+
+  ChatTurnOwner _participantTurnOwner(_ParticipantTurn turn) => ChatTurnOwner(
+    conversationId: turn.ownerId,
+    interactionGeneration: turn.generation,
+  );
 }

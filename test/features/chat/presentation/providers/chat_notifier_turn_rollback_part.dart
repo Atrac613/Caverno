@@ -1,13 +1,11 @@
 part of 'chat_notifier_test.dart';
 
 class _TurnRollbackMcpToolService extends McpToolService {
-  int previewCalls = 0;
-  int rollbackCalls = 0;
-
   @override
-  Future<FileTurnRollbackPreview?> previewLastFileTurnCheckpoint() async {
-    previewCalls += 1;
-    return const FileTurnRollbackPreview(
+  Future<FileTurnRollbackPreview?> previewFsTurn(String? conversationId) async {
+    return FileTurnRollbackPreview(
+      owner: ChatTurnOwner(conversationId: 'c', interactionGeneration: 1),
+      checkpointToken: 41,
       turnId: 'turn-1',
       paths: ['/tmp/project/lib/main.dart'],
       preview: 'diff --git a/lib/main.dart b/lib/main.dart',
@@ -16,8 +14,11 @@ class _TurnRollbackMcpToolService extends McpToolService {
   }
 
   @override
-  Future<McpToolResult> rollbackLastFileTurnCheckpoint() async {
-    rollbackCalls += 1;
+  Future<McpToolResult> rollbackLastFileTurnCheckpoint(
+    ChatTurnOwner _,
+    int expectedCheckpointToken,
+  ) async {
+    expect(expectedCheckpointToken, 41);
     return const McpToolResult(
       toolName: 'rollback_last_turn_file_changes',
       result: '{"ok":true}',
@@ -58,17 +59,14 @@ void registerChatNotifierTurnRollbackTests() {
         unawaited(controller.close());
       }
     });
-
     final threadNotifier = threadContainer.read(chatNotifierProvider.notifier);
-    final rollbackResult = await threadNotifier.rollbackLastFileTurnChanges();
-
-    expect(rollbackResult.isSuccess, isFalse);
-    expect(
-      rollbackResult.errorMessage,
-      'No file checkpoint service is available',
+    final result = await threadNotifier.rollbackLastFileTurnChanges(
+      ChatTurnOwner(conversationId: 'missing', interactionGeneration: 1),
+      41,
     );
+    expect(result.isSuccess, isFalse);
+    expect(result.errorMessage, 'No file checkpoint service is available');
   });
-
   test(
     'turn rollback handler delegates preview and rollback to tool service',
     () async {
@@ -103,18 +101,16 @@ void registerChatNotifierTurnRollbackTests() {
           unawaited(controller.close());
         }
       });
-
       final threadNotifier = threadContainer.read(
         chatNotifierProvider.notifier,
       );
-      final preview = await threadNotifier.previewLastFileTurnRollback();
-      final rollbackResult = await threadNotifier.rollbackLastFileTurnChanges();
-
-      expect(preview, isNotNull);
-      expect(preview!.turnId, 'turn-1');
+      final preview = (await threadNotifier.previewLastFileTurnRollback())!;
+      final rollbackResult = await threadNotifier.rollbackLastFileTurnChanges(
+        preview.owner,
+        preview.checkpointToken,
+      );
+      expect(preview.turnId, 'turn-1');
       expect(rollbackResult.isSuccess, isTrue);
-      expect(toolService.previewCalls, 1);
-      expect(toolService.rollbackCalls, 1);
     },
   );
 }

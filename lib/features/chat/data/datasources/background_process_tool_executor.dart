@@ -1,0 +1,206 @@
+import 'dart:convert';
+
+import '../../domain/entities/chat_turn_owner.dart';
+import '../../domain/entities/mcp_tool_entity.dart';
+import 'background_process_monitor_service.dart';
+import 'background_process_tools.dart';
+import 'local_shell_tools.dart';
+import 'mcp_tool_result_normalizer.dart';
+
+/// Executes the owner-scoped background-process tool family.
+final class BackgroundProcessToolExecutor {
+  BackgroundProcessToolExecutor({
+    BackgroundProcessTools? tools,
+    BackgroundProcessMonitorService? monitor,
+    DateTime Function()? clock,
+  }) : _tools = tools,
+       _monitor = monitor,
+       _clock = clock ?? DateTime.now;
+
+  final BackgroundProcessTools? _tools;
+  final BackgroundProcessMonitorService? _monitor;
+  final DateTime Function() _clock;
+
+  bool get isSupported => _tools?.isSupported ?? false;
+
+  Future<McpToolResult> start({
+    required ChatTurnOwner owner,
+    required String name,
+    required String command,
+    required String workingDirectory,
+    String? label,
+    bool structuredUnavailable = false,
+  }) async {
+    final gitWriteBlockedResult = LocalShellTools.gitWriteCommandBlockedResult(
+      command: command,
+      workingDirectory: workingDirectory,
+    );
+    if (gitWriteBlockedResult != null) {
+      return McpToolResultNormalizer.failure(
+        toolName: name,
+        result: gitWriteBlockedResult,
+        errorMessage: 'Use git_execute_command for git write commands',
+      );
+    }
+    final tools = _tools;
+    if (tools == null || !tools.isSupported) {
+      const message = 'Background process tools are not available';
+      return structuredUnavailable
+          ? McpToolResultNormalizer.structuredFailure(
+              toolName: name,
+              payload: const {
+                'ok': false,
+                'code': 'background_process_tools_unavailable',
+                'error': message,
+              },
+              errorMessage: message,
+            )
+          : McpToolResultNormalizer.failure(
+              toolName: name,
+              errorMessage: message,
+            );
+    }
+    final result = await tools.start(
+      owner: owner,
+      command: command,
+      workingDirectory: workingDirectory,
+      label: label,
+    );
+    return McpToolResultNormalizer.success(toolName: name, result: result);
+  }
+
+  Future<McpToolResult> execute({
+    required ChatTurnOwner owner,
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    if (name == 'process_start') {
+      final command = LocalShellTools.normalizeCommand(
+        (arguments['command'] as String?)?.trim() ?? '',
+      );
+      final workingDirectory =
+          (arguments['working_directory'] as String?)?.trim() ?? '';
+      if (command.isEmpty || workingDirectory.isEmpty) {
+        return _failure(name, 'command and working_directory are required');
+      }
+      return start(
+        owner: owner,
+        name: name,
+        command: command,
+        workingDirectory: workingDirectory,
+        label: (arguments['label'] as String?)?.trim(),
+      );
+    }
+    if (name == 'process_list') {
+      return _list(owner, name, arguments);
+    }
+
+    final jobId = (arguments['job_id'] as String?)?.trim() ?? '';
+    if (jobId.isEmpty) {
+      return _failure(name, 'job_id is required');
+    }
+    final result = switch (name) {
+      'process_status' => await _tools?.status(
+        owner: owner,
+        jobId: jobId,
+        tailChars: (arguments['tail_chars'] as num?)?.toInt(),
+      ),
+      'process_tail' => await _tools?.tail(
+        owner: owner,
+        jobId: jobId,
+        maxChars: (arguments['max_chars'] as num?)?.toInt(),
+      ),
+      'process_wait' => await _tools?.wait(
+        owner: owner,
+        jobId: jobId,
+        waitMs: (arguments['wait_ms'] as num?)?.toInt(),
+      ),
+      'process_cancel' => await _tools?.cancel(owner: owner, jobId: jobId),
+      _ => throw ArgumentError.value(name, 'name', 'Unknown process tool'),
+    };
+    return result == null
+        ? _unavailable(name)
+        : McpToolResultNormalizer.success(toolName: name, result: result);
+  }
+
+  Future<McpToolResult> _list(
+    ChatTurnOwner owner,
+    String name,
+    Map<String, dynamic> arguments,
+  ) async {
+    final monitor = _monitor;
+    if (monitor == null) {
+      return McpToolResultNormalizer.structuredFailure(
+        toolName: name,
+        payload: const {
+          'ok': false,
+          'code': 'background_process_monitor_unavailable',
+          'error': 'Background process monitor is not available',
+        },
+        errorMessage: 'Background process monitor is not available',
+      );
+    }
+    final rawJobIds = arguments['job_ids'];
+    final jobIds = switch (rawJobIds) {
+      null => const <String>[],
+      final List<dynamic> values =>
+        values
+            .whereType<String>()
+            .map((jobId) => jobId.trim())
+            .where((jobId) => jobId.isNotEmpty)
+            .toList(growable: false),
+      _ => null,
+    };
+    if (jobIds == null) {
+      return McpToolResultNormalizer.structuredFailure(
+        toolName: name,
+        payload: const {
+          'ok': false,
+          'code': 'invalid_job_ids',
+          'error': 'job_ids must be an array of strings',
+        },
+        errorMessage: 'job_ids must be an array of strings',
+      );
+    }
+    if (arguments['refresh'] == true) {
+      await (jobIds.isEmpty
+          ? monitor.refreshActiveJobs(owner)
+          : monitor.refreshJobs(owner, jobIds));
+    }
+    final snapshots = monitor.listJobs(
+      owner,
+      jobIds: jobIds,
+      includeFinished: arguments['include_finished'] is bool
+          ? arguments['include_finished'] as bool
+          : true,
+      limit: (arguments['limit'] as num?)?.toInt(),
+    );
+    return McpToolResultNormalizer.success(
+      toolName: name,
+      result: jsonEncode({
+        'ok': true,
+        'generated_at': _clock().toIso8601String(),
+        'job_count': snapshots.length,
+        'jobs': snapshots.map((snapshot) => snapshot.toJson()).toList(),
+        'active_count': monitor.activeSnapshots(owner).length,
+        'finished_count': snapshots
+            .where((snapshot) => !snapshot.isRunning)
+            .length,
+      }),
+    );
+  }
+
+  McpToolResult _failure(String name, String message) =>
+      McpToolResultNormalizer.failure(toolName: name, errorMessage: message);
+
+  McpToolResult _unavailable(String name) =>
+      McpToolResultNormalizer.structuredFailure(
+        toolName: name,
+        payload: const {
+          'ok': false,
+          'code': 'background_process_tools_unavailable',
+          'error': 'Background process tools are not available',
+        },
+        errorMessage: 'Background process tools are not available',
+      );
+}

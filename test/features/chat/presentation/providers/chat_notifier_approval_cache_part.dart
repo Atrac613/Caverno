@@ -415,12 +415,12 @@ void registerChatNotifierApprovalCacheTests() {
         id: pending.id,
         approval: const LocalCommandApproval(approved: false),
       );
-      await sendFuture.timeout(const Duration(seconds: 5));
+      final turnOwner = await sendFuture.timeout(const Duration(seconds: 5));
 
       expect(notifier.state.pendingLocalCommand, isNull);
       expect(toolService.executedToolNames, isEmpty);
       final denialResults = notifier
-          .takeLatestToolResults()
+          .takeLatestToolResults(turnOwner!)
           .where((result) => result.name == 'local_execute_command')
           .map((result) => result.result)
           .where((result) => !result.contains('tool_call_not_executed'))
@@ -524,7 +524,9 @@ void registerChatNotifierApprovalCacheTests() {
             );
           }
 
-          await sendFuture.timeout(const Duration(seconds: 5));
+          final turnOwner = await sendFuture.timeout(
+            const Duration(seconds: 5),
+          );
 
           expect(notifier.state.pendingComputerUseAction, isNull);
           expect(
@@ -537,7 +539,7 @@ void registerChatNotifierApprovalCacheTests() {
             expect(dataSource.toolResultBatches.single, hasLength(2));
           } else {
             final actionResults = notifier
-                .takeLatestToolResults()
+                .takeLatestToolResults(turnOwner!)
                 .where(
                   (result) =>
                       result.name == 'computer_click' &&

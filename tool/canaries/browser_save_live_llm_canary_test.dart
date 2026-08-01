@@ -392,7 +392,9 @@ class _LiveConversationsNotifier extends ConversationsNotifier {
   }
 
   @override
-  Future<void> ensureCurrentPlanArtifactBackfilled() async {}
+  Future<void> ensureCurrentPlanArtifactBackfilled({
+    String? conversationId,
+  }) async {}
 
   @override
   Future<void> updateCurrentConversation(List<Message> messages) async {
@@ -493,7 +495,7 @@ class _BrowserSaveLiveDataSource implements ChatDataSource {
   final List<List<ToolResultInfo>> toolResultBatches = [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,

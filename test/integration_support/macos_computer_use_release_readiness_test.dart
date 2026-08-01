@@ -3787,9 +3787,33 @@ void main() {
       expect(checkIds, contains('release_signing_delegates_to_local_config'));
       expect(checkIds, contains('sparkle_dependency'));
       expect(checkIds, contains('sparkle_appcast_configuration'));
+      expect(checkIds, contains('sparkle_s3_public_read_config'));
+      expect(checkIds, contains('sparkle_public_release_verifier'));
       expect(checkIds, contains('sparkle_publish_script'));
       expect(checkIds, contains('sparkle_release_driver'));
       expect(checkIds, contains('sparkle_staging_rehearsal'));
+      final checksById = <String, MacosComputerUseReleasePackagingCheck>{
+        for (final check in report.checks) check.id: check,
+      };
+      expect(
+        checksById['sparkle_appcast_configuration']?.details,
+        containsPair('path', 'macos/Runner/Configs/Release.xcconfig'),
+      );
+      expect(
+        checksById['sparkle_s3_public_read_config']?.label,
+        'Sparkle CloudFront and S3 OAC config',
+      );
+      expect(
+        checksById['sparkle_s3_public_read_config']?.details,
+        containsPair('path', 'tool/configure_macos_sparkle_cloudfront.sh'),
+      );
+      expect(
+        checksById['sparkle_public_release_verifier']?.details,
+        containsPair(
+          'defaultAppcastUrl',
+          'https://d1ap7clvx8zf86.cloudfront.net/caverno/macos/appcast.xml',
+        ),
+      );
       expect(json['schemaName'], 'macos_computer_use_m33_release_packaging');
       expect(json['milestone'], 'M33');
       expect(

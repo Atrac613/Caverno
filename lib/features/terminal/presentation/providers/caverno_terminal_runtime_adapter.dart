@@ -240,31 +240,25 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
     required String id,
     required bool approved,
   }) async {
-    final state = _chatState;
     final notifier = _chatNotifier;
-    if (state.pendingLocalCommand?.id == id) {
-      notifier.resolveLocalCommand(
-        id: id,
-        approval: LocalCommandApproval(approved: approved),
-      );
-    } else if (state.pendingGitCommand?.id == id) {
-      notifier.resolveGitCommand(id: id, approved: approved);
-    } else if (state.pendingFileOperation?.id == id) {
-      notifier.resolveFileOperation(id: id, approved: approved);
-    } else if (state.pendingBrowserAction?.id == id) {
-      notifier.resolveBrowserAction(id: id, approved: approved);
-    } else if (state.pendingSshCommand?.id == id) {
-      notifier.resolveSshCommand(id: id, approved: approved);
-    } else if (state.pendingBleConnect?.id == id) {
-      notifier.resolveBleConnect(id: id, approved: approved);
-    } else if (state.pendingSerialOpen?.id == id) {
-      notifier.resolveSerialOpen(id: id, approved: approved);
-    } else if (state.pendingParticipantToolApproval?.id == id) {
-      notifier.resolveParticipantToolApproval(id: id, approved: approved);
-    } else if (state.pendingComputerUseAction?.id == id) {
-      notifier.resolveComputerUseAction(id: id, approved: false, armed: false);
-    } else if (state.pendingSshConnect?.id == id) {
-      notifier.resolveSshConnect(id: id);
+    if (notifier.resolveLocalCommand(
+          id: id,
+          approval: LocalCommandApproval(approved: approved),
+        ) ||
+        notifier.resolveGitCommand(id: id, approved: approved) ||
+        notifier.resolveFileOperation(id: id, approved: approved) ||
+        notifier.resolveSshCommand(id: id, approved: approved) ||
+        notifier.resolveSshConnect(id: id) ||
+        notifier.resolveBrowserAction(id: id, approved: approved) ||
+        notifier.resolveBleConnect(id: id, approved: approved) ||
+        notifier.resolveSerialOpen(id: id, approved: approved) ||
+        notifier.resolveParticipantToolApproval(id: id, approved: approved) ||
+        notifier.resolveComputerUseAction(
+          id: id,
+          approved: false,
+          armed: false,
+        )) {
+      return;
     }
   }
 

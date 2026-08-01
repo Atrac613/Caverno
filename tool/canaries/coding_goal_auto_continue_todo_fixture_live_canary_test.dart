@@ -20,6 +20,7 @@ import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
@@ -2459,20 +2460,24 @@ class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
   }
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) async* {
+  }) {
     if (_awaitingForcedFinalStream) {
       _awaitingForcedFinalStream = false;
       forcedPendingActionLengthCount += 1;
       lastFinishReason = 'length';
-      yield 'The verifier still reports unresolved diagnostics. I will';
-      return;
+      return StreamedChatCompletion.fromStream(
+        Stream<String>.value(
+          'The verifier still reports unresolved diagnostics. I will',
+        ),
+        finishReason: 'length',
+      );
     }
-    yield* super.streamChatCompletion(
+    return super.streamChatCompletion(
       messages: messages,
       model: model,
       temperature: temperature,
@@ -2786,6 +2791,13 @@ class _TodoToolService extends McpToolService {
       },
     };
   }
+
+  @override
+  Future<McpToolResult> executeFileTool({
+    required ChatTurnOwner owner,
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) => executeTool(name: name, arguments: arguments);
 
   @override
   Future<McpToolResult> executeTool({

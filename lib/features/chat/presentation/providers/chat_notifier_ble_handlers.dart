@@ -5,7 +5,10 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierBleHandlers on ChatNotifier {
-  Future<McpToolResult> _handleBleConnect(ToolCallInfo toolCall) async {
+  Future<McpToolResult> _handleBleConnect(
+    ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
+  ) async {
     final deviceId = (toolCall.arguments['device_id'] as String?)?.trim() ?? '';
     if (deviceId.isEmpty) {
       return McpToolResult(
@@ -17,13 +20,11 @@ extension ChatNotifierBleHandlers on ChatNotifier {
     }
 
     final cacheArguments = <String, dynamic>{'device_id': deviceId};
-    final cachedResult = _lookupToolApprovalResult(
+    final cachedResult = approvalCache.lookupDenial(
       toolCall.name,
       cacheArguments,
     );
-    if (cachedResult != null) {
-      return cachedResult;
-    }
+    if (cachedResult != null) return cachedResult;
 
     final bleService = ref.read(bleServiceProvider);
     final scanResults = bleService.getScanResults();
@@ -33,6 +34,7 @@ extension ChatNotifierBleHandlers on ChatNotifier {
     final deviceName = device.isNotEmpty ? device.first.name : null;
 
     final gate = await _resolveToolApprovalGate(
+      approvalCache,
       toolCall: toolCall,
       actionKind: 'ble_connect',
       mode: _settings.chatApprovalMode,
@@ -40,6 +42,7 @@ extension ChatNotifierBleHandlers on ChatNotifier {
       fullAccessEligible: true,
       approvalCacheArguments: cacheArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
+        approvalCache.owner,
         toolCall: toolCall,
         actionKind: 'ble_connect',
         arguments: cacheArguments,
@@ -47,7 +50,7 @@ extension ChatNotifierBleHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalDenial(
+      return approvalCache.rememberDenial(
         toolCall.name,
         cacheArguments,
         _autoReviewDeniedResult(
@@ -58,11 +61,12 @@ extension ChatNotifierBleHandlers on ChatNotifier {
     }
     if (gate.needsManual) {
       final approved = await requestBleConnect(
+        owner: approvalCache.owner,
         deviceId: deviceId,
         deviceName: deviceName,
       );
-      if (!approved) {
-        return _rememberToolApprovalDenial(
+      if (!approved && _isApprovalOwnerCurrent(approvalCache.owner)) {
+        return approvalCache.rememberDenial(
           toolCall.name,
           cacheArguments,
           McpToolResult(
@@ -74,69 +78,70 @@ extension ChatNotifierBleHandlers on ChatNotifier {
         );
       }
     }
+    final expired = _expiredApproval(toolCall.name, approvalCache);
+    if (expired != null) return expired;
 
-    try {
-      await bleService.connect(deviceId);
-      final connectedResult = McpToolResult(
+    final attemptOutcome = await _bleConnectAttempts.connect(
+      owner: approvalCache.owner,
+      deviceId: deviceId,
+      service: bleService,
+      ownerIsCurrent: _isApprovalOwnerCurrent,
+      onRollbackError: (error) {
+        appLog(
+          '[Tool] Failed to roll back expired BLE attempt '
+          '${approvalCache.owner} for $deviceId: $error',
+        );
+      },
+    );
+    if (attemptOutcome.kind == BleConnectAttemptOutcomeKind.ownerExpired) {
+      return approvalTurnExpiredResult(toolCall.name);
+    }
+    final result = switch (attemptOutcome.kind) {
+      BleConnectAttemptOutcomeKind.connected => McpToolResult(
         toolName: toolCall.name,
         result: 'Connected to ${deviceName ?? deviceId}',
         isSuccess: true,
-      );
-      return gate.bypassedApproval
-          ? connectedResult
-          : _rememberToolApprovalResult(
-              toolCall.name,
-              cacheArguments,
-              connectedResult,
-            );
-    } catch (e) {
-      appLog('[Tool] BLE connect failed: $e');
-      final failedResult = McpToolResult(
+      ),
+      BleConnectAttemptOutcomeKind.failed => McpToolResult(
         toolName: toolCall.name,
         result: '',
         isSuccess: false,
-        errorMessage: 'BLE connect failed: $e',
-      );
-      return gate.bypassedApproval
-          ? failedResult
-          : _rememberToolApprovalResult(
-              toolCall.name,
-              cacheArguments,
-              failedResult,
-            );
+        errorMessage: 'BLE connect failed: ${attemptOutcome.error}',
+      ),
+      BleConnectAttemptOutcomeKind.ownerExpired => throw StateError(
+        'Expired BLE attempts return before result construction.',
+      ),
+    };
+    if (attemptOutcome.kind == BleConnectAttemptOutcomeKind.failed) {
+      appLog('[Tool] BLE connect failed: ${attemptOutcome.error}');
     }
+    return gate.bypassedApproval
+        ? result
+        : approvalCache.rememberResult(toolCall.name, cacheArguments, result);
   }
 
-  /// Puts a pending BLE connect request into state and returns a future
-  /// that completes with `true` (approved) or `false` (denied).
   Future<bool> requestBleConnect({
+    required ChatTurnOwner owner,
     required String deviceId,
     String? deviceName,
   }) {
     final completer = Completer<bool>();
     final pending = PendingBleConnect(
+      owner: owner,
       id: const Uuid().v4(),
       deviceId: deviceId,
       deviceName: deviceName,
       completer: completer,
     );
-    _routeApproval((s) => s.copyWith(pendingBleConnect: pending));
-    _emitRuntimeApprovalRequired(
-      id: pending.id,
-      capability: 'ble_connection',
-      summary: 'Connect to ${deviceName ?? deviceId}',
-      target: deviceId,
+    return _registerPendingToolApproval(
+      pending,
+      (s) => s.copyWith(pendingBleConnect: pending),
+      'ble_connection',
+      'Connect to ${deviceName ?? deviceId}',
+      deviceId,
     );
-    return completer.future;
   }
 
-  /// Resolves a pending BLE connect dialog from the UI layer.
-  void resolveBleConnect({required String id, required bool approved}) {
-    final pending = state.pendingBleConnect;
-    if (pending == null || pending.id != id) return;
-    if (!pending.completer.isCompleted) {
-      pending.completer.complete(approved);
-    }
-    state = state.copyWith(pendingBleConnect: null);
-  }
+  bool resolveBleConnect({required String id, required bool approved}) =>
+      _completeApproval<bool, PendingBleConnect>(id, (_) => approved);
 }

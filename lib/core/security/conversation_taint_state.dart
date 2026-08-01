@@ -1,45 +1,82 @@
+import 'dart:collection';
+
+import '../../features/chat/domain/entities/chat_turn_owner.dart';
 import 'data_source_classifier.dart';
 
-/// SEC2 (Taint-Aware Tool Execution), slice 2: accumulates the trust levels of
-/// the evidence that has entered the conversation this turn, so the approval
-/// boundary can ask "did untrusted content influence this call?" via
-/// [TaintPolicy].
+/// Immutable owner-scoped taint evidence used by policy and audit readers.
+final class ConversationTaintSnapshot {
+  ConversationTaintSnapshot(Iterable<TrustLevel> trustLevels)
+    : influencingTrustLevels = Set<TrustLevel>.unmodifiable(
+        LinkedHashSet<TrustLevel>.of(trustLevels),
+      );
+
+  final Set<TrustLevel> influencingTrustLevels;
+
+  bool get hasUntrustedInfluence =>
+      influencingTrustLevels.contains(TrustLevel.untrusted);
+}
+
+/// Accumulates ordered trust evidence independently for each chat turn owner.
 ///
-/// This is a deliberately conservative propagation model: true data-flow taint
-/// is hard, so any untrusted evidence present in the current turn is treated as
-/// potentially influencing the next tool call. Pure and in-memory; the tool
-/// loop feeds it [recordToolResult] / [recordContent] and reads
-/// [influencingTrustLevels]. It is advisory — it computes, it does not gate.
+/// The propagation model is deliberately conservative: any untrusted evidence
+/// recorded for an owner may influence that owner's next tool call. The state
+/// computes advisory evidence only; approval policy remains responsible for
+/// gating execution.
 class ConversationTaintState {
   ConversationTaintState({
     DataSourceClassifier classifier = const DataSourceClassifier(),
   }) : _classifier = classifier;
 
   final DataSourceClassifier _classifier;
-  final Set<TrustLevel> _trustLevels = <TrustLevel>{};
+  final Map<ChatTurnOwner, LinkedHashSet<TrustLevel>> _trustLevelsByOwner = {};
+  final Set<ChatTurnOwner> _retiredOwners = {};
+  bool _disposed = false;
 
-  /// Record a tool result by its producing tool, classifying its provenance and
-  /// folding the resulting trust level into the accumulated set.
-  void recordToolResult(String toolName, {bool isMcpTool = false}) {
+  /// Classifies and records a tool result for the exact owner.
+  void recordToolResult({
+    required ChatTurnOwner owner,
+    required String toolName,
+    bool isMcpTool = false,
+  }) {
     final source = _classifier.classifyToolResultSource(
       toolName,
       isMcpTool: isMcpTool,
     );
-    _trustLevels.add(_classifier.trustLevelOf(source));
+    recordTrust(owner: owner, trust: _classifier.trustLevelOf(source));
   }
 
-  /// Record evidence whose trust level is already known (e.g. a user message,
-  /// or an explicitly-classified document).
-  void recordTrust(TrustLevel trust) => _trustLevels.add(trust);
+  /// Records already-classified evidence for the exact owner.
+  void recordTrust({required ChatTurnOwner owner, required TrustLevel trust}) {
+    if (_disposed || _retiredOwners.contains(owner)) return;
+    _trustLevelsByOwner
+        .putIfAbsent(owner, LinkedHashSet<TrustLevel>.new)
+        .add(trust);
+  }
 
-  /// The trust levels of evidence accumulated this turn.
-  Set<TrustLevel> get influencingTrustLevels =>
-      Set<TrustLevel>.unmodifiable(_trustLevels);
+  /// Returns an immutable, insertion-ordered snapshot for the exact owner.
+  ConversationTaintSnapshot snapshot({required ChatTurnOwner owner}) {
+    return ConversationTaintSnapshot(
+      _trustLevelsByOwner[owner] ?? const <TrustLevel>{},
+    );
+  }
 
-  /// Whether any untrusted evidence has entered the conversation this turn.
-  bool get hasUntrustedInfluence =>
-      _trustLevels.contains(TrustLevel.untrusted);
+  Set<TrustLevel> influencingTrustLevels({required ChatTurnOwner owner}) =>
+      snapshot(owner: owner).influencingTrustLevels;
 
-  /// Clear the accumulated taint (e.g. at the start of a new turn).
-  void reset() => _trustLevels.clear();
+  bool hasUntrustedInfluence({required ChatTurnOwner owner}) =>
+      snapshot(owner: owner).hasUntrustedInfluence;
+
+  /// Permanently retires the owner before removing its accumulated evidence.
+  void clearOwner({required ChatTurnOwner owner}) {
+    _retiredOwners.add(owner);
+    _trustLevelsByOwner.remove(owner);
+  }
+
+  /// Permanently rejects future records and releases all retained owner data.
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _trustLevelsByOwner.clear();
+    _retiredOwners.clear();
+  }
 }

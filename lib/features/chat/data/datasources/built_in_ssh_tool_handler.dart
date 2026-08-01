@@ -1,5 +1,6 @@
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/utils/logger.dart';
+import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import 'mcp_tool_result_normalizer.dart';
 
@@ -28,6 +29,7 @@ final class BuiltInSshToolHandler {
   bool handles(String name) => _toolNameSet.contains(name);
 
   Future<McpToolResult> execute({
+    required ChatTurnOwner owner,
     required String name,
     required Map<String, dynamic> arguments,
   }) async {
@@ -41,18 +43,17 @@ final class BuiltInSshToolHandler {
           name,
           'ssh_connect must be handled by ChatNotifier (internal error)',
         );
-
       case 'ssh_execute_command':
-        return _executeCommand(name, arguments);
-
+        return _executeCommand(owner, name, arguments);
       case 'ssh_disconnect':
-        return _disconnect(name);
+        return _disconnect(owner, name);
     }
 
     throw StateError('Unreachable SSH tool: $name');
   }
 
   Future<McpToolResult> _executeCommand(
+    ChatTurnOwner owner,
     String name,
     Map<String, dynamic> arguments,
   ) async {
@@ -60,7 +61,7 @@ final class BuiltInSshToolHandler {
     if (ssh == null) {
       return _failure(name, 'SSH service is unavailable');
     }
-    if (!ssh.isConnected) {
+    if (!ssh.isConnected(owner: owner)) {
       return _failure(name, 'No active SSH session — call ssh_connect first');
     }
     try {
@@ -68,7 +69,7 @@ final class BuiltInSshToolHandler {
       if (command.isEmpty) {
         return _failure(name, 'command is required');
       }
-      final result = await ssh.execute(command);
+      final result = await ssh.execute(owner: owner, command: command);
       appLog('[McpToolService] SSH command executed successfully');
       return _success(name, result.formatted());
     } catch (error) {
@@ -77,14 +78,14 @@ final class BuiltInSshToolHandler {
     }
   }
 
-  Future<McpToolResult> _disconnect(String name) async {
+  Future<McpToolResult> _disconnect(ChatTurnOwner owner, String name) async {
     final ssh = _sshService;
     if (ssh == null) {
       return _success(name, 'No active SSH session');
     }
-    final wasConnected = ssh.isConnected;
+    final wasConnected = ssh.isConnected(owner: owner);
     try {
-      await ssh.disconnect();
+      await ssh.disconnect(owner: owner);
       return _success(
         name,
         wasConnected ? 'Disconnected' : 'No active SSH session',
@@ -95,9 +96,8 @@ final class BuiltInSshToolHandler {
     }
   }
 
-  static McpToolResult _success(String toolName, String result) {
-    return McpToolResultNormalizer.success(toolName: toolName, result: result);
-  }
+  static McpToolResult _success(String toolName, String result) =>
+      McpToolResultNormalizer.success(toolName: toolName, result: result);
 
   static McpToolResult _failure(String toolName, String errorMessage) {
     return McpToolResultNormalizer.failure(

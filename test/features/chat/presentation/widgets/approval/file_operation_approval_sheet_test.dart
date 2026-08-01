@@ -6,6 +6,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/widgets/approval/file_operation_approval_sheet.dart';
 
@@ -91,6 +92,10 @@ Future<void> _pumpHarness(
                           await FileOperationApprovalSheet.show(
                             sheetContext,
                             PendingFileOperation(
+                              owner: ChatTurnOwner(
+                                conversationId: 'file-sheet-test',
+                                interactionGeneration: 1,
+                              ),
                               id: 'file-operation-test',
                               operation: 'Edit file',
                               path: '/repo/lib/main.dart',

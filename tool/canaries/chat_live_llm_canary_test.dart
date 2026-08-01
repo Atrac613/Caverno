@@ -950,14 +950,18 @@ void main() {
           // Wait for the fire-and-forget background run to settle.
           final deadline = DateTime.now().add(const Duration(minutes: 4));
           while (DateTime.now().isBefore(deadline)) {
-            final tasks = container.read(subagentTaskNotifierProvider);
+            final tasks = container
+                .read(subagentTaskNotifierProvider)
+                .administrativeView;
             if (tasks.isNotEmpty && tasks.first.isTerminal) {
               break;
             }
             await Future<void>.delayed(const Duration(milliseconds: 200));
           }
 
-          final tasks = container.read(subagentTaskNotifierProvider);
+          final tasks = container
+              .read(subagentTaskNotifierProvider)
+              .administrativeView;
           expect(tasks, isNotEmpty, reason: _chatDiagnostic(container));
           expect(
             tasks.first.status,
@@ -1394,7 +1398,9 @@ class _LiveConversationsNotifier extends ConversationsNotifier {
   }
 
   @override
-  Future<void> ensureCurrentPlanArtifactBackfilled() async {}
+  Future<void> ensureCurrentPlanArtifactBackfilled({
+    String? conversationId,
+  }) async {}
 
   @override
   Future<void> updateCurrentConversation(List<Message> messages) async {}
@@ -1496,7 +1502,7 @@ class _ChatLiveDataSource implements ChatDataSource {
   final List<ChatCompletionResult> toolResultResponses = [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,

@@ -1,14 +1,17 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../entities/conversation_workflow.dart';
+import 'runtime_sampler_feedback_recorder.dart';
 
 class ProposalJsonExtractor {
-  const ProposalJsonExtractor({void Function()? onJsonRepair})
-    : _onJsonRepair = onJsonRepair;
+  const ProposalJsonExtractor({
+    RuntimeSamplerFeedbackEventBinding? jsonRepairFeedback,
+  }) : _jsonRepairFeedback = jsonRepairFeedback;
 
-  final void Function()? _onJsonRepair;
+  final RuntimeSamplerFeedbackEventBinding? _jsonRepairFeedback;
 
   Map<String, dynamic>? extractJsonMap(String rawContent) {
     final trimmed = rawContent.trim();
@@ -26,7 +29,7 @@ class ProposalJsonExtractor {
       candidate,
     );
     if (repairedDirect != null) {
-      _onJsonRepair?.call();
+      _recordJsonRepairFeedback();
       return repairedDirect;
     }
 
@@ -43,7 +46,7 @@ class ProposalJsonExtractor {
         sliced,
       );
       if (repairedSliced != null) {
-        _onJsonRepair?.call();
+        _recordJsonRepairFeedback();
       }
       return repairedSliced;
     }
@@ -51,9 +54,16 @@ class ProposalJsonExtractor {
       candidate.substring(firstBrace).trim(),
     );
     if (repairedTrailing != null) {
-      _onJsonRepair?.call();
+      _recordJsonRepairFeedback();
     }
     return repairedTrailing;
+  }
+
+  void _recordJsonRepairFeedback() {
+    final feedback = _jsonRepairFeedback;
+    if (feedback != null) {
+      unawaited(feedback.record());
+    }
   }
 }
 

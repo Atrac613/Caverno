@@ -1,5 +1,4 @@
-// Same-library extension on [ChatNotifier] for streamed tool-result final
-// answers and their bounded recovery paths.
+// Same-library extension for streamed tool-result answers and recovery.
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
@@ -11,6 +10,10 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
     ToolResultCompletionEvidence? completionEvidence,
     bool deferIncompleteLengthRecovery = false,
   }) async {
+    final turnOwner = _turnOwnerForGeneration(interactionGeneration);
+    if (turnOwner == null) return '';
+    final protectedPaths = const ContextSurgeryProtectedPathPolicy()
+        .protectedPathsFor(_conversationForGeneration(interactionGeneration));
     Future<ChatCompletionResult?> requestConciseRecovery({
       required FinalAnswerRecoveryReason reason,
       required bool forceCompaction,
@@ -25,6 +28,8 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
           toolResults,
           budgetMode: ToolResultPromptBudgetMode.compact,
           completionEvidence: completionEvidence,
+          protectedPaths: protectedPaths,
+          observationOwner: turnOwner,
         ),
       );
       retryMessages.add(
@@ -80,9 +85,10 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
               toolResults,
               budgetMode: budgetMode,
               completionEvidence: completionEvidence,
+              protectedPaths: protectedPaths,
+              observationOwner: turnOwner,
             ),
           );
-
           final preAnswerContent =
               _lastMessageContentForGeneration(interactionGeneration) ?? '';
           _appendToLastMessageForGeneration(interactionGeneration, '<think>');
@@ -137,6 +143,7 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
               streamedAnswer.write(chunk);
             }
           } on TimeoutException {
+            _responseMetadata.discard(turnOwner);
             _removeTrailingThinkTagForGeneration(interactionGeneration);
             const timeoutResponse =
                 'The final response timed out. The task remains incomplete; '
@@ -154,8 +161,13 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
           if (isFirstChunk) {
             _removeTrailingThinkTagForGeneration(interactionGeneration);
           }
+          final firstMetadata = await stream.terminal;
+          if (!_activeResponseRegistry.containsOwner(turnOwner) ||
+              !_responseMetadata.capture(turnOwner, firstMetadata)) {
+            return '';
+          }
           var rawStreamedAnswer = streamedAnswer.toString();
-          final firstFinishReason = _latestFinishReason();
+          final firstFinishReason = firstMetadata.finishReason;
           final recoveryReason = _finalAnswerRecoveryPolicy.recoveryReason(
             content: ContentParser.stripToolArtifacts(rawStreamedAnswer),
             finishReason: firstFinishReason,
@@ -164,7 +176,6 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
               deferIncompleteLengthRecovery &&
               recoveryReason == FinalAnswerRecoveryReason.lengthTruncated;
           if (deferToPendingActionRecovery) {
-            _finalAnswerFinishReasonOverride = firstFinishReason;
             appLog(
               '[PendingActionLengthRecovery] Deferring truncated incomplete '
               'coding work to a tool-aware retry',
@@ -196,17 +207,12 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
                 '$preAnswerContent$separator$visibleRetryContent',
               );
               rawStreamedAnswer = rawRetryContent;
-              final retryFinishReason = retryResult.finishReason.trim();
-              _finalAnswerFinishReasonOverride = retryFinishReason.isEmpty
-                  ? null
-                  : retryFinishReason;
-              _appliedTurnTransforms.add('final_answer_concise_retry');
+              _responseMetadata.captureResult(turnOwner, retryResult);
+              _turnEnd.addTransform(turnOwner, 'final_answer_concise_retry');
               appLog(
                 '[FinalAnswerRecovery] Applied concise final-answer retry; '
                 'reason=${recoveryReason.logToken}',
               );
-            } else {
-              _finalAnswerFinishReasonOverride = firstFinishReason;
             }
           }
           _stripToolArtifactsFromStreamedAnswerSuffix(
@@ -214,6 +220,7 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
             preAnswerContent: preAnswerContent,
           );
           _appendUnexecutedToolRequestNoticeForContentIfNeeded(
+            owner: turnOwner,
             interactionGeneration: interactionGeneration,
             content: rawStreamedAnswer,
             toolResults: toolResults,
@@ -252,9 +259,12 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
         budgetMode: ToolResultPromptBudgetMode.normal,
       );
     } catch (error) {
-      final hasCompactableHistory = _hasCompactablePromptHistory();
+      final retryOwner = _turnOwnerForGeneration(interactionGeneration);
+      final hasCompactableHistory =
+          retryOwner != null && _hasCompactablePromptHistory(retryOwner);
       final hasToolResultBudget = _hasAdditionalCompactToolResultBudget(
         toolResults,
+        protectedPaths: protectedPaths,
       );
       if (!ConversationCompactionService.isContextLengthError(
             error.toString(),

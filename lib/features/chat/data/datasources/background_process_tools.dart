@@ -1,201 +1,447 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
+import '../../domain/entities/chat_turn_owner.dart';
 import 'local_shell_tools.dart';
 
+part 'background_process_job.dart';
+part 'background_process_launch_recovery.dart';
+part 'background_process_recovery_registry.dart';
+part 'background_process_result_codec.dart';
+
+typedef BackgroundProcessStarter =
+    Future<Process> Function(
+      String executable,
+      List<String> arguments,
+      String workingDirectory,
+    );
+
+typedef BackgroundProcessRuntimeIdentity = ({
+  String jobId,
+  int processId,
+  bool isRunning,
+});
+
 class BackgroundProcessTools {
-  BackgroundProcessTools();
+  BackgroundProcessTools({
+    BackgroundProcessStarter? processStarter,
+    BackgroundProcessTerminator? processTerminator,
+  }) : _processStarter = processStarter ?? _defaultProcessStarter,
+       _processTerminator =
+           processTerminator ?? _defaultBackgroundProcessTerminator;
 
   static const int _maxBufferChars = 24000;
   static const int _defaultTailChars = 4000;
   static const int _maxTailChars = 12000;
   static const int _maxWaitMs = 30000;
 
-  final Map<String, _BackgroundProcessJob> _jobs = {};
+  final BackgroundProcessStarter _processStarter;
+  final BackgroundProcessTerminator _processTerminator;
+  final Map<ChatTurnOwner, _OwnerProcessState> _ownerStates = {};
+  final Set<ChatTurnOwner> _retiredOwners = {};
+  final Map<String, Set<String>> _resourceFences = {};
+  final Map<String, _BackgroundProcessRecoveryRecord> _recoveries = {};
+  final Map<String, _ResolvedBackgroundProcessRecovery> _resolvedRecoveries =
+      {};
+  final Random _random = Random.secure();
   int _nextId = 0;
+  bool _disposed = false;
 
   bool get isSupported => LocalShellTools.isDesktopPlatform;
 
   Future<String> start({
+    required ChatTurnOwner owner,
     required String command,
     required String workingDirectory,
     String? label,
   }) async {
-    final normalizedCommand = LocalShellTools.normalizeCommand(command);
-    if (normalizedCommand.isEmpty) {
-      return jsonEncode({'ok': false, 'code': 'command_required'});
+    if (_disposed) {
+      return _error(
+        'background_process_tools_disposed',
+        message: 'Background process tools have been disposed.',
+      );
     }
+    if (_retiredOwners.contains(owner)) {
+      return _error(
+        'background_process_owner_retired',
+        message: 'The background process owner has already been cleared.',
+      );
+    }
+    final normalizedCommand = LocalShellTools.normalizeCommand(command);
+    if (normalizedCommand.isEmpty) return _error('command_required');
 
     final directory = Directory(workingDirectory);
     if (!directory.existsSync()) {
-      return jsonEncode({
-        'ok': false,
-        'code': 'working_directory_not_found',
-        'error': 'Working directory does not exist: $workingDirectory',
-      });
+      return _error(
+        'working_directory_not_found',
+        message: 'Working directory does not exist: $workingDirectory',
+      );
     }
+    final cwd = directory.absolute.path;
     final gitWriteBlockedResult = LocalShellTools.gitWriteCommandBlockedResult(
       command: normalizedCommand,
-      workingDirectory: directory.absolute.path,
+      workingDirectory: cwd,
     );
-    if (gitWriteBlockedResult != null) {
-      return gitWriteBlockedResult;
-    }
+    if (gitWriteBlockedResult != null) return gitWriteBlockedResult;
 
-    final existingJob = _runningJobFor(
-      command: normalizedCommand,
-      workingDirectory: directory.absolute.path,
-    );
-    if (existingJob != null) {
-      return jsonEncode({
-        ...existingJob.toStatusJson(tailChars: _defaultTailChars),
-        'ok': true,
+    final state = _ownerStates.putIfAbsent(owner, _OwnerProcessState.new);
+    final existing = _runningJobFor(state, normalizedCommand, cwd);
+    if (existing != null) {
+      return _statusResult(existing, {
         'duplicate_existing': true,
         'note':
             'A matching command is already running. Reuse this job_id and monitor it instead of starting another process.',
       });
     }
 
-    final shellExecutable = Platform.isWindows ? 'cmd' : 'sh';
-    final shellArgs = Platform.isWindows
-        ? ['/C', normalizedCommand]
-        : ['-c', normalizedCommand];
+    final resourceKey = _resourceKey(normalizedCommand, directory);
     final startedAt = DateTime.now();
     final id = _newJobId(startedAt);
-
-    try {
-      final process = await Process.start(
-        shellExecutable,
-        shellArgs,
-        workingDirectory: directory.absolute.path,
-      );
-      final job = _BackgroundProcessJob(
-        id: id,
+    final lease = _acquireLaunchLease(
+      state: state,
+      owner: owner,
+      jobId: id,
+      command: normalizedCommand,
+      workingDirectory: cwd,
+      resourceKey: resourceKey,
+    );
+    if (lease == null) {
+      return _error(
+        'background_process_resource_fenced',
         command: normalizedCommand,
-        workingDirectory: directory.absolute.path,
-        label: label,
-        process: process,
-        startedAt: startedAt,
+        workingDirectory: cwd,
+        message:
+            'A matching process launch is awaiting exact termination '
+            'reconciliation.',
       );
-      _jobs[id] = job;
+    }
+
+    final executable = Platform.isWindows ? 'cmd' : 'sh';
+    final arguments = Platform.isWindows
+        ? ['/C', normalizedCommand]
+        : ['-c', normalizedCommand];
+    late final Process process;
+    try {
+      process = await _processStarter(executable, arguments, cwd);
+    } catch (error) {
+      final ownerWasActive = _stateIsActive(owner, state);
+      _settleLaunchLease(state, lease);
+      return ownerWasActive
+          ? _error(
+              'process_start_failed',
+              command: normalizedCommand,
+              workingDirectory: cwd,
+              message: error.toString(),
+            )
+          : _retiredStartResult(normalizedCommand, cwd);
+    }
+
+    final job = _BackgroundProcessJob(
+      id: id,
+      command: normalizedCommand,
+      workingDirectory: cwd,
+      label: label,
+      process: process,
+      startedAt: startedAt,
+      terminator: _processTerminator,
+      processGroupId: null,
+    );
+    final recovery = _registerRecovery(state, lease, job);
+    Object? attachmentError;
+    try {
       job.attach();
-      return jsonEncode({
-        ...job.toStatusJson(tailChars: _defaultTailChars),
-        'ok': true,
+    } catch (error) {
+      attachmentError = error;
+    }
+    if (_stateIsActive(owner, state) && attachmentError == null) {
+      _promoteRecovery(state, recovery);
+      return _statusResult(job, {
         'status': 'running',
         'note':
             'The process is running in the background. Use process_status, process_tail, or process_wait with this job_id.',
       });
-    } catch (error) {
-      return jsonEncode({
-        'ok': false,
-        'code': 'process_start_failed',
-        'command': normalizedCommand,
-        'working_directory': directory.absolute.path,
-        'error': error.toString(),
-      });
     }
+
+    final acknowledgement = await _attemptRecovery(recovery);
+    if (acknowledgement.terminationConfirmed) {
+      return attachmentError == null
+          ? _retiredStartResult(normalizedCommand, cwd)
+          : _error(
+              'process_start_failed',
+              command: normalizedCommand,
+              workingDirectory: cwd,
+              message: attachmentError.toString(),
+            );
+    }
+    return _unconfirmedStartResult(recovery, attachmentError);
   }
 
-  Future<String> status({required String jobId, int? tailChars}) async {
-    final job = _jobs[jobId];
-    if (job == null) {
+  Future<String> status({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? tailChars,
+  }) async {
+    return _withJob(
+      owner,
+      jobId,
+      (job) => _statusResult(
+        job,
+        const {},
+        tailChars: _normalizeTailChars(tailChars),
+      ),
+    );
+  }
+
+  Future<String> tail({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? maxChars,
+  }) async {
+    return _withJob(owner, jobId, (job) {
+      final tailChars = _normalizeTailChars(maxChars);
       return jsonEncode({
-        'ok': false,
-        'code': 'job_not_found',
-        'job_id': jobId,
-        'error': 'No background process job exists for job_id: $jobId',
+        'ok': true,
+        'job_id': job.id,
+        'status': job.status,
+        'stdout_tail': job.stdout.tail(tailChars),
+        'stderr_tail': job.stderr.tail(tailChars),
+        'stdout_truncated': job.stdout.truncated,
+        'stderr_truncated': job.stderr.truncated,
       });
-    }
-    return jsonEncode({
-      ...job.toStatusJson(tailChars: _normalizeTailChars(tailChars)),
-      'ok': true,
     });
   }
 
-  Future<String> tail({required String jobId, int? maxChars}) async {
-    final job = _jobs[jobId];
-    if (job == null) {
-      return jsonEncode({
-        'ok': false,
-        'code': 'job_not_found',
-        'job_id': jobId,
-        'error': 'No background process job exists for job_id: $jobId',
-      });
-    }
-    return jsonEncode({
-      'ok': true,
-      'job_id': job.id,
-      'status': job.status,
-      'stdout_tail': job.stdout.tail(_normalizeTailChars(maxChars)),
-      'stderr_tail': job.stderr.tail(_normalizeTailChars(maxChars)),
-      'stdout_truncated': job.stdout.truncated,
-      'stderr_truncated': job.stderr.truncated,
-    });
-  }
-
-  Future<String> wait({required String jobId, int? waitMs}) async {
-    final job = _jobs[jobId];
-    if (job == null) {
-      return jsonEncode({
-        'ok': false,
-        'code': 'job_not_found',
-        'job_id': jobId,
-        'error': 'No background process job exists for job_id: $jobId',
-      });
-    }
-
+  Future<String> wait({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? waitMs,
+  }) async {
+    final job = _jobFor(owner, jobId);
+    if (job == null) return _notFound(jobId);
     if (job.isRunning) {
-      final duration = Duration(milliseconds: _normalizeWaitMs(waitMs));
       try {
-        await job.done.timeout(duration);
+        await job.done.timeout(
+          Duration(milliseconds: _normalizeWaitMs(waitMs)),
+        );
       } on TimeoutException {
         // Returning the current running status is the expected outcome.
       }
     }
+    return identical(_jobFor(owner, jobId), job)
+        ? _statusResult(job, const {})
+        : _notFound(jobId);
+  }
 
-    return jsonEncode({
-      ...job.toStatusJson(tailChars: _defaultTailChars),
-      'ok': true,
+  Future<String> cancel({
+    required ChatTurnOwner owner,
+    required String jobId,
+  }) async {
+    return _withJob(owner, jobId, (job) {
+      job.requestCancel();
+      return _statusResult(job, const {'cancel_requested': true});
     });
   }
 
-  Future<String> cancel({required String jobId}) async {
-    final job = _jobs[jobId];
+  BackgroundProcessRuntimeIdentity? identity({
+    required ChatTurnOwner owner,
+    required String jobId,
+  }) {
+    final recovery = _recoveryForJob(owner, jobId);
+    final job = _jobFor(owner, jobId) ?? recovery?.job;
+    return job == null
+        ? null
+        : (
+            jobId: job.id,
+            processId: job.process.pid,
+            isRunning: recovery != null || job.isRunning,
+          );
+  }
+
+  BackgroundProcessRecoveryReceipt? recoveryReceipt({
+    required ChatTurnOwner owner,
+    required String jobId,
+    required int processId,
+    required String recoveryToken,
+  }) {
+    final record = _recoveries[recoveryToken];
+    if (record == null) return null;
+    final receipt = record.receipt;
+    return receipt.owner == owner &&
+            receipt.jobId == jobId &&
+            receipt.processId == processId
+        ? receipt
+        : null;
+  }
+
+  List<BackgroundProcessRecoveryReceipt> pendingRecoveryReceipts({
+    required ChatTurnOwner owner,
+  }) {
+    return List<BackgroundProcessRecoveryReceipt>.unmodifiable(
+      _recoveries.values
+          .map((record) => record.receipt)
+          .where((receipt) => receipt.owner == owner),
+    );
+  }
+
+  Future<BackgroundProcessRecoveryAcknowledgement> reconcileTermination(
+    BackgroundProcessRecoveryReceipt receipt,
+  ) {
+    final record = _recoveries[receipt.recoveryToken];
+    if (record != null && record.receipt.matches(receipt)) {
+      return _attemptRecovery(record);
+    }
+    final resolved = _resolvedRecoveries[receipt.recoveryToken];
+    if (resolved != null && resolved.receipt.matches(receipt)) {
+      return Future.value(
+        BackgroundProcessRecoveryAcknowledgement(
+          disposition: resolved.forceAcknowledged
+              ? BackgroundProcessRecoveryDisposition.riskAcknowledged
+              : BackgroundProcessRecoveryDisposition.alreadyResolved,
+          receipt: receipt,
+        ),
+      );
+    }
+    return Future.value(
+      BackgroundProcessRecoveryAcknowledgement(
+        disposition: BackgroundProcessRecoveryDisposition.receiptMismatch,
+        receipt: receipt,
+      ),
+    );
+  }
+
+  Future<BackgroundProcessRecoveryAcknowledgement>
+  acknowledgeUnconfirmedTermination(
+    BackgroundProcessRecoveryReceipt receipt,
+  ) async {
+    final record = _recoveries[receipt.recoveryToken];
+    if (record == null) {
+      final resolved = _resolvedRecoveries[receipt.recoveryToken];
+      return BackgroundProcessRecoveryAcknowledgement(
+        disposition:
+            resolved != null &&
+                resolved.forceAcknowledged &&
+                resolved.receipt.matches(receipt)
+            ? BackgroundProcessRecoveryDisposition.riskAcknowledged
+            : BackgroundProcessRecoveryDisposition.receiptMismatch,
+        receipt: receipt,
+      );
+    }
+    if (!record.receipt.matches(receipt)) {
+      return BackgroundProcessRecoveryAcknowledgement(
+        disposition: BackgroundProcessRecoveryDisposition.receiptMismatch,
+        receipt: receipt,
+      );
+    }
+    return record.serialize(() async {
+      if (record.released) {
+        return BackgroundProcessRecoveryAcknowledgement(
+          disposition: BackgroundProcessRecoveryDisposition.alreadyResolved,
+          receipt: receipt,
+        );
+      }
+      await _releaseRecovery(record, forceAcknowledged: true);
+      return BackgroundProcessRecoveryAcknowledgement(
+        disposition: BackgroundProcessRecoveryDisposition.riskAcknowledged,
+        receipt: receipt,
+      );
+    });
+  }
+
+  Future<String> cancelExact({
+    required ChatTurnOwner owner,
+    required String jobId,
+    required int processId,
+    bool requireTermination = false,
+  }) async {
+    final job = _jobFor(owner, jobId);
     if (job == null) {
-      return jsonEncode({
-        'ok': false,
-        'code': 'job_not_found',
-        'job_id': jobId,
-        'error': 'No background process job exists for job_id: $jobId',
-      });
+      final recovery = _recoveryForJob(owner, jobId);
+      if (recovery == null) return _notFound(jobId);
+      if (recovery.receipt.processId != processId) {
+        return _error(
+          'background_process_identity_mismatch',
+          jobId: jobId,
+          message:
+              'The background process identity changed before cancellation.',
+        );
+      }
+      final acknowledgement = await reconcileTermination(recovery.receipt);
+      return acknowledgement.terminationConfirmed
+          ? _statusResult(recovery.job, const {'cancel_requested': true})
+          : _terminationUnconfirmedResult(recovery, acknowledgement.error);
+    }
+    if (job.process.pid != processId) {
+      return _error(
+        'background_process_identity_mismatch',
+        jobId: jobId,
+        message: 'The background process identity changed before cancellation.',
+      );
     }
     if (job.isRunning) {
-      job.process.kill();
-    }
-    return jsonEncode({
-      ...job.toStatusJson(tailChars: _defaultTailChars),
-      'ok': true,
-      'cancel_requested': true,
-    });
-  }
-
-  Future<void> dispose() async {
-    for (final job in _jobs.values) {
-      if (job.isRunning) {
-        job.process.kill();
+      if (requireTermination) {
+        final report = await job.terminate();
+        if (!report.isConfirmed) {
+          final state = _ownerStates[owner]!;
+          final recovery = _registerExistingJobRecovery(owner, state, job);
+          return _terminationUnconfirmedResult(recovery, report.error);
+        }
+      } else {
+        job.requestCancel();
       }
-      await job.dispose();
     }
-    _jobs.clear();
+    return _statusResult(job, const {'cancel_requested': true});
   }
 
-  _BackgroundProcessJob? _runningJobFor({
-    required String command,
-    required String workingDirectory,
-  }) {
-    for (final job in _jobs.values) {
+  bool isOwnerRetired(ChatTurnOwner owner) =>
+      _disposed || _retiredOwners.contains(owner);
+
+  Future<void> clearOwner({required ChatTurnOwner owner}) {
+    _retiredOwners.add(owner);
+    final state = _ownerStates[owner];
+    if (state == null) return Future<void>.value();
+    state.retired = true;
+    return state.retirement ??= _retireState(owner, state);
+  }
+
+  Future<void> dispose() {
+    if (!_disposed) {
+      _disposed = true;
+      for (final entry in _ownerStates.entries) {
+        _retiredOwners.add(entry.key);
+        entry.value
+          ..retired = true
+          ..retirement ??= _retireState(entry.key, entry.value);
+      }
+    }
+    return Future.wait<void>(
+      _ownerStates.values
+          .map((state) => state.retirement)
+          .whereType<Future<void>>(),
+    );
+  }
+
+  String _withJob(
+    ChatTurnOwner owner,
+    String jobId,
+    String Function(_BackgroundProcessJob job) found,
+  ) {
+    final job = _jobFor(owner, jobId);
+    return job == null ? _notFound(jobId) : found(job);
+  }
+
+  _BackgroundProcessJob? _jobFor(ChatTurnOwner owner, String jobId) {
+    final state = _ownerStates[owner];
+    return state == null || state.retired ? null : state.jobs[jobId];
+  }
+
+  _BackgroundProcessJob? _runningJobFor(
+    _OwnerProcessState state,
+    String command,
+    String workingDirectory,
+  ) {
+    for (final job in state.jobs.values) {
       if (job.isRunning &&
           job.command == command &&
           job.workingDirectory == workingDirectory) {
@@ -205,164 +451,21 @@ class BackgroundProcessTools {
     return null;
   }
 
-  String _newJobId(DateTime startedAt) {
-    _nextId += 1;
-    return 'proc_${startedAt.microsecondsSinceEpoch}_$_nextId';
-  }
+  bool _stateIsActive(ChatTurnOwner owner, _OwnerProcessState state) =>
+      !_disposed &&
+      !_retiredOwners.contains(owner) &&
+      !state.retired &&
+      identical(_ownerStates[owner], state);
 
-  int _normalizeTailChars(int? value) {
-    return (value ?? _defaultTailChars).clamp(1, _maxTailChars).toInt();
-  }
-
-  int _normalizeWaitMs(int? value) {
-    return (value ?? 1000).clamp(0, _maxWaitMs).toInt();
-  }
-}
-
-class _BackgroundProcessJob {
-  _BackgroundProcessJob({
-    required this.id,
-    required this.command,
-    required this.workingDirectory,
-    required this.process,
-    required this.startedAt,
-    this.label,
-  });
-
-  final String id;
-  final String command;
-  final String workingDirectory;
-  final String? label;
-  final Process process;
-  final DateTime startedAt;
-  final _RingTextBuffer stdout = _RingTextBuffer(
-    BackgroundProcessTools._maxBufferChars,
-  );
-  final _RingTextBuffer stderr = _RingTextBuffer(
-    BackgroundProcessTools._maxBufferChars,
-  );
-  final Completer<void> _done = Completer<void>();
-  final Completer<void> _stdoutDone = Completer<void>();
-  final Completer<void> _stderrDone = Completer<void>();
-  StreamSubscription<String>? _stdoutSubscription;
-  StreamSubscription<String>? _stderrSubscription;
-  int? exitCode;
-  DateTime? finishedAt;
-
-  bool get isRunning => exitCode == null;
-  Future<void> get done => _done.future;
-
-  String get status => isRunning ? 'running' : 'exited';
-
-  void attach() {
-    _stdoutSubscription = process.stdout
-        .transform(utf8.decoder)
-        .listen(
-          stdout.add,
-          onError: (Object error) => stderr.add('$error\n'),
-          onDone: () {
-            if (!_stdoutDone.isCompleted) {
-              _stdoutDone.complete();
-            }
-          },
-        );
-    _stderrSubscription = process.stderr
-        .transform(utf8.decoder)
-        .listen(
-          stderr.add,
-          onError: (Object error) => stderr.add('$error\n'),
-          onDone: () {
-            if (!_stderrDone.isCompleted) {
-              _stderrDone.complete();
-            }
-          },
-        );
-    unawaited(_completeWhenProcessExits());
-  }
-
-  Future<void> _completeWhenProcessExits() async {
-    try {
-      exitCode = await process.exitCode;
-      finishedAt = DateTime.now();
-      await Future.wait<void>([
-        _stdoutDone.future,
-        _stderrDone.future,
-      ]).timeout(const Duration(seconds: 1));
-    } on TimeoutException {
-      stderr.add(
-        'Timed out while waiting for process output streams to close.\n',
-      );
-    } catch (error) {
-      stderr.add('$error\n');
-      exitCode = -1;
-      finishedAt = DateTime.now();
-    } finally {
-      if (!_done.isCompleted) {
-        _done.complete();
-      }
-    }
-  }
-
-  Map<String, dynamic> toStatusJson({required int tailChars}) {
-    final now = DateTime.now();
-    return {
-      'job_id': id,
-      'status': status,
-      'pid': process.pid,
-      'command': command,
-      'working_directory': workingDirectory,
-      if (label != null && label!.isNotEmpty) 'label': label,
-      'started_at': startedAt.toIso8601String(),
-      if (finishedAt != null) 'finished_at': finishedAt!.toIso8601String(),
-      'elapsed_ms': now.difference(startedAt).inMilliseconds,
-      if (exitCode != null) 'exit_code': exitCode,
-      'stdout_tail': stdout.tail(tailChars),
-      'stderr_tail': stderr.tail(tailChars),
-      'stdout_truncated': stdout.truncated,
-      'stderr_truncated': stderr.truncated,
-    };
-  }
-
-  Future<void> dispose() async {
-    await _stdoutSubscription?.cancel();
-    if (!_stdoutDone.isCompleted) {
-      _stdoutDone.complete();
-    }
-    await _stderrSubscription?.cancel();
-    if (!_stderrDone.isCompleted) {
-      _stderrDone.complete();
-    }
-  }
-}
-
-class _RingTextBuffer {
-  _RingTextBuffer(this.maxChars);
-
-  final int maxChars;
-  final StringBuffer _buffer = StringBuffer();
-  bool truncated = false;
-
-  void add(String chunk) {
-    if (chunk.isEmpty) {
-      return;
-    }
-    _buffer.write(chunk);
-    final text = _buffer.toString();
-    if (text.length <= maxChars) {
-      return;
-    }
-    truncated = true;
-    final clipped = text.substring(text.length - maxChars);
-    _buffer
-      ..clear()
-      ..write(clipped);
-  }
-
-  String tail(int maxChars) {
-    final text = _buffer.toString();
-    if (text.length <= maxChars) {
-      return text;
-    }
-    return text.substring(text.length - maxChars);
+  static Future<Process> _defaultProcessStarter(
+    String executable,
+    List<String> arguments,
+    String workingDirectory,
+  ) {
+    return Process.start(
+      executable,
+      arguments,
+      workingDirectory: workingDirectory,
+    );
   }
 }

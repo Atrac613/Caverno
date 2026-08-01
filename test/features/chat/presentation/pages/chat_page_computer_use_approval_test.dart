@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -58,10 +57,6 @@ class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
 class _ComputerUseApprovalTestChatNotifier extends ChatNotifier {
   @override
   ChatState build() => ChatState.initial();
-
-  void showPending(PendingComputerUseAction pending) {
-    state = state.copyWith(pendingComputerUseAction: pending);
-  }
 }
 
 class _FakeMacosComputerUseService extends MacosComputerUseService {
@@ -131,11 +126,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(ChatPage), findsOneWidget);
 
-      final pending = _buildLongComputerUseAction();
       final notifier =
           container.read(chatNotifierProvider.notifier)
               as _ComputerUseApprovalTestChatNotifier;
-      notifier.showPending(pending);
+      final decisionFuture = _requestLongComputerUseAction(notifier);
 
       await tester.pump();
       await tester.pumpAndSettle();
@@ -173,17 +167,19 @@ void main() {
       await tester.tap(find.text('Deny'));
       await tester.pumpAndSettle();
 
-      final decision = await pending.completer.future.timeout(
-        const Duration(seconds: 1),
-      );
+      final decision = await decisionFuture.timeout(const Duration(seconds: 1));
       expect(decision.approved, isFalse);
     },
   );
 }
 
-PendingComputerUseAction _buildLongComputerUseAction() {
-  return PendingComputerUseAction(
-    id: 'pending-scroll-test',
+Future<ComputerUseActionApprovalDecision> _requestLongComputerUseAction(
+  _ComputerUseApprovalTestChatNotifier notifier,
+) {
+  final owner = notifier.registerApprovalOwnerForTest('computer-use-test');
+  notifier.conversationId = owner.conversationId;
+  return notifier.requestComputerUseAction(
+    owner: owner,
     toolName: 'computer_press_key',
     title: 'Approve Key Press',
     riskCategory: 'input',
@@ -216,6 +212,5 @@ PendingComputerUseAction _buildLongComputerUseAction() {
         'Verify this action against the latest vision observation before approving.',
     visionObservationDetails: const [],
     reason: 'Open Spotlight to launch Safari.',
-    completer: Completer<ComputerUseActionApprovalDecision>(),
   );
 }

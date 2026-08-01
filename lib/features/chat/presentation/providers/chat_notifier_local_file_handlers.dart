@@ -1,696 +1,484 @@
-// Same-library extension on [ChatNotifier]; see chat_notifier_git_handlers.dart
-// for the rationale behind the `ignore_for_file` directive.
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
 
+final _localCommandExecutionAuthorities =
+    Expando<LocalCommandExecutionAuthority>();
+
 extension ChatNotifierLocalFileHandlers on ChatNotifier {
-  Future<McpToolResult> _handleLspGoToDefinition(ToolCallInfo toolCall) async {
-    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
-    if (accessFailure != null) return accessFailure;
+  LocalCommandExecutionAuthority get _localCommandExecutionAuthority =>
+      _localCommandExecutionAuthorities[this] ??=
+          LocalCommandExecutionAuthority();
 
-    final projectRoot = _getActiveProjectRootPath();
-    if (projectRoot == null || projectRoot.trim().isEmpty) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: jsonEncode({
-          'ok': false,
-          'code': 'active_coding_project_required',
-          'error':
-              'An active coding project is required for LSP go-to-definition.',
-        }),
-        isSuccess: false,
-        errorMessage: 'An active coding project is required',
-      );
-    }
-
-    final resolvedArguments = _resolveProjectScopedArguments(
-      toolCall.name,
-      toolCall.arguments,
+  FileMutationToolRuntimeAdapter<TextFileSnapshot>
+  _buildFileMutationRuntimeAdapter() {
+    final cacheRuntime = FileMutationApprovalCacheRuntimeAdapter(
+      ownerIsCurrent: _isApprovalOwnerCurrent,
+      cacheForOwner: _toolApprovalCache.forOwner,
     );
-    final path = (resolvedArguments['path'] as String?)?.trim() ?? '';
-    final line = _oneBasedPositionValue(resolvedArguments['line']);
-    final column = _oneBasedPositionValue(resolvedArguments['column']);
-    if (path.isEmpty || line == null || column == null) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: jsonEncode({
-          'ok': false,
-          'code': 'invalid_arguments',
-          'error': 'path, line, and column are required.',
-        }),
-        isSuccess: false,
-        errorMessage: 'path, line, and column are required',
-      );
-    }
-
-    try {
-      final definitions = await ref
-          .read(lspJsonRpcSessionRegistryProvider)
-          .collectDefinitions(
-            projectRoot: projectRoot,
-            path: path,
-            line: line - 1,
-            character: column - 1,
+    return FileMutationToolRuntimeAdapter<TextFileSnapshot>(
+      acknowledgeLifecycle: cacheRuntime.acknowledgeLifecycle,
+      preflightEdit: (request) async {
+        final operation = request.operation;
+        final value = await FilesystemTools.preflightEditFile(
+          path: operation.path,
+          oldText: operation.oldText,
+          newText: operation.newText,
+          replaceAll: operation.replaceAll,
+        );
+        return cacheRuntime.acknowledge(
+          request.identity,
+          current: _isApprovalOwnerCurrent(request.identity.owner),
+          value: value,
+        );
+      },
+      fingerprint: (identity) async {
+        final service = _mcpToolService;
+        if (service == null) {
+          return cacheRuntime.acknowledge(identity, current: false);
+        }
+        return service.readFileMutationFingerprint(identity);
+      },
+      isRegularFile: (identity) async {
+        final type = await FileSystemEntity.type(
+          identity.canonicalPath,
+          followLinks: false,
+        );
+        return cacheRuntime.acknowledge(
+          identity,
+          current: _isApprovalOwnerCurrent(identity.owner),
+          value: type == FileSystemEntityType.file,
+        );
+      },
+      captureDeleteSnapshot: (identity) async {
+        final snapshot = await FilesystemTools.captureTextSnapshot(
+          identity.canonicalPath,
+        );
+        return cacheRuntime.acknowledge(
+          identity,
+          current: _isApprovalOwnerCurrent(identity.owner),
+          value: FileMutationDeleteSnapshot(
+            content: snapshot.content,
+            error: snapshot.error,
+          ),
+        );
+      },
+      buildPreview: (request) async {
+        final operation = request.operationRequest.operation;
+        final preview = await switch (operation.kind) {
+          FileMutationKind.writeFile => FilesystemTools.buildWriteDiffPreview(
+            path: operation.path,
+            newContent: operation.content,
+          ),
+          FileMutationKind.editFile => FilesystemTools.buildEditDiffPreview(
+            path: operation.path,
+            oldText: operation.oldText,
+            newText: operation.newText,
+            replaceAll: operation.replaceAll,
+          ),
+          FileMutationKind.deleteFile => Future<String>.value(
+            FilesystemTools.buildUnifiedDiff(
+              path: operation.path,
+              oldContent: request.deleteContent,
+              newContent: null,
+            ),
+          ),
+        };
+        return cacheRuntime.acknowledge(
+          request.identity,
+          current: _isApprovalOwnerCurrent(request.identity.owner),
+          value: preview,
+        );
+      },
+      lookupDenial: cacheRuntime.lookupDenial,
+      resolveGate: (request, {required buildPreview}) async {
+        final identity = request.identity;
+        final cache = cacheRuntime.currentCache(identity.owner);
+        if (cache == null) {
+          return cacheRuntime.acknowledge(identity, current: false);
+        }
+        final approval = request.request;
+        final toolCall = ToolCallInfo(
+          id: identity.toolCallId,
+          name: identity.toolName,
+          arguments: approval.arguments,
+        );
+        final gate = await _resolveToolApprovalGate(
+          cache,
+          toolCall: toolCall,
+          actionKind: identity.toolName,
+          mode: approval.approvalMode,
+          reviewDomain: ToolApprovalAutoReviewDomain.coding,
+          fullAccessEligible: true,
+          approvalCacheArguments: approval.cacheArguments,
+          approvalCacheStateFingerprint: approval.stateFingerprint,
+          buildReviewRequest: () async => _buildAutoReviewRequest(
+            identity.owner,
+            toolCall: toolCall,
+            actionKind: identity.toolName,
+            arguments: approval.arguments,
+            path: approval.path,
+            reason: approval.reason,
+            preview: await buildPreview(),
+            conversationMessages: approval.conversationMessages,
+          ),
+        );
+        return cacheRuntime.acknowledge(
+          identity,
+          current: _isApprovalOwnerCurrent(identity.owner),
+          value: gate,
+        );
+      },
+      requestManualApproval: (request, {required preview}) async {
+        final identity = request.identity;
+        final approval = request.request;
+        final approved = await requestFileOperation(
+          owner: identity.owner,
+          operation: approval.operation.kind.approvalTitle,
+          path: approval.path,
+          preview: preview,
+          reason: approval.reason,
+        );
+        return cacheRuntime.acknowledge(
+          identity,
+          current: _isApprovalOwnerCurrent(identity.owner),
+          value: approved,
+        );
+      },
+      rememberDenial: cacheRuntime.rememberDenial,
+      rememberResult: cacheRuntime.rememberResult,
+      captureBefore: (identity) async {
+        final service = _mcpToolService;
+        if (service == null) {
+          return cacheRuntime.acknowledge(identity, current: false);
+        }
+        return service.captureFileMutationBefore(identity);
+      },
+      recordMutation: (request) async {
+        final service = _mcpToolService;
+        if (service == null) {
+          return cacheRuntime.acknowledge(request.identity, current: false);
+        }
+        final acknowledgement = await service.recordFileMutation(request);
+        if (acknowledgement.disposition ==
+                FileMutationRuntimeAcknowledgementDisposition.completed &&
+            acknowledgement.value != null) {
+          await _recordFileMutationDiff(
+            owner: request.identity.owner,
+            before: request.capture.snapshot,
+            path: request.identity.canonicalPath,
           );
-      if (definitions == null) {
-        return McpToolResult(
-          toolName: toolCall.name,
-          result: jsonEncode({
-            'ok': false,
-            'code': 'language_server_unavailable',
-            'error':
-                'No supported language server session is available for this file.',
-            'path': path,
-          }),
-          isSuccess: false,
-          errorMessage: 'No supported language server session is available',
-        );
-      }
-
-      final payload = {
-        'ok': true,
-        'provider': 'lsp_json_rpc',
-        'path': path,
-        'line': line,
-        'column': column,
-        'definition_count': definitions.length,
-        'definitions': definitions
-            .map(
-              (definition) =>
-                  _lspDefinitionToJson(definition, projectRoot: projectRoot),
-            )
-            .toList(growable: false),
-      };
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: jsonEncode(payload),
-        isSuccess: true,
-      );
-    } catch (error, stackTrace) {
-      appLog('[LSP] Go-to-definition failed: $error');
-      appLog('[LSP] stackTrace: $stackTrace');
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: jsonEncode({
-          'ok': false,
-          'code': 'lsp_go_to_definition_failed',
-          'error': error.toString(),
-          'path': path,
-        }),
-        isSuccess: false,
-        errorMessage: error.toString(),
-      );
-    }
+        }
+        return acknowledgement;
+      },
+      execute: (request, authorization) {
+        final service = _mcpToolService;
+        if (service == null) {
+          throw StateError('The filesystem tool service is unavailable.');
+        }
+        return service.executeRawFileMutation(request, authorization);
+      },
+      compensate: (request) {
+        final service = _mcpToolService;
+        if (service == null) {
+          throw StateError('The filesystem tool service is unavailable.');
+        }
+        return service.compensateFileMutation(request);
+      },
+    );
   }
 
-  int? _oneBasedPositionValue(Object? value) {
-    final rawValue = switch (value) {
-      int value => value,
-      num value => value.toInt(),
-      String value => int.tryParse(value.trim()),
-      _ => null,
-    };
-    if (rawValue == null || rawValue < 1) {
-      return null;
-    }
-    return rawValue;
-  }
-
-  Map<String, dynamic> _lspDefinitionToJson(
-    LspDefinitionLocation definition, {
-    required String projectRoot,
-  }) {
-    final absolutePath = _pathFromLspUri(definition.uri);
-    final insideProject =
-        absolutePath != null &&
-        DartProjectPath.isInsideRoot(absolutePath, projectRoot);
-    return {
-      'uri': definition.uri,
-      'path': ?absolutePath,
-      if (insideProject)
-        'relative_path': DartProjectPath.relativePath(
-          absolutePath,
-          projectRoot,
-        ).replaceAll('\\', '/'),
-      'line': definition.startLine + 1,
-      'column': definition.startCharacter + 1,
-      if (definition.endLine != null) 'end_line': definition.endLine! + 1,
-      if (definition.endCharacter != null)
-        'end_column': definition.endCharacter! + 1,
-    };
-  }
-
-  String? _pathFromLspUri(String uri) {
-    try {
-      final parsed = Uri.parse(uri);
-      if (parsed.scheme == 'file') {
-        return parsed.toFilePath();
-      }
-    } on FormatException {
-      return null;
-    } on UnsupportedError {
-      return null;
-    }
-    return null;
-  }
-
-  Future<McpToolResult> _handleWriteFile(ToolCallInfo toolCall) async {
+  Future<McpToolResult> _handleFileMutation(
+    ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
+  ) async {
     final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
     if (accessFailure != null) return accessFailure;
-
-    final resolvedArguments = _resolveProjectScopedArguments(
-      toolCall.name,
-      toolCall.arguments,
+    final owner = approvalCache.owner;
+    final projectRoot = _projectRootForGeneration(owner.interactionGeneration);
+    final resolvedArguments = ProjectScopedToolArgumentResolver.resolve(
+      toolName: toolCall.name,
+      arguments: toolCall.arguments,
+      loadProjectRoot: () => projectRoot,
     );
-    final path = (resolvedArguments['path'] as String?)?.trim() ?? '';
-    final content = resolvedArguments['content'] as String? ?? '';
-    if (path.isEmpty) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'path is required',
-      );
+    final ownerMessages = _activeResponseRegistry.messagesForOwner(owner);
+    if (ownerMessages == null) {
+      return _turnOwnerSnapshotUnavailableResult(toolCall.name);
     }
-
-    final approvalStateFingerprint =
-        await FilesystemTools.textSnapshotFingerprint(path);
-
-    final cachedResult = _lookupToolApprovalResult(
-      toolCall.name,
-      resolvedArguments,
-      stateFingerprint: approvalStateFingerprint,
-    );
-    if (cachedResult != null) {
-      return cachedResult;
-    }
-
-    final reason = toolCall.arguments['reason'] as String?;
-    String? previewCache;
-    Future<String> ensurePreview() async =>
-        previewCache ??= await FilesystemTools.buildWriteDiffPreview(
-          path: path,
-          newContent: content,
-        );
-
-    final gate = await _resolveToolApprovalGate(
+    final completion = await _fileMutationRuntime.handle(
+      owner: owner,
       toolCall: toolCall,
-      actionKind: 'write_file',
-      mode: _settings.codingApprovalMode,
-      reviewDomain: ToolApprovalAutoReviewDomain.coding,
-      fullAccessEligible: true,
-      approvalCacheArguments: resolvedArguments,
-      approvalCacheStateFingerprint: approvalStateFingerprint,
-      buildReviewRequest: () async => _buildAutoReviewRequest(
-        toolCall: toolCall,
-        actionKind: 'write_file',
-        arguments: resolvedArguments,
-        path: path,
-        reason: reason,
-        preview: await ensurePreview(),
+      approvalMode: _settings.codingApprovalMode,
+      projectRoot: projectRoot,
+      resolvedArguments: resolvedArguments,
+      conversationMessages: ownerMessages,
+      hasUntrustedInfluence: _conversationTaintState.hasUntrustedInfluence(
+        owner: owner,
       ),
     );
-    if (gate.isDenied) {
-      return _rememberToolApprovalDenial(
-        toolCall.name,
-        resolvedArguments,
-        _autoReviewDeniedResult(
-          toolName: toolCall.name,
-          rationale: gate.deniedRationale!,
-        ),
-        stateFingerprint: approvalStateFingerprint,
-      );
-    }
-    if (gate.needsManual) {
-      final approved = await requestFileOperation(
-        operation: 'Write File',
-        path: path,
-        preview: await ensurePreview(),
-        reason: reason,
-      );
-      if (!approved) {
-        return _rememberToolApprovalDenial(
-          toolCall.name,
-          resolvedArguments,
-          McpToolResult(
-            toolName: toolCall.name,
-            result: '',
-            isSuccess: false,
-            errorMessage: 'User denied file write',
-          ),
-          stateFingerprint: approvalStateFingerprint,
-        );
-      }
-    }
-
-    if (!gate.bypassedApproval) {
-      final changedResult = await _fileChangedSinceApprovalResult(
-        toolName: toolCall.name,
-        path: path,
-        approvedStateFingerprint: approvalStateFingerprint,
-      );
-      if (changedResult != null) {
-        return changedResult;
-      }
-    }
-
-    final result = await _executeFileMutationToolAndCapture(
-      toolName: toolCall.name,
-      arguments: resolvedArguments,
-      path: path,
-    );
-    return gate.bypassedApproval
-        ? result
-        : _rememberToolApprovalResult(
-            toolCall.name,
-            resolvedArguments,
-            result,
-            stateFingerprint: approvalStateFingerprint,
-          );
+    return completion.result;
   }
 
-  Future<McpToolResult> _handleEditFile(ToolCallInfo toolCall) async {
-    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
-    if (accessFailure != null) return accessFailure;
-
-    final resolvedArguments = _resolveProjectScopedArguments(
-      toolCall.name,
-      toolCall.arguments,
-    );
-    final path = (resolvedArguments['path'] as String?)?.trim() ?? '';
-    final oldText = resolvedArguments['old_text'] as String? ?? '';
-    final newText = resolvedArguments['new_text'] as String? ?? '';
-    if (path.isEmpty) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'path is required',
-      );
-    }
-
-    final preflightResult = await FilesystemTools.preflightEditFile(
-      path: path,
-      oldText: oldText,
-      newText: newText,
-      replaceAll: resolvedArguments['replace_all'] as bool? ?? false,
-    );
-    if (preflightResult != null) {
-      final decoded = _tryDecodeMap(preflightResult);
-      final error = decoded?['error']?.toString();
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: preflightResult,
-        isSuccess: error == null,
-        errorMessage: error,
-      );
-    }
-
-    final approvalStateFingerprint =
-        await FilesystemTools.textSnapshotFingerprint(path);
-
-    final cachedResult = _lookupToolApprovalResult(
-      toolCall.name,
-      resolvedArguments,
-      stateFingerprint: approvalStateFingerprint,
-    );
-    if (cachedResult != null) {
-      return cachedResult;
-    }
-
-    final reason = toolCall.arguments['reason'] as String?;
-    String? previewCache;
-    Future<String> ensurePreview() async =>
-        previewCache ??= await FilesystemTools.buildEditDiffPreview(
-          path: path,
-          oldText: oldText,
-          newText: newText,
-          replaceAll: resolvedArguments['replace_all'] as bool? ?? false,
-        );
-
-    final gate = await _resolveToolApprovalGate(
-      toolCall: toolCall,
-      actionKind: 'edit_file',
-      mode: _settings.codingApprovalMode,
-      reviewDomain: ToolApprovalAutoReviewDomain.coding,
-      fullAccessEligible: true,
-      approvalCacheArguments: resolvedArguments,
-      approvalCacheStateFingerprint: approvalStateFingerprint,
-      buildReviewRequest: () async => _buildAutoReviewRequest(
-        toolCall: toolCall,
-        actionKind: 'edit_file',
-        arguments: resolvedArguments,
-        path: path,
-        reason: reason,
-        preview: await ensurePreview(),
-      ),
-    );
-    if (gate.isDenied) {
-      return _rememberToolApprovalDenial(
-        toolCall.name,
-        resolvedArguments,
-        _autoReviewDeniedResult(
-          toolName: toolCall.name,
-          rationale: gate.deniedRationale!,
-        ),
-        stateFingerprint: approvalStateFingerprint,
-      );
-    }
-    if (gate.needsManual) {
-      final approved = await requestFileOperation(
-        operation: 'Edit File',
-        path: path,
-        preview: await ensurePreview(),
-        reason: reason,
-      );
-      if (!approved) {
-        return _rememberToolApprovalDenial(
-          toolCall.name,
-          resolvedArguments,
-          McpToolResult(
-            toolName: toolCall.name,
-            result: '',
-            isSuccess: false,
-            errorMessage: 'User denied file edit',
-          ),
-          stateFingerprint: approvalStateFingerprint,
-        );
-      }
-    }
-
-    if (!gate.bypassedApproval) {
-      final changedResult = await _fileChangedSinceApprovalResult(
-        toolName: toolCall.name,
-        path: path,
-        approvedStateFingerprint: approvalStateFingerprint,
-      );
-      if (changedResult != null) {
-        return changedResult;
-      }
-    }
-
-    final result = await _executeFileMutationToolAndCapture(
-      toolName: toolCall.name,
-      arguments: resolvedArguments,
-      path: path,
-    );
-    return gate.bypassedApproval
-        ? result
-        : _rememberToolApprovalResult(
-            toolCall.name,
-            resolvedArguments,
-            result,
-            stateFingerprint: approvalStateFingerprint,
-          );
-  }
-
-  Future<McpToolResult> _handleDeleteFile(ToolCallInfo toolCall) async {
-    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
-    if (accessFailure != null) return accessFailure;
-
-    final projectRoot = _getActiveProjectRootPath();
-    final resolvedArguments = _resolveProjectScopedArguments(
-      toolCall.name,
-      toolCall.arguments,
-    );
-    final path = (resolvedArguments['path'] as String?)?.trim() ?? '';
-    if (projectRoot == null ||
-        projectRoot.trim().isEmpty ||
-        path.isEmpty ||
-        !DartProjectPath.isInsideRoot(path, projectRoot)) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: jsonEncode({
-          'ok': false,
-          'code': 'delete_path_outside_project',
-          'error':
-              'delete_file requires a regular file inside the selected coding project.',
-          if (path.isNotEmpty) 'path': path,
-        }),
-        isSuccess: false,
-        errorMessage: 'Delete path must stay inside the coding project',
-      );
-    }
-    final type = await FileSystemEntity.type(path, followLinks: false);
-    if (type != FileSystemEntityType.file) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: jsonEncode({
-          'ok': false,
-          'code': 'delete_target_not_regular_file',
-          'error': 'delete_file supports existing regular files only.',
-          'path': path,
-        }),
-        isSuccess: false,
-        errorMessage: 'Delete target must be a regular file',
-      );
-    }
-    final snapshot = await FilesystemTools.captureTextSnapshot(path);
-    if (snapshot.error != null) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: jsonEncode({
-          'ok': false,
-          'code': 'delete_snapshot_unavailable',
-          'error':
-              'The file cannot be deleted because a rollback snapshot could not be captured.',
-          'path': path,
-        }),
-        isSuccess: false,
-        errorMessage: 'A rollback snapshot is required before deletion',
-      );
-    }
-
-    final approvalStateFingerprint =
-        await FilesystemTools.textSnapshotFingerprint(path);
-    final cachedResult = _lookupToolApprovalResult(
-      toolCall.name,
-      resolvedArguments,
-      stateFingerprint: approvalStateFingerprint,
-    );
-    if (cachedResult != null) return cachedResult;
-
-    final reason = toolCall.arguments['reason'] as String?;
-    final preview = FilesystemTools.buildUnifiedDiff(
-      path: path,
-      oldContent: snapshot.content,
-      newContent: null,
-    );
-    final gate = await _resolveToolApprovalGate(
-      toolCall: toolCall,
-      actionKind: 'delete_file',
-      mode: _settings.codingApprovalMode,
-      reviewDomain: ToolApprovalAutoReviewDomain.coding,
-      fullAccessEligible: true,
-      approvalCacheArguments: resolvedArguments,
-      approvalCacheStateFingerprint: approvalStateFingerprint,
-      buildReviewRequest: () async => _buildAutoReviewRequest(
-        toolCall: toolCall,
-        actionKind: 'delete_file',
-        arguments: resolvedArguments,
-        path: path,
-        reason: reason,
-        preview: preview,
-      ),
-    );
-    if (gate.isDenied) {
-      return _rememberToolApprovalDenial(
-        toolCall.name,
-        resolvedArguments,
-        _autoReviewDeniedResult(
-          toolName: toolCall.name,
-          rationale: gate.deniedRationale!,
-        ),
-        stateFingerprint: approvalStateFingerprint,
-      );
-    }
-    if (gate.needsManual) {
-      final approved = await requestFileOperation(
-        operation: 'Delete File',
-        path: path,
-        preview: preview,
-        reason: reason,
-      );
-      if (!approved) {
-        return _rememberToolApprovalDenial(
-          toolCall.name,
-          resolvedArguments,
-          McpToolResult(
-            toolName: toolCall.name,
-            result: '',
-            isSuccess: false,
-            errorMessage: 'User denied file deletion',
-          ),
-          stateFingerprint: approvalStateFingerprint,
-        );
-      }
-    }
-    if (!gate.bypassedApproval) {
-      final changedResult = await _fileChangedSinceApprovalResult(
-        toolName: toolCall.name,
-        path: path,
-        approvedStateFingerprint: approvalStateFingerprint,
-      );
-      if (changedResult != null) return changedResult;
-    }
-    final result = await _executeFileMutationToolAndCapture(
-      toolName: toolCall.name,
-      arguments: resolvedArguments,
-      path: path,
-    );
-    return gate.bypassedApproval
-        ? result
-        : _rememberToolApprovalResult(
-            toolCall.name,
-            resolvedArguments,
-            result,
-            stateFingerprint: approvalStateFingerprint,
-          );
-  }
-
-  Future<McpToolResult?> _fileChangedSinceApprovalResult({
-    required String toolName,
-    required String path,
-    required String approvedStateFingerprint,
-  }) async {
-    final currentFingerprint = await FilesystemTools.textSnapshotFingerprint(
-      path,
-    );
-    if (currentFingerprint == approvedStateFingerprint) {
-      return null;
-    }
-    return McpToolResult(
-      toolName: toolName,
-      result: jsonEncode({
-        'ok': false,
-        'code': 'file_changed_since_approval',
-        'error':
-            'The target file changed after the approval preview was prepared. Re-read the file and submit a fresh mutation.',
-        'path': path,
-      }),
-      isSuccess: false,
-      errorMessage: 'The target file changed after approval',
-    );
-  }
-
-  Future<McpToolResult> _executeFileMutationToolAndCapture({
-    required String toolName,
-    required Map<String, dynamic> arguments,
+  Future<void> _recordFileMutationDiff({
+    required ChatTurnOwner owner,
+    required TextFileSnapshot before,
     required String path,
   }) async {
-    final before = await FilesystemTools.captureTextSnapshot(path);
-    final result = await _mcpToolService!.executeTool(
-      name: toolName,
-      arguments: arguments,
-    );
-    if (_isSuccessfulFileMutationResult(result)) {
-      await _recordFileMutationDiff(before: before, path: path);
+    if (_activeTurnUserPrompt == null || !_isApprovalOwnerCurrent(owner)) {
+      return;
     }
-    return result;
+
+    final after = await FilesystemTools.captureTextSnapshot(path);
+    final filePath = after.path.trim().isNotEmpty ? after.path : before.path;
+    final beforeError = before.error?.trim();
+    final afterError = after.error?.trim();
+    final unavailable =
+        beforeError?.isNotEmpty == true || afterError?.isNotEmpty == true;
+
+    final TurnDiffFile? file;
+    if (unavailable) {
+      file = TurnDiffFile(
+        filePath: filePath,
+        isNewFile: !before.exists && after.exists,
+        isDeletedFile: before.exists && !after.exists,
+        isBinary:
+            _snapshotErrorSuggestsBinary(beforeError) ||
+            _snapshotErrorSuggestsBinary(afterError),
+        isLargeFile: false,
+        note: [
+          if (beforeError?.isNotEmpty == true) beforeError!,
+          if (afterError?.isNotEmpty == true) afterError!,
+        ].join('\n'),
+      );
+    } else {
+      file = TurnDiffService.buildFileDiff(
+        filePath: filePath,
+        oldContent: before.exists ? before.content : null,
+        newContent: after.exists ? after.content : null,
+        oldExists: before.exists,
+        newExists: after.exists,
+      )?.file;
+    }
+
+    if (file == null || !file.hasChanges || !_isApprovalOwnerCurrent(owner)) {
+      return;
+    }
+    _pendingTurnDiffFiles.add(file);
   }
 
-  bool _isSuccessfulFileMutationResult(McpToolResult result) {
-    if (!result.isSuccess) {
-      return false;
-    }
-    try {
-      final decoded = jsonDecode(result.result);
-      return decoded is! Map<String, dynamic> ||
-          (decoded['error'] == null && decoded['already_applied'] != true);
-    } catch (_) {
-      return true;
-    }
+  bool _snapshotErrorSuggestsBinary(String? error) {
+    final lower = error?.toLowerCase() ?? '';
+    return lower.contains('binary') || lower.contains('utf-8');
   }
 
   Future<McpToolResult> _handleRollbackLastFileChange(
     ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
   ) async {
-    final cachedResult = _lookupToolApprovalResult(
-      toolCall.name,
-      toolCall.arguments,
-    );
-    if (cachedResult != null) {
-      return cachedResult;
-    }
-
-    final preview = await _mcpToolService!.previewLastFileRollbackChange();
-    if (preview == null) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'No recent file change is available to roll back',
-      );
-    }
-
-    final reason =
-        (toolCall.arguments['reason'] as String?)?.trim().isNotEmpty == true
-        ? toolCall.arguments['reason'] as String?
-        : preview.summary;
-
-    final gate = await _resolveToolApprovalGate(
-      toolCall: toolCall,
-      actionKind: 'rollback_last_file_change',
-      mode: _settings.codingApprovalMode,
-      reviewDomain: ToolApprovalAutoReviewDomain.coding,
-      fullAccessEligible: true,
-      approvalCacheArguments: toolCall.arguments,
-      buildReviewRequest: () async => _buildAutoReviewRequest(
-        toolCall: toolCall,
-        actionKind: 'rollback_last_file_change',
-        arguments: toolCall.arguments,
-        path: preview.path,
-        reason: reason,
-        preview: preview.preview,
-      ),
-    );
-    if (gate.isDenied) {
-      return _rememberToolApprovalDenial(
-        toolCall.name,
-        toolCall.arguments,
-        _autoReviewDeniedResult(
-          toolName: toolCall.name,
-          rationale: gate.deniedRationale!,
-        ),
-      );
-    }
-    if (gate.needsManual) {
-      final approved = await requestFileOperation(
-        operation: 'Rollback File Change',
-        path: preview.path,
-        preview: preview.preview,
-        reason: reason,
-      );
-      if (!approved) {
-        return _rememberToolApprovalDenial(
-          toolCall.name,
-          toolCall.arguments,
-          McpToolResult(
-            toolName: toolCall.name,
-            result: '',
-            isSuccess: false,
-            errorMessage: 'User denied file rollback',
-          ),
-        );
-      }
-    }
-
-    final result = await _mcpToolService!.executeTool(
-      name: toolCall.name,
+    final request = FileRollbackToolRequest(
+      owner: approvalCache.owner,
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
       arguments: toolCall.arguments,
     );
-    return gate.bypassedApproval
-        ? result
-        : _rememberToolApprovalResult(
-            toolCall.name,
-            toolCall.arguments,
-            result,
-          );
+    return _mcpToolService!.executeExactFileRollback(
+      request: request,
+      lookupDenial: (candidate) =>
+          approvalCache.lookupDenial(candidate.toolName, candidate.arguments),
+      resolveGate: (approvalRequest) {
+        final exactToolCall = ToolCallInfo(
+          id: approvalRequest.identity.toolCallId,
+          name: approvalRequest.identity.toolName,
+          arguments: approvalRequest.toolRequest.arguments,
+        );
+        return _resolveToolApprovalGate(
+          approvalCache,
+          toolCall: exactToolCall,
+          actionKind: 'rollback_last_file_change',
+          mode: _settings.codingApprovalMode,
+          reviewDomain: ToolApprovalAutoReviewDomain.coding,
+          fullAccessEligible: true,
+          approvalCacheArguments: approvalRequest.toolRequest.arguments,
+          approvalCacheStateFingerprint: approvalRequest.checkpointToken,
+          buildReviewRequest: () async => _buildAutoReviewRequest(
+            approvalRequest.identity.owner,
+            toolCall: exactToolCall,
+            actionKind: 'rollback_last_file_change',
+            arguments: approvalRequest.toolRequest.arguments,
+            path: approvalRequest.target.path,
+            reason: approvalRequest.reason,
+            preview: approvalRequest.target.preview,
+          ),
+        );
+      },
+      requestManualApproval: (approvalRequest) => requestFileOperation(
+        owner: approvalRequest.identity.owner,
+        operation: 'Rollback File Change',
+        path: approvalRequest.target.path,
+        preview: approvalRequest.target.preview,
+        reason: approvalRequest.reason,
+      ),
+      ownerIsCurrent: (identity) => _isApprovalOwnerCurrent(identity.owner),
+      rememberDenial: (approvalRequest, result) {
+        approvalCache.rememberDenial(
+          approvalRequest.identity.toolName,
+          approvalRequest.toolRequest.arguments,
+          result,
+        );
+      },
+      rememberResult: (approvalRequest, result) {
+        approvalCache.rememberResult(
+          approvalRequest.identity.toolName,
+          approvalRequest.toolRequest.arguments,
+          result,
+          stateFingerprint: approvalRequest.checkpointToken,
+        );
+      },
+    );
   }
 
   Future<McpToolResult> _handleLocalExecuteCommand(
     ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
+  ) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+    final owner = approvalCache.owner;
+    final snapshot = _activeResponseRegistry.snapshotForOwner(owner);
+    if (snapshot == null) {
+      return _turnOwnerSnapshotUnavailableResult(toolCall.name);
+    }
+    final approvalMode = _settings.codingApprovalMode;
+    final approvalPort = CallbackLocalCommandApprovalPort(
+      ownerIsCurrent: (candidate) =>
+          candidate == owner && _isApprovalOwnerCurrent(candidate),
+      lookupDenial: (_, request) => approvalCache.lookupDenial(
+        request.execution.toolName,
+        request.execution.arguments,
+      ),
+      resolveGate: (candidate, request) {
+        final call = ToolCallInfo(
+          id: request.toolCallId,
+          name: request.execution.toolName,
+          arguments: request.execution.arguments,
+        );
+        return _resolveToolApprovalGate(
+          approvalCache,
+          toolCall: call,
+          actionKind: 'local_execute_command',
+          mode: approvalMode,
+          reviewDomain: ToolApprovalAutoReviewDomain.coding,
+          fullAccessEligible: true,
+          approvalCacheArguments: request.execution.arguments,
+          buildReviewRequest: () async => _buildAutoReviewRequest(
+            candidate,
+            toolCall: call,
+            actionKind: 'local_execute_command',
+            arguments: request.execution.arguments,
+            workingDirectory: request.execution.workingDirectory,
+            reason: request.reason,
+            warningTitle: request.warningTitle,
+            warningMessage: request.warningMessage,
+          ),
+        );
+      },
+      requestManualApproval: (candidate, request, gate) async {
+        final approval = await requestLocalCommand(
+          owner: candidate,
+          command: request.execution.command,
+          workingDirectory: request.execution.workingDirectory,
+          reason: request.reason,
+          warningTitle: _escalatedApprovalWarningTitle(
+            gate,
+            request.warningTitle,
+          ),
+          warningMessage: _escalatedApprovalWarningMessage(
+            gate,
+            request.warningMessage,
+          ),
+        );
+        return LocalCommandManualApproval(
+          approved: approval.approved,
+          rememberedAction: switch (approval.rememberedRuleAction) {
+            LocalCommandPermissionAction.allow =>
+              RememberedCommandPermissionAction.allow,
+            LocalCommandPermissionAction.deny =>
+              RememberedCommandPermissionAction.deny,
+            _ => null,
+          },
+          rememberedMatch: switch (approval.rememberedRuleMatch) {
+            LocalCommandPermissionMatch.exact =>
+              RememberedCommandPermissionMatch.exact,
+            LocalCommandPermissionMatch.prefix =>
+              RememberedCommandPermissionMatch.prefix,
+            _ => null,
+          },
+        );
+      },
+      rememberDenial: (_, request, result) => approvalCache.rememberDenial(
+        request.execution.toolName,
+        request.execution.arguments,
+        result,
+      ),
+      rememberResult: (_, request, result) => approvalCache.rememberResult(
+        request.execution.toolName,
+        request.execution.arguments,
+        result,
+      ),
+    );
+    final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
+    final executionPort = LocalCommandToolRuntimeAdapter(
+      runtimePort: CallbackLocalCommandRuntimePort(
+        acknowledgeOwner: (identity) =>
+            identity.owner == owner && _isApprovalOwnerCurrent(identity.owner)
+            ? LocalCommandRuntimeOwnerAcknowledgement.current(
+                identity: identity,
+              )
+            : LocalCommandRuntimeOwnerAcknowledgement.ownerExpired(
+                identity: identity,
+              ),
+        execute: (operation) => operation.runEffect(() async {
+          final result = await _mcpToolService!.executeProcessTool(
+            owner: operation.identity.owner,
+            name: operation.identity.toolName,
+            arguments: operation.arguments,
+          );
+          return LocalCommandRuntimeExecutionAcknowledgement.completed(
+            identity: operation.identity,
+            result: result,
+          );
+        }),
+      ),
+      executionAuthority: _localCommandExecutionAuthority,
+    );
+    final projectRoot = snapshot.projectRoot ?? '';
+    return LocalCommandToolHandler(
+      executionPort: executionPort,
+      approvalPort: approvalPort,
+      permissionRuleStorePort: LocalCommandPermissionRuleRuntimeAdapter(
+        owner: owner,
+        rules: _settings.localCommandPermissionRules,
+        ownerIsCurrent: _isApprovalOwnerCurrent,
+        upsert: settingsNotifier.upsertLocalCommandPermissionRule,
+        remove: settingsNotifier.removeLocalCommandPermissionRule,
+      ),
+    ).handle(
+      LocalCommandToolRequest(
+        owner: owner,
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        allowedWorkingDirectoryRoot: projectRoot,
+        defaultWorkingDirectory: projectRoot,
+        arguments: toolCall.arguments,
+        isRemoteInteraction:
+            snapshot.sessionLogContext.phase == 'remote_interaction',
+      ),
+    );
+  }
+
+  Future<McpToolResult> _handleProcessStart(
+    ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
   ) async {
     final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
     if (accessFailure != null) return accessFailure;
@@ -735,181 +523,36 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         errorMessage: 'Local command was denied by a saved permission rule',
       );
     }
+    final preapprovedExpired = _expiredApproval(toolCall.name, approvalCache);
+    if (preapprovedExpired != null) return preapprovedExpired;
     if (!_isRemoteInteraction &&
         permissionDecision.isAllowed &&
         !requiresExplicitApproval) {
-      return _mcpToolService!.executeTool(
+      return _mcpToolService!.executeProcessTool(
+        owner: approvalCache.owner,
         name: toolCall.name,
         arguments: localArguments,
       );
     }
 
     if (LocalShellTools.isReadOnly(command) && !requiresExplicitApproval) {
-      return _mcpToolService!.executeTool(
+      return _mcpToolService!.executeProcessTool(
+        owner: approvalCache.owner,
         name: toolCall.name,
         arguments: localArguments,
       );
     }
 
-    final cachedResult = _lookupToolApprovalResult(
+    final cachedResult = approvalCache.lookupDenial(
       toolCall.name,
       localArguments,
     );
-    if (cachedResult != null) {
-      return cachedResult;
-    }
-
-    final riskWarning = LocalCommandPermissionService.riskWarningFor(command);
-    final reason = toolCall.arguments['reason'] as String?;
-
-    final gate = await _resolveToolApprovalGate(
-      toolCall: toolCall,
-      actionKind: 'local_execute_command',
-      mode: _settings.codingApprovalMode,
-      reviewDomain: ToolApprovalAutoReviewDomain.coding,
-      fullAccessEligible: true,
-      approvalCacheArguments: localArguments,
-      buildReviewRequest: () async => _buildAutoReviewRequest(
-        toolCall: toolCall,
-        actionKind: 'local_execute_command',
-        arguments: localArguments,
-        workingDirectory: workingDirectory,
-        reason: reason,
-        warningTitle: riskWarning?.title,
-        warningMessage: riskWarning?.message,
-      ),
-    );
-    if (gate.isDenied) {
-      return _rememberToolApprovalDenial(
-        toolCall.name,
-        localArguments,
-        _autoReviewDeniedResult(
-          toolName: toolCall.name,
-          rationale: gate.deniedRationale!,
-        ),
-      );
-    }
-    if (gate.needsManual) {
-      final approval = await requestLocalCommand(
-        command: command,
-        workingDirectory: workingDirectory,
-        reason: reason,
-        warningTitle: _escalatedApprovalWarningTitle(gate, riskWarning?.title),
-        warningMessage: _escalatedApprovalWarningMessage(
-          gate,
-          riskWarning?.message,
-        ),
-      );
-
-      if (approval.shouldRemember && !_isRemoteInteraction) {
-        await ref
-            .read(settingsNotifierProvider.notifier)
-            .upsertLocalCommandPermissionRule(
-              LocalCommandPermissionService.buildExactRule(
-                id: const Uuid().v4(),
-                action: approval.rememberedRuleAction!,
-                command: command,
-                workingDirectory: workingDirectory,
-              ).copyWith(match: approval.rememberedRuleMatch!),
-            );
-      }
-
-      if (!approval.approved) {
-        return _rememberToolApprovalDenial(
-          toolCall.name,
-          localArguments,
-          McpToolResult(
-            toolName: toolCall.name,
-            result: '',
-            isSuccess: false,
-            errorMessage: 'User denied local command execution',
-          ),
-        );
-      }
-    }
-
-    final result = await _mcpToolService!.executeTool(
-      name: toolCall.name,
-      arguments: localArguments,
-    );
-    // Full access never caches, so the model can re-run a command (e.g. re-run
-    // tests after an edit); approvals cache to avoid re-prompting.
-    return gate.bypassedApproval
-        ? result
-        : _rememberToolApprovalResult(toolCall.name, localArguments, result);
-  }
-
-  Future<McpToolResult> _handleProcessStart(ToolCallInfo toolCall) async {
-    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
-    if (accessFailure != null) return accessFailure;
-
-    final resolvedArguments = _resolveProjectScopedArguments(
-      toolCall.name,
-      toolCall.arguments,
-    );
-    final command = LocalShellTools.normalizeCommand(
-      (resolvedArguments['command'] as String?)?.trim() ?? '',
-    );
-    final workingDirectory =
-        (resolvedArguments['working_directory'] as String?)?.trim() ?? '';
-    if (command.isEmpty || workingDirectory.isEmpty) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage:
-            'command is required and working_directory must be provided or inferred from the selected coding project',
-      );
-    }
-
-    final localArguments = {
-      ...resolvedArguments,
-      'command': command,
-      'working_directory': workingDirectory,
-    };
-
-    final permissionDecision = LocalCommandPermissionService.evaluate(
-      command: command,
-      workingDirectory: workingDirectory,
-      rules: _settings.localCommandPermissionRules,
-    );
-    final requiresExplicitApproval =
-        LocalCommandPermissionService.requiresExplicitApproval(command);
-    if (permissionDecision.isDenied) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'Local command was denied by a saved permission rule',
-      );
-    }
-    if (!_isRemoteInteraction &&
-        permissionDecision.isAllowed &&
-        !requiresExplicitApproval) {
-      return _mcpToolService!.executeTool(
-        name: toolCall.name,
-        arguments: localArguments,
-      );
-    }
-
-    if (LocalShellTools.isReadOnly(command) && !requiresExplicitApproval) {
-      return _mcpToolService!.executeTool(
-        name: toolCall.name,
-        arguments: localArguments,
-      );
-    }
-
-    final cachedResult = _lookupToolApprovalResult(
-      toolCall.name,
-      localArguments,
-    );
-    if (cachedResult != null) {
-      return cachedResult;
-    }
+    if (cachedResult != null) return cachedResult;
 
     final riskWarning = LocalCommandPermissionService.riskWarningFor(command);
     final reason = toolCall.arguments['reason'] as String?;
     final gate = await _resolveToolApprovalGate(
+      approvalCache,
       toolCall: toolCall,
       actionKind: 'process_start',
       mode: _settings.codingApprovalMode,
@@ -917,6 +560,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       fullAccessEligible: true,
       approvalCacheArguments: localArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
+        approvalCache.owner,
         toolCall: toolCall,
         actionKind: 'process_start',
         arguments: localArguments,
@@ -927,7 +571,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalDenial(
+      return approvalCache.rememberDenial(
         toolCall.name,
         localArguments,
         _autoReviewDeniedResult(
@@ -938,6 +582,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     }
     if (gate.needsManual) {
       final approval = await requestLocalCommand(
+        owner: approvalCache.owner,
         command: command,
         workingDirectory: workingDirectory,
         reason: reason,
@@ -947,7 +592,8 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
           riskWarning?.message,
         ),
       );
-
+      final manualExpired = _expiredApproval(toolCall.name, approvalCache);
+      if (manualExpired != null) return manualExpired;
       if (approval.shouldRemember && !_isRemoteInteraction) {
         await ref
             .read(settingsNotifierProvider.notifier)
@@ -962,7 +608,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       }
 
       if (!approval.approved) {
-        return _rememberToolApprovalDenial(
+        return approvalCache.rememberDenial(
           toolCall.name,
           localArguments,
           McpToolResult(
@@ -975,16 +621,22 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       }
     }
 
-    final result = await _mcpToolService!.executeTool(
+    final expired = _expiredApproval(toolCall.name, approvalCache);
+    if (expired != null) return expired;
+    final result = await _mcpToolService!.executeProcessTool(
+      owner: approvalCache.owner,
       name: toolCall.name,
       arguments: localArguments,
     );
     return gate.bypassedApproval
         ? result
-        : _rememberToolApprovalResult(toolCall.name, localArguments, result);
+        : approvalCache.rememberResult(toolCall.name, localArguments, result);
   }
 
-  Future<McpToolResult> _handleProcessCancel(ToolCallInfo toolCall) async {
+  Future<McpToolResult> _handleProcessCancel(
+    ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
+  ) async {
     final jobId = toolCall.arguments['job_id']?.toString().trim() ?? '';
     if (jobId.isEmpty) {
       return McpToolResult(
@@ -1000,15 +652,14 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     }
     final workingDirectory = _getActiveProjectRootPath()?.trim() ?? '.';
     final localArguments = {'job_id': jobId};
-    final cachedResult = _lookupToolApprovalResult(
+    final cachedResult = approvalCache.lookupDenial(
       toolCall.name,
       localArguments,
     );
-    if (cachedResult != null) {
-      return cachedResult;
-    }
+    if (cachedResult != null) return cachedResult;
 
     final gate = await _resolveToolApprovalGate(
+      approvalCache,
       toolCall: toolCall,
       actionKind: 'process_cancel',
       mode: _settings.codingApprovalMode,
@@ -1016,6 +667,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       fullAccessEligible: true,
       approvalCacheArguments: localArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
+        approvalCache.owner,
         toolCall: toolCall,
         actionKind: 'process_cancel',
         arguments: localArguments,
@@ -1027,7 +679,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalDenial(
+      return approvalCache.rememberDenial(
         toolCall.name,
         localArguments,
         _autoReviewDeniedResult(
@@ -1038,6 +690,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     }
     if (gate.needsManual) {
       final approval = await requestLocalCommand(
+        owner: approvalCache.owner,
         command: 'process_cancel $jobId',
         workingDirectory: workingDirectory,
         reason: 'Cancel background process $jobId',
@@ -1046,7 +699,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
             'This stops a running local command and may leave partial side effects.',
       );
       if (!approval.approved) {
-        return _rememberToolApprovalDenial(
+        return approvalCache.rememberDenial(
           toolCall.name,
           localArguments,
           McpToolResult(
@@ -1058,17 +711,22 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         );
       }
     }
-
-    final result = await _mcpToolService!.executeTool(
+    final expired = _expiredApproval(toolCall.name, approvalCache);
+    if (expired != null) return expired;
+    final result = await _mcpToolService!.executeProcessTool(
+      owner: approvalCache.owner,
       name: toolCall.name,
       arguments: localArguments,
     );
     return gate.bypassedApproval
         ? result
-        : _rememberToolApprovalResult(toolCall.name, localArguments, result);
+        : approvalCache.rememberResult(toolCall.name, localArguments, result);
   }
 
-  Future<McpToolResult> _handleRunTests(ToolCallInfo toolCall) async {
+  Future<McpToolResult> _handleRunTests(
+    ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
+  ) async {
     final projectRoot = _normalizeRunTestsAbsolutePath(
       _getActiveProjectRootPath()?.trim() ?? '',
     );
@@ -1181,6 +839,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         name: 'local_execute_command',
         arguments: localArguments,
       ),
+      approvalCache,
     );
     return result.copyWith(toolName: toolCall.name);
   }
@@ -1301,6 +960,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
   }
 
   Future<LocalCommandApproval> requestLocalCommand({
+    required ChatTurnOwner owner,
     required String command,
     required String workingDirectory,
     String? reason,
@@ -1309,6 +969,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
   }) {
     final completer = Completer<LocalCommandApproval>();
     final pending = PendingLocalCommand(
+      owner: owner,
       id: const Uuid().v4(),
       command: command,
       workingDirectory: workingDirectory,
@@ -1318,30 +979,26 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       completer: completer,
       origin: _activeInteractionOrigin,
     );
-    _routeApproval((s) => s.copyWith(pendingLocalCommand: pending));
-    _emitRuntimeApprovalRequired(
-      id: pending.id,
-      capability: 'command_execution',
-      summary: reason?.trim().isNotEmpty == true ? reason!.trim() : command,
-      target: workingDirectory,
-      rememberAllowed: true,
+    return _registerPendingToolApproval(
+      pending,
+      (s) => s.copyWith(pendingLocalCommand: pending),
+      'command_execution',
+      _approvalSummary(reason, command),
+      workingDirectory,
+      true,
     );
-    return completer.future;
   }
 
-  void resolveLocalCommand({
+  bool resolveLocalCommand({
     required String id,
     required LocalCommandApproval approval,
-  }) {
-    final pending = state.pendingLocalCommand;
-    if (pending == null || pending.id != id) return;
-    if (!pending.completer.isCompleted) {
-      pending.completer.complete(approval);
-    }
-    state = state.copyWith(pendingLocalCommand: null);
-  }
+  }) => _completeApproval<LocalCommandApproval, PendingLocalCommand>(
+    id,
+    (_) => approval,
+  );
 
   Future<bool> requestFileOperation({
+    required ChatTurnOwner owner,
     required String operation,
     required String path,
     required String preview,
@@ -1349,6 +1006,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
   }) {
     final completer = Completer<bool>();
     final pending = PendingFileOperation(
+      owner: owner,
       id: const Uuid().v4(),
       operation: operation,
       path: path,
@@ -1357,24 +1015,15 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       completer: completer,
       origin: _activeInteractionOrigin,
     );
-    _routeApproval((s) => s.copyWith(pendingFileOperation: pending));
-    _emitRuntimeApprovalRequired(
-      id: pending.id,
-      capability: 'file_mutation',
-      summary: reason?.trim().isNotEmpty == true
-          ? reason!.trim()
-          : '$operation $path',
-      target: path,
+    return _registerPendingToolApproval(
+      pending,
+      (s) => s.copyWith(pendingFileOperation: pending),
+      'file_mutation',
+      _approvalSummary(reason, '$operation $path'),
+      path,
     );
-    return completer.future;
   }
 
-  void resolveFileOperation({required String id, required bool approved}) {
-    final pending = state.pendingFileOperation;
-    if (pending == null || pending.id != id) return;
-    if (!pending.completer.isCompleted) {
-      pending.completer.complete(approved);
-    }
-    state = state.copyWith(pendingFileOperation: null);
-  }
+  bool resolveFileOperation({required String id, required bool approved}) =>
+      _completeApproval<bool, PendingFileOperation>(id, (_) => approved);
 }

@@ -1,31 +1,102 @@
+import 'dart:async';
+
+import '../../domain/entities/chat_turn_owner.dart';
 import 'chat_state.dart';
 
 /// Messages typed while some thread was busy, kept per thread.
 ///
-/// Extracted from ChatNotifier, where the queue was one flat list that was
-/// cleared on every thread switch: a message typed behind another thread's
-/// running turn silently disappeared as soon as the user navigated away, and
-/// a message that survived would have been sent to whichever thread happened
-/// to be open when the queue drained.
+/// Each entry retains its original thread and terminal owner receipt.
 class ThreadScopedMessageQueue {
   final List<QueuedChatMessage> _messages = <QueuedChatMessage>[];
+  final Set<String> _drainingOwners = <String>{};
+  final Map<String, Completer<ChatTurnOwner?>> _turnOwnerReceipts =
+      <String, Completer<ChatTurnOwner?>>{};
 
   bool get isEmpty => _messages.isEmpty;
-
   int get length => _messages.length;
 
-  void add(QueuedChatMessage message) => _messages.add(message);
+  Future<ChatTurnOwner?> add(QueuedChatMessage message) {
+    _messages.add(message);
+    return _turnOwnerReceiptFor(message.id);
+  }
+
+  void completeTurnOwner(QueuedChatMessage message, ChatTurnOwner? owner) {
+    final receipt = _turnOwnerReceipts.remove(message.id);
+    if (receipt != null && !receipt.isCompleted) receipt.complete(owner);
+  }
+
+  bool canStart(
+    QueuedChatMessage message,
+    String? visibleOwner,
+    bool fromQueue,
+  ) {
+    final owner = message.conversationId;
+    return owner?.trim().isEmpty != true &&
+        (!fromQueue || owner != null) &&
+        (owner == null || owner == visibleOwner);
+  }
+
+  String? ownerFor(
+    QueuedChatMessage message,
+    String? visibleOwner,
+    String? currentOwner,
+  ) {
+    final owner = message.conversationId ?? currentOwner;
+    if (owner == null ||
+        owner.trim().isEmpty ||
+        (visibleOwner != null && visibleOwner != owner) ||
+        currentOwner != owner) {
+      return null;
+    }
+    return owner;
+  }
+
+  bool beginDrain(String owner) => _drainingOwners.add(owner);
+  void endDrain(String owner) => _drainingOwners.remove(owner);
+  bool shouldEnqueue(String? owner) =>
+      owner != null &&
+      (pendingFor(owner) > 0 || _drainingOwners.contains(owner));
+  bool contains(QueuedChatMessage message) => _messages.contains(message);
+
+  Future<ChatTurnOwner?> restoreFirstForThread(
+    QueuedChatMessage message,
+    String conversationId,
+  ) {
+    _messages.insert(
+      0,
+      message.conversationId == conversationId
+          ? message
+          : QueuedChatMessage(
+              id: message.id,
+              content: message.content,
+              imageBase64: message.imageBase64,
+              imageMimeType: message.imageMimeType,
+              originalImagePath: message.originalImagePath,
+              originalImageMimeType: message.originalImageMimeType,
+              languageCode: message.languageCode,
+              isVoiceMode: message.isVoiceMode,
+              bypassPlanMode: message.bypassPlanMode,
+              origin: message.origin,
+              conversationId: conversationId,
+            ),
+    );
+    return _turnOwnerReceiptFor(message.id);
+  }
 
   /// Removes [id] from any thread. Returns whether anything was removed.
   bool remove(String id) {
     final before = _messages.length;
     _messages.removeWhere((message) => message.id == id);
-    return _messages.length != before;
+    final removed = _messages.length != before;
+    if (removed) {
+      final receipt = _turnOwnerReceipts.remove(id);
+      if (receipt != null && !receipt.isCompleted) receipt.complete(null);
+    }
+    return removed;
   }
 
-  /// The queue as [conversationId] sees it. Messages with no thread of their
-  /// own belong to whoever is asking, which keeps pre-existing behaviour for
-  /// conversations that have not been assigned an id yet.
+  /// The queue as [conversationId] sees it, including a null-owned draft only
+  /// while no conversation has been assigned.
   List<QueuedChatMessage> forThread(String? conversationId) {
     return List<QueuedChatMessage>.unmodifiable(
       _messages.where((message) => _belongsTo(message, conversationId)),
@@ -47,10 +118,21 @@ class ThreadScopedMessageQueue {
     return null;
   }
 
-  void clear() => _messages.clear();
+  void clear() {
+    _messages.clear();
+    for (final receipt in _turnOwnerReceipts.values) {
+      if (!receipt.isCompleted) receipt.complete(null);
+    }
+    _turnOwnerReceipts.clear();
+  }
 
   bool _belongsTo(QueuedChatMessage message, String? conversationId) {
-    final owner = message.conversationId;
-    return owner == null || owner == conversationId;
+    return message.conversationId == conversationId;
+  }
+
+  Future<ChatTurnOwner?> _turnOwnerReceiptFor(String messageId) {
+    return _turnOwnerReceipts
+        .putIfAbsent(messageId, Completer<ChatTurnOwner?>.new)
+        .future;
   }
 }

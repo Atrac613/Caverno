@@ -45,6 +45,15 @@ class CodingProjectsState {
       return null;
     }
   }
+
+  CodingProject? findByRootPath(String rootPath) {
+    final normalized = rootPath.trim();
+    if (normalized.isEmpty) return null;
+    for (final project in projects) {
+      if (project.rootPath.trim() == normalized) return project;
+    }
+    return null;
+  }
 }
 
 final codingProjectsNotifierProvider =

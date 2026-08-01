@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:caverno/core/services/macos_computer_use_runtime_identity.dart';
 import 'package:caverno/core/services/macos_computer_use_service.dart';
 import 'package:caverno/core/services/macos_computer_use_setup.dart';
 import 'package:caverno/core/services/macos_computer_use_transport.dart';
@@ -8,6 +10,135 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'invalidates runtime synchronously before restarting the helper',
+    () async {
+      final runtime = MacosComputerUseRuntimeIdentityProvider(
+        initialSessionId: 'runtime-a',
+        initialRevision: 3,
+        sessionIdFactory: () => 'runtime-b',
+      );
+      final transport = _FakePermissionTransport(permissions: const {});
+      final service = MacosComputerUseService(
+        permissionTransport: transport,
+        runtimeIdentityProvider: runtime,
+      );
+
+      final restart = service.restartHelper();
+      final current = runtime.capture();
+
+      expect(current.sessionId, 'runtime-b');
+      expect(current.revision, 4);
+      expect(runtime.captureAvailable(), isNull);
+      expect(transport.calledMethods, ['restartHelper']);
+      await restart;
+      expect(runtime.captureAvailable(), current);
+    },
+  );
+
+  test('invalidates runtime synchronously before emergency stop', () async {
+    final runtime = MacosComputerUseRuntimeIdentityProvider(
+      initialSessionId: 'runtime-a',
+      initialRevision: 3,
+    );
+    final transport = _FakePermissionTransport(permissions: const {});
+    final service = MacosComputerUseService(
+      permissionTransport: transport,
+      runtimeIdentityProvider: runtime,
+    );
+
+    final stop = service.stopHelperWork();
+    final current = runtime.capture();
+
+    expect(current.sessionId, 'runtime-a');
+    expect(current.revision, 4);
+    expect(runtime.captureAvailable(), isNull);
+    expect(transport.calledMethods, ['stopAll']);
+    await stop;
+    expect(runtime.captureAvailable(), current);
+  });
+
+  test('keeps new actions fenced until helper restart settles', () async {
+    final restartCompletion = Completer<String>();
+    final runtime = MacosComputerUseRuntimeIdentityProvider(
+      initialSessionId: 'runtime-a',
+      sessionIdFactory: () => 'runtime-b',
+    );
+    final transport = _FakePermissionTransport(
+      permissions: const {},
+      restartCompletion: restartCompletion,
+    );
+    final service = MacosComputerUseService(
+      permissionTransport: transport,
+      runtimeIdentityProvider: runtime,
+    );
+
+    final restart = service.restartHelper();
+
+    expect(runtime.captureAvailable(), isNull);
+    expect(
+      runtime.captureSnapshot().availability,
+      MacosComputerUseRuntimeAvailability.transitioning,
+    );
+    restartCompletion.complete(
+      jsonEncode({'ok': true, 'helperRunning': true, 'restarted': true}),
+    );
+    await restart;
+    expect(runtime.captureAvailable()?.sessionId, 'runtime-b');
+  });
+
+  test('keeps new actions fenced until emergency stop settles', () async {
+    final stopCompletion = Completer<String>();
+    final runtime = MacosComputerUseRuntimeIdentityProvider(
+      initialSessionId: 'runtime-a',
+      initialRevision: 3,
+    );
+    final transport = _FakePermissionTransport(
+      permissions: const {},
+      stopCompletion: stopCompletion,
+    );
+    final service = MacosComputerUseService(
+      permissionTransport: transport,
+      runtimeIdentityProvider: runtime,
+    );
+
+    final stop = service.stopHelperWork();
+
+    expect(runtime.captureAvailable(), isNull);
+    expect(runtime.capture().sessionId, 'runtime-a');
+    expect(runtime.capture().revision, 4);
+    stopCompletion.complete(jsonEncode({'ok': true}));
+    await stop;
+    expect(runtime.captureAvailable()?.sessionId, 'runtime-a');
+  });
+
+  test('launch and termination rotate and fence the helper identity', () async {
+    var nextSession = 0;
+    final runtime = MacosComputerUseRuntimeIdentityProvider(
+      initialSessionId: 'runtime-a',
+      sessionIdFactory: () => 'runtime-${++nextSession}',
+    );
+    final transport = _FakePermissionTransport(permissions: const {});
+    final service = MacosComputerUseService(
+      permissionTransport: transport,
+      runtimeIdentityProvider: runtime,
+    );
+
+    await service.launchHelper();
+    final launched = runtime.captureAvailable();
+    expect(launched?.sessionId, 'runtime-1');
+    expect(launched?.revision, 1);
+
+    await service.terminateHelperForXpcLaunchAgent();
+    expect(runtime.captureAvailable(), isNull);
+    expect(runtime.capture().sessionId, 'runtime-2');
+    expect(runtime.capture().revision, 2);
+    expect(
+      runtime.captureSnapshot().availability,
+      MacosComputerUseRuntimeAvailability.stopped,
+    );
+  });
 
   test('uses the helper transport for permission status', () async {
     final transport = _FakePermissionTransport(
@@ -712,9 +843,15 @@ class _FakeVisionMacosComputerUseService extends MacosComputerUseService {
 }
 
 class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
-  _FakePermissionTransport({required this.permissions});
+  _FakePermissionTransport({
+    required this.permissions,
+    this.restartCompletion,
+    this.stopCompletion,
+  });
 
   final Map<String, dynamic> permissions;
+  final Completer<String>? restartCompletion;
+  final Completer<String>? stopCompletion;
   final List<String> calledMethods = [];
 
   @override
@@ -740,6 +877,10 @@ class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
   @override
   Future<String> restartHelper() async {
     calledMethods.add('restartHelper');
+    final completion = restartCompletion;
+    if (completion != null) {
+      return completion.future;
+    }
     return jsonEncode({'ok': true, 'helperRunning': true, 'restarted': true});
   }
 
@@ -817,6 +958,10 @@ class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
   @override
   Future<String> stopAll() async {
     calledMethods.add('stopAll');
+    final completion = stopCompletion;
+    if (completion != null) {
+      return completion.future;
+    }
     return jsonEncode({'ok': true});
   }
 }

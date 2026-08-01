@@ -3,11 +3,14 @@ import 'dart:convert';
 import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/local_shell_tools.dart';
 import '../entities/tool_call_info.dart';
+import 'file_mutation_evidence_policy.dart';
 
 typedef ProjectPathResolver = String? Function(String path);
 
 class ToolCallExecutionPolicy {
   const ToolCallExecutionPolicy();
+
+  static const _fileMutationEvidencePolicy = FileMutationEvidencePolicy();
 
   /// Argument keys that carry model-authored narration rather than execution
   /// semantics. Stripped from the consecutive-failure key ([toolFailureKey])
@@ -122,16 +125,8 @@ class ToolCallExecutionPolicy {
         normalizedName.startsWith('edit_');
   }
 
-  bool isFileMutationToolCall(ToolCallInfo toolCall) {
-    switch (toolCall.name.trim().toLowerCase()) {
-      case 'write_file':
-      case 'edit_file':
-      case 'delete_file':
-      case 'rollback_last_file_change':
-        return true;
-    }
-    return false;
-  }
+  bool isFileMutationToolCall(ToolCallInfo toolCall) =>
+      _fileMutationEvidencePolicy.isMutationToolName(toolCall.name);
 
   bool shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) {
     return toolCall.name == 'read_file' ||

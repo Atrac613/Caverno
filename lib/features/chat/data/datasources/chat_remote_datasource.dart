@@ -15,57 +15,15 @@ import '../../domain/services/tool_result_prompt_builder.dart';
 import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
 
+export '../../domain/entities/chat_completion_terminal_metadata.dart';
 export '../../domain/entities/tool_call_info.dart'
     show ToolCallInfo, ToolResultInfo;
-
-/// Token usage statistics from a completion response.
-class TokenUsage {
-  const TokenUsage({
-    this.promptTokens = 0,
-    this.completionTokens = 0,
-    this.totalTokens = 0,
-  });
-
-  final int promptTokens;
-  final int completionTokens;
-  final int totalTokens;
-
-  static const zero = TokenUsage();
-}
-
-/// Result of a streaming chat completion with tool support.
-///
-/// Contains the stream of content chunks (including `<think>` tags for
-/// reasoning) and a [Future] that resolves to the accumulated tool calls
-/// and finish reason once the stream is fully consumed.
-class StreamWithToolsResult {
-  StreamWithToolsResult({required this.stream, required this.completion});
-
-  /// Stream of content/reasoning chunks (same format as [streamChatCompletion]).
-  final Stream<String> stream;
-
-  /// Resolves after the stream ends with the accumulated tool calls, finish
-  /// reason, and any content that was only delivered as structured data
-  /// (not via delta.content).
-  final Future<ChatCompletionResult> completion;
-}
-
-/// Chat completion response
-class ChatCompletionResult {
-  ChatCompletionResult({
-    required this.content,
-    this.toolCalls,
-    required this.finishReason,
-    this.usage = TokenUsage.zero,
-  });
-
-  final String content;
-  final List<ToolCallInfo>? toolCalls;
-  final String finishReason;
-  final TokenUsage usage;
-
-  bool get hasToolCalls => toolCalls != null && toolCalls!.isNotEmpty;
-}
+export 'chat_datasource.dart'
+    show
+        ChatCompletionResult,
+        ChatCompletionStreamCancelledException,
+        StreamWithToolsResult,
+        StreamedChatCompletion;
 
 class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
   ChatRemoteDataSource({
@@ -108,11 +66,17 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     lastFinishReason = null;
   }
 
-  void _captureStreamingFinishReason(dynamic choice) {
+  String? _streamingFinishReason(dynamic choice) {
     final Object? finishReason = choice?.finishReason?.value;
     if (finishReason is String && finishReason.isNotEmpty) {
-      lastFinishReason = finishReason;
+      return finishReason;
     }
+    return null;
+  }
+
+  void _publishCompatibilityTelemetry(ChatCompletionTerminalMetadata metadata) {
+    lastUsage = metadata.usage;
+    lastFinishReason = metadata.finishReason;
   }
 
   static String? _normalizeReasoningEffort(String? value) {
@@ -301,119 +265,134 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
 
   /// Get chat completion via streaming (without tools)
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) async* {
-    _resetResponseTelemetry();
-    // Strip images from history if the latest user message has no image,
-    // allowing conversation to continue on non-Vision servers
-    final lastUserMessage = messages.lastWhere(
-      (m) => m.role == MessageRole.user,
-      orElse: () => messages.last,
-    );
-    final stripImages = lastUserMessage.imageBase64 == null;
-    if (stripImages) {
-      final hasHistoryImages = messages.any((m) => m.imageBase64 != null);
-      if (hasHistoryImages) {
-        appLog('[LLM] Stripping images from history before sending');
-      }
-    }
-    final formattedMessages = _formatMessages(
-      messages,
-      stripImages: stripImages,
-    );
-    final modelId = model ?? ApiConstants.defaultModel;
+  }) {
+    var usage = TokenUsage.zero;
+    String? finishReason;
 
-    appLog('[LLM] ========== streamChatCompletion ==========');
-    appLog(
-      '[LLM] model: $modelId, temperature: $temperature, maxTokens: $maxTokens',
-    );
-    _logMessages(messages);
-
-    try {
-      final stream = _streamWithReasoningFallback(
-        operation: 'streamChatCompletion',
-        send: (includeReasoning) => _client.chat.completions.createStream(
-          ChatCompletionCreateRequest(
-            model: modelId,
-            messages: formattedMessages,
-            temperature: temperature ?? ApiConstants.defaultTemperature,
-            maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-            streamOptions: const StreamOptions(includeUsage: true),
-            reasoningEffort: _reasoningEffortForRequest(includeReasoning),
-          ),
-        ),
+    Stream<String> contentStream() async* {
+      // Strip images from history if the latest user message has no image,
+      // allowing conversation to continue on non-Vision servers
+      final lastUserMessage = messages.lastWhere(
+        (m) => m.role == MessageRole.user,
+        orElse: () => messages.last,
       );
-
-      final responseBuffer = StringBuffer();
-      var isInReasoning = false;
-      await for (final event in stream) {
-        final choice = event.choices?.firstOrNull;
-        _captureStreamingFinishReason(choice);
-
-        // Capture usage from the final chunk (when stream_options is set)
-        if (event.usage != null) {
-          lastUsage = _extractUsage(event.usage);
-        }
-
-        final delta = choice?.delta;
-        if (delta == null) continue;
-
-        // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
-        // Tags are batched with adjacent content to avoid intermediate
-        // states where only a bare `<think>` or `</think>` is in the
-        // message, which could briefly render as literal text.
-        final reasoning = delta.reasoningContent ?? delta.reasoning;
-        final content = delta.content;
-
-        if (reasoning != null && reasoning.isNotEmpty) {
-          if (!isInReasoning) {
-            isInReasoning = true;
-            responseBuffer.write('<think>$reasoning');
-            yield '<think>$reasoning';
-          } else {
-            responseBuffer.write(reasoning);
-            yield reasoning;
-          }
-        }
-
-        if (content != null && content.isNotEmpty) {
-          if (isInReasoning) {
-            isInReasoning = false;
-            responseBuffer.write('</think>$content');
-            yield '</think>$content';
-          } else {
-            responseBuffer.write(content);
-            yield content;
-          }
+      final stripImages = lastUserMessage.imageBase64 == null;
+      if (stripImages) {
+        final hasHistoryImages = messages.any((m) => m.imageBase64 != null);
+        if (hasHistoryImages) {
+          appLog('[LLM] Stripping images from history before sending');
         }
       }
-      // Close unclosed reasoning tag at end of stream
-      if (isInReasoning) {
-        responseBuffer.write('</think>');
-        yield '</think>';
-      }
+      final formattedMessages = _formatMessages(
+        messages,
+        stripImages: stripImages,
+      );
+      final modelId = model ?? ApiConstants.defaultModel;
 
-      appLog('[LLM] === Response (streaming) ===');
-      final responseText = responseBuffer.toString();
+      appLog('[LLM] ========== streamChatCompletion ==========');
       appLog(
-        '[LLM] ${responseText.length > 500 ? '${responseText.substring(0, 500)}...' : responseText}',
+        '[LLM] model: $modelId, temperature: $temperature, maxTokens: $maxTokens',
       );
-      appLog('[LLM] ========================================');
-    } catch (e, stackTrace) {
-      final recoveredText = _responseNormalizer.recoverRawAssistantText(e);
-      if (recoveredText != null) {
-        appLog('[LLM] Recovered raw text response after stream parse failure');
-        yield recoveredText;
-        return;
+      _logMessages(messages);
+
+      try {
+        final stream = _streamWithReasoningFallback(
+          operation: 'streamChatCompletion',
+          send: (includeReasoning) => _client.chat.completions.createStream(
+            ChatCompletionCreateRequest(
+              model: modelId,
+              messages: formattedMessages,
+              temperature: temperature ?? ApiConstants.defaultTemperature,
+              maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+              streamOptions: const StreamOptions(includeUsage: true),
+              reasoningEffort: _reasoningEffortForRequest(includeReasoning),
+            ),
+          ),
+        );
+
+        final responseBuffer = StringBuffer();
+        var isInReasoning = false;
+        await for (final event in stream) {
+          final choice = event.choices?.firstOrNull;
+          finishReason = _streamingFinishReason(choice) ?? finishReason;
+
+          // Capture usage from the final chunk (when stream_options is set)
+          if (event.usage != null) {
+            usage = _extractUsage(event.usage);
+          }
+
+          final delta = choice?.delta;
+          if (delta == null) continue;
+
+          // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
+          // Tags are batched with adjacent content to avoid intermediate
+          // states where only a bare `<think>` or `</think>` is in the
+          // message, which could briefly render as literal text.
+          final reasoning = delta.reasoningContent ?? delta.reasoning;
+          final content = delta.content;
+
+          if (reasoning != null && reasoning.isNotEmpty) {
+            if (!isInReasoning) {
+              isInReasoning = true;
+              responseBuffer.write('<think>$reasoning');
+              yield '<think>$reasoning';
+            } else {
+              responseBuffer.write(reasoning);
+              yield reasoning;
+            }
+          }
+
+          if (content != null && content.isNotEmpty) {
+            if (isInReasoning) {
+              isInReasoning = false;
+              responseBuffer.write('</think>$content');
+              yield '</think>$content';
+            } else {
+              responseBuffer.write(content);
+              yield content;
+            }
+          }
+        }
+        // Close unclosed reasoning tag at end of stream
+        if (isInReasoning) {
+          responseBuffer.write('</think>');
+          yield '</think>';
+        }
+
+        appLog('[LLM] === Response (streaming) ===');
+        final responseText = responseBuffer.toString();
+        appLog(
+          '[LLM] ${responseText.length > 500 ? '${responseText.substring(0, 500)}...' : responseText}',
+        );
+        appLog('[LLM] ========================================');
+      } catch (e, stackTrace) {
+        final recoveredText = _responseNormalizer.recoverRawAssistantText(e);
+        if (recoveredText != null) {
+          appLog(
+            '[LLM] Recovered raw text response after stream parse failure',
+          );
+          yield recoveredText;
+          return;
+        }
+        appLog('[LLM] streamChatCompletion error: ${e.runtimeType}: $e');
+        appLog('[LLM] stackTrace: $stackTrace');
+        rethrow;
       }
-      appLog('[LLM] streamChatCompletion error: ${e.runtimeType}: $e');
-      appLog('[LLM] stackTrace: $stackTrace');
-      rethrow;
     }
+
+    return StreamedChatCompletion.capture(
+      stream: contentStream(),
+      terminalMetadata: () => ChatCompletionTerminalMetadata(
+        finishReason: finishReason,
+        usage: usage,
+      ),
+      onTerminal: _publishCompatibilityTelemetry,
+    );
   }
 
   /// Streams a chat completion while also detecting tool calls.
@@ -432,6 +411,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     int? maxTokens,
   }) {
     _resetResponseTelemetry();
+    var usage = TokenUsage.zero;
     final lastUserMessage = messages.lastWhere(
       (m) => m.role == MessageRole.user,
       orElse: () => messages.last,
@@ -477,10 +457,9 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         await for (final event in stream) {
           accumulator.add(event);
           final choice = event.choices?.firstOrNull;
-          _captureStreamingFinishReason(choice);
 
           if (event.usage != null) {
-            lastUsage = _extractUsage(event.usage);
+            usage = _extractUsage(event.usage);
           }
 
           final delta = choice?.delta;
@@ -539,13 +518,17 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
           onArgumentError: _logNativeToolArgumentError,
         );
         final finishReason = accumulator.finishReason?.value ?? 'stop';
-        lastFinishReason = finishReason;
-        completer.complete(
-          ChatCompletionResult(
-            content: accumulator.content,
-            toolCalls: toolCalls,
+        final completion = ChatCompletionResult(
+          content: accumulator.content,
+          toolCalls: toolCalls,
+          finishReason: finishReason,
+          usage: usage,
+        );
+        completer.complete(completion);
+        _publishCompatibilityTelemetry(
+          ChatCompletionTerminalMetadata(
             finishReason: finishReason,
-            usage: lastUsage,
+            usage: usage,
           ),
         );
       } catch (e, stackTrace) {
@@ -555,13 +538,17 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
             '[LLM] Recovered raw text response after tool stream parse failure',
           );
           yield recovered.content;
-          lastFinishReason = recovered.finishReason;
-          completer.complete(
-            ChatCompletionResult(
-              content: recovered.content,
-              toolCalls: recovered.toolCalls,
+          final completion = ChatCompletionResult(
+            content: recovered.content,
+            toolCalls: recovered.toolCalls,
+            finishReason: recovered.finishReason,
+            usage: usage,
+          );
+          completer.complete(completion);
+          _publishCompatibilityTelemetry(
+            ChatCompletionTerminalMetadata(
               finishReason: recovered.finishReason,
-              usage: lastUsage,
+              usage: usage,
             ),
           );
           return;
@@ -750,7 +737,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       var isInReasoning = false;
       await for (final event in stream) {
         final choice = event.choices?.firstOrNull;
-        _captureStreamingFinishReason(choice);
+        lastFinishReason = _streamingFinishReason(choice) ?? lastFinishReason;
 
         // Capture usage from the final chunk
         if (event.usage != null) {

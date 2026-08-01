@@ -52,7 +52,7 @@ class SessionLoggingChatDataSource
   }
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
@@ -66,7 +66,7 @@ class SessionLoggingChatDataSource
     );
   }
 
-  Stream<String> streamChatCompletionWithStructuredToolResults({
+  StreamedChatCompletion streamChatCompletionWithStructuredToolResults({
     required List<Message> messages,
     required List<ToolResultInfo> toolResults,
     String? model,
@@ -82,60 +82,65 @@ class SessionLoggingChatDataSource
     );
   }
 
-  Stream<String> _streamChatCompletionAndLog({
+  StreamedChatCompletion _streamChatCompletionAndLog({
     required List<Message> messages,
     List<ToolResultInfo>? toolResults,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) async* {
+  }) {
     final context = _resolveContext();
     final startedAt = DateTime.now();
     final response = StringBuffer();
-    try {
-      final stream = _delegate.streamChatCompletion(
-        messages: messages,
-        model: model,
-        temperature: temperature,
-        maxTokens: maxTokens,
-      );
-      await for (final chunk in stream) {
-        response.write(chunk);
-        yield chunk;
+    final request = LlmSessionLogRequest(
+      operation: 'streamChatCompletion',
+      messages: messages,
+      toolResults: toolResults,
+      model: model ?? ApiConstants.defaultModel,
+      temperature: temperature ?? ApiConstants.defaultTemperature,
+      maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+    );
+    final completion = _delegate.streamChatCompletion(
+      messages: messages,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+
+    Stream<String> loggedStream() async* {
+      try {
+        await for (final chunk in completion) {
+          response.write(chunk);
+          yield chunk;
+        }
+      } catch (error) {
+        await _record(
+          context: context,
+          request: request,
+          startedAt: startedAt,
+          error: error,
+        );
+        rethrow;
       }
-      await _record(
-        context: context,
-        request: LlmSessionLogRequest(
-          operation: 'streamChatCompletion',
-          messages: messages,
-          toolResults: toolResults,
-          model: model ?? ApiConstants.defaultModel,
-          temperature: temperature ?? ApiConstants.defaultTemperature,
-          maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-        ),
-        startedAt: startedAt,
-        response: LlmSessionLogResponse(
-          content: response.toString(),
-          finishReason: lastFinishReason ?? 'stream_end',
-          usage: lastUsage,
-        ),
-      );
-    } catch (error) {
-      await _record(
-        context: context,
-        request: LlmSessionLogRequest(
-          operation: 'streamChatCompletion',
-          messages: messages,
-          toolResults: toolResults,
-          model: model ?? ApiConstants.defaultModel,
-          temperature: temperature ?? ApiConstants.defaultTemperature,
-          maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-        ),
-        startedAt: startedAt,
-        error: error,
-      );
-      rethrow;
     }
+
+    return StreamedChatCompletion.capture(
+      stream: loggedStream(),
+      terminalMetadata: () async {
+        final metadata = await completion.terminal;
+        await _record(
+          context: context,
+          request: request,
+          startedAt: startedAt,
+          response: LlmSessionLogResponse(
+            content: response.toString(),
+            finishReason: metadata.finishReason ?? 'stream_end',
+            usage: metadata.usage,
+          ),
+        );
+        return metadata;
+      },
+    );
   }
 
   @override

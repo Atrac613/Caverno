@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$SubagentTask {
 
- String get id; SubagentTaskStatus get status; String get description; String? get parentToolUseId; String get prompt; String get output; String get resultSummary; DateTime? get startedAt; DateTime? get finishedAt; bool get isBackground; bool get notified; String? get error;
+ String get id; String get conversationId; int get interactionGeneration; SubagentTaskStatus get status; String get description; String? get parentToolUseId; String get prompt; String get output; String get resultSummary; DateTime? get startedAt; DateTime? get finishedAt; bool get isBackground; bool get notified; String? get error;
 /// Create a copy of SubagentTask
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $SubagentTaskCopyWith<SubagentTask> get copyWith => _$SubagentTaskCopyWithImpl<S
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubagentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.description, description) || other.description == description)&&(identical(other.parentToolUseId, parentToolUseId) || other.parentToolUseId == parentToolUseId)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.output, output) || other.output == output)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.isBackground, isBackground) || other.isBackground == isBackground)&&(identical(other.notified, notified) || other.notified == notified)&&(identical(other.error, error) || other.error == error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubagentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.conversationId, conversationId) || other.conversationId == conversationId)&&(identical(other.interactionGeneration, interactionGeneration) || other.interactionGeneration == interactionGeneration)&&(identical(other.status, status) || other.status == status)&&(identical(other.description, description) || other.description == description)&&(identical(other.parentToolUseId, parentToolUseId) || other.parentToolUseId == parentToolUseId)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.output, output) || other.output == output)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.isBackground, isBackground) || other.isBackground == isBackground)&&(identical(other.notified, notified) || other.notified == notified)&&(identical(other.error, error) || other.error == error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,status,description,parentToolUseId,prompt,output,resultSummary,startedAt,finishedAt,isBackground,notified,error);
+int get hashCode => Object.hash(runtimeType,id,conversationId,interactionGeneration,status,description,parentToolUseId,prompt,output,resultSummary,startedAt,finishedAt,isBackground,notified,error);
 
 @override
 String toString() {
-  return 'SubagentTask(id: $id, status: $status, description: $description, parentToolUseId: $parentToolUseId, prompt: $prompt, output: $output, resultSummary: $resultSummary, startedAt: $startedAt, finishedAt: $finishedAt, isBackground: $isBackground, notified: $notified, error: $error)';
+  return 'SubagentTask(id: $id, conversationId: $conversationId, interactionGeneration: $interactionGeneration, status: $status, description: $description, parentToolUseId: $parentToolUseId, prompt: $prompt, output: $output, resultSummary: $resultSummary, startedAt: $startedAt, finishedAt: $finishedAt, isBackground: $isBackground, notified: $notified, error: $error)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $SubagentTaskCopyWith<$Res>  {
   factory $SubagentTaskCopyWith(SubagentTask value, $Res Function(SubagentTask) _then) = _$SubagentTaskCopyWithImpl;
 @useResult
 $Res call({
- String id, SubagentTaskStatus status, String description, String? parentToolUseId, String prompt, String output, String resultSummary, DateTime? startedAt, DateTime? finishedAt, bool isBackground, bool notified, String? error
+ String id, String conversationId, int interactionGeneration, SubagentTaskStatus status, String description, String? parentToolUseId, String prompt, String output, String resultSummary, DateTime? startedAt, DateTime? finishedAt, bool isBackground, bool notified, String? error
 });
 
 
@@ -65,10 +65,12 @@ class _$SubagentTaskCopyWithImpl<$Res>
 
 /// Create a copy of SubagentTask
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? status = null,Object? description = null,Object? parentToolUseId = freezed,Object? prompt = null,Object? output = null,Object? resultSummary = null,Object? startedAt = freezed,Object? finishedAt = freezed,Object? isBackground = null,Object? notified = null,Object? error = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? conversationId = null,Object? interactionGeneration = null,Object? status = null,Object? description = null,Object? parentToolUseId = freezed,Object? prompt = null,Object? output = null,Object? resultSummary = null,Object? startedAt = freezed,Object? finishedAt = freezed,Object? isBackground = null,Object? notified = null,Object? error = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as String,conversationId: null == conversationId ? _self.conversationId : conversationId // ignore: cast_nullable_to_non_nullable
+as String,interactionGeneration: null == interactionGeneration ? _self.interactionGeneration : interactionGeneration // ignore: cast_nullable_to_non_nullable
+as int,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as SubagentTaskStatus,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String,parentToolUseId: freezed == parentToolUseId ? _self.parentToolUseId : parentToolUseId // ignore: cast_nullable_to_non_nullable
 as String?,prompt: null == prompt ? _self.prompt : prompt // ignore: cast_nullable_to_non_nullable
@@ -164,10 +166,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  SubagentTaskStatus status,  String description,  String? parentToolUseId,  String prompt,  String output,  String resultSummary,  DateTime? startedAt,  DateTime? finishedAt,  bool isBackground,  bool notified,  String? error)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String conversationId,  int interactionGeneration,  SubagentTaskStatus status,  String description,  String? parentToolUseId,  String prompt,  String output,  String resultSummary,  DateTime? startedAt,  DateTime? finishedAt,  bool isBackground,  bool notified,  String? error)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SubagentTask() when $default != null:
-return $default(_that.id,_that.status,_that.description,_that.parentToolUseId,_that.prompt,_that.output,_that.resultSummary,_that.startedAt,_that.finishedAt,_that.isBackground,_that.notified,_that.error);case _:
+return $default(_that.id,_that.conversationId,_that.interactionGeneration,_that.status,_that.description,_that.parentToolUseId,_that.prompt,_that.output,_that.resultSummary,_that.startedAt,_that.finishedAt,_that.isBackground,_that.notified,_that.error);case _:
   return orElse();
 
 }
@@ -185,10 +187,10 @@ return $default(_that.id,_that.status,_that.description,_that.parentToolUseId,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  SubagentTaskStatus status,  String description,  String? parentToolUseId,  String prompt,  String output,  String resultSummary,  DateTime? startedAt,  DateTime? finishedAt,  bool isBackground,  bool notified,  String? error)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String conversationId,  int interactionGeneration,  SubagentTaskStatus status,  String description,  String? parentToolUseId,  String prompt,  String output,  String resultSummary,  DateTime? startedAt,  DateTime? finishedAt,  bool isBackground,  bool notified,  String? error)  $default,) {final _that = this;
 switch (_that) {
 case _SubagentTask():
-return $default(_that.id,_that.status,_that.description,_that.parentToolUseId,_that.prompt,_that.output,_that.resultSummary,_that.startedAt,_that.finishedAt,_that.isBackground,_that.notified,_that.error);case _:
+return $default(_that.id,_that.conversationId,_that.interactionGeneration,_that.status,_that.description,_that.parentToolUseId,_that.prompt,_that.output,_that.resultSummary,_that.startedAt,_that.finishedAt,_that.isBackground,_that.notified,_that.error);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -205,10 +207,10 @@ return $default(_that.id,_that.status,_that.description,_that.parentToolUseId,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  SubagentTaskStatus status,  String description,  String? parentToolUseId,  String prompt,  String output,  String resultSummary,  DateTime? startedAt,  DateTime? finishedAt,  bool isBackground,  bool notified,  String? error)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String conversationId,  int interactionGeneration,  SubagentTaskStatus status,  String description,  String? parentToolUseId,  String prompt,  String output,  String resultSummary,  DateTime? startedAt,  DateTime? finishedAt,  bool isBackground,  bool notified,  String? error)?  $default,) {final _that = this;
 switch (_that) {
 case _SubagentTask() when $default != null:
-return $default(_that.id,_that.status,_that.description,_that.parentToolUseId,_that.prompt,_that.output,_that.resultSummary,_that.startedAt,_that.finishedAt,_that.isBackground,_that.notified,_that.error);case _:
+return $default(_that.id,_that.conversationId,_that.interactionGeneration,_that.status,_that.description,_that.parentToolUseId,_that.prompt,_that.output,_that.resultSummary,_that.startedAt,_that.finishedAt,_that.isBackground,_that.notified,_that.error);case _:
   return null;
 
 }
@@ -220,10 +222,12 @@ return $default(_that.id,_that.status,_that.description,_that.parentToolUseId,_t
 @JsonSerializable()
 
 class _SubagentTask extends SubagentTask {
-  const _SubagentTask({required this.id, this.status = SubagentTaskStatus.pending, this.description = '', this.parentToolUseId, this.prompt = '', this.output = '', this.resultSummary = '', this.startedAt, this.finishedAt, this.isBackground = false, this.notified = false, this.error}): super._();
+  const _SubagentTask({required this.id, this.conversationId = '', this.interactionGeneration = -1, this.status = SubagentTaskStatus.pending, this.description = '', this.parentToolUseId, this.prompt = '', this.output = '', this.resultSummary = '', this.startedAt, this.finishedAt, this.isBackground = false, this.notified = false, this.error}): super._();
   factory _SubagentTask.fromJson(Map<String, dynamic> json) => _$SubagentTaskFromJson(json);
 
 @override final  String id;
+@override@JsonKey() final  String conversationId;
+@override@JsonKey() final  int interactionGeneration;
 @override@JsonKey() final  SubagentTaskStatus status;
 @override@JsonKey() final  String description;
 @override final  String? parentToolUseId;
@@ -249,16 +253,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubagentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.description, description) || other.description == description)&&(identical(other.parentToolUseId, parentToolUseId) || other.parentToolUseId == parentToolUseId)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.output, output) || other.output == output)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.isBackground, isBackground) || other.isBackground == isBackground)&&(identical(other.notified, notified) || other.notified == notified)&&(identical(other.error, error) || other.error == error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubagentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.conversationId, conversationId) || other.conversationId == conversationId)&&(identical(other.interactionGeneration, interactionGeneration) || other.interactionGeneration == interactionGeneration)&&(identical(other.status, status) || other.status == status)&&(identical(other.description, description) || other.description == description)&&(identical(other.parentToolUseId, parentToolUseId) || other.parentToolUseId == parentToolUseId)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.output, output) || other.output == output)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.isBackground, isBackground) || other.isBackground == isBackground)&&(identical(other.notified, notified) || other.notified == notified)&&(identical(other.error, error) || other.error == error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,status,description,parentToolUseId,prompt,output,resultSummary,startedAt,finishedAt,isBackground,notified,error);
+int get hashCode => Object.hash(runtimeType,id,conversationId,interactionGeneration,status,description,parentToolUseId,prompt,output,resultSummary,startedAt,finishedAt,isBackground,notified,error);
 
 @override
 String toString() {
-  return 'SubagentTask(id: $id, status: $status, description: $description, parentToolUseId: $parentToolUseId, prompt: $prompt, output: $output, resultSummary: $resultSummary, startedAt: $startedAt, finishedAt: $finishedAt, isBackground: $isBackground, notified: $notified, error: $error)';
+  return 'SubagentTask(id: $id, conversationId: $conversationId, interactionGeneration: $interactionGeneration, status: $status, description: $description, parentToolUseId: $parentToolUseId, prompt: $prompt, output: $output, resultSummary: $resultSummary, startedAt: $startedAt, finishedAt: $finishedAt, isBackground: $isBackground, notified: $notified, error: $error)';
 }
 
 
@@ -269,7 +273,7 @@ abstract mixin class _$SubagentTaskCopyWith<$Res> implements $SubagentTaskCopyWi
   factory _$SubagentTaskCopyWith(_SubagentTask value, $Res Function(_SubagentTask) _then) = __$SubagentTaskCopyWithImpl;
 @override @useResult
 $Res call({
- String id, SubagentTaskStatus status, String description, String? parentToolUseId, String prompt, String output, String resultSummary, DateTime? startedAt, DateTime? finishedAt, bool isBackground, bool notified, String? error
+ String id, String conversationId, int interactionGeneration, SubagentTaskStatus status, String description, String? parentToolUseId, String prompt, String output, String resultSummary, DateTime? startedAt, DateTime? finishedAt, bool isBackground, bool notified, String? error
 });
 
 
@@ -286,10 +290,12 @@ class __$SubagentTaskCopyWithImpl<$Res>
 
 /// Create a copy of SubagentTask
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? status = null,Object? description = null,Object? parentToolUseId = freezed,Object? prompt = null,Object? output = null,Object? resultSummary = null,Object? startedAt = freezed,Object? finishedAt = freezed,Object? isBackground = null,Object? notified = null,Object? error = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? conversationId = null,Object? interactionGeneration = null,Object? status = null,Object? description = null,Object? parentToolUseId = freezed,Object? prompt = null,Object? output = null,Object? resultSummary = null,Object? startedAt = freezed,Object? finishedAt = freezed,Object? isBackground = null,Object? notified = null,Object? error = freezed,}) {
   return _then(_SubagentTask(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as String,conversationId: null == conversationId ? _self.conversationId : conversationId // ignore: cast_nullable_to_non_nullable
+as String,interactionGeneration: null == interactionGeneration ? _self.interactionGeneration : interactionGeneration // ignore: cast_nullable_to_non_nullable
+as int,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as SubagentTaskStatus,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String,parentToolUseId: freezed == parentToolUseId ? _self.parentToolUseId : parentToolUseId // ignore: cast_nullable_to_non_nullable
 as String?,prompt: null == prompt ? _self.prompt : prompt // ignore: cast_nullable_to_non_nullable

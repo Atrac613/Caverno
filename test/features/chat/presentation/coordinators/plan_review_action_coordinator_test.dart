@@ -100,6 +100,7 @@ class _CoordinatorConversationsNotifier extends ConversationsNotifier {
     DateTime? workflowDerivedAt,
     bool clearWorkflowSpec = false,
     bool preserveWorkflowProjection = false,
+    String? conversationId,
   }) async {
     workflowWriteCount += 1;
     lastWorkflowStage = workflowStage;

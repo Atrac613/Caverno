@@ -5,6 +5,7 @@ import 'package:caverno/core/utils/logger.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
@@ -487,43 +488,48 @@ class FakePlanModeChatDataSource implements ChatDataSource {
   }
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) async* {
-    final prompt = messages.last.content;
-    final isFinalToolAnswerPrompt = prompt.startsWith(
-      'Please answer the user\'s question based on the following tool results.',
-    );
-    final isSearchAnswerPrompt = prompt.startsWith(
-      'Please answer the user\'s question based on the following search results.',
-    );
-    final isContinuationPrompt = prompt.startsWith(
-      'Continue the task using the following tool results.',
-    );
-    if (isFinalToolAnswerPrompt ||
-        isSearchAnswerPrompt ||
-        isContinuationPrompt) {
-      if (_continuationStreamIndex >= scenario.continuationStreams.length) {
-        appLog('[ScenarioLLM] continuation stream exhausted');
+  }) {
+    Stream<String> contentStream() async* {
+      final prompt = messages.last.content;
+      final isFinalToolAnswerPrompt = prompt.startsWith(
+        'Please answer the user\'s question based on the following tool results.',
+      );
+      final isSearchAnswerPrompt = prompt.startsWith(
+        'Please answer the user\'s question based on the following search results.',
+      );
+      final isContinuationPrompt = prompt.startsWith(
+        'Continue the task using the following tool results.',
+      );
+      if (isFinalToolAnswerPrompt ||
+          isSearchAnswerPrompt ||
+          isContinuationPrompt) {
+        if (_continuationStreamIndex >= scenario.continuationStreams.length) {
+          appLog('[ScenarioLLM] continuation stream exhausted');
+          return;
+        }
+
+        final response =
+            scenario.continuationStreams[_continuationStreamIndex++];
+        final isLastStream =
+            _continuationStreamIndex == scenario.continuationStreams.length;
+        appLog(
+          isLastStream
+              ? '[ScenarioLLM] final answer stream'
+              : '[ScenarioLLM] continuation stream',
+        );
+        yield response;
         return;
       }
 
-      final response = scenario.continuationStreams[_continuationStreamIndex++];
-      final isLastStream =
-          _continuationStreamIndex == scenario.continuationStreams.length;
-      appLog(
-        isLastStream
-            ? '[ScenarioLLM] final answer stream'
-            : '[ScenarioLLM] continuation stream',
-      );
-      yield response;
-      return;
+      appLog('[ScenarioLLM] empty stream fallback');
     }
 
-    appLog('[ScenarioLLM] empty stream fallback');
+    return StreamedChatCompletion.fromStream(contentStream());
   }
 
   @override
@@ -697,6 +703,29 @@ class FakePlanModeMcpToolService extends McpToolService {
     }
 
     return super.executeTool(name: name, arguments: arguments);
+  }
+
+  @override
+  Future<McpToolResult> executeFileTool({
+    required ChatTurnOwner owner,
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    final override = _nextMatchingOverride(name: name, arguments: arguments);
+    if (override != null) {
+      appLog('[ScenarioTool] Overriding tool result for $name');
+      return McpToolResult(
+        toolName: name,
+        result: override.result,
+        isSuccess: override.isSuccess,
+        errorMessage: override.errorMessage,
+      );
+    }
+    return super.executeFileTool(
+      owner: owner,
+      name: name,
+      arguments: arguments,
+    );
   }
 
   PlanModeScenarioToolOverrideSpec? _nextMatchingOverride({

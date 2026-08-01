@@ -25,12 +25,13 @@ extension ChatNotifierTurnExit on ChatNotifier {
   /// read the exit-reason distribution. Without the persisted write the
   /// instrument would be invisible in release builds and to triage.
   Future<void> _logTurnExitReason({
-    required int generation,
+    required ChatTurnOwner owner,
     required List<Message> finalizedMessages,
     required bool shouldDropLastAssistant,
+    required String? finishReason,
   }) async {
-    final hint = _turnExitReasonHint;
-    _turnExitReasonHint = null;
+    final generation = owner.interactionGeneration;
+    final hint = _turnEnd.takeHint(owner);
     _classifiedTurnExitGenerations.add(generation);
 
     final hasVisibleFinal =
@@ -46,7 +47,7 @@ extension ChatNotifierTurnExit on ChatNotifier {
       ToolLoopExitState(
         finalResponseText: finalText,
         explicitHint: hint,
-        finishReason: _latestFinishReason(),
+        finishReason: finishReason,
       ),
     );
     final token = _toolLoopExitClassifier.logToken(reason);
@@ -72,7 +73,7 @@ extension ChatNotifierTurnExit on ChatNotifier {
           at: DateTime.now(),
           turnId: 'gen-$generation',
           assistantMessageId: assistantMessageId,
-          transforms: _appliedTurnTransforms.toList(growable: false),
+          transforms: _turnEnd.transforms(owner),
         );
   }
 

@@ -4,30 +4,65 @@
 
 part of 'chat_notifier.dart';
 
+final Expando<ExecutionSnapshotObserver<LlmSessionLogContext>>
+_executionSnapshotObservers =
+    Expando<ExecutionSnapshotObserver<LlmSessionLogContext>>();
+
 extension ChatNotifierPromptContext on ChatNotifier {
+  ExecutionSnapshotObserver<LlmSessionLogContext>
+  get _executionSnapshotObserver => _executionSnapshotObservers[this] ??=
+      ExecutionSnapshotObserver<LlmSessionLogContext>(
+        logPort: LlmSessionExecutionShadowLogPort(
+          ref.read(llmSessionLogStoreProvider),
+        ),
+        diagnosticLog: appLog,
+      );
+
   Message _createSystemMessage({
     List<String>? toolNamesOverride,
     String? participantRolePrompt,
-    Conversation? conversation,
+    required Conversation? conversation,
+    TurnOwnerSnapshot? ownerSnapshot,
   }) {
     final now = DateTime.now();
-    final currentConversation =
-        conversation ??
-        ref.read(conversationsNotifierProvider).currentConversation;
-    final activeCodingProject = _codingProjectForTurn(currentConversation);
+    final currentConversation = conversation;
+    final activeCodingProject = currentConversation == null
+        ? null
+        : _codingProjectForTurn(currentConversation);
+    final projectRoot = ownerSnapshot == null
+        ? activeCodingProject?.rootPath
+        : ownerSnapshot.projectRoot;
     final toolNames = toolNamesOverride == null
         ? <String>[]
         : List<String>.from(toolNamesOverride);
-    final toolObservation = _collectRequestToolObservation(
-      toolNamesOverride: toolNamesOverride,
-      toolNames: toolNames,
+    final mcpToolService = _mcpToolService;
+    final toolObservation = const RequestToolObservationCollector().collect(
+      RequestToolObservationInput(
+        catalog: mcpToolService == null
+            ? null
+            : RequestToolCatalogSnapshot(
+                connectionStatus: mcpToolService.status,
+                toolDefinitions: mcpToolService.getOpenAiToolDefinitions(),
+                externalToolDescriptors: mcpToolService.tools
+                    .map((tool) => tool.toOpenAiTool())
+                    .toList(growable: false),
+              ),
+        hasToolNamesOverride: toolNamesOverride != null,
+        effectiveToolNames: toolNames,
+        mcpEnabled: _settings.mcpEnabled,
+        hasTemporalReferenceContext: _temporalReferenceContext != null,
+      ),
     );
     final resolvedLanguage = _settings.language == 'system'
         ? _languageCode
         : _settings.language;
-    final resolvedAssistantMode = _resolveAssistantMode(
-      currentConversation: currentConversation,
-    );
+    final resolvedAssistantMode = ownerSnapshot == null
+        ? _resolveAssistantMode(currentConversation: currentConversation)
+        : ownerSnapshot.isPlanning
+        ? AssistantMode.plan
+        : ownerSnapshot.isCodingWorkspaceOrMode
+        ? AssistantMode.coding
+        : AssistantMode.general;
     final projectedExecutionSnapshot = const ExecutionSnapshotProjector()
         .project(currentConversation);
     final commandDiagnosticRepairFocus = _commandDiagnosticRepairFocusFor(
@@ -41,7 +76,11 @@ extension ChatNotifierPromptContext on ChatNotifier {
             hasPathBackedDiagnostic:
                 commandDiagnosticRepairFocus.hasPathBackedDiagnostic,
           );
-    _observeExecutionSnapshot(currentConversation, executionSnapshot);
+    _observeExecutionSnapshot(
+      currentConversation,
+      executionSnapshot,
+      ownerSnapshot,
+    );
     final content = SystemPromptBuilder.build(
       now: now,
       assistantMode: resolvedAssistantMode,
@@ -50,8 +89,8 @@ extension ChatNotifierPromptContext on ChatNotifier {
       sessionMemoryContext: _sessionMemoryContext,
       participantRolePrompt: participantRolePrompt,
       projectName: activeCodingProject?.name,
-      projectRootPath: activeCodingProject?.rootPath,
-      repoMapContext: _repoMap(resolvedAssistantMode, activeCodingProject),
+      projectRootPath: projectRoot,
+      repoMapContext: _repoMap(resolvedAssistantMode, projectRoot),
       goal: currentConversation?.goal,
       workflowStage:
           currentConversation?.workflowStage ?? ConversationWorkflowStage.idle,
@@ -59,19 +98,27 @@ extension ChatNotifierPromptContext on ChatNotifier {
       planArtifact: currentConversation?.planArtifact,
       executionSnapshot: executionSnapshot,
       isVoiceMode: _isVoiceMode,
-      agentsMarkdown: _loadAgentsMd(resolvedAssistantMode, activeCodingProject),
+      agentsMarkdown: _loadAgentsMd(resolvedAssistantMode, projectRoot),
       skillsContext: _buildSkillsPromptContext(toolNames),
       hasPythonInputAttachment:
           toolNames.contains('run_python_script') &&
-          _latestPythonInputMessage() != null,
+          (ownerSnapshot?.hasAttachments ?? false),
       modelCapabilityProfile: _settings.effectiveModelCapabilityProfile,
       modelHarnessConfig: _settings.effectiveModelHarnessConfig,
     );
-    _updateContextSurgeryObservation(
-      systemPrompt: content,
-      toolDefinitions: toolObservation.definitions,
-      mcpToolNames: toolObservation.mcpNames,
-    );
+    // Only a registered turn has an owner. Fabricating one from the visible
+    // conversation used generation 0, which ChatTurnOwner rejects outright, so
+    // every prompt built outside a registered turn — plan drafting above all —
+    // threw instead of skipping an observation it has nothing to attribute.
+    final observationOwner = ownerSnapshot?.owner;
+    if (observationOwner != null) {
+      _updateContextSurgeryObservation(
+        owner: observationOwner,
+        systemPrompt: content,
+        toolDefinitions: toolObservation.definitions,
+        mcpToolNames: toolObservation.mcpNames,
+      );
+    }
     return Message(
       id: 'system',
       content: content,
@@ -81,6 +128,7 @@ extension ChatNotifierPromptContext on ChatNotifier {
   }
 
   Future<void> _ensureShortPromptExecutionContract({
+    required String? projectRoot,
     required Conversation? currentConversation,
     required Message userMessage,
     required ConversationsNotifier conversationsNotifier,
@@ -97,7 +145,10 @@ extension ChatNotifierPromptContext on ChatNotifier {
     final workflowSpec = const ShortPromptContractBuilder().build(
       userMessageId: userMessage.id,
       userRequest: userMessage.content,
-      specification: _loadReferencedSpecification(userMessage.content),
+      specification: _loadReferencedSpecification(
+        userMessage.content,
+        projectRoot,
+      ),
     );
     if (workflowSpec == null) return;
     try {
@@ -106,6 +157,7 @@ extension ChatNotifierPromptContext on ChatNotifier {
             ? ConversationWorkflowStage.plan
             : ConversationWorkflowStage.implement,
         workflowSpec: workflowSpec,
+        conversationId: currentConversation.id,
       );
     } catch (error) {
       appLog(
@@ -115,12 +167,11 @@ extension ChatNotifierPromptContext on ChatNotifier {
   }
 
   Future<void> _markPendingExecutionTaskStarted({
+    required Conversation? conversation,
     required ConversationsNotifier conversationsNotifier,
     required bool bypassPlanMode,
+    required int interactionGeneration,
   }) async {
-    final conversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
     if (conversation == null ||
         conversation.workspaceMode != WorkspaceMode.coding ||
         (conversation.isPlanningSession && !bypassPlanMode)) {
@@ -141,8 +192,10 @@ extension ChatNotifierPromptContext on ChatNotifier {
         lastRunAt: startedAt,
         eventType: ConversationExecutionTaskEventType.started,
         eventTimestamp: startedAt,
+        conversationId: conversation.id,
       );
-      _emitRuntimeWorkflowTransition(
+      _runtimeEvents.emitRuntimeWorkflowTransition(
+        generation: interactionGeneration,
         stage: 'implement',
         taskId: task.id,
         taskStatus: ConversationWorkflowTaskStatus.inProgress.name,
@@ -152,112 +205,69 @@ extension ChatNotifierPromptContext on ChatNotifier {
     }
   }
 
-  SpecificationContractInput? _loadReferencedSpecification(String request) {
-    final projectRoot = _getEffectiveCodingProject()?.rootPath.trim() ?? '';
-    if (projectRoot.isEmpty) return null;
-    final match = RegExp(
-      r'''(?:^|[\s"'`(])([^\s"'`()]+\.md)\b''',
-      caseSensitive: false,
-      unicode: true,
-    ).firstMatch(request);
-    final reference = match?.group(1)?.trim() ?? '';
-    if (reference.isEmpty) return null;
-    final normalizedRoot = Uri.file(
-      Directory(projectRoot).absolute.path,
-    ).normalizePath().toFilePath();
-    final candidate = Uri.file(
-      File('$normalizedRoot${Platform.pathSeparator}$reference').absolute.path,
-    ).normalizePath().toFilePath();
-    if (!candidate.startsWith('$normalizedRoot${Platform.pathSeparator}')) {
-      return null;
-    }
-    final file = File(candidate);
-    if (!file.existsSync() || file.lengthSync() > 256 * 1024) return null;
-    try {
-      return SpecificationContractInput(
-        path: reference,
-        content: file.readAsStringSync(),
-      );
-    } on FileSystemException {
-      return null;
-    }
-  }
+  SpecificationContractInput? _loadReferencedSpecification(
+    String request,
+    String? projectRoot,
+  ) => const ReferencedSpecificationLoader().load(
+    projectRoot: projectRoot ?? '',
+    request: request,
+  );
 
   void _observeExecutionSnapshot(
     Conversation? conversation,
     ExecutionSnapshot snapshot,
+    TurnOwnerSnapshot? ownerSnapshot,
   ) {
-    if (conversation?.workspaceMode != WorkspaceMode.coding) {
-      return;
-    }
-    final observationKey = '${conversation?.id}|${snapshot.observationKey}';
-    if (_latestExecutionSnapshotObservationKey == observationKey) {
-      return;
-    }
-    _latestExecutionSnapshotObservationKey = observationKey;
-    appLog('[ExecutionShadow] ${snapshot.toRedactedLogSummary()}');
-    if (!LlmSessionLogStore.isEnabled(
-      settingsEnabled: _settings.enableLlmSessionLogs,
-    )) {
-      return;
-    }
+    if (conversation == null) return;
+    final context = ownerSnapshot?.owner.conversationId == conversation.id
+        ? ownerSnapshot!.sessionLogContext
+        : _buildLlmSessionLogContext(targetConversationId: conversation.id);
     unawaited(
-      ref
-          .read(llmSessionLogStoreProvider)
-          .recordExecutionShadow(
-            context: _currentLlmSessionLogContext(),
-            at: DateTime.now(),
-            contractHash: snapshot.contractHash,
-            workflowStage: snapshot.workflowStage.name,
-            action: snapshot.action.name,
-            activeTaskRef: snapshot.activeTaskRef,
-            taskStatus: snapshot.activeTaskStatus?.name,
-            validationStatus: snapshot.validationStatus.name,
-            completedTaskCount: snapshot.completedTaskCount,
-            totalTaskCount:
-                snapshot.completedTaskCount + snapshot.remainingTaskCount,
-            unresolvedQuestionCount: snapshot.unresolvedQuestionCount,
-            requiresValidation: snapshot.requiresValidation,
-            hasDiagnostic: snapshot.latestDiagnostic != null,
+      _executionSnapshotObserver.observe(
+        ExecutionSnapshotObservation(
+          conversationId: conversation.id,
+          workspaceMode: conversation.workspaceMode,
+          snapshot: snapshot,
+          loggingEnabled: LlmSessionLogStore.isEnabled(
+            settingsEnabled: _settings.enableLlmSessionLogs,
           ),
+          logContext: context,
+          timestamp: DateTime.now(),
+        ),
+      ),
     );
   }
 
   CodingProject? _codingProjectForTurn(Conversation? conversation) =>
       _codingProjects.forConversation(conversation);
 
-  /// Null leaves the visible-project fallback in place: only a turn that
-  /// resolves to a project of its own overrides it.
+  /// An empty registered root blocks the visible-project fallback.
   TurnProjectRoot? _turnProjectRootFor(int? generation) {
     if (generation == null) return null;
-    final id = _activeResponseConversationIdForGeneration(generation);
-    final conversation = id == null ? null : _conversationForId(id);
-    if (conversation == null) return null;
-    final rootPath = _codingProjectForTurn(conversation)?.rootPath.trim();
-    if (rootPath == null || rootPath.isEmpty) return null;
-    return TurnProjectRoot(rootPath);
+    return TurnProjectRoot(_projectRootForGeneration(generation) ?? '');
   }
 
-  CodingProject? _getEffectiveCodingProject() => _codingProjects.effective;
+  String? _projectRootForGeneration(int generation) =>
+      _turnOwnerSnapshotForGeneration(generation)?.projectRoot;
 
-  String? _loadAgentsMd(AssistantMode assistantMode, CodingProject? project) {
+  String? _loadAgentsMd(AssistantMode assistantMode, String? projectRoot) {
     if (!_settings.enableAgentsMd || assistantMode == AssistantMode.general) {
       return null;
     }
-    return ref.read(agentsMdLoaderProvider).loadForProject(project?.rootPath);
+    return ref.read(agentsMdLoaderProvider).loadForProject(projectRoot);
   }
 
-  String? _repoMap(AssistantMode assistantMode, CodingProject? project) {
+  String? _repoMap(AssistantMode assistantMode, String? projectRoot) {
     if (assistantMode == AssistantMode.general) return null;
     final lspSymbolEntries = ref
         .read(repoMapLspSymbolCacheProvider)
-        .entriesForRoot(project?.rootPath);
+        .entriesForRoot(projectRoot);
     // LL22: serve from the precompute cache when the project signature is
     // unchanged; otherwise this rebuilds and stores it (a cold first turn).
     return ref
         .read(repoMapPrecomputeCacheProvider)
         .getOrBuild(
-          rootPath: project?.rootPath,
+          rootPath: projectRoot,
           usableContextTokens:
               _settings.effectiveModelCapabilityProfile?.usableContextTokens,
           lspSymbolEntries: lspSymbolEntries,

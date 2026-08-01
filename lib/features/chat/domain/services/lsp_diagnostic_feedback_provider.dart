@@ -4,6 +4,8 @@ import 'coding_diagnostic_feedback_service.dart';
 import 'dart_project_tooling.dart';
 import 'language_diagnostics_bridge.dart';
 
+export 'lsp_go_to_definition_tool_contract.dart' show LspDefinitionLocation;
+
 abstract interface class LspDiagnosticClient {
   String get providerName;
 
@@ -88,22 +90,6 @@ class LspDocumentSymbol {
   List<LspDocumentSymbol> flatten() {
     return [this, for (final child in children) ...child.flatten()];
   }
-}
-
-class LspDefinitionLocation {
-  const LspDefinitionLocation({
-    required this.uri,
-    required this.startLine,
-    required this.startCharacter,
-    this.endLine,
-    this.endCharacter,
-  });
-
-  final String uri;
-  final int startLine;
-  final int startCharacter;
-  final int? endLine;
-  final int? endCharacter;
 }
 
 class LspDiagnosticFeedbackProvider

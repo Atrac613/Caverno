@@ -6,6 +6,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_guardrail_service.dart';
 import 'context_surgery_observation_service.dart';
+import 'file_mutation_evidence_policy.dart';
 
 enum ToolResultPromptBudgetMode { normal, compact }
 
@@ -223,6 +224,8 @@ class _ToolResultPromptBudget {
 
 class ToolResultPromptBuilder {
   ToolResultPromptBuilder._();
+
+  static const _fileMutationEvidencePolicy = FileMutationEvidencePolicy();
 
   static const String exactPreservationToolResultInstruction =
       SystemPromptConstants.toolResultExactPreservationInstruction;
@@ -954,7 +957,7 @@ class ToolResultPromptBuilder {
     final indexByPath = <String, int>{};
     for (var index = 0; index < toolResults.length; index += 1) {
       final toolResult = toolResults[index];
-      if (!_isFileMutationToolName(toolResult.name)) {
+      if (!_fileMutationEvidencePolicy.isMutationToolName(toolResult.name)) {
         continue;
       }
       final decoded = _tryDecodeJsonMap(toolResult.result);
@@ -967,17 +970,6 @@ class ToolResultPromptBuilder {
       }
     }
     return indexByPath;
-  }
-
-  static bool _isFileMutationToolName(String toolName) {
-    switch (toolName.trim().toLowerCase()) {
-      case 'write_file':
-      case 'edit_file':
-      case 'delete_file':
-      case 'rollback_last_file_change':
-        return true;
-    }
-    return false;
   }
 
   static bool _isSuccessfulFileMutation(Map<String, dynamic> decoded) {

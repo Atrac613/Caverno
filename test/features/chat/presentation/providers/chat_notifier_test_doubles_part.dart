@@ -128,7 +128,9 @@ class _TestConversationsNotifier extends ConversationsNotifier {
   }
 
   @override
-  Future<void> ensureCurrentPlanArtifactBackfilled() async {}
+  Future<void> ensureCurrentPlanArtifactBackfilled({
+    String? conversationId,
+  }) async {}
 }
 
 class _GoalAutoContinueConversationsNotifier
@@ -144,6 +146,7 @@ class _GoalAutoContinueConversationsNotifier
     DateTime? workflowDerivedAt,
     bool clearWorkflowSpec = false,
     bool preserveWorkflowProjection = false,
+    String? conversationId,
   }) async {
     final conversation = state.currentConversation;
     if (conversation == null) {
@@ -209,13 +212,12 @@ class _GoalAutoContinueConversationsNotifier
     ToolResultCompletionEvidence completionEvidence =
         const ToolResultCompletionEvidence(),
     bool toolCompletionClaimed = false,
+    String? conversationId,
   }) async {
     lastToolCompletionClaimed = toolCompletionClaimed;
-    final conversation = state.currentConversation;
+    final conversation = state.conversationForId(conversationId);
     final goal = conversation?.goal;
-    if (conversation == null || goal == null || !goal.isActive) {
-      return false;
-    }
+    if (conversation == null || goal == null || !goal.isActive) return false;
     _replaceCurrentConversation(
       conversation.copyWith(
         goal: goal.copyWith(
@@ -273,8 +275,12 @@ class _TerminalSuccessGoalConversationsNotifier
   String? recordedAssistantResponse;
 
   @override
-  Future<void> recordCurrentVerificationGeneration() async {
-    final conversation = state.currentConversation;
+  Future<void> recordVerificationGeneration({
+    required String conversationId,
+  }) async {
+    final conversation = state.conversations
+        .where((candidate) => candidate.id == conversationId)
+        .firstOrNull;
     if (conversation == null) return;
     _replaceCurrentConversation(
       conversation.copyWith(
@@ -284,16 +290,24 @@ class _TerminalSuccessGoalConversationsNotifier
   }
 
   @override
+  Future<void> recordCurrentVerificationGeneration() async {
+    final conversationId = state.currentConversationId;
+    if (conversationId == null) return;
+    await recordVerificationGeneration(conversationId: conversationId);
+  }
+
+  @override
   Future<bool> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
         const ToolResultCompletionEvidence(),
     bool toolCompletionClaimed = false,
+    String? conversationId,
   }) async {
     lastToolCompletionClaimed = toolCompletionClaimed;
     recordedAssistantResponse = assistantResponse;
-    final conversation = state.currentConversation;
+    final conversation = state.conversationForId(conversationId);
     final goal = conversation?.goal;
     if (conversation == null || goal == null) return false;
     final summary = assistantResponse
@@ -358,13 +372,12 @@ class _GitLifecycleGoalConversationsNotifier
     ToolResultCompletionEvidence completionEvidence =
         const ToolResultCompletionEvidence(),
     bool toolCompletionClaimed = false,
+    String? conversationId,
   }) async {
     lastToolCompletionClaimed = toolCompletionClaimed;
-    final current = state.currentConversation;
+    final current = state.conversationForId(conversationId);
     final goal = current?.goal;
-    if (current == null || goal == null) {
-      return false;
-    }
+    if (current == null || goal == null) return false;
     final now = DateTime(2026, 5, 25, 10, goal.turnsUsed + 1);
     final normalized = assistantResponse.toLowerCase();
     final completed =
@@ -454,7 +467,9 @@ class _DivergingSaveConversationsNotifier extends ConversationsNotifier {
   }
 
   @override
-  Future<void> ensureCurrentPlanArtifactBackfilled() async {}
+  Future<void> ensureCurrentPlanArtifactBackfilled({
+    String? conversationId,
+  }) async {}
 }
 
 class _WorkflowTestConversationsNotifier extends ConversationsNotifier {
@@ -502,7 +517,9 @@ class _WorkflowTestConversationsNotifier extends ConversationsNotifier {
   }
 
   @override
-  Future<void> ensureCurrentPlanArtifactBackfilled() async {}
+  Future<void> ensureCurrentPlanArtifactBackfilled({
+    String? conversationId,
+  }) async {}
 }
 
 class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
@@ -631,7 +648,10 @@ class _TrackingSessionMemoryService extends _TestSessionMemoryService {
 
 class _MockAppLifecycleService extends Mock implements AppLifecycleService {}
 
-class _MockSshService extends Mock implements SshService {}
+class _MockSshService extends Mock implements SshService {
+  @override
+  Future<void> clearOwner({required ChatTurnOwner owner}) async {}
+}
 
 class _MockSshCredentialsManager extends Mock
     implements SshCredentialsManager {}
@@ -666,91 +686,15 @@ class _NotificationCall {
   final String body;
 }
 
-/// In-memory [SkillsNotifier] for save_skill tests: persists upserts in state
-/// (resolving updates by id) without a Hive-backed repository.
-class _RecordingSkillsNotifier extends SkillsNotifier {
-  @override
-  SkillsState build() => SkillsState.initial();
+class _InMemoryRoutineRepository implements RoutineRepositoryApi {
+  List<Routine> _routines = [];
 
   @override
-  Future<Skill> upsertMarkdown({
-    String? existingId,
-    required String markdown,
-    bool enabled = true,
-  }) async {
-    final parsed = SkillMarkdownParser.parse(markdown);
-    final now = DateTime(2026, 6, 22, 19, 30);
-    Skill? existing;
-    for (final skill in state.skills) {
-      if (skill.id == existingId) {
-        existing = skill;
-        break;
-      }
-    }
-    final saved = Skill(
-      id: existing?.id ?? 'skill-${state.skills.length + 1}',
-      name: parsed.name,
-      description: parsed.description,
-      whenToUse: parsed.whenToUse,
-      content: parsed.content,
-      enabled: existing?.enabled ?? enabled,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    );
-    state = SkillsState(
-      skills: [
-        for (final skill in state.skills)
-          if (skill.id != saved.id) skill,
-        saved,
-      ],
-    );
-    return saved;
-  }
-}
-
-/// In-memory [RoutinesNotifier] for create_routine tests: records created
-/// routines in state without touching SharedPreferences or the scheduler.
-class _RecordingRoutinesNotifier extends RoutinesNotifier {
-  @override
-  RoutinesState build() => const RoutinesState(routines: []);
+  List<Routine> loadAll() => List<Routine>.unmodifiable(_routines);
 
   @override
-  Future<void> createRoutine({
-    required String name,
-    required String prompt,
-    required int intervalValue,
-    required RoutineIntervalUnit intervalUnit,
-    required RoutineScheduleMode scheduleMode,
-    required int timeOfDayMinutes,
-    required bool enabled,
-    required bool notifyOnCompletion,
-    required bool toolsEnabled,
-    required RoutineCompletionAction completionAction,
-    required RoutineGoogleChatRule googleChatRule,
-    String workspaceDirectory = '',
-    bool allowWorkspaceWrites = false,
-  }) async {
-    final now = DateTime(2026, 6, 23, 22, 0);
-    final routine = Routine(
-      id: 'routine-${state.routines.length + 1}',
-      name: name.trim(),
-      prompt: prompt.trim(),
-      createdAt: now,
-      updatedAt: now,
-      enabled: enabled,
-      notifyOnCompletion: notifyOnCompletion,
-      toolsEnabled: toolsEnabled,
-      completionAction: completionAction,
-      googleChatRule: googleChatRule,
-      workspaceDirectory: workspaceDirectory,
-      allowWorkspaceWrites: allowWorkspaceWrites,
-      intervalValue: intervalValue,
-      intervalUnit: intervalUnit,
-      scheduleMode: scheduleMode,
-      timeOfDayMinutes: timeOfDayMinutes,
-      nextRunAt: now.add(const Duration(hours: 1)),
-    );
-    state = RoutinesState(routines: [...state.routines, routine]);
+  Future<void> saveAll(List<Routine> routines) async {
+    _routines = List<Routine>.of(routines);
   }
 }
 
@@ -784,14 +728,12 @@ class _StreamingChatDataSource implements ChatDataSource, FinishReasonAware {
   final String? lastFinishReason;
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) {
-    return controller.stream;
-  }
+  }) => controller.stream.asCompletion(lastFinishReason);
 
   @override
   Future<ChatCompletionResult> createChatCompletion({
@@ -868,14 +810,12 @@ class _ToolAwareStreamingChatDataSource implements ChatDataSource {
   List<String> requestedToolNames = const [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) {
-    return controller.stream;
-  }
+  }) => controller.stream.asCompletion();
 
   @override
   Future<ChatCompletionResult> createChatCompletion({
@@ -981,14 +921,14 @@ class _FoundationModelsContextFallbackDataSource implements ChatDataSource {
   int normalRequestCount = 0;
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
   }) {
     normalRequestCount += 1;
-    return Stream<String>.fromIterable(const ['fallback response']);
+    return Stream.fromIterable(const ['fallback response']).asCompletion();
   }
 
   @override
@@ -1077,14 +1017,14 @@ class _ControllableQueueChatDataSource implements ChatDataSource {
   final List<List<Message>> requests = [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
   }) {
     requests.add(List<Message>.from(messages));
-    return controllers.removeFirst().stream;
+    return controllers.removeFirst().stream.asCompletion();
   }
 
   @override
@@ -1166,14 +1106,14 @@ class _DelayedAskQuestionToolChatDataSource implements ChatDataSource {
   final List<List<ToolResultInfo>> toolResultBatches = [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
   }) {
     finalAnswerRequests.add(List<Message>.from(messages));
-    return Stream<String>.fromIterable(finalAnswerChunks);
+    return Stream.fromIterable(finalAnswerChunks).asCompletion();
   }
 
   @override
@@ -1263,14 +1203,14 @@ class _SkippedSkillLoadChatDataSource implements ChatDataSource {
   final List<List<Message>> finalAnswerRequests = [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
   }) {
     finalAnswerRequests.add(List<Message>.from(messages));
-    return Stream<String>.fromIterable(finalAnswerChunks);
+    return Stream.fromIterable(finalAnswerChunks).asCompletion();
   }
 
   @override
@@ -1368,7 +1308,7 @@ class _QueuedAskQuestionToolChatDataSource implements ChatDataSource {
   final List<String?> finalAnswerContextConversationIds = [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
@@ -1378,11 +1318,11 @@ class _QueuedAskQuestionToolChatDataSource implements ChatDataSource {
       LlmSessionLogContext.current?.conversationId,
     );
     finalAnswerRequests.add(List<Message>.from(messages));
-    return Stream<String>.fromIterable([
+    return Stream.value(
       _finalAnswers.isEmpty
           ? 'Proceeding with the selected option.'
           : _finalAnswers.removeFirst(),
-    ]);
+    ).asCompletion();
   }
 
   @override
@@ -1473,7 +1413,7 @@ class _QueuedStreamingChatDataSource implements ChatDataSource {
   final List<List<Message>> requests = [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
@@ -1481,9 +1421,9 @@ class _QueuedStreamingChatDataSource implements ChatDataSource {
   }) {
     requests.add(List<Message>.from(messages));
     if (_responses.isEmpty) {
-      return const Stream<String>.empty();
+      return const Stream<String>.empty().asCompletion();
     }
-    return Stream<String>.fromIterable(_responses.removeFirst());
+    return Stream.fromIterable(_responses.removeFirst()).asCompletion();
   }
 
   @override
@@ -1563,7 +1503,7 @@ class _NativeToolFormatFallbackDataSource implements ChatDataSource {
   final List<List<Message>> plainRequests = [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
@@ -1571,9 +1511,9 @@ class _NativeToolFormatFallbackDataSource implements ChatDataSource {
   }) {
     plainRequests.add(List<Message>.from(messages));
     if (_plainResponses.isEmpty) {
-      return const Stream<String>.empty();
+      return const Stream<String>.empty().asCompletion();
     }
-    return Stream<String>.fromIterable(_plainResponses.removeFirst());
+    return Stream.fromIterable(_plainResponses.removeFirst()).asCompletion();
   }
 
   @override
@@ -1658,7 +1598,7 @@ class _ContinuationFallbackChatDataSource implements ChatDataSource {
   var _streamCallCount = 0;
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
@@ -1667,15 +1607,15 @@ class _ContinuationFallbackChatDataSource implements ChatDataSource {
     streamRequests.add(List<Message>.from(messages));
     _streamCallCount += 1;
     if (_streamCallCount == 1) {
-      return Stream<String>.fromIterable(const [
+      return Stream.value(
         '<tool_call>{"name":"read_file","arguments":{"path":"src/config_loader.py"}}</tool_call>',
-      ]);
+      ).asCompletion();
     }
     return Stream<String>.error(
       Exception(
         'ClientException: Connection closed before full header was received',
       ),
-    );
+    ).asCompletion();
   }
 
   @override
@@ -1778,7 +1718,7 @@ class _ParticipantStreamingChatDataSource
   String? get lastFinishReason => 'stop';
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
@@ -1787,12 +1727,12 @@ class _ParticipantStreamingChatDataSource
     streamRequests.add(List<Message>.from(messages));
     requestedModels.add(model);
     if (_manualStreams.isNotEmpty) {
-      return _manualStreams.removeFirst().stream;
+      return _manualStreams.removeFirst().stream.asCompletion(lastFinishReason);
     }
     final chunks = _chunkBatches.isEmpty
         ? const <String>[]
         : _chunkBatches.removeFirst();
-    return Stream<String>.fromIterable(chunks);
+    return Stream.fromIterable(chunks).asCompletion(lastFinishReason);
   }
 
   @override
@@ -1951,22 +1891,22 @@ class _ToolBatchChatDataSource implements ChatDataSource {
   var _toolLoopResponseCount = 0;
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) async* {
+  }) {
     final requestMessages = List<Message>.from(messages);
     finalAnswerRequestMessages.add(requestMessages);
     finalAnswerMessages = requestMessages;
     if (failFirstFinalAnswerStreamWithContextLength &&
         finalAnswerRequestMessages.length == 1) {
-      throw StateError(
-        'This model has a maximum context length of 8192 tokens',
-      );
+      return Stream<String>.error(
+        StateError('This model has a maximum context length of 8192 tokens'),
+      ).asCompletion();
     }
-    yield* Stream<String>.fromIterable(finalAnswerChunks);
+    return Stream.fromIterable(finalAnswerChunks).asCompletion();
   }
 
   @override
@@ -2109,15 +2049,15 @@ class _FinalAnswerRecoveryChatDataSource
   String? get lastFinishReason => _lastFinishReason;
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) async* {
+  }) {
     finalAnswerStreamCount += 1;
     _lastFinishReason = firstFinishReason;
-    yield firstAnswer;
+    return Stream.value(firstAnswer).asCompletion(firstFinishReason);
   }
 
   @override
@@ -2260,17 +2200,17 @@ class _GoalAutoContinueChatDataSource implements ChatDataSource {
   final List<List<Message>> autoReviewRequestMessages = [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) async* {
+  }) {
     finalAnswerRequestMessages.add(List<Message>.from(messages));
     final chunks = _finalAnswerChunkBatches.isEmpty
         ? const ['No final answer queued.']
         : _finalAnswerChunkBatches.removeFirst();
-    yield* Stream<String>.fromIterable(chunks);
+    return Stream.fromIterable(chunks).asCompletion();
   }
 
   @override
@@ -2453,12 +2393,12 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
   final List<double?> finalAnswerTemperatures = [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) async* {
+  }) {
     finalAnswerTemperatures.add(temperature);
     finalAnswerMessages
       ..clear()
@@ -2466,7 +2406,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
     final chunks = _finalAnswerChunkBatches.isNotEmpty
         ? _finalAnswerChunkBatches.removeFirst()
         : finalAnswerChunks;
-    yield* Stream<String>.fromIterable(chunks);
+    return Stream.fromIterable(chunks).asCompletion();
   }
 
   @override
@@ -2565,14 +2505,12 @@ class _NoToolStreamingWithToolsDataSource implements ChatDataSource {
   final String completionContent;
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) {
-    throw UnimplementedError();
-  }
+  }) => throw UnimplementedError();
 
   @override
   Future<ChatCompletionResult> createChatCompletion({
@@ -2869,7 +2807,8 @@ class _PlanSettingsNotifier extends SettingsNotifier {
   }
 }
 
-class _FakeMcpToolService extends McpToolService {
+class _FakeMcpToolService extends McpToolService
+    with FileTools, OwnerAwareMcpToolTestDelegate {
   _FakeMcpToolService({
     required this.results,
     this.descriptions = const {},
@@ -2991,6 +2930,7 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
 
   @override
   Future<String> start({
+    required ChatTurnOwner owner,
     required String command,
     required String workingDirectory,
     String? label,
@@ -3011,7 +2951,11 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 
   @override
-  Future<String> status({required String jobId, int? tailChars}) async {
+  Future<String> status({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? tailChars,
+  }) async {
     final queued = queuedStatusResults[jobId];
     if (queued != null && queued.isNotEmpty) {
       return queued.removeAt(0);
@@ -3026,7 +2970,8 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 }
 
-class _WritingFileMcpToolService extends McpToolService {
+class _WritingFileMcpToolService extends McpToolService
+    with FileTools, OwnerAwareMcpToolTestDelegate {
   _WritingFileMcpToolService(this.root);
 
   final Directory root;
@@ -3428,7 +3373,11 @@ _runSavedValidationWrapperFollowUpScenario({
   }
 }
 
-class _SelectiveFakeMcpToolService extends McpToolService {
+// The owner-aware delegate mirrors production: the file mutation runtime
+// executes raw mutations through the service's owner-fenced boundary, so a
+// double that only overrides executeTool never observes them.
+class _SelectiveFakeMcpToolService extends McpToolService
+    with FileTools, OwnerAwareMcpToolTestDelegate {
   _SelectiveFakeMcpToolService({required this.results});
 
   final Map<String, String> results;
@@ -3567,14 +3516,12 @@ class _QueuedProposalDataSource implements ChatDataSource {
   final List<List<Message>> requests = [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) {
-    throw UnimplementedError();
-  }
+  }) => throw UnimplementedError();
 
   @override
   Future<ChatCompletionResult> createChatCompletion({

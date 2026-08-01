@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 
 import '../../integration_test/test_support/plan_mode_post_scenario_settle.dart';
@@ -26,6 +27,10 @@ void main() {
     expect(chatStateHasPlanModePendingApprovals(ChatState.initial()), isFalse);
 
     final pendingLocalCommand = PendingLocalCommand(
+      owner: ChatTurnOwner(
+        conversationId: 'post-scenario-settle',
+        interactionGeneration: 1,
+      ),
       id: 'local-1',
       command: 'echo ok',
       workingDirectory: '/tmp',

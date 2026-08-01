@@ -1,5 +1,6 @@
 import '../../data/datasources/chat_datasource.dart';
 import '../../../routines/data/routine_tool_runner.dart';
+import '../entities/chat_turn_owner.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/message.dart';
 import '../entities/subagent_task.dart';
@@ -29,6 +30,7 @@ class SubagentExecutionService {
   /// [tools] must already be filtered through
   /// [SubagentToolPolicy.filterInheritedToolDefinitions] by the caller.
   Future<SubagentTask> run({
+    required ChatTurnOwner owner,
     required String id,
     required String description,
     required String prompt,
@@ -69,6 +71,8 @@ class SubagentExecutionService {
       final output = _capOutput(result.output);
       return SubagentTask(
         id: id,
+        conversationId: owner.conversationId,
+        interactionGeneration: owner.interactionGeneration,
         status: SubagentTaskStatus.completed,
         description: description,
         parentToolUseId: parentToolUseId,
@@ -82,6 +86,8 @@ class SubagentExecutionService {
     } catch (error) {
       return SubagentTask(
         id: id,
+        conversationId: owner.conversationId,
+        interactionGeneration: owner.interactionGeneration,
         status: SubagentTaskStatus.failed,
         description: description,
         parentToolUseId: parentToolUseId,

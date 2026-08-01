@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'chat_turn_owner.dart';
+
 part 'subagent_task.freezed.dart';
 part 'subagent_task.g.dart';
 
@@ -23,6 +25,8 @@ abstract class SubagentTask with _$SubagentTask {
 
   const factory SubagentTask({
     required String id,
+    @Default('') String conversationId,
+    @Default(-1) int interactionGeneration,
     @Default(SubagentTaskStatus.pending) SubagentTaskStatus status,
     @Default('') String description,
     String? parentToolUseId,
@@ -38,6 +42,16 @@ abstract class SubagentTask with _$SubagentTask {
 
   factory SubagentTask.fromJson(Map<String, dynamic> json) =>
       _$SubagentTaskFromJson(json);
+
+  /// True for rows decoded from JSON written before owner fields existed.
+  bool get isLegacyUnowned =>
+      conversationId.trim().isEmpty || interactionGeneration < 1;
+
+  /// Whether this task belongs to the exact conversation turn.
+  bool isOwnedBy(ChatTurnOwner owner) =>
+      !isLegacyUnowned &&
+      conversationId == owner.conversationId &&
+      interactionGeneration == owner.interactionGeneration;
 
   /// True once the task has settled and will not transition further.
   bool get isTerminal =>

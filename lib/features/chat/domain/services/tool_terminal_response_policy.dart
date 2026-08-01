@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import '../entities/tool_call_info.dart';
+import 'file_mutation_evidence_policy.dart';
+import 'hidden_assistant_evidence_scorer.dart';
 
 typedef ToolResponseTextPredicate = bool Function(String value);
-typedef ToolResultPredicate = bool Function(ToolResultInfo value);
-typedef ToolResultPayloadPathResolver = String? Function(String result);
 typedef CodeUnitSequencePredicate =
     bool Function(String value, List<List<int>> sequences);
 
@@ -14,9 +14,6 @@ class ToolTerminalResponsePolicy {
     required ToolResponseTextPredicate looksLikePlanOnlyFinalToolAnswer,
     required ToolResponseTextPredicate looksLikePendingToolActionResponse,
     required ToolResponseTextPredicate looksLikeStructuredToolRequest,
-    required ToolResponseTextPredicate isFileMutationToolName,
-    required ToolResultPredicate isSuccessfulFileMutationToolResult,
-    required ToolResultPayloadPathResolver toolResultPayloadPath,
     required CodeUnitSequencePredicate containsAnyCodeUnitSequence,
     required ToolResponseTextPredicate containsCjkBlockerMarker,
     required ToolResponseTextPredicate containsCjkMissingEvidenceMarker,
@@ -24,26 +21,22 @@ class ToolTerminalResponsePolicy {
        _looksLikePlanOnlyFinalToolAnswer = looksLikePlanOnlyFinalToolAnswer,
        _looksLikePendingToolActionResponse = looksLikePendingToolActionResponse,
        _looksLikeStructuredToolRequest = looksLikeStructuredToolRequest,
-       _isFileMutationToolName = isFileMutationToolName,
-       _isSuccessfulFileMutationToolResult = isSuccessfulFileMutationToolResult,
-       _toolResultPayloadPath = toolResultPayloadPath,
        _containsAnyCodeUnitSequence = containsAnyCodeUnitSequence,
        _containsCjkBlockerMarker = containsCjkBlockerMarker,
        _containsCjkMissingEvidenceMarker = containsCjkMissingEvidenceMarker;
+
+  static const _fileMutationEvidencePolicy = FileMutationEvidencePolicy();
 
   final ToolResponseTextPredicate _looksLikeUnexecutedToolRequest;
   final ToolResponseTextPredicate _looksLikePlanOnlyFinalToolAnswer;
   final ToolResponseTextPredicate _looksLikePendingToolActionResponse;
   final ToolResponseTextPredicate _looksLikeStructuredToolRequest;
-  final ToolResponseTextPredicate _isFileMutationToolName;
-  final ToolResultPredicate _isSuccessfulFileMutationToolResult;
-  final ToolResultPayloadPathResolver _toolResultPayloadPath;
   final CodeUnitSequencePredicate _containsAnyCodeUnitSequence;
   final ToolResponseTextPredicate _containsCjkBlockerMarker;
   final ToolResponseTextPredicate _containsCjkMissingEvidenceMarker;
 
   int hiddenAssistantEvidenceScore(String response) {
-    return _hiddenAssistantEvidenceScore(response);
+    return HiddenAssistantEvidenceScorer.score(response);
   }
 
   bool shouldAcceptRecoveryFinalTextResponse(String response) {
@@ -166,31 +159,12 @@ class ToolTerminalResponsePolicy {
     return markers.any(value.contains);
   }
 
-  int _hiddenAssistantEvidenceScore(String response) {
-    final normalized = response.toLowerCase();
-    var score = 0;
-    if (normalized.contains('complete') || normalized.contains('completed')) {
-      score += 2;
-    }
-    if (normalized.contains('validation passed') ||
-        normalized.contains('tests passed') ||
-        normalized.contains('was successful')) {
-      score += 2;
-    }
-    if (normalized.contains('next task') ||
-        normalized.contains('saved task') ||
-        normalized.contains('in the plan')) {
-      score += 1;
-    }
-    return score;
-  }
-
   bool _shouldAcceptRecoveryFinalTextResponse(String response) {
     final candidate = response.trim();
     if (candidate.isEmpty) {
       return false;
     }
-    return _hiddenAssistantEvidenceScore(candidate) >= 2;
+    return hiddenAssistantEvidenceScore(candidate) >= 2;
   }
 
   bool _shouldAcceptTerminalToolRoleFinalTextResponse(String response) {
@@ -200,7 +174,7 @@ class ToolTerminalResponsePolicy {
     }
 
     final normalized = candidate.toLowerCase();
-    if (_hiddenAssistantEvidenceScore(candidate) < 2) {
+    if (hiddenAssistantEvidenceScore(candidate) < 2) {
       return false;
     }
     if (!normalized.contains('complete')) {
@@ -235,8 +209,10 @@ class ToolTerminalResponsePolicy {
 
     final successfulMutationResults = toolResults
         .where((toolResult) {
-          return _isFileMutationToolName(toolResult.name) &&
-              _isSuccessfulFileMutationToolResult(toolResult);
+          return _fileMutationEvidencePolicy.isMutationToolName(
+                toolResult.name,
+              ) &&
+              _fileMutationEvidencePolicy.isSuccessfulResult(toolResult);
         })
         .toList(growable: false);
     if (successfulMutationResults.isEmpty) {
@@ -246,7 +222,9 @@ class ToolTerminalResponsePolicy {
     final hasCompletionMarker =
         _containsFileMutationCompletionMarker(candidate) ||
         successfulMutationResults.any((toolResult) {
-          final path = _toolResultPayloadPath(toolResult.result);
+          final path = _fileMutationEvidencePolicy.resultPayloadPath(
+            toolResult.result,
+          );
           return path != null && candidate.contains(path);
         });
     if (!hasCompletionMarker) {
@@ -254,7 +232,9 @@ class ToolTerminalResponsePolicy {
     }
 
     return successfulMutationResults.any((toolResult) {
-      final path = _toolResultPayloadPath(toolResult.result);
+      final path = _fileMutationEvidencePolicy.resultPayloadPath(
+        toolResult.result,
+      );
       if (path == null) {
         return true;
       }
@@ -296,7 +276,10 @@ class ToolTerminalResponsePolicy {
           return toolResult.name.trim().toLowerCase() == 'browser_save_data' &&
               _toolResultLooksSuccessfulForFinalAnswer(toolResult.result);
         })
-        .map((toolResult) => _toolResultPayloadPath(toolResult.result))
+        .map(
+          (toolResult) =>
+              _fileMutationEvidencePolicy.resultPayloadPath(toolResult.result),
+        )
         .whereType<String>()
         .where((path) => path.trim().isNotEmpty)
         .toList(growable: false);

@@ -269,7 +269,9 @@ class _TestConversationsNotifier extends ConversationsNotifier {
   }
 
   @override
-  Future<void> ensureCurrentPlanArtifactBackfilled() async {}
+  Future<void> ensureCurrentPlanArtifactBackfilled({
+    String? conversationId,
+  }) async {}
 }
 
 class _MockMemoryBox extends Mock implements Box<String> {}
@@ -371,13 +373,16 @@ class _ToolBatchChatDataSource implements ChatDataSource {
   final List<List<Map<String, dynamic>>> followUpToolDefinitionBatches = [];
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
   }) {
-    return Stream<String>.fromIterable(const ['Combined tool summary']);
+    return StreamedChatCompletion.fromStream(
+      Stream<String>.fromIterable(const ['Combined tool summary']),
+      finishReason: 'stop',
+    );
   }
 
   @override

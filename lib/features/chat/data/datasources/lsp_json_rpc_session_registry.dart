@@ -84,6 +84,9 @@ class LspJsonRpcSessionRegistry
   @override
   bool get supportsGoToDefinition => true;
 
+  /// Whether this registry supplies definitions without session receipts.
+  bool get usesDirectDefinitionLookup => false;
+
   List<LspJsonRpcSession> get sessions =>
       List<LspJsonRpcSession>.unmodifiable(_sessions.values);
 
@@ -263,6 +266,24 @@ class LspJsonRpcSessionRegistry
       character: character,
       timeout: definitionRequestTimeout,
     );
+  }
+
+  /// Closes only the exact session that is still current for this key.
+  Future<bool> closeSessionIfMatches({
+    required String projectRoot,
+    required String languageId,
+    required LspJsonRpcSession expectedSession,
+  }) async {
+    final key = _sessionKey(
+      projectRoot: Directory(projectRoot).absolute.path,
+      languageId: languageId,
+    );
+    if (!identical(_sessions[key], expectedSession)) {
+      return false;
+    }
+    _sessions.remove(key);
+    await expectedSession.close();
+    return true;
   }
 
   Future<void> close() async {

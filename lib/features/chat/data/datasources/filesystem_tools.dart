@@ -2,24 +2,11 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
+export 'filesystem_text_snapshot.dart';
 
 import 'filesystem_diff_builder.dart';
 import 'filesystem_path_resolver.dart';
-
-class TextFileSnapshot {
-  const TextFileSnapshot({
-    required this.path,
-    required this.exists,
-    this.content,
-    this.error,
-  });
-
-  final String path;
-  final bool exists;
-  final String? content;
-  final String? error;
-}
+import 'filesystem_text_snapshot.dart';
 
 class _LineRangeSelection {
   const _LineRangeSelection({
@@ -985,58 +972,14 @@ class FilesystemTools {
     }
   }
 
-  static Future<TextFileSnapshot> captureTextSnapshot(String path) async {
-    final absolutePath = File(path).absolute.path;
-    final entityType = FileSystemEntity.typeSync(path, followLinks: false);
+  static Future<TextFileSnapshot> captureTextSnapshot(String path) =>
+      FilesystemTextSnapshot.capture(path);
 
-    if (entityType == FileSystemEntityType.notFound) {
-      return TextFileSnapshot(path: absolutePath, exists: false);
-    }
+  static Future<String> textSnapshotFingerprint(String path) =>
+      FilesystemTextSnapshot.fingerprint(path);
 
-    if (entityType != FileSystemEntityType.file &&
-        entityType != FileSystemEntityType.link) {
-      return TextFileSnapshot(
-        path: absolutePath,
-        exists: true,
-        error: 'Path is not a regular text file.',
-      );
-    }
-
-    final file = File(path);
-    try {
-      final rawBytes = await file.readAsBytes();
-      final content = utf8.decode(rawBytes, allowMalformed: false);
-      return TextFileSnapshot(
-        path: file.absolute.path,
-        exists: true,
-        content: content,
-      );
-    } on FormatException {
-      return TextFileSnapshot(
-        path: file.absolute.path,
-        exists: true,
-        error:
-            'File is not valid UTF-8 text. Diff preview is unavailable for '
-            'binary or non-text files.',
-      );
-    } on FileSystemException catch (error) {
-      return TextFileSnapshot(
-        path: file.absolute.path,
-        exists: true,
-        error: error.toString(),
-      );
-    }
-  }
-
-  static Future<String> textSnapshotFingerprint(String path) async {
-    final snapshot = await captureTextSnapshot(path);
-    final payload = jsonEncode({
-      'exists': snapshot.exists,
-      'content': snapshot.content,
-      'error': snapshot.error,
-    });
-    return sha256.convert(utf8.encode(payload)).toString();
-  }
+  static String textSnapshotFingerprintForSnapshot(TextFileSnapshot snapshot) =>
+      FilesystemTextSnapshot.fingerprintSnapshot(snapshot);
 
   static Future<String> buildWriteDiffPreview({
     required String path,

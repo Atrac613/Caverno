@@ -1,5 +1,4 @@
-// Same-library extension on [ChatNotifier]; see chat_notifier_git_handlers.dart
-// for the rationale behind the `ignore_for_file` directive.
+// Same-library extension; see chat_notifier_git_handlers.dart for rationale.
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
@@ -20,7 +19,10 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
     }
 
     final options = _parseAskUserQuestionOptions(toolCall.arguments['options']);
-    final savedTask = _currentSavedTaskForToolLoop();
+    // An untracked dispatcher has no owner and must not inherit visible policy.
+    final savedTask = interactionGeneration == null
+        ? null
+        : _savedTaskForGeneration(interactionGeneration);
     if (savedTask != null &&
         _terminalToolResponsePolicy.isSavedWorkflowContinuationQuestion(
           question,
@@ -173,7 +175,8 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
         conversationId == resolvedTargetConversationId) {
       state = state.copyWith(pendingAskUserQuestion: pending);
     }
-    _emitRuntimeQuestionRequired(
+    _runtimeEvents.emitRuntimeQuestionRequired(
+      _runtimeEventGeneration,
       CavernoRuntimeQuestionRequest(
         id: pending.id,
         prompt: pending.question,
@@ -208,25 +211,28 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
     }
   }
 
-  void _dismissAllPendingAskUserQuestions() {
-    final pendingQuestions = <PendingAskUserQuestion>[
-      ..._pendingAskUserQuestionsByThread.values,
-      if (state.pendingAskUserQuestion != null &&
-          !_pendingAskUserQuestionsByThread.values.any(
-            (pending) => pending.id == state.pendingAskUserQuestion!.id,
-          ))
-        state.pendingAskUserQuestion!,
-    ];
+  void _dismissPendingAskUserQuestionForConversation(
+    String ownerConversationId,
+  ) {
+    final pending = _pendingAskUserQuestionsByThread.remove(
+      ownerConversationId,
+    );
+    if (pending == null) return;
+    if (!pending.completer.isCompleted) pending.completer.complete();
+    if (state.pendingAskUserQuestion?.id != pending.id) return;
+    state = state.copyWith(pendingAskUserQuestion: null);
+  }
 
+  void _dismissAllPendingAskUserQuestions() {
+    final pendingQuestions = _pendingAskUserQuestionsByThread.values.toSet();
+    final visiblePending = state.pendingAskUserQuestion;
+    if (visiblePending != null) pendingQuestions.add(visiblePending);
     for (final pending in pendingQuestions) {
-      if (!pending.completer.isCompleted) {
-        pending.completer.complete();
-      }
+      if (!pending.completer.isCompleted) pending.completer.complete();
     }
     _pendingAskUserQuestionsByThread.clear();
-    if (state.pendingAskUserQuestion != null) {
-      state = state.copyWith(pendingAskUserQuestion: null);
-    }
+    if (visiblePending == null) return;
+    state = state.copyWith(pendingAskUserQuestion: null);
   }
 
   List<AskUserQuestionOption> _parseAskUserQuestionOptions(dynamic rawOptions) {

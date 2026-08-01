@@ -1,14 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-
 import '../../../../core/services/agents_md_loader.dart';
 import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/serial_port_service.dart';
@@ -20,6 +18,8 @@ import '../../../../core/services/notification_providers.dart';
 import '../../../../core/services/ssh_credentials_manager.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/tool_approval_audit_log.dart';
+import 'chat_ssh_tool_runtime.dart';
+import 'ssh_service_chat_transport.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
@@ -31,17 +31,12 @@ import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_planning_prompt_service.dart';
 import '../../domain/services/system_prompt_builder.dart';
 import '../../domain/services/session_memory_service.dart';
-import '../../domain/services/skill_markdown_parser.dart';
+import '../../domain/services/secondary_completion_router.dart';
 import '../../domain/services/skill_prompt_index_builder.dart';
-import '../../domain/services/skill_similarity_service.dart';
-import '../../../routines/domain/entities/routine.dart';
-import '../../../routines/domain/services/routine_schedule_service.dart';
 import '../../../routines/presentation/providers/routines_notifier.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/llm_provider_capabilities.dart';
 import '../../../settings/domain/services/llm_request_temperature_policy.dart';
-import '../../../settings/domain/services/llm_sampler_preset_profile.dart';
-import '../../../settings/domain/services/llm_sampler_runtime_feedback_service.dart';
 import '../../../settings/domain/services/external_tool_hook_service.dart';
 import '../../../settings/domain/services/primary_model_preparation_service.dart';
 import '../../../settings/presentation/providers/local_model_lifecycle_provider.dart';
@@ -50,21 +45,28 @@ import '../../data/datasources/apple_foundation_models_datasource.dart';
 import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
+import '../../data/datasources/create_routine_tool_runtime_adapter.dart';
 import '../../data/datasources/mesh_secondary_completion_runner.dart';
 import '../../data/datasources/participant_completion_runner.dart';
 import '../../data/datasources/demo_datasource.dart';
+import '../../data/datasources/background_process_completion_monitor.dart';
 import '../../data/datasources/background_process_monitor_service.dart';
+import '../../data/datasources/execution_snapshot_log_runtime_adapter.dart';
 import '../../data/datasources/file_rollback_checkpoint_store.dart';
+import '../../data/datasources/file_mutation_tool_runtime_adapter.dart';
 import '../../data/datasources/filesystem_tools.dart';
 import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/local_shell_tools.dart';
-import '../../data/datasources/lsp_json_rpc_session_registry.dart';
+import '../../data/datasources/lsp_go_to_definition_runtime_adapter.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../data/datasources/project_scoped_tool_argument_resolver.dart';
 import '../../data/datasources/turn_project_root.dart';
-import '../../data/datasources/python_input_staging.dart';
+import '../../data/datasources/python_script_tool_runtime_adapter.dart';
+import '../../data/datasources/save_skill_tool_runtime_adapter.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/session_logging_chat_datasource.dart';
+import 'python_script_approval_cache_runtime_adapter.dart';
+import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
@@ -77,13 +79,17 @@ import '../../domain/entities/skill.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/conversation_workflow.dart';
-import '../../domain/services/content_tool_result_formatter.dart';
+import '../../domain/services/content_tool_continuation_prompt_builder.dart';
+import '../../domain/services/content_tool_formatters.dart';
+import '../../domain/services/context_surgery_observation_accumulator.dart';
+import '../../domain/services/create_routine_tool_handler.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
+import '../../domain/services/duplicate_tool_result_recovery.dart';
+import '../../domain/services/fenced_tool_name_blocks.dart';
 import '../../domain/services/goal_auto_continue_evidence_marker.dart';
 import '../../domain/services/goal_auto_continue_prompt_builder.dart';
 import '../../domain/services/goal_completion_elicitation_prompt.dart';
-import '../../domain/services/context_surgery_observation_service.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../../../core/security/conversation_taint_state.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
@@ -92,36 +98,54 @@ import '../../domain/services/tool_loop_exit_reason.dart';
 import '../../domain/services/truncation_notice.dart';
 import 'tool_argument_json.dart';
 import 'turn_final_message.dart';
-import '../../domain/services/analysis_options_lint_edit_guard.dart';
-import '../../domain/services/coding_command_output_guardrail_service.dart';
+import '../../domain/services/chat_command_guardrail_collaborators.dart';
+import '../../domain/services/context_surgery_protected_path_policy.dart';
+import '../../domain/services/goal_validation_probe_guard.dart';
+import '../../domain/services/git_write_confirmation_policy.dart';
+import '../../domain/services/material_contract_assumption_guard.dart';
+import '../../domain/services/model_switch_handoff_registry.dart';
+import '../../domain/services/model_switch_settings_policy.dart';
+import '../../domain/services/saved_task_target_scope_guard.dart';
+import '../../domain/services/saved_validation_command_guard.dart';
+import '../../domain/services/timed_out_command_retry_guard.dart';
+import '../../domain/services/tool_loop_exhaustion_policy.dart';
+import '../../domain/services/unexecuted_file_mutation_before_command_guard.dart';
 import '../../domain/services/coding_diagnostic_feedback_service.dart';
-import '../../domain/services/coding_verification_claim_guard.dart';
+import '../../domain/services/coding_verification_feedback_presentation.dart';
 import '../../domain/services/coding_verification_feedback_service.dart';
-import '../../domain/services/command_diagnostic_verifier_replay_policy.dart';
+import '../../domain/services/command_diagnostic_verifier_replay_guard.dart';
 import '../../domain/services/chat_tool_dispatcher.dart';
+import '../../domain/services/turn_finalization_recovery_policy.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
-import '../../domain/services/conversation_plan_execution_guardrails.dart';
-import '../../domain/services/execution_snapshot_projector.dart';
 import '../../domain/services/verification_cadence_policy.dart';
 import '../../domain/services/execution_budget_policy.dart';
+import '../../domain/services/referenced_specification_loader.dart';
 import '../../domain/services/short_prompt_contract_builder.dart';
 import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/final_answer_claim_detector.dart';
+import '../../domain/services/final_answer_claim_notice_applicator.dart';
 import '../../domain/services/final_answer_recovery_policy.dart';
+import '../../domain/services/file_mutation_evidence_policy.dart';
+import '../../domain/services/file_mutation_tool_handler.dart';
+import '../../domain/services/file_turn_rollback_service.dart';
 import '../../domain/services/goal_completion_shadow.dart';
 import '../../domain/services/goal_update_ack.dart';
+import '../../domain/services/coding_continuation_recovery_policy.dart';
+import '../../domain/services/coding_verification_mutation_signature.dart';
 import '../../domain/services/pending_action_length_recovery_policy.dart';
+import '../../domain/services/process_start_result_policy.dart';
+import '../../domain/services/python_attachment_repair_policy.dart';
+import '../../domain/services/request_tool_observation_collector.dart';
+import '../../domain/services/runtime_sampler_feedback_recorder.dart';
 import '../../domain/services/successful_read_result_replay_cache.dart';
-import '../../domain/services/structured_coding_execution_deferral_detector.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
-import '../../domain/services/model_edit_apply_telemetry_service.dart';
-import '../../domain/services/narrated_transcript_claim_guard.dart';
-import '../../domain/services/model_switch_handoff_brief_service.dart';
+import '../../domain/services/narrated_transcript_repair_planner.dart';
 import '../../domain/services/participant_tool_policy.dart';
 import '../../domain/services/participant_turn_coordinator.dart';
 import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/planning_research_collector.dart';
+import '../../domain/services/ble_connect_attempt_coordinator.dart';
 import '../../domain/services/proposal_option_extraction.dart';
 import '../../domain/services/background_process_follow_up_policy.dart';
 import '../../domain/services/proposal_parsing_text_utils.dart';
@@ -139,28 +163,45 @@ import '../../domain/services/tool_result_taint_recorder.dart';
 import '../../domain/services/tool_terminal_response_policy.dart';
 import '../../domain/services/tool_terminal_success_policy.dart';
 import '../../domain/services/turn_diff_service.dart';
-import '../../domain/services/unwritten_file_claim_guard.dart';
+import '../../domain/services/unexecuted_final_answer_tool_request_policy.dart';
 import '../../domain/services/subagent_execution_service.dart';
 import '../../domain/services/subagent_tool_policy.dart';
 import '../../domain/services/stalled_diagnostic_repair_contract.dart';
 import '../../domain/services/workflow_task_proposal_quality_service.dart';
 import '../../../settings/domain/services/local_command_permission_service.dart';
 import 'active_response_registry.dart';
+import 'chat_error_message_builder.dart';
 import 'chat_state.dart';
 import 'chat_tool_execution_log_formatter.dart';
 import 'coding_projects_notifier.dart';
+import 'content_tool_turn_state_registry.dart';
 import 'caverno_execution_runtime_provider.dart';
 import 'conversations_notifier.dart';
+import 'create_routine_notifier_runtime_store.dart';
+import 'hidden_assistant_evidence_registry.dart';
+import 'file_mutation_approval_cache_runtime_adapter.dart';
 import 'macos_computer_use_approval_copy.dart';
 import 'mcp_tool_provider.dart';
+import 'model_edit_apply_telemetry_runtime_adapter.dart';
+import 'participant_turn_control_registry.dart';
 import 'repo_map_precompute_cache_provider.dart';
+import 'response_metadata_registry.dart';
+import 'runtime_turn_event_publisher.dart';
+import 'runtime_turn_evidence_publisher.dart';
 import 'skills_notifier.dart';
+import 'save_skill_notifier_runtime_store.dart';
 import 'thread_scoped_chat_state.dart';
 import 'thread_scoped_message_queue.dart';
 import 'tool_approval_cache.dart';
+import 'tool_dedupe_keys.dart';
 import 'turn_coding_project_resolver.dart';
+import 'turn_context_retry_coordinator.dart';
+import 'turn_message_persistence_coordinator.dart';
+import 'turn_finalization_state_registry.dart';
+import 'turn_goal_completion_evidence_registry.dart';
 import 'turn_thread_scope.dart';
 import 'turn_tool_result_ledger.dart';
+import 'turn_owner_snapshot_registry.dart';
 import 'subagent_task_notifier.dart';
 
 part 'chat_notifier_approval_handlers.dart';
@@ -172,23 +213,18 @@ part 'chat_notifier_coding_continuation_recovery.dart';
 part 'chat_notifier_command_guardrails.dart';
 part 'chat_notifier_computer_use_handlers.dart';
 part 'chat_notifier_context_surgery.dart';
-part 'chat_notifier_duplicate_recovery.dart';
 part 'chat_notifier_error_handling.dart';
 part 'chat_notifier_execution_runtime.dart';
 part 'chat_notifier_final_answer_recovery.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_local_file_handlers.dart';
-part 'chat_notifier_mesh_routing.dart';
 part 'chat_notifier_participant_turns.dart';
 part 'chat_notifier_serial_handlers.dart';
-part 'chat_notifier_skill_handlers.dart';
-part 'chat_notifier_routine_handlers.dart';
 part 'chat_notifier_ssh_handlers.dart';
 part 'chat_notifier_subagent_handlers.dart';
 part 'chat_notifier_python_attachment_repair.dart';
 part 'chat_notifier_unexecuted_action_recovery.dart';
 part 'chat_notifier_coding_verification_feedback.dart';
-part 'chat_notifier_python_handlers.dart';
 part 'chat_notifier_planning_research.dart';
 part 'chat_notifier_proposal_option_extraction.dart';
 part 'chat_notifier_proposal_parsing.dart';
@@ -295,53 +331,40 @@ class ChatNotifier extends Notifier<ChatState> {
   late CodingDiagnosticFeedbackService _codingDiagnosticFeedbackService;
   late CodingVerificationFeedbackService _codingVerificationFeedbackService;
   late BackgroundProcessMonitorService _backgroundProcessMonitorService;
-  final ToolLoopRecoveryPolicy _toolLoopRecoveryPolicy =
-      const ToolLoopRecoveryPolicy();
-  final ToolCallExecutionPolicy _toolCallExecutionPolicy =
-      const ToolCallExecutionPolicy();
-  final FinalAnswerClaimDetector _finalAnswerClaimDetector =
-      const FinalAnswerClaimDetector();
-  final FinalAnswerRecoveryPolicy _finalAnswerRecoveryPolicy =
-      const FinalAnswerRecoveryPolicy();
-  final PendingActionLengthRecoveryPolicy _pendingActionLengthRecoveryPolicy =
-      const PendingActionLengthRecoveryPolicy();
-  final UnwrittenFileClaimGuard _unwrittenFileClaimGuard =
-      const UnwrittenFileClaimGuard();
-  final CodingVerificationClaimGuard _codingVerificationClaimGuard =
-      const CodingVerificationClaimGuard();
-  final NarratedTranscriptClaimGuard _narratedTranscriptClaimGuard =
-      const NarratedTranscriptClaimGuard();
-  final PlanningToolPolicy _planningToolPolicy = const PlanningToolPolicy();
-  final ToolLoopContextDigest _toolLoopContextDigest =
-      const ToolLoopContextDigest();
-  final Map<int, CavernoRuntimeTurnHandle> _runtimeTurnsByGeneration =
-      <int, CavernoRuntimeTurnHandle>{};
-  final CavernoRuntimeFailureClassifier _runtimeFailureClassifier =
-      const CavernoRuntimeFailureClassifier();
-
-  final ConversationTaintState _conversationTaintState =
-      ConversationTaintState();
-  String? conversationId;
+  late SshService _sshService;
+  final _toolLoopRecoveryPolicy = const ToolLoopRecoveryPolicy();
+  final _toolCallExecutionPolicy = const ToolCallExecutionPolicy();
+  final _claims = const FinalAnswerClaimDetector();
+  final _claimNotices = const FinalAnswerClaimNoticeApplicator();
+  final _finalAnswerRecoveryPolicy = const FinalAnswerRecoveryPolicy();
+  final _fileMutationEvidencePolicy = const FileMutationEvidencePolicy();
+  final _pendingActions = const PendingActionLengthRecoveryPolicy();
+  final _transcriptRepairs = const NarratedTranscriptRepairPlanner();
+  final _planningToolPolicy = const PlanningToolPolicy();
+  final _toolLoopContextDigest = const ToolLoopContextDigest();
+  final _runtimeTurns = <int, CavernoRuntimeTurnHandle>{};
+  late final _runtimeEvents = RuntimeTurnEventPublisher(_runtimeTurns);
+  final _runtimeFailureClassifier = const CavernoRuntimeFailureClassifier();
+  late final _pythonScriptRuntime = _buildPythonScriptRuntimeAdapter();
+  late final _fileMutationRuntime = _buildFileMutationRuntimeAdapter();
+  final _conversationTaintState = ConversationTaintState();
+  String? conversationId, _activeTurnUserPrompt;
   String _languageCode = 'en';
-  String? _sessionMemoryContext;
-  String? _temporalReferenceContext;
+  String? _sessionMemoryContext, _temporalReferenceContext;
   Message? _hiddenPrompt;
-  bool _persistHiddenPromptAssistantResponse = false;
   bool _isVoiceMode = false;
-  TokenUsage _accumulatedTokenUsage = TokenUsage.zero;
-  String? _finalAnswerFinishReasonOverride;
   AssistantMode? _assistantModeOverride;
-  String? _latestObservedSystemPrompt;
-  String? _latestExecutionSnapshotObservationKey;
-  List<ToolResultInfo> _latestObservedToolResults = const [];
-  List<Map<String, dynamic>> _latestObservedToolDefinitions = const [];
-  Set<String> _latestObservedMcpToolNames = const {};
-  String? _modelSwitchHandoffBrief, _modelSwitchHandoffConversationId;
-  final TurnToolResultLedger _turnToolResults = TurnToolResultLedger();
-  final List<TurnDiffFile> _pendingTurnDiffFiles = [];
+  final _contextSurgeryObservations = ContextSurgeryObservationAccumulator();
+  final _modelSwitchHandoffs = ModelSwitchHandoffRegistry(clock: DateTime.now);
+  // Null until build() wires it: parsing helpers run on notifiers that
+  // never build, and telemetry is a side channel a parse must not need.
+  ModelEditApplyTelemetryRuntimeAdapter? _modelEditTelemetry;
+  final _turnToolResults = TurnToolResultLedger();
+  final _contentToolTurns = ContentToolTurnStateRegistry();
+  final _hiddenAssistantEvidence = HiddenAssistantEvidenceRegistry();
+  final _turnEnd = TurnFinalizationStateRegistry();
+  final _pendingTurnDiffFiles = <TurnDiffFile>[];
   late ToolResultArtifactStore _toolResultArtifactStore;
-  String? _latestHiddenAssistantResponse;
-  String? _activeTurnUserPrompt;
   DateTime? _activeTurnStartedAt;
   double get _agenticRequestTemperature =>
       LlmRequestTemperaturePolicy.forSettings(_settings).agenticTemperature;
@@ -357,11 +380,13 @@ class ChatNotifier extends Notifier<ChatState> {
       );
   static const int _maxRepeatedCodingVerificationRepairAttempts = 2;
   static const int _maxNarratedTranscriptRepairAttempts = 2;
-
   @override
   ChatState build() {
     _executionRuntime = ref.read(cavernoExecutionRuntimeProvider);
     _settings = ref.read(settingsNotifierProvider);
+    _modelEditTelemetry = ModelEditApplyTelemetryRuntimeAdapter(
+      ref.read(settingsNotifierProvider.notifier),
+    );
     _hasLoadedSettings = true;
     _dataSource = _withChatSessionLogging(
       ref.read(chatRemoteDataSourceProvider),
@@ -394,22 +419,16 @@ class ChatNotifier extends Notifier<ChatState> {
     _backgroundProcessMonitorService = ref.read(
       backgroundProcessMonitorServiceProvider,
     );
-
-    // Connect MCP tool service.
+    _sshService = ref.read(sshServiceProvider);
     _mcpToolService?.connect();
-
-    // Load initial messages from the currently selected conversation.
     final conversationsState = ref.read(conversationsNotifierProvider);
     final initialMessages =
         conversationsState.currentConversation?.messages ?? const <Message>[];
     conversationId = conversationsState.currentConversation?.id;
-
-    // React to settings changes.
     ref.listen<AppSettings>(settingsNotifierProvider, (previous, next) {
       _updateConnectionSettings(next);
     });
 
-    // React to MCP tool service changes.
     ref.listen<McpToolService?>(mcpToolServiceProvider, (previous, next) {
       updateMcpToolService(next);
     });
@@ -428,7 +447,6 @@ class ChatNotifier extends Notifier<ChatState> {
       },
     );
 
-    // React to conversation switches.
     ref.listen<ConversationsState>(conversationsNotifierProvider, (
       previous,
       next,
@@ -451,10 +469,27 @@ class ChatNotifier extends Notifier<ChatState> {
       unawaited(_prewarmProjectAccess(initialProjectId));
     }
 
-    // Cancel any in-flight streaming when the provider is disposed.
     ref.onDispose(() {
       _streamSubscription?.cancel();
       _streamSubscription = null;
+      _cancelAllPendingToolApprovals();
+      _failAllRuntimeTurns(
+        code: 'notifier_disposed',
+        message: 'The chat notifier was disposed before the turn completed.',
+        exitCode: 130,
+        recordExit: false,
+      );
+      _contentToolTurns.clear();
+      _hiddenAssistantEvidence.clear();
+      _turnEnd.clear();
+      _goalCompletionEvidence.clear();
+      _toolApprovalCache.clearAll();
+      _queuedChatMessages.clear();
+      _turnToolResults.clear();
+      _contextSurgeryObservations.clear();
+      _modelEditTelemetry?.clear();
+      _disposeAllParticipantTurnControls();
+      _conversationTaintState.dispose();
     });
 
     return initialMessages.isEmpty
@@ -462,54 +497,14 @@ class ChatNotifier extends Notifier<ChatState> {
         : ChatState.initial().copyWith(messages: initialMessages);
   }
 
-  /// Persists messages to the conversation store. Replaces the previous
-  /// `onMessagesChanged` callback wired in via the provider builder.
-  Future<void> _onMessagesChanged(
-    List<Message> messages, {
-    String? conversationId,
-  }) {
-    final targetConversationId =
-        conversationId ??
-        ref.read(conversationsNotifierProvider).currentConversationId;
-    if (targetConversationId == null) {
-      return Future<void>.value();
-    }
-    return _onConversationMessagesChanged(targetConversationId, messages);
-  }
-
-  Future<void> _onConversationMessagesChanged(
-    String conversationId,
-    List<Message> messages,
-  ) {
-    final messagesSnapshot = List<Message>.unmodifiable(messages);
-    final write = _conversationMessagePersistenceTail.then((_) async {
-      if (!ref.mounted) return;
-      await ref
-          .read(conversationsNotifierProvider.notifier)
-          .updateConversationMessages(conversationId, messagesSnapshot);
-    });
-    _conversationMessagePersistenceTail = write.catchError((
-      Object error,
-      StackTrace stackTrace,
-    ) {
-      appLog(
-        '[ChatNotifier] Conversation message persistence failed: '
-        '${error.runtimeType}: $error',
-      );
-      appLog('[ChatNotifier] stackTrace: $stackTrace');
-    });
-    return write;
-  }
-
   void _persistCurrentNonStreamingMessages() {
     final messagesToSave = state.messages
         .where((message) => !message.isStreaming)
-        .where(_shouldKeepVisibleMessage)
+        .where(_messagePersistence.shouldKeepVisibleMessage)
         .toList(growable: false);
-    unawaited(_onMessagesChanged(messagesToSave));
+    unawaited(_messagePersistence.persistCurrentMessages(messagesToSave));
   }
 
-  /// Speaks the assistant response via TTS when auto-read is enabled.
   void _onAutoRead(String content) {
     final result = ContentParser.parse(content);
     final buffer = StringBuffer();
@@ -526,9 +521,7 @@ class ChatNotifier extends Notifier<ChatState> {
     ttsService.speak(readableText);
   }
 
-  /// Begins extended background execution on iOS when a request starts.
   void _onSendStarted() {
-    _finalAnswerFinishReasonOverride = null;
     ref.read(backgroundTaskServiceProvider).beginBackgroundTask();
   }
 
@@ -628,9 +621,6 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  /// Ends extended background execution and posts a notification when the
-  /// app is in the background. Replaces the previous `onResponseCompleted`
-  /// callback.
   void _onResponseCompleted(String content) {
     ref.read(backgroundTaskServiceProvider).endBackgroundTask();
 
@@ -638,7 +628,6 @@ class ChatNotifier extends Notifier<ChatState> {
     final lifecycleService = ref.read(appLifecycleServiceProvider);
     if (!lifecycleService.isInBackground) return;
 
-    // Strip <think> blocks and extract readable text for the notification.
     final parsed = ContentParser.parse(content);
     final buffer = StringBuffer();
     for (final segment in parsed.segments) {
@@ -668,66 +657,44 @@ class ChatNotifier extends Notifier<ChatState> {
   LlmSessionLogContext _buildLlmSessionLogContext({
     String? targetConversationId,
   }) {
-    final conversationsState = ref.read(conversationsNotifierProvider);
     final currentConversation = targetConversationId == null
-        ? conversationsState.currentConversation
+        ? ref.read(conversationsNotifierProvider).currentConversation
         : _conversationForId(targetConversationId);
-    final workspaceMode =
-        currentConversation?.workspaceMode ??
-        (_settings.assistantMode == AssistantMode.coding ||
-                _settings.assistantMode == AssistantMode.plan
-            ? WorkspaceMode.coding
-            : WorkspaceMode.chat);
-    final resolvedConversationId =
-        targetConversationId ??
-        currentConversation?.id ??
-        conversationId ??
-        'unassigned';
-
-    return LlmSessionLogContext(
-      workspaceMode: workspaceMode,
-      sessionId: resolvedConversationId,
-      sessionTitle: currentConversation?.title,
-      conversationId: resolvedConversationId,
-      phase: _hiddenPrompt != null
-          ? 'hidden_prompt'
-          : (_isRemoteInteraction ? 'remote_interaction' : 'chat_turn'),
+    return TurnOwnerSnapshot.buildSessionLogContext(
+      conversation: currentConversation,
+      targetConversationId: targetConversationId,
+      fallbackConversationId: conversationId,
+      configuredAssistantMode: _settings.assistantMode,
+      hasHiddenPrompt: _hiddenPrompt != null,
+      isRemoteInteraction: _isRemoteInteraction,
     );
   }
 
-  Conversation? _conversationForId(String conversationId) {
-    for (final conversation
-        in ref.read(conversationsNotifierProvider).conversations) {
-      if (conversation.id == conversationId) {
-        return conversation;
-      }
-    }
-    return null;
-  }
+  Conversation? _conversationForId(String conversationId) => ref
+      .read(conversationsNotifierProvider)
+      .conversations
+      .where((conversation) => conversation.id == conversationId)
+      .firstOrNull;
 
-  LlmSessionLogContext? _currentLlmSessionLogContext() {
-    return _buildLlmSessionLogContext();
-  }
+  LlmSessionLogContext? _currentLlmSessionLogContext() =>
+      _buildLlmSessionLogContext();
 
-  LlmSessionLogContext _llmSessionLogContextForGeneration(int generation) {
-    final existing = _llmSessionLogContextsByGeneration[generation];
-    if (existing != null) return existing;
-    return _buildLlmSessionLogContext(
-      targetConversationId: _activeResponseConversationIdForGeneration(
-        generation,
-      ),
-    );
-  }
+  LlmSessionLogContext _llmSessionLogContextForGeneration(int generation) =>
+      _turnOwnerSnapshotForGeneration(generation)?.sessionLogContext ??
+      const LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.chat,
+        sessionId: 'unassigned',
+        conversationId: 'unassigned',
+        phase: 'unassigned_turn',
+      );
 
   T _runWithLlmSessionLogContextForGeneration<T>(
     int generation,
     T Function() body,
-  ) {
-    return LlmSessionLogContext.run(
-      _llmSessionLogContextForGeneration(generation),
-      body,
-    );
-  }
+  ) => LlmSessionLogContext.run(
+    _llmSessionLogContextForGeneration(generation),
+    body,
+  );
 
   ChatDataSource _withChatSessionLogging(
     ChatDataSource dataSource,
@@ -761,15 +728,10 @@ class ChatNotifier extends Notifier<ChatState> {
   }) {
     final sameConversation = this.conversationId == conversationId;
     final sameMessages = listEquals(state.messages, messages);
-
     if (sameConversation && sameMessages) {
       return;
     }
 
-    // While a response is in flight, the local chat state is authoritative for
-    // the active conversation. Persisted conversation updates can lag behind
-    // and would otherwise cancel streaming or discard pending content-tool
-    // continuations mid-task.
     if (sameConversation && state.isLoading) {
       return;
     }
@@ -789,31 +751,13 @@ class ChatNotifier extends Notifier<ChatState> {
 
     if (!sameConversation && !preservingActiveResponse) {
       _beginInteractionGeneration();
-      _clearAllActiveResponses();
-      _dismissAllPendingAskUserQuestions();
+      _clearAllActiveResponses(preservePausedParticipantTurn: true);
     }
 
     if (!preservingActiveResponse) {
       _streamSubscription?.cancel();
       _streamSubscription = null;
-      _executedContentToolCalls.clear();
-      _seenContentToolCallHashes.clear();
-      _toolApprovalCache.clear();
-      _conversationTaintState.reset();
-      _pendingContentToolResults.clear();
-      _pendingContentToolContinuationFallback = null;
-      _pendingToolExecutions.clear();
-      if (!sameConversation) {
-        _turnToolResults.clearResults();
-        _latestObservedSystemPrompt = null;
-        _latestObservedToolResults = const [];
-        _latestObservedToolDefinitions = const [];
-        _latestObservedMcpToolNames = const {};
-        _clearPendingModelSwitchHandoff();
-      }
       _clearTurnDiffCapture();
-      _contentToolContinuationCount = 0;
-      _contentToolExecutionTail = Future<void>.value();
       _sessionMemoryContext = null;
       _temporalReferenceContext = null;
     }
@@ -824,11 +768,17 @@ class ChatNotifier extends Notifier<ChatState> {
     final restoredActiveMessages = restoredActiveGeneration == null
         ? null
         : _activeResponseMessagesForGeneration(restoredActiveGeneration);
+    // Restore an active snapshot only until its finalized save ends loading.
+    final shouldRestoreActiveResponse =
+        restoredActiveMessages != null &&
+        (!sameConversation || state.isLoading);
     final restoredPendingQuestion = conversationId == null
         ? null
         : _pendingAskUserQuestionsByThread[conversationId];
-    final restoredMessages = restoredActiveMessages ?? messages;
-    final restoredLoading = restoredActiveMessages != null;
+    final restoredMessages = shouldRestoreActiveResponse
+        ? restoredActiveMessages
+        : messages;
+    final restoredLoading = shouldRestoreActiveResponse;
 
     ThreadScopedChatState.remember(_threadStates, this.conversationId, state);
     this.conversationId = conversationId;
@@ -838,13 +788,14 @@ class ChatNotifier extends Notifier<ChatState> {
         messages: restoredMessages,
         queuedMessages: _queuedChatMessages.forThread(conversationId),
         isLoading: restoredLoading,
+        busyConversationIds: _activeResponseRegistry.activeConversationIds,
         error: null,
         pendingAskUserQuestion: restoredPendingQuestion,
       ),
     );
     _refreshContextTokenPressureFromState();
-    if (!preservingActiveResponse) {
-      _accumulatedTokenUsage = TokenUsage.zero;
+    if (conversationId != null) {
+      unawaited(_drainQueuedChatMessagesForThreadIfIdle(conversationId));
     }
   }
 
@@ -858,57 +809,6 @@ class ChatNotifier extends Notifier<ChatState> {
     _pendingTurnDiffFiles.clear();
     _activeTurnUserPrompt = null;
     _activeTurnStartedAt = null;
-  }
-
-  Future<void> _recordFileMutationDiff({
-    required TextFileSnapshot before,
-    required String path,
-  }) async {
-    if (_activeTurnUserPrompt == null) {
-      return;
-    }
-
-    final after = await FilesystemTools.captureTextSnapshot(path);
-    final filePath = after.path.trim().isNotEmpty ? after.path : before.path;
-    final beforeError = before.error?.trim();
-    final afterError = after.error?.trim();
-    final unavailable =
-        beforeError?.isNotEmpty == true || afterError?.isNotEmpty == true;
-
-    final TurnDiffFile? file;
-    if (unavailable) {
-      file = TurnDiffFile(
-        filePath: filePath,
-        isNewFile: !before.exists && after.exists,
-        isDeletedFile: before.exists && !after.exists,
-        isBinary:
-            _snapshotErrorSuggestsBinary(beforeError) ||
-            _snapshotErrorSuggestsBinary(afterError),
-        isLargeFile: false,
-        note: [
-          if (beforeError?.isNotEmpty == true) beforeError!,
-          if (afterError?.isNotEmpty == true) afterError!,
-        ].join('\n'),
-      );
-    } else {
-      file = TurnDiffService.buildFileDiff(
-        filePath: filePath,
-        oldContent: before.exists ? before.content : null,
-        newContent: after.exists ? after.content : null,
-        oldExists: before.exists,
-        newExists: after.exists,
-      )?.file;
-    }
-
-    if (file == null || !file.hasChanges) {
-      return;
-    }
-    _pendingTurnDiffFiles.add(file);
-  }
-
-  bool _snapshotErrorSuggestsBinary(String? error) {
-    final lower = error?.toLowerCase() ?? '';
-    return lower.contains('binary') || lower.contains('utf-8');
   }
 
   Future<void> _persistPendingTurnDiffForAssistant(
@@ -1012,7 +912,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final latestUserContent = _latestUserContentForGeneration(
       interactionGeneration,
     );
-    if (!_looksLikeBrowserActionRequest(latestUserContent)) {
+    if (!_claims.looksLikeBrowserActionRequest(latestUserContent)) {
       return null;
     }
 
@@ -1076,28 +976,22 @@ class ChatNotifier extends Notifier<ChatState> {
     if (candidateResponse.trim().isEmpty) {
       return false;
     }
-    if (!_hasRecoveredBrowserSnapshot(batchToolResults)) {
+    if (!_claims.hasRecoveredBrowserSnapshot(batchToolResults)) {
       return false;
     }
     final latestUserContent = _latestUserContentForGeneration(
       interactionGeneration,
     );
-    return _looksLikeBrowserActionRequest(latestUserContent);
-  }
-
-  bool _hasRecoveredBrowserSnapshot(List<ToolResultInfo> toolResults) {
-    return toolResults.any(
-      (toolResult) =>
-          toolResult.name == 'browser_snapshot' &&
-          toolResult.id.startsWith('recovered_browser_snapshot_'),
-    );
+    return _claims.looksLikeBrowserActionRequest(latestUserContent);
   }
 
   String _buildSkippedBrowserActionRepairPrompt(int interactionGeneration) {
     final latestUserContent = _latestUserContentForGeneration(
       interactionGeneration,
     );
-    final missingToolName = _browserActionToolNameForText(latestUserContent);
+    final missingToolName = _claims.browserActionToolNameForText(
+      latestUserContent,
+    );
     return [
       'The latest user request still requires a browser action.',
       'The application only executed a recovered browser_snapshot so far.',
@@ -1113,20 +1007,8 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
-  String _latestUserContentForGeneration(int generation) {
-    final messages =
-        _activeResponseMessagesForGeneration(generation) ?? state.messages;
-    for (final message in messages.reversed) {
-      if (message.role != MessageRole.user) {
-        continue;
-      }
-      final content = message.content.trim();
-      if (content.isNotEmpty) {
-        return content;
-      }
-    }
-    return '';
-  }
+  String _latestUserContentForGeneration(int generation) =>
+      _turnOwnerSnapshotForGeneration(generation)?.latestUserContent ?? '';
 
   Skill? _findEnabledSkillNamedInText(String text) {
     final normalizedText = text.toLowerCase();
@@ -1227,7 +1109,7 @@ class ChatNotifier extends Notifier<ChatState> {
   String? _getActiveProjectRootPath() {
     final scoped = TurnProjectRoot.current;
     if (scoped != null) return scoped.rootPath;
-    return _getEffectiveCodingProject()?.rootPath.trim();
+    return _codingProjects.effective?.rootPath.trim();
   }
 
   /// The project a dispatching turn resolves its relative paths against.
@@ -1487,8 +1369,10 @@ class ChatNotifier extends Notifier<ChatState> {
     String? lastError;
     for (var index = 0; index < attempts.length; index++) {
       final attempt = attempts[index];
-      final result = await _runPlanningCompletion(
-        (dataSource, model) => dataSource.createChatCompletion(
+      final result = await _secondaryCompletionRouter.runPlanning(
+        primaryDataSource: _dataSource,
+        route: _settings._planningCompletionRoute,
+        operation: (dataSource, model) => dataSource.createChatCompletion(
           messages: _buildWorkflowProposalMessages(
             currentConversation: currentConversation,
             languageCode: languageCode,
@@ -1628,8 +1512,10 @@ class ChatNotifier extends Notifier<ChatState> {
         workflowSpecOverride ?? currentConversation.effectiveWorkflowSpec;
     for (var index = 0; index < attempts.length; index++) {
       final attempt = attempts[index];
-      final result = await _runPlanningCompletion(
-        (dataSource, model) => dataSource.createChatCompletion(
+      final result = await _secondaryCompletionRouter.runPlanning(
+        primaryDataSource: _dataSource,
+        route: _settings._planningCompletionRoute,
+        operation: (dataSource, model) => dataSource.createChatCompletion(
           messages: _buildTaskProposalMessages(
             currentConversation: currentConversation,
             languageCode: languageCode,
@@ -1748,11 +1634,8 @@ class ChatNotifier extends Notifier<ChatState> {
       return qualityGateFallback;
     }
 
-    // The gate may ask for a better proposal; it may not destroy the only one
-    // there is. On 2026-07-25 it rejected three usable drafts for a
-    // single-file CLI project, the heuristic fallback tripped the same rules,
-    // and the whole plan run failed — the user was shown an error instead of a
-    // plan they could have edited in the review sheet.
+    // Preserve the best reviewable plan when every fallback fails the gate;
+    // rejecting the only usable draft otherwise leaves the user no plan.
     if (bestRetryCandidate != null) {
       appLog(
         '[Workflow] Task proposal quality gate exhausted; presenting the best '
@@ -2133,14 +2016,6 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   @visibleForTesting
-  String messageContentWithPrependedClaimCorrectionNoticeForTest(
-    String content,
-    String notice,
-  ) {
-    return _messageContentWithPrependedClaimCorrectionNotice(content, notice);
-  }
-
-  @visibleForTesting
   String buildToolLoopExhaustionRecoveryPromptForTest(
     List<ToolCallInfo> toolCalls, {
     List<ToolResultInfo> previousToolResults = const [],
@@ -2152,25 +2027,25 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   @visibleForTesting
-  String buildSkippedPythonAttachmentAnalysisRepairPromptForTest() {
-    return _buildSkippedPythonAttachmentAnalysisRepairPrompt();
-  }
+  String buildSkippedPythonAttachmentAnalysisRepairPromptForTest() =>
+      PythonAttachmentRepairPolicy.buildSkippedPythonAttachmentAnalysisRepairPrompt();
 
   @visibleForTesting
-  String buildPythonAttachmentPathFailureRepairPromptForTest() {
-    return _buildPythonAttachmentPathFailureRepairPrompt();
-  }
+  String buildPythonAttachmentPathFailureRepairPromptForTest() =>
+      PythonAttachmentRepairPolicy.buildPythonAttachmentPathFailureRepairPrompt();
 
   @visibleForTesting
   List<ToolResultInfo> buildToolLoopRecoveryToolResultsForTest({
     required List<ToolResultInfo> currentToolResults,
     required List<ToolResultInfo> executedToolResults,
     required List<ToolCallInfo> pendingToolCalls,
+    String? projectRoot,
   }) {
     return _buildToolLoopRecoveryToolResults(
       currentToolResults: currentToolResults,
       executedToolResults: executedToolResults,
       pendingToolCalls: pendingToolCalls,
+      projectRoot: projectRoot,
     );
   }
 
@@ -2179,18 +2054,19 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<ToolCallInfo> currentToolCalls,
     required List<ToolResultInfo> executedToolResults,
     required List<ToolResultInfo> fallbackToolResults,
-  }) {
-    return _buildDuplicateRecoveryToolResults(
+    String? projectRoot,
+  }) => const DuplicateToolResultRecovery().recover(
+    DuplicateToolResultRecoveryInput(
       currentToolCalls: currentToolCalls,
       executedToolResults: executedToolResults,
       fallbackToolResults: fallbackToolResults,
-    );
-  }
+      projectRoot: projectRoot,
+    ),
+  );
 
   @visibleForTesting
-  bool assistantMessageHasVisibleContentForTest(String content) {
-    return _assistantMessageHasVisibleContent(content);
-  }
+  bool assistantMessageHasVisibleContentForTest(String content) =>
+      _assistantMessageHasVisibleContent(content);
 
   @visibleForTesting
   WorkflowProposalDraft? buildWorkflowProposalFallbackForTest({
@@ -2249,46 +2125,46 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
-  /// Prepares the message list sent to the LLM, including system messages.
   List<Message> _prepareMessagesForLLM({
     bool forceCompaction = false,
     List<Map<String, dynamic>>? toolDefinitionsOverride,
-    int? interactionGeneration,
+    required int interactionGeneration,
     String? participantRolePrompt,
   }) {
-    final conversationsState = ref.read(conversationsNotifierProvider);
-    final activeConversationId = interactionGeneration == null
-        ? _activeResponseConversationId
-        : _activeResponseConversationIdForGeneration(interactionGeneration);
-    final currentConversation = activeConversationId == null
-        ? conversationsState.currentConversation
-        : conversationsState.conversations
-              .where((conversation) => conversation.id == activeConversationId)
-              .firstOrNull;
-    final sourceMessages = interactionGeneration == null
-        ? (_isActiveResponseDetached && _activeResponseMessages != null
-              ? _activeResponseMessages!
-              : state.messages)
-        : (_activeResponseMessagesForGeneration(interactionGeneration) ??
-              state.messages);
+    final ownerSnapshot = _turnOwnerSnapshotForGeneration(
+      interactionGeneration,
+    );
+    if (ownerSnapshot == null) {
+      throw StateError(
+        'Turn owner snapshot unavailable: $interactionGeneration',
+      );
+    }
+    final currentConversation = _conversationForId(
+      ownerSnapshot.owner.conversationId,
+    );
+    final hiddenPrompt = ownerSnapshot.hiddenPrompt;
+    final temporalReferenceContext = ownerSnapshot.temporalReferenceContext;
+    final sourceMessages = ownerSnapshot.messages;
     final messages =
         ConversationPlanExecutionCoordinator.filterSupersededTaskExecutionTurns(
               messages: sourceMessages.where((message) => !message.isStreaming),
-              currentExecutionPrompt: _hiddenPrompt?.content,
+              currentExecutionPrompt: hiddenPrompt?.content,
             )
-            .map(_sanitizeMessageForModelHistory)
-            .where(_shouldKeepMessageForModelHistory)
+            .map(_messagePersistence.sanitizeMessageForModelHistory)
+            .where(_messagePersistence.shouldKeepMessageForModelHistory)
             .toList();
-    final modelSwitchHandoffBrief = _takePendingModelSwitchHandoffBrief(
-      currentConversation?.id,
+    final modelSwitchHandoffBrief = _modelSwitchHandoffs.take(
+      ownerSnapshot.owner,
     );
-    final shouldForceCompaction = _consumeForcePromptCompactionFlag(
+    final shouldForceCompaction = _modelSwitchHandoffs.consumePromptCompaction(
+      owner: ownerSnapshot.owner,
       forceCompaction: forceCompaction,
       hasModelSwitchHandoff: modelSwitchHandoffBrief != null,
     );
     final promptMessages = <Message>[
       _createSystemMessage(
         conversation: currentConversation,
+        ownerSnapshot: ownerSnapshot,
         participantRolePrompt: participantRolePrompt,
         toolNamesOverride: toolDefinitionsOverride == null
             ? null
@@ -2297,20 +2173,22 @@ class ChatNotifier extends Notifier<ChatState> {
               ).toList(),
       ),
     ];
-    if (_temporalReferenceContext != null) {
+    if (temporalReferenceContext != null) {
       promptMessages.add(
         Message(
           id: 'system_temporal',
-          content: _temporalReferenceContext!,
+          content: temporalReferenceContext,
           role: MessageRole.system,
           timestamp: DateTime.now(),
         ),
       );
     }
-    _addModelSwitchHandoffPromptMessage(
-      promptMessages,
+    final modelSwitchHandoffMessage = _modelSwitchHandoffs.createPromptMessage(
       modelSwitchHandoffBrief,
     );
+    if (modelSwitchHandoffMessage != null) {
+      promptMessages.add(modelSwitchHandoffMessage);
+    }
     final compactionArtifact = _resolvePromptCompactionArtifact(
       currentConversation: currentConversation,
       messages: messages,
@@ -2334,8 +2212,8 @@ class ChatNotifier extends Notifier<ChatState> {
       artifact: compactionArtifact,
     );
     final result = [...promptMessages, ...retainedMessages];
-    if (_hiddenPrompt != null) {
-      result.add(_hiddenPrompt!);
+    if (hiddenPrompt != null) {
+      result.add(hiddenPrompt);
     }
     _updateContextTokenPressureState(
       pressure: ConversationCompactionService.assessTokenPressure(
@@ -2344,39 +2222,6 @@ class ChatNotifier extends Notifier<ChatState> {
       compactionActive: compactionArtifact?.hasContent ?? false,
     );
     return result;
-  }
-
-  Message _sanitizeMessageForModelHistory(Message message) {
-    if (message.role != MessageRole.assistant) {
-      return message;
-    }
-
-    final strippedContent = ContentParser.stripModelHistoryArtifacts(
-      message.content,
-    );
-    if (strippedContent == message.content) {
-      return message;
-    }
-    return message.copyWith(content: strippedContent);
-  }
-
-  bool _shouldKeepMessageForModelHistory(Message message) {
-    if (message.role != MessageRole.assistant) {
-      return true;
-    }
-    return message.content.trim().isNotEmpty;
-  }
-
-  bool _shouldKeepVisibleMessage(Message message) {
-    if (message.role != MessageRole.assistant) {
-      return true;
-    }
-    return message.content.trim().isNotEmpty ||
-        ContentParser.parse(message.content).segments.any(
-          (segment) =>
-              segment.type == ContentType.toolCall ||
-              segment.type == ContentType.toolResult,
-        );
   }
 
   ConversationCompactionArtifact? _resolvePromptCompactionArtifact({
@@ -2437,130 +2282,60 @@ class ChatNotifier extends Notifier<ChatState> {
 
   final _uuid = const Uuid();
   StreamSubscription<String>? _streamSubscription;
-
-  /// Tracks executed `tool_call`s to avoid duplicate execution.
-  final Set<String> _executedContentToolCalls = {};
-  final Set<String> _seenContentToolCallHashes = {};
-  final List<String> _pendingContentToolResults = [];
-  String? _pendingContentToolContinuationFallback;
-  final ThreadScopedMessageQueue _queuedChatMessages =
-      ThreadScopedMessageQueue();
+  final _queuedChatMessages = ThreadScopedMessageQueue();
 
   /// Plan drafting survives leaving the thread, so returning to it presents
   /// the review sheet instead of looking idle.
-  final Map<String, ThreadScopedChatState> _threadStates =
-      <String, ThreadScopedChatState>{};
+  final _threadStates = <String, ThreadScopedChatState>{};
   final ToolApprovalCache _toolApprovalCache = ToolApprovalCache();
-  final SuccessfulReadResultReplayCache _successfulReadResultReplayCache =
-      SuccessfulReadResultReplayCache();
+  final _pendingToolApprovals = PendingToolApprovalRegistry();
+  final _bleConnectAttempts = BleConnectAttemptCoordinator();
+  final _successfulReadResultReplayCache = SuccessfulReadResultReplayCache();
   static const int _maxContentToolContinuations = 5;
-  int _contentToolContinuationCount = 0;
   final Set<int> _turnFinalizationRecoveryGenerations = {};
-  // LL31: reason the current tool-calling turn ended, set by the loop at the
-  // break sites where it cannot be derived from terminal state and consumed by
-  // `_logTurnExitReason` during finalization.
-  ToolLoopExitReason? _turnExitReasonHint;
-  // Generations whose exit reason has been classified and recorded. The turn's
-  // terminal funnel records a fallback for anything missing, so a path that
-  // never classifies still leaves a record instead of silence.
+  // Generations with a classified exit; the terminal funnel fills any gap.
   final Set<int> _classifiedTurnExitGenerations = <int>{};
-  // Turn provenance: transforms (guard notices, ...) applied to the turn's
-  // final message, recorded on the turn_exit record so the log explains why the
-  // on-screen content differs from the raw LLM output.
-  final Set<String> _appliedTurnTransforms = <String>{};
-  // LL35 shadow: this turn's `update_goal` completion outcome (or null),
-  // compared against the lexical decision at turn end. See goal_completion_shadow.
-  GoalUpdateAckOutcome? _shadowGoalToolCompletionOutcome;
 
-  /// Set when `update_goal(completed: true)` was answered this turn, whatever
-  /// the ack decided. Re-checked at turn end against the finalization
-  /// evidence, which is the only complete picture of the turn (LL35).
-  bool _toolGoalCompletionClaimed = false;
-
-  /// The tool names this turn was restricted to, or null when the turn had the
-  /// full catalog. Read by the unexecuted-action guard: a claim the turn had no
-  /// tool to substantiate is unexecutable, not unexecuted.
-  Set<String>? _activeAllowedToolNames;
-  // Tool call ids whose arguments were lost to an output-token-limit
-  // truncation (finish_reason=length with empty parsed arguments). The batch
-  // executor answers these with a truncation-specific diagnostic instead of a
-  // generic missing-argument error, so the model re-issues the intended call
-  // instead of misattributing the failure.
+  // Tool calls whose arguments were truncated; report the specific cause so
+  // the model reissues them instead of treating them as malformed calls.
   Set<String> _lengthTruncatedToolCallIds = const <String>{};
-  Future<void> _contentToolExecutionTail = Future<void>.value();
-  Future<void> _conversationMessagePersistenceTail = Future<void>.value();
-  Future<void> _cancelledMessagePersistenceTail = Future<void>.value();
-  final Map<int, String> _runtimeVisibleAssistantContentByGeneration =
-      <int, String>{};
-  bool _forcePromptCompactionForNextRequest = false;
-  bool _isDrainingQueuedMessages = false;
+  late final _messagePersistence = TurnMessagePersistenceCoordinator(
+    writeConversationMessages: _writeConversationMessages,
+    currentConversationId: () =>
+        ref.read(conversationsNotifierProvider).currentConversationId,
+  );
   bool _isSchedulingGoalAutoContinue = false;
-  final Map<String, _GoalAutoContinueTracker> _goalAutoContinueTrackers =
-      <String, _GoalAutoContinueTracker>{};
+  final _goalAutoContinueTrackers = <String, _GoalAutoContinueTracker>{};
   final Set<String> _goalAutoContinueBudgetNotifiedConversations = <String>{};
-  ToolResultCompletionEvidence _latestGoalAutoContinueEvidence =
-      const ToolResultCompletionEvidence();
-  // Interaction generation in which a save_skill tool call last succeeded. Used
-  // to suppress coding continuation-recovery: once a skill has been authored
-  // this turn, the model's "skill created" summary is a legitimate completion,
-  // not an unexecuted coding continuation that needs a forced retry.
+  final _goalCompletionEvidence = TurnGoalCompletionEvidenceRegistry();
+  // A successful save_skill generation suppresses false continuation recovery
+  // for its legitimate completion summary.
   int? _lastSaveSkillGeneration;
-  final ActiveResponseRegistry _activeResponseRegistry =
-      ActiveResponseRegistry();
-  final Map<int, String> _lastStreamedToolResultFinalAnswersByGeneration =
-      <int, String>{};
+  final _activeResponseRegistry = ActiveResponseRegistry();
+  final _lastStreamedToolResultFinalAnswersByGeneration = <int, String>{};
   final Set<int> _pendingActionLengthRecoveryGenerations = <int>{};
-  final Map<int, String> _explicitTerminalSuccessSummariesByGeneration =
-      <int, String>{};
-  final Map<int, LlmSessionLogContext> _llmSessionLogContextsByGeneration =
-      <int, LlmSessionLogContext>{};
-  final _AskUserQuestionTurnCache _askUserQuestionTurnCache =
-      _AskUserQuestionTurnCache();
-  final Map<int, Stopwatch> _responseMetricTimersByGeneration =
-      <int, Stopwatch>{};
-  final Map<String, PendingAskUserQuestion> _pendingAskUserQuestionsByThread =
-      <String, PendingAskUserQuestion>{};
-  bool _participantTurnStopRequested = false;
-  ParticipantTurnCursor? _pausedParticipantTurnCursor;
-  List<ConversationParticipant> _pausedParticipantTurnParticipants = const [];
-  ParticipantTurnConfig? _pausedParticipantTurnConfig;
-  String? _pausedParticipantTurnConversationId;
-  String? _pausedParticipantTurnPreferredId;
-  String? _pausedParticipantTurnLastSpeakerId;
+  final _explicitTerminalSuccessSummariesByGeneration = <int, String>{};
+  final _askUserQuestionTurnCache = _AskUserQuestionTurnCache();
+  final _releaseApprovalSnapshots = <int, _ReleaseProof>{};
+  final ResponseMetadataRegistry _responseMetadata = ResponseMetadataRegistry();
+  final _pendingAskUserQuestionsByThread = <String, PendingAskUserQuestion>{};
+  final _participantTurnControls = ParticipantTurnControlRegistry();
   ChatInteractionOrigin _activeInteractionOrigin = ChatInteractionOrigin.local;
 
   bool get _isRemoteInteraction =>
       _activeInteractionOrigin == ChatInteractionOrigin.remote;
-
   int get _interactionGeneration => _activeResponseRegistry.currentGeneration;
-
   String? get _activeResponseConversationId =>
       _activeResponseRegistry.currentConversationId;
+  int _beginInteractionGeneration() =>
+      _activeResponseRegistry.beginGeneration();
 
-  List<Message>? get _activeResponseMessages =>
-      _activeResponseRegistry.currentMessages;
+  bool _isCurrentInteractionGeneration(int generation) =>
+      ref.mounted && _activeResponseRegistry.isCurrentOrRegistered(generation);
 
-  int _beginInteractionGeneration() {
-    return _activeResponseRegistry.beginGeneration();
-  }
-
-  void _startResponseMetricsTimer(int generation) {
-    _responseMetricTimersByGeneration[generation]?.stop();
-    _responseMetricTimersByGeneration[generation] = Stopwatch()..start();
-  }
-
-  bool _isCurrentInteractionGeneration(int generation) {
-    return ref.mounted &&
-        _activeResponseRegistry.isCurrentOrRegistered(generation);
-  }
-
-  /// Whether [targetConversationId] is blocked on the user rather than
-  /// working. Takes precedence over the busy spinner in the thread list.
   bool isConversationAwaitingApproval(String targetConversationId) =>
       state.approvalRequiredConversationIds.contains(targetConversationId);
 
-  /// Applies a turn's own state update to [threadId] rather than to whichever
-  /// thread the user is reading.
   void _routeThreadState(String threadId, ChatState Function(ChatState) apply) {
     state = ThreadScopedChatState.routeToThread(
       byThread: _threadStates,
@@ -2568,35 +2343,6 @@ class ChatNotifier extends Notifier<ChatState> {
       visibleThread: conversationId,
       current: state,
       apply: apply,
-    );
-  }
-
-  /// Raises an approval prompt on the thread whose turn asked for it.
-  void _routeApproval(ChatState Function(ChatState) apply) {
-    final turnThread = TurnThread.currentId;
-    state = ThreadScopedChatState.routeToThread(
-      byThread: _threadStates,
-      turnThread: turnThread,
-      visibleThread: conversationId,
-      current: state,
-      apply: apply,
-    );
-    if (turnThread == null || turnThread == conversationId) return;
-    // The user is reading another thread, so nothing on screen says this one
-    // has stopped and is waiting for them.
-    // Plain strings: localization lives in the widget layer, and the existing
-    // response-complete notification does the same.
-    final threadTitle = _conversationForId(turnThread)?.title.trim() ?? '';
-    unawaited(
-      ref
-          .read(notificationServiceProvider)
-          .showApprovalRequiredNotification(
-            conversationId: turnThread,
-            title: 'Caverno',
-            body: threadTitle.isEmpty
-                ? 'A thread is waiting for your approval.'
-                : '$threadTitle is waiting for your approval.',
-          ),
     );
   }
 
@@ -2609,44 +2355,74 @@ class ChatNotifier extends Notifier<ChatState> {
 
   bool get _hasActiveResponse => _activeResponseRegistry.hasActiveResponse;
 
-  bool get _isActiveResponseDetached =>
-      _activeResponseRegistry.isDetached(visibleConversationId: conversationId);
+  int? _activeResponseGenerationForConversation(String? targetConversationId) =>
+      _activeResponseRegistry.generationForConversation(targetConversationId);
 
-  int? _activeResponseGenerationForConversation(String? targetConversationId) {
-    return _activeResponseRegistry.generationForConversation(
-      targetConversationId,
-    );
-  }
+  String? _activeResponseConversationIdForGeneration(int generation) =>
+      _activeResponseRegistry.conversationIdForGeneration(generation);
 
-  String? _activeResponseConversationIdForGeneration(int generation) {
-    return _activeResponseRegistry.conversationIdForGeneration(generation);
-  }
+  List<Message>? _activeResponseMessagesForGeneration(int generation) =>
+      _activeResponseRegistry.messagesForGeneration(generation);
 
-  List<Message>? _activeResponseMessagesForGeneration(int generation) {
-    return _activeResponseRegistry.messagesForGeneration(generation);
-  }
+  TurnOwnerSnapshot? _turnOwnerSnapshotForGeneration(int generation) =>
+      _activeResponseRegistry.snapshotForGeneration(generation);
 
-  bool _isActiveResponseDetachedForGeneration(int generation) {
-    return _activeResponseRegistry.isDetachedForGeneration(
-      generation: generation,
-      visibleConversationId: conversationId,
-    );
-  }
+  ChatTurnOwner? _turnOwnerForGeneration(int generation) =>
+      _turnOwnerSnapshotForGeneration(generation)?.owner;
 
-  /// Makes [generation] traceable to its own thread. An untracked turn is
-  /// cancelled by the conversation-change reset after its tools already ran,
-  /// and its requests log under whichever thread happens to be visible.
-  void _trackActiveResponse(int generation, String? targetConversationId) {
-    _llmSessionLogContextsByGeneration[generation] = _buildLlmSessionLogContext(
+  McpToolResult _turnOwnerSnapshotUnavailableResult(String toolName) =>
+      McpToolResult(
+        toolName: toolName,
+        result: '{"ok":false,"code":"turn_owner_snapshot_unavailable"}',
+        isSuccess: false,
+        errorMessage: 'Turn owner snapshot unavailable',
+      );
+
+  bool _isActiveResponseDetachedForGeneration(int generation) =>
+      _activeResponseRegistry.isDetachedForGeneration(
+        generation: generation,
+        visibleConversationId: conversationId,
+      );
+
+  void _trackActiveResponse(
+    int generation,
+    String? targetConversationId, {
+    Message? turnUserMessage,
+    Message? hiddenPrompt,
+    bool persistHiddenPromptAssistantResponse = false,
+    String? temporalReferenceContext,
+    AssistantMode? assistantModeOverride,
+    List<Message>? ownerMessages,
+  }) {
+    final sessionLogContext = _buildLlmSessionLogContext(
       targetConversationId: targetConversationId,
     );
-    _activeResponseRegistry.register(
+    final ownerConversation = targetConversationId == null
+        ? null
+        : _conversationForId(targetConversationId);
+    _activeResponseRegistry.registerWithSnapshot(
       generation: generation,
       targetConversationId: targetConversationId,
-      messages: state.messages,
+      messages: ownerMessages ?? state.messages,
+      turnUserMessage: turnUserMessage,
+      projectRoot: ownerConversation == null
+          ? null
+          : _codingProjects.forConversation(ownerConversation)?.rootPath,
+      sessionLogContext: sessionLogContext,
+      conversation: ownerConversation,
+      hiddenPrompt: hiddenPrompt,
+      persistHiddenPromptAssistantResponse:
+          persistHiddenPromptAssistantResponse,
+      temporalReferenceContext: temporalReferenceContext,
+      assistantModeOverride: assistantModeOverride ?? _assistantModeOverride,
+      configuredAssistantMode: _settings.assistantMode,
     );
+    final owner = _turnOwnerForGeneration(generation);
+    if (owner != null) _modelEditTelemetry?.activateOwner(owner);
     _syncBusyConversationIds();
   }
+
+  void _denyTools(int g) => _activeResponseRegistry.denyTools(g);
 
   void _syncBusyConversationIds() {
     if (!ref.mounted) return;
@@ -2658,45 +2434,60 @@ class ChatNotifier extends Notifier<ChatState> {
   void _cacheActiveResponseMessagesForGeneration(
     int generation,
     List<Message> messages,
-  ) {
-    _activeResponseRegistry.cacheMessages(generation, messages);
-  }
+  ) => _activeResponseRegistry.cacheMessages(generation, messages);
 
   void _clearActiveResponseForGeneration(int generation) {
+    final owner = _activeResponseRegistry.ownerForGeneration(generation);
+    if (owner != null &&
+        _participantTurnControls.contains(owner) &&
+        !_participantTurnControls.isPaused(owner)) {
+      _participantTurnControls.dispose(owner);
+    }
     _activeResponseRegistry.clearGeneration(generation);
     _lastStreamedToolResultFinalAnswersByGeneration.remove(generation);
     _pendingActionLengthRecoveryGenerations.remove(generation);
     _explicitTerminalSuccessSummariesByGeneration.remove(generation);
-    _llmSessionLogContextsByGeneration.remove(generation);
     _askUserQuestionTurnCache.removeGeneration(generation);
-    _responseMetricTimersByGeneration.remove(generation)?.stop();
+    _releaseApprovalSnapshots.remove(generation);
+    if (owner != null) {
+      _responseMetadata.dispose(owner);
+      _contextSurgeryObservations.removeOwner(owner);
+      _modelEditTelemetry?.retireOwner(owner);
+    }
     _turnFinalizationRecoveryGenerations.remove(generation);
+    if (owner != null) {
+      _modelSwitchHandoffs.discardPromptCompaction(owner);
+    }
     _syncBusyConversationIds();
   }
 
-  void _clearAllActiveResponses() {
+  void _clearAllActiveResponses({bool preservePausedParticipantTurn = false}) {
+    if (!preservePausedParticipantTurn) {
+      _disposeAllParticipantTurnControls();
+    }
+    for (final owner in _responseMetadata.owners) {
+      _responseMetadata.dispose(owner);
+    }
     _activeResponseRegistry.clearAll();
     _lastStreamedToolResultFinalAnswersByGeneration.clear();
     _pendingActionLengthRecoveryGenerations.clear();
     _explicitTerminalSuccessSummariesByGeneration.clear();
-    _llmSessionLogContextsByGeneration.clear();
     _askUserQuestionTurnCache.clear();
-    for (final timer in _responseMetricTimersByGeneration.values) {
-      timer.stop();
-    }
-    _responseMetricTimersByGeneration.clear();
+    _releaseApprovalSnapshots.clear();
     _turnFinalizationRecoveryGenerations.clear();
-    _participantTurnStopRequested = false;
-    _pausedParticipantTurnCursor = null;
+    _modelSwitchHandoffs.clearPromptCompactions();
+    _contextSurgeryObservations.clear();
+    _modelEditTelemetry?.clear();
     _syncBusyConversationIds();
-    _pausedParticipantTurnParticipants = const [];
-    _pausedParticipantTurnConfig = null;
-    _pausedParticipantTurnConversationId = null;
-    _pausedParticipantTurnPreferredId = null;
-    _pausedParticipantTurnLastSpeakerId = null;
   }
 
-  Future<void> sendMessage(
+  void _disposeAllParticipantTurnControls() {
+    for (final owner in _participantTurnControls.owners) {
+      _participantTurnControls.dispose(owner);
+    }
+  }
+
+  Future<ChatTurnOwner?> sendMessage(
     String content, {
     String? imageBase64,
     String? imageMimeType,
@@ -2707,20 +2498,21 @@ class ChatNotifier extends Notifier<ChatState> {
     bool bypassPlanMode = false,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
   }) async {
-    // Do not send empty input with no attached image.
-    if (content.trim().isEmpty && imageBase64 == null) return;
-    if (!ref.mounted) return;
-    // A user turn always has the full catalog; drop any restriction left by a
-    // preceding hidden continuation.
-    _activeAllowedToolNames = null;
-
-    // A fresh user message means any unanswered ask_user_question is being
-    // bypassed (the user typed the answer instead of using the dialog — common
-    // on remote/mobile where the dialog may not surface). Dismiss it now so its
-    // awaiting tool loop unblocks and the pending dialog clears, instead of the
-    // question being orphaned (still open on the desktop) and the turn stalling.
-    _dismissAllPendingAskUserQuestions();
-
+    if (content.trim().isEmpty && imageBase64 == null) return null;
+    if (!ref.mounted) return null;
+    final wasLoading = state.isLoading;
+    var ownerConversationId = conversationId;
+    if (wasLoading && ownerConversationId?.isNotEmpty != true) {
+      ownerConversationId = ref
+          .read(conversationsNotifierProvider.notifier)
+          .ensureCurrentConversation()
+          ?.id;
+      conversationId = ownerConversationId;
+    }
+    if (ownerConversationId != null) {
+      _dismissPendingAskUserQuestionForConversation(ownerConversationId);
+    }
+    final queue = _queuedChatMessages;
     final queuedMessage = QueuedChatMessage(
       id: _uuid.v4(),
       content: content,
@@ -2732,300 +2524,366 @@ class ChatNotifier extends Notifier<ChatState> {
       isVoiceMode: isVoiceMode,
       bypassPlanMode: bypassPlanMode,
       origin: origin,
-      conversationId: conversationId,
+      conversationId: ownerConversationId,
     );
-    if (state.isLoading) {
+    if (wasLoading || queue.shouldEnqueue(ownerConversationId)) {
+      if (ownerConversationId?.isNotEmpty != true) return null;
       final participantRuntime = state.participantTurnRuntime;
       if (participantRuntime != null && !participantRuntime.paused) {
-        _participantTurnStopRequested = true;
-        state = state.copyWith(
-          participantTurnRuntime: participantRuntime.copyWith(
-            stopRequested: true,
-          ),
-        );
+        requestParticipantTurnStop();
       }
-      _queuedChatMessages.add(queuedMessage);
+      final queuedTurnOwner = queue.add(queuedMessage);
       _syncQueuedChatMessagesState();
       appLog(
         '[ChatNotifier] Queued user message while a response is in flight '
         '(${_queuedChatMessages.length} pending)',
       );
-      return;
+      unawaited(_drainQueuedChatMessagesForThreadIfIdle(ownerConversationId!));
+      return queuedTurnOwner;
     }
-
-    await _sendMessageNow(queuedMessage);
+    return _sendMessageNow(queuedMessage);
   }
 
-  Future<void> _sendMessageNow(QueuedChatMessage queuedMessage) async {
-    if (!ref.mounted) return;
-    // Queued messages reach here without passing sendMessage again, and an
-    // elicitation or restricted continuation may have run in between. A user
-    // turn always has the full catalog, so a stale restriction here would
-    // silently suppress the unexecuted-command guard on a turn that could
-    // execute commands.
-    _activeAllowedToolNames = null;
-
-    final content = queuedMessage.content;
-    final imageBase64 = queuedMessage.imageBase64;
-    final imageMimeType = queuedMessage.imageMimeType;
-    final originalImagePath = queuedMessage.originalImagePath;
-    final originalImageMimeType = queuedMessage.originalImageMimeType;
-    final languageCode = queuedMessage.languageCode;
-    final isVoiceMode = queuedMessage.isVoiceMode;
-    final bypassPlanMode = queuedMessage.bypassPlanMode;
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
-    );
-    var conversationsState = ref.read(conversationsNotifierProvider);
-    var currentConversation = conversationsState.currentConversation;
-    if (currentConversation == null) {
-      final draftMessages = state.messages
-          .where((message) => !message.isStreaming)
-          .toList(growable: false);
-      currentConversation = conversationsNotifier.ensureCurrentConversation();
-      if (currentConversation != null && draftMessages.isNotEmpty) {
+  Future<ChatTurnOwner?> _sendMessageNow(
+    QueuedChatMessage queuedMessage, {
+    bool fromQueue = false,
+  }) async {
+    if (!ref.mounted) return null;
+    final queue = _queuedChatMessages;
+    if (!queue.canStart(queuedMessage, conversationId, fromQueue)) return null;
+    ChatTurnOwner? turnOwner;
+    var runtimeStarted = false;
+    try {
+      final content = queuedMessage.content;
+      final imageBase64 = queuedMessage.imageBase64;
+      final imageMimeType = queuedMessage.imageMimeType;
+      final originalImagePath = queuedMessage.originalImagePath;
+      final originalImageMimeType = queuedMessage.originalImageMimeType;
+      final languageCode = queuedMessage.languageCode;
+      final isVoiceMode = queuedMessage.isVoiceMode;
+      final bypassPlanMode = queuedMessage.bypassPlanMode;
+      final conversationsNotifier = ref.read(
+        conversationsNotifierProvider.notifier,
+      );
+      var conversationsState = ref.read(conversationsNotifierProvider);
+      var currentConversation = conversationsState.currentConversation;
+      var draftMessages = const <Message>[];
+      if (currentConversation == null) {
+        draftMessages = state.messages
+            .where((message) => !message.isStreaming)
+            .toList(growable: false);
+        currentConversation = conversationsNotifier.ensureCurrentConversation();
+      }
+      final effectiveOwner = queue.ownerFor(
+        queuedMessage,
+        conversationId,
+        currentConversation?.id,
+      );
+      if (effectiveOwner == null) return null;
+      conversationId = effectiveOwner;
+      if (draftMessages.isNotEmpty) {
         await conversationsNotifier.updateConversationMessages(
-          currentConversation.id,
+          effectiveOwner,
           draftMessages,
         );
+        if (!_queueOwnerIsVisible(effectiveOwner)) {
+          return _restoreQueuedMessageForRetry(
+            queuedMessage,
+            effectiveOwner,
+            fromQueue: fromQueue,
+          );
+        }
       }
       conversationsState = ref.read(conversationsNotifierProvider);
-    }
-
-    _activeInteractionOrigin = queuedMessage.origin;
-    final interactionGeneration = _beginInteractionGeneration();
-
-    _hiddenPrompt = null;
-    _persistHiddenPromptAssistantResponse = false;
-    _languageCode = languageCode;
-    _isVoiceMode = isVoiceMode;
-    _toolApprovalCache.clear();
-    _pendingContentToolResults.clear();
-    _pendingContentToolContinuationFallback = null;
-    _pendingToolExecutions.clear();
-    _turnToolResults.clearResults();
-    _latestObservedSystemPrompt = null;
-    _latestObservedToolResults = const [];
-    _latestObservedToolDefinitions = const [];
-    _latestObservedMcpToolNames = const {};
-    _latestGoalAutoContinueEvidence = const ToolResultCompletionEvidence();
-    _contentToolContinuationCount = 0;
-    _contentToolExecutionTail = Future<void>.value();
-    _latestHiddenAssistantResponse = null;
-    _beginTurnDiffCapture(content);
-
-    _temporalReferenceContext = TemporalContextBuilder.build(
-      now: DateTime.now(),
-      userInput: content,
-    );
-    final shouldUseTemporalTool = _temporalReferenceContext != null;
-    currentConversation = conversationsState.currentConversation;
-    conversationId = currentConversation?.id;
-    if (!await _startRuntimeTurn(
-      generation: interactionGeneration,
-      hidden: false,
-    )) {
-      return;
-    }
-    conversationsState = ref.read(conversationsNotifierProvider);
-    currentConversation = conversationsState.currentConversation;
-    conversationId = currentConversation?.id;
-    _resetGoalAutoContinueTrackerForConversation(conversationId);
-    final shouldAutoEnterPlanning =
-        !bypassPlanMode && _shouldAutoEnterPlanningSession(currentConversation);
-    if (shouldAutoEnterPlanning) {
-      await conversationsNotifier.enterPlanningSession();
-      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-      currentConversation = ref
-          .read(conversationsNotifierProvider)
-          .currentConversation;
-      conversationId = currentConversation?.id;
-    }
-
-    // Inject memory context only on the first turn of a new session.
-    final isFirstTurn = state.messages.isEmpty;
-    if (isFirstTurn) {
-      _sessionMemoryContext = _memoryService.buildPromptContext(
-        currentUserInput: content.trim(),
-        currentConversationId: conversationId ?? '',
-      );
-      if (_sessionMemoryContext != null) {
-        appLog('[Memory] Injecting context for new session');
-      }
-    }
-
-    // Append the user message.
-    final userMessage = Message(
-      id: _uuid.v4(),
-      content: content.trim(),
-      role: MessageRole.user,
-      timestamp: DateTime.now(),
-      imageBase64: imageBase64,
-      imageMimeType: imageMimeType,
-      originalImagePath: originalImagePath,
-      originalImageMimeType: originalImageMimeType,
-    );
-
-    if (!ref.mounted) return;
-    state = state.copyWith(
-      messages: [...state.messages, userMessage],
-      isLoading: true,
-      error: null,
-      goalAutoContinueCount: 0,
-      goalAutoContinueBudget: 0,
-      goalAutoContinueNotice: null,
-    );
-    _refreshContextTokenPressureFromState();
-    _trackActiveResponse(interactionGeneration, conversationId);
-    _persistCurrentNonStreamingMessages();
-    if (isFirstTurn) {
-      _dispatchExternalToolHook(
-        'SessionStart',
-        userMessage: userMessage.content,
-      );
-    }
-    _dispatchExternalToolHook(
-      'UserPromptSubmit',
-      userMessage: userMessage.content,
-    );
-
-    await conversationsNotifier.ensureCurrentPlanArtifactBackfilled();
-    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-    currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    conversationId = currentConversation?.id;
-    await _ensureShortPromptExecutionContract(
-      currentConversation: currentConversation,
-      userMessage: userMessage,
-      conversationsNotifier: conversationsNotifier,
-    );
-    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-    await _markPendingExecutionTaskStarted(
-      conversationsNotifier: conversationsNotifier,
-      bypassPlanMode: bypassPlanMode,
-    );
-    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-    currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    conversationId = currentConversation?.id;
-    await _preparePrimaryModelForPendingRouteIfNeeded();
-    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-    final shouldInterceptForPlanMode =
-        !bypassPlanMode &&
-        (currentConversation?.isPlanningSession ?? false) &&
-        currentConversation?.workspaceMode == WorkspaceMode.coding;
-
-    if (shouldInterceptForPlanMode) {
-      await _onMessagesChanged(
-        state.messages.where((message) => !message.isStreaming).toList(),
-      );
-      if (currentConversation == null) {
-        state = state.copyWith(isLoading: false);
-        _failRuntimeTurn(
-          interactionGeneration,
-          code: 'conversation_unavailable',
-          message: 'No conversation is available for Plan Mode execution.',
-        );
-        return;
-      }
-      currentConversation = ref
-          .read(conversationsNotifierProvider)
-          .currentConversation;
-      conversationId = currentConversation?.id;
-      if (currentConversation == null) {
-        state = state.copyWith(isLoading: false);
-        _failRuntimeTurn(
-          interactionGeneration,
-          code: 'conversation_unavailable',
-          message: 'No conversation is available for Plan Mode execution.',
-        );
-        return;
-      }
-      await _runPlanProposalFlow(
-        currentConversation: currentConversation,
-        languageCode: languageCode,
+      _activeInteractionOrigin = queuedMessage.origin;
+      final interactionGeneration = _beginInteractionGeneration();
+      turnOwner = ChatTurnOwner(
+        conversationId: effectiveOwner,
         interactionGeneration: interactionGeneration,
       );
-      return;
-    }
-
-    if (currentConversation != null &&
-        currentConversation.workspaceMode == WorkspaceMode.chat &&
-        currentConversation.participants.isNotEmpty) {
-      _onSendStarted();
-      _assistantModeOverride = bypassPlanMode ? AssistantMode.coding : null;
-      try {
-        await _sendWithParticipantTurns(
-          interactionGeneration: interactionGeneration,
-          currentConversation: currentConversation,
-          conversationsNotifier: conversationsNotifier,
+      _captureProof(interactionGeneration, queuedMessage, currentConversation);
+      _hiddenPrompt = null;
+      _languageCode = languageCode;
+      _isVoiceMode = isVoiceMode;
+      _beginTurnDiffCapture(content);
+      final temporalReferenceContext = TemporalContextBuilder.build(
+        now: DateTime.now(),
+        userInput: content,
+      );
+      _temporalReferenceContext = temporalReferenceContext;
+      final shouldUseTemporalTool = temporalReferenceContext != null;
+      currentConversation = conversationsState.currentConversation;
+      conversationId = currentConversation?.id;
+      final startedRuntime = await _startRuntimeTurn(
+        generation: interactionGeneration,
+        ownerConversationId: effectiveOwner,
+        hidden: false,
+      );
+      if (startedRuntime == null) {
+        _clearActiveResponseForGeneration(interactionGeneration);
+        if (!_queueOwnerIsVisible(effectiveOwner)) {
+          return _restoreQueuedMessageForRetry(
+            queuedMessage,
+            effectiveOwner,
+            fromQueue: fromQueue,
+          );
+        }
+        _syncQueuedChatMessagesState();
+        return null;
+      }
+      turnOwner = startedRuntime;
+      runtimeStarted = true;
+      if (!_queueOwnerIsVisible(effectiveOwner)) {
+        _failRuntimeTurn(
+          interactionGeneration,
+          code: 'queue_owner_changed',
+          message: 'The queued message owner changed before execution started.',
+          exitCode: 130,
         );
+        return _restoreQueuedMessageForRetry(
+          queuedMessage,
+          effectiveOwner,
+          fromQueue: fromQueue,
+        );
+      }
+      currentConversation = _conversationForId(effectiveOwner);
+      conversationId = effectiveOwner;
+      _resetGoalAutoContinueTrackerForConversation(conversationId);
+      final shouldAutoEnterPlanning =
+          !bypassPlanMode &&
+          _shouldAutoEnterPlanningSession(currentConversation);
+      if (shouldAutoEnterPlanning) {
+        await conversationsNotifier.enterPlanningSession();
+        if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+          _failRuntimeTurn(
+            interactionGeneration,
+            code: 'turn_cancelled_before_start',
+            message: 'Cancelled while entering the planning session.',
+            exitCode: 130,
+          );
+          return turnOwner;
+        }
+        currentConversation = _conversationForId(effectiveOwner);
+      }
+      currentConversation = _conversationForId(effectiveOwner);
+      final ownerMessagesBeforeTurn = effectiveOwner == conversationId
+          ? state.messages
+          : currentConversation?.messages ?? const <Message>[];
+
+      final isFirstTurn = state.messages.isEmpty;
+      if (isFirstTurn) {
+        _sessionMemoryContext = _memoryService.buildPromptContext(
+          currentUserInput: content.trim(),
+          currentConversationId: conversationId ?? '',
+        );
+        if (_sessionMemoryContext != null) {
+          appLog('[Memory] Injecting context for new session');
+        }
+      }
+
+      final userMessage = Message(
+        id: _uuid.v4(),
+        content: content.trim(),
+        role: MessageRole.user,
+        timestamp: DateTime.now(),
+        imageBase64: imageBase64,
+        imageMimeType: imageMimeType,
+        originalImagePath: originalImagePath,
+        originalImageMimeType: originalImageMimeType,
+      );
+
+      if (!ref.mounted) return turnOwner;
+      state = state.copyWith(
+        messages: [...state.messages, userMessage],
+        isLoading: true,
+        error: null,
+        goalAutoContinueCount: 0,
+        goalAutoContinueBudget: 0,
+        goalAutoContinueNotice: null,
+      );
+      _refreshContextTokenPressureFromState();
+      _trackActiveResponse(
+        interactionGeneration,
+        effectiveOwner,
+        turnUserMessage: userMessage,
+        temporalReferenceContext: temporalReferenceContext,
+        assistantModeOverride: bypassPlanMode ? AssistantMode.coding : null,
+        ownerMessages: [...ownerMessagesBeforeTurn, userMessage],
+      );
+      _persistCurrentNonStreamingMessages();
+      if (isFirstTurn) {
+        _dispatchExternalToolHook(
+          'SessionStart',
+          userMessage: userMessage.content,
+        );
+      }
+      _dispatchExternalToolHook(
+        'UserPromptSubmit',
+        userMessage: userMessage.content,
+      );
+
+      await conversationsNotifier.ensureCurrentPlanArtifactBackfilled(
+        conversationId: effectiveOwner,
+      );
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+        return turnOwner;
+      }
+      currentConversation = _conversationForId(effectiveOwner);
+      await _ensureShortPromptExecutionContract(
+        projectRoot: _projectRootForGeneration(interactionGeneration),
+        currentConversation: currentConversation,
+        userMessage: userMessage,
+        conversationsNotifier: conversationsNotifier,
+      );
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+        return turnOwner;
+      }
+      await _markPendingExecutionTaskStarted(
+        conversation: _conversationForId(effectiveOwner),
+        conversationsNotifier: conversationsNotifier,
+        bypassPlanMode: bypassPlanMode,
+        interactionGeneration: interactionGeneration,
+      );
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+        return turnOwner;
+      }
+      currentConversation = _conversationForId(effectiveOwner);
+      await _preparePrimaryModelForPendingRouteIfNeeded();
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+        return turnOwner;
+      }
+      final shouldInterceptForPlanMode =
+          !bypassPlanMode &&
+          (currentConversation?.isPlanningSession ?? false) &&
+          currentConversation?.workspaceMode == WorkspaceMode.coding;
+
+      if (shouldInterceptForPlanMode) {
+        _denyTools(interactionGeneration);
+        await _messagePersistence.persistCurrentMessages(
+          state.messages.where((message) => !message.isStreaming).toList(),
+        );
+        if (currentConversation == null) {
+          state = state.copyWith(isLoading: false);
+          _failRuntimeTurn(
+            interactionGeneration,
+            code: 'conversation_unavailable',
+            message: 'No conversation is available for Plan Mode execution.',
+          );
+          return turnOwner;
+        }
+        currentConversation = ref
+            .read(conversationsNotifierProvider)
+            .currentConversation;
+        conversationId = currentConversation?.id;
+        if (currentConversation == null) {
+          state = state.copyWith(isLoading: false);
+          _failRuntimeTurn(
+            interactionGeneration,
+            code: 'conversation_unavailable',
+            message: 'No conversation is available for Plan Mode execution.',
+          );
+          return turnOwner;
+        }
+        await _runPlanProposalFlow(
+          currentConversation: currentConversation,
+          languageCode: languageCode,
+          interactionGeneration: interactionGeneration,
+        );
+        return turnOwner;
+      }
+
+      if (currentConversation != null &&
+          currentConversation.workspaceMode == WorkspaceMode.chat &&
+          currentConversation.participants.isNotEmpty) {
+        _onSendStarted();
+        _assistantModeOverride = bypassPlanMode ? AssistantMode.coding : null;
+        try {
+          await _sendWithParticipantTurns(
+            interactionGeneration: interactionGeneration,
+            currentConversation: currentConversation,
+            conversationsNotifier: conversationsNotifier,
+          );
+        } finally {
+          _assistantModeOverride = null;
+          _activeInteractionOrigin = ChatInteractionOrigin.local;
+        }
+        return turnOwner;
+      }
+
+      final assistantMessage = Message(
+        id: _uuid.v4(),
+        content: '',
+        role: MessageRole.assistant,
+        timestamp: DateTime.now(),
+        isStreaming: true,
+      );
+
+      if (!ref.mounted) return turnOwner;
+      if (_isActiveResponseDetachedForGeneration(interactionGeneration)) {
+        final activeMessages =
+            _activeResponseMessagesForGeneration(interactionGeneration) ??
+            const <Message>[];
+        _cacheActiveResponseMessagesForGeneration(interactionGeneration, [
+          ...activeMessages,
+          assistantMessage,
+        ]);
+      } else {
+        state = state.copyWith(messages: [...state.messages, assistantMessage]);
+        _cacheActiveResponseMessagesForGeneration(
+          interactionGeneration,
+          state.messages,
+        );
+      }
+
+      if (!_responseMetadata.start(turnOwner)) {
+        throw StateError('Response metadata state could not be initialized.');
+      }
+
+      _onSendStarted();
+
+      _assistantModeOverride = bypassPlanMode ? AssistantMode.coding : null;
+
+      try {
+        if (_mcpToolService != null &&
+            (_settings.mcpEnabled || shouldUseTemporalTool) &&
+            _supportsToolAwareRequests) {
+          final mode = _settings.mcpEnabled ? 'MCP' : 'TemporalOnly';
+          appLog('[Tool] Sending in tool-aware mode ($mode)');
+          await _sendWithTools(interactionGeneration: interactionGeneration);
+        } else {
+          appLog(
+            '[Tool] Sending in normal mode (mcpToolService: ${_mcpToolService != null}, enabled: ${_settings.mcpEnabled})',
+          );
+          _denyTools(interactionGeneration);
+          await _sendWithoutTools(interactionGeneration: interactionGeneration);
+        }
       } finally {
         _assistantModeOverride = null;
         _activeInteractionOrigin = ChatInteractionOrigin.local;
       }
-      return;
-    }
-
-    // Append a placeholder assistant message for streaming.
-    final assistantMessage = Message(
-      id: _uuid.v4(),
-      content: '',
-      role: MessageRole.assistant,
-      timestamp: DateTime.now(),
-      isStreaming: true,
-    );
-
-    if (!ref.mounted) return;
-    if (_isActiveResponseDetachedForGeneration(interactionGeneration)) {
-      final activeMessages =
-          _activeResponseMessagesForGeneration(interactionGeneration) ??
-          const <Message>[];
-      _cacheActiveResponseMessagesForGeneration(interactionGeneration, [
-        ...activeMessages,
-        assistantMessage,
-      ]);
-    } else {
-      state = state.copyWith(messages: [...state.messages, assistantMessage]);
-      _cacheActiveResponseMessagesForGeneration(
-        interactionGeneration,
-        state.messages,
-      );
-    }
-
-    _startResponseMetricsTimer(interactionGeneration);
-
-    // Request extended background execution time on iOS.
-    _onSendStarted();
-
-    _assistantModeOverride = bypassPlanMode ? AssistantMode.coding : null;
-
-    try {
-      // Use tool-aware flow when the MCP tool service is available.
-      if (_mcpToolService != null &&
-          (_settings.mcpEnabled || shouldUseTemporalTool) &&
-          _supportsToolAwareRequests) {
-        final mode = _settings.mcpEnabled ? 'MCP' : 'TemporalOnly';
-        appLog('[Tool] Sending in tool-aware mode ($mode)');
-        await _sendWithTools(interactionGeneration: interactionGeneration);
-      } else {
-        appLog(
-          '[Tool] Sending in normal mode (mcpToolService: ${_mcpToolService != null}, enabled: ${_settings.mcpEnabled})',
+      return turnOwner;
+    } catch (error) {
+      final failedOwner = turnOwner;
+      turnOwner = null;
+      if (runtimeStarted && failedOwner != null) {
+        _failRuntimeTurn(
+          failedOwner.interactionGeneration,
+          code: 'message_send_failed',
+          message: error.toString(),
         );
-        await _sendWithoutTools(interactionGeneration: interactionGeneration);
       }
-    } finally {
+      if (failedOwner != null) _turnToolResults.dispose(failedOwner);
+      final owner = failedOwner?.conversationId ?? queuedMessage.conversationId;
+      if (owner != null) _routeRuntimeStartFailure(owner, error.toString());
       _assistantModeOverride = null;
       _activeInteractionOrigin = ChatInteractionOrigin.local;
+      appLog('[ChatNotifier] Message send failed: $error');
+      return null;
     }
   }
 
   void removeQueuedMessage(String id) {
-    if (!_queuedChatMessages.remove(id)) {
-      return;
-    }
+    if (!_queuedChatMessages.remove(id)) return;
     _syncQueuedChatMessagesState();
     appLog(
       '[ChatNotifier] Removed queued user message '
@@ -3034,128 +2892,177 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void _syncQueuedChatMessagesState() {
-    if (!ref.mounted) {
-      return;
-    }
+    if (!ref.mounted) return;
     state = state.copyWith(
       queuedMessages: _queuedChatMessages.forThread(conversationId),
     );
   }
 
-  Future<void> _drainQueuedChatMessagesIfIdle() async {
-    if (_isDrainingQueuedMessages || state.isLoading) return;
-    await _executionRuntime.ownershipSettled;
-    if (_queuedChatMessages.pendingFor(conversationId) == 0) {
+  Future<ChatTurnOwner?> _restoreQueuedMessageForRetry(
+    QueuedChatMessage message,
+    String owner, {
+    required bool fromQueue,
+  }) {
+    final receipt = _queuedChatMessages.restoreFirstForThread(message, owner);
+    _syncQueuedChatMessagesState();
+    unawaited(_drainQueuedChatMessagesForThreadIfIdle(owner));
+    return fromQueue ? Future<ChatTurnOwner?>.value() : receipt;
+  }
+
+  bool _canDrainQueuedMessagesForThread(String ownerConversationId) =>
+      ref.mounted &&
+      ownerConversationId.isNotEmpty &&
+      ownerConversationId == conversationId &&
+      !state.isLoading &&
+      _activeResponseGenerationForConversation(ownerConversationId) == null;
+
+  bool _queueOwnerIsVisible(String owner) =>
+      conversationId == owner &&
+      ref.read(conversationsNotifierProvider).currentConversation?.id == owner;
+
+  Future<void> _drainQueuedChatMessagesForThreadIfIdle(String owner) async {
+    if (!_canDrainQueuedMessagesForThread(owner) ||
+        !_queuedChatMessages.beginDrain(owner)) {
       return;
     }
-
-    _isDrainingQueuedMessages = true;
     try {
-      while (ref.mounted && !state.isLoading) {
-        final queuedMessage = _queuedChatMessages.takeNextForThread(
-          conversationId,
-        );
+      await _executionRuntime.ownershipSettled;
+      if (!_canDrainQueuedMessagesForThread(owner) ||
+          _queuedChatMessages.pendingFor(owner) == 0) {
+        return;
+      }
+      while (_canDrainQueuedMessagesForThread(owner)) {
+        final queuedMessage = _queuedChatMessages.takeNextForThread(owner);
         if (queuedMessage == null) break;
         _syncQueuedChatMessagesState();
         appLog(
           '[ChatNotifier] Sending queued user message '
           '(${_queuedChatMessages.length} remaining)',
         );
-        await _sendMessageNow(queuedMessage);
+        try {
+          final turnOwner = await _sendMessageNow(
+            queuedMessage,
+            fromQueue: true,
+          );
+          if (_queuedChatMessages.contains(queuedMessage)) break;
+          _queuedChatMessages.completeTurnOwner(queuedMessage, turnOwner);
+        } catch (error) {
+          _queuedChatMessages.completeTurnOwner(queuedMessage, null);
+          _routeRuntimeStartFailure(owner, error.toString());
+          appLog('[ChatNotifier] Queued message failed: $error');
+          break;
+        }
       }
     } finally {
-      _isDrainingQueuedMessages = false;
+      _queuedChatMessages.endDrain(owner);
     }
   }
 
-  /// Sends a hidden prompt without appending it to the visible conversation state.
-  /// Typically used for proactive AI responses, like handling user silence in Voice Mode.
-  Future<void> sendHiddenPrompt(
+  Future<ChatTurnOwner?> sendHiddenPrompt(
     String instruction, {
     bool isVoiceMode = false,
     String languageCode = 'en',
     bool persistAssistantResponse = false,
-    bool preserveGoalAutoContinueEvidence = false,
+    ToolResultCompletionEvidence? initialGoalCompletionEvidence,
     bool replayVerifierImmediatelyAfterMutation = false,
     bool verifierOnlyContinuation = false,
     Set<String>? allowedToolNames,
   }) async {
-    if (!ref.mounted) return;
-
+    if (!ref.mounted) return null;
+    if (conversationId == null) {
+      final hiddenConversation = ref
+          .read(conversationsNotifierProvider.notifier)
+          .ensureCurrentConversation();
+      if (hiddenConversation == null) return null;
+      conversationId = hiddenConversation.id;
+    }
     _temporalReferenceContext = null;
-    _activeAllowedToolNames = allowedToolNames;
     _isVoiceMode = isVoiceMode;
     _languageCode = languageCode;
-    _toolApprovalCache.clear();
-    // Hidden continuations are new turns for approval/result buffers, token
-    // accounting, and completion evidence. Keep content-tool dedupe guards:
-    // those are conversation-scoped so echoed earlier tool-call text cannot
-    // re-execute a side-effectful embedded call.
-    _pendingContentToolResults.clear();
-    _pendingContentToolContinuationFallback = null;
-    _pendingToolExecutions.clear();
-    _turnToolResults.clearResults();
-    _contentToolContinuationCount = 0;
-    _contentToolExecutionTail = Future<void>.value();
-    _accumulatedTokenUsage = TokenUsage.zero;
-    _latestHiddenAssistantResponse = null;
-    if (!preserveGoalAutoContinueEvidence) {
-      _latestGoalAutoContinueEvidence = const ToolResultCompletionEvidence();
-    }
-    _persistHiddenPromptAssistantResponse = persistAssistantResponse;
+    final ownerConversationId = conversationId!;
     final interactionGeneration = _beginInteractionGeneration();
-    if (!await _startRuntimeTurn(
+    final startedRuntime = await _startRuntimeTurn(
       generation: interactionGeneration,
+      ownerConversationId: ownerConversationId,
       hidden: true,
-    )) {
-      return;
-    }
-    _clearTurnDiffCapture();
-    _hiddenPrompt = Message(
-      id: _uuid.v4(),
-      content: instruction,
-      role: MessageRole.user,
-      timestamp: DateTime.now(),
+      initialGoalCompletionEvidence:
+          initialGoalCompletionEvidence ?? const ToolResultCompletionEvidence(),
     );
-
-    // Append a placeholder assistant message for streaming.
-    final assistantMessage = Message(
-      id: _uuid.v4(),
-      content: '',
-      role: MessageRole.assistant,
-      timestamp: DateTime.now(),
-      isStreaming: true,
-    );
-
-    state = state.copyWith(
-      messages: [...state.messages, assistantMessage],
-      isLoading: true,
-      error: null,
-    );
-    _trackActiveResponse(interactionGeneration, conversationId);
-
-    _startResponseMetricsTimer(interactionGeneration);
-
-    _onSendStarted();
-
-    await _preparePrimaryModelForPendingRouteIfNeeded();
-    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-
-    // Use tool-aware flow when the MCP tool service is available.
-    if (_mcpToolService != null &&
-        _settings.mcpEnabled &&
-        _supportsToolAwareRequests) {
-      appLog('[Tool] Sending hidden prompt in tool-aware mode');
-      await _sendWithTools(
-        interactionGeneration: interactionGeneration,
-        allowedToolNames: allowedToolNames,
-        replayVerifierImmediatelyAfterMutation:
-            replayVerifierImmediatelyAfterMutation,
-        verifierOnlyContinuation: verifierOnlyContinuation,
+    if (startedRuntime == null) return null;
+    final turnOwner = startedRuntime;
+    try {
+      _clearTurnDiffCapture();
+      final turnUserMessage = Message(
+        id: _uuid.v4(),
+        content: instruction,
+        role: MessageRole.user,
+        timestamp: DateTime.now(),
       );
-    } else {
-      appLog('[Tool] Sending hidden prompt in normal mode');
-      await _sendWithoutTools(interactionGeneration: interactionGeneration);
+      _hiddenPrompt = turnUserMessage;
+      final assistantMessage = Message(
+        id: _uuid.v4(),
+        content: '',
+        role: MessageRole.assistant,
+        timestamp: DateTime.now(),
+        isStreaming: true,
+      );
+      final ownerMessages = ownerConversationId == conversationId
+          ? state.messages
+          : _conversationForId(ownerConversationId)?.messages ??
+                const <Message>[];
+      final responseMessages = [...ownerMessages, assistantMessage];
+      if (ownerConversationId == conversationId) {
+        state = state.copyWith(
+          messages: responseMessages,
+          isLoading: true,
+          error: null,
+        );
+      }
+      _trackActiveResponse(
+        interactionGeneration,
+        ownerConversationId,
+        turnUserMessage: turnUserMessage,
+        hiddenPrompt: turnUserMessage,
+        persistHiddenPromptAssistantResponse: persistAssistantResponse,
+        ownerMessages: responseMessages,
+      );
+      if (!_responseMetadata.start(turnOwner)) {
+        throw StateError('Response metadata state could not be initialized.');
+      }
+
+      _onSendStarted();
+
+      await _preparePrimaryModelForPendingRouteIfNeeded();
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+        return turnOwner;
+      }
+
+      if (_mcpToolService != null &&
+          _settings.mcpEnabled &&
+          _supportsToolAwareRequests) {
+        appLog('[Tool] Sending hidden prompt in tool-aware mode');
+        await _sendWithTools(
+          interactionGeneration: interactionGeneration,
+          allowedToolNames: allowedToolNames,
+          replayVerifierImmediatelyAfterMutation:
+              replayVerifierImmediatelyAfterMutation,
+          verifierOnlyContinuation: verifierOnlyContinuation,
+        );
+      } else {
+        appLog('[Tool] Sending hidden prompt in normal mode');
+        _denyTools(interactionGeneration);
+        await _sendWithoutTools(interactionGeneration: interactionGeneration);
+      }
+      return turnOwner;
+    } catch (error) {
+      _failRuntimeTurn(
+        interactionGeneration,
+        code: 'hidden_prompt_failed',
+        message: error.toString(),
+      );
+      _turnToolResults.dispose(turnOwner);
+      _routeRuntimeStartFailure(ownerConversationId, error.toString());
+      return null;
     }
   }
 
@@ -3228,10 +3135,10 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     try {
-      final result = await _runSecondaryCompletion(
-        endpointId: _settings.goalSuggestionEndpointId,
-        model: _settings.effectiveGoalSuggestionModel,
-        call: (dataSource, model) => dataSource.createChatCompletion(
+      final result = await _secondaryCompletionRouter.run(
+        primaryDataSource: _dataSource,
+        route: _settings._goalSuggestionCompletionRoute,
+        operation: (dataSource, model) => dataSource.createChatCompletion(
           messages: ConversationGoalSuggestionService.buildMessages(
             conversation: currentConversation,
             languageCode: languageCode,
@@ -3274,34 +3181,18 @@ class ChatNotifier extends Notifier<ChatState> {
     await generatePlanProposalWithContext(languageCode: languageCode);
   }
 
-  List<ToolResultInfo> takeLatestToolResults() => _turnToolResults.takeAll();
+  List<ToolResultInfo> takeLatestToolResults(ChatTurnOwner owner) =>
+      _turnToolResults.takeAndDispose(owner);
 
-  String? takeLatestHiddenAssistantResponse() {
-    final snapshot = _latestHiddenAssistantResponse;
-    _latestHiddenAssistantResponse = null;
-    return snapshot;
-  }
+  String? takeLatestHiddenAssistantResponse(ChatTurnOwner? owner) =>
+      owner == null ? null : _hiddenAssistantEvidence.take(owner);
 
-  void _recordHiddenAssistantResponse(String? response) {
-    final candidate = response?.trim() ?? '';
-    if (candidate.isEmpty) {
-      return;
-    }
-
-    final existing = _latestHiddenAssistantResponse?.trim() ?? '';
-    if (existing.isEmpty) {
-      _latestHiddenAssistantResponse = candidate;
-      return;
-    }
-
-    final existingScore = _hiddenAssistantEvidenceScore(existing);
-    final candidateScore = _hiddenAssistantEvidenceScore(candidate);
-    if (candidateScore > existingScore ||
-        (candidateScore == existingScore &&
-            candidate.length >= existing.length)) {
-      _latestHiddenAssistantResponse = candidate;
-    }
-  }
+  void _recordHiddenEvidence(ChatTurnOwner owner, String? response) =>
+      _hiddenAssistantEvidence.record(
+        owner,
+        response,
+        evidenceScore: _hiddenAssistantEvidenceScore,
+      );
 
   void _appendRecoveredAssistantResponse(
     String response, {
@@ -3343,18 +3234,20 @@ class ChatNotifier extends Notifier<ChatState> {
         .read(conversationsNotifierProvider)
         .currentConversation;
     if (currentConversation == null) return;
-    conversationId = currentConversation.id;
+    final ownerConversationId = currentConversation.id;
+    conversationId = ownerConversationId;
     final interactionGeneration = _beginInteractionGeneration();
-    _trackActiveResponse(interactionGeneration, conversationId);
-    if (!await _startRuntimeTurn(
-      generation: interactionGeneration,
-      hidden: false,
-    )) {
+    _trackActiveResponse(interactionGeneration, ownerConversationId);
+    if (await _startRuntimeTurn(
+          generation: interactionGeneration,
+          ownerConversationId: ownerConversationId,
+          hidden: false,
+        ) ==
+        null) {
+      _clearActiveResponseForGeneration(interactionGeneration);
       return;
     }
-    currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
+    currentConversation = _conversationForId(ownerConversationId);
     if (currentConversation == null) {
       _failRuntimeTurn(
         interactionGeneration,
@@ -3364,7 +3257,7 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       return;
     }
-    conversationId = currentConversation.id;
+    _denyTools(interactionGeneration);
 
     await _runPlanProposalFlow(
       currentConversation: currentConversation,
@@ -3450,11 +3343,8 @@ class ChatNotifier extends Notifier<ChatState> {
       decision: decision,
       completer: completer,
     );
-    // Route to the drafting thread: writing the visible thread's state put a
-    // background plan's question in front of whoever was on screen, and that
-    // thread's own flow then cleared it. The completer nobody could reach kept
-    // the turn — with its registration, runtime handle and workspace lease —
-    // alive until the app was quit (measured live 2026-07-27, gen-5).
+    // Route to the drafting thread so a visible-thread transition cannot clear
+    // an unreachable decision and leave its background turn alive.
     _routeApproval(
       (s) => s.copyWith(
         isLoading: false,
@@ -3463,7 +3353,8 @@ class ChatNotifier extends Notifier<ChatState> {
         pendingWorkflowDecision: pending,
       ),
     );
-    _emitRuntimeQuestionRequired(
+    _runtimeEvents.emitRuntimeQuestionRequired(
+      _runtimeEventGeneration,
       CavernoRuntimeQuestionRequest(
         id: pending.id,
         prompt: decision.question,
@@ -3512,6 +3403,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     final researchContext = await _buildPlanningResearchContext(
       currentConversation: currentConversation,
+      interactionGeneration: interactionGeneration,
     );
 
     WorkflowProposalDraft? workflowDraft;
@@ -3523,13 +3415,16 @@ class ChatNotifier extends Notifier<ChatState> {
             interactionGeneration,
             // Plan drafting raises its decision prompt several frames down, so
             // it needs the same thread identity tool dispatch carries.
-            () => TurnThread.runScoped(
-              currentConversation.id,
-              () => _requestWorkflowProposal(
-                currentConversation: currentConversation,
-                languageCode: languageCode,
-                researchContext: researchContext,
-                additionalPlanningContext: additionalPlanningContext,
+            () => TurnGeneration.runScoped(
+              interactionGeneration,
+              () => TurnThread.runScoped(
+                currentConversation.id,
+                () => _requestWorkflowProposal(
+                  currentConversation: currentConversation,
+                  languageCode: languageCode,
+                  researchContext: researchContext,
+                  additionalPlanningContext: additionalPlanningContext,
+                ),
               ),
             ),
           );
@@ -3627,7 +3522,8 @@ class ChatNotifier extends Notifier<ChatState> {
           taskProposalError: null,
         ),
       );
-      _emitRuntimeWorkflowTransition(
+      _runtimeEvents.emitRuntimeWorkflowTransition(
+        generation: interactionGeneration,
         stage: taskDraft.tasks.isEmpty ? 'tasks' : 'implement',
         taskStatus: 'proposal_ready',
       );
@@ -3697,13 +3593,17 @@ class ChatNotifier extends Notifier<ChatState> {
         );
   }
 
-  /// Sends a streaming request without tools.
   Future<void> _sendWithoutTools({
     bool allowContextRetry = true,
     int? interactionGeneration,
   }) async {
     if (!ref.mounted) return;
     final generation = interactionGeneration ?? _interactionGeneration;
+    final turnOwner = _turnOwnerForGeneration(generation);
+    if (turnOwner == null) {
+      await _handleTurnOwnerSnapshotUnavailable(generation);
+      return;
+    }
     try {
       _runWithLlmSessionLogContextForGeneration(generation, () {
         final stream = _dataSource.streamChatCompletion(
@@ -3732,20 +3632,22 @@ class ChatNotifier extends Notifier<ChatState> {
                     allowContextRetry: false,
                     interactionGeneration: generation,
                   ),
+                  owner: turnOwner,
                 ).then((retried) {
                   if (!_isCurrentInteractionGeneration(generation)) return;
                   if (!retried) {
-                    _handleError(error.toString());
+                    unawaited(_handleError(error, owner: turnOwner));
                   }
                 }),
               );
               return;
             }
-            _handleError(error.toString());
+            unawaited(_handleError(error, owner: turnOwner));
           },
           onDone: () {
-            unawaited(_finishStreaming(interactionGeneration: generation));
+            _finishStreamedCompletionInBackground(turnOwner, stream.terminal);
           },
+          cancelOnError: true,
         );
       });
     } catch (e, stackTrace) {
@@ -3758,11 +3660,12 @@ class ChatNotifier extends Notifier<ChatState> {
               allowContextRetry: false,
               interactionGeneration: generation,
             ),
+            owner: turnOwner,
           )) {
         return;
       }
       if (!_isCurrentInteractionGeneration(generation)) return;
-      _handleError(e.toString());
+      await _handleError(e, owner: turnOwner);
     }
   }
 
@@ -3772,7 +3675,12 @@ class ChatNotifier extends Notifier<ChatState> {
     required int interactionGeneration,
   }) async {
     if (!ref.mounted) return;
-    _resetStreamingAssistantForRetry();
+    final turnOwner = _turnOwnerForGeneration(interactionGeneration);
+    if (turnOwner == null) {
+      await _handleTurnOwnerSnapshotUnavailable(interactionGeneration);
+      return;
+    }
+    _resetStreamingAssistantForRetry(turnOwner);
     try {
       _runWithLlmSessionLogContextForGeneration(interactionGeneration, () {
         final messages = _prepareMessagesForLLM(
@@ -3813,23 +3721,22 @@ class ChatNotifier extends Notifier<ChatState> {
                     allowContextRetry: false,
                     interactionGeneration: interactionGeneration,
                   ),
+                  owner: turnOwner,
                 ).then((retried) {
                   if (!_isCurrentInteractionGeneration(interactionGeneration)) {
                     return;
                   }
                   if (!retried) {
-                    _handleError(error.toString());
+                    unawaited(_handleError(error, owner: turnOwner));
                   }
                 }),
               );
               return;
             }
-            _handleError(error.toString());
+            unawaited(_handleError(error, owner: turnOwner));
           },
           onDone: () {
-            unawaited(
-              _finishStreaming(interactionGeneration: interactionGeneration),
-            );
+            _finishStreamedCompletionInBackground(turnOwner, stream.terminal);
           },
           cancelOnError: true,
         );
@@ -3848,11 +3755,12 @@ class ChatNotifier extends Notifier<ChatState> {
               allowContextRetry: false,
               interactionGeneration: interactionGeneration,
             ),
+            owner: turnOwner,
           )) {
         return;
       }
       if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-      _handleError(error.toString());
+      await _handleError(error, owner: turnOwner);
     }
   }
 
@@ -3878,71 +3786,42 @@ class ChatNotifier extends Notifier<ChatState> {
 
   Future<bool> _retryAfterContextLengthError(
     Object error,
-    Future<void> Function() retry,
-  ) async {
-    if (!ConversationCompactionService.isContextLengthError(error.toString())) {
-      return false;
-    }
+    Future<void> Function() retry, {
+    required ChatTurnOwner owner,
+  }) => TurnContextRetryCoordinator.retry(
+    error: error,
+    ownerMessages: _activeResponseRegistry.messagesForOwner(owner),
+    ownerConversation: _conversationForId(owner.conversationId),
+    markForceCompaction: () =>
+        _modelSwitchHandoffs.requestPromptCompaction(owner),
+    applyReset: (messages) =>
+        _applyStreamingAssistantRetryReset(owner, messages),
+    sendAgain: retry,
+  );
 
-    final messages = state.messages
-        .where((message) => !message.isStreaming)
-        .toList(growable: false);
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    final artifact = ConversationCompactionService.buildArtifact(
-      messages: messages,
-      planDocument: currentConversation?.displayPlanDocument(
-        isPlanning: currentConversation.isPlanningSession,
-      ),
-      now: DateTime.now(),
-      force: true,
+  void _resetStreamingAssistantForRetry(ChatTurnOwner owner) {
+    if (!ref.mounted) return;
+    TurnContextRetryCoordinator.reset(
+      ownerMessages: _activeResponseRegistry.messagesForOwner(owner),
+      apply: (messages) => _applyStreamingAssistantRetryReset(owner, messages),
     );
-    if (artifact == null || !artifact.hasContent) {
-      appLog(
-        '[Compaction] Context-length retry skipped because no compactable history is available',
+  }
+
+  void _applyStreamingAssistantRetryReset(
+    ChatTurnOwner owner,
+    List<Message> messages,
+  ) {
+    _activeResponseRegistry.cacheMessagesForOwner(owner, messages);
+    if (conversationId == owner.conversationId) {
+      state = state.copyWith(messages: messages, error: null);
+    }
+  }
+
+  bool _hasCompactablePromptHistory(ChatTurnOwner owner) =>
+      TurnContextRetryCoordinator.hasCompactableHistory(
+        ownerMessages: _activeResponseRegistry.messagesForOwner(owner),
+        ownerConversation: _conversationForId(owner.conversationId),
       );
-      return false;
-    }
-
-    appLog(
-      '[Compaction] Retrying after context-length error with ${artifact.compactedMessageCount} compacted message(s)',
-    );
-    _forcePromptCompactionForNextRequest = true;
-    _resetStreamingAssistantForRetry();
-    await retry();
-    return true;
-  }
-
-  void _resetStreamingAssistantForRetry() {
-    if (!ref.mounted || state.messages.isEmpty) return;
-    final updatedMessages = [...state.messages];
-    final lastIndex = updatedMessages.length - 1;
-    final lastMessage = updatedMessages[lastIndex];
-    if (lastMessage.role != MessageRole.assistant || !lastMessage.isStreaming) {
-      return;
-    }
-    updatedMessages[lastIndex] = lastMessage.copyWith(content: '', error: null);
-    state = state.copyWith(messages: updatedMessages, error: null);
-  }
-
-  bool _hasCompactablePromptHistory() {
-    final messages = state.messages
-        .where((message) => !message.isStreaming)
-        .toList(growable: false);
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    final artifact = ConversationCompactionService.buildArtifact(
-      messages: messages,
-      planDocument: currentConversation?.displayPlanDocument(
-        isPlanning: currentConversation.isPlanningSession,
-      ),
-      now: DateTime.now(),
-      force: true,
-    );
-    return artifact?.hasContent ?? false;
-  }
 
   Future<ChatCompletionResult> _createToolResultCompletionWithContextRetry({
     required String logLabel,
@@ -3952,17 +3831,22 @@ class ChatNotifier extends Notifier<ChatState> {
     required String? assistantContent,
     required List<Map<String, dynamic>> tools,
   }) async {
+    final observationOwner = _turnOwnerForGeneration(interactionGeneration);
+    final protectedPaths = const ContextSurgeryProtectedPathPolicy()
+        .protectedPathsFor(_conversationForGeneration(interactionGeneration));
     Future<ChatCompletionResult> send({
       required bool forceCompaction,
       required ToolResultPromptBudgetMode budgetMode,
-    }) {
-      return _runWithLlmSessionLogContextForGeneration(
+    }) async {
+      final result = await _runWithLlmSessionLogContextForGeneration(
         interactionGeneration,
         () => _dataSource.createChatCompletionWithToolResults(
           messages: buildMessages(forceCompaction),
           toolResults: _budgetToolResultsForPrompt(
             toolResults,
             mode: budgetMode,
+            protectedPaths: protectedPaths,
+            observationOwner: observationOwner,
           ),
           assistantContent: assistantContent,
           tools: tools,
@@ -3971,6 +3855,11 @@ class ChatNotifier extends Notifier<ChatState> {
           maxTokens: _settings.maxTokens,
         ),
       );
+      final owner = _turnOwnerForGeneration(interactionGeneration);
+      if (owner != null) {
+        _responseMetadata.captureResult(owner, result);
+      }
+      return result;
     }
 
     try {
@@ -3979,9 +3868,12 @@ class ChatNotifier extends Notifier<ChatState> {
         budgetMode: ToolResultPromptBudgetMode.normal,
       );
     } catch (error) {
-      final hasCompactableHistory = _hasCompactablePromptHistory();
+      final retryOwner = _turnOwnerForGeneration(interactionGeneration);
+      final hasCompactableHistory =
+          retryOwner != null && _hasCompactablePromptHistory(retryOwner);
       final hasToolResultBudget = _hasAdditionalCompactToolResultBudget(
         toolResults,
+        protectedPaths: protectedPaths,
       );
       if (!ConversationCompactionService.isContextLengthError(
             error.toString(),
@@ -4010,21 +3902,32 @@ class ChatNotifier extends Notifier<ChatState> {
   }) async {
     if (!ref.mounted) return;
     final generation = interactionGeneration ?? _interactionGeneration;
+    final turnSnapshot = _turnOwnerSnapshotForGeneration(generation);
+    final turnOwner = turnSnapshot?.owner;
+    if (turnOwner == null) {
+      await _handleTurnOwnerSnapshotUnavailable(generation);
+      return;
+    }
     var nativeToolFallbackDefinitions = const <Map<String, dynamic>>[];
     if (!_supportsToolAwareRequests) {
       appLog(
         '[Tool] Tool-aware requests are unavailable for the selected provider; '
         'falling back to normal mode',
       );
+      _denyTools(generation);
       await _sendWithoutTools(
         allowContextRetry: allowContextRetry,
         interactionGeneration: generation,
       );
       return;
     }
-    _mcpToolService?.beginFileTurnCheckpoint('chat_generation_$generation');
+    final fileTools = _mcpToolService?..beginChatFileTurnCheckpoint(turnOwner);
     try {
       final allTools = _toolDefinitionsAllowedBy(allowedToolNames);
+      _activeResponseRegistry.setTools(
+        generation,
+        ToolDefinitionSearchService.toolNamesFromDefinitions(allTools).toSet(),
+      );
       if (allTools.isEmpty) {
         // Fall back to normal streaming when no tools are available.
         await _sendWithoutTools(
@@ -4071,8 +3974,6 @@ class ChatNotifier extends Notifier<ChatState> {
           ? streamedMessages[streamedMessageIndex].content.length
           : 0;
 
-      // Stream the initial request to show thinking/content in real-time
-      // while also detecting tool calls.
       final streamResult = _runWithLlmSessionLogContextForGeneration(
         generation,
         () => _dataSource.streamChatCompletionWithTools(
@@ -4087,18 +3988,17 @@ class ChatNotifier extends Notifier<ChatState> {
         ),
       );
 
-      // Display streamed content (thinking, preamble) in real-time.
       await for (final chunk in streamResult.stream) {
         if (!_isCurrentInteractionGeneration(generation)) return;
         if (!ref.mounted) return;
         _appendToLastMessageForGeneration(generation, chunk);
       }
 
-      // Retrieve the accumulated tool calls after the stream ends.
       final result = await streamResult.completion;
 
       if (!_isCurrentInteractionGeneration(generation)) return;
       if (!ref.mounted) return;
+      if (!_responseMetadata.captureResult(turnOwner, result)) return;
       appLog(
         '[Tool] LLM response - finishReason: ${result.finishReason}, hasToolCalls: ${result.hasToolCalls}',
       );
@@ -4106,7 +4006,6 @@ class ChatNotifier extends Notifier<ChatState> {
         '[Tool] toolCalls: ${result.toolCalls?.map((t) => t.name).toList()}',
       );
 
-      // Execute tool calls when the model requests them.
       if (result.hasToolCalls) {
         _lengthTruncatedToolCallIds = _truncationCasualtyToolCallIds(result);
         await _executeToolCalls(
@@ -4172,7 +4071,7 @@ class ChatNotifier extends Notifier<ChatState> {
             toolSearchEnabled: initialToolSelection.toolSearchEnabled,
             selectedToolNames: {
               ...initialToolSelection.selectedToolNames,
-              ..._browserToolNamesFromDefinitions(allTools),
+              ..._claims.browserToolNamesFromDefinitions(allTools),
             },
             stableToolDefinitions: stableLoopToolDefinitions,
             interactionGeneration: generation,
@@ -4182,7 +4081,6 @@ class ChatNotifier extends Notifier<ChatState> {
           );
           return;
         }
-        // No tool calls — content was already streamed in real-time.
         appLog('[Tool] No tool calls, response already streamed');
         final hiddenAssistantEvidence = streamedAssistantContent.isNotEmpty
             ? streamedAssistantContent
@@ -4192,7 +4090,7 @@ class ChatNotifier extends Notifier<ChatState> {
           if (hiddenAssistantEvidenceRecorded) {
             return;
           }
-          _recordHiddenAssistantResponse(hiddenAssistantEvidence);
+          _recordHiddenEvidence(turnOwner, hiddenAssistantEvidence);
           hiddenAssistantEvidenceRecorded = true;
         }
 
@@ -4236,7 +4134,8 @@ class ChatNotifier extends Notifier<ChatState> {
             );
             return;
           }
-          _recordHiddenAssistantResponse(
+          _recordHiddenEvidence(
+            turnOwner,
             codingContinuationRecoveryResult.content,
           );
         }
@@ -4255,39 +4154,44 @@ class ChatNotifier extends Notifier<ChatState> {
         _appendUnexecutedToolRequestNoticeIfNeeded(
           interactionGeneration: generation,
         );
-        final unexecutedCommandAction = _buildUnexecutedCommandActionToolResult(
-          candidateResponse: hiddenAssistantEvidence,
-          toolResults: const [],
-          interactionGeneration: generation,
-        );
+        final unexecutedCommandAction =
+            _toolCallExecutionPolicy.offersCommandExecution(
+              turnSnapshot!.allowedToolNames,
+            )
+            ? _claims.buildUnexecutedCommandActionToolResult(
+                candidateResponse: hiddenAssistantEvidence,
+                toolResults: const [],
+              )
+            : null;
         if (unexecutedCommandAction != null) {
-          _turnToolResults.setCompleted([unexecutedCommandAction]);
-          _latestGoalAutoContinueEvidence =
-              ToolResultPromptBuilder.completionEvidence(
-                _turnToolResults.completed,
-              ).carryForwardIncompleteFrom(_latestGoalAutoContinueEvidence);
+          _turnToolResults.setCompleted(turnOwner, [unexecutedCommandAction]);
+          _goalCompletionEvidence.replaceWithToolResults(
+            turnOwner,
+            _turnToolResults.completed(turnOwner),
+          );
           _appendUnexecutedCommandActionNoticeIfNeeded(
             toolResults: [unexecutedCommandAction],
-            interactionGeneration: generation,
+            owner: turnOwner,
           );
         } else {
-          final unverifiedInspectionClaim =
-              _buildUnverifiedReadOnlyInspectionClaimToolResult(
+          final unverifiedInspectionClaim = _claims
+              .buildUnverifiedReadOnlyInspectionClaimToolResult(
                 candidateResponse: hiddenAssistantEvidence,
                 toolResults: const [],
               );
           if (unverifiedInspectionClaim != null) {
-            _turnToolResults.setCompleted([unverifiedInspectionClaim]);
+            _turnToolResults.setCompleted(turnOwner, [
+              unverifiedInspectionClaim,
+            ]);
             _appendUnverifiedReadOnlyInspectionClaimNoticeIfNeeded(
               toolResults: [unverifiedInspectionClaim],
-              interactionGeneration: generation,
+              owner: turnOwner,
             );
           }
         }
         await _finishStreaming(interactionGeneration: generation);
       }
     } catch (e) {
-      // Fall back when the LLM likely does not support tools.
       final errorStr = e.toString().toLowerCase();
       appLog('[Tool] Error occurred: $e');
 
@@ -4300,6 +4204,7 @@ class ChatNotifier extends Notifier<ChatState> {
               allowedToolNames: allowedToolNames,
               verifierOnlyContinuation: verifierOnlyContinuation,
             ),
+            owner: turnOwner,
           )) {
         return;
       }
@@ -4311,7 +4216,7 @@ class ChatNotifier extends Notifier<ChatState> {
           '[Tool] Foundation Models tool bridge exceeded the context window; '
           'falling back to normal mode',
         );
-        _resetStreamingAssistantForRetry();
+        _resetStreamingAssistantForRetry(turnOwner);
         await _sendWithoutTools(
           allowContextRetry: allowContextRetry,
           interactionGeneration: generation,
@@ -4333,8 +4238,6 @@ class ChatNotifier extends Notifier<ChatState> {
         return;
       }
 
-      // Fall back to normal mode for tool-related failures.
-      // Examples include JSON parse errors, empty responses, or invalid payloads.
       if (errorStr.contains('formatexception') ||
           errorStr.contains('expecting value') ||
           errorStr.contains('empty') ||
@@ -4353,72 +4256,71 @@ class ChatNotifier extends Notifier<ChatState> {
         return;
       }
       if (!_isCurrentInteractionGeneration(generation)) return;
-      _handleError(e.toString());
+      await _handleError(e, owner: turnOwner);
     } finally {
-      _mcpToolService?.endFileTurnCheckpoint();
+      fileTools?.endFileTurnCheckpoint(turnOwner);
     }
   }
 
   bool _shouldFallbackFoundationModelsToolBridgeAfterContextError(
     Object error,
-  ) {
-    return _settings.llmProvider == LlmProvider.appleFoundationModels &&
-        ConversationCompactionService.isContextLengthError(error.toString());
-  }
+  ) =>
+      _settings.llmProvider == LlmProvider.appleFoundationModels &&
+      ConversationCompactionService.isContextLengthError(error.toString());
 
   bool get _supportsToolAwareRequests => true;
 
   List<ToolResultInfo> _budgetToolResultsForPrompt(
     List<ToolResultInfo> toolResults, {
     ToolResultPromptBudgetMode mode = ToolResultPromptBudgetMode.normal,
+    required Set<String> protectedPaths,
+    required ChatTurnOwner? observationOwner,
   }) {
     final budgetedToolResults = ToolResultPromptBuilder.budgetToolResults(
       toolResults,
       mode: mode,
       protectedPaths: mode == ToolResultPromptBudgetMode.compact
-          ? _contextSurgeryProtectedPaths()
+          ? protectedPaths
           : const <String>{},
     );
-    _updateContextSurgeryObservation(toolResults: budgetedToolResults);
+    if (observationOwner != null) {
+      _updateContextSurgeryObservation(
+        owner: observationOwner,
+        toolResults: budgetedToolResults,
+      );
+    }
     return budgetedToolResults;
   }
 
-  bool _hasAdditionalCompactToolResultBudget(List<ToolResultInfo> toolResults) {
-    return ToolResultPromptBuilder.hasAdditionalCompactBudgetReduction(
-      toolResults,
-      protectedPaths: _contextSurgeryProtectedPaths(),
-    );
-  }
+  bool _hasAdditionalCompactToolResultBudget(
+    List<ToolResultInfo> toolResults, {
+    required Set<String> protectedPaths,
+  }) => ToolResultPromptBuilder.hasAdditionalCompactBudgetReduction(
+    toolResults,
+    protectedPaths: protectedPaths,
+  );
 
-  /// The conversation and project a coding turn belongs to, or null when the
-  /// turn is not a coding turn at all.
-  ///
-  /// Three tool-loop builders needed exactly this pair and each resolved it
-  /// from the visible thread, so a turn running in the background judged its
-  /// workspace mode against another thread and ran verification against
-  /// another project's root.
-  /// The conversation a turn belongs to. Falls back to the visible thread only
-  /// when the turn is untracked, which is the user-initiated path.
+  /// Resolves only the registered owner; visible state is unsafe for an
+  /// untracked or background generation.
   Conversation? _conversationForGeneration(int generation) {
     final threadId = _activeResponseConversationIdForGeneration(generation);
-    return threadId == null
-        ? ref.read(conversationsNotifierProvider).currentConversation
-        : _conversationForId(threadId);
+    return threadId == null ? null : _conversationForId(threadId);
   }
 
   ({Conversation conversation, String projectRoot})? _codingTurnContext(
     int generation,
   ) {
-    final conversation = _conversationForGeneration(generation);
-    if (conversation == null ||
-        conversation.workspaceMode != WorkspaceMode.coding ||
-        conversation.isPlanningSession) {
+    final snapshot = _turnOwnerSnapshotForGeneration(generation);
+    final projectRoot = snapshot?.projectRoot?.trim();
+    if (snapshot == null ||
+        !snapshot.isCodingWorkspaceOrMode ||
+        snapshot.isPlanning ||
+        projectRoot == null ||
+        projectRoot.isEmpty) {
       return null;
     }
-    final projectRoot = _codingProjectForTurn(conversation)?.rootPath.trim();
-    if (projectRoot == null || projectRoot.isEmpty) {
-      return null;
-    }
+    final conversation = _conversationForId(snapshot.owner.conversationId);
+    if (conversation == null) return null;
     return (conversation: conversation, projectRoot: projectRoot);
   }
 
@@ -4473,16 +4375,8 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  /// Run one authoritative analyzer pass over every changed file just before
-  /// composing the final answer.
-  ///
-  /// The per-batch [_buildCodingDiagnosticFeedbackToolResult] reports only
-  /// diagnostics that are new relative to that batch's pre-edit baseline, so an
-  /// error that survives a later successful-but-incorrect edit is silenced
-  /// (it is also present in the baseline) and the only analyzer feedback left
-  /// in the results is the stale pre-fix one. Re-running with no baseline
-  /// reports the absolute current state, so the final answer sees the real
-  /// post-edit analyzer result instead of a stale or missing one.
+  /// Runs one baseline-free analyzer pass before the final answer so surviving
+  /// diagnostics cannot be hidden by a later batch's relative baseline.
   Future<ToolResultInfo?> _buildFinalCodingDiagnosticFeedbackToolResult(
     List<ToolResultInfo> toolResults, {
     required int interactionGeneration,
@@ -4663,7 +4557,12 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_looksLikeBackgroundProcessCompletionClaim(candidateResponse)) {
       return null;
     }
+    final owner = _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) {
+      return null;
+    }
     final feedback = await _buildBackgroundProcessMonitorFeedbackToolResult(
+      owner: owner,
       candidateResponse: candidateResponse,
       toolResults: executedToolResults,
     );
@@ -4711,6 +4610,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   Future<ToolResultInfo?> _buildBackgroundProcessMonitorFeedbackToolResult({
+    required ChatTurnOwner owner,
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
   }) async {
@@ -4726,6 +4626,7 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
     final processFeedback = await _buildBackgroundProcessMonitorToolResult(
+      owner: owner,
       candidateResponse: candidateResponse,
       toolResults: toolResults,
     );
@@ -4733,6 +4634,7 @@ class ChatNotifier extends Notifier<ChatState> {
       return processFeedback;
     }
     return _buildSubagentMonitorFeedbackToolResult(
+      owner: owner,
       candidateResponse: candidateResponse,
       toolResults: toolResults,
     );
@@ -4768,11 +4670,11 @@ class ChatNotifier extends Notifier<ChatState> {
               (result) => {
                 'tool_name': result.name,
                 'arguments': result.arguments,
-                'result_excerpt': _clipForDiagnostic(result.result),
+                'result_excerpt': _claims.clipForDiagnostic(result.result),
               },
             )
             .toList(growable: false),
-        'claimedResponse': _clipForDiagnostic(candidateResponse),
+        'claimedResponse': _claims.clipForDiagnostic(candidateResponse),
         'required_action':
             'Report the partial failure explicitly. Do not claim the release, '
             'upload, or export completed successfully until a later command '
@@ -4825,70 +4727,22 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   Future<ToolResultInfo?> _buildBackgroundProcessMonitorToolResult({
+    required ChatTurnOwner owner,
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
   }) async {
     final jobIds = _backgroundProcessJobIdsFromResults(toolResults);
-    if (jobIds.isEmpty) {
-      return null;
-    }
-    final snapshots = await _backgroundProcessMonitorService.refreshJobs(
-      jobIds,
-    );
-    final blockingSnapshots = snapshots
-        .where((snapshot) {
-          return snapshot.isRunning ||
-              snapshot.hasFailedExit ||
-              !snapshot.ok ||
-              snapshot.status == 'unknown';
-        })
-        .toList(growable: false);
-    if (blockingSnapshots.isEmpty) {
-      return null;
-    }
-    final running = blockingSnapshots
-        .where((snapshot) => snapshot.isRunning)
-        .toList(growable: false);
-    final failed = blockingSnapshots
-        .where((snapshot) => snapshot.hasFailedExit)
-        .toList(growable: false);
-    final code = running.isNotEmpty
-        ? 'background_process_still_running'
-        : failed.isNotEmpty
-        ? 'background_process_failed'
-        : 'background_process_status_unverified';
-    final error = running.isNotEmpty
-        ? 'A background process is still running, so the completion claim is not verified yet.'
-        : failed.isNotEmpty
-        ? 'A background process exited with a non-zero status, so the completion claim is not verified.'
-        : 'A background process status could not be verified, so the completion claim is not verified.';
-
-    return ToolResultInfo(
-      id: 'background_process_monitor_${DateTime.now().microsecondsSinceEpoch}',
-      name: 'background_process_monitor',
-      arguments: {'job_ids': jobIds},
-      result: jsonEncode({
-        'ok': false,
-        'code': code,
-        'error': error,
-        'jobs': blockingSnapshots
-            .map((snapshot) => snapshot.toJson())
-            .toList(growable: false),
-        'claimedResponse': _clipForDiagnostic(candidateResponse),
-        'required_action':
-            'Use process_list(refresh: true, include_finished: false) to refresh running background jobs, then use process_status, process_tail, or process_wait for the specific job. Inspect stdout_tail, stderr_tail, elapsed_ms, and status to report concise progress before continuing to monitor. Do not just wait silently, and do not claim completion until the relevant process has exited successfully.',
-        'progress_report_required': true,
-        'progress_report_fields': const [
-          'status',
-          'elapsed_ms',
-          'stdout_tail',
-          'stderr_tail',
-        ],
-      }),
+    return BackgroundProcessCompletionMonitor(
+      monitor: _backgroundProcessMonitorService,
+    ).buildFeedback(
+      owner: owner,
+      jobIds: jobIds,
+      claimedResponse: _claims.clipForDiagnostic(candidateResponse),
     );
   }
 
   ToolResultInfo? _buildSubagentMonitorFeedbackToolResult({
+    required ChatTurnOwner owner,
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
   }) {
@@ -4912,7 +4766,7 @@ class ChatNotifier extends Notifier<ChatState> {
       }
 
       final rawStatus = decoded?['status']?.toString().toLowerCase() ?? '';
-      final task = notifier.byId(taskId);
+      final task = notifier.byId(owner, taskId);
       final status = task?.status ?? _statusFromSubagentTaskResult(rawStatus);
       final description =
           decoded?['description']?.toString() ??
@@ -5008,7 +4862,7 @@ class ChatNotifier extends Notifier<ChatState> {
         'code': code,
         'error': error,
         'tasks': blockedTasks,
-        'claimedResponse': _clipForDiagnostic(candidateResponse),
+        'claimedResponse': _claims.clipForDiagnostic(candidateResponse),
         'required_action':
             'Call get_subagent_result for each pending task_id until the status becomes completed, and do not claim completion until every relevant background subagent task finishes successfully.',
       }),
@@ -5116,10 +4970,10 @@ class ChatNotifier extends Notifier<ChatState> {
     final paths = <String>[];
     final seen = <String>{};
     for (final toolCall in toolCalls) {
-      if (!_isFileMutationToolName(toolCall.name)) {
+      if (!_fileMutationEvidencePolicy.isMutationToolName(toolCall.name)) {
         continue;
       }
-      final path = _toolPathFromArguments(toolCall.arguments);
+      final path = _fileMutationEvidencePolicy.argumentPath(toolCall.arguments);
       if (path == null || (dartOnly && !path.toLowerCase().endsWith('.dart'))) {
         continue;
       }
@@ -5142,15 +4996,13 @@ class ChatNotifier extends Notifier<ChatState> {
     final paths = <String>[];
     final seen = <String>{};
     for (final toolResult in toolResults) {
-      if (!_isFileMutationToolName(toolResult.name)) {
+      if (!_fileMutationEvidencePolicy.isMutationToolName(toolResult.name)) {
         continue;
       }
-      if (!_isSuccessfulFileMutationToolResult(toolResult)) {
+      if (!_fileMutationEvidencePolicy.isSuccessfulResult(toolResult)) {
         continue;
       }
-      final path =
-          _toolResultPayloadPath(toolResult.result) ??
-          _toolPathFromArguments(toolResult.arguments);
+      final path = _fileMutationEvidencePolicy.pathForResult(toolResult);
       if (path == null || (dartOnly && !path.toLowerCase().endsWith('.dart'))) {
         continue;
       }
@@ -5164,16 +5016,6 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
     return paths;
-  }
-
-  bool _isFileMutationToolName(String toolName) {
-    switch (toolName.trim().toLowerCase()) {
-      case 'write_file':
-      case 'edit_file' || 'delete_file':
-      case 'rollback_last_file_change':
-        return true;
-    }
-    return false;
   }
 
   bool _isPostSavedValidationEvidenceToolCall(ToolCallInfo toolCall) {
@@ -5219,59 +5061,18 @@ class ChatNotifier extends Notifier<ChatState> {
     return false;
   }
 
-  bool _isSuccessfulFileMutationToolResult(ToolResultInfo toolResult) {
-    final normalized = toolResult.result.trim().toLowerCase();
-    if (normalized.isEmpty ||
-        normalized.startsWith('error:') ||
-        normalized.startsWith('auto-review denied')) {
-      return false;
-    }
-    try {
-      final decoded = jsonDecode(toolResult.result);
-      if (decoded is! Map<String, dynamic>) {
-        return true;
-      }
-      if (decoded['error'] != null) {
-        return false;
-      }
-      if (decoded['already_applied'] == true) {
-        return false;
-      }
-      final code = decoded['code']?.toString().trim().toLowerCase();
-      if (code == 'permission_denied' ||
-          code == 'bookmark_restore_failed' ||
-          code == 'tool_execution_failed') {
-        return false;
-      }
-      return true;
-    } catch (_) {
-      return true;
-    }
-  }
-
-  String? _toolResultPayloadPath(String result) {
-    try {
-      final decoded = jsonDecode(result);
-      if (decoded is Map<String, dynamic>) {
-        final path = decoded['path'];
-        if (path is String && path.trim().isNotEmpty) {
-          return path.trim();
-        }
-      }
-    } catch (_) {
-      return null;
-    }
-    return null;
-  }
-
   List<Message> _buildToolResultAnswerMessages(
     List<ToolResultInfo> toolResults, {
     ToolResultPromptBudgetMode budgetMode = ToolResultPromptBudgetMode.normal,
     ToolResultCompletionEvidence? completionEvidence,
+    required Set<String> protectedPaths,
+    required ChatTurnOwner observationOwner,
   }) {
     final budgetedToolResults = _budgetToolResultsForPrompt(
       toolResults,
       mode: budgetMode,
+      protectedPaths: protectedPaths,
+      observationOwner: observationOwner,
     );
     final timestamp = DateTime.now();
     final messages = <Message>[
@@ -5329,13 +5130,14 @@ class ChatNotifier extends Notifier<ChatState> {
 
   void _logScheduledToolLifecycleEvent(
     ToolExecutionLifecycleEvent event, {
+    required int generation,
     required int loopIndex,
   }) {
-    _emitRuntimeToolLifecycle(
-      generation: _interactionGeneration,
+    _runtimeEvents.emitRuntimeToolLifecycle(
+      generation: generation,
       toolCallId: event.toolCall.id,
       toolName: event.toolCall.name,
-      state: _runtimeToolLifecycleState(event.state),
+      state: _runtimeEvents.runtimeToolLifecycleState(event.state),
       loopIndex: loopIndex,
       schedulerClass: event.schedulerMode.name,
       resultStatus: event.resultStatus,
@@ -5350,6 +5152,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void _logToolLifecycleEvent({
+    required int generation,
     required ToolCallInfo toolCall,
     required String lifecycleState,
     required int loopIndex,
@@ -5363,8 +5166,8 @@ class ChatNotifier extends Notifier<ChatState> {
       'started' => CavernoRuntimeToolLifecycleState.started,
       _ => CavernoRuntimeToolLifecycleState.completed,
     };
-    _emitRuntimeToolLifecycle(
-      generation: _interactionGeneration,
+    _runtimeEvents.emitRuntimeToolLifecycle(
+      generation: generation,
       toolCallId: toolCall.id,
       toolName: toolCall.name,
       state: runtimeState,
@@ -5400,6 +5203,12 @@ class ChatNotifier extends Notifier<ChatState> {
     bool verifierOnlyContinuation = false,
     required int interactionGeneration,
   }) async {
+    final turnSnapshot = _turnOwnerSnapshotForGeneration(interactionGeneration);
+    final turnOwner = turnSnapshot?.owner;
+    if (turnOwner == null) {
+      await _handleTurnOwnerSnapshotUnavailable(interactionGeneration);
+      return;
+    }
     var currentToolCalls = toolCalls;
     var currentAssistantContent = assistantContent;
     var maxIterations =
@@ -5434,11 +5243,7 @@ class ChatNotifier extends Notifier<ChatState> {
     var hasTextResponse = false;
     final executedToolCallKeys = <String>{};
     final toolFailureCounts = <String, int>{};
-    _turnExitReasonHint = null;
-    _finalAnswerFinishReasonOverride = null;
-    _appliedTurnTransforms.clear();
-    _shadowGoalToolCompletionOutcome = null;
-    _toolGoalCompletionClaimed = false;
+    _turnEnd.reset(turnOwner);
     final executedToolResults = <ToolResultInfo>[];
     var commandRetryGeneration = 0;
     var attemptedDuplicateInspectionRecovery = false;
@@ -5476,15 +5281,18 @@ class ChatNotifier extends Notifier<ChatState> {
       if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       if (!ref.mounted) return;
 
-      if (_shouldBlockToolCallsForUserConfirmation(
-        currentAssistantContent: currentAssistantContent,
-        toolCalls: currentToolCalls,
+      if (const GitWriteConfirmationPolicy().shouldBlock(
+        GitWriteConfirmationInput(
+          owner: turnOwner,
+          currentAssistantContent: currentAssistantContent,
+          pendingToolCalls: currentToolCalls,
+        ),
       )) {
         appLog(
           '[Tool] Blocking git write tool calls because the assistant asked '
           'for user confirmation',
         );
-        _turnExitReasonHint = ToolLoopExitReason.userConfirmationBlock;
+        _turnEnd.setHint(turnOwner, ToolLoopExitReason.userConfirmationBlock);
         currentToolCalls = [];
         hasTextResponse = true;
         break;
@@ -5519,7 +5327,7 @@ class ChatNotifier extends Notifier<ChatState> {
             executedToolResults: executedToolResults,
             verificationFailureCounts: verificationFailureCounts,
             transcriptRepairSignatures: transcriptRepairSignatures,
-            interactionGeneration: interactionGeneration,
+            owner: turnOwner,
           )) {
         return;
       }
@@ -5529,15 +5337,18 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       if (batchToolResults.isEmpty) {
         if (pendingBatchCalls.isEmpty && currentToolCalls.isNotEmpty) {
-          final duplicateRecoveryToolResults =
-              _buildDuplicateRecoveryToolResults(
-                currentToolCalls: currentToolCalls,
-                executedToolResults: executedToolResults,
-                fallbackToolResults: lastNonEmptyBatchToolResults,
-              );
+          final recovered = const DuplicateToolResultRecovery().recover(
+            DuplicateToolResultRecoveryInput(
+              currentToolCalls: currentToolCalls,
+              executedToolResults: executedToolResults,
+              fallbackToolResults: lastNonEmptyBatchToolResults,
+              projectRoot: _projectRootForGeneration(interactionGeneration),
+            ),
+          );
           if (_containsOnlyPreviouslySuccessfulCurrentSavedValidationToolCalls(
             currentToolCalls,
             executedToolResults,
+            interactionGeneration,
           )) {
             appLog(
               '[Tool] Duplicate saved validation command already succeeded',
@@ -5545,7 +5356,7 @@ class ChatNotifier extends Notifier<ChatState> {
             const fallbackResponse =
                 'The saved validation command already succeeded for the current saved task, so the current saved task is complete.';
             currentToolCalls = [];
-            _recordHiddenAssistantResponse(fallbackResponse);
+            _recordHiddenEvidence(turnOwner, fallbackResponse);
             _appendRecoveredAssistantResponse(
               fallbackResponse,
               interactionGeneration: interactionGeneration,
@@ -5566,9 +5377,7 @@ class ChatNotifier extends Notifier<ChatState> {
             final previousOutput = _toolCallExecutionPolicy
                 .previousSuccessfulCommandOutputForDuplicateCalls(
                   currentToolCalls,
-                  duplicateRecoveryToolResults.isNotEmpty
-                      ? duplicateRecoveryToolResults
-                      : executedToolResults,
+                  recovered.isNotEmpty ? recovered : executedToolResults,
                 );
             if (_toolCallExecutionPolicy
                     .shouldUsePreviousOutputForDuplicateCommandCalls(
@@ -5578,7 +5387,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 (fallbackResponse.isEmpty ||
                     _looksLikePendingToolActionResponse(fallbackResponse))) {
               currentToolCalls = [];
-              _recordHiddenAssistantResponse(previousOutput);
+              _recordHiddenEvidence(turnOwner, previousOutput);
               _appendRecoveredAssistantResponse(
                 previousOutput,
                 interactionGeneration: interactionGeneration,
@@ -5590,7 +5399,7 @@ class ChatNotifier extends Notifier<ChatState> {
             if (fallbackResponse.isNotEmpty &&
                 !_looksLikePendingToolActionResponse(fallbackResponse)) {
               currentToolCalls = [];
-              _recordHiddenAssistantResponse(fallbackResponse);
+              _recordHiddenEvidence(turnOwner, fallbackResponse);
               _appendRecoveredAssistantResponse(
                 fallbackResponse,
                 interactionGeneration: interactionGeneration,
@@ -5603,7 +5412,7 @@ class ChatNotifier extends Notifier<ChatState> {
           if (batchToolResults.isEmpty &&
               !attemptedDuplicateInspectionRecovery &&
               _containsOnlyReadOnlyInspectionToolCalls(currentToolCalls) &&
-              duplicateRecoveryToolResults.isNotEmpty) {
+              recovered.isNotEmpty) {
             attemptedDuplicateInspectionRecovery = true;
             appLog(
               '[Tool] Duplicate read-only follow-up tool calls detected, requesting bounded recovery',
@@ -5611,7 +5420,7 @@ class ChatNotifier extends Notifier<ChatState> {
             _appendToLastMessageForGeneration(interactionGeneration, '<think>');
             final mcpToolService = _mcpToolService;
             if (mcpToolService == null) {
-              _turnToolResults.setCompleted(executedToolResults);
+              _turnToolResults.setCompleted(turnOwner, executedToolResults);
               await _sendWithoutTools(
                 interactionGeneration: interactionGeneration,
               );
@@ -5630,7 +5439,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   role: MessageRole.user,
                   content: _buildDuplicateInspectionRecoveryPrompt(
                     currentToolCalls,
-                    previousToolResults: duplicateRecoveryToolResults,
+                    previousToolResults: recovered,
                   ),
                   timestamp: DateTime.now(),
                 ),
@@ -5643,7 +5452,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   logLabel: 'duplicate inspection recovery',
                   interactionGeneration: interactionGeneration,
                   buildMessages: buildRecoveryMessages,
-                  toolResults: duplicateRecoveryToolResults,
+                  toolResults: recovered,
                   assistantContent: currentAssistantContent,
                   tools: tools,
                 );
@@ -5657,7 +5466,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 '[Tool] Duplicate inspection recovery requested additional tool calls',
               );
               currentToolCalls = recoveryResult.toolCalls!;
-              _recordHiddenAssistantResponse(recoveryResult.content);
+              _recordHiddenEvidence(turnOwner, recoveryResult.content);
               if (recoveryResult.content.isNotEmpty) {
                 currentAssistantContent = recoveryResult.content;
               }
@@ -5668,7 +5477,7 @@ class ChatNotifier extends Notifier<ChatState> {
             );
             currentToolCalls = [];
             final fallbackResponse = recoveryResult.content.trim();
-            _recordHiddenAssistantResponse(fallbackResponse);
+            _recordHiddenEvidence(turnOwner, fallbackResponse);
             if (_shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
               _appendRecoveredAssistantResponse(
                 fallbackResponse,
@@ -5682,7 +5491,7 @@ class ChatNotifier extends Notifier<ChatState> {
           }
           if (batchToolResults.isEmpty &&
               !attemptedDuplicateFollowUpRecovery &&
-              duplicateRecoveryToolResults.isNotEmpty) {
+              recovered.isNotEmpty) {
             attemptedDuplicateFollowUpRecovery = true;
             appLog(
               '[Tool] Duplicate follow-up tool calls detected, requesting bounded recovery',
@@ -5690,7 +5499,7 @@ class ChatNotifier extends Notifier<ChatState> {
             _appendToLastMessageForGeneration(interactionGeneration, '<think>');
             final mcpToolService = _mcpToolService;
             if (mcpToolService == null) {
-              _turnToolResults.setCompleted(executedToolResults);
+              _turnToolResults.setCompleted(turnOwner, executedToolResults);
               await _sendWithoutTools(
                 interactionGeneration: interactionGeneration,
               );
@@ -5709,7 +5518,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   role: MessageRole.user,
                   content: _buildDuplicateFollowUpRecoveryPrompt(
                     currentToolCalls,
-                    previousToolResults: duplicateRecoveryToolResults,
+                    previousToolResults: recovered,
                   ),
                   timestamp: DateTime.now(),
                 ),
@@ -5722,7 +5531,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   logLabel: 'duplicate follow-up recovery',
                   interactionGeneration: interactionGeneration,
                   buildMessages: buildRecoveryMessages,
-                  toolResults: duplicateRecoveryToolResults,
+                  toolResults: recovered,
                   assistantContent: currentAssistantContent,
                   tools: tools,
                 );
@@ -5736,7 +5545,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 '[Tool] Duplicate follow-up recovery requested additional tool calls',
               );
               currentToolCalls = recoveryResult.toolCalls!;
-              _recordHiddenAssistantResponse(recoveryResult.content);
+              _recordHiddenEvidence(turnOwner, recoveryResult.content);
               if (recoveryResult.content.isNotEmpty) {
                 currentAssistantContent = recoveryResult.content;
               }
@@ -5747,7 +5556,7 @@ class ChatNotifier extends Notifier<ChatState> {
             );
             currentToolCalls = [];
             final fallbackResponse = recoveryResult.content.trim();
-            _recordHiddenAssistantResponse(fallbackResponse);
+            _recordHiddenEvidence(turnOwner, fallbackResponse);
             if (_shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
               _appendRecoveredAssistantResponse(
                 fallbackResponse,
@@ -5790,14 +5599,11 @@ class ChatNotifier extends Notifier<ChatState> {
         }
       }
 
-      // Show a thinking indicator while waiting for the follow-up request.
       _appendToLastMessageForGeneration(interactionGeneration, '<think>');
 
-      // Send the tool results back to the LLM and check for follow-up calls.
-      // Use a non-streaming request with tool definitions included.
       final mcpToolService = _mcpToolService;
       if (mcpToolService == null) {
-        _turnToolResults.setCompleted(executedToolResults);
+        _turnToolResults.setCompleted(turnOwner, executedToolResults);
         await _sendWithoutTools(interactionGeneration: interactionGeneration);
         return;
       }
@@ -5807,7 +5613,10 @@ class ChatNotifier extends Notifier<ChatState> {
         executedToolResults: executedToolResults,
       );
       final savedValidationSucceeded =
-          _toolResultsContainSuccessfulCurrentSavedValidation(batchToolResults);
+          _toolResultsContainSuccessfulCurrentSavedValidation(
+            batchToolResults,
+            interactionGeneration,
+          );
       final validationEvidenceRequiresRepair =
           _postSavedValidationEvidenceRequiresRepair(batchToolResults);
       final followUpTools =
@@ -5819,9 +5628,6 @@ class ChatNotifier extends Notifier<ChatState> {
           '[Tool] Withholding tool definitions after saved validation success',
         );
       }
-      // Remind the model what read-only context it already gathered so it does
-      // not re-list directories / re-read files across the loop (and after a
-      // recovery re-entry that resets the per-call dedup set).
       final contextDigest = _toolLoopContextDigest.build(executedToolResults);
       final trimmedAssistantContent = currentAssistantContent?.trim();
       final followUpAssistantContent = contextDigest.isEmpty
@@ -5848,7 +5654,6 @@ class ChatNotifier extends Notifier<ChatState> {
       if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       if (!ref.mounted) return;
 
-      // Remove the temporary thinking indicator.
       _removeTrailingThinkTagForGeneration(interactionGeneration);
 
       _lengthTruncatedToolCallIds = _truncationCasualtyToolCallIds(nextResult);
@@ -5867,7 +5672,6 @@ class ChatNotifier extends Notifier<ChatState> {
         appLog('[Tool] Current git lifecycle goal already succeeded');
       }
 
-      // Continue looping if the LLM asks for another tool call.
       if (nextResult.hasToolCalls) {
         var nextToolCalls = nextResult.toolCalls!;
         final fallbackResponse = nextResult.content.trim();
@@ -5891,7 +5695,7 @@ class ChatNotifier extends Notifier<ChatState> {
             final completionResponse = fallbackResponse.isNotEmpty
                 ? fallbackResponse
                 : 'The saved validation command succeeded for the current saved task, so the current saved task is complete.';
-            _recordHiddenAssistantResponse(completionResponse);
+            _recordHiddenEvidence(turnOwner, completionResponse);
             _appendRecoveredAssistantResponse(
               completionResponse,
               interactionGeneration: interactionGeneration,
@@ -5910,7 +5714,7 @@ class ChatNotifier extends Notifier<ChatState> {
               _shouldAcceptRecoveryFinalTextResponse(fallbackResponse)
               ? fallbackResponse
               : _buildGitLifecycleCompletionResponse(executedToolResults);
-          _recordHiddenAssistantResponse(completionResponse);
+          _recordHiddenEvidence(turnOwner, completionResponse);
           _appendRecoveredAssistantResponse(
             completionResponse,
             interactionGeneration: interactionGeneration,
@@ -5925,7 +5729,7 @@ class ChatNotifier extends Notifier<ChatState> {
             '[Tool] Ignoring read-only follow-up after terminal completion text',
           );
           currentToolCalls = [];
-          _recordHiddenAssistantResponse(fallbackResponse);
+          _recordHiddenEvidence(turnOwner, fallbackResponse);
           _appendRecoveredAssistantResponse(
             fallbackResponse,
             interactionGeneration: interactionGeneration,
@@ -5948,7 +5752,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 fallbackResponse,
                 batchToolResults,
               );
-          _recordHiddenAssistantResponse(normalizedSkillResponse);
+          _recordHiddenEvidence(turnOwner, normalizedSkillResponse);
           _appendRecoveredAssistantResponse(
             normalizedSkillResponse,
             interactionGeneration: interactionGeneration,
@@ -5971,21 +5775,27 @@ class ChatNotifier extends Notifier<ChatState> {
           interactionGeneration: interactionGeneration,
         );
         currentToolCalls = nextToolCalls;
-        _recordHiddenAssistantResponse(nextResult.content);
+        _recordHiddenEvidence(turnOwner, nextResult.content);
         currentAssistantContent = nextResult.content.isNotEmpty
             ? nextResult.content
             : currentAssistantContent;
-        // Preserve declared file mutations for the final pending batch instead
-        // of replacing them by replaying stale results to a recovery request.
-        if (iteration >= maxIterations &&
-            !attemptedToolLoopExhaustionRecovery &&
-            !currentToolCalls.any(
-              (toolCall) => _isFileMutationToolName(toolCall.name),
-            ) &&
-            _shouldRequestToolLoopExhaustionRecovery(
-              pendingToolCalls: currentToolCalls,
-              currentToolResults: batchToolResults,
-            )) {
+        // Keep declared mutations instead of replaying stale recovery results.
+        if (const ToolLoopExhaustionPolicy().shouldRequestRecovery(
+          ToolLoopExhaustionDecisionInput(
+            iteration: iteration,
+            maxIterations: maxIterations,
+            recoveryAlreadyAttempted: attemptedToolLoopExhaustionRecovery,
+            hasPendingToolCalls: currentToolCalls.isNotEmpty,
+            hasCurrentBatchToolResults: batchToolResults.isNotEmpty,
+            hasPendingFileMutation: currentToolCalls.any(
+              (toolCall) =>
+                  _fileMutationEvidencePolicy.isMutationToolName(toolCall.name),
+            ),
+            hasPendingWriteGitCommand: currentToolCalls.any(
+              const GitWriteConfirmationPolicy().isWriteGitCommandToolCall,
+            ),
+          ),
+        )) {
           attemptedToolLoopExhaustionRecovery = true;
           appLog(
             '[Tool] Tool loop exhausted with pending tool calls, requesting bounded recovery',
@@ -5993,7 +5803,7 @@ class ChatNotifier extends Notifier<ChatState> {
           _appendToLastMessageForGeneration(interactionGeneration, '<think>');
           final mcpToolService = _mcpToolService;
           if (mcpToolService == null) {
-            _turnToolResults.setCompleted(executedToolResults);
+            _turnToolResults.setCompleted(turnOwner, executedToolResults);
             await _sendWithoutTools(
               interactionGeneration: interactionGeneration,
             );
@@ -6004,6 +5814,7 @@ class ChatNotifier extends Notifier<ChatState> {
             currentToolResults: batchToolResults,
             executedToolResults: executedToolResults,
             pendingToolCalls: currentToolCalls,
+            projectRoot: _projectRootForGeneration(interactionGeneration),
           );
           List<Message> buildRecoveryMessages(bool forceCompaction) {
             final messages = _prepareMessagesForLLM(
@@ -6042,7 +5853,7 @@ class ChatNotifier extends Notifier<ChatState> {
               '[Tool] Tool loop exhaustion recovery requested additional tool calls',
             );
             currentToolCalls = recoveryResult.toolCalls!;
-            _recordHiddenAssistantResponse(recoveryResult.content);
+            _recordHiddenEvidence(turnOwner, recoveryResult.content);
             currentAssistantContent = recoveryResult.content.isNotEmpty
                 ? recoveryResult.content
                 : currentAssistantContent;
@@ -6061,7 +5872,7 @@ class ChatNotifier extends Notifier<ChatState> {
             );
             currentToolCalls = [];
             final fallbackResponse = recoveryResult.content.trim();
-            _recordHiddenAssistantResponse(fallbackResponse);
+            _recordHiddenEvidence(turnOwner, fallbackResponse);
             if (_shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
               _appendRecoveredAssistantResponse(
                 fallbackResponse,
@@ -6078,7 +5889,7 @@ class ChatNotifier extends Notifier<ChatState> {
         appLog('[Tool] LLM returned final text response (via tool role)');
         currentToolCalls = [];
         final fallbackResponse = nextResult.content.trim();
-        _recordHiddenAssistantResponse(fallbackResponse);
+        _recordHiddenEvidence(turnOwner, fallbackResponse);
         final browserActionRepairResult =
             await _requestSkippedBrowserActionRepairAfterSnapshot(
               candidateResponse: fallbackResponse,
@@ -6094,7 +5905,7 @@ class ChatNotifier extends Notifier<ChatState> {
               '[Tool] Browser action repair requested follow-up tool calls',
             );
             currentToolCalls = browserActionRepairResult.toolCalls!;
-            _recordHiddenAssistantResponse(browserActionRepairResult.content);
+            _recordHiddenEvidence(turnOwner, browserActionRepairResult.content);
             currentAssistantContent =
                 browserActionRepairResult.content.isNotEmpty
                 ? browserActionRepairResult.content
@@ -6102,17 +5913,17 @@ class ChatNotifier extends Notifier<ChatState> {
             continue;
           }
 
-          final unexecutedBrowserAction =
-              _buildUnexecutedSkippedBrowserActionToolResult(
+          final unexecutedBrowserAction = _claims
+              .buildUnexecutedSkippedBrowserActionToolResult(
                 candidateResponse: browserActionRepairResult.content.isNotEmpty
                     ? browserActionRepairResult.content
                     : fallbackResponse,
                 batchToolResults: batchToolResults,
-                interactionGeneration: interactionGeneration,
+                latestUserContent: turnSnapshot!.latestUserContent,
               );
           if (unexecutedBrowserAction != null) {
             executedToolResults.add(unexecutedBrowserAction);
-            _recordHiddenAssistantResponse(browserActionRepairResult.content);
+            _recordHiddenEvidence(turnOwner, browserActionRepairResult.content);
           }
         }
         if (!attemptedPythonAttachmentPathRepair) {
@@ -6133,7 +5944,8 @@ class ChatNotifier extends Notifier<ChatState> {
                 '[Tool] Python attachment path repair requested tool calls',
               );
               currentToolCalls = pythonAttachmentPathRepairResult.toolCalls!;
-              _recordHiddenAssistantResponse(
+              _recordHiddenEvidence(
+                turnOwner,
                 pythonAttachmentPathRepairResult.content,
               );
               currentAssistantContent =
@@ -6142,7 +5954,8 @@ class ChatNotifier extends Notifier<ChatState> {
                   : fallbackResponse;
               continue;
             }
-            _recordHiddenAssistantResponse(
+            _recordHiddenEvidence(
+              turnOwner,
               pythonAttachmentPathRepairResult.content,
             );
           }
@@ -6163,7 +5976,8 @@ class ChatNotifier extends Notifier<ChatState> {
             if (pythonAttachmentRepairResult.hasToolCalls) {
               appLog('[Tool] Python attachment repair requested tool calls');
               currentToolCalls = pythonAttachmentRepairResult.toolCalls!;
-              _recordHiddenAssistantResponse(
+              _recordHiddenEvidence(
+                turnOwner,
                 pythonAttachmentRepairResult.content,
               );
               currentAssistantContent =
@@ -6172,7 +5986,8 @@ class ChatNotifier extends Notifier<ChatState> {
                   : fallbackResponse;
               continue;
             }
-            _recordHiddenAssistantResponse(
+            _recordHiddenEvidence(
+              turnOwner,
               pythonAttachmentRepairResult.content,
             );
           }
@@ -6193,7 +6008,8 @@ class ChatNotifier extends Notifier<ChatState> {
               '[BackgroundProcess] Monitor follow-up requested tool calls',
             );
             currentToolCalls = backgroundProcessRepairResult.toolCalls!;
-            _recordHiddenAssistantResponse(
+            _recordHiddenEvidence(
+              turnOwner,
               backgroundProcessRepairResult.content,
             );
             currentAssistantContent =
@@ -6209,7 +6025,7 @@ class ChatNotifier extends Notifier<ChatState> {
           }
 
           final monitorResponse = backgroundProcessRepairResult.content.trim();
-          _recordHiddenAssistantResponse(monitorResponse);
+          _recordHiddenEvidence(turnOwner, monitorResponse);
           final monitorFollowUp =
               BackgroundProcessFollowUpPolicy.followUpToolCall(
                 executedToolResults,
@@ -6288,7 +6104,7 @@ class ChatNotifier extends Notifier<ChatState> {
               '[CodingVerification] Repair follow-up requested tool calls',
             );
             currentToolCalls = verificationRepairResult.toolCalls!;
-            _recordHiddenAssistantResponse(verificationRepairResult.content);
+            _recordHiddenEvidence(turnOwner, verificationRepairResult.content);
             currentAssistantContent =
                 verificationRepairResult.content.isNotEmpty
                 ? verificationRepairResult.content
@@ -6303,7 +6119,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
           final verificationResponse = verificationRepairResult.content.trim();
           currentToolCalls = [];
-          _recordHiddenAssistantResponse(verificationResponse);
+          _recordHiddenEvidence(turnOwner, verificationResponse);
           if (verificationResponse.isNotEmpty) {
             _appendRecoveredAssistantResponse(
               verificationResponse,
@@ -6319,6 +6135,7 @@ class ChatNotifier extends Notifier<ChatState> {
             _shouldSkipCompletedToolResultCodingContinuationRecovery(
               candidateResponse: fallbackResponse,
               toolResults: batchToolResults,
+              interactionGeneration: interactionGeneration,
             );
         if (shouldSkipCodingContinuationRecovery) {
           appLog(
@@ -6347,7 +6164,8 @@ class ChatNotifier extends Notifier<ChatState> {
               activeToolNames.addAll(
                 currentToolCalls.map((toolCall) => toolCall.name),
               );
-              _recordHiddenAssistantResponse(
+              _recordHiddenEvidence(
+                turnOwner,
                 codingContinuationRecoveryResult.content,
               );
               currentAssistantContent =
@@ -6361,7 +6179,8 @@ class ChatNotifier extends Notifier<ChatState> {
               }
               continue;
             }
-            _recordHiddenAssistantResponse(
+            _recordHiddenEvidence(
+              turnOwner,
               codingContinuationRecoveryResult.content,
             );
           }
@@ -6458,8 +6277,6 @@ class ChatNotifier extends Notifier<ChatState> {
           hasTextResponse = true;
           break;
         }
-        // Responses through the tool role often claim real-time data is
-        // unavailable, so resend the results later as a user message.
       }
     }
 
@@ -6493,7 +6310,10 @@ class ChatNotifier extends Notifier<ChatState> {
           .toList(growable: false);
       if (finalBatchResult.batchToolResults.isNotEmpty &&
           currentToolCalls.isEmpty) {
-        _turnExitReasonHint ??= ToolLoopExitReason.pendingBatchExecuted;
+        _turnEnd.setHintIfAbsent(
+          turnOwner,
+          ToolLoopExitReason.pendingBatchExecuted,
+        );
       }
     }
 
@@ -6501,14 +6321,18 @@ class ChatNotifier extends Notifier<ChatState> {
       toolCalls: currentToolCalls,
       executedToolCallKeys: executedToolCallKeys,
       commandRetryGeneration: commandRetryGeneration,
+      projectRoot: _projectRootForGeneration(interactionGeneration),
     );
-    final unexecutedFileSideEffect = _buildUnexecutedFileSideEffectToolResult(
-      candidateResponse: currentAssistantContent ?? '',
-      toolResults: [...executedToolResults, ...unexecutedPendingToolResults],
-      interactionGeneration: interactionGeneration,
-    );
-    // Re-run the analyzer once over every changed file so the final answer
-    // sees the true post-edit diagnostic state, not a stale pre-fix result.
+    final unexecutedFileSideEffect = _claims
+        .buildUnexecutedFileSideEffectToolResult(
+          candidateResponse: currentAssistantContent ?? '',
+          toolResults: [
+            ...executedToolResults,
+            ...unexecutedPendingToolResults,
+          ],
+          latestUserContent: turnSnapshot!.latestUserContent,
+        );
+    // Re-run analysis so final diagnostics reflect the post-edit state.
     final finalDiagnosticFeedback = hasTextResponse
         ? null
         : await _buildFinalCodingDiagnosticFeedbackToolResult(
@@ -6528,19 +6352,16 @@ class ChatNotifier extends Notifier<ChatState> {
     var finalCompletionEvidence = ToolResultPromptBuilder.completionEvidence(
       finalToolResults,
     );
-    finalCompletionEvidence = _settleFinalEvidenceForSuccessfulSavedValidation(
-      finalCompletionEvidence,
-      savedValidationSucceeded: savedValidationSucceededInLoop,
-    );
+    finalCompletionEvidence = _goalCompletionEvidence
+        .settleSuccessfulSavedValidation(
+          finalCompletionEvidence,
+          conversation: _conversationForGeneration(interactionGeneration),
+          succeeded: savedValidationSucceededInLoop,
+        );
     var finalCompletionEvidenceIsCurrent = true;
-
-    // If tool results exist and no text response has been shown yet,
-    // resend them as a user message and stream the final answer.
     if (!hasTextResponse && finalToolResults.isNotEmpty) {
       appLog('[Tool] Resending tool results as user message');
-
       if (!ref.mounted) return;
-
       final preFinalAnswerContent =
           _lastMessageContentForGeneration(interactionGeneration) ?? '';
       final toolResultCountBeforeFinalAnswer = finalToolResults.length;
@@ -6548,9 +6369,9 @@ class ChatNotifier extends Notifier<ChatState> {
       final recoveryTools = mcpToolService == null
           ? const <Map<String, dynamic>>[]
           : selectedDefinitionsFor(mcpToolService);
-      final canPreparePendingActionRecovery = _pendingActionLengthRecoveryPolicy
+      final canPreparePendingActionRecovery = _pendingActions
           .canPrepareActionOnlyRecovery(
-            isCodingWorkspace: _isCodingWorkspaceOrMode(),
+            isCodingWorkspace: _isCodingWorkspaceOrMode(interactionGeneration),
             hasAvailableActionTools: _hasCodingContinuationRecoveryTools(
               recoveryTools,
             ),
@@ -6571,10 +6392,10 @@ class ChatNotifier extends Notifier<ChatState> {
       if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       if (!ref.mounted) return;
 
-      final shouldRequestPendingActionRecovery =
-          _pendingActionLengthRecoveryPolicy.shouldRequestActionOnlyRecovery(
-            finishReason: _latestFinishReason(),
-            isCodingWorkspace: _isCodingWorkspaceOrMode(),
+      final shouldRequestPendingActionRecovery = _pendingActions
+          .shouldRequestActionOnlyRecovery(
+            finishReason: _responseMetadata.finishReasonFor(turnOwner),
+            isCodingWorkspace: _isCodingWorkspaceOrMode(interactionGeneration),
             hasAvailableActionTools: _hasCodingContinuationRecoveryTools(
               recoveryTools,
             ),
@@ -6585,7 +6406,7 @@ class ChatNotifier extends Notifier<ChatState> {
           );
       if (shouldRequestPendingActionRecovery) {
         _pendingActionLengthRecoveryGenerations.add(interactionGeneration);
-        _appliedTurnTransforms.add('pending_action_length_recovery');
+        _turnEnd.addTransform(turnOwner, 'pending_action_length_recovery');
         appLog(
           '[PendingActionLengthRecovery] Requesting one bounded tool-aware '
           'retry; evidence=${finalCompletionEvidence.summary}',
@@ -6597,8 +6418,9 @@ class ChatNotifier extends Notifier<ChatState> {
           requireContinuationRequest: false,
           executedToolResults: finalToolResults,
           forcedRecoveryCode: 'length_truncated_pending_action',
-          forcedRecoveryPrompt: _pendingActionLengthRecoveryPolicy
-              .buildRetryPrompt(finalCompletionEvidence),
+          forcedRecoveryPrompt: _pendingActions.buildRetryPrompt(
+            finalCompletionEvidence,
+          ),
         );
         if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
         if (!ref.mounted) return;
@@ -6607,7 +6429,7 @@ class ChatNotifier extends Notifier<ChatState> {
             '[PendingActionLengthRecovery] Tool-aware retry requested one or '
             'more tool calls',
           );
-          _recordHiddenAssistantResponse(streamedFinalAnswer);
+          _recordHiddenEvidence(turnOwner, streamedFinalAnswer);
           _removeStreamedAnswerSuffixForGeneration(
             interactionGeneration,
             preAnswerContent: preFinalAnswerContent,
@@ -6635,7 +6457,7 @@ class ChatNotifier extends Notifier<ChatState> {
         }
         final recoveryContent = recoveryResult?.content.trim() ?? '';
         if (recoveryContent.isNotEmpty) {
-          _recordHiddenAssistantResponse(streamedFinalAnswer);
+          _recordHiddenEvidence(turnOwner, streamedFinalAnswer);
           _removeStreamedAnswerSuffixForGeneration(
             interactionGeneration,
             preAnswerContent: preFinalAnswerContent,
@@ -6689,7 +6511,7 @@ class ChatNotifier extends Notifier<ChatState> {
           }
 
           final monitorResponse = backgroundProcessRepairResult.content.trim();
-          _recordHiddenAssistantResponse(monitorResponse);
+          _recordHiddenEvidence(turnOwner, monitorResponse);
           final monitorFollowUp =
               BackgroundProcessFollowUpPolicy.followUpToolCall(
                 executedToolResults,
@@ -6795,21 +6617,25 @@ class ChatNotifier extends Notifier<ChatState> {
                   ),
             );
         if (handledByTranscriptRepair) return;
-        final unexecutedCommandAction = _buildUnexecutedCommandActionToolResult(
-          candidateResponse: streamedFinalAnswer,
-          toolResults: finalToolResults,
-          interactionGeneration: interactionGeneration,
-        );
+        final unexecutedCommandAction =
+            _toolCallExecutionPolicy.offersCommandExecution(
+              turnSnapshot.allowedToolNames,
+            )
+            ? _claims.buildUnexecutedCommandActionToolResult(
+                candidateResponse: streamedFinalAnswer,
+                toolResults: finalToolResults,
+              )
+            : null;
         if (unexecutedCommandAction != null) {
           finalToolResults.add(unexecutedCommandAction);
           finalCompletionEvidenceIsCurrent = false;
           _appendUnexecutedCommandActionNoticeIfNeeded(
             toolResults: finalToolResults,
-            interactionGeneration: interactionGeneration,
+            owner: turnOwner,
           );
         } else {
-          final unverifiedInspectionClaim =
-              _buildUnverifiedReadOnlyInspectionClaimToolResult(
+          final unverifiedInspectionClaim = _claims
+              .buildUnverifiedReadOnlyInspectionClaimToolResult(
                 candidateResponse: streamedFinalAnswer,
                 toolResults: finalToolResults,
               );
@@ -6818,7 +6644,7 @@ class ChatNotifier extends Notifier<ChatState> {
             finalCompletionEvidenceIsCurrent = false;
             _appendUnverifiedReadOnlyInspectionClaimNoticeIfNeeded(
               toolResults: finalToolResults,
-              interactionGeneration: interactionGeneration,
+              owner: turnOwner,
             );
           }
         }
@@ -6837,14 +6663,15 @@ class ChatNotifier extends Notifier<ChatState> {
       finalCompletionEvidence = ToolResultPromptBuilder.completionEvidence(
         finalToolResults,
       );
-      finalCompletionEvidence =
-          _settleFinalEvidenceForSuccessfulSavedValidation(
+      finalCompletionEvidence = _goalCompletionEvidence
+          .settleSuccessfulSavedValidation(
             finalCompletionEvidence,
-            savedValidationSucceeded: savedValidationSucceededInLoop,
+            conversation: _conversationForGeneration(interactionGeneration),
+            succeeded: savedValidationSucceededInLoop,
           );
     }
-    finalCompletionEvidence = finalCompletionEvidence
-        .carryForwardIncompleteFrom(_latestGoalAutoContinueEvidence);
+    finalCompletionEvidence = _goalCompletionEvidence
+        .replaceWithCombinedEvidence(turnOwner, finalCompletionEvidence);
     final postMutationVerifierReplay = _takePostMutationVerifierReplay(
       evidence: finalCompletionEvidence,
       interactionGeneration: interactionGeneration,
@@ -6871,9 +6698,10 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     await _recordSuccessfulVerificationGenerationIfNeeded(
       finalCompletionEvidence,
+      owner: turnOwner,
     );
-    _latestGoalAutoContinueEvidence = finalCompletionEvidence;
-    _turnToolResults.setCompleted(finalToolResults);
+    if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
+    _turnToolResults.setCompleted(turnOwner, finalToolResults);
     await _finishStreaming(interactionGeneration: interactionGeneration);
   }
 
@@ -6917,9 +6745,15 @@ class ChatNotifier extends Notifier<ChatState> {
       final lastIndex = updatedMessages.length - 1;
       final lastMessage = updatedMessages[lastIndex];
       final newContent = lastMessage.content + chunk;
-      _emitRuntimeAssistantContent(generation, newContent);
+      _runtimeEvents.emitRuntimeAssistantContent(generation, newContent);
       updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
       _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+      if (scanForTools) {
+        _checkForContentToolCalls(
+          newContent,
+          interactionGeneration: generation,
+        );
+      }
       return;
     }
 
@@ -6930,7 +6764,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final lastMessage = updatedMessages[lastIndex];
 
     final newContent = lastMessage.content + chunk;
-    _emitRuntimeAssistantContent(generation, newContent);
+    _runtimeEvents.emitRuntimeAssistantContent(generation, newContent);
     updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
 
     state = state.copyWith(messages: updatedMessages);
@@ -6942,9 +6776,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  /// The turn's last message, taken from its own thread. A recovery pass that
-  /// inspects the visible thread and then patches the turn's message is
-  /// repairing one message from what it read on another.
+  /// Returns the turn's own last message so recovery cannot cross threads.
   Message? _lastMessageForGeneration(int? generation) {
     if (generation != null &&
         _isActiveResponseDetachedForGeneration(generation)) {
@@ -7018,13 +6850,18 @@ class ChatNotifier extends Notifier<ChatState> {
     ToolCallInfo toolCall, {
     int? interactionGeneration,
   }) {
-    _markToolCallSeenForContentDedup(toolCall.name, toolCall.arguments);
+    final generation = interactionGeneration ?? _interactionGeneration;
+    _markToolCallSeenForContentDedup(
+      toolCall.name,
+      toolCall.arguments,
+      interactionGeneration: generation,
+    );
     final payload = <String, dynamic>{
       'name': toolCall.name,
       'arguments': toolCall.arguments,
     };
     _appendToLastMessageForGeneration(
-      interactionGeneration ?? _interactionGeneration,
+      generation,
       '<tool_use>${jsonEncode(payload)}</tool_use>\n',
       scanForTools: false,
     );
@@ -7049,16 +6886,19 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
-  /// Tool executions that are still pending.
-  final List<Future<void>> _pendingToolExecutions = [];
-
   /// Detects and runs `tool_call` tags embedded in the content.
   void _checkForContentToolCalls(String content, {int? interactionGeneration}) {
+    final generation = interactionGeneration ?? _interactionGeneration;
+    final owner = _turnOwnerForGeneration(generation);
+    if (owner == null) return;
     final toolCalls = ContentParser.extractCompletedToolCalls(content);
     final freshToolCalls = <ToolCallData>[];
     final repeatedToolCalls = <ToolCallData>[];
     for (final toolCall in toolCalls) {
-      if (_seenContentToolCallHashes.add(_contentToolCallHash(toolCall))) {
+      if (_contentToolTurns.markSeenCall(
+        owner,
+        _contentToolCallHash(toolCall, owner),
+      )) {
         freshToolCalls.add(toolCall);
       } else {
         repeatedToolCalls.add(toolCall);
@@ -7067,13 +6907,10 @@ class ChatNotifier extends Notifier<ChatState> {
 
     _handleRepeatedContentToolCalls(
       repeatedToolCalls,
-      interactionGeneration: interactionGeneration ?? _interactionGeneration,
+      interactionGeneration: generation,
     );
 
-    _queueContentToolCalls(
-      freshToolCalls,
-      interactionGeneration: interactionGeneration ?? _interactionGeneration,
-    );
+    _queueContentToolCalls(freshToolCalls, interactionGeneration: generation);
   }
 
   void _handleRepeatedContentToolCalls(
@@ -7087,7 +6924,10 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     for (final toolCall in repeatedToolCalls) {
-      final previousResult = _latestSuccessfulContentToolResultFor(toolCall);
+      final previousResult = _lastSuccessfulContentResult(
+        toolCall,
+        interactionGeneration,
+      );
       if (previousResult == null) {
         continue;
       }
@@ -7104,40 +6944,30 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  ToolResultInfo? _latestSuccessfulContentToolResultFor(ToolCallData toolCall) {
-    final toolCallKey = _contentToolCallHash(toolCall);
-    return _turnToolResults.lastContentResultWhere((result) {
-      return _toolResultDedupKey(result) == toolCallKey &&
-          !_toolResultLooksFailed(result.result);
-    });
+  ToolResultInfo? _lastSuccessfulContentResult(
+    ToolCallData toolCall,
+    int interactionGeneration,
+  ) {
+    final owner = _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) return null;
+    final toolCallKey = _contentToolCallHash(toolCall, owner);
+    return _turnToolResults.lastSuccessfulContentWhere(
+      owner,
+      (result) => _toolResultDedupKey(result, owner: owner) == toolCallKey,
+    );
   }
 
-  bool _toolResultLooksFailed(String result) {
-    final normalized = result.toLowerCase();
-    if (normalized.contains('"error"') && normalized.contains('"code"')) {
-      return true;
-    }
-    try {
-      final decoded = jsonDecode(result);
-      if (decoded is Map) {
-        return decoded.containsKey('error');
-      }
-    } catch (_) {
-      return false;
-    }
-    return false;
-  }
-
-  String _buildRepeatedContentToolCallFallback(ToolResultInfo previousResult) {
-    return 'The ${previousResult.name} tool already ran with the same arguments. '
-        'I will use the previous tool result instead of repeating the call.';
-  }
+  String _buildRepeatedContentToolCallFallback(ToolResultInfo previousResult) =>
+      'The ${previousResult.name} tool already ran with the same arguments. '
+      'I will use the previous tool result instead of repeating the call.';
 
   void _queueContentToolCalls(
     List<ToolCallData> freshToolCalls, {
     required int interactionGeneration,
   }) {
     if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+    final owner = _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) return;
     if (freshToolCalls.isNotEmpty) {
       appLog('[ContentTool] Detected tool_call(s): ${freshToolCalls.length}');
       for (final tc in freshToolCalls) {
@@ -7155,68 +6985,57 @@ class ChatNotifier extends Notifier<ChatState> {
         appLog('[ContentTool] Ignoring display-only tool: ${tc.name}');
         continue;
       }
-      final hash = '${tc.name}:${jsonEncode(tc.arguments)}';
-      if (!_executedContentToolCalls.contains(hash)) {
+      final hash = ToolDedupeKeys.contentExecution(tc.name, tc.arguments);
+      if (_contentToolTurns.markExecutedCall(owner, hash)) {
         appLog('[ContentTool] Starting execution: $hash');
-        _executedContentToolCalls.add(hash);
-        final future = _enqueueContentToolCall(tc, interactionGeneration);
-        _pendingToolExecutions.add(future);
+        _enqueueContentToolCall(tc, owner);
       } else {
         appLog('[ContentTool] Already executed: $hash');
       }
     }
   }
 
-  Future<void> _enqueueContentToolCall(
-    ToolCallData tc,
-    int interactionGeneration,
-  ) {
-    final future = _contentToolExecutionTail.then((_) {
-      if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+  Future<void>? _enqueueContentToolCall(ToolCallData tc, ChatTurnOwner owner) {
+    return _contentToolTurns.enqueueExecution(owner, () {
+      if (!_activeResponseRegistry.containsOwner(owner)) {
         return Future<void>.value();
       }
-      return _executeContentToolCall(tc, interactionGeneration);
+      return _executeContentToolCall(tc, owner.interactionGeneration);
     });
-    _contentToolExecutionTail = future.catchError((_) {});
-    return future;
   }
 
-  String _contentToolCallHash(ToolCallData toolCall) {
-    return _toolCallDedupKey(toolCall.name, toolCall.arguments);
+  String _contentToolCallHash(ToolCallData toolCall, ChatTurnOwner owner) {
+    return _toolCallDedupKey(toolCall.name, toolCall.arguments, owner: owner);
   }
 
   String _toolExecutionKey(
     ToolCallInfo toolCall, {
+    required String? projectRoot,
     int commandRetryGeneration = 0,
-  }) {
-    return _toolCallExecutionPolicy.toolExecutionKey(
-      toolCall,
-      commandRetryGeneration: commandRetryGeneration,
-      resolveProjectPath: _normalizeToolPathForDedup,
-    );
-  }
+  }) => ToolDedupeKeys.toolExecution(
+    toolCall,
+    projectRoot: projectRoot,
+    commandRetryGeneration: commandRetryGeneration,
+  );
 
   String _toolFailureKey(
     ToolCallInfo toolCall, {
+    required String? projectRoot,
     int commandRetryGeneration = 0,
-  }) {
-    return _toolCallExecutionPolicy.toolFailureKey(
-      toolCall,
-      commandRetryGeneration: commandRetryGeneration,
-      resolveProjectPath: _normalizeToolPathForDedup,
-    );
-  }
+  }) => ToolDedupeKeys.toolFailure(
+    toolCall,
+    projectRoot: projectRoot,
+    commandRetryGeneration: commandRetryGeneration,
+  );
 
-  bool _shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) {
-    return _toolCallExecutionPolicy.shouldAllowRepeatedToolExecution(toolCall);
-  }
+  bool _shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) =>
+      _toolCallExecutionPolicy.shouldAllowRepeatedToolExecution(toolCall);
 
-  bool _containsOnlyReadOnlyInspectionToolCalls(List<ToolCallInfo> toolCalls) {
-    return _toolLoopRecoveryPolicy.containsOnlyReadOnlyInspectionToolCalls(
-      toolCalls,
-      isReadOnlyInspectionToolCall: _isReadOnlyInspectionToolCall,
-    );
-  }
+  bool _containsOnlyReadOnlyInspectionToolCalls(List<ToolCallInfo> toolCalls) =>
+      _toolLoopRecoveryPolicy.containsOnlyReadOnlyInspectionToolCalls(
+        toolCalls,
+        isReadOnlyInspectionToolCall: _isReadOnlyInspectionToolCall,
+      );
 
   bool _looksLikePendingToolActionResponse(String response) {
     final normalized = response.toLowerCase();
@@ -7228,14 +7047,15 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _containsOnlyPreviouslySuccessfulCurrentSavedValidationToolCalls(
     List<ToolCallInfo> toolCalls,
     List<ToolResultInfo> previousToolResults,
+    int interactionGeneration,
   ) {
     if (toolCalls.isEmpty || previousToolResults.isEmpty) {
       return false;
     }
-    final validationCommand = _currentSavedValidationCommandForToolLoop();
-    if (validationCommand == null) {
-      return false;
-    }
+    final validationCommand = _savedValidationCommandForGeneration(
+      interactionGeneration,
+    );
+    if (validationCommand == null) return false;
     final normalizedValidationCommand = _normalizeToolCommandForComparison(
       validationCommand,
     );
@@ -7259,9 +7079,7 @@ class ChatNotifier extends Notifier<ChatState> {
         return false;
       }
       final command = _toolCommandArgument(toolCall.arguments);
-      if (command == null) {
-        return false;
-      }
+      if (command == null) return false;
       final normalizedCommand = _normalizeToolCommandForComparison(command);
       return previousToolResults.any((result) {
         if (result.name != toolCall.name ||
@@ -7283,36 +7101,29 @@ class ChatNotifier extends Notifier<ChatState> {
     });
   }
 
-  bool _toolResultCommandMatches(
-    ToolResultInfo result, {
-    required String normalizedCommand,
-  }) {
-    return _toolCallExecutionPolicy.toolResultCommandMatches(
-      result,
-      normalizedCommand: normalizedCommand,
-    );
-  }
-
   bool _toolResultsContainSuccessfulCurrentSavedValidation(
     List<ToolResultInfo> toolResults,
+    int interactionGeneration,
   ) {
-    final validationCommand = _currentSavedValidationCommandForToolLoop();
+    final validationCommand = _savedValidationCommandForGeneration(
+      interactionGeneration,
+    );
     if (validationCommand == null) {
       return false;
     }
     final normalizedValidationCommand = _normalizeToolCommandForComparison(
       validationCommand,
     );
+    final ownerProjectRoot = _projectRootForGeneration(interactionGeneration);
     return toolResults.any((result) {
       if (_readFileMatchesSavedCatValidation(
         result: result,
         validationCommand: validationCommand,
+        ownerProjectRoot: ownerProjectRoot,
       )) {
         return true;
       }
-      if (!_toolResultHasSuccessfulExit(result)) {
-        return false;
-      }
+      if (!_toolResultHasSuccessfulExit(result)) return false;
       if (result.name == 'run_tests') {
         return _runTestsMatchesSavedValidation(
           arguments: result.arguments,
@@ -7320,9 +7131,7 @@ class ChatNotifier extends Notifier<ChatState> {
         );
       }
       final command = _toolCommandArgument(result.arguments);
-      if (command == null) {
-        return false;
-      }
+      if (command == null) return false;
       return _toolCommandMatchesSavedValidation(
         result: result,
         command: command,
@@ -7334,34 +7143,24 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _readFileMatchesSavedCatValidation({
     required ToolResultInfo result,
     required String validationCommand,
+    required String? ownerProjectRoot,
   }) {
-    if (result.name != 'read_file') {
-      return false;
-    }
+    if (result.name != 'read_file') return false;
     final validationArgs = GitTools.splitArgs(validationCommand.trim());
     if (validationArgs.length != 2 ||
         validationArgs.first.split('/').last.toLowerCase() != 'cat') {
       return false;
     }
     final decoded = decodeJsonObject(result.result);
-    if (decoded == null || decoded['error'] != null) {
-      return false;
-    }
-    if (decoded['content'] is! String) {
-      return false;
-    }
-    final actualPath =
-        _toolResultPayloadPath(result.result) ??
-        _toolPathFromArguments(result.arguments);
-    if (actualPath == null) {
-      return false;
-    }
-    final normalizedActualPath = _normalizeSavedTaskScopePath(actualPath);
-    final normalizedValidationPath = _normalizeSavedTaskScopePath(
-      validationArgs[1],
-    );
+    if (decoded == null || decoded['error'] != null) return false;
+    if (decoded['content'] is! String) return false;
+    final actualPath = _fileMutationEvidencePolicy.pathForResult(result);
+    if (actualPath == null) return false;
+    final normalizedActualPath = const SavedTaskTargetScopeGuard()
+        .normalizePath(actualPath, projectRoot: ownerProjectRoot);
+    final normalizedValidationPath = const SavedTaskTargetScopeGuard()
+        .normalizePath(validationArgs[1], projectRoot: ownerProjectRoot);
     return normalizedActualPath != null &&
-        normalizedValidationPath != null &&
         normalizedActualPath == normalizedValidationPath;
   }
 
@@ -7369,33 +7168,24 @@ class ChatNotifier extends Notifier<ChatState> {
     required ToolResultInfo result,
     required String command,
     required String normalizedValidationCommand,
-  }) {
-    return _toolCallExecutionPolicy.toolCommandMatchesSavedValidation(
-      result: result,
-      command: command,
-      normalizedValidationCommand: normalizedValidationCommand,
-    );
-  }
+  }) => _toolCallExecutionPolicy.toolCommandMatchesSavedValidation(
+    result: result,
+    command: command,
+    normalizedValidationCommand: normalizedValidationCommand,
+  );
 
-  String? _currentSavedValidationCommandForToolLoop() {
-    final conversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    final command = conversation == null
-        ? null
-        : ConversationPlanExecutionCoordinator.validationTask(
-            conversation,
-          )?.validationCommand.trim();
+  String? _savedValidationCommandForGeneration(int interactionGeneration) {
+    final command = _turnOwnerSnapshotForGeneration(
+      interactionGeneration,
+    )?.savedTask?.validationCommand.trim();
     return command == null || command.isEmpty ? null : command;
   }
 
-  String _normalizeToolCommandForComparison(String command) {
-    return _toolCallExecutionPolicy.normalizeToolCommandForComparison(command);
-  }
+  String _normalizeToolCommandForComparison(String command) =>
+      _toolCallExecutionPolicy.normalizeToolCommandForComparison(command);
 
-  String? _runTestsPathArgument(Map<String, dynamic> arguments) {
-    return _toolCallExecutionPolicy.runTestsPathArgument(arguments);
-  }
+  String? _runTestsPathArgument(Map<String, dynamic> arguments) =>
+      _toolCallExecutionPolicy.runTestsPathArgument(arguments);
 
   bool _runTestsMatchesSavedValidation({
     required Map<String, dynamic> arguments,
@@ -7421,13 +7211,17 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<ToolCallInfo> toolCalls,
     required Set<String> executedToolCallKeys,
     required int commandRetryGeneration,
+    required String? projectRoot,
   }) {
     return _toolLoopRecoveryPolicy.buildUnexecutedPendingToolResults(
       toolCalls: toolCalls,
       executedToolCallKeys: executedToolCallKeys,
       commandRetryGeneration: commandRetryGeneration,
-      toolCallKey: (toolCall, generation) =>
-          _toolExecutionKey(toolCall, commandRetryGeneration: generation),
+      toolCallKey: (toolCall, generation) => _toolExecutionKey(
+        toolCall,
+        projectRoot: projectRoot,
+        commandRetryGeneration: generation,
+      ),
     );
   }
 
@@ -7502,22 +7296,15 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<ToolResultInfo> currentToolResults,
     required List<ToolResultInfo> executedToolResults,
     required List<ToolCallInfo> pendingToolCalls,
+    required String? projectRoot,
   }) {
     return _toolLoopRecoveryPolicy.buildRecoveryToolResults(
       currentToolResults: currentToolResults,
       executedToolResults: executedToolResults,
       pendingToolCalls: pendingToolCalls,
-      pathFromArguments: _toolPathFromArguments,
-      toolResultKey: _toolResultDedupKey,
-    );
-  }
-
-  List<ToolResultInfo> _dedupeRecoveryToolResults(
-    List<ToolResultInfo> toolResults,
-  ) {
-    return _toolLoopRecoveryPolicy.dedupeRecoveryToolResults(
-      toolResults,
-      toolResultKey: _toolResultDedupKey,
+      pathFromArguments: _fileMutationEvidencePolicy.argumentPath,
+      toolResultKey: (toolResult) =>
+          ToolDedupeKeys.toolResult(toolResult, projectRoot: projectRoot),
     );
   }
 
@@ -7560,49 +7347,48 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
-  bool _isRepeatableCommandTool(ToolCallInfo toolCall) {
-    return _toolCallExecutionPolicy.isRepeatableCommandTool(toolCall);
-  }
+  bool _isRepeatableCommandTool(ToolCallInfo toolCall) =>
+      _toolCallExecutionPolicy.isRepeatableCommandTool(toolCall);
 
-  bool _advancesCommandRetryGeneration(ToolCallInfo toolCall) {
-    return _toolCallExecutionPolicy.advancesCommandRetryGeneration(toolCall);
-  }
+  bool _advancesCommandRetryGeneration(ToolCallInfo toolCall) =>
+      _toolCallExecutionPolicy.advancesCommandRetryGeneration(toolCall);
 
-  String _toolCallDedupKey(String name, Object? arguments) {
-    return _toolCallExecutionPolicy.toolCallDedupKey(
-      name,
-      arguments,
-      resolveProjectPath: _normalizeToolPathForDedup,
+  String _toolCallDedupKey(
+    String name,
+    Object? arguments, {
+    required ChatTurnOwner owner,
+  }) => ToolDedupeKeys.toolCall(
+    name,
+    arguments,
+    projectRoot: _toolDedupeProjectRoot(owner),
+  );
+
+  String _toolResultDedupKey(
+    ToolResultInfo toolResult, {
+    required ChatTurnOwner owner,
+  }) => ToolDedupeKeys.toolResult(
+    toolResult,
+    projectRoot: _toolDedupeProjectRoot(owner),
+  );
+
+  String? _toolDedupeProjectRoot(ChatTurnOwner owner) {
+    final snapshot = _turnOwnerSnapshotForGeneration(
+      owner.interactionGeneration,
     );
+    return snapshot?.owner == owner ? snapshot?.projectRoot : null;
   }
 
-  String _toolResultDedupKey(ToolResultInfo toolResult) {
-    return _toolCallExecutionPolicy.toolResultDedupKey(
-      toolResult,
-      resolveProjectPath: _normalizeToolPathForDedup,
+  void _markToolCallSeenForContentDedup(
+    String name,
+    Object? arguments, {
+    required int interactionGeneration,
+  }) {
+    final owner = _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) return;
+    _contentToolTurns.markSeenCall(
+      owner,
+      _toolCallDedupKey(name, arguments, owner: owner),
     );
-  }
-
-  String? _normalizeToolPathForDedup(String trimmed) {
-    final resolved = FilesystemTools.resolvePath(
-      trimmed,
-      defaultRoot: _getActiveProjectRootPath(),
-    );
-    return resolved ?? trimmed;
-  }
-
-  String? _toolPathFromArguments(Object? arguments) {
-    if (arguments is Map) {
-      final rawPath = arguments['path'];
-      if (rawPath is String && rawPath.trim().isNotEmpty) {
-        return rawPath.trim();
-      }
-    }
-    return null;
-  }
-
-  void _markToolCallSeenForContentDedup(String name, Object? arguments) {
-    _seenContentToolCallHashes.add(_toolCallDedupKey(name, arguments));
   }
 
   /// Executes a `tool_call` detected from message content.
@@ -7611,6 +7397,8 @@ class ChatNotifier extends Notifier<ChatState> {
     int interactionGeneration,
   ) async {
     if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+    final turnOwner = _turnOwnerForGeneration(interactionGeneration);
+    if (turnOwner == null) return;
 
     appLog('[ContentTool] Executing tool: ${tc.name}');
     appLog('[ContentTool] Arguments: ${tc.arguments}');
@@ -7626,15 +7414,15 @@ class ChatNotifier extends Notifier<ChatState> {
         toolCall,
         interactionGeneration: interactionGeneration,
       );
-      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+      if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
 
       if (!result.isSuccess) {
         appLog('[ContentTool] Execution failed: ${result.errorMessage}');
-        final failureResult = _buildContentToolFailureResult(
+        final failureResult = _contentToolFailureFormatter.format(
           tc.name,
           result.errorMessage,
         );
-        _recordContentToolResult(toolCall: toolCall, result: failureResult);
+        _turnToolResults.recordContent(turnOwner, toolCall, failureResult);
         if (ref.mounted) {
           _appendToLastMessageForGeneration(
             interactionGeneration,
@@ -7643,7 +7431,8 @@ class ChatNotifier extends Notifier<ChatState> {
           );
           appLog('[ContentTool] Appended failure result to message');
         }
-        _pendingContentToolResults.add(
+        _contentToolTurns.addPendingResult(
+          turnOwner,
           '[Result of ${tc.name}]\n$failureResult',
         );
         return;
@@ -7657,11 +7446,15 @@ class ChatNotifier extends Notifier<ChatState> {
           arguments: Map<String, dynamic>.unmodifiable(toolCall.arguments),
           result: result.result,
         ),
-        conversationId: conversationId,
+        conversationId: turnOwner.conversationId,
       );
-      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-      _recordContentToolResultInfo(contentToolResult);
-      await _recordModelEditApplyTelemetry(contentToolResult);
+      if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
+      _turnToolResults.addContent(turnOwner, contentToolResult);
+      await _recordModelEditApplyTelemetry(
+        turnOwner,
+        contentToolResult,
+        baselineProfile: _modelEditApplyTelemetryBaseline(),
+      );
       final promptResult = contentToolResult.result;
 
       // Append results without triggering recursive tool-call checks.
@@ -7674,12 +7467,15 @@ class ChatNotifier extends Notifier<ChatState> {
         appLog('[ContentTool] Appended result to message');
       }
 
-      _pendingContentToolResults.add('[Result of ${tc.name}]\n$promptResult');
+      _contentToolTurns.addPendingResult(
+        turnOwner,
+        '[Result of ${tc.name}]\n$promptResult',
+      );
     } catch (e) {
-      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+      if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
       appLog('[ContentTool] Error: $e');
-      final failureResult = _buildContentToolFailureResult(tc.name, '$e');
-      _recordContentToolResult(toolCall: toolCall, result: failureResult);
+      final failureResult = _contentToolFailureFormatter.format(tc.name, '$e');
+      _turnToolResults.recordContent(turnOwner, toolCall, failureResult);
       if (ref.mounted) {
         _appendToLastMessageForGeneration(
           interactionGeneration,
@@ -7688,13 +7484,15 @@ class ChatNotifier extends Notifier<ChatState> {
         );
         appLog('[ContentTool] Appended failure result to message');
       }
-      _pendingContentToolResults.add('[Result of ${tc.name}]\n$failureResult');
+      _contentToolTurns.addPendingResult(
+        turnOwner,
+        '[Result of ${tc.name}]\n$failureResult',
+      );
     }
   }
 
-  bool _toolResultsContainEditMismatch(List<ToolResultInfo> toolResults) {
-    return _toolLoopRecoveryPolicy.toolResultsContainEditMismatch(toolResults);
-  }
+  bool _toolResultsContainEditMismatch(List<ToolResultInfo> toolResults) =>
+      _toolLoopRecoveryPolicy.toolResultsContainEditMismatch(toolResults);
 
   bool _toolResultsContainFailedCommandValidation(
     List<ToolResultInfo> toolResults,
@@ -7728,123 +7526,91 @@ class ChatNotifier extends Notifier<ChatState> {
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // SSH tool interception
-  // ---------------------------------------------------------------------------
-
-  /// Dispatches a tool call to the MCP tool service, intercepting SSH
-  /// tools that require a UI dialog for user confirmation.
+  /// Dispatches tools while intercepting SSH calls that require confirmation.
   Future<McpToolResult> _dispatchToolCall(
     ToolCallInfo toolCall, {
     int? interactionGeneration,
   }) async {
+    final approvalCache = _approvalCacheForGeneration(interactionGeneration);
+    if (interactionGeneration != null && approvalCache == null) {
+      return _turnOwnerSnapshotUnavailableResult(toolCall.name);
+    }
     return TurnProjectRoot.runScoped(
       _turnProjectRootFor(interactionGeneration),
-      () => TurnThread.runScoped(
-        interactionGeneration == null
-            ? null
-            : _activeResponseConversationIdForGeneration(interactionGeneration),
-        () => ChatToolDispatcher(
-          enforcePlanningPolicy: _enforcePlanningToolPolicy,
-          handleComputerUseAction: _handleComputerUseAction,
-          handleComputerUseObservation: _handleComputerUseActionWithoutApproval,
-          handleBrowserAction: _handleBrowserAction,
-          handleBrowserObservation: _handleBrowserActionWithoutApproval,
-          handlerRegistry: _buildToolHandlerRegistry(
-            interactionGeneration: interactionGeneration,
-          ),
-          executeFallbackTool: (toolCall) => _mcpToolService!.executeTool(
-            name: toolCall.name,
-            arguments: toolCall.arguments,
-          ),
-        ).dispatch(toolCall),
+      () => TurnGeneration.runScoped(
+        interactionGeneration,
+        () => TurnThread.runScoped(
+          interactionGeneration == null
+              ? null
+              : _activeResponseConversationIdForGeneration(
+                  interactionGeneration,
+                ),
+          () => ChatToolDispatcher(
+            enforcePlanningPolicy: (toolCall) =>
+                _enforcePlanningToolPolicy(toolCall, interactionGeneration),
+            handleComputerUseAction: _ownerComputerUseHandler(approvalCache),
+            handleComputerUseObservation:
+                _handleComputerUseActionWithoutApproval,
+            handleBrowserAction: _ownerBrowserActionHandler(approvalCache),
+            handleBrowserObservation: _handleBrowserActionWithoutApproval,
+            handlerRegistry: _buildToolHandlerRegistry(
+              interactionGeneration: interactionGeneration,
+              approvalCache: approvalCache,
+            ),
+            executeFallbackTool: (toolCall) => _mcpToolService!.executeTool(
+              name: toolCall.name,
+              arguments: toolCall.arguments,
+            ),
+          ).dispatch(toolCall),
+        ),
       ),
     );
   }
 
-  Future<McpToolResult> _handleProjectScopedTool(ToolCallInfo toolCall) async {
+  Future<McpToolResult> _handleProjectScopedTool(
+    ToolCallInfo toolCall, [
+    ChatTurnOwner? owner,
+  ]) async {
     final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
     if (accessFailure != null) return accessFailure;
 
+    final arguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    if (owner != null) {
+      return _mcpToolService!.executeProcessTool(
+        owner: owner,
+        name: toolCall.name,
+        arguments: arguments,
+      );
+    }
     return _mcpToolService!.executeTool(
       name: toolCall.name,
-      arguments: _resolveProjectScopedArguments(
-        toolCall.name,
-        toolCall.arguments,
-      ),
+      arguments: arguments,
     );
   }
 
-  McpToolResult? _enforcePlanningToolPolicy(ToolCallInfo toolCall) {
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
+  McpToolResult? _enforcePlanningToolPolicy(
+    ToolCallInfo toolCall,
+    int? interactionGeneration,
+  ) {
+    final turnThreadId = TurnThread.currentId;
     return _planningToolPolicy.enforce(
       toolCall,
-      isPlanningSession: currentConversation?.isPlanningSession ?? false,
+      isPlanningSession: interactionGeneration == null
+          ? (turnThreadId == null
+                    ? null
+                    : _conversationForId(turnThreadId)?.isPlanningSession) ??
+                false
+          : _turnOwnerSnapshotForGeneration(
+                  interactionGeneration,
+                )?.isPlanning ??
+                false,
       isExternalMcpTool:
           _mcpToolService?.isExternalMcpToolName(toolCall.name) ?? false,
       resolveArguments: _resolveProjectScopedArguments,
     );
-  }
-
-  TokenUsage _latestTokenUsage() {
-    final ds = _dataSource;
-    return switch (ds) {
-      ChatRemoteDataSource() => ds.lastUsage,
-      SessionLoggingChatDataSource() => ds.lastUsage,
-      _ => TokenUsage.zero,
-    };
-  }
-
-  String? _latestFinishReason() {
-    final override = _finalAnswerFinishReasonOverride;
-    if (override != null && override.trim().isNotEmpty) {
-      return override;
-    }
-    final ds = _dataSource;
-    if (ds is FinishReasonAware) {
-      return (ds as FinishReasonAware).lastFinishReason;
-    }
-    return null;
-  }
-
-  MessageResponseMetrics? _takeResponseMetricsForGeneration(int generation) {
-    final timer = _responseMetricTimersByGeneration.remove(generation);
-    timer?.stop();
-
-    final usage = _latestTokenUsage();
-    final finishReason = _latestFinishReason();
-    if (timer == null && usage.totalTokens <= 0 && finishReason == null) {
-      return null;
-    }
-
-    return MessageResponseMetrics(
-      promptTokens: usage.promptTokens,
-      completionTokens: usage.completionTokens,
-      totalTokens: usage.totalTokens,
-      elapsedMilliseconds: timer?.elapsedMilliseconds ?? 0,
-      finishReason: finishReason,
-    );
-  }
-
-  void _discardResponseMetricsForGeneration(int generation) {
-    _responseMetricTimersByGeneration.remove(generation)?.stop();
-  }
-
-  /// Read and accumulate the latest token usage from the data source.
-  void _updateTokenUsage() {
-    final usage = _latestTokenUsage();
-    if (usage.totalTokens <= 0) return;
-
-    // Use the latest usage directly (represents the full conversation context)
-    _accumulatedTokenUsage = usage;
-    state = state.copyWith(
-      promptTokens: _accumulatedTokenUsage.promptTokens,
-      completionTokens: _accumulatedTokenUsage.completionTokens,
-      totalTokens: _accumulatedTokenUsage.totalTokens,
-    );
-    _emitRuntimeUsage(_interactionGeneration, _accumulatedTokenUsage);
   }
 
   void _recoverIncompleteContentToolCallsFromLastMessage({
@@ -7853,6 +7619,8 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_isCurrentInteractionGeneration(interactionGeneration)) {
       return;
     }
+    final owner = _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) return;
 
     final lastMessage = _lastMessageForGeneration(interactionGeneration);
     if (lastMessage == null) {
@@ -7867,7 +7635,10 @@ class ChatNotifier extends Notifier<ChatState> {
         ContentParser.extractRecoverableIncompleteToolCalls(
           lastMessage.content,
         ).where((tc) {
-          return _seenContentToolCallHashes.add(_contentToolCallHash(tc));
+          return _contentToolTurns.markSeenCall(
+            owner,
+            _contentToolCallHash(tc, owner),
+          );
         }).toList();
 
     if (recoveredToolCalls.isEmpty) {
@@ -7877,7 +7648,8 @@ class ChatNotifier extends Notifier<ChatState> {
       _stripToolArtifactsFromLastAssistantMessage(
         interactionGeneration: interactionGeneration,
       );
-      _pendingContentToolResults.add(
+      _contentToolTurns.addPendingResult(
+        owner,
         '[Incomplete assistant tool call]\n'
         'The assistant emitted an unfinished tool call tag. Reissue the needed '
         'tool call as one complete <tool_use>...</tool_use> tag, or finish with '
@@ -7902,7 +7674,10 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _recoverUntrustedAssistantToolResultsFromLastMessage({
     int? interactionGeneration,
   }) {
-    final lastMessage = _lastMessageForGeneration(interactionGeneration);
+    final generation = interactionGeneration ?? _interactionGeneration;
+    final owner = _turnOwnerForGeneration(generation);
+    if (owner == null) return false;
+    final lastMessage = _lastMessageForGeneration(generation);
     if (lastMessage == null || lastMessage.role != MessageRole.assistant) {
       return false;
     }
@@ -7919,9 +7694,10 @@ class ChatNotifier extends Notifier<ChatState> {
       '${toolResults.map((tc) => tc.name).join(", ")}',
     );
     _stripToolArtifactsFromLastAssistantMessage(
-      interactionGeneration: interactionGeneration,
+      interactionGeneration: generation,
     );
-    _pendingContentToolResults.add(
+    _contentToolTurns.addPendingResult(
+      owner,
       '[Assistant-authored tool_result ignored]\n'
       'The assistant emitted <tool_result> tags without a corresponding tool '
       'execution. Tool results must come from executed tools only. If the data '
@@ -7938,14 +7714,22 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _recoverContentToolArtifactsBeforeNoToolFinalization({
     required int interactionGeneration,
   }) {
-    final pendingToolExecutionCount = _pendingToolExecutions.length;
-    final pendingContentToolResultCount = _pendingContentToolResults.length;
+    final owner = _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) return false;
+    final pendingToolExecutionCount = _contentToolTurns.pendingExecutionCount(
+      owner,
+    );
+    final pendingContentToolResultCount = _contentToolTurns.pendingResultCount(
+      owner,
+    );
 
     _recoverIncompleteContentToolCallsFromLastMessage(
       interactionGeneration: interactionGeneration,
     );
-    if (_pendingToolExecutions.length > pendingToolExecutionCount ||
-        _pendingContentToolResults.length > pendingContentToolResultCount) {
+    if (_contentToolTurns.pendingExecutionCount(owner) >
+            pendingToolExecutionCount ||
+        _contentToolTurns.pendingResultCount(owner) >
+            pendingContentToolResultCount) {
       return true;
     }
 
@@ -7963,12 +7747,15 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _recoverAssistantToolNameBlocksFromLastMessage({
     int? interactionGeneration,
   }) {
-    final lastMessage = _lastMessageForGeneration(interactionGeneration);
+    final generation = interactionGeneration ?? _interactionGeneration;
+    final owner = _turnOwnerForGeneration(generation);
+    if (owner == null) return false;
+    final lastMessage = _lastMessageForGeneration(generation);
     if (lastMessage == null || lastMessage.role != MessageRole.assistant) {
       return false;
     }
 
-    final toolNames = _extractFencedToolNameBlocks(lastMessage.content);
+    final toolNames = FencedToolNameBlocks.extract(lastMessage.content);
     if (toolNames.isEmpty) {
       return false;
     }
@@ -7978,10 +7765,11 @@ class ChatNotifier extends Notifier<ChatState> {
       '${toolNames.join(", ")}',
     );
     _replaceLastMessageContentForGeneration(
-      interactionGeneration ?? _interactionGeneration,
-      _stripFencedToolNameBlocks(lastMessage.content),
+      generation,
+      FencedToolNameBlocks.strip(lastMessage.content),
     );
-    _pendingContentToolResults.add(
+    _contentToolTurns.addPendingResult(
+      owner,
       '[Assistant tool-name block ignored]\n'
       'The assistant emitted fenced tool_name block(s) instead of a complete '
       '<tool_use>...</tool_use> call: ${toolNames.join(", ")}. '
@@ -7991,30 +7779,6 @@ class ChatNotifier extends Notifier<ChatState> {
       'tool results only.',
     );
     return true;
-  }
-
-  List<String> _extractFencedToolNameBlocks(String content) {
-    final toolNames = <String>[];
-    final pattern = RegExp(
-      r'```tool_name\s*([\s\S]*?)```',
-      caseSensitive: false,
-    );
-    for (final match in pattern.allMatches(content)) {
-      final name = (match.group(1) ?? '').trim();
-      if (name.isNotEmpty) {
-        toolNames.add(name);
-      }
-    }
-    return toolNames;
-  }
-
-  String _stripFencedToolNameBlocks(String content) {
-    return content
-        .replaceAll(
-          RegExp(r'```tool_name\s*[\s\S]*?```', caseSensitive: false),
-          '',
-        )
-        .trim();
   }
 
   void _stripToolArtifactsFromLastAssistantMessage({
@@ -8131,12 +7895,10 @@ class ChatNotifier extends Notifier<ChatState> {
       }
 
       final content = lastMessage.content;
-      const notice =
-          'I could not execute the additional tool request above in this final-answer step. '
-          'Treat it as unexecuted; ask me to continue with a narrower follow-up '
-          'if the missing action still matters.';
+      const notice = UnexecutedFinalAnswerToolRequestPolicy.notice;
       if (content.contains(notice) ||
-          !_looksLikeUnexecutedToolRequest(content)) {
+          !const UnexecutedFinalAnswerToolRequestPolicy()
+              .looksLikeUnexecutedToolRequest(content)) {
         return;
       }
 
@@ -8157,11 +7919,10 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     final content = lastMessage.content;
-    const notice =
-        'I could not execute the additional tool request above in this final-answer step. '
-        'Treat it as unexecuted; ask me to continue with a narrower follow-up '
-        'if the missing action still matters.';
-    if (content.contains(notice) || !_looksLikeUnexecutedToolRequest(content)) {
+    const notice = UnexecutedFinalAnswerToolRequestPolicy.notice;
+    if (content.contains(notice) ||
+        !const UnexecutedFinalAnswerToolRequestPolicy()
+            .looksLikeUnexecutedToolRequest(content)) {
       return;
     }
 
@@ -8170,33 +7931,6 @@ class ChatNotifier extends Notifier<ChatState> {
     );
     state = state.copyWith(messages: updatedMessages);
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
-  }
-
-  bool _shouldSkipUnexecutedToolRequestNoticeForToolResults({
-    required String content,
-    required List<ToolResultInfo> toolResults,
-  }) {
-    if (toolResults.isEmpty ||
-        _hasTimedOutCommandResult(toolResults) ||
-        _toolResultsContainFailedCommandValidation(toolResults) ||
-        _hasUnexecutedCommandActionResult(toolResults) ||
-        _hasUnexecutedFileSideEffectResult(toolResults) ||
-        !_hasSuccessfulFinalAnswerToolEvidence(toolResults)) {
-      return false;
-    }
-
-    final candidate = ContentParser.stripToolArtifacts(content).trim();
-    if (candidate.isEmpty ||
-        _looksLikeStructuredToolRequest(candidate) ||
-        _looksLikePlanOnlyFinalToolAnswer(candidate) ||
-        _looksLikeFutureCommandExecutionAction(candidate) ||
-        _looksLikeFutureFileSideEffectAction(candidate) ||
-        _looksLikeCodingFutureAction(candidate)) {
-      return false;
-    }
-
-    return _looksLikeCompletedCommandExecutionClaim(candidate) ||
-        _looksLikeCompletedCodingFinalAnswer(candidate);
   }
 
   void _appendUnexecutedFileSideEffectNoticeIfNeeded({
@@ -8220,7 +7954,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
       final content = lastMessage.content;
       if (content.contains(notice) ||
-          !_looksLikeUnsupportedFileSideEffectClaim(
+          !_claims.looksLikeUnsupportedFileSideEffectClaim(
             content,
             toolResults: toolResults,
           )) {
@@ -8245,7 +7979,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     final content = lastMessage.content;
     if (content.contains(notice) ||
-        !_looksLikeUnsupportedFileSideEffectClaim(
+        !_claims.looksLikeUnsupportedFileSideEffectClaim(
           content,
           toolResults: toolResults,
         )) {
@@ -8261,112 +7995,79 @@ class ChatNotifier extends Notifier<ChatState> {
 
   void _appendUnexecutedCommandActionNoticeIfNeeded({
     required List<ToolResultInfo> toolResults,
-    int? interactionGeneration,
+    required ChatTurnOwner owner,
   }) {
-    final generation = interactionGeneration ?? _interactionGeneration;
+    final generation = owner.interactionGeneration;
     const notice =
         'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action. '
         'Treat any run, dry-run, test, validation, or command execution claim above as unverified.';
-    if (!_hasUnexecutedCommandActionResult(toolResults)) {
+    if (!_claims.hasUnexecutedCommandActionResult(toolResults)) {
       return;
     }
-    _appliedTurnTransforms.add('unexecuted_command_action_notice');
+    _turnEnd.addTransform(owner, 'unexecuted_command_action_notice');
 
-    if (_isActiveResponseDetachedForGeneration(generation)) {
-      final activeMessages = _activeResponseMessagesForGeneration(generation);
-      if (activeMessages == null || activeMessages.isEmpty) return;
-
-      final updatedMessages = [...activeMessages];
-      final lastIndex = updatedMessages.length - 1;
-      final lastMessage = updatedMessages[lastIndex];
-      if (lastMessage.role != MessageRole.assistant) {
-        return;
-      }
-      final content = _messageContentWithUnexecutedCommandActionNotice(
-        lastMessage.content,
-        notice,
-      );
-      if (lastMessage.content == content) {
-        return;
-      }
-      updatedMessages[lastIndex] = lastMessage.copyWith(content: content);
-      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
-      return;
-    }
-
-    if (!ref.mounted || state.messages.isEmpty) return;
-
-    final updatedMessages = [...state.messages];
+    final activeMessages = _activeResponseMessagesForGeneration(generation);
+    if (activeMessages == null || activeMessages.isEmpty) return;
+    final updatedMessages = [...activeMessages];
     final lastIndex = updatedMessages.length - 1;
     final lastMessage = updatedMessages[lastIndex];
     if (lastMessage.role != MessageRole.assistant) {
       return;
     }
-    final content = _messageContentWithUnexecutedCommandActionNotice(
+    final content = _claims.messageContentWithUnexecutedCommandActionNotice(
       lastMessage.content,
-      notice,
+      notice: notice,
     );
     if (lastMessage.content == content) {
       return;
     }
     updatedMessages[lastIndex] = lastMessage.copyWith(content: content);
-    state = state.copyWith(messages: updatedMessages);
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+    if (!_isActiveResponseDetachedForGeneration(generation) && ref.mounted) {
+      _routeThreadState(
+        owner.conversationId,
+        (s) => s.copyWith(messages: updatedMessages),
+      );
+    }
   }
 
   void _appendUnverifiedReadOnlyInspectionClaimNoticeIfNeeded({
     required List<ToolResultInfo> toolResults,
-    int? interactionGeneration,
+    required ChatTurnOwner owner,
   }) {
-    final generation = interactionGeneration ?? _interactionGeneration;
+    final generation = owner.interactionGeneration;
     const notice =
         'The local file or project state claim above is unverified because no successful read-only inspection tool result is available for that claim. '
         'Treat any file existence, file content, directory listing, or path verification claim above as unverified.';
-    if (!_hasUnverifiedReadOnlyInspectionClaimResult(toolResults)) {
+    if (!_claims.hasUnverifiedReadOnlyInspectionClaimResult(toolResults)) {
       return;
     }
-    _appliedTurnTransforms.add('unverified_read_only_inspection_notice');
+    _turnEnd.addTransform(owner, 'unverified_read_only_inspection_notice');
 
-    if (_isActiveResponseDetachedForGeneration(generation)) {
-      final activeMessages = _activeResponseMessagesForGeneration(generation);
-      if (activeMessages == null || activeMessages.isEmpty) return;
-
-      final updatedMessages = [...activeMessages];
-      final lastIndex = updatedMessages.length - 1;
-      final lastMessage = updatedMessages[lastIndex];
-      if (lastMessage.role != MessageRole.assistant) {
-        return;
-      }
-      final content = _messageContentWithUnverifiedReadOnlyInspectionNotice(
-        lastMessage.content,
-        notice,
-      );
-      if (lastMessage.content == content) {
-        return;
-      }
-      updatedMessages[lastIndex] = lastMessage.copyWith(content: content);
-      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
-      return;
-    }
-
-    if (!ref.mounted || state.messages.isEmpty) return;
-
-    final updatedMessages = [...state.messages];
+    final activeMessages = _activeResponseMessagesForGeneration(generation);
+    if (activeMessages == null || activeMessages.isEmpty) return;
+    final updatedMessages = [...activeMessages];
     final lastIndex = updatedMessages.length - 1;
     final lastMessage = updatedMessages[lastIndex];
     if (lastMessage.role != MessageRole.assistant) {
       return;
     }
-    final content = _messageContentWithUnverifiedReadOnlyInspectionNotice(
-      lastMessage.content,
-      notice,
-    );
+    final content = _claims
+        .messageContentWithUnverifiedReadOnlyInspectionNotice(
+          lastMessage.content,
+          notice: notice,
+        );
     if (lastMessage.content == content) {
       return;
     }
     updatedMessages[lastIndex] = lastMessage.copyWith(content: content);
-    state = state.copyWith(messages: updatedMessages);
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+    if (!_isActiveResponseDetachedForGeneration(generation) && ref.mounted) {
+      _routeThreadState(
+        owner.conversationId,
+        (s) => s.copyWith(messages: updatedMessages),
+      );
+    }
   }
 
   void _replaceTimedOutCommandSuccessClaimIfNeeded({
@@ -8388,11 +8089,11 @@ class ChatNotifier extends Notifier<ChatState> {
       final lastIndex = updatedMessages.length - 1;
       final lastMessage = updatedMessages[lastIndex];
       if (lastMessage.role != MessageRole.assistant ||
-          !_looksLikeCommandSuccessClaim(lastMessage.content)) {
+          !_claims.looksLikeCommandSuccessClaim(lastMessage.content)) {
         return;
       }
       updatedMessages[lastIndex] = lastMessage.copyWith(
-        content: _messageContentWithPrependedClaimCorrectionNotice(
+        content: _claims.messageContentWithPrependedClaimCorrectionNotice(
           lastMessage.content,
           notice,
         ),
@@ -8407,11 +8108,11 @@ class ChatNotifier extends Notifier<ChatState> {
     final lastIndex = updatedMessages.length - 1;
     final lastMessage = updatedMessages[lastIndex];
     if (lastMessage.role != MessageRole.assistant ||
-        !_looksLikeCommandSuccessClaim(lastMessage.content)) {
+        !_claims.looksLikeCommandSuccessClaim(lastMessage.content)) {
       return;
     }
     updatedMessages[lastIndex] = lastMessage.copyWith(
-      content: _messageContentWithPrependedClaimCorrectionNotice(
+      content: _claims.messageContentWithPrependedClaimCorrectionNotice(
         lastMessage.content,
         notice,
       ),
@@ -8442,11 +8143,11 @@ class ChatNotifier extends Notifier<ChatState> {
       final lastIndex = updatedMessages.length - 1;
       final lastMessage = updatedMessages[lastIndex];
       if (lastMessage.role != MessageRole.assistant ||
-          !_looksLikeCommandSuccessClaim(lastMessage.content)) {
+          !_claims.looksLikeCommandSuccessClaim(lastMessage.content)) {
         return;
       }
       updatedMessages[lastIndex] = lastMessage.copyWith(
-        content: _messageContentWithPrependedClaimCorrectionNotice(
+        content: _claims.messageContentWithPrependedClaimCorrectionNotice(
           lastMessage.content,
           notice,
         ),
@@ -8461,11 +8162,11 @@ class ChatNotifier extends Notifier<ChatState> {
     final lastIndex = updatedMessages.length - 1;
     final lastMessage = updatedMessages[lastIndex];
     if (lastMessage.role != MessageRole.assistant ||
-        !_looksLikeCommandSuccessClaim(lastMessage.content)) {
+        !_claims.looksLikeCommandSuccessClaim(lastMessage.content)) {
       return;
     }
     updatedMessages[lastIndex] = lastMessage.copyWith(
-      content: _messageContentWithPrependedClaimCorrectionNotice(
+      content: _claims.messageContentWithPrependedClaimCorrectionNotice(
         lastMessage.content,
         notice,
       ),
@@ -8474,9 +8175,8 @@ class ChatNotifier extends Notifier<ChatState> {
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
   }
 
-  bool _hasTimedOutCommandResult(List<ToolResultInfo> toolResults) {
-    return toolResults.any(_toolResultTimedOut);
-  }
+  bool _hasTimedOutCommandResult(List<ToolResultInfo> toolResults) =>
+      toolResults.any(_toolResultTimedOut);
 
   int? _firstFailedCommandExitCode(List<ToolResultInfo> toolResults) {
     int? unrecoveredExitCode;
@@ -8504,60 +8204,8 @@ class ChatNotifier extends Notifier<ChatState> {
     return unrecoveredExitCode;
   }
 
-  bool _looksLikeUnexecutedToolRequest(String content) {
-    if (_looksLikeStructuredToolRequest(content)) {
-      return true;
-    }
-
-    final trimmed = content.trim();
-    return _looksLikePlanOnlyFinalToolAnswer(trimmed) ||
-        _looksLikeUnsupportedCommandExecutionAction(trimmed) ||
-        _looksLikeFutureFileSideEffectAction(trimmed);
-  }
-
-  bool _looksLikeStructuredToolRequest(String content) {
-    if (ContentParser.extractCompletedToolCalls(content).isNotEmpty) {
-      return true;
-    }
-    if (_looksLikeBracketedToolRequest(content)) {
-      return true;
-    }
-
-    final fencedJsonBlocks = RegExp(
-      r'```(?:json)?\s*([\s\S]*?)```',
-      caseSensitive: false,
-    ).allMatches(content);
-    for (final block in fencedJsonBlocks) {
-      final snippet = block.group(1);
-      if (snippet != null && _jsonLooksLikeCommandProposal(snippet)) {
-        return true;
-      }
-    }
-
-    final trimmed = content.trim();
-    return (trimmed.startsWith('[') || trimmed.startsWith('{')) &&
-        _jsonLooksLikeCommandProposal(trimmed);
-  }
-
-  bool _looksLikeBracketedToolRequest(String content) {
-    return _bracketedToolRequestName(content) != null;
-  }
-
-  String? _bracketedToolRequestName(String content) {
-    final match = RegExp(
-      r'\[Tool:\s*([A-Za-z_][\w.-]*)\]\s*(?:\r?\n)+\s*Arguments:\s*(?:\{|\[)',
-      caseSensitive: false,
-      dotAll: true,
-    ).firstMatch(content);
-    return match?.group(1);
-  }
-
-  bool _looksLikePlanOnlyFinalToolAnswer(String content) =>
-      _finalAnswerClaimDetector.looksLikePlanOnlyFinalToolAnswer(content);
-
-  bool _containsAny(String value, List<String> markers) {
-    return markers.any(value.contains);
-  }
+  bool _containsAny(String value, List<String> markers) =>
+      markers.any(value.contains);
 
   bool _containsCjkBlockerMarker(String value) {
     final markers = [
@@ -8587,304 +8235,234 @@ class ChatNotifier extends Notifier<ChatState> {
     return markers.any(value.contains);
   }
 
-  bool _jsonLooksLikeCommandProposal(String snippet) {
-    try {
-      return _jsonValueLooksLikeCommandProposal(jsonDecode(snippet));
-    } on FormatException {
-      return false;
-    }
-  }
-
-  bool _jsonValueLooksLikeCommandProposal(Object? value) {
-    if (value is List && value.isNotEmpty) {
-      final mapItems = value.whereType<Map<Object?, Object?>>().toList();
-      return mapItems.length == value.length &&
-          mapItems.any(_jsonMapLooksLikeCommandProposal);
-    }
-    if (value is Map<Object?, Object?>) {
-      return _jsonMapLooksLikeCommandProposal(value);
-    }
-    return false;
-  }
-
-  bool _jsonMapLooksLikeCommandProposal(Map<Object?, Object?> value) {
-    final keys = value.keys
-        .whereType<String>()
-        .map((key) => key.toLowerCase())
-        .toSet();
-    if (keys.contains('command')) {
-      return !keys.contains('exit_code') &&
-          !keys.contains('stdout') &&
-          !keys.contains('stderr');
-    }
-    if (!keys.contains('name') || !keys.contains('arguments')) {
-      return false;
-    }
-
-    final name = value.entries
-        .firstWhere(
-          (entry) =>
-              entry.key is String &&
-              (entry.key! as String).toLowerCase() == 'name',
-          orElse: () => const MapEntry<Object?, Object?>(null, null),
-        )
-        .value
-        ?.toString()
-        .toLowerCase();
-    return name == 'local_execute_command' ||
-        name == 'run_tests' ||
-        name == 'git_execute_command' ||
-        name == 'ssh_execute_command';
-  }
-
-  void _appendToolContinuationLimitNotice() {
-    if (!ref.mounted || state.messages.isEmpty) return;
-
-    final updatedMessages = [...state.messages];
+  void _appendToolContinuationLimitNotice(ChatTurnOwner owner) {
+    final ownerMessages = _activeResponseRegistry.messagesForOwner(owner);
+    if (ownerMessages == null || ownerMessages.isEmpty) return;
+    final updatedMessages = [...ownerMessages];
     final lastIndex = updatedMessages.length - 1;
     final lastMessage = updatedMessages[lastIndex];
     updatedMessages[lastIndex] = lastMessage.copyWith(
       content:
           '${lastMessage.content}\n\n[Tool continuation limit reached. Please ask again with a more specific request.]',
     );
-    state = state.copyWith(messages: updatedMessages);
+    _activeResponseRegistry.cacheMessagesForOwner(owner, updatedMessages);
+    if (ref.mounted && conversationId == owner.conversationId) {
+      state = state.copyWith(messages: updatedMessages);
+    }
+  }
+
+  Future<bool> _continueWithPendingContentToolResults(
+    ChatTurnOwner owner,
+  ) async {
+    final toolResults = _contentToolTurns.takePendingResults(owner);
+    if (toolResults.isEmpty) return false;
+    if (_contentToolTurns.continuationCount(owner) >=
+        _maxContentToolContinuations) {
+      _appendToolContinuationLimitNotice(owner);
+      return false;
+    }
+    _contentToolTurns.incrementContinuationCount(owner);
+    await _continueAfterContentToolResults(
+      toolResults,
+      interactionGeneration: owner.interactionGeneration,
+    );
+    return true;
   }
 
   Future<void> _finishStreaming({int? interactionGeneration}) async {
     final generation = interactionGeneration ?? _interactionGeneration;
     if (!_isCurrentInteractionGeneration(generation)) return;
-
-    if (_isActiveResponseDetachedForGeneration(generation)) {
-      await _finishDetachedActiveResponse(generation);
-      return;
+    final turnSnapshot = _turnOwnerSnapshotForGeneration(generation);
+    final turnOwner = turnSnapshot?.owner;
+    if (turnOwner == null) {
+      return _handleTurnOwnerSnapshotUnavailable(generation);
     }
-
+    // Capture the owner before finalization clears its active registration.
+    final turnThreadId = _activeResponseConversationIdForGeneration(generation);
     _recoverIncompleteContentToolCallsFromLastMessage(
       interactionGeneration: generation,
     );
-
-    // Wait for pending tool executions before finalizing the response.
-    if (_pendingToolExecutions.isNotEmpty) {
-      final pendingToolExecutions = List<Future<void>>.from(
-        _pendingToolExecutions,
-      );
-      _pendingToolExecutions.clear();
+    final pendingExecutionCount = _contentToolTurns.pendingExecutionCount(
+      turnOwner,
+    );
+    if (pendingExecutionCount > 0) {
       appLog(
-        '[ChatNotifier] Waiting for pending tool executions: ${pendingToolExecutions.length}',
+        '[ChatNotifier] Waiting for pending tool executions: '
+        '$pendingExecutionCount',
       );
-      await Future.wait(pendingToolExecutions);
-      if (!_isCurrentInteractionGeneration(generation)) return;
+      await _contentToolTurns.drainPendingExecutions(turnOwner);
+      if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
       appLog('[ChatNotifier] Tool executions completed');
     }
-
-    if (_pendingContentToolResults.isNotEmpty) {
-      final toolResults = List<String>.from(_pendingContentToolResults);
-      _pendingContentToolResults.clear();
-
-      if (_contentToolContinuationCount >= _maxContentToolContinuations) {
-        _appendToolContinuationLimitNotice();
-      } else {
-        _contentToolContinuationCount += 1;
-        await _continueAfterContentToolResults(
-          toolResults,
-          interactionGeneration: generation,
-        );
-        return;
-      }
+    if (_contentToolTurns.pendingResultCount(turnOwner) > 0) {
+      if (await _continueWithPendingContentToolResults(turnOwner)) return;
     }
-
-    if (_pendingContentToolResults.isEmpty) {
+    if (_contentToolTurns.pendingResultCount(turnOwner) == 0) {
       final recoveredUntrustedToolResult =
           _recoverUntrustedAssistantToolResultsFromLastMessage(
             interactionGeneration: generation,
           );
-      if (recoveredUntrustedToolResult) {
-        final toolResults = List<String>.from(_pendingContentToolResults);
-        _pendingContentToolResults.clear();
-        if (_contentToolContinuationCount >= _maxContentToolContinuations) {
-          _appendToolContinuationLimitNotice();
-        } else {
-          _contentToolContinuationCount += 1;
-          await _continueAfterContentToolResults(
-            toolResults,
-            interactionGeneration: generation,
-          );
-          return;
-        }
+      if (recoveredUntrustedToolResult &&
+          await _continueWithPendingContentToolResults(turnOwner)) {
+        return;
       }
     }
-
-    if (_pendingContentToolResults.isEmpty) {
+    if (_contentToolTurns.pendingResultCount(turnOwner) == 0) {
       final recoveredToolNameBlock =
           _recoverAssistantToolNameBlocksFromLastMessage(
             interactionGeneration: generation,
           );
-      if (recoveredToolNameBlock) {
-        final toolResults = List<String>.from(_pendingContentToolResults);
-        _pendingContentToolResults.clear();
-        if (_contentToolContinuationCount >= _maxContentToolContinuations) {
-          _appendToolContinuationLimitNotice();
-        } else {
-          _contentToolContinuationCount += 1;
-          await _continueAfterContentToolResults(
-            toolResults,
-            interactionGeneration: generation,
-          );
-          return;
-        }
+      if (recoveredToolNameBlock &&
+          await _continueWithPendingContentToolResults(turnOwner)) {
+        return;
       }
     }
-
-    if (!_isCurrentInteractionGeneration(generation) ||
-        state.messages.isEmpty) {
+    if (!_activeResponseRegistry.containsOwner(turnOwner)) {
       return;
     }
-
-    final lastIndex = state.messages.length - 1;
-    final finalMessage = _resolveTurnFinalMessage(state.messages.last);
-    final shouldDropLastAssistant = finalMessage.dropLastAssistant;
-
-    // Capture token usage before building per-message metrics so both the
-    // global usage indicator and completed bubble agree on the same response.
-    _updateTokenUsage();
-    final updatedMessages = finalMessage.apply(
-      state.messages,
-      metrics: _turnResponseMetrics(generation, finalMessage),
-      truncated: _isCompletionTruncated(_latestFinishReason() ?? ''),
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      await _finishDetachedActiveResponse(generation);
+      return;
+    }
+    final responseMessages = _activeResponseRegistry.messagesForOwner(
+      turnOwner,
     );
-    _pendingContentToolContinuationFallback = null;
+    if (responseMessages == null || responseMessages.isEmpty) {
+      return _failResponseMessagesMissing(generation);
+    }
 
-    if (!_isCurrentInteractionGeneration(generation)) return;
-
-    // Hidden prompt responses are ephemeral — remove from visible history
-    // so they are spoken but not persisted in the conversation.
-    if (_hiddenPrompt != null && !_persistHiddenPromptAssistantResponse) {
-      state = state.copyWith(messages: updatedMessages, isLoading: false);
-      if (!shouldDropLastAssistant && updatedMessages.isNotEmpty) {
-        _recordHiddenAssistantResponse(updatedMessages.last.content);
-      }
-      final cleaned = shouldDropLastAssistant
-          ? updatedMessages
-          : updatedMessages.sublist(0, lastIndex);
-      state = state.copyWith(messages: cleaned);
-      _hiddenPrompt = null;
-      _persistHiddenPromptAssistantResponse = false;
-      // A continuation turn is a tool-calling turn; dropping its answer from
-      // the visible history is no reason to drop its exit reason too.
-      await _logTurnExitReason(
-        generation: generation,
-        finalizedMessages: updatedMessages,
-        shouldDropLastAssistant: shouldDropLastAssistant,
+    final finalMessage = _resolveTurnFinalMessage(
+      responseMessages.last,
+      turnOwner,
+    );
+    final shouldDropLastAssistant = finalMessage.dropLastAssistant;
+    final provisionalFinishReason =
+        _responseMetadata.finishReasonFor(turnOwner) ?? '';
+    var updatedMessages = finalMessage.apply(
+      responseMessages,
+      metrics: null,
+      truncated: _isCompletionTruncated(provisionalFinishReason),
+    );
+    _contentToolTurns.setContinuationFallback(turnOwner, null);
+    if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
+    final snapshot = turnSnapshot!;
+    if (snapshot.hiddenPrompt != null &&
+        !snapshot.persistHiddenPromptAssistantResponse) {
+      _updateTokenUsage(turnOwner);
+      final hiddenFinishReason =
+          _responseMetadata.finishReasonFor(turnOwner) ?? '';
+      updatedMessages = finalMessage.apply(
+        responseMessages,
+        metrics: _turnResponseMetrics(turnOwner, finalMessage),
+        truncated: _isCompletionTruncated(hiddenFinishReason),
       );
-      _onResponseCompleted('');
-      _completeRuntimeTurn(generation, content: '');
-      if (!_isCurrentInteractionGeneration(generation)) return;
-      await _drainQueuedChatMessagesIfIdle();
-      return;
+      if (await _finishEphemeralHiddenResponse(
+        snapshot: snapshot,
+        updatedMessages: updatedMessages,
+        shouldDropLastAssistant: shouldDropLastAssistant,
+        turnThreadId: turnThreadId,
+        finishReason: hiddenFinishReason,
+      )) {
+        return;
+      }
     }
-    if (_hiddenPrompt != null) {
-      _hiddenPrompt = null;
-      _persistHiddenPromptAssistantResponse = false;
-    }
-
+    _clearHiddenPromptMirrorForSnapshot(snapshot);
     final recoveredBeforeFinalization =
         await _recoverBeforeTurnFinalizationIfNeeded(
           generation: generation,
           finalizedMessages: updatedMessages,
           shouldDropLastAssistant: shouldDropLastAssistant,
         );
-    if (recoveredBeforeFinalization) {
-      return;
-    }
-    if (!_isCurrentInteractionGeneration(generation)) return;
+    if (recoveredBeforeFinalization) return;
+    if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
+    final goalTokenUsageDelta = _updateTokenUsage(turnOwner);
+    final finishReason = _responseMetadata.finishReasonFor(turnOwner) ?? '';
+    updatedMessages = finalMessage.apply(
+      responseMessages,
+      metrics: _turnResponseMetrics(turnOwner, finalMessage),
+      truncated: _isCompletionTruncated(finishReason),
+    );
     if (!shouldDropLastAssistant && updatedMessages.isNotEmpty) {
       final finalMessageIndex = updatedMessages.length - 1;
       final finalMessage = updatedMessages[finalMessageIndex];
-      final guardedContent = _messageContentWithVerificationClaimNotice(
-        _messageContentWithNarratedTranscriptClaimNotice(
-          _messageContentWithUnwrittenFileClaimNotice(finalMessage.content),
+      final noticeResult = _claimNotices.apply(
+        FinalAnswerClaimNoticeInput(
+          isCodingWorkspaceOrMode: snapshot.isCodingWorkspaceOrMode,
+          candidateContent: finalMessage.content,
+          toolResults: _turnToolResults.all(snapshot.owner),
+          executedCommands: _turnToolResults.commands(snapshot.owner),
+          projectRoot: snapshot.projectRoot,
+          offersCommandExecution: _toolCallExecutionPolicy
+              .offersCommandExecution(snapshot.allowedToolNames),
         ),
       );
-      if (guardedContent != finalMessage.content) {
+      for (final transformId in noticeResult.transformIds) {
+        _turnEnd.addTransform(snapshot.owner, transformId);
+      }
+      if (noticeResult.content != finalMessage.content) {
         updatedMessages[finalMessageIndex] = finalMessage.copyWith(
-          content: guardedContent,
+          content: noticeResult.content,
         );
       }
     }
     await _logTurnExitReason(
-      generation: generation,
+      owner: turnOwner,
       finalizedMessages: updatedMessages,
       shouldDropLastAssistant: shouldDropLastAssistant,
+      finishReason: finishReason,
     );
-    if (!_isCurrentInteractionGeneration(generation)) return;
-    // Resolve the thread before the registration is cleared below, and keep a
-    // detached turn's transcript with the turn rather than pushing it onto the
-    // thread the user is reading.
-    final turnThreadId = _activeResponseConversationIdForGeneration(generation);
-    if (_isActiveResponseDetachedForGeneration(generation)) {
-      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
-    } else {
+    if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
+    final turnLogContext = _llmSessionLogContextForGeneration(generation);
+    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+    if (!_isActiveResponseDetachedForGeneration(generation)) {
       state = state.copyWith(messages: updatedMessages, isLoading: false);
     }
     final explicitTerminalSuccessSummary =
         _explicitTerminalSuccessSummariesByGeneration.remove(generation);
-
-    // Persist messages.
-    _contentToolContinuationCount = 0;
-    _clearActiveResponseForGeneration(generation);
-    await _saveMessages(
+    _contentToolTurns.resetContinuationCount(turnOwner);
+    updatedMessages = await _saveMessages(
       messages: updatedMessages,
-      conversationId: turnThreadId,
+      conversationId: turnOwner.conversationId,
+      memoryToolResults: _turnToolResults.completed(turnOwner),
     );
-    if (!_isCurrentInteractionGeneration(generation)) return;
-
+    if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
+    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+    if (conversationId == turnOwner.conversationId) {
+      state = state.copyWith(messages: updatedMessages, isLoading: false);
+    }
     if (shouldDropLastAssistant || updatedMessages.isEmpty) {
       _clearTurnDiffCapture();
       _onResponseCompleted('');
       _completeRuntimeTurn(generation, content: '');
       if (!_isCurrentInteractionGeneration(generation)) return;
-      await _drainQueuedChatMessagesIfIdle();
+      await _drainQueuedChatMessagesForThreadIfIdle(turnThreadId ?? '');
       _clearGoalAutoContinueIndicator();
       return;
     }
-
-    // Trigger auto-read when enabled.
     final finalizedLastMessage = updatedMessages.last;
     if (finalizedLastMessage.role == MessageRole.assistant) {
       await _persistPendingTurnDiffForAssistant(finalizedLastMessage.id);
     } else {
       _clearTurnDiffCapture();
     }
-    _reconcileGoalAutoContinueEvidenceForFinalization();
-    // Read the claim before recording the turn: the finalization evidence
-    // above is the complete picture, so a completion claimed mid-turn is
-    // judged here rather than by the partial evidence its ack saw (LL35).
-    final toolCompletionClaimed = takeToolGoalCompletionClaim();
-    final lexicalCompleted = await ref
-        .read(conversationsNotifierProvider.notifier)
-        .recordCurrentGoalTurn(
-          assistantResponse:
-              explicitTerminalSuccessSummary?.trim().isNotEmpty == true
-              ? explicitTerminalSuccessSummary!
-              : finalizedLastMessage.content,
-          tokenUsageDelta: _accumulatedTokenUsage.totalTokens,
-          completionEvidence: _latestGoalAutoContinueEvidence,
-          toolCompletionClaimed: toolCompletionClaimed,
-        );
-    await recordGoalCompletionShadow(
-      lexicalCompleted: lexicalCompleted,
-      generation: generation,
+    if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
+    final finalCompletionEvidence = await _finalizeGoalTurn(
+      owner: turnOwner,
+      assistantResponse:
+          explicitTerminalSuccessSummary?.trim().isNotEmpty == true
+          ? explicitTerminalSuccessSummary!
+          : finalizedLastMessage.content,
+      tokenUsageDelta: goalTokenUsageDelta,
+      context: turnLogContext,
     );
-    if (!_isCurrentInteractionGeneration(generation)) return;
-
+    if (finalCompletionEvidence == null) return;
+    if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
     if (_settings.autoReadEnabled && _settings.ttsEnabled) {
       final lastMsg = finalizedLastMessage;
       if (lastMsg.role == MessageRole.assistant && lastMsg.content.isNotEmpty) {
         _onAutoRead(lastMsg.content);
       }
     }
-
-    // Notify when the response completes while the app is in the background.
     final lastMsg = finalizedLastMessage;
     if (lastMsg.role == MessageRole.assistant && lastMsg.content.isNotEmpty) {
       _onResponseCompleted(lastMsg.content);
@@ -8898,33 +8476,25 @@ class ChatNotifier extends Notifier<ChatState> {
       content: lastMsg.role == MessageRole.assistant ? lastMsg.content : '',
     );
     if (!_isCurrentInteractionGeneration(generation)) return;
-    await _drainQueuedChatMessagesIfIdle();
+    await _drainQueuedChatMessagesForThreadIfIdle(turnThreadId ?? '');
     if (!_isCurrentInteractionGeneration(generation)) return;
+    if (!_queueOwnerIsVisible(turnOwner.conversationId)) return;
     await _maybeAutoContinueCurrentGoal(
+      owner: turnOwner,
       finalizedAssistantResponse: finalizedLastMessage.content,
       languageCode: _languageCode,
+      evidence: finalCompletionEvidence,
     );
   }
 
-  TurnFinalMessage _resolveTurnFinalMessage(Message lastMessage) =>
-      TurnFinalMessage.resolve(
-        lastMessage: lastMessage,
-        contentToolFallback: _pendingContentToolContinuationFallback,
-        hasVisibleContent: _assistantMessageHasVisibleContent,
-      );
-
-  /// Takes the turn's metrics, or discards them when nothing visible was
-  /// produced so a dropped bubble cannot leave its timing behind.
-  MessageResponseMetrics? _turnResponseMetrics(
-    int generation,
-    TurnFinalMessage finalMessage,
-  ) {
-    if (finalMessage.dropLastAssistant) {
-      _discardResponseMetricsForGeneration(generation);
-      return null;
-    }
-    return _takeResponseMetricsForGeneration(generation);
-  }
+  TurnFinalMessage _resolveTurnFinalMessage(
+    Message lastMessage,
+    ChatTurnOwner owner,
+  ) => TurnFinalMessage.resolve(
+    lastMessage: lastMessage,
+    contentToolFallback: _contentToolTurns.continuationFallback(owner),
+    hasVisibleContent: _assistantMessageHasVisibleContent,
+  );
 
   bool _assistantMessageHasVisibleContent(String content) {
     if (content.trim().isEmpty) return false;
@@ -8951,7 +8521,12 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   Future<McpToolResult?> _ensureActiveProjectAccess(String toolName) async {
-    final project = _getActiveCodingProject();
+    final scopedRoot = TurnProjectRoot.current?.rootPath.trim();
+    final project = scopedRoot == null
+        ? _getActiveCodingProject()
+        : scopedRoot.isEmpty
+        ? null
+        : ref.read(codingProjectsNotifierProvider).findByRootPath(scopedRoot);
     if (project == null) return null;
 
     final bookmark = project.securityScopedBookmark?.trim();
@@ -8982,12 +8557,18 @@ class ChatNotifier extends Notifier<ChatState> {
     List<String> toolResults, {
     required int interactionGeneration,
   }) async {
-    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
-        state.messages.isEmpty) {
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
       return;
     }
+    final turnOwner = _turnOwnerForGeneration(interactionGeneration);
+    if (turnOwner == null) {
+      await _handleTurnOwnerSnapshotUnavailable(interactionGeneration);
+      return;
+    }
+    final ownerMessages = _activeResponseRegistry.messagesForOwner(turnOwner);
+    if (ownerMessages == null || ownerMessages.isEmpty) return;
 
-    final finalizedMessages = [...state.messages];
+    final finalizedMessages = [...ownerMessages];
     final lastIndex = finalizedMessages.length - 1;
     finalizedMessages[lastIndex] = finalizedMessages[lastIndex].copyWith(
       isStreaming: false,
@@ -9001,11 +8582,18 @@ class ChatNotifier extends Notifier<ChatState> {
       isStreaming: true,
     );
 
-    state = state.copyWith(
-      messages: [...finalizedMessages, continuationMessage],
-      isLoading: true,
-      error: null,
+    final continuationMessages = [...finalizedMessages, continuationMessage];
+    _activeResponseRegistry.cacheMessagesForOwner(
+      turnOwner,
+      continuationMessages,
     );
+    if (!_isActiveResponseDetachedForGeneration(interactionGeneration)) {
+      state = state.copyWith(
+        messages: continuationMessages,
+        isLoading: true,
+        error: null,
+      );
+    }
 
     final continuationToolDefinitions =
         _foundationModelsTextToolDefinitionsForContinuation();
@@ -9013,65 +8601,42 @@ class ChatNotifier extends Notifier<ChatState> {
       toolDefinitionsOverride: continuationToolDefinitions,
       interactionGeneration: interactionGeneration,
     );
-    final resultsText = toolResults.join('\n\n');
-    _pendingContentToolContinuationFallback =
-        _buildContentToolContinuationFallback(toolResults);
+    _contentToolTurns.setContinuationFallback(
+      turnOwner,
+      ContentToolContinuationPromptBuilder.fallback(toolResults),
+    );
     messagesForLLM.add(
       Message(
         id: 'content_tool_result_${DateTime.now().millisecondsSinceEpoch}',
-        content:
-            'Continue the task using the following tool results. '
-            'If you need more information, call another tool. '
-            'Do not repeat a tool call with the same arguments after a '
-            'successful result. Reuse the tool result that is already '
-            'provided and continue from it. '
-            'Do not write <tool_result> tags or claim a tool result yourself; '
-            'tool results are trusted only when the application executes the '
-            'tool. If you need a tool, emit exactly one complete '
-            '<tool_use>...</tool_use> tag with valid JSON, including the '
-            'closing tag. '
-            'If the latest tool result already completed the current saved '
-            'task or confirmed the saved validation command, do not call '
-            'more tools for that task and finish with a brief text answer. '
-            'If a tool result reports code=tool_not_available, do not retry '
-            'that tool name or alias variants and continue with the tools '
-            'that actually exist. Your next step must use an available tool '
-            'or finish with a text answer. '
-            'If a tool result reports code=edit_mismatch or says old_text was '
-            'not found in the target file, read that file next and retry '
-            'edit_file using the exact current file content as old_text. '
-            'Do not guess old_text and do not switch to unrelated files. '
-            'Do not repeat a tool call with the same arguments after a '
-            'permission_denied or equivalent access error. '
-            'Explain the issue and ask the user to re-select the project '
-            'folder or grant access instead.\n\n'
-            '${ToolResultPromptBuilder.exactPreservationToolResultInstruction}\n\n'
-            'Interpret each tool name, description, arguments, and result '
-            'together. Preserve the entity roles implied by the tool and the '
-            'payload. If the role of an opaque identifier is not explicit, '
-            'treat it as ambiguous instead of guessing.\n\n$resultsText',
+        content: ContentToolContinuationPromptBuilder.build(toolResults),
         role: MessageRole.user,
         timestamp: DateTime.now(),
       ),
     );
 
     _runWithLlmSessionLogContextForGeneration(interactionGeneration, () {
-      final stream = continuationToolDefinitions == null
-          ? _dataSource.streamChatCompletion(
-              messages: messagesForLLM,
-              model: _settings.model,
-              temperature: _assistantRequestTemperature,
-              maxTokens: _settings.maxTokens,
-            )
-          : _dataSource
-                .streamChatCompletionWithTools(
-                  messages: messagesForLLM,
-                  tools: continuationToolDefinitions,
-                  model: _settings.model,
-                  temperature: _agenticRequestTemperature,
-                  maxTokens: _settings.maxTokens,
-                )
-                .stream;
+      late final Stream<String> stream;
+      late final Future<ChatCompletionTerminalMetadata> terminal;
+      if (continuationToolDefinitions == null) {
+        final completion = _dataSource.streamChatCompletion(
+          messages: messagesForLLM,
+          model: _settings.model,
+          temperature: _assistantRequestTemperature,
+          maxTokens: _settings.maxTokens,
+        );
+        stream = completion;
+        terminal = completion.terminal;
+      } else {
+        final completion = _dataSource.streamChatCompletionWithTools(
+          messages: messagesForLLM,
+          tools: continuationToolDefinitions,
+          model: _settings.model,
+          temperature: _agenticRequestTemperature,
+          maxTokens: _settings.maxTokens,
+        );
+        stream = completion.stream;
+        terminal = _responseMetadata.terminalFor(completion.completion);
+      }
 
       _streamSubscription = stream.listen(
         (chunk) {
@@ -9094,34 +8659,11 @@ class ChatNotifier extends Notifier<ChatState> {
           );
         },
         onDone: () {
-          unawaited(
-            _finishStreaming(interactionGeneration: interactionGeneration),
-          );
+          _finishStreamedCompletionInBackground(turnOwner, terminal);
         },
         cancelOnError: true,
       );
     });
-  }
-
-  String _buildContentToolContinuationFallback(List<String> toolResults) {
-    final joined = toolResults.join('\n\n');
-    if (joined.contains('[Assistant-authored tool_result ignored]')) {
-      return 'I ignored an assistant-authored tool_result because it was not '
-          'produced by an executed tool. No trusted tool result is available '
-          'from that tag.';
-    }
-    if (joined.contains('[Assistant tool-name block ignored]')) {
-      return 'I ignored an assistant-authored tool request block because no '
-          'application tool executed it. No trusted tool result is available '
-          'from that block.';
-    }
-    if (joined.contains('[Incomplete assistant tool call]')) {
-      return 'The assistant emitted an incomplete tool call, so no trusted '
-          'tool result is available yet.';
-    }
-    return 'I received the tool result, but the model did not produce a final '
-        'answer. The trusted tool result is still available in the '
-        'conversation context.';
   }
 
   List<Map<String, dynamic>>?
@@ -9148,6 +8690,11 @@ class ChatNotifier extends Notifier<ChatState> {
     StackTrace stackTrace, {
     required int interactionGeneration,
   }) async {
+    final turnOwner = _turnOwnerForGeneration(interactionGeneration);
+    if (turnOwner == null) {
+      await _handleTurnOwnerSnapshotUnavailable(interactionGeneration);
+      return;
+    }
     try {
       final result = await _runWithLlmSessionLogContextForGeneration(
         interactionGeneration,
@@ -9159,8 +8706,8 @@ class ChatNotifier extends Notifier<ChatState> {
         ),
       );
 
-      if (!_isCurrentInteractionGeneration(interactionGeneration) ||
-          state.messages.isEmpty) {
+      final ownerMessages = _activeResponseRegistry.messagesForOwner(turnOwner);
+      if (ownerMessages == null || ownerMessages.isEmpty) {
         return;
       }
 
@@ -9168,13 +8715,14 @@ class ChatNotifier extends Notifier<ChatState> {
         appLog(
           '[ChatNotifier] Content-tool continuation fallback returned empty content',
         );
-        _handleError(error.toString());
+        await _handleError(error, owner: turnOwner);
         return;
       }
 
       appLog(
         '[ChatNotifier] Recovered content-tool continuation with non-streaming completion',
       );
+      if (!_responseMetadata.captureResult(turnOwner, result)) return;
       _replaceLastMessageContentForGeneration(
         interactionGeneration,
         result.content,
@@ -9185,13 +8733,13 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       await _finishStreaming(interactionGeneration: interactionGeneration);
     } catch (fallbackError, fallbackStackTrace) {
-      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+      if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
       appLog(
         '[ChatNotifier] Content-tool continuation fallback failed: ${fallbackError.runtimeType}: $fallbackError',
       );
       appLog('[ChatNotifier] fallbackStackTrace: $fallbackStackTrace');
       appLog('[ChatNotifier] originalStackTrace: $stackTrace');
-      _handleError(error.toString());
+      await _handleError(error, owner: turnOwner);
     }
   }
 
@@ -9199,8 +8747,9 @@ class ChatNotifier extends Notifier<ChatState> {
     String currentConversationId,
     List<Message> messagesToSave,
     String targetAssistantMessageId,
+    List<ToolResultInfo> toolResults,
   ) async {
-    final draft = await _extractMemoryDraftWithLlm(messagesToSave);
+    final draft = await _extractMemoryDraftWithLlm(messagesToSave, toolResults);
     final result = await _memoryService.updateFromConversation(
       conversationId: currentConversationId,
       messages: messagesToSave,
@@ -9228,11 +8777,12 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(messages: updatedMessages);
 
     final normalized = updatedMessages.where((m) => !m.isStreaming).toList();
-    unawaited(_onMessagesChanged(normalized));
+    unawaited(_messagePersistence.persistCurrentMessages(normalized));
   }
 
   Future<MemoryExtractionDraft?> _extractMemoryDraftWithLlm(
     List<Message> messages,
+    List<ToolResultInfo> toolResults,
   ) async {
     if (!_settings.llmCapabilities.supportsLlmMemoryExtraction) {
       appLog(
@@ -9253,7 +8803,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final extractionInput = MemoryExtractionDraftService.buildInput(
       messages,
       profile,
-      toolResults: _turnToolResults.completed,
+      toolResults: toolResults,
     );
 
     final extractionMessages = [
@@ -9272,10 +8822,10 @@ class ChatNotifier extends Notifier<ChatState> {
     ];
 
     try {
-      final result = await _runSecondaryCompletion(
-        endpointId: _settings.memoryExtractionEndpointId,
-        model: _settings.effectiveMemoryExtractionModel,
-        call: (dataSource, model) => dataSource.createChatCompletion(
+      final result = await _secondaryCompletionRouter.run(
+        primaryDataSource: _dataSource,
+        route: _settings._memoryExtractionCompletionRoute,
+        operation: (dataSource, model) => dataSource.createChatCompletion(
           messages: extractionMessages,
           model: model,
           temperature: 0.1,
@@ -9333,39 +8883,30 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Waits for message writes that must finish before a headless frontend
   /// disposes its provider container.
-  Future<void> flushPendingPersistence() async {
-    await _cancelledMessagePersistenceTail;
-    await _conversationMessagePersistenceTail;
-  }
+  Future<void> flushPendingPersistence() => _messagePersistence.flush();
 
   void clearMessages() {
     if (!ref.mounted) return;
     _beginInteractionGeneration();
     _streamSubscription?.cancel();
     _streamSubscription = null;
-    _executedContentToolCalls.clear();
-    _seenContentToolCallHashes.clear();
-    _toolApprovalCache.clear();
-    _pendingContentToolResults.clear();
-    _pendingContentToolContinuationFallback = null;
-    _pendingToolExecutions.clear();
+    _failAllRuntimeTurns(
+      code: 'messages_cleared',
+      message: 'The conversation was cleared before the turn completed.',
+      exitCode: 130,
+    );
+    _cancelAllPendingToolApprovals();
+    _contentToolTurns.clear();
+    _hiddenAssistantEvidence.clear();
+    _turnEnd.clear();
+    _goalCompletionEvidence.clear();
+    _toolApprovalCache.clearAll();
     _queuedChatMessages.clear();
-    _turnToolResults.clearContentResults();
-    _latestGoalAutoContinueEvidence = const ToolResultCompletionEvidence();
+    _turnToolResults.clear();
     _goalAutoContinueTrackers.clear();
     _goalAutoContinueBudgetNotifiedConversations.clear();
     _isSchedulingGoalAutoContinue = false;
-    _persistHiddenPromptAssistantResponse = false;
-    _contentToolContinuationCount = 0;
-    _contentToolExecutionTail = Future<void>.value();
     _dismissAllPendingAskUserQuestions();
-    _participantTurnStopRequested = false;
-    _pausedParticipantTurnCursor = null;
-    _pausedParticipantTurnParticipants = const [];
-    _pausedParticipantTurnConfig = null;
-    _pausedParticipantTurnConversationId = null;
-    _pausedParticipantTurnPreferredId = null;
-    _pausedParticipantTurnLastSpeakerId = null;
     _clearAllActiveResponses();
     _sessionMemoryContext = null;
     _temporalReferenceContext = null;

@@ -1,9 +1,19 @@
 import 'package:caverno/core/services/ssh_service.dart';
 import 'package:caverno/features/chat/data/datasources/built_in_ssh_tool_handler.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('BuiltInSshToolHandler', () {
+    late ChatTurnOwner owner;
+
+    setUp(() {
+      owner = ChatTurnOwner(
+        conversationId: 'conversation-a',
+        interactionGeneration: 1,
+      );
+    });
+
     test('owns the exact ordered family and schemas', () {
       final unavailable = BuiltInSshToolHandler();
       final available = BuiltInSshToolHandler(sshService: _FakeSshService());
@@ -52,6 +62,7 @@ void main() {
       final handler = BuiltInSshToolHandler(sshService: _FakeSshService());
 
       final connect = await handler.execute(
+        owner: owner,
         name: 'ssh_connect',
         arguments: const {'host': 'example.com'},
       );
@@ -63,7 +74,7 @@ void main() {
         'ssh_connect must be handled by ChatNotifier (internal error)',
       );
       await expectLater(
-        handler.execute(name: 'ssh_upload', arguments: const {}),
+        handler.execute(owner: owner, name: 'ssh_upload', arguments: const {}),
         throwsA(
           isA<ArgumentError>().having(
             (error) => error.message,
@@ -80,18 +91,22 @@ void main() {
       final inactive = BuiltInSshToolHandler(sshService: inactiveService);
 
       final unavailableExecute = await unavailable.execute(
+        owner: owner,
         name: 'ssh_execute_command',
         arguments: const {'command': 'pwd'},
       );
       final unavailableDisconnect = await unavailable.execute(
+        owner: owner,
         name: 'ssh_disconnect',
         arguments: const {},
       );
       final inactiveExecute = await inactive.execute(
+        owner: owner,
         name: 'ssh_execute_command',
         arguments: const {'command': 'pwd'},
       );
       final inactiveDisconnect = await inactive.execute(
+        owner: owner,
         name: 'ssh_disconnect',
         arguments: const {},
       );
@@ -110,7 +125,7 @@ void main() {
 
     test('trims approved commands and preserves formatted output', () async {
       final service = _FakeSshService(
-        connected: true,
+        connectedOwners: {owner},
         executionResult: SshExecutionResult(
           stdout: 'output',
           stderr: 'warning',
@@ -120,6 +135,7 @@ void main() {
       final handler = BuiltInSshToolHandler(sshService: service);
 
       final result = await handler.execute(
+        owner: owner,
         name: 'ssh_execute_command',
         arguments: const {'command': '  uname -a  ', 'reason': 'inspect'},
       );
@@ -130,24 +146,57 @@ void main() {
         'exit_code: 3\n--- stdout ---\noutput\n--- stderr ---\nwarning\n',
       );
       expect(service.executedCommands, ['uname -a']);
+      expect(service.executionOwners, [owner]);
+    });
+
+    test('forwards exact owner and does not expose a peer session', () async {
+      final peerOwner = ChatTurnOwner(
+        conversationId: owner.conversationId,
+        interactionGeneration: owner.interactionGeneration + 1,
+      );
+      final service = _FakeSshService(connectedOwners: {owner});
+      final handler = BuiltInSshToolHandler(sshService: service);
+
+      final peerExecute = await handler.execute(
+        owner: peerOwner,
+        name: 'ssh_execute_command',
+        arguments: const {'command': 'hostname'},
+      );
+      final peerDisconnect = await handler.execute(
+        owner: peerOwner,
+        name: 'ssh_disconnect',
+        arguments: const {},
+      );
+
+      expect(peerExecute.isSuccess, isFalse);
+      expect(
+        peerExecute.errorMessage,
+        'No active SSH session — call ssh_connect first',
+      );
+      expect(peerDisconnect.result, 'No active SSH session');
+      expect(service.connectedOwners, {owner});
+      expect(service.executionOwners, isEmpty);
     });
 
     test('rejects empty commands and converts execution errors', () async {
       final service = _FakeSshService(
-        connected: true,
+        connectedOwners: {owner},
         executionError: StateError('execute failed'),
       );
       final handler = BuiltInSshToolHandler(sshService: service);
 
       final empty = await handler.execute(
+        owner: owner,
         name: 'ssh_execute_command',
         arguments: const {'command': '   '},
       );
       final malformed = await handler.execute(
+        owner: owner,
         name: 'ssh_execute_command',
         arguments: const {'command': 42},
       );
       final failed = await handler.execute(
+        owner: owner,
         name: 'ssh_execute_command',
         arguments: const {'command': 'false'},
       );
@@ -163,27 +212,27 @@ void main() {
     test(
       'disconnects active sessions and converts disconnect errors',
       () async {
-        final connected = _FakeSshService(connected: true);
+        final connected = _FakeSshService(connectedOwners: {owner});
         final failing = _FakeSshService(
-          connected: true,
+          connectedOwners: {owner},
           disconnectError: StateError('disconnect failed'),
         );
 
         final disconnected = await BuiltInSshToolHandler(
           sshService: connected,
-        ).execute(name: 'ssh_disconnect', arguments: const {});
+        ).execute(owner: owner, name: 'ssh_disconnect', arguments: const {});
         final failed = await BuiltInSshToolHandler(
           sshService: failing,
-        ).execute(name: 'ssh_disconnect', arguments: const {});
+        ).execute(owner: owner, name: 'ssh_disconnect', arguments: const {});
 
         expect(disconnected.isSuccess, isTrue);
         expect(disconnected.result, 'Disconnected');
         expect(connected.disconnectCalls, 1);
-        expect(connected.connected, isFalse);
+        expect(connected.connectedOwners, isEmpty);
         expect(failed.isSuccess, isFalse);
         expect(failed.errorMessage, 'Bad state: disconnect failed');
         expect(failing.disconnectCalls, 1);
-        expect(failing.connected, isTrue);
+        expect(failing.connectedOwners, {owner});
       },
     );
   });
@@ -198,29 +247,35 @@ Map<String, dynamic> _parameters(Map<String, dynamic> definition) =>
 
 final class _FakeSshService extends SshService {
   _FakeSshService({
-    this.connected = false,
+    Set<ChatTurnOwner>? connectedOwners,
     SshExecutionResult? executionResult,
     this.executionError,
     this.disconnectError,
-  }) : executionResult =
+  }) : connectedOwners = {...?connectedOwners},
+       executionResult =
            executionResult ??
            SshExecutionResult(stdout: '', stderr: '', exitCode: 0);
 
-  bool connected;
+  final Set<ChatTurnOwner> connectedOwners;
   final SshExecutionResult executionResult;
   final Object? executionError;
   final Object? disconnectError;
   final List<String> executedCommands = [];
+  final List<ChatTurnOwner> executionOwners = [];
   int disconnectCalls = 0;
 
   @override
-  bool get isConnected => connected;
+  bool isConnected({required ChatTurnOwner owner}) =>
+      connectedOwners.contains(owner);
 
   @override
-  Future<SshExecutionResult> execute(
-    String command, {
+  Future<SshExecutionResult> execute({
+    required ChatTurnOwner owner,
+    required String command,
+    String? expectedFingerprint,
     Duration timeout = const Duration(seconds: 30),
   }) async {
+    executionOwners.add(owner);
     executedCommands.add(command);
     final error = executionError;
     if (error != null) throw error;
@@ -228,10 +283,10 @@ final class _FakeSshService extends SshService {
   }
 
   @override
-  Future<void> disconnect() async {
+  Future<void> disconnect({required ChatTurnOwner owner}) async {
     disconnectCalls += 1;
     final error = disconnectError;
     if (error != null) throw error;
-    connected = false;
+    connectedOwners.remove(owner);
   }
 }

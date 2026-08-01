@@ -273,9 +273,7 @@ void registerChatNotifierAskUserQuestionTests() {
       final answerFuture = chatNotifier.requestAskUserQuestion(
         question: 'Which version?',
         help: '',
-        options: const [
-          AskUserQuestionOption(id: 'bump', label: '1.3.11+22'),
-        ],
+        options: const [AskUserQuestionOption(id: 'bump', label: '1.3.11+22')],
         allowMultiple: false,
         allowOther: true,
         otherPlaceholder: '',
@@ -707,7 +705,7 @@ void registerChatNotifierAskUserQuestionTests() {
             _TestSessionMemoryService(),
           ),
           mcpToolServiceProvider.overrideWithValue(toolService),
-          skillsNotifierProvider.overrideWith(_RecordingSkillsNotifier.new),
+          skillRepositoryProvider.overrideWithValue(SkillRepository.inMemory()),
           appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
           backgroundTaskServiceProvider.overrideWithValue(
             _TestBackgroundTaskService(),
@@ -834,7 +832,7 @@ void registerChatNotifierAskUserQuestionTests() {
             _TestSessionMemoryService(),
           ),
           mcpToolServiceProvider.overrideWithValue(toolService),
-          skillsNotifierProvider.overrideWith(_RecordingSkillsNotifier.new),
+          skillRepositoryProvider.overrideWithValue(SkillRepository.inMemory()),
           appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
           backgroundTaskServiceProvider.overrideWithValue(
             _TestBackgroundTaskService(),
@@ -898,7 +896,8 @@ void registerChatNotifierAskUserQuestionTests() {
       expect(
         chatNotifier.state.pendingFileOperation,
         isNull,
-        reason: 'a near-duplicate is reported, not written, so it never prompts',
+        reason:
+            'a near-duplicate is reported, not written, so it never prompts',
       );
       await secondSend;
 
@@ -907,102 +906,100 @@ void registerChatNotifierAskUserQuestionTests() {
         hasLength(1),
         reason: 'the near-duplicate must not be saved as a second skill',
       );
-      final reconciliationResult = dataSource.toolResultBatches.last.single.result;
+      final reconciliationResult =
+          dataSource.toolResultBatches.last.single.result;
       expect(reconciliationResult, contains('similar_skill_found'));
       expect(reconciliationResult, contains('iOS Release'));
     },
   );
 
-  test(
-    'create_routine schedules an approved routine from chat',
-    () async {
-      final firstCompletion = Completer<ChatCompletionResult>();
-      final dataSource = _QueuedAskQuestionToolChatDataSource(
-        initialCompletions: [firstCompletion],
-        finalAnswers: const ['Scheduled the routine.'],
-      );
-      final toolService = _FakeMcpToolService(
-        results: const {'create_routine': ''},
-      );
-      final appLifecycleService = _MockAppLifecycleService();
-      when(() => appLifecycleService.isInBackground).thenReturn(false);
-      final container = ProviderContainer(
-        overrides: [
-          settingsNotifierProvider.overrideWith(
-            _ToolEnabledSettingsNotifier.new,
-          ),
-          conversationRepositoryProvider.overrideWithValue(
-            _FakeConversationRepository(),
-          ),
-          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
-          sessionMemoryServiceProvider.overrideWithValue(
-            _TestSessionMemoryService(),
-          ),
-          mcpToolServiceProvider.overrideWithValue(toolService),
-          routinesNotifierProvider.overrideWith(_RecordingRoutinesNotifier.new),
-          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
-          backgroundTaskServiceProvider.overrideWithValue(
-            _TestBackgroundTaskService(),
+  test('create_routine schedules an approved routine from chat', () async {
+    final firstCompletion = Completer<ChatCompletionResult>();
+    final dataSource = _QueuedAskQuestionToolChatDataSource(
+      initialCompletions: [firstCompletion],
+      finalAnswers: const ['Scheduled the routine.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'create_routine': ''},
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        routineRepositoryProvider.overrideWithValue(
+          _InMemoryRoutineRepository(),
+        ),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final chatNotifier = container.read(chatNotifierProvider.notifier);
+    final send = chatNotifier.sendMessage(
+      'Ping 192.168.0.1 hourly and report the result',
+    );
+    await Future<void>.delayed(Duration.zero);
+    firstCompletion.complete(
+      ChatCompletionResult(
+        content: '',
+        finishReason: 'tool_calls',
+        toolCalls: [
+          ToolCallInfo(
+            id: 'tool-create-routine',
+            name: 'create_routine',
+            arguments: const {
+              'name': 'Ping 192.168.0.1',
+              'prompt': 'Ping 192.168.0.1 and report whether it is reachable.',
+              'schedule_mode': 'interval',
+              'interval_value': 1,
+              'interval_unit': 'hours',
+              'tools_enabled': true,
+              'notify_on_completion': true,
+              'completion_action': 'google_chat',
+              'google_chat_rule': 'always',
+            },
           ),
         ],
-      );
-      addTearDown(container.dispose);
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
 
-      final chatNotifier = container.read(chatNotifierProvider.notifier);
-      final send = chatNotifier.sendMessage(
-        'Ping 192.168.0.1 hourly and report the result',
-      );
-      await Future<void>.delayed(Duration.zero);
-      firstCompletion.complete(
-        ChatCompletionResult(
-          content: '',
-          finishReason: 'tool_calls',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'tool-create-routine',
-              name: 'create_routine',
-              arguments: const {
-                'name': 'Ping 192.168.0.1',
-                'prompt': 'Ping 192.168.0.1 and report whether it is reachable.',
-                'schedule_mode': 'interval',
-                'interval_value': 1,
-                'interval_unit': 'hours',
-                'tools_enabled': true,
-                'notify_on_completion': true,
-                'completion_action': 'google_chat',
-                'google_chat_rule': 'always',
-              },
-            ),
-          ],
-        ),
-      );
-      await Future<void>.delayed(Duration.zero);
-      await Future<void>.delayed(Duration.zero);
+    // The autonomous routine requires an explicit, non-cacheable approval.
+    final pending = chatNotifier.state.pendingFileOperation;
+    expect(pending, isNotNull);
+    expect(pending!.operation, 'Create Routine');
+    expect(pending.preview, contains('every 1 hour'));
+    expect(pending.preview, contains('local notification'));
+    expect(pending.preview, contains('Google Chat'));
 
-      // The autonomous routine requires an explicit, non-cacheable approval.
-      final pending = chatNotifier.state.pendingFileOperation;
-      expect(pending, isNotNull);
-      expect(pending!.operation, 'Create Routine');
-      expect(pending.preview, contains('every 1 hour'));
-      expect(pending.preview, contains('local notification'));
-      expect(pending.preview, contains('Google Chat'));
+    chatNotifier.resolveFileOperation(id: pending.id, approved: true);
+    await send;
 
-      chatNotifier.resolveFileOperation(id: pending.id, approved: true);
-      await send;
-
-      final routines = container.read(routinesNotifierProvider).routines;
-      expect(routines, hasLength(1));
-      final routine = routines.single;
-      expect(routine.trimmedName, 'Ping 192.168.0.1');
-      expect(routine.scheduleMode, RoutineScheduleMode.interval);
-      expect(routine.intervalValue, 1);
-      expect(routine.intervalUnit, RoutineIntervalUnit.hours);
-      expect(routine.toolsEnabled, isTrue);
-      expect(routine.notifyOnCompletion, isTrue);
-      expect(routine.completionAction, RoutineCompletionAction.googleChat);
-      expect(routine.googleChatRule, RoutineGoogleChatRule.always);
-    },
-  );
+    final routines = container.read(routinesNotifierProvider).routines;
+    expect(routines, hasLength(1));
+    final routine = routines.single;
+    expect(routine.trimmedName, 'Ping 192.168.0.1');
+    expect(routine.scheduleMode, RoutineScheduleMode.interval);
+    expect(routine.intervalValue, 1);
+    expect(routine.intervalUnit, RoutineIntervalUnit.hours);
+    expect(routine.toolsEnabled, isTrue);
+    expect(routine.notifyOnCompletion, isTrue);
+    expect(routine.completionAction, RoutineCompletionAction.googleChat);
+    expect(routine.googleChatRule, RoutineGoogleChatRule.always);
+  });
 
   test(
     'create_routine is not scheduled when the user denies approval',
@@ -1030,7 +1027,9 @@ void registerChatNotifierAskUserQuestionTests() {
             _TestSessionMemoryService(),
           ),
           mcpToolServiceProvider.overrideWithValue(toolService),
-          routinesNotifierProvider.overrideWith(_RecordingRoutinesNotifier.new),
+          routineRepositoryProvider.overrideWithValue(
+            _InMemoryRoutineRepository(),
+          ),
           appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
           backgroundTaskServiceProvider.overrideWithValue(
             _TestBackgroundTaskService(),

@@ -1,6 +1,4 @@
-// Same-library extension on [ChatNotifier]: tool-loop batch execution and
-// prompt-result persistence are kept outside the main notifier body while the
-// larger tool loop is decomposed.
+// Same-library tool-loop batch execution extension.
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
@@ -84,29 +82,50 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     final pendingBatchCalls = <ToolCallInfo>[];
     var nextCommandRetryGeneration = commandRetryGeneration;
     final terminalSuccessState = ToolTerminalSuccessBatchState();
+    final projectRoot = _projectRootForGeneration(interactionGeneration);
+    final owner = _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) {
+      return _ToolLoopBatchExecutionResult.cancelled(
+        commandRetryGeneration: nextCommandRetryGeneration,
+      );
+    }
+    final ownerConversation = _conversationForId(owner.conversationId);
+    if (ownerConversation == null) {
+      return _ToolLoopBatchExecutionResult.cancelled(
+        commandRetryGeneration: nextCommandRetryGeneration,
+      );
+    }
+    final ownerWorkspaceMode = ownerConversation.workspaceMode;
+    final ownerBlockingAssumptions =
+        List<ConversationContractItemProvenance>.unmodifiable(
+          ownerConversation.effectiveWorkflowSpec.blockingAssumptions,
+        );
+    int ownerMutationGeneration() {
+      return _conversationForId(owner.conversationId)?.mutationGeneration ?? 0;
+    }
 
+    String resolveProjectPath(String path) =>
+        ToolDedupeKeys.resolvePath(path, projectRoot: projectRoot);
     for (final toolCall in currentToolCalls) {
-      final mutationGeneration =
-          ref
-              .read(conversationsNotifierProvider)
-              .currentConversation
-              ?.mutationGeneration ??
-          0;
+      final mutationGeneration = ownerMutationGeneration();
       final shouldSuppressAdditionalReadReplay =
           _successfulReadResultReplayCache.shouldSuppressAdditionalReplay(
             toolCall: toolCall,
             interactionGeneration: interactionGeneration,
             mutationGeneration: mutationGeneration,
-            resolveProjectPath: _normalizeToolPathForDedup,
+            resolveProjectPath: resolveProjectPath,
           );
       final toolCallKey = _toolExecutionKey(
         toolCall,
+        projectRoot: projectRoot,
         commandRetryGeneration: nextCommandRetryGeneration,
       );
       final shouldBlockTimedOutCommandRetry =
-          _buildTimedOutCommandRetryGuardResult(
-            toolCall,
-            executedToolResults: executedToolResults,
+          const TimedOutCommandRetryGuard().evaluate(
+            TimedOutCommandRetryInput(
+              toolCall: toolCall,
+              executedToolResults: executedToolResults,
+            ),
           ) !=
           null;
       if ((executedToolCallKeys.contains(toolCallKey) &&
@@ -121,6 +140,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
                     '${toolCall.name} ${toolCall.arguments}',
         );
         _logToolLifecycleEvent(
+          generation: interactionGeneration,
           toolCall: toolCall,
           lifecycleState: 'skipped',
           loopIndex: iteration,
@@ -130,7 +150,12 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
               ? 'repeated_read_replay_exhausted'
               : 'duplicate_tool_call',
         );
-        await _recordToolLoopRepetitionRuntimeFeedback();
+        await _modelEditTelemetry!.runtimeSamplerFeedback.recordEvent(
+          RuntimeSamplerToolLoopRepetitionEvent(
+            owner: owner,
+            baselineProfile: _modelEditApplyTelemetryBaseline(),
+          ),
+        );
         continue;
       }
 
@@ -155,14 +180,14 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     }
 
     final allowSuccessfulReadResultReplay = !pendingBatchCalls.any(
-      _isContractMutationToolCall,
+      const MaterialContractAssumptionGuard().isContractMutation,
     );
 
     final scheduledResults = await ToolExecutionScheduler.executeBatch(
       toolCalls: pendingBatchCalls,
       execute: (toolCall) async {
-        final validationProbeGuardResult =
-            _buildGoalValidationProbeCommandGuardResult(
+        final validationProbeGuardResult = const GoalValidationProbeGuard()
+            .evaluate(
               toolCall,
               verifierOnlyContinuation: verifierOnlyContinuation,
             );
@@ -170,34 +195,47 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           return validationProbeGuardResult;
         }
         final materialAssumptionGuardResult =
-            _buildMaterialContractAssumptionGuardResult(toolCall);
+            const MaterialContractAssumptionGuard().evaluate(
+              toolCall,
+              workspaceMode: ownerWorkspaceMode,
+              blockingAssumptions: ownerBlockingAssumptions,
+            );
         if (materialAssumptionGuardResult != null) {
           return materialAssumptionGuardResult;
         }
         final truncatedArgumentsGuardResult =
-            _buildTruncatedToolCallArgumentsGuardResult(toolCall);
+            _buildTruncatedToolCallArgumentsGuardResult(toolCall, owner: owner);
         if (truncatedArgumentsGuardResult != null) {
           return truncatedArgumentsGuardResult;
         }
         final analysisOptionsLintEditGuardResult =
-            _buildAnalysisOptionsLintEditGuardResult(
-              toolCall,
+            const AnalysisOptionsLintEditGuard().buildResult(
+              toolCall: toolCall,
               executedToolResults: executedToolResults,
             );
         if (analysisOptionsLintEditGuardResult != null) {
           return analysisOptionsLintEditGuardResult;
         }
-        final guardResult = _buildGitTagFormatInspectionGuardResult(
-          toolCall,
-          executedToolResults: executedToolResults,
+        final guardResult = const GitTagFormatInspectionGuard().evaluate(
+          GitTagFormatInspectionInput(
+            toolCall: toolCall,
+            resolvedArguments: _resolveProjectScopedArguments(
+              toolCall.name,
+              toolCall.arguments,
+            ),
+            executedToolResults: executedToolResults,
+          ),
         );
         if (guardResult != null) {
           return guardResult;
         }
-        final timeoutRetryGuardResult = _buildTimedOutCommandRetryGuardResult(
-          toolCall,
-          executedToolResults: executedToolResults,
-        );
+        final timeoutRetryGuardResult = const TimedOutCommandRetryGuard()
+            .evaluate(
+              TimedOutCommandRetryInput(
+                toolCall: toolCall,
+                executedToolResults: executedToolResults,
+              ),
+            );
         if (timeoutRetryGuardResult != null) {
           return timeoutRetryGuardResult;
         }
@@ -205,57 +243,99 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
             _buildProductionReleaseApprovalGuardResult(
               toolCall,
               currentAssistantContent: currentAssistantContent,
-              interactionGeneration: interactionGeneration,
+              approvalEvidence: _releaseEvidenceFor(interactionGeneration),
             );
         if (productionReleaseGuardResult != null) {
           return productionReleaseGuardResult;
         }
-        final codingCommandPreflightGuardResult =
-            _buildCodingCommandPreflightGuardResult(toolCall);
+        McpToolResult? codingCommandPreflightGuardResult;
+        final preflightToolName = toolCall.name.trim().toLowerCase();
+        if (preflightToolName == 'local_execute_command' ||
+            preflightToolName == 'process_start') {
+          final preflightArguments = _resolveProjectScopedArguments(
+            toolCall.name,
+            toolCall.arguments,
+          );
+          codingCommandPreflightGuardResult =
+              CodingCommandOutputGuardrailService.buildPreflightResult(
+                toolName: toolCall.name,
+                command: LocalShellTools.normalizeCommand(
+                  (preflightArguments['command'] as String?)?.trim() ?? '',
+                ),
+                workingDirectory:
+                    (preflightArguments['working_directory'] as String?)
+                        ?.trim() ??
+                    '',
+              );
+        }
         if (codingCommandPreflightGuardResult != null) {
           return codingCommandPreflightGuardResult;
         }
-        final modifiedSavedValidationCommandGuardResult =
-            _buildModifiedSavedValidationCommandGuardResult(toolCall);
-        if (modifiedSavedValidationCommandGuardResult != null) {
-          return modifiedSavedValidationCommandGuardResult;
-        }
-        final savedTaskTargetScopeGuardResult =
-            _buildSavedTaskTargetScopeGuardResult(toolCall);
-        if (savedTaskTargetScopeGuardResult != null) {
-          return savedTaskTargetScopeGuardResult;
-        }
-        final verifierReplayGuardResult =
-            _buildUnchangedVerifierReplayBeforeRepairGuardResult(
-              toolCall,
-              commandRetryGeneration: nextCommandRetryGeneration,
-              pendingToolCalls: pendingBatchCalls,
+        final savedValidationGuard = const SavedValidationCommandGuard()
+            .evaluate(
+              SavedValidationCommandInput(
+                owner: owner,
+                toolCall: toolCall,
+                savedCommand: _savedValidationCommandForGeneration(
+                  interactionGeneration,
+                ),
+                ownerProjectRoot: projectRoot,
+              ),
             );
-        if (verifierReplayGuardResult != null) {
-          return verifierReplayGuardResult;
+        if (savedValidationGuard != null) return savedValidationGuard;
+        final savedTargetGuard = const SavedTaskTargetScopeGuard().evaluate(
+          SavedTaskTargetScopeInput(
+            owner: owner,
+            toolCall: toolCall,
+            ownerTask: _savedTaskForGeneration(interactionGeneration),
+            ownerProjectRoot: projectRoot,
+          ),
+        );
+        if (savedTargetGuard != null) return savedTargetGuard;
+        final verifierReplayDecision =
+            const CommandDiagnosticVerifierReplayGuard().evaluate(
+              CommandDiagnosticVerifierReplayInput(
+                currentToolCall: toolCall,
+                focus: _commandDiagnosticRepairFocusFor(ownerConversation),
+                attemptedCommandKey: _toolFailureKey(
+                  toolCall,
+                  projectRoot: projectRoot,
+                  commandRetryGeneration: nextCommandRetryGeneration,
+                ),
+                commandEffect: const ToolCapabilityClassifier()
+                    .classify(toolCall.name, arguments: toolCall.arguments)
+                    .commandEffect,
+                pendingToolCalls: pendingBatchCalls,
+              ),
+            );
+        if (verifierReplayDecision.isBlocked) {
+          appLog(
+            '[CommandDiagnosticRepairFocus] blocked unchanged verifier replay; '
+            'signatureStreak='
+            '${verifierReplayDecision.logFields!.signatureStreak}',
+          );
+          return verifierReplayDecision.result!;
         }
         final unexecutedFileMutationGuardResult =
-            _buildUnexecutedFileMutationBeforeCommandGuardResult(
-              toolCall,
-              currentAssistantContent: currentAssistantContent,
-              pendingToolCalls: pendingBatchCalls,
-              executedToolResults: executedToolResults,
+            const UnexecutedFileMutationBeforeCommandGuard().evaluate(
+              UnexecutedFileMutationGuardInput(
+                owner: owner,
+                toolCall: toolCall,
+                currentAssistantContent: currentAssistantContent,
+                pendingToolCalls: pendingBatchCalls,
+                executedToolResults: executedToolResults,
+              ),
             );
         if (unexecutedFileMutationGuardResult != null) {
           return unexecutedFileMutationGuardResult;
         }
-        final mutationGeneration =
-            ref
-                .read(conversationsNotifierProvider)
-                .currentConversation
-                ?.mutationGeneration ??
-            0;
+        final mutationGeneration = ownerMutationGeneration();
         if (allowSuccessfulReadResultReplay) {
           final replayedResult = _successfulReadResultReplayCache.lookup(
             toolCall: toolCall,
             interactionGeneration: interactionGeneration,
             mutationGeneration: mutationGeneration,
-            resolveProjectPath: _normalizeToolPathForDedup,
+            resolveProjectPath: resolveProjectPath,
           );
           if (replayedResult != null) {
             appLog(
@@ -275,14 +355,14 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           interactionGeneration: interactionGeneration,
         );
         final effectiveResult =
-            _buildStaleProcessStartGuardResult(
+            const ProcessStartResultPolicy().buildStaleGuardResult(
               toolCall,
               dispatchResult,
               dispatchedAt: dispatchedAt,
             ) ??
             dispatchResult;
         if (!_toolFailureClassifier.isApprovalDenial(effectiveResult)) {
-          _recordExecutedVerifierReplayCandidate(toolCall);
+          _recordExecutedVerifierReplayCandidate(owner, toolCall);
         }
         if (allowSuccessfulReadResultReplay) {
           _successfulReadResultReplayCache.record(
@@ -291,13 +371,16 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
             isSuccess: effectiveResult.isSuccess,
             interactionGeneration: interactionGeneration,
             mutationGeneration: mutationGeneration,
-            resolveProjectPath: _normalizeToolPathForDedup,
+            resolveProjectPath: resolveProjectPath,
           );
         }
         return effectiveResult;
       },
-      onLifecycle: (event) =>
-          _logScheduledToolLifecycleEvent(event, loopIndex: iteration),
+      onLifecycle: (event) => _logScheduledToolLifecycleEvent(
+        event,
+        generation: interactionGeneration,
+        loopIndex: iteration,
+      ),
       onBatch: (telemetry) {
         appLog(ChatToolExecutionLogFormatter.schedulerBatchLine(telemetry));
       },
@@ -313,12 +396,14 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       final toolCall = scheduledResult.toolCall;
       final toolCallKey = _toolExecutionKey(
         toolCall,
+        projectRoot: projectRoot,
         commandRetryGeneration: nextCommandRetryGeneration,
       );
       // Failure identity ignores narration; mutations also strip it so a
       // reworded reason cannot repeat the same side effect.
       final toolFailureKey = _toolFailureKey(
         toolCall,
+        projectRoot: projectRoot,
         commandRetryGeneration: nextCommandRetryGeneration,
       );
       if (scheduledResult.error != null) {
@@ -363,17 +448,19 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       executedToolResults.add(promptToolResult);
 
       final disposition = _toolFailureClassifier.classify(toolCall, result);
-      if (_isUnchangedVerifierReplayBeforeRepairGuardResult(result)) {
+      if (const CommandDiagnosticVerifierReplayGuard().matches(result)) {
         toolFailureCounts.remove(toolFailureKey);
       } else if (disposition == ToolResultDisposition.success) {
         if (_isCommandExecutionTool(toolCall.name)) {
-          _resetCommandDiagnosticStreak(toolFailureKey);
+          _resetCommandDiagnosticStreak(owner, toolFailureKey);
         }
         final isMutationTool =
-            !_isGoalValidationProbeCommandGuardResult(result) &&
-            _isContractMutationToolCall(toolCall);
+            !const GoalValidationProbeGuard().matches(result) &&
+            const MaterialContractAssumptionGuard().isContractMutation(
+              toolCall,
+            );
         if (isMutationTool) {
-          _clearCommandDiagnosticRepairFocus();
+          _clearCommandDiagnosticRepairFocus(owner);
         }
         final hasExplicitTerminalSuccess = terminalSuccessState
             .observeSuccessfulResult(
@@ -384,7 +471,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           try {
             await ref
                 .read(conversationsNotifierProvider.notifier)
-                .recordCurrentMutationGeneration();
+                .recordMutationGeneration(conversationId: owner.conversationId);
           } catch (error) {
             appLog(
               '[ExecutionEvidence] Failed to persist mutation generation: '
@@ -401,6 +488,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           ToolResultDisposition.actionableCommandFailure) {
         toolFailureCounts.remove(toolFailureKey);
         _recordCommandDiagnosticStreak(
+          owner: owner,
           commandKey: toolFailureKey,
           toolResult: promptToolResult,
         );
@@ -409,8 +497,12 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           'returning diagnostics without counting an execution failure',
         );
       } else {
-        await _recordMalformedToolCallRuntimeFeedback(
-          '${result.errorMessage ?? ''}\n${result.result}',
+        await _modelEditTelemetry!.runtimeSamplerFeedback.recordEvent(
+          RuntimeSamplerMalformedToolCallEvent(
+            owner: owner,
+            baselineProfile: _modelEditApplyTelemetryBaseline(),
+            message: '${result.errorMessage ?? ''}\n${result.result}',
+          ),
         );
         final failureCount = (toolFailureCounts[toolFailureKey] ?? 0) + 1;
         toolFailureCounts[toolFailureKey] = failureCount;
@@ -434,7 +526,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
                       'Reason: ${result.errorMessage}\n'
                 : '\nFailed to execute tool (${toolCall.name}). Please check your server configuration.\nError: ${result.errorMessage}\n',
           );
-          _turnExitReasonHint = ToolLoopExitReason.toolFailureAbort;
+          _turnEnd.setHint(owner, ToolLoopExitReason.toolFailureAbort);
           return _ToolLoopBatchExecutionResult.textResponse(
             batchToolResults: batchToolResults,
             pendingBatchCalls: pendingBatchCalls,
@@ -519,13 +611,14 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
   /// cannot know its own generation was cut off, so the originally intended
   /// action (often a long verification chain) is silently abandoned.
   McpToolResult? _buildTruncatedToolCallArgumentsGuardResult(
-    ToolCallInfo toolCall,
-  ) {
+    ToolCallInfo toolCall, {
+    required ChatTurnOwner owner,
+  }) {
     if (!_lengthTruncatedToolCallIds.contains(toolCall.id) ||
         toolCall.arguments.isNotEmpty) {
       return null;
     }
-    _appliedTurnTransforms.add('truncated_tool_call_arguments_feedback');
+    _turnEnd.addTransform(owner, 'truncated_tool_call_arguments_feedback');
     appLog(
       '[Tool] ${toolCall.name} arguments were truncated by the output token '
       'limit; returning truncation diagnostic instead of executing',
@@ -558,19 +651,22 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     bool recordBackgroundProcessStart = false,
     bool recordModelEditApplyTelemetry = false,
   }) async {
+    final owner = _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) {
+      return null;
+    }
     final promptToolResult = await _toolResultArtifactStore.persistIfLarge(
       toolResult,
-      conversationId:
-          _activeResponseConversationIdForGeneration(interactionGeneration) ??
-          conversationId,
+      conversationId: owner.conversationId,
     );
-    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+    if (!_activeResponseRegistry.containsOwner(owner)) {
       return null;
     }
     if (taintSourceResult != null) {
       ToolResultTaintRecorder.record(
-        _conversationTaintState,
-        taintSourceResult,
+        state: _conversationTaintState,
+        owner: owner,
+        result: taintSourceResult,
       );
       _recordTurnCommandLedgerEntry(
         promptToolResult,
@@ -578,10 +674,14 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       );
     }
     if (recordBackgroundProcessStart) {
-      _recordBackgroundProcessStartResult(promptToolResult);
+      _recordBackgroundProcessStartResult(owner, promptToolResult);
     }
     if (recordModelEditApplyTelemetry) {
-      await _recordModelEditApplyTelemetry(promptToolResult);
+      await _recordModelEditApplyTelemetry(
+        owner,
+        promptToolResult,
+        baselineProfile: _modelEditApplyTelemetryBaseline(),
+      );
     }
     return promptToolResult;
   }
@@ -603,7 +703,10 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     return _toolCallExecutionPolicy.exitCodeValue(value);
   }
 
-  void _recordBackgroundProcessStartResult(ToolResultInfo result) {
+  void _recordBackgroundProcessStartResult(
+    ChatTurnOwner owner,
+    ToolResultInfo result,
+  ) {
     final name = result.name.trim().toLowerCase();
     if (name != 'process_start' &&
         (name != 'local_execute_command' ||
@@ -612,6 +715,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     }
     final snapshot = _backgroundProcessMonitorService
         .registerProcessStartResult(
+          owner: owner,
           result: result.result,
           arguments: result.arguments,
         );
@@ -621,59 +725,6 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     appLog(
       '[BackgroundProcess] Monitoring ${snapshot.jobId} '
       '(${snapshot.status})',
-    );
-  }
-
-  McpToolResult? _buildStaleProcessStartGuardResult(
-    ToolCallInfo toolCall,
-    McpToolResult result, {
-    required DateTime dispatchedAt,
-  }) {
-    if (toolCall.name.trim().toLowerCase() != 'process_start' ||
-        !result.isSuccess) {
-      return null;
-    }
-    final decoded = _tryDecodeMap(result.result);
-    if (decoded == null ||
-        decoded['ok'] != true ||
-        decoded['duplicate_existing'] == true) {
-      return null;
-    }
-    final startedAtText = decoded['started_at']?.toString().trim();
-    if (startedAtText == null || startedAtText.isEmpty) {
-      return null;
-    }
-    final startedAt = DateTime.tryParse(startedAtText);
-    if (startedAt == null) {
-      return null;
-    }
-    final staleBefore = dispatchedAt.subtract(const Duration(seconds: 5));
-    if (!startedAt.isBefore(staleBefore)) {
-      return null;
-    }
-
-    final payload = jsonEncode({
-      'ok': false,
-      'code': 'background_process_start_stale_result',
-      'error':
-          'process_start returned a non-duplicate job result whose started_at '
-          'predates this tool call. Treat the start result as stale until the '
-          'process state is verified.',
-      'job_id': decoded['job_id'],
-      'command': decoded['command'],
-      'working_directory': decoded['working_directory'],
-      'started_at': startedAtText,
-      'tool_dispatched_at': dispatchedAt.toIso8601String(),
-      'required_action':
-          'Use process_status, process_tail, or process_wait for the job_id '
-          'if it should still be monitored. Do not report the command as newly '
-          'started from this result.',
-    });
-    return McpToolResult(
-      toolName: toolCall.name,
-      result: payload,
-      isSuccess: false,
-      errorMessage: 'process_start returned a stale job result.',
     );
   }
 
@@ -698,24 +749,19 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     return _toolCallExecutionPolicy.toolResultTimedOut(result);
   }
 
-  String? _toolResultErrorText(ToolResultInfo result) {
-    return _toolCallExecutionPolicy.toolResultErrorText(result);
-  }
-
-  /// Accumulates executed commands for the transcript claim guard. The ledger
-  /// is scoped to the interaction generation, which stays constant across
-  /// repair revivals within a turn while resetting on the next user message.
+  /// Accumulates executed commands for the exact turn owner.
   void _recordTurnCommandLedgerEntry(
     ToolResultInfo toolResult, {
     required int interactionGeneration,
   }) {
-    _turnToolResults.beginCommandGeneration(interactionGeneration);
+    final owner = _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) return;
     if (!_isCommandExecutionTool(toolResult.name)) {
       return;
     }
     final command = _toolCommandArgument(toolResult.arguments);
     if (command != null) {
-      _turnToolResults.recordCommand(command);
+      _turnToolResults.recordCommand(owner, command);
     }
   }
 }

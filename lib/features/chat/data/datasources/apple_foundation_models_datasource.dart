@@ -20,21 +20,28 @@ class AppleFoundationModelsDataSource implements ChatDataSource {
   final bool _enableSafePromptRetry;
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) async* {
-    final result = await createChatCompletion(
+  }) {
+    final completion = createChatCompletion(
       messages: messages,
       model: model,
       temperature: temperature,
       maxTokens: maxTokens,
     );
-    if (result.content.isNotEmpty) {
-      yield result.content;
-    }
+    return StreamedChatCompletion.capture(
+      stream: _streamCompletionContent(completion),
+      terminalMetadata: () async {
+        final result = await completion;
+        return ChatCompletionTerminalMetadata(
+          finishReason: result.finishReason,
+          usage: result.usage,
+        );
+      },
+    );
   }
 
   @override

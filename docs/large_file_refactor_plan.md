@@ -13,12 +13,33 @@ landed. The complete baseline production scan, test scan, coverage ranking,
 same-library aggregates, and active-worktree ownership audit are recorded in
 `docs/large_file_boundary_inventory_2026_07_18.md`. On 2026-07-19, the user
 confirmed that the listed auxiliary worktrees are inactive and must not block
-refactor selection; the audit remains historical context. The ChatNotifier row
-was refreshed on 2026-07-28 after the content tool-result formatter extraction.
+refactor selection; the audit remains historical context. The ChatNotifier rows
+were refreshed on 2026-07-30 when corrective prerequisites P6 and P12
+completed.
 
 | File | Lines | Primary concern |
 |------|------:|-----------------|
-| `lib/features/chat/presentation/providers/chat_notifier.dart` | 9375 | Chat orchestration, tool loops, memory, workflows, persistence |
+| `lib/features/chat/presentation/providers/chat_notifier.dart` | 9121 | Chat orchestration, tool loops, memory, workflows, persistence |
+| `lib/features/chat/presentation/providers/chat_state.dart` | 819 | Chat state plus owner-bound pending approval projections |
+| `lib/features/chat/presentation/providers/thread_scoped_chat_state.dart` | 249 | Per-conversation presentation state and owner-aware approval clearing |
+| `lib/features/chat/domain/services/tool_approval_auto_review_service.dart` | 339 | Shared approval policy, audit decisions, and owner-expiry validation |
+| `lib/features/chat/domain/services/file_mutation_evidence_policy.dart` | 65 | File-mutation classification, success evidence, and path precedence |
+| `lib/features/chat/domain/services/hidden_assistant_evidence_scorer.dart` | 21 | Pure hidden-assistant lexical evidence scoring |
+| `lib/features/chat/domain/services/duplicate_tool_result_recovery.dart` | 209 | Owner-root-aware duplicate result reuse, fallback filtering, and deduplication |
+| `lib/features/chat/domain/services/tool_terminal_response_policy.dart` | 725 | Terminal response decisions delegated to focused evidence and recovery policies |
+| `lib/features/chat/domain/services/coding_verification_feedback_presentation.dart` | 206 | Stateless verification summaries, signatures, blockers, and telemetry |
+| `lib/features/chat/domain/services/coding_verification_mutation_signature.dart` | 64 | Owner-rooted ordered mutation signatures from immutable tool evidence |
+| `lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart` | 281 | Immutable embedded-tool diagnostics and final-answer notice decisions |
+| `lib/features/chat/domain/services/coding_command_output_guardrail_service.dart` | 133 | Compatibility facade for command-output and preflight guardrails |
+| `lib/features/chat/domain/services/coding_command_output_issue_detector.dart` | 298 | Command-output issue decoding, ordering, feedback, and signatures |
+| `lib/features/chat/domain/services/coding_command_preflight_issue_detector.dart` | 356 | Masked exit-status and Dart command preflight detection |
+| `lib/features/chat/presentation/providers/turn_tool_result_ledger.dart` | 151 | Owner-keyed completed, content, and command evidence |
+| `lib/features/chat/presentation/providers/turn_finalization_state_registry.dart` | 117 | Owner-keyed exit hints, transforms, goal claims, and shadow outcomes |
+| `lib/features/chat/presentation/providers/turn_goal_completion_evidence_registry.dart` | 211 | Owner-keyed goal evidence reconciliation, finalization, and explicit successor seeds |
+| `lib/features/chat/presentation/providers/content_tool_turn_state_registry.dart` | 187 | Owner-keyed content continuation and dedupe state |
+| `lib/features/chat/presentation/providers/hidden_assistant_evidence_registry.dart` | 105 | Owner-keyed hidden assistant response evidence |
+| `lib/features/chat/presentation/providers/turn_message_persistence_coordinator.dart` | 156 | Per-conversation final and cancellation persistence ordering |
+| `lib/features/chat/presentation/providers/tool_approval_cache.dart` | 208 | Owner-keyed approval and denial reuse with normalized arguments |
 | `lib/features/chat/presentation/pages/chat_page.dart` | 2045 | Chat provider composition, dashboard and sidebar state, modals, input wiring, and plan UI |
 | `lib/features/chat/presentation/coordinators/chat_page_workspace_navigation_coordinator.dart` | 127 | Workspace, project, conversation, and assistant-mode routing |
 | `lib/features/chat/presentation/coordinators/slash_command_action_coordinator.dart` | 364 | Slash command loading policy, action dispatch, mode changes, conversation actions, and worktree queueing |
@@ -39,7 +60,10 @@ was refreshed on 2026-07-28 after the content tool-result formatter extraction.
 | `lib/features/chat/domain/services/workflow_tool_result_failure_detector.dart` | 54 | Pure structured, command-output, and raw-text tool failure classification |
 | `lib/features/chat/presentation/widgets/workflow/workflow_editor_sheet.dart` | 218 | Legacy workflow metadata editor presentation and normalization |
 | `lib/features/chat/presentation/widgets/workflow/workflow_task_editor_sheet.dart` | 209 | Legacy workflow task editor presentation and normalization |
-| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 1202 | Tool registry, public execution facade, remaining built-in adapters |
+| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 1191 | Tool registry, public execution facade, remaining built-in adapters |
+| `lib/features/chat/data/datasources/file_rollback_checkpoint_store.dart` | 442 | Exact-owner rollback history, immutable confirmation tokens, bounded chronology, and retirement fences |
+| `lib/features/chat/presentation/providers/mcp_tool_provider.dart` | 176 | Stable rollback-store ownership and settings-sensitive tool-service composition |
+| `lib/features/chat/presentation/providers/conversations_notifier.dart` | 1838 | Conversation scope, persistence, deletion, rollback-state retirement, and semantic indexing |
 | `lib/features/chat/data/datasources/chat_remote_datasource.dart` | 1164 | OpenAI-compatible request transport, streaming, retries, telemetry, and tool-result follow-ups |
 | `lib/features/chat/data/datasources/chat_completion_response_normalizer.dart` | 183 | Pure reasoning, tool-call, finish-reason, and raw parse-failure normalization |
 | `lib/features/chat/data/datasources/filesystem_tools.dart` | 1282 | Path resolution, file inspection and mutation, snapshots, and compatible diff delegates |
@@ -47,8 +71,8 @@ was refreshed on 2026-07-28 after the content tool-result formatter extraction.
 | `lib/features/chat/data/datasources/remote_mcp_connection_manager.dart` | 317 | Remote MCP connection state, trust resolution, and invocation |
 | `lib/features/chat/data/datasources/remote_mcp_tool_name_policy.dart` | 120 | Deterministic remote names, reserved-prefix neutralization, and collision retries |
 | `lib/features/chat/data/datasources/built_in_network_tool_handler.dart` | 978 | Built-in network definitions, validation, and operation dispatch |
-| `lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart` | 622 | Built-in filesystem definitions, execution, and rollback checkpoints |
-| `lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart` | 581 | Built-in local command and background-process tool routing |
+| `lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart` | 339 | Built-in filesystem validation, owner-aware mutation execution, and compatible results |
+| `lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart` | 341 | Built-in local command and background-process tool routing |
 | `lib/features/chat/data/datasources/built_in_ble_tool_handler.dart` | 360 | Built-in BLE definitions, normalization, execution, and result formatting |
 | `lib/features/chat/data/datasources/built_in_browser_tool_handler.dart` | 395 | Built-in browser definitions, argument normalization, and approved service dispatch |
 | `lib/features/chat/data/datasources/built_in_computer_use_tool_handler.dart` | 714 | Built-in Computer Use definitions, argument normalization, and post-approval service dispatch |
@@ -89,14 +113,14 @@ was refreshed on 2026-07-28 after the content tool-result formatter extraction.
 | `lib/features/chat/data/datasources/network_route_tools.dart` | 1128 | Route, interface, and path-MTU diagnostics behind injectable platform IO |
 | `lib/features/chat/data/datasources/network_socket_tools.dart` | 204 | Port, TLS certificate, and WHOIS execution behind injectable connectors |
 | `lib/features/chat/data/datasources/network_tool_dependencies.dart` | 10 | Shared process-runner and address-lookup dependency contracts |
-| `test/features/chat/presentation/providers/chat_notifier_test.dart` | 18648 | Broad chat orchestration regression coverage |
+| `test/features/chat/presentation/providers/chat_notifier_test.dart` | 18628 | Broad chat orchestration regression coverage |
 
 The primary files understate the effective library size because Dart `part`
 files share private state and compile as one library. The refreshed
-ChatNotifier aggregate is 22,900 lines. The refreshed aggregates for the other
-listed libraries are 8,853 for ChatPage, 1,233 for McpToolService, and 33,204
-for the ChatNotifier test library. Ratchets must cover both the primary
-file and its aggregate library.
+ChatNotifier aggregate is 22,585 lines. The refreshed aggregates for the other
+listed libraries are 8,853 for ChatPage, 1,283 for McpToolService, and 33,220
+for the ChatNotifier test library. Ratchets must cover both the primary file
+and its aggregate library.
 
 The 2026-07-18 re-inventory selected the `network_tools.dart` route, interface,
 and path-MTU cluster, followed by the routine run-history, LAN IP network,
@@ -272,16 +296,189 @@ Tranche 2 status (started 2026-07-28):
   `<tool_result>` payload and tag formatting into the independent
   `ContentToolResultFormatter` domain service. The declared-part count fell
   from 43 to 42.
-- `chat_notifier.dart` is now 9,375 lines with a 9,380-line ceiling. Its
-  declared-part aggregate is 22,900 lines with a 22,900-line ceiling.
+- `chat_notifier.dart` is now 9,121 lines with a 9,121-line ceiling. Its 41
+  declared parts contain 13,464 lines, and the same-library aggregate is 22,585
+  lines with a 22,585-line ceiling. The manifest intentionally retains 43
+  historical part records.
 - The reproducible audit, structural boundary, thread-scope ratchet repair, and
-  two-thread regression slices remain pending before the next stateful
-  extraction.
+  deterministic Slices 2b1-2b7 coverage are complete. Their exact
+  `qwen3.6-27b-vision` four-scenario live canary passed on 2026-07-28, so the
+  corrective prerequisites and their dependent Workstream 4-8 slices are
+  unblocked in task-index order.
+- A current-tree audit found 18 corrective areas and split the combined
+  BLE/serial handler task into two manifest-compatible slices. P3 is also split
+  into P3a and P3b, so the task index tracks 19 prerequisite review slices and
+  65 extraction slices. P1a-P6, P12, and P14 are complete; P7-P11 and P13 have
+  completed focused acceptance and remain in progress pending closure gates.
+  Snapshot adoption lowered the scope baseline from 132/118 to 114/101 ambient
+  and turn-reachable reads, P2 lowered it to 86/76, and P3a lowered it again to
+  82/72. P3b lowered it to 78/68 with no additions. The P2 direct helper,
+  77-test owner poison, 55-test caller handoff, 313-test ordinary ChatNotifier,
+  124-test common, analysis, and audit gates passed. P4 centralized
+  file-mutation evidence with 33/33 direct line coverage; its 97-test
+  adjacent-policy, 313-test ChatNotifier, and 125-test common gates passed.
+- P5a moved approval and denial reuse with normalized arguments into an
+  exact-owner outer map and propagated a revocable owner-bound cache capability
+  through every cache-capable handler. Its 12 direct tests covered 60/60
+  executable cache lines; the 78-test detached poison suite, 313-test ordinary
+  ChatNotifier suite, and 126-test common gate passed. Audit exposure stayed at
+  86/76 while methods fell from 783 to 780 and manifest entrypoints from 454 to
+  451.
+- P5b added exact owner identity to command, process, file, rollback, Git, SSH,
+  Python, skill, and routine approval requests. An authoritative typed registry
+  validates owner and ID together, terminalization cancels only its owner, and
+  Terminal and Remote Coding adapters no longer trust visible pending state.
+  Every asynchronous and immediate pre-side-effect boundary fails closed after
+  owner expiry. Its 10-test ownership and 12-test shared-gate suites covered
+  53/53 registry lines and 33/33 `resolveGate` lines. The 395-test ordinary
+  suites, 131-test common gate, final 153-test ownership/adapter/structure gate,
+  analysis, and canonical audit passed.
+- P5c added exact owner identity to Computer Use, browser, BLE, serial, and
+  participant approval requests and generalized the P5b registry into one
+  authoritative typed registry. Public resolution, owner-local
+  terminalization, and global clearing no longer trust the visible pending
+  projection. Every handler revalidates before side effects; BLE and serial
+  compensate stale in-flight success, while browser, Computer Use, and
+  participant paths suppress post-expiry work. A 112-line independent
+  coordinator serializes same-device BLE attempts and preserves pre-existing
+  and successor connections. Its eleven-test device ownership, 17-test
+  terminal, 45-test focused approval/UI, 395-test ordinary ChatNotifier, and
+  132-test common gates passed with analysis and the canonical audit.
+- P6 keys single-file rollback history, active turn checkpoints, completed
+  checkpoint stacks, retry restoration, and clear operations by exact
+  `ChatTurnOwner`. A conversation chronology retains exact completed owners for
+  no-argument preview, which carries the exact owner and checkpoint token
+  through confirmation.
+  Chat file mutations use the separate owner-required `executeFileTool`
+  boundary, while ordinary ownerless tool execution creates no chat rollback
+  history. A provider-owned store spans settings rebuilds, completed state is
+  capped per conversation, deletion retires state, and tombstones reject late
+  resurrection. Best-of-N now owns only its supplied turn. The 442-line store
+  is newly budgeted; the filesystem handler shrank to 339 lines, and the
+  notifier primary and aggregate counts remain 9,191 and 22,769. The 133-test
+  focused suite covered all 187 executable store lines; the 551-test adoption
+  suite, 137-test common gate, analysis, and canonical audit passed.
+- P3a moved exit hints, ordered transform IDs, completion claims, and shadow
+  outcomes into the 117-line exact-owner `TurnFinalizationStateRegistry`. Its
+  four direct tests covered 50/50 executable lines. The 80-test detached-owner
+  suite, 313-test ordinary suite, five read-only guard tests, 127-test common
+  gate, analysis, and canonical audit passed.
+- P3b moved final completion evidence into the 211-line exact-owner
+  `TurnGoalCompletionEvidenceRegistry` and finalizer. Its 11 direct tests
+  covered 59/59 executable lines. The 82-test detached suite proved
+  failed-evidence isolation, explicit-only successor seeding, and exact-owner
+  accepted-claim consumption, including 11-versus-97 late-detachment goal-token
+  isolation after the visible-path snapshot. Detached-at-entry turns still
+  contribute zero. P10b has since replaced the pre-snapshot shared usage read
+  with request-local terminal metadata. The 313-test ordinary suite, 40
+  compatibility tests, 128-test common gate, analysis, and canonical audit
+  passed.
+- P7 owner-keyed background process jobs, monitor snapshots, polling, and
+  cleanup. The tools and monitor are 459 and 457 lines after extracting the
+  206-line executor and 74-line completion monitor; their recorded coverage is
+  195/203 and 175/181 executable lines. Exact-owner poison tests cover equal
+  generations, identical job IDs, retirement, and late startup or refresh.
+- P8 replaced the single SSH session with exact-owner sessions. The 279-line
+  service reached 110/115 executable lines and preserves same-owner replacement
+  and reconnect without closing a peer. P9 added legacy-safe owner fields to
+  subagent tasks and moved the 210-line notifier lifecycle to exact-owner
+  lookup and mutation with 76/76 executable lines covered.
+- P10a introduced the 27-line terminal metadata entity and a
+  `StreamedChatCompletion` envelope that binds content and terminal facts to
+  one request. P10b consumes that envelope through the 107-line
+  `ResponseMetadataRegistry`; response timing, usage, and finish reason are
+  consumed or discarded once per owner. Registry coverage is 47/47 executable
+  lines, and its 92-test registry/detached suite and 157-test focused
+  integration gate passed.
+- P11 moved ordered taint evidence and terminal cleanup to an exact-owner
+  82-line state with a separate 18-line recorder. Coverage reached 29/29 and
+  4/4 executable lines. P13 moved participant stop, pause, resume, cursor
+  consumption, and retirement into a 129-line exact-owner registry with 51/51
+  executable lines covered.
+- WS4-1 has completed focused acceptance and remains in progress, putting
+  Workstream 4 in progress without marking its other slices complete. The
+  145-line `PythonAttachmentRepairPolicy` owns the exact
+  repair decisions and prompts, while the 162-line notifier adapter supplies
+  registered-owner evidence. Fifteen focused tests cover 48/48 policy and 43/43
+  adapter executable lines, including opposite attachment state for the visible
+  thread and registered owner. The manifest record is now `partial` with the
+  exact collaborator path and size-budget key.
+- WS4-2 has completed its extraction and remains in progress. The 209-line
+  `DuplicateToolResultRecovery` owns latest-match reuse, fallback filtering,
+  compatible payload construction, and deduplication against an explicit
+  owning project root. Direct tests cover recursively immutable argument
+  snapshots and the complete reuse/fallback/path-identity matrix. The old
+  85-line part is absent, the manifest record is `extracted`, and the
+  declared-part aggregate fell by 85 lines. Post-hardening revalidation passed
+  all 13 direct tests with 85/85 executable lines covered. Flutter analysis and
+  the exact committed tree's 159-test manifest, size, structural-boundary, and
+  turn-scope gate also passed.
+- WS6-12 and WS6-13 have completed focused acceptance and remain in progress.
+  `SaveSkillToolHandler` and `CreateRoutineToolHandler` own authoring parsing,
+  duplicate policy, previews, approval decisions, persistence results, and
+  exact payloads behind owner-scoped receipt adapters. The legacy skill and
+  routine parts are absent and both manifest records are `extracted`. Direct
+  coverage reached 92/92 and 166/169 executable lines. The 153-test focused
+  runtime suite, five ChatNotifier integration tests, targeted analysis, and
+  the exact committed tree's 146-test manifest, size, structural-boundary, and
+  turn-scope gate passed.
+- WS6-1 has completed focused acceptance and remains in progress. The 489-line
+  `TurnToolApprovalCoordinator` owns exact-owner approval reuse, deterministic
+  execution identity, auto-review precedence, immutable review requests,
+  warning and denial compatibility, and best-effort audit recording behind
+  four narrow runtime ports. Thirty-two focused tests cover 163/167 executable
+  lines (97.60%), including cross-thread and cross-generation poison, reviewer
+  and
+  audit failures, and stale completion. The `approval-handlers` manifest record
+  is `partial` while typed Workstream 6 handlers migrate the remaining notifier
+  adapters.
+- WS6-2 has completed focused acceptance and remains in progress. The 259-line
+  `LspGoToDefinitionToolHandler` validates immutable exact-owner inputs and
+  maps definition locations, while the 296-line runtime adapter fences session
+  acquisition, collection, and conditional compensation. Twenty-six focused
+  tests cover 93/94 handler lines (98.94%), including path and URI branches,
+  peer and successor poison, and uncertain session effects. The owner-bound
+  registry binding removes the four historical methods, lowering the
+  local-file part from 1,191 to 1,041 lines and the same-library aggregate from
+  20,137 to 20,035.
+- WS6-5 has completed focused acceptance; Tranche 2 remains in progress. The
+  `LocalCommandToolHandler` owns immutable command validation, owner-rooted
+  working-directory containment, permission and approval decisions, execution
+  settlement, and compatible result mapping. Its 653-line runtime adapter
+  freezes permission rules, compensates stale remembered-rule writes, and
+  serializes exact owner/call/tool/digest process effects. Forty-one handler
+  tests cover 161/169 executable lines (95.27%); the 60-test focused suite and
+  stale-owner plus approval-cache integrations pass. The local-file part falls
+  from 1,041 to 1,029 lines, the primary remains 8,912 lines, and the
+  same-library aggregate falls from 20,035 to 20,029.
+- WS5-3 moved coding-verification summaries, stable failure signatures,
+  convergence blockers, completion-evidence scoring, and telemetry formatting
+  into the 206-line `CodingVerificationFeedbackPresentation`. The notifier
+  part shrank from 502 to 331 lines, its manifest record is now `partial`, and
+  the 15 direct tests covered 125/125 executable lines. The focused
+  collaborator boundary passed; integrated size and thread-scope ratchets and
+  the live canary remain pending until the concurrent owner-state prerequisite
+  work is stable.
+- Lifecycle readback reported the exact 27B model `loaded` and the 35B model
+  `unloaded`. The fresh P6 full verifier reached 4,433 passing root tests and
+  retained only the two known M33 static checks whose direct-S3 expectations
+  lag the CloudFront migration. Its fresh exact-model canary passed all four
+  expected owner and generation maps in 2 minutes 27 seconds with zero busy
+  owners. P3a unblocks WS5-5 through WS5-7, P3b satisfies the WS8-7
+  completion-evidence gate, and P5b and P5c satisfy their listed Workstream 6
+  approval gates. P6 unblocks WS4-6 and WS6-4. P7-P9, P11, and P10b/P13 have
+  implemented the remaining prerequisites for their listed Workstream 6 and
+  WS8-8 through WS8-10 slices. Those unblocks remain in progress until closure
+  gates pass. The canonical scope baseline is now 74 ambient and 64
+  turn-reachable reads. Integrated full verification remains pending after the
+  locally corrected test-library size ratchet, and the exact-model live canary
+  awaits explicit approval; neither is claimed by these focused records.
 
 Deferred follow-up candidates:
 
-- Conversation persistence and title update helpers, plus assistant-response
-  memory extraction orchestration, remain valid characterization candidates.
+- Conversation message persistence is isolated in
+  `TurnMessagePersistenceCoordinator`; conversation title updates and
+  assistant-response memory extraction remain characterization candidates.
 - Tool-loop request preparation, result-prompt construction, and workflow
   coordination now span several extracted services.
   Re-characterize their current ownership before treating the older candidate
@@ -708,9 +905,11 @@ SSH handler status (2026-07-17):
   and disabled behavior, unconditional remote-name reservation, exact
   inactive-session guidance, command output formatting, idempotent disconnect,
   and service exception conversion.
-- ChatNotifier remains the only connection path and the owner of per-command
-  approval and result caching. Tests use a deterministic `SshService` subclass
-  and never open sockets, authenticate, or read credentials.
+- ChatNotifier remains the only connection path and owns approval policy, UI,
+  and lifecycle orchestration. `ToolApprovalCache` owns owner-specific decision
+  storage and replay, passed to the SSH path through an explicit capability.
+  Tests use a deterministic `SshService` subclass and never open sockets,
+  authenticate, or read credentials.
 - `McpToolService` fell from 2,353 to 2,191 lines and its same-library aggregate
   fell from 2,445 to 2,283 lines. The independent handler is ratcheted at 183
   lines.
@@ -750,10 +949,11 @@ Computer Use handler status (2026-07-17):
   argument-free audio stop, exact result bytes, unknown-prefix results, and
   service exception propagation.
 - ChatNotifier and `ChatToolDispatcher` still own policy classification,
-  planning restrictions, target safety, action-time confirmation, approval
-  caching, smoke arming, audit, result redaction, emergency stop, and
-  post-action observation. Tests use a deterministic service subclass and
-  perform no real desktop actions.
+  planning restrictions, target safety, action-time confirmation, approval UI,
+  smoke arming, audit, result redaction, emergency stop, and post-action
+  observation. `ToolApprovalCache` owns owner-specific decision storage and
+  replay behind the explicit handler capability. Tests use a deterministic
+  service subclass and perform no real desktop actions.
 - `McpToolService` fell from 1,861 to 1,202 lines and its same-library aggregate
   fell from 1,953 to 1,294 lines. The handler is ratcheted at 714 lines.
 - The focused verifier passed 154 root tests plus 13 internal-package tests.
@@ -1193,10 +1393,272 @@ Next slice:
   Slash suggestion state is complete; re-characterize one remaining composer
   action contract before moving more code.
 - The project-scoped tool argument resolver and content tool-result formatter
-  extractions are complete. `chat_notifier.dart` fell from 9,507 to 9,375 lines
-  and its same-library aggregate fell from 23,147 to 22,900 lines. Complete the
-  decomposition audit and regression-gate slices before another stateful
-  extraction; do not split only the notifier test root.
+  extractions are complete. Subsequent gate work reduced
+  `chat_notifier.dart` from 9,507 to 9,364 lines and its same-library aggregate
+  from 23,147 to 22,887 lines. P1a then added the explicit owner snapshot
+  boundary, P1b adopted it across turn consumers, P2 keyed tool-result evidence
+  and persistence by exact owner, P4 extracted file-mutation evidence, P5a
+  keyed approval-cache reuse by exact owner, P5b keyed command/file/Git/SSH and
+  related command-family requests, and P3a keyed finalization and goal-claim
+  state. P3b then keyed final completion evidence and explicit successor
+  seeding. P5c then keyed Computer Use, browser, BLE, serial, and participant
+  approvals and added stale in-flight compensation. P6 now keys file rollback
+  state and Best-of-N checkpoints by exact owner, binds confirmations to
+  checkpoint tokens, and keeps the store stable across service rebuilds.
+  P7-P9 key background processes, SSH sessions, and subagent tasks; P10a and
+  P10b bind response terminal metadata and metrics to the request owner; P11
+  keys taint evidence; and P13 keys participant stop/pause control. WS4-1 and
+  WS4-2 moved Python attachment repair and duplicate-result recovery into
+  independent collaborators; they and Workstream 4 remain in progress pending
+  closure gates. WS6-12 and WS6-13 removed the legacy skill and routine parts
+  and adopted owner-scoped authoring receipts. WS6-10 then removed the Python
+  handler part and adopted immutable owner-message selection, receipt-fenced
+  staging, approval, execution, and cleanup. Its 42 direct tests cover 151/158
+  executable handler lines, and the focused runtime and ChatNotifier
+  integration suites pass. The exact focused tree also passes the 159-test
+  manifest, size, structural-boundary, and turn-scope gate. Before WS6-3, that
+  focused tree was 9,120 primary lines, 13,172 declared-part lines, and a
+  22,292-line aggregate. The turn-scope baseline is 71
+  ambient and 62 turn-reachable reads.
+  WS6-3 now routes write, edit, and delete through the 434-line
+  `FileMutationToolHandler` and a receipt-backed exact-owner filesystem
+  runtime. Its 15 direct tests cover 105/105 executable handler lines; the
+  108-test focused runtime/filesystem suite and four notifier integration cases
+  pass. The `local-file-handlers` manifest record is `partial`, and the current
+  WS6-3 tree was 9,073 primary lines, 12,964 declared-part lines, and a
+  22,037-line aggregate.
+  WS6-4 now routes single-file rollback through the 225-line
+  `FileRollbackToolHandler`, an exact-checkpoint runtime adapter, and a separate
+  MCP capability facade. Its 33 direct tests cover 85/86 executable handler
+  lines, and the 33-test runtime, conditional-store, and path-fence suite
+  passes. The current tree is 9,074 primary lines, 12,942 declared-part lines,
+  and a 22,016-line aggregate.
+  WS4-6 now delegates whole-turn preview and rollback through the 111-line
+  `FileTurnRollbackService` and its narrow callback checkpoint port. Nine
+  direct tests cover unavailable service behavior, immutable preview copies,
+  exact owner/token forwarding, failure propagation, and owner isolation. The
+  historical public-API part remains `partial` at 22 lines because the primary
+  file would exceed its exact 9,073-line ceiling if those delegates moved.
+  Declared-part lines shrink to 12,940 and the same-library aggregate to 22,013.
+  WS4-3 now routes bounded Markdown specification loading through the 75-line
+  `ReferencedSpecificationLoader`, using only the project root resolved from
+  the owning conversation. Its 12 direct tests cover containment, Unicode,
+  first-match selection, missing and oversized files, malformed input, and
+  compatible filesystem failures. The `prompt-context` part shrinks from 286
+  to 260 lines, declared-part lines fall to 12,914, and the aggregate falls to
+  21,987.
+  WS5-8 now classifies stale `process_start` results through the 73-line
+  `ProcessStartResultPolicy` before execution and replay state is recorded.
+  Eight direct tests cover malformed, failed, duplicate, boundary, fresh, and
+  stale results with exact diagnostic payload compatibility. The
+  `tool-loop-batch` part shrinks from 738 to 685 lines, declared-part lines fall
+  to 12,861, and the aggregate falls to 21,934.
+  WS5-1 now routes coding-continuation decisions, payloads, prompts, and copy
+  through the 423-line `CodingContinuationRecoveryPolicy` using immutable
+  registered-owner facts. Its 22 direct tests cover every code and gate,
+  supported tools, English and CJK markers, structured deferral, partial
+  progress, frozen inputs, and owner/visible-thread poisoning. The adapter part
+  shrinks from 444 to 126 lines, declared-part lines fall to 12,543, and the
+  aggregate falls to 21,616.
+  WS5-2 now routes completed/future answer classification, generation-correct
+  streamed-answer compatibility, successful-evidence checks, candidate
+  cleanup, and prefix extraction through the 268-line
+  `TurnFinalizationRecoveryPolicy`. Its 20 direct tests cover every evidence
+  gate, English and CJK markers, exact length bounds, frozen owner results, and
+  owner/visible-generation poisoning; a Notifier integration test locks the
+  caller boundary. The adapter part shrinks from 373 to 304 lines,
+  declared-part lines fall to 12,474, and the aggregate falls to 21,547.
+  WS5-4 now computes ordered Dart-mutation signatures through the 64-line
+  `CodingVerificationMutationSignature`, using frozen owner evidence and the
+  project root resolved from the interaction generation. Its nine direct tests
+  cover mutation success semantics, `already_applied`, path precedence and
+  resolution, ordering, duplicates, invalid immutable input, and roots A/B
+  over identical evidence. The adapter part shrinks from 331 to 313 lines,
+  declared-part lines fall to 12,456, and the aggregate falls to 21,529.
+  WS5-5 now routes embedded final-answer tool diagnostics and unexecuted-request
+  notice decisions through the 281-line
+  `UnexecutedFinalAnswerToolRequestPolicy`. Its 18 direct tests cover immutable
+  owner inputs, exact result payloads and occurrence IDs, duplicate
+  suppression, tag-independent output, structured/prose classification, every
+  skip gate, idempotence, and owner poisoning. The adapter checks exact owner
+  generation before analysis and application; the historical part shrinks
+  from 564 to 521 lines. The primary falls to 8,943 lines, declared-part lines
+  to 12,420, and the aggregate to 21,363.
+  WS4-4 now routes workflow, task, goal, memory, and approval-review secondary
+  completions through the 135-line `SecondaryCompletionRouter`. Its 15 direct
+  tests cover 27/27 executable lines across assigned, missing, unhealthy,
+  fallback, non-compatible, immutable, logging, and failure routes. The legacy
+  mesh-routing part is removed, leaving an 8,935-line primary, 12,111 lines
+  across 37 declared parts, and a 21,046-line aggregate.
+  WS4-5 now deduplicates and records owner-scoped execution snapshots through
+  the 179-line `ExecutionSnapshotObserver` and a 32-line session-log adapter.
+  Twelve direct tests cover 63/63 executable lines, and a detached-plan poison
+  test proves A's initial shadow remains attributed to A while B is visible. The
+  prompt-context part falls from 260 to 254 lines, leaving 12,105 declared-part
+  lines and a 21,040-line aggregate.
+  WS7-4 now lets the 380-line `AnalysisOptionsLintEditGuard` construct the
+  exact blocked result directly. Seventeen direct tests cover 164/164
+  executable lines, the notifier wrapper is removed, and command-guardrails
+  falls from 1,027 to 1,001 lines. The primary remains 8,935 lines, declared
+  parts fall to 12,079 lines, and the same-library aggregate falls to 21,014.
+  WS7-8 now lets the 161-line split command-guardrail facade construct exact
+  preflight results from owner-resolved inputs. Eight direct tests cover 43/43
+  facade executable lines; command-guardrails falls from 1,001 to 963 lines,
+  while the explicit caller grows from 685 to 703 lines. The primary remains
+  8,935 lines, declared parts fall to 12,059 lines, and the same-library
+  aggregate falls to 20,994.
+  WS7-5 now routes tag-creation inspection policy through the 151-line
+  `GitTagFormatInspectionGuard`. Fourteen direct tests cover 58/58 executable
+  lines, including owner-repository poisoning and immutable inputs. A
+  three-line export facade keeps the primary shrink-only at 8,934 lines;
+  command-guardrails falls from 963 to 859 lines, declared parts fall to 11,961
+  lines, and the same-library aggregate falls to 20,895.
+  WS7-6 now routes both timeout-retry checks through the 96-line
+  `TimedOutCommandRetryGuard` using immutable owner-turn evidence. Eighteen
+  direct tests cover 30/30 executable lines, including normalized matching,
+  timeout variants, recency, nested immutability, and owner-turn poisoning. The
+  primary falls to 8,925 lines, command-guardrails falls from 859 to 812 lines,
+  tool-loop-batch grows from 709 to 710 lines, declared parts fall to 11,915
+  lines, and the same-library aggregate falls to 20,840.
+  WS7-1 now routes validation-only effect checks and blocked-result detection
+  through the stateless 53-line `GoalValidationProbeGuard`. Four direct tests
+  cover 13/13 executable lines and all eleven command-effect classes, including
+  exact and malformed result detection. The primary stays at 8,925 lines,
+  command-guardrails falls from 812 to 776 lines, declared parts fall to 11,879
+  lines, and the same-library aggregate falls to 20,804.
+  WS7-2 now resolves and freezes the owning workflow's material assumptions at
+  the batch boundary before calling the 64-line
+  `MaterialContractAssumptionGuard`. Eight direct tests cover 18/18 executable
+  lines, all eleven effects, question variants and ordering, exact fields, and
+  owner/visible workflow poisoning. The primary stays at 8,925 lines,
+  command-guardrails falls from 776 to 733 lines, tool-loop-batch grows from
+  710 to 727 lines, declared parts fall to 11,853 lines, and the same-library
+  aggregate falls to 20,778.
+  WS7-3 now sends owner diagnostic focus, retry-qualified command identity,
+  effect, and frozen pending calls to the 142-line
+  `CommandDiagnosticVerifierReplayGuard`. Thirteen direct tests cover 43/43
+  executable lines, mutation ordering, exact payload and typed log facts,
+  nested immutability, malformed data, and owner/visible-turn poisoning. The
+  primary stays at 8,925 lines, command-guardrails falls from 733 to 663 lines,
+  tool-loop-batch grows from 727 to 741 lines, declared parts fall to 11,797
+  lines, and the same-library aggregate falls to 20,722.
+  WS7-9 now passes exact owner, saved validation command, and project root
+  facts to the 178-line `SavedValidationCommandGuard`. Fourteen direct tests
+  cover 66/66 executable lines, command equivalence, shell operators,
+  path-resolved command shapes, exact fields, nested immutability,
+  cross-conversation command poisoning, and owner-root poisoning. The primary
+  stays at 8,925 lines, command-guardrails falls from 663 to 529 lines,
+  tool-loop-batch grows from 741 to 747 lines, declared parts fall to 11,669
+  lines, and the same-library aggregate falls to 20,594.
+  WS7-10 now leaves active-task selection at the owner-keyed notifier boundary
+  and passes the captured task, project root, and immutable tool call to the
+  135-line `SavedTaskTargetScopeGuard`. Eighteen direct tests cover 48/48
+  executable lines, the complete path and validation-executable matrix,
+  nested immutability, visible-task poisoning, and visible-root poisoning. The
+  old notifier test seam is removed, the primary falls from 8,925 to 8,924
+  lines, command-guardrails falls from 529 to 429 lines, tool-loop-batch grows
+  from 747 to 751 lines, declared parts fall to 11,573 lines, and the
+  same-library aggregate falls to 20,497.
+  WS7-11 now passes immutable owner identity, command, pending calls, executed
+  results, and assistant content snapshots to the 115-line
+  `UnexecutedFileMutationBeforeCommandGuard`. Twelve direct tests cover 38/38
+  executable lines, including pending and executed mutation evidence,
+  diagnostic clipping, recursive immutability, cross-owner result poisoning,
+  and cross-owner claim poisoning. The primary falls to 8,923 lines,
+  command-guardrails falls from 429 to 376 lines, tool-loop-batch grows from
+  751 to 754 lines, declared parts fall to 11,523 lines, and the same-library
+  aggregate falls to 20,446.
+  WS7-12 now derives seven immutable loop and owner-turn evidence facts at the
+  caller and passes them to the 55-line `ToolLoopExhaustionPolicy`. Six direct
+  tests cover 10/10 executable lines, the exact limit, zero-budget behavior,
+  every individual blocker, combined blockers, and the allowing case. The
+  primary falls from 8,923 to 8,922 lines, command-guardrails falls from 376
+  to 365 lines, declared parts fall to 11,512 lines, and the same-library
+  aggregate falls to 20,434.
+  WS7-13 now passes exact owner, recursively frozen pending calls, and current
+  assistant content to the 93-line `GitWriteConfirmationPolicy` from both the
+  confirmation block and exhaustion callers. Thirteen direct tests cover
+  32/32 executable lines, Git read/write classification, English and localized
+  question matrices, recursive immutability, non-JSON rejection, and both
+  cross-owner poison directions. The primary stays at 8,922 lines,
+  command-guardrails falls from 365 to 311 lines and remains partial, declared
+  parts fall to 11,458 lines, and the same-library aggregate falls to 20,380.
+  WS7-14 now passes previous and next settings to the 71-line
+  `ModelSwitchSettingsPolicy` and applies its typed route, preparation, and
+  rebuild result in the context-surgery shell. Fourteen direct tests cover
+  30/30 executable lines, providers, demo transitions, raw and trimmed URL and
+  API-key comparisons, model variants, reasoning effort, session logs,
+  unrelated fields, and exact route IDs. Context-surgery becomes partial, the
+  primary stays at 8,922 lines, its part falls from 268 to 218 lines, declared
+  parts fall to 11,408 lines, and the same-library aggregate falls to 20,330.
+  WS7-15 now stores pending model-switch briefs by conversation and forced
+  prompt compaction by exact owner in the independent 89-line
+  `ModelSwitchHandoffRegistry`. Seventeen direct tests cover 26/26 executable
+  lines, including wrong-owner poison cases, and the public settings-path
+  integration test passes. Flat handoff fields and the notifier-only test seam
+  are gone. The primary falls to 8,921 lines, context-surgery falls from 218
+  to 160 lines, the notifier test root falls to 18,613 lines, declared parts
+  fall to 11,350 lines, and the same-library aggregate falls to 20,271.
+  WS7-16 now passes the registered interaction owner's conversation from both
+  compact-result call sites to the independent 20-line
+  `ContextSurgeryProtectedPathPolicy`. Ten direct tests cover 7/7 executable
+  lines, and the three existing Slice 2b6 poison integrations pass for both
+  owners across non-streaming, eligibility, streamed, and concise recovery.
+  The primary remains at 8,921 lines, context-surgery falls from 160 to 147
+  lines, final-answer-recovery falls to 286 lines, declared parts fall to
+  11,336 lines, and the same-library aggregate falls to 20,257.
+  WS7-17 now snapshots the MCP catalog in prompt construction and passes only
+  immutable definitions, descriptors, connection state, and request facts to
+  the independent 116-line `RequestToolObservationCollector`. Fifteen direct
+  tests cover 37/37 executable lines, including full observation without
+  advertising plan-drafting tools and sequential-owner poisoning. The primary
+  remains at 8,921 lines, context-surgery falls from 147 to 87 lines,
+  prompt-context grows from 254 to 268 lines, declared parts fall to 11,290
+  lines, and the same-library aggregate falls to 20,211.
+  WS7-18 now keys partial context-surgery observations by exact turn owner in
+  the independent 130-line `ContextSurgeryObservationAccumulator` and routes
+  changed snapshots to the owning thread. Thirteen direct tests cover 49/49
+  executable lines, and three detached-owner integrations pass across both
+  request paths. The four flat latest-observation fields are gone. The primary
+  falls from 8,921 to 8,914 lines, context-surgery falls from 87 to 79 lines,
+  prompt-context grows to 279 lines, final-answer-recovery grows to 288 lines,
+  declared parts become 11,295 lines, and the same-library aggregate falls to
+  20,209.
+  WS7-19 now routes both edit-result paths through the owner-aware 191-line
+  `ModelEditApplyTelemetryRecorder` with explicit normalized baselines. A
+  post-persistence owner check prevents delayed edits from applying sampler
+  feedback to a replacement generation. Thirteen direct tests cover 28/28
+  executable lines, with four store and three runtime adapter tests covering
+  persistence order and poison cases. The primary falls to 8,913 lines,
+  tool-result-telemetry falls from 148 to 130 lines, declared parts fall to
+  11,281 lines, and the same-library aggregate falls to 20,194.
+  WS7-20 now routes malformed-call, repetition, planning repair, explicit JSON
+  repair, and generic sampler signals through the owner-aware 245-line
+  `RuntimeSamplerFeedbackRecorder`. Proposal parsers receive immutable typed
+  event bindings instead of notifier callbacks, and tool-loop callers pass
+  exact owners and explicit baselines directly. Nineteen direct tests cover
+  49/49 executable lines (100%), including every assistant mode, request
+  class, persistence failure, and delayed-owner poison case. The primary falls
+  from 8,913 to 8,912 lines, tool-result-telemetry falls from 130 to 76 lines,
+  declared parts fall to 11,246 lines, and the same-library aggregate falls to
+  20,158.
+  WS7-21 now sends both streamed content-tool failure branches directly through
+  the pure 32-line `ContentToolFailureFormatter`. Eight direct tests freeze
+  defaulting, trimming, all case-insensitive code matches, overlap precedence,
+  fallback, tool names, escaping, and exact JSON output at 11/11 executable
+  lines. The primary remains at 8,912 lines, tool-result-telemetry falls from
+  76 to 55 lines, declared parts fall to 11,225 lines, and the same-library
+  aggregate falls to 20,137.
+  P6's final-tree verifier reached 4,433
+  passing root tests with the two accepted pre-existing M33 failures, and its
+  exact-model canary passed all four scenarios in 2 minutes 27 seconds. P3b is
+  complete and WS8-7 is unblocked. P5b and P5c satisfy their listed Workstream
+  6 gates and P6 satisfies the WS4-6 and WS6-4 gate. P11 has implemented the
+  last WS6-1 prerequisite, and P10b/P11/P13 have implemented the prerequisites
+  for WS8-8 through WS8-10; their status remains in progress until closure
+  gates pass. Integrated full verification remains pending after the locally
+  corrected test-library size ratchet, and the next exact-model canary awaits
+  explicit approval. Do not split only the notifier test root.
 - Do not widen `ChatPageWorkspaceNavigationCoordinator` into dashboard,
   sidebar, Files-tab, workflow, approval, composer, or persistence state.
 - Keep `routine_detail_view.dart` and

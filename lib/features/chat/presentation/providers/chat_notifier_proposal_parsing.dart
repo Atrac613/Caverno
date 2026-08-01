@@ -6,7 +6,7 @@ part of 'chat_notifier.dart';
 
 extension ChatNotifierProposalParsing on ChatNotifier {
   ProposalJsonExtractor get _proposalJsonExtractor => ProposalJsonExtractor(
-    onJsonRepair: _recordPlanningJsonRepairRuntimeFeedback,
+    jsonRepairFeedback: _planningJsonRepairFeedbackBinding(),
   );
 
   Map<String, dynamic>? _extractJsonMap(String rawContent) {

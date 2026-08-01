@@ -5,21 +5,32 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../utils/logger.dart';
+import 'macos_computer_use_runtime_identity.dart';
 import 'macos_computer_use_setup.dart';
 import 'macos_computer_use_tool_policy.dart';
 import 'macos_computer_use_transport.dart';
 
+final macosComputerUseRuntimeIdentityProvider =
+    Provider<MacosComputerUseRuntimeIdentityProvider>((ref) {
+      return MacosComputerUseRuntimeIdentityProvider();
+    });
+
 final macosComputerUseServiceProvider = Provider<MacosComputerUseService>((
   ref,
 ) {
-  return MacosComputerUseService();
+  return MacosComputerUseService(
+    runtimeIdentityProvider: ref.watch(macosComputerUseRuntimeIdentityProvider),
+  );
 });
 
 class MacosComputerUseService {
   MacosComputerUseService({
     MacosComputerUsePermissionTransport? permissionTransport,
+    MacosComputerUseRuntimeIdentityProvider? runtimeIdentityProvider,
   }) : _permissionTransport =
-           permissionTransport ?? const HelperMacosComputerUseTransport();
+           permissionTransport ?? const HelperMacosComputerUseTransport(),
+       _runtimeIdentityProvider =
+           runtimeIdentityProvider ?? MacosComputerUseRuntimeIdentityProvider();
 
   static const MethodChannel _channel = MethodChannel(
     'com.caverno/macos_computer_use',
@@ -34,6 +45,10 @@ class MacosComputerUseService {
   );
 
   final MacosComputerUsePermissionTransport _permissionTransport;
+  final MacosComputerUseRuntimeIdentityProvider _runtimeIdentityProvider;
+
+  MacosComputerUseRuntimeIdentityProvider get runtimeIdentityProvider =>
+      _runtimeIdentityProvider;
 
   bool get isAvailable => Platform.isMacOS;
 
@@ -45,16 +60,26 @@ class MacosComputerUseService {
   }
 
   Future<String> launchHelper() async {
-    return _invokeTransportJson(_permissionTransport.launchHelper);
+    return _runRuntimeTransition(
+      transition: _runtimeIdentityProvider.beginHelperLaunch(),
+      invoke: _permissionTransport.launchHelper,
+      helperAvailableAfter: _helperRunningResult,
+    );
   }
 
   Future<String> restartHelper() async {
-    return _invokeTransportJson(_permissionTransport.restartHelper);
+    return _runRuntimeTransition(
+      transition: _runtimeIdentityProvider.beginHelperRestart(),
+      invoke: _permissionTransport.restartHelper,
+      helperAvailableAfter: _helperRunningResult,
+    );
   }
 
   Future<String> terminateHelperForXpcLaunchAgent() async {
-    return _invokeTransportJson(
-      _permissionTransport.terminateHelperForXpcLaunchAgent,
+    return _runRuntimeTransition(
+      transition: _runtimeIdentityProvider.beginHelperTermination(),
+      invoke: _permissionTransport.terminateHelperForXpcLaunchAgent,
+      helperAvailableAfter: (_) => false,
     );
   }
 
@@ -126,10 +151,7 @@ class MacosComputerUseService {
 
   Future<Map<String, dynamic>> _prepareHelperUi() async {
     final helper =
-        _decodeMap(
-          await _invokeTransportJson(_permissionTransport.launchHelper),
-        ) ??
-        const <String, dynamic>{};
+        _decodeMap(await launchHelper()) ?? const <String, dynamic>{};
     final ready =
         _decodeMap(
           await waitForHelperIpcReady(
@@ -272,7 +294,11 @@ class MacosComputerUseService {
   }
 
   Future<String> stopHelperWork() async {
-    return _invokeTransportJson(_permissionTransport.stopAll);
+    return _runRuntimeTransition(
+      transition: _runtimeIdentityProvider.beginEmergencyStop(),
+      invoke: _permissionTransport.stopAll,
+      helperAvailableAfter: _successfulTransportResult,
+    );
   }
 
   Future<String> getLastLiveSmokeReport() async {
@@ -1156,6 +1182,39 @@ class MacosComputerUseService {
       return raw;
     }
     return jsonEncode(_withNextAction(decoded));
+  }
+
+  Future<String> _runRuntimeTransition({
+    required MacosComputerUseRuntimeTransition transition,
+    required Future<String> Function() invoke,
+    required bool Function(String result) helperAvailableAfter,
+  }) async {
+    try {
+      final result = await _invokeTransportJson(invoke);
+      _runtimeIdentityProvider.finishTransition(
+        transition,
+        helperAvailable: helperAvailableAfter(result),
+      );
+      return result;
+    } catch (_) {
+      _runtimeIdentityProvider.finishTransition(
+        transition,
+        helperAvailable: false,
+      );
+      rethrow;
+    }
+  }
+
+  bool _successfulTransportResult(String result) {
+    final decoded = _decodeMap(result);
+    return decoded != null && decoded['ok'] != false;
+  }
+
+  bool _helperRunningResult(String result) {
+    final decoded = _decodeMap(result);
+    return decoded != null &&
+        decoded['ok'] != false &&
+        decoded['helperRunning'] != false;
   }
 
   static String? _normalizedSpaceSwitchDirection(Object? value) {

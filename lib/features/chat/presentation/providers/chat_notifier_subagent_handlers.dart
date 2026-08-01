@@ -19,6 +19,12 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     ToolCallInfo toolCall, {
     int? interactionGeneration,
   }) async {
+    final owner = interactionGeneration == null
+        ? null
+        : _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) {
+      return _turnOwnerSnapshotUnavailableResult(toolCall.name);
+    }
     final description = trimStringArgument(toolCall.arguments, 'description');
     final prompt = trimStringArgument(toolCall.arguments, 'prompt');
     if (prompt.isEmpty) {
@@ -43,6 +49,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
 
     if (background) {
       return _startBackgroundSubagent(
+        owner: owner,
         taskId: taskId,
         label: label,
         prompt: prompt,
@@ -55,6 +62,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
 
     appLog('[Subagent] Spawning "$label" (task=$taskId)');
     final task = await _runSubagent(
+      owner: owner,
       taskId: taskId,
       label: label,
       prompt: prompt,
@@ -93,6 +101,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
   }
 
   Future<McpToolResult> _startBackgroundSubagent({
+    required ChatTurnOwner owner,
     required String taskId,
     required String label,
     required String prompt,
@@ -103,8 +112,11 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
   }) async {
     final notifier = ref.read(subagentTaskNotifierProvider.notifier);
     notifier.register(
+      owner,
       SubagentTask(
         id: taskId,
+        conversationId: owner.conversationId,
+        interactionGeneration: owner.interactionGeneration,
         status: SubagentTaskStatus.running,
         description: label,
         prompt: prompt,
@@ -118,6 +130,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     // Fire-and-forget: run asynchronously and update the notifier on finish.
     unawaited(
       _runBackgroundSubagent(
+        owner: owner,
         taskId: taskId,
         label: label,
         prompt: prompt,
@@ -143,6 +156,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
   }
 
   Future<void> _runBackgroundSubagent({
+    required ChatTurnOwner owner,
     required String taskId,
     required String label,
     required String prompt,
@@ -152,6 +166,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
   }) async {
     final notifier = ref.read(subagentTaskNotifierProvider.notifier);
     final task = await _runSubagent(
+      owner: owner,
       taskId: taskId,
       label: label,
       prompt: prompt,
@@ -162,7 +177,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     );
 
     // If the user cancelled while it was running, drop the result.
-    final current = notifier.byId(taskId);
+    final current = notifier.byId(owner, taskId);
     if (current == null || current.status == SubagentTaskStatus.cancelled) {
       return;
     }
@@ -170,18 +185,20 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     if (task.status == SubagentTaskStatus.completed) {
       appLog('[Subagent] Background completed "$label" (task=$taskId)');
       notifier.complete(
+        owner,
         taskId,
         output: task.output,
         summary: task.resultSummary,
       );
     } else {
       appLog('[Subagent] Background failed "$label" (task=$taskId)');
-      notifier.fail(taskId, task.error ?? 'Subagent failed');
+      notifier.fail(owner, taskId, task.error ?? 'Subagent failed');
     }
-    await _notifySubagentDone(taskId);
+    await _notifySubagentDone(owner, taskId);
   }
 
   Future<SubagentTask> _runSubagent({
+    required ChatTurnOwner owner,
     required String taskId,
     required String label,
     required String prompt,
@@ -206,6 +223,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     );
     final service = SubagentExecutionService(dataSource: resolved.dataSource);
     final task = await service.run(
+      owner: owner,
       id: taskId,
       description: label,
       prompt: prompt,
@@ -255,9 +273,9 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     );
   }
 
-  Future<void> _notifySubagentDone(String taskId) async {
+  Future<void> _notifySubagentDone(ChatTurnOwner owner, String taskId) async {
     final notifier = ref.read(subagentTaskNotifierProvider.notifier);
-    final task = notifier.byId(taskId);
+    final task = notifier.byId(owner, taskId);
     if (task == null || task.notified) {
       return;
     }
@@ -280,10 +298,19 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     } catch (_) {
       // Notifications are best-effort; never fail the run on a notify error.
     }
-    notifier.markNotified(taskId);
+    notifier.markNotified(owner, taskId);
   }
 
-  Future<McpToolResult> _handleGetSubagentResult(ToolCallInfo toolCall) async {
+  Future<McpToolResult> _handleGetSubagentResult(
+    ToolCallInfo toolCall, {
+    int? interactionGeneration,
+  }) async {
+    final owner = interactionGeneration == null
+        ? null
+        : _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) {
+      return _turnOwnerSnapshotUnavailableResult(toolCall.name);
+    }
     final taskId = trimStringArgument(toolCall.arguments, 'task_id');
     if (taskId.isEmpty) {
       return McpToolResult(
@@ -293,7 +320,9 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
         errorMessage: 'task_id is required',
       );
     }
-    final task = ref.read(subagentTaskNotifierProvider.notifier).byId(taskId);
+    final task = ref
+        .read(subagentTaskNotifierProvider.notifier)
+        .byId(owner, taskId);
     if (task == null) {
       return McpToolResult(
         toolName: toolCall.name,

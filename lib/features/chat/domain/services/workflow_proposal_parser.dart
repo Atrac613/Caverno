@@ -4,6 +4,7 @@ import '../entities/message.dart';
 import '../../presentation/providers/chat_state.dart';
 import 'proposal_option_extraction.dart';
 import 'proposal_parsing_text_utils.dart';
+import 'runtime_sampler_feedback_recorder.dart';
 import 'workflow_task_proposal_quality_service.dart';
 
 sealed class WorkflowProposalParseResult {
@@ -26,9 +27,11 @@ final class WorkflowProposalParsedDecisions
 class WorkflowProposalParser {
   WorkflowProposalParser({
     required WorkflowTaskProposalQualityService qualityService,
-    void Function()? onJsonRepair,
+    RuntimeSamplerFeedbackEventBinding? jsonRepairFeedback,
   }) : _qualityService = qualityService,
-       _jsonExtractor = ProposalJsonExtractor(onJsonRepair: onJsonRepair);
+       _jsonExtractor = ProposalJsonExtractor(
+         jsonRepairFeedback: jsonRepairFeedback,
+       );
 
   final WorkflowTaskProposalQualityService _qualityService;
   final ProposalJsonExtractor _jsonExtractor;

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
@@ -516,6 +517,115 @@ void main() {
     expect(result.toolCalls, hasLength(1));
     expect(result.toolCalls!.single.name, 'read_file');
   });
+
+  test('keeps terminal metadata atomic across interleaved streams', () async {
+    final client = _ControlledStreamingClient(['first-model', 'second-model']);
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      httpClient: client,
+    );
+    final first = dataSource.streamChatCompletion(
+      messages: [_userMessage()],
+      model: 'first-model',
+    );
+    final second = dataSource.streamChatCompletion(
+      messages: [_userMessage()],
+      model: 'second-model',
+    );
+
+    final firstContent = first.toList();
+    final secondContent = second.toList();
+    client.addContent('first-model', 'first');
+    client.addContent('second-model', 'second');
+    await client.finish(
+      'second-model',
+      finishReason: 'length',
+      usage: const TokenUsage(
+        promptTokens: 20,
+        completionTokens: 2,
+        totalTokens: 22,
+      ),
+    );
+    await client.finish(
+      'first-model',
+      finishReason: 'stop',
+      usage: const TokenUsage(
+        promptTokens: 10,
+        completionTokens: 1,
+        totalTokens: 11,
+      ),
+    );
+
+    expect(await firstContent, ['first']);
+    expect(await secondContent, ['second']);
+    final firstTerminal = await first.terminal;
+    final secondTerminal = await second.terminal;
+    expect(firstTerminal.finishReason, 'stop');
+    expect(firstTerminal.usage.totalTokens, 11);
+    expect(secondTerminal.finishReason, 'length');
+    expect(secondTerminal.usage.totalTokens, 22);
+    expect(dataSource.lastFinishReason, 'stop');
+    expect(dataSource.lastUsage.totalTokens, 11);
+  });
+
+  test('completes terminal metadata with the exact stream error', () async {
+    final client = _ControlledStreamingClient(['error-model']);
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      httpClient: client,
+    );
+    final completion = dataSource.streamChatCompletion(
+      messages: [_userMessage()],
+      model: 'error-model',
+    );
+
+    final content = completion.toList();
+    final streamError = StateError('stream failed');
+    client.addContent('error-model', 'partial');
+    client.addError('error-model', streamError);
+
+    await expectLater(content, throwsA(same(streamError)));
+    await expectLater(completion.terminal, throwsA(same(streamError)));
+    expect(dataSource.lastFinishReason, isNull);
+    expect(dataSource.lastUsage.totalTokens, 0);
+    await client.closeModel('error-model');
+  });
+
+  test(
+    'completes terminal metadata with cancellation without publishing',
+    () async {
+      final client = _ControlledStreamingClient(['cancel-model']);
+      final dataSource = ChatRemoteDataSource(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'no-key',
+        httpClient: client,
+      );
+      final completion = dataSource.streamChatCompletion(
+        messages: [_userMessage()],
+        model: 'cancel-model',
+      );
+      final firstChunk = Completer<void>();
+      final subscription = completion.listen((_) {
+        if (!firstChunk.isCompleted) {
+          firstChunk.complete();
+        }
+      });
+
+      client.addContent('cancel-model', 'partial');
+      await firstChunk.future;
+      await subscription.cancel();
+
+      await expectLater(
+        completion.terminal,
+        throwsA(isA<ChatCompletionStreamCancelledException>()),
+      );
+      expect(dataSource.lastFinishReason, isNull);
+      expect(dataSource.lastUsage.totalTokens, 0);
+      await client.closeModel('cancel-model');
+    },
+  );
 }
 
 const List<Map<String, dynamic>> _deleteFileTools = [
@@ -577,4 +687,86 @@ MockClient _completionClient({
       headers: const {'content-type': 'application/json'},
     );
   });
+}
+
+final class _ControlledStreamingClient extends http.BaseClient {
+  _ControlledStreamingClient(Iterable<String> models)
+    : _controllers = {
+        for (final model in models) model: StreamController<List<int>>(),
+      };
+
+  final Map<String, StreamController<List<int>>> _controllers;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final requestBody = await utf8.decodeStream(request.finalize());
+    final decoded = jsonDecode(requestBody) as Map<String, dynamic>;
+    final model = decoded['model']! as String;
+    return http.StreamedResponse(
+      _controllers[model]!.stream,
+      200,
+      headers: const {'content-type': 'text/event-stream'},
+      request: request,
+    );
+  }
+
+  void addContent(String model, String content) {
+    _addEvent(model, _chunk(model: model, content: content));
+  }
+
+  void addError(String model, Object error) {
+    _controllers[model]!.addError(error);
+  }
+
+  Future<void> finish(
+    String model, {
+    required String finishReason,
+    required TokenUsage usage,
+  }) async {
+    _addEvent(
+      model,
+      _chunk(model: model, finishReason: finishReason, usage: usage),
+    );
+    _controllers[model]!.add(utf8.encode('data: [DONE]\n\n'));
+    await closeModel(model);
+  }
+
+  Future<void> closeModel(String model) => _controllers[model]!.close();
+
+  void _addEvent(String model, Map<String, dynamic> event) {
+    _controllers[model]!.add(utf8.encode('data: ${jsonEncode(event)}\n\n'));
+  }
+
+  Map<String, dynamic> _chunk({
+    required String model,
+    String? content,
+    String? finishReason,
+    TokenUsage? usage,
+  }) {
+    return {
+      'id': 'chatcmpl-$model',
+      'object': 'chat.completion.chunk',
+      'created': 0,
+      'model': model,
+      'choices': [
+        {
+          'index': 0,
+          'delta': {'content': ?content},
+          'finish_reason': finishReason,
+        },
+      ],
+      ...?usage == null
+          ? null
+          : {
+              'usage': {
+                'prompt_tokens': usage.promptTokens,
+                'completion_tokens': usage.completionTokens,
+                'total_tokens': usage.totalTokens,
+              },
+            },
+    };
+  }
+
+  @override
+  void close() {}
 }

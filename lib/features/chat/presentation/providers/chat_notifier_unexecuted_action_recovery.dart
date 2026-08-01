@@ -1,137 +1,66 @@
-// Same-library extension on [ChatNotifier]: delegates unexecuted-action and
-// final-answer claim detection to the domain detector while keeping stateful
-// application in the notifier.
+// Same-library ChatNotifier extension for final-answer claim recovery.
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
 
 extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
   void _appendUnexecutedToolRequestNoticeForContentIfNeeded({
+    required ChatTurnOwner owner,
     required int interactionGeneration,
     required String content,
-    List<ToolResultInfo> toolResults = const [],
+    required List<ToolResultInfo> toolResults,
   }) {
-    _recordUnexecutedFinalAnswerToolRequests(
-      content: content,
-      toolResults: toolResults,
-    );
-    const notice =
-        'I could not execute the additional tool request above in this final-answer step. '
-        'Treat it as unexecuted; ask me to continue with a narrower follow-up '
-        'if the missing action still matters.';
-    if (content.contains(notice) ||
-        !_looksLikeUnexecutedToolRequest(content) ||
-        _shouldSkipUnexecutedToolRequestNoticeForToolResults(
-          content: content,
-          toolResults: toolResults,
-        )) {
+    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+        _turnOwnerForGeneration(interactionGeneration) != owner) {
       return;
     }
+    final analysis = const UnexecutedFinalAnswerToolRequestPolicy().analyze(
+      UnexecutedFinalAnswerToolRequestInput(
+        content: content,
+        existingToolResults: toolResults,
+        hasTimedOutCommandResult: _hasTimedOutCommandResult(toolResults),
+        hasFailedCommandValidation: _toolResultsContainFailedCommandValidation(
+          toolResults,
+        ),
+        hasUnexecutedCommandActionResult: _claims
+            .hasUnexecutedCommandActionResult(toolResults),
+        hasUnexecutedFileSideEffectResult: _claims
+            .hasUnexecutedFileSideEffectResult(toolResults),
+        hasSuccessfulFileMutationEvidence: toolResults.any(
+          (toolResult) =>
+              _fileMutationEvidencePolicy.isMutationToolName(toolResult.name) &&
+              _fileMutationEvidencePolicy.isSuccessfulResult(toolResult),
+        ),
+        hasSuccessfulCommandExecutionEvidence: _claims
+            .hasSuccessfulCommandExecutionResult(toolResults),
+      ),
+    );
+    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+        _turnOwnerForGeneration(interactionGeneration) != owner) {
+      return;
+    }
+    toolResults.addAll(analysis.newToolResults);
+    final exitReason = analysis.exitReason;
+    if (exitReason != null) {
+      _turnEnd.setHint(owner, exitReason);
+    }
+    final transformId = analysis.transformId;
+    if (transformId != null) {
+      _turnEnd.addTransform(owner, transformId);
+    }
+    if (!analysis.appendNotice) return;
+
     final currentContent = _lastMessageContentForGeneration(
       interactionGeneration,
     );
-    if (currentContent == null || currentContent.contains(notice)) {
+    if (currentContent == null ||
+        currentContent.contains(analysis.noticeText)) {
       return;
     }
     _replaceLastMessageContentForGeneration(
       interactionGeneration,
-      '${currentContent.trimRight()}\n\n$notice',
+      '${currentContent.trimRight()}\n\n${analysis.noticeText}',
     );
-  }
-
-  void _recordUnexecutedFinalAnswerToolRequests({
-    required String content,
-    required List<ToolResultInfo> toolResults,
-  }) {
-    final toolCalls = ContentParser.extractCompletedToolCalls(content);
-    if (toolCalls.isEmpty) {
-      return;
-    }
-
-    var recordedAny = false;
-    for (final toolCall in toolCalls) {
-      final signature = jsonEncode({
-        'name': toolCall.name,
-        'arguments': toolCall.arguments,
-      });
-      final alreadyRecorded = toolResults.any((result) {
-        final decoded = _tryDecodeMap(result.result);
-        return decoded?['reason'] == 'final_answer_tool_request' &&
-            decoded?['signature'] == signature;
-      });
-      if (alreadyRecorded) {
-        continue;
-      }
-      toolResults.add(
-        ToolResultInfo(
-          id: 'unexecuted_final_answer_${toolCall.occurrenceId ?? toolCall.name}',
-          name: toolCall.name,
-          arguments: toolCall.arguments,
-          result: jsonEncode({
-            'ok': false,
-            'code': 'tool_call_not_executed',
-            'reason': 'final_answer_tool_request',
-            'tool_name': toolCall.name,
-            'signature': signature,
-            'error':
-                'The final-answer response requested a tool, but final-answer streaming does not execute tools directly.',
-            'required_action':
-                'Retry this tool through the normal tool-aware continuation.',
-          }),
-        ),
-      );
-      recordedAny = true;
-    }
-    if (!recordedAny) {
-      return;
-    }
-    _turnExitReasonHint = ToolLoopExitReason.unexecutedToolRequest;
-    _appliedTurnTransforms.add('unexecuted_tool_request_notice');
-  }
-
-  String _messageContentWithVerificationClaimNotice(String content) {
-    final conversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (conversation?.workspaceMode != WorkspaceMode.coding) {
-      return content;
-    }
-    final assessment = _codingVerificationClaimGuard.assess(
-      candidateResponse: content,
-      toolResults: _turnToolResults.all,
-    );
-    if (!assessment.hasMismatch) {
-      return content;
-    }
-    final notice = assessment.buildNotice();
-    if (content.contains(notice)) {
-      return content;
-    }
-    _appliedTurnTransforms.add('verification_claim_notice');
-    return '${content.trimRight()}\n\n$notice';
-  }
-
-  String _messageContentWithNarratedTranscriptClaimNotice(String content) {
-    final conversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (conversation?.workspaceMode != WorkspaceMode.coding) {
-      return content;
-    }
-    final assessment = _narratedTranscriptClaimGuard.assess(
-      candidateResponse: content,
-      toolResults: _turnToolResults.all,
-      additionalExecutedCommands: _turnToolResults.commands,
-    );
-    if (!assessment.hasUnexecutedCommands) {
-      return content;
-    }
-    final notice = assessment.buildNotice();
-    if (content.contains(notice)) {
-      return content;
-    }
-    _appliedTurnTransforms.add('narrated_transcript_claim_notice');
-    return '${content.trimRight()}\n\n$notice';
   }
 
   /// Revives the tool loop when a completion answer presents a terminal
@@ -149,82 +78,70 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     required int interactionGeneration,
     void Function()? onBlockingFeedbackPrepared,
   }) async {
-    if (!_codingVerificationEnabledFor(
-      CodingVerificationTrigger.completionClaim,
-    )) {
-      return null;
-    }
-    final conversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (conversation?.workspaceMode != WorkspaceMode.coding ||
-        (conversation?.isPlanningSession ?? false)) {
-      return null;
-    }
-    final assessment = _narratedTranscriptClaimGuard.assess(
-      candidateResponse: candidateResponse,
-      toolResults: executedToolResults,
-      additionalExecutedCommands: _turnToolResults.commands,
+    final ownerSnapshot = _turnOwnerSnapshotForGeneration(
+      interactionGeneration,
     );
-    if (!assessment.hasUnexecutedCommands) {
-      return null;
-    }
-    if (attemptedSignatures.length >=
-        ChatNotifier._maxNarratedTranscriptRepairAttempts) {
+    if (ownerSnapshot == null) return null;
+    final disposition = _transcriptRepairs.evaluate(
+      NarratedTranscriptRepairInput(
+        owner: ownerSnapshot.owner,
+        verificationEnabled: _codingVerificationEnabledFor(
+          CodingVerificationTrigger.completionClaim,
+        ),
+        isCodingWorkspaceOrMode: ownerSnapshot.isCodingWorkspaceOrMode,
+        isPlanning: ownerSnapshot.isPlanning,
+        candidateResponse: candidateResponse,
+        ownerToolResults: executedToolResults,
+        ownerExecutedCommands: _turnToolResults.commands(ownerSnapshot.owner),
+        attemptedSignatures: attemptedSignatures,
+        maximumAttempts: ChatNotifier._maxNarratedTranscriptRepairAttempts,
+        feedbackId:
+            'narrated_transcript_check_'
+            '${DateTime.now().microsecondsSinceEpoch}',
+      ),
+    );
+    if (disposition.noPlanReason ==
+        NarratedTranscriptRepairNoPlanReason.attemptLimitReached) {
       appLog(
         '[NarratedTranscript] Repair attempt limit reached; leaving the '
         'transcript claim to the finalization notice',
       );
-      return null;
-    }
-    final signature = jsonEncode(assessment.unexecutedCommands);
-    if (!attemptedSignatures.add(signature)) {
+    } else if (disposition.noPlanReason ==
+        NarratedTranscriptRepairNoPlanReason.repeatedSignature) {
       appLog(
         '[NarratedTranscript] Skipping repeated repair for the same '
         'unexecuted transcript commands',
       );
+    }
+    final plan = disposition.plan;
+    if (plan == null) return null;
+    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+        _turnOwnerForGeneration(interactionGeneration) != plan.owner) {
       return null;
     }
-
-    final feedback = ToolResultInfo(
-      id: 'narrated_transcript_check_${DateTime.now().microsecondsSinceEpoch}',
-      name: 'narrated_transcript_check',
-      arguments: {
-        'trigger': 'narratedTranscript',
-        'unexecuted_commands': assessment.unexecutedCommands,
-      },
-      result: jsonEncode({
-        'schema': 'caverno_narrated_transcript_check',
-        'ok': false,
-        'code': 'narrated_transcript_commands_not_executed',
-        'unexecuted_commands': assessment.unexecutedCommands,
-        'error':
-            'The answer presents a terminal transcript, but these commands '
-            'have no execution record in this turn, so the output shown for '
-            'them is not a real observation.',
-        'required_action':
-            'Execute the narrated commands now with local_execute_command '
-            'and base the answer on their real output, or rewrite the answer '
-            'to state plainly that these checks were not run.',
-      }),
-    );
+    if (!attemptedSignatures.add(plan.signature)) {
+      appLog(
+        '[NarratedTranscript] Skipping repair because the owner signature '
+        'was recorded after planning',
+      );
+      return null;
+    }
     final promptFeedback = await _toolResultArtifactStore.persistIfLarge(
-      feedback,
-      conversationId:
-          _activeResponseConversationIdForGeneration(interactionGeneration) ??
-          conversationId,
+      plan.feedback,
+      conversationId: plan.owner.conversationId,
     );
-    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+        _turnOwnerForGeneration(interactionGeneration) != plan.owner) {
       return null;
     }
     batchToolResults.add(promptFeedback);
     executedToolResults.add(promptFeedback);
     onBlockingFeedbackPrepared?.call();
-    _appliedTurnTransforms.add('narrated_transcript_repair');
+    _turnEnd.addTransform(plan.owner, 'narrated_transcript_repair');
 
     appLog(
       '[NarratedTranscript] Completion claim narrates '
-      '${assessment.unexecutedCommands.length} unexecuted command(s); '
+      '${plan.assessment.unexecutedCommands.length} unexecuted command(s); '
       'requesting repair',
     );
     _appendToLastMessageForGeneration(interactionGeneration, '<think>');
@@ -242,7 +159,8 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
         tools: tools,
       );
     } finally {
-      if (_isCurrentInteractionGeneration(interactionGeneration)) {
+      if (_isCurrentInteractionGeneration(interactionGeneration) &&
+          _turnOwnerForGeneration(interactionGeneration) == plan.owner) {
         _removeTrailingThinkTagForGeneration(interactionGeneration);
       }
     }
@@ -306,254 +224,5 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       );
     }
     return false;
-  }
-
-  String _messageContentWithUnwrittenFileClaimNotice(String content) {
-    final conversationsState = ref.read(conversationsNotifierProvider);
-    final conversation = conversationsState.currentConversation;
-    if (conversation == null ||
-        conversation.workspaceMode != WorkspaceMode.coding) {
-      return content;
-    }
-    final projectRoot = _getEffectiveCodingProject()?.rootPath.trim();
-    if (projectRoot == null || projectRoot.isEmpty) {
-      return content;
-    }
-    final assessment = _unwrittenFileClaimGuard.assess(
-      candidateResponse: content,
-      toolResults: _turnToolResults.all,
-      projectRoot: projectRoot,
-    );
-    if (!assessment.hasClaims) {
-      return content;
-    }
-    final notice = assessment.buildNotice();
-    if (content.contains(notice)) {
-      return content;
-    }
-    _appliedTurnTransforms.add('unwritten_file_claim_notice');
-    return '${content.trimRight()}\n\n$notice';
-  }
-
-  ToolResultInfo? _buildUnexecutedSkippedBrowserActionToolResult({
-    required String candidateResponse,
-    required List<ToolResultInfo> batchToolResults,
-    required int interactionGeneration,
-  }) {
-    return _finalAnswerClaimDetector
-        .buildUnexecutedSkippedBrowserActionToolResult(
-          candidateResponse: candidateResponse,
-          batchToolResults: batchToolResults,
-          latestUserContent: _latestUserContentForGeneration(
-            interactionGeneration,
-          ),
-        );
-  }
-
-  ToolResultInfo? _buildUnexecutedFileSideEffectToolResult({
-    required String candidateResponse,
-    required List<ToolResultInfo> toolResults,
-    required int interactionGeneration,
-  }) {
-    return _finalAnswerClaimDetector.buildUnexecutedFileSideEffectToolResult(
-      candidateResponse: candidateResponse,
-      toolResults: toolResults,
-      latestUserContent: _latestUserContentForGeneration(interactionGeneration),
-    );
-  }
-
-  ToolResultInfo? _buildUnexecutedCommandActionToolResult({
-    required String candidateResponse,
-    required List<ToolResultInfo> toolResults,
-    required int interactionGeneration,
-  }) {
-    // A turn restricted to tools that cannot execute commands has no way to
-    // substantiate a command claim, so the claim is unexecutable rather than
-    // unexecuted. Faulting it makes the harness penalise the model for a
-    // restriction the harness imposed — and the resulting "incomplete
-    // evidence" then blocks the very goal completion a restricted elicitation
-    // turn was asking for. Observed in session 76864d26: two elicitation turns
-    // whose accepted update_goal call was overruled this way, ending in
-    // no_progress_stop.
-    if (!_toolCallExecutionPolicy.offersCommandExecution(
-      _activeAllowedToolNames,
-    )) {
-      return null;
-    }
-    return _finalAnswerClaimDetector.buildUnexecutedCommandActionToolResult(
-      candidateResponse: candidateResponse,
-      toolResults: toolResults,
-    );
-  }
-
-  ToolResultInfo? _buildUnverifiedReadOnlyInspectionClaimToolResult({
-    required String candidateResponse,
-    required List<ToolResultInfo> toolResults,
-  }) {
-    return _finalAnswerClaimDetector
-        .buildUnverifiedReadOnlyInspectionClaimToolResult(
-          candidateResponse: candidateResponse,
-          toolResults: toolResults,
-        );
-  }
-
-  @visibleForTesting
-  ToolResultInfo? buildUnverifiedReadOnlyInspectionClaimToolResultForTest({
-    required String candidateResponse,
-    required List<ToolResultInfo> toolResults,
-  }) {
-    return _buildUnverifiedReadOnlyInspectionClaimToolResult(
-      candidateResponse: candidateResponse,
-      toolResults: toolResults,
-    );
-  }
-
-  @visibleForTesting
-  bool looksLikeCompletedReadOnlyInspectionClaimForTest(String content) {
-    return _looksLikeCompletedReadOnlyInspectionClaim(content);
-  }
-
-  @visibleForTesting
-  bool hasSuccessfulReadOnlyInspectionResultForTest(
-    List<ToolResultInfo> toolResults,
-  ) {
-    return _hasSuccessfulReadOnlyInspectionResult(toolResults);
-  }
-
-  bool _hasSuccessfulFileSideEffectResult(List<ToolResultInfo> toolResults) {
-    return _finalAnswerClaimDetector.hasSuccessfulFileSideEffectResult(
-      toolResults,
-    );
-  }
-
-  bool _hasSuccessfulReadOnlyInspectionResult(
-    List<ToolResultInfo> toolResults,
-  ) {
-    return _finalAnswerClaimDetector.hasSuccessfulReadOnlyInspectionResult(
-      toolResults,
-    );
-  }
-
-  String _clipForDiagnostic(String value, {int maxLength = 240}) {
-    return _finalAnswerClaimDetector.clipForDiagnostic(
-      value,
-      maxLength: maxLength,
-    );
-  }
-
-  bool _looksLikeCompletedReadOnlyInspectionClaim(String content) {
-    return _finalAnswerClaimDetector.looksLikeCompletedReadOnlyInspectionClaim(
-      content,
-    );
-  }
-
-  Set<String> _browserToolNamesFromDefinitions(
-    List<Map<String, dynamic>> toolDefinitions,
-  ) {
-    return _finalAnswerClaimDetector.browserToolNamesFromDefinitions(
-      toolDefinitions,
-    );
-  }
-
-  bool _looksLikeBrowserActionRequest(String text) {
-    return _finalAnswerClaimDetector.looksLikeBrowserActionRequest(text);
-  }
-
-  String _browserActionToolNameForText(String text) {
-    return _finalAnswerClaimDetector.browserActionToolNameForText(text);
-  }
-
-  String _messageContentWithUnexecutedCommandActionNotice(
-    String content,
-    String notice,
-  ) {
-    return _finalAnswerClaimDetector
-        .messageContentWithUnexecutedCommandActionNotice(
-          content,
-          notice: notice,
-        );
-  }
-
-  String _messageContentWithPrependedClaimCorrectionNotice(
-    String content,
-    String notice,
-  ) {
-    return _finalAnswerClaimDetector
-        .messageContentWithPrependedClaimCorrectionNotice(content, notice);
-  }
-
-  String _messageContentWithUnverifiedReadOnlyInspectionNotice(
-    String content,
-    String notice,
-  ) {
-    return _finalAnswerClaimDetector
-        .messageContentWithUnverifiedReadOnlyInspectionNotice(
-          content,
-          notice: notice,
-        );
-  }
-
-  bool _looksLikeUnsupportedFileSideEffectClaim(
-    String content, {
-    required List<ToolResultInfo> toolResults,
-  }) {
-    return _finalAnswerClaimDetector.looksLikeUnsupportedFileSideEffectClaim(
-      content,
-      toolResults: toolResults,
-    );
-  }
-
-  bool _hasUnexecutedFileSideEffectResult(List<ToolResultInfo> toolResults) {
-    return _finalAnswerClaimDetector.hasUnexecutedFileSideEffectResult(
-      toolResults,
-    );
-  }
-
-  bool _hasUnexecutedCommandActionResult(List<ToolResultInfo> toolResults) {
-    return _finalAnswerClaimDetector.hasUnexecutedCommandActionResult(
-      toolResults,
-    );
-  }
-
-  bool _hasUnverifiedReadOnlyInspectionClaimResult(
-    List<ToolResultInfo> toolResults,
-  ) {
-    return _finalAnswerClaimDetector.hasUnverifiedReadOnlyInspectionClaimResult(
-      toolResults,
-    );
-  }
-
-  bool _hasSuccessfulCommandExecutionResult(List<ToolResultInfo> toolResults) {
-    return _finalAnswerClaimDetector.hasSuccessfulCommandExecutionResult(
-      toolResults,
-    );
-  }
-
-  bool _looksLikeCommandSuccessClaim(String content) {
-    return _finalAnswerClaimDetector.looksLikeCommandSuccessClaim(content);
-  }
-
-  bool _looksLikeUnsupportedCommandExecutionAction(String content) {
-    return _finalAnswerClaimDetector.looksLikeUnsupportedCommandExecutionAction(
-      content,
-    );
-  }
-
-  bool _looksLikeFutureCommandExecutionAction(String content) {
-    return _finalAnswerClaimDetector.looksLikeFutureCommandExecutionAction(
-      content,
-    );
-  }
-
-  bool _looksLikeCompletedCommandExecutionClaim(String content) {
-    return _finalAnswerClaimDetector.looksLikeCompletedCommandExecutionClaim(
-      content,
-    );
-  }
-
-  bool _looksLikeFutureFileSideEffectAction(String content) {
-    return _finalAnswerClaimDetector.looksLikeFutureFileSideEffectAction(
-      content,
-    );
   }
 }

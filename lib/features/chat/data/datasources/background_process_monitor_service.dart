@@ -1,7 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
 
+import '../../domain/entities/chat_turn_owner.dart';
 import 'background_process_tools.dart';
+
+typedef BackgroundProcessStatusReader =
+    Future<String> Function({
+      required ChatTurnOwner owner,
+      required String jobId,
+      int? tailChars,
+    });
+
+typedef _OwnedBackgroundProcessMonitorSnapshot = ({
+  ChatTurnOwner owner,
+  BackgroundProcessMonitorSnapshot snapshot,
+});
 
 class BackgroundProcessMonitorSnapshot {
   const BackgroundProcessMonitorSnapshot({
@@ -115,23 +128,40 @@ class BackgroundProcessMonitorService {
   BackgroundProcessMonitorService({
     required BackgroundProcessTools tools,
     Duration pollInterval = const Duration(seconds: 2),
-  }) : _tools = tools,
-       _pollInterval = pollInterval;
+    BackgroundProcessStatusReader? statusReader,
+  }) : _pollInterval = pollInterval,
+       _statusReader =
+           statusReader ??
+           (({
+             required ChatTurnOwner owner,
+             required String jobId,
+             int? tailChars,
+           }) =>
+               tools.status(owner: owner, jobId: jobId, tailChars: tailChars));
 
-  final BackgroundProcessTools _tools;
   final Duration _pollInterval;
-  final Map<String, BackgroundProcessMonitorSnapshot> _snapshots = {};
-  final StreamController<BackgroundProcessMonitorSnapshot> _events =
-      StreamController<BackgroundProcessMonitorSnapshot>.broadcast();
-  Timer? _timer;
-  bool _polling = false;
+  final BackgroundProcessStatusReader _statusReader;
+  final Map<ChatTurnOwner, Map<String, BackgroundProcessMonitorSnapshot>>
+  _snapshotsByOwner = {};
+  final StreamController<_OwnedBackgroundProcessMonitorSnapshot> _events =
+      StreamController<_OwnedBackgroundProcessMonitorSnapshot>.broadcast();
+  final Map<ChatTurnOwner, Timer> _timersByOwner = {};
+  final Set<ChatTurnOwner> _pollingOwners = {};
+  final Set<ChatTurnOwner> _retiredOwners = {};
+  bool _disposed = false;
 
-  Stream<BackgroundProcessMonitorSnapshot> get events => _events.stream;
+  Stream<BackgroundProcessMonitorSnapshot> eventsFor(ChatTurnOwner owner) =>
+      _events.stream
+          .where((event) => event.owner == owner)
+          .map((event) => event.snapshot);
 
-  List<BackgroundProcessMonitorSnapshot> get snapshots =>
-      List<BackgroundProcessMonitorSnapshot>.unmodifiable(_snapshots.values);
+  List<BackgroundProcessMonitorSnapshot> snapshots(ChatTurnOwner owner) =>
+      List<BackgroundProcessMonitorSnapshot>.unmodifiable(
+        _snapshotsFor(owner).values,
+      );
 
-  List<BackgroundProcessMonitorSnapshot> listJobs({
+  List<BackgroundProcessMonitorSnapshot> listJobs(
+    ChatTurnOwner owner, {
     Iterable<String>? jobIds,
     bool includeFinished = true,
     int? limit,
@@ -140,9 +170,10 @@ class BackgroundProcessMonitorService {
         ?.map((jobId) => jobId.trim())
         .where((jobId) => jobId.isNotEmpty)
         .toSet();
+    final ownerSnapshots = _snapshotsFor(owner);
     final filtered = requestedIds == null || requestedIds.isEmpty
-        ? _snapshots.values
-        : _snapshots.values.where(
+        ? ownerSnapshots.values
+        : ownerSnapshots.values.where(
             (snapshot) => requestedIds.contains(snapshot.jobId),
           );
 
@@ -160,19 +191,23 @@ class BackgroundProcessMonitorService {
     );
   }
 
-  List<BackgroundProcessMonitorSnapshot> get activeSnapshots => _snapshots
-      .values
-      .where((snapshot) => snapshot.isRunning)
-      .toList(growable: false);
+  List<BackgroundProcessMonitorSnapshot> activeSnapshots(ChatTurnOwner owner) =>
+      List<BackgroundProcessMonitorSnapshot>.unmodifiable(
+        _snapshotsFor(owner).values.where((snapshot) => snapshot.isRunning),
+      );
 
-  BackgroundProcessMonitorSnapshot? byJobId(String jobId) {
-    return _snapshots[jobId];
+  BackgroundProcessMonitorSnapshot? byJobId(ChatTurnOwner owner, String jobId) {
+    return _snapshotsByOwner[owner]?[jobId];
   }
 
   BackgroundProcessMonitorSnapshot? registerProcessStartResult({
+    required ChatTurnOwner owner,
     required String result,
     required Map<String, dynamic> arguments,
   }) {
+    if (!_accepts(owner)) {
+      return null;
+    }
     final decoded = _decodeJsonMap(result);
     if (decoded == null || decoded['ok'] != true) {
       return null;
@@ -185,13 +220,21 @@ class BackgroundProcessMonitorService {
     if (snapshot == null) {
       return null;
     }
-    _store(snapshot);
-    return snapshot;
+    return _store(owner, snapshot) ? snapshot : null;
   }
 
-  Future<BackgroundProcessMonitorSnapshot?> refreshJob(String jobId) async {
-    final previous = _snapshots[jobId];
-    final statusResult = await _tools.status(jobId: jobId);
+  Future<BackgroundProcessMonitorSnapshot?> refreshJob(
+    ChatTurnOwner owner,
+    String jobId,
+  ) async {
+    if (!_accepts(owner)) {
+      return null;
+    }
+    final previous = _snapshotsByOwner[owner]?[jobId];
+    final statusResult = await _statusReader(owner: owner, jobId: jobId);
+    if (!_accepts(owner)) {
+      return null;
+    }
     final decoded = _decodeJsonMap(statusResult);
     final now = DateTime.now();
     if (decoded == null) {
@@ -212,8 +255,7 @@ class BackgroundProcessMonitorService {
             ok: false,
             error: 'Process status returned invalid JSON.',
           );
-      _store(snapshot);
-      return snapshot;
+      return _store(owner, snapshot) ? snapshot : null;
     }
 
     final snapshot =
@@ -231,71 +273,113 @@ class BackgroundProcessMonitorService {
     if (snapshot == null) {
       return null;
     }
-    _store(snapshot);
-    return snapshot;
+    return _store(owner, snapshot) ? snapshot : null;
   }
 
-  Future<List<BackgroundProcessMonitorSnapshot>> refreshActiveJobs() async {
-    final jobIds = activeSnapshots
-        .map((snapshot) => snapshot.jobId)
-        .toList(growable: false);
-    final refreshed = <BackgroundProcessMonitorSnapshot>[];
-    for (final jobId in jobIds) {
-      final snapshot = await refreshJob(jobId);
-      if (snapshot != null) {
-        refreshed.add(snapshot);
-      }
+  Future<List<BackgroundProcessMonitorSnapshot>> refreshActiveJobs(
+    ChatTurnOwner owner,
+  ) async {
+    if (!_accepts(owner)) {
+      return const <BackgroundProcessMonitorSnapshot>[];
     }
-    return refreshed;
+    final jobIds = activeSnapshots(
+      owner,
+    ).map((snapshot) => snapshot.jobId).toList(growable: false);
+    return refreshJobs(owner, jobIds);
   }
 
   Future<List<BackgroundProcessMonitorSnapshot>> refreshJobs(
+    ChatTurnOwner owner,
     Iterable<String> jobIds,
   ) async {
+    if (!_accepts(owner)) {
+      return const <BackgroundProcessMonitorSnapshot>[];
+    }
     final refreshed = <BackgroundProcessMonitorSnapshot>[];
     for (final jobId in jobIds.toSet()) {
-      final snapshot = await refreshJob(jobId);
+      final snapshot = await refreshJob(owner, jobId);
       if (snapshot != null) {
         refreshed.add(snapshot);
       }
     }
-    return refreshed;
+    return _accepts(owner)
+        ? refreshed
+        : const <BackgroundProcessMonitorSnapshot>[];
+  }
+
+  void clearOwner(ChatTurnOwner owner) {
+    _retiredOwners.add(owner);
+    _snapshotsByOwner.remove(owner);
+    _timersByOwner.remove(owner)?.cancel();
+    _pollingOwners.remove(owner);
   }
 
   void dispose() {
-    _timer?.cancel();
-    _timer = null;
-    unawaited(_events.close());
-  }
-
-  void _store(BackgroundProcessMonitorSnapshot snapshot) {
-    _snapshots[snapshot.jobId] = snapshot;
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    for (final timer in _timersByOwner.values) {
+      timer.cancel();
+    }
+    _timersByOwner.clear();
+    _pollingOwners.clear();
+    _snapshotsByOwner.clear();
     if (!_events.isClosed) {
-      _events.add(snapshot);
+      unawaited(_events.close());
     }
-    _updateTimer();
   }
 
-  void _updateTimer() {
-    if (activeSnapshots.isEmpty) {
-      _timer?.cancel();
-      _timer = null;
-      return;
+  Map<String, BackgroundProcessMonitorSnapshot> _snapshotsFor(
+    ChatTurnOwner owner,
+  ) {
+    if (!_accepts(owner)) {
+      return const <String, BackgroundProcessMonitorSnapshot>{};
     }
-    _timer ??= Timer.periodic(_pollInterval, (_) {
-      unawaited(_pollActiveJobs());
-    });
+    return _snapshotsByOwner[owner] ??
+        const <String, BackgroundProcessMonitorSnapshot>{};
   }
 
-  Future<void> _pollActiveJobs() async {
-    if (_polling) {
+  bool _accepts(ChatTurnOwner owner) {
+    return !_disposed && !_retiredOwners.contains(owner);
+  }
+
+  bool _store(ChatTurnOwner owner, BackgroundProcessMonitorSnapshot snapshot) {
+    if (!_accepts(owner)) {
+      return false;
+    }
+    _snapshotsByOwner.putIfAbsent(
+      owner,
+      () => <String, BackgroundProcessMonitorSnapshot>{},
+    )[snapshot.jobId] = snapshot;
+    if (!_events.isClosed) {
+      _events.add((owner: owner, snapshot: snapshot));
+    }
+    _updateTimer(owner);
+    return true;
+  }
+
+  void _updateTimer(ChatTurnOwner owner) {
+    if (!_accepts(owner) || activeSnapshots(owner).isEmpty) {
+      _timersByOwner.remove(owner)?.cancel();
       return;
     }
-    _polling = true;
+    _timersByOwner.putIfAbsent(
+      owner,
+      () => Timer.periodic(_pollInterval, (_) {
+        unawaited(_pollActiveJobs(owner));
+      }),
+    );
+  }
+
+  Future<void> _pollActiveJobs(ChatTurnOwner owner) async {
+    if (!_accepts(owner) || !_pollingOwners.add(owner)) {
+      return;
+    }
     try {
-      await refreshActiveJobs();
+      await refreshActiveJobs(owner);
     } finally {
-      _polling = false;
+      _pollingOwners.remove(owner);
     }
   }
 
@@ -312,7 +396,10 @@ class BackgroundProcessMonitorService {
     final ok = payload['ok'] != false;
     final status =
         _stringValue(payload['status']) ?? (ok ? fallbackStatus : 'unknown');
-    final startedAt = _dateValue(payload['started_at']) ?? now;
+    final startedAt =
+        _dateValue(payload['started_at']) ??
+        _dateValue(fallbackArguments['started_at']) ??
+        now;
     return BackgroundProcessMonitorSnapshot(
       jobId: jobId,
       status: status,

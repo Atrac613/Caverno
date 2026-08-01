@@ -12,6 +12,7 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/tool_result_artifact_store.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
@@ -191,7 +192,7 @@ class _LiveSmokeChatNotifier extends ChatNotifier {
   }
 
   @override
-  Future<void> sendMessage(
+  Future<ChatTurnOwner?> sendMessage(
     String content, {
     String? imageBase64,
     String? imageMimeType,
@@ -208,6 +209,7 @@ class _LiveSmokeChatNotifier extends ChatNotifier {
         .currentConversation
         ?.goal
         ?.normalizedObjective;
+    return null;
   }
 }
 

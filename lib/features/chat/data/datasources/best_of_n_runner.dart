@@ -1,4 +1,5 @@
 import '../../domain/entities/conversation_workflow.dart';
+import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/services/best_of_n_coordinator.dart';
 import '../../domain/services/coding_verification_feedback_service.dart';
 import 'file_rollback_checkpoint_store.dart';
@@ -85,12 +86,14 @@ class CodingFeedbackBestOfNVerifier implements BestOfNVerifier {
 class CheckpointVerificationBestOfNRunner implements BestOfNRunner {
   CheckpointVerificationBestOfNRunner({
     required this.checkpointStore,
+    required this.owner,
     required this.verifier,
     required this.generate,
     this.checkpointIdPrefix = 'best_of_n_',
   });
 
   final FileRollbackCheckpointStore checkpointStore;
+  final ChatTurnOwner owner;
   final BestOfNVerifier verifier;
   final BestOfNGenerationStep generate;
   final String checkpointIdPrefix;
@@ -102,7 +105,7 @@ class CheckpointVerificationBestOfNRunner implements BestOfNRunner {
   @override
   Future<String> generateCandidate(int index) async {
     _lastChangedPaths = const [];
-    checkpointStore.beginFileTurnCheckpoint(_checkpointId(index));
+    checkpointStore.beginFileTurnCheckpoint(owner, _checkpointId(index));
     try {
       final generation = await generate(index);
       _lastChangedPaths = List<String>.unmodifiable(generation.changedPaths);
@@ -110,7 +113,7 @@ class CheckpointVerificationBestOfNRunner implements BestOfNRunner {
     } finally {
       // Finalize the checkpoint even on error, so partial edits are captured
       // and can be rolled back by discardCandidate.
-      checkpointStore.endFileTurnCheckpoint();
+      checkpointStore.endFileTurnCheckpoint(owner);
     }
   }
 
@@ -121,13 +124,16 @@ class CheckpointVerificationBestOfNRunner implements BestOfNRunner {
 
   @override
   Future<void> discardCandidate(int index) async {
-    final preview = await checkpointStore.previewLastFileTurnCheckpoint();
+    final preview = await checkpointStore.previewLastFileTurnCheckpoint(owner);
     if (preview == null || preview.turnId != _checkpointId(index)) {
       // This candidate captured no edits; the top checkpoint (if any) belongs
       // to something else and must not be touched.
       return;
     }
-    await checkpointStore.rollbackLastFileTurnCheckpoint();
+    await checkpointStore.rollbackLastFileTurnCheckpoint(
+      owner,
+      preview.checkpointToken,
+    );
   }
 
   @override

@@ -782,13 +782,17 @@ class _FakeChatDataSource implements ChatDataSource {
   final List<String> streamChunks;
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
   }) {
-    return Stream.fromIterable(streamChunks);
+    return StreamedChatCompletion.fromStream(
+      Stream.fromIterable(streamChunks),
+      finishReason: streamWithToolsResult.finishReason,
+      usage: streamWithToolsResult.usage,
+    );
   }
 
   @override

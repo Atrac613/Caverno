@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/widgets/approval/local_command_approval_sheet.dart';
@@ -66,6 +67,10 @@ Future<void> _pumpHarness(
                     await LocalCommandApprovalSheet.show(
                       context,
                       PendingLocalCommand(
+                        owner: ChatTurnOwner(
+                          conversationId: 'local-sheet-test',
+                          interactionGeneration: 1,
+                        ),
                         id: 'local-command-test',
                         command: 'rm -rf build',
                         workingDirectory: '/repo/caverno',

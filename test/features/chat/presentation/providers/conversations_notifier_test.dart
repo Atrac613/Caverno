@@ -9,6 +9,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/tool_result_artifact_store.dart';
+import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
@@ -18,6 +20,7 @@ import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
 import 'package:caverno/features/chat/domain/services/conversation_validation_tool_result_inference.dart';
 import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 
 class _MockConversationBox extends Mock implements Box<String> {}
 
@@ -364,6 +367,46 @@ void main() {
     expect(repository.getById(conversationId), isNull);
     expect(File(artifactPath).existsSync(), isFalse);
   });
+
+  test(
+    'deleteConversation retires rollback state before late writes',
+    () async {
+      const conversationId = 'conversation-with-checkpoint';
+      final owner = ChatTurnOwner(
+        conversationId: conversationId,
+        interactionGeneration: 1,
+      );
+      await repository.save(
+        Conversation(
+          id: conversationId,
+          title: 'Conversation with checkpoint',
+          messages: const [],
+          createdAt: DateTime(2026, 7, 30),
+          updatedAt: DateTime(2026, 7, 30),
+          workspaceMode: WorkspaceMode.chat,
+        ),
+      );
+      final store = container.read(fileRollbackCheckpointStoreProvider);
+      store.beginFileTurnCheckpoint(owner, 'deleted-turn');
+      store.push(
+        owner,
+        const TextFileSnapshot(path: '/tmp/deleted.txt', exists: false),
+      );
+      expect(store.endFileTurnCheckpoint(owner), isTrue);
+
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+      await notifier.deleteConversation(conversationId);
+      store.beginFileTurnCheckpoint(owner, 'late-turn');
+      store.push(
+        owner,
+        const TextFileSnapshot(path: '/tmp/late.txt', exists: false),
+      );
+
+      expect(store.endFileTurnCheckpoint(owner), isFalse);
+      expect(store.latestCompletedCheckpointOwner(conversationId), isNull);
+      expect(await store.previewLastFileTurnCheckpoint(owner), isNull);
+    },
+  );
 
   test(
     'first coding workspace open can defer fresh project thread creation',

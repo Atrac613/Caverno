@@ -412,7 +412,7 @@ void registerChatNotifierSavedWorkflowGuardrailTests() {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
         expect(
-          toolNotifier.allowedSavedTaskTargetFilesForTest(
+          const SavedTaskTargetScopeGuard().allowedTargetFilesForTask(
             const ConversationWorkflowTask(
               id: 'task-validation-entrypoint',
               title: 'Verify the CLI',
@@ -424,7 +424,7 @@ void registerChatNotifierSavedWorkflowGuardrailTests() {
           containsAll(<String>['lib/main.dart', 'bin/todo.dart']),
         );
         expect(
-          toolNotifier.allowedSavedTaskTargetFilesForTest(
+          const SavedTaskTargetScopeGuard().allowedTargetFilesForTask(
             const ConversationWorkflowTask(
               id: 'task-validation-entrypoint',
               title: 'Verify the CLI',

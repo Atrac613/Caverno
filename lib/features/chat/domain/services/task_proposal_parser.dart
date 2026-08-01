@@ -4,6 +4,7 @@ import '../entities/conversation.dart';
 import '../entities/conversation_workflow.dart';
 import '../../presentation/providers/chat_state.dart';
 import 'proposal_parsing_text_utils.dart';
+import 'runtime_sampler_feedback_recorder.dart';
 import 'workflow_proposal_parser.dart';
 import 'workflow_task_proposal_quality_service.dart';
 
@@ -11,16 +12,18 @@ class TaskProposalParser {
   TaskProposalParser({
     required WorkflowTaskProposalQualityService qualityService,
     String Function()? createId,
-    void Function()? onJsonRepair,
+    RuntimeSamplerFeedbackEventBinding? jsonRepairFeedback,
     WorkflowProposalParser? workflowProposalParser,
   }) : _qualityService = qualityService,
        _createId = createId ?? _defaultCreateId,
-       _jsonExtractor = ProposalJsonExtractor(onJsonRepair: onJsonRepair),
+       _jsonExtractor = ProposalJsonExtractor(
+         jsonRepairFeedback: jsonRepairFeedback,
+       ),
        _workflowProposalParser =
            workflowProposalParser ??
            WorkflowProposalParser(
              qualityService: qualityService,
-             onJsonRepair: onJsonRepair,
+             jsonRepairFeedback: jsonRepairFeedback,
            );
 
   final WorkflowTaskProposalQualityService _qualityService;

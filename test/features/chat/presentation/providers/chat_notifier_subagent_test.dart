@@ -157,12 +157,15 @@ class _SubagentScriptedDataSource implements ChatDataSource {
   }
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) => Stream<String>.fromIterable(parentFinalChunks);
+  }) => StreamedChatCompletion.fromStream(
+    Stream<String>.fromIterable(parentFinalChunks),
+    finishReason: 'stop',
+  );
 
   @override
   Future<ChatCompletionResult> createChatCompletion({
@@ -493,10 +496,16 @@ void main() {
 
       try {
         final notifier = container.read(chatNotifierProvider.notifier);
-        await notifier.sendMessage('Run the computation in the background.');
+        final owner = await notifier.sendMessage(
+          'Run the computation in the background.',
+        );
+        expect(owner, isNotNull);
+        final turnOwner = owner!;
 
         // A background task was registered immediately.
-        final tasks = container.read(subagentTaskNotifierProvider);
+        final tasks = container
+            .read(subagentTaskNotifierProvider)
+            .tasksFor(turnOwner);
         expect(tasks, isNotEmpty);
         final taskId = tasks.first.id;
         expect(tasks.first.isBackground, isTrue);
@@ -505,9 +514,11 @@ void main() {
         final taskNotifier = container.read(
           subagentTaskNotifierProvider.notifier,
         );
-        await _pumpUntil(() => taskNotifier.byId(taskId)?.isTerminal ?? false);
+        await _pumpUntil(
+          () => taskNotifier.byId(turnOwner, taskId)?.isTerminal ?? false,
+        );
 
-        final settled = taskNotifier.byId(taskId);
+        final settled = taskNotifier.byId(turnOwner, taskId);
         expect(settled, isNotNull);
         expect(settled!.status, SubagentTaskStatus.completed);
         expect(
@@ -567,7 +578,11 @@ void main() {
 
       try {
         final notifier = container.read(chatNotifierProvider.notifier);
-        await notifier.sendMessage('Delegate something that tries to nest.');
+        final owner = await notifier.sendMessage(
+          'Delegate something that tries to nest.',
+        );
+        expect(owner, isNotNull);
+        final turnOwner = owner!;
         await _pumpUntil(
           () => false,
           timeout: const Duration(milliseconds: 50),
@@ -576,7 +591,7 @@ void main() {
         // The nested spawn_subagent was rejected before reaching the handler:
         // no nested background task was registered and executeTool never saw it.
         expect(
-          container.read(subagentTaskNotifierProvider),
+          container.read(subagentTaskNotifierProvider).tasksFor(turnOwner),
           isEmpty,
           reason: 'a nested subagent must not be created',
         );

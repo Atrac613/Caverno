@@ -12,88 +12,27 @@ extension ChatNotifierContextSurgery on ChatNotifier {
 
   void _updateConnectionSettings(AppSettings settings) {
     final previousSettings = _settings;
-    final routeChanged =
-        _modelSwitchRouteKey(previousSettings) !=
-        _modelSwitchRouteKey(settings);
-    if (routeChanged) {
+    final comparison = const ModelSwitchSettingsPolicy().compare(
+      previous: previousSettings,
+      next: settings,
+    );
+    if (comparison.routeChanged) {
       _pendingPrimaryModelPreparation = _PendingPrimaryModelPreparation(
         key: _primaryModelPreparationKey(settings),
-        previousModelId: _previousPrimaryModelForPreparation(
-          previousSettings,
-          settings,
-        ),
+        previousModelId: comparison.previousPrimaryModelForPreparation,
       );
       _scheduleModelSwitchHandoff(
         previousSettings: previousSettings,
         nextSettings: settings,
       );
     }
-    final shouldRebuildDataSource = _shouldRebuildChatDataSource(
-      previousSettings,
-      settings,
-    );
     _settings = settings;
-    if (shouldRebuildDataSource) {
+    if (comparison.shouldRebuildDataSource) {
       _dataSource = _withChatSessionLogging(
         ref.read(chatRemoteDataSourceProvider),
         settings,
       );
     }
-  }
-
-  String? _previousPrimaryModelForPreparation(
-    AppSettings previousSettings,
-    AppSettings nextSettings,
-  ) {
-    if (previousSettings.llmProvider != LlmProvider.openAiCompatible ||
-        nextSettings.llmProvider != LlmProvider.openAiCompatible ||
-        previousSettings.demoMode ||
-        nextSettings.demoMode) {
-      return null;
-    }
-    if (previousSettings.baseUrl.trim() != nextSettings.baseUrl.trim() ||
-        previousSettings.apiKey.trim() != nextSettings.apiKey.trim()) {
-      return null;
-    }
-
-    final previousModel = previousSettings.model.trim();
-    final nextModel = nextSettings.model.trim();
-    if (previousModel.isEmpty || previousModel == nextModel) {
-      return null;
-    }
-    return previousModel;
-  }
-
-  @visibleForTesting
-  void scheduleModelSwitchHandoffForTest({
-    required AppSettings previousSettings,
-    required AppSettings nextSettings,
-  }) {
-    _scheduleModelSwitchHandoff(
-      previousSettings: previousSettings,
-      nextSettings: nextSettings,
-    );
-  }
-
-  String _modelSwitchRouteKey(AppSettings settings) {
-    return ModelCapabilityProfile.buildId(
-      provider: settings.llmProvider,
-      baseUrl: settings.baseUrl,
-      model: settings.effectiveModel,
-    );
-  }
-
-  bool _shouldRebuildChatDataSource(
-    AppSettings previousSettings,
-    AppSettings nextSettings,
-  ) {
-    return previousSettings.demoMode != nextSettings.demoMode ||
-        previousSettings.llmProvider != nextSettings.llmProvider ||
-        previousSettings.baseUrl != nextSettings.baseUrl ||
-        previousSettings.apiKey != nextSettings.apiKey ||
-        previousSettings.reasoningEffort != nextSettings.reasoningEffort ||
-        previousSettings.enableLlmSessionLogs !=
-            nextSettings.enableLlmSessionLogs;
   }
 
   void _scheduleModelSwitchHandoff({
@@ -105,166 +44,36 @@ extension ChatNotifierContextSurgery on ChatNotifier {
     final messages = state.messages.isNotEmpty
         ? state.messages
         : (conversation?.messages ?? const <Message>[]);
-    final brief = ModelSwitchHandoffBriefService.build(
+    _modelSwitchHandoffs.schedule(
       conversation: conversation,
       messages: messages,
       previousModel: previousSettings.effectiveModel,
       nextModel: nextSettings.effectiveModel,
     );
-    _modelSwitchHandoffBrief = brief;
-    _modelSwitchHandoffConversationId = brief == null ? null : conversation?.id;
-  }
-
-  String? _takePendingModelSwitchHandoffBrief(String? conversationId) {
-    final brief = _modelSwitchHandoffBrief;
-    if (brief == null) return null;
-    final expectedConversationId = _modelSwitchHandoffConversationId;
-    if (expectedConversationId != null &&
-        expectedConversationId != conversationId) {
-      return null;
-    }
-    _modelSwitchHandoffBrief = null;
-    _modelSwitchHandoffConversationId = null;
-    return brief;
-  }
-
-  void _clearPendingModelSwitchHandoff() {
-    _modelSwitchHandoffBrief = null;
-    _modelSwitchHandoffConversationId = null;
-  }
-
-  bool _consumeForcePromptCompactionFlag({
-    required bool forceCompaction,
-    required bool hasModelSwitchHandoff,
-  }) {
-    final shouldForceCompaction =
-        forceCompaction ||
-        _forcePromptCompactionForNextRequest ||
-        hasModelSwitchHandoff;
-    _forcePromptCompactionForNextRequest = false;
-    return shouldForceCompaction;
-  }
-
-  void _addModelSwitchHandoffPromptMessage(
-    List<Message> promptMessages,
-    String? brief,
-  ) {
-    if (brief == null) return;
-    promptMessages.add(
-      Message(
-        id: 'system_model_handoff',
-        content: brief,
-        role: MessageRole.system,
-        timestamp: DateTime.now(),
-      ),
-    );
-  }
-
-  Set<String> _contextSurgeryProtectedPaths() {
-    final conversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (conversation == null) return const <String>{};
-    final task = ConversationPlanExecutionCoordinator.executionFocusTask(
-      conversation,
-    );
-    if (task == null) return const <String>{};
-    return task.targetFiles
-        .map((path) => path.trim())
-        .where((path) => path.isNotEmpty)
-        .toSet();
-  }
-
-  /// Collects the tool definitions offered for the current request plus the
-  /// external MCP tool names. Read-only with respect to [toolNames]: it reports
-  /// what the catalog holds, it never decides what the prompt advertises. Feeds
-  /// the context window breakdown's System tools / MCP tools rows. Lives here
-  /// (not in chat_notifier.dart) to keep that file within its F1 budget.
-  ({List<Map<String, dynamic>> definitions, Set<String> mcpNames})
-  _collectRequestToolObservation({
-    required List<String>? toolNamesOverride,
-    required List<String> toolNames,
-  }) {
-    final mcpToolService = _mcpToolService;
-    if (mcpToolService == null ||
-        !(toolNamesOverride != null ||
-            _settings.mcpEnabled ||
-            _temporalReferenceContext != null)) {
-      return (definitions: const [], mcpNames: const {});
-    }
-
-    final allDefinitions = mcpToolService.getOpenAiToolDefinitions();
-    final mcpNames = _externalMcpToolNames(mcpToolService);
-    if (toolNamesOverride == null) {
-      // Observation only — never write back into [toolNames]. The callers that
-      // pass no override (plan drafting) attach no tools to the request, so
-      // filling their list here used to advertise the whole catalog in a
-      // system prompt whose request carried none, and models answered the
-      // JSON-only proposal request with a tool call instead.
-      return (definitions: allDefinitions, mcpNames: mcpNames);
-    }
-
-    // Overrides carry only names; recover the matching definitions from the
-    // full catalog so the sent tool payload is measured accurately.
-    final effectiveNames = toolNames.toSet();
-    final definitions = allDefinitions
-        .where((definition) {
-          final function = definition['function'];
-          if (function is! Map) return false;
-          final name = function['name'];
-          return name is String && effectiveNames.contains(name);
-        })
-        .toList(growable: false);
-    return (definitions: definitions, mcpNames: mcpNames);
-  }
-
-  Set<String> _externalMcpToolNames(McpToolService mcpToolService) {
-    if (mcpToolService.status != McpConnectionStatus.connected) {
-      return const <String>{};
-    }
-    final names = <String>{};
-    for (final tool in mcpToolService.tools) {
-      final function = tool.toOpenAiTool()['function'];
-      if (function is Map) {
-        final name = function['name'];
-        if (name is String && name.isNotEmpty) {
-          names.add(name);
-        }
-      }
-    }
-    return names;
   }
 
   void _updateContextSurgeryObservation({
+    required ChatTurnOwner owner,
     String? systemPrompt,
     List<ToolResultInfo>? toolResults,
     List<Map<String, dynamic>>? toolDefinitions,
     Set<String>? mcpToolNames,
   }) {
     if (!ref.mounted) return;
-    if (systemPrompt != null) {
-      _latestObservedSystemPrompt = systemPrompt;
-    }
-    if (toolResults != null) {
-      _latestObservedToolResults = List<ToolResultInfo>.unmodifiable(
-        toolResults,
-      );
-    }
-    if (toolDefinitions != null) {
-      _latestObservedToolDefinitions = List<Map<String, dynamic>>.unmodifiable(
-        toolDefinitions,
-      );
-    }
-    if (mcpToolNames != null) {
-      _latestObservedMcpToolNames = Set<String>.unmodifiable(mcpToolNames);
-    }
-    final snapshot = ContextSurgeryObservationService.buildSnapshot(
-      systemPrompt: _latestObservedSystemPrompt,
-      toolResults: _latestObservedToolResults,
-      toolDefinitions: _latestObservedToolDefinitions,
-      mcpToolNames: _latestObservedMcpToolNames,
+    final result = _contextSurgeryObservations.apply(
+      owner: owner,
+      update: ContextSurgeryObservationUpdate(
+        systemPrompt: systemPrompt,
+        toolResults: toolResults,
+        toolDefinitions: toolDefinitions,
+        mcpToolNames: mcpToolNames,
+      ),
     );
-    if (state.contextSurgerySnapshot == snapshot) return;
-    state = state.copyWith(contextSurgerySnapshot: snapshot);
+    if (!result.changed) return;
+    _routeThreadState(
+      owner.conversationId,
+      (threadState) =>
+          threadState.copyWith(contextSurgerySnapshot: result.snapshot),
+    );
   }
 }

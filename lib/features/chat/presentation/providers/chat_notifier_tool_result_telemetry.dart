@@ -6,161 +6,54 @@
 
 part of 'chat_notifier.dart';
 
+const _contentToolFailureFormatter = ContentToolFailureFormatter();
+
 extension ChatNotifierToolResultTelemetry on ChatNotifier {
-  Future<void> _recordModelEditApplyTelemetry(ToolResultInfo toolResult) async {
-    final editObservation = ModelEditApplyTelemetryService.classifyToolResult(
-      toolResult,
+  ModelCapabilityProfile _modelEditApplyTelemetryBaseline() =>
+      _modelEditTelemetry!.baselineFor(_settings);
+
+  RuntimeSamplerFeedbackEventBinding? _planningJsonRepairFeedbackBinding() {
+    final telemetry = _modelEditTelemetry;
+    if (telemetry == null) return null;
+    final activeGeneration = _activeResponseGenerationForConversation(
+      conversationId,
     );
-    final baselineProfile =
-        _settings.effectiveModelCapabilityProfile ??
-        ModelCapabilityProfile(
-          id: '',
-          provider: _settings.llmProvider,
-          baseUrl: _settings.baseUrl,
-          model: _settings.effectiveModel,
-        ).normalizedForPersistence();
-    final updatedProfile = ModelEditApplyTelemetryService.recordToolResult(
-      profile: baselineProfile,
-      toolResult: toolResult,
-    );
-    if (updatedProfile == null || !ref.mounted) {
-      return;
-    }
-    try {
-      await ref
-          .read(settingsNotifierProvider.notifier)
-          .upsertModelCapabilityProfile(updatedProfile);
-      if (ref.mounted) {
-        _settings = ref.read(settingsNotifierProvider);
-      }
-      if (editObservation?.isFailure ?? false) {
-        await _recordRuntimeSamplerFeedback(
-          const LlmSamplerRuntimeFeedbackSignal(
-            requestClass: LlmSamplerRequestClass.toolLoop,
-            editApplyFailureCount: 1,
-          ),
+    final activeOwner = activeGeneration == null
+        ? null
+        : _turnOwnerForGeneration(activeGeneration);
+    final owner =
+        activeOwner ??
+        telemetry.activateDetachedRuntimeFeedbackOwner(
+          conversationId ?? 'global',
         );
-      }
-    } catch (_) {
-      // Edit telemetry should never interrupt the primary chat/tool loop.
-    }
-  }
-
-  Future<void> _recordMalformedToolCallRuntimeFeedback(String message) {
-    if (!LlmSamplerRuntimeFeedbackService.looksLikeMalformedToolCallFailure(
-      message,
-    )) {
-      return Future<void>.value();
-    }
-    return _recordRuntimeSamplerFeedback(
-      const LlmSamplerRuntimeFeedbackSignal(
-        requestClass: LlmSamplerRequestClass.toolLoop,
-        malformedToolCallCount: 1,
+    return RuntimeSamplerFeedbackEventBinding(
+      sink: telemetry.runtimeSamplerFeedback,
+      event: RuntimeSamplerPlanningJsonRepairEvent(
+        owner: owner,
+        baselineProfile: _modelEditApplyTelemetryBaseline(),
+        settingsLoaded: _hasLoadedSettings,
+        assistantMode: _settings.assistantMode,
       ),
     );
   }
 
-  Future<void> _recordToolLoopRepetitionRuntimeFeedback() {
-    return _recordRuntimeSamplerFeedback(
-      const LlmSamplerRuntimeFeedbackSignal(
-        requestClass: LlmSamplerRequestClass.toolLoop,
-        repetitionDetected: true,
-      ),
+  Future<void> _recordModelEditApplyTelemetry(
+    ChatTurnOwner owner,
+    ToolResultInfo toolResult, {
+    required ModelCapabilityProfile baselineProfile,
+  }) async {
+    final telemetry = _modelEditTelemetry;
+    if (telemetry == null) return;
+    final result = await telemetry.record(
+      owner: owner,
+      toolResult: toolResult,
+      baselineProfile: baselineProfile,
     );
-  }
-
-  void _recordPlanningJsonRepairRuntimeFeedback() {
-    if (!_hasLoadedSettings) {
+    if (!result.didPersist ||
+        !ref.mounted ||
+        !telemetry.isCurrent(owner)) {
       return;
     }
-    unawaited(
-      _recordJsonRepairRuntimeFeedback(switch (_settings.assistantMode) {
-        AssistantMode.coding => LlmSamplerRequestClass.coding,
-        AssistantMode.plan => LlmSamplerRequestClass.plan,
-        AssistantMode.general => LlmSamplerRequestClass.toolLoop,
-      }),
-    );
-  }
-
-  Future<void> _recordJsonRepairRuntimeFeedback(
-    LlmSamplerRequestClass requestClass,
-  ) {
-    return _recordRuntimeSamplerFeedback(
-      LlmSamplerRuntimeFeedbackSignal(
-        requestClass: requestClass,
-        jsonRepairEventCount: 1,
-      ),
-    );
-  }
-
-  Future<void> _recordRuntimeSamplerFeedback(
-    LlmSamplerRuntimeFeedbackSignal signal,
-  ) async {
-    final baselineProfile =
-        _settings.effectiveModelCapabilityProfile ??
-        ModelCapabilityProfile(
-          id: '',
-          provider: _settings.llmProvider,
-          baseUrl: _settings.baseUrl,
-          model: _settings.effectiveModel,
-        ).normalizedForPersistence();
-    final result = const LlmSamplerRuntimeFeedbackService().recordSignal(
-      profile: baselineProfile,
-      signal: signal,
-    );
-    if (result == null || !ref.mounted) {
-      return;
-    }
-    try {
-      await ref
-          .read(settingsNotifierProvider.notifier)
-          .upsertModelCapabilityProfile(result.profile);
-      if (ref.mounted) {
-        _settings = ref.read(settingsNotifierProvider);
-      }
-    } catch (_) {
-      // Runtime feedback must never interrupt the primary chat/tool loop.
-    }
-  }
-
-  void _recordContentToolResult({
-    required ToolCallInfo toolCall,
-    required String result,
-  }) {
-    _recordContentToolResultInfo(
-      ToolResultInfo(
-        id: toolCall.id,
-        name: toolCall.name,
-        arguments: Map<String, dynamic>.unmodifiable(toolCall.arguments),
-        result: result,
-      ),
-    );
-  }
-
-  void _recordContentToolResultInfo(ToolResultInfo toolResult) {
-    _turnToolResults.addContentResult(toolResult);
-  }
-
-  String _buildContentToolFailureResult(String toolName, String? errorMessage) {
-    final error = (errorMessage ?? 'Tool execution failed').trim();
-    final code = _contentToolFailureCode(error);
-    return jsonEncode({'toolName': toolName, 'error': error, 'code': code});
-  }
-
-  String _contentToolFailureCode(String errorMessage) {
-    final normalized = errorMessage.toLowerCase();
-    if (normalized.contains('no matching tool available')) {
-      return 'tool_not_available';
-    }
-    if (normalized.contains('old_text was not found in the target file')) {
-      return 'edit_mismatch';
-    }
-    if (normalized.contains('permission_denied')) {
-      return 'permission_denied';
-    }
-    if (normalized.contains('timeout')) {
-      return 'timeout';
-    }
-    return 'tool_execution_failed';
+    _settings = ref.read(settingsNotifierProvider);
   }
 }

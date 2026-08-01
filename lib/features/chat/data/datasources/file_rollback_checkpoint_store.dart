@@ -1,245 +1,386 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
+
+import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
+import 'file_mutation_path_fence.dart';
 import 'filesystem_tools.dart';
 
-class FileRollbackPreview {
-  const FileRollbackPreview({
-    required this.path,
-    required this.preview,
-    required this.summary,
-  });
-
-  final String path;
-  final String preview;
-  final String summary;
-}
-
-class FileTurnRollbackPreview {
-  const FileTurnRollbackPreview({
-    required this.turnId,
-    required this.paths,
-    required this.preview,
-    required this.summary,
-  });
-
-  final String turnId;
-  final List<String> paths;
-  final String preview;
-  final String summary;
-}
+part 'file_rollback_checkpoint_models.dart';
+part 'file_rollback_single_checkpoint_operations.dart';
+part 'file_rollback_store_lifecycle.dart';
+part 'file_rollback_turn_checkpoint_operations.dart';
+part 'file_rollback_turn_recovery_operations.dart';
 
 class FileRollbackCheckpointStore {
-  final List<_FileRollbackEntry> _fileRollbackStack = [];
-  final List<_FileTurnCheckpoint> _fileTurnCheckpointStack = [];
-  _FileTurnCheckpoint? _activeFileTurnCheckpoint;
+  FileRollbackCheckpointStore({
+    FileRollbackSnapshotLoader? snapshotLoader,
+    FileRollbackSnapshotRestorer? snapshotRestorer,
+  }) : _snapshotLoader = snapshotLoader ?? FilesystemTools.captureTextSnapshot,
+       _snapshotRestorer =
+           snapshotRestorer ?? FilesystemTools.restoreTextSnapshot;
 
-  void push(TextFileSnapshot snapshot) {
-    if (snapshot.exists && snapshot.error != null) {
-      return;
+  static const int _maxSingleChangeCount = 20;
+  static const int _maxTurnCheckpointCount = 10;
+  static const int _maxConversationCheckpointCount = 10;
+
+  final FileRollbackSnapshotLoader _snapshotLoader;
+  final FileRollbackSnapshotRestorer _snapshotRestorer;
+  final FileMutationPathFence mutationPathFence = FileMutationPathFence();
+  final Map<ChatTurnOwner, _OwnerRollbackState> _states = {};
+  final Map<String, List<_CheckpointRef>> _completedByConversation = {};
+  final Map<int, _FileTurnRollbackPreviewBinding> _turnPreviewBindings = {};
+  final Map<_CheckpointRef, _FileTurnRollbackAttempt> _turnRollbackAttempts =
+      {};
+  final Map<String, _FileTurnRollbackRecovery> _turnRollbackRecoveries = {};
+  final Map<_CheckpointRef, String> _recoveryReceiptByCheckpoint = {};
+  final Set<ChatTurnOwner> _clearedOwners = {};
+  final Set<String> _retiredConversationIds = {};
+  Future<void>? _disposeFuture;
+  var _disposed = false;
+  int _nextCheckpointToken = 1;
+
+  void push(ChatTurnOwner owner, TextFileSnapshot snapshot) {
+    _push(owner, snapshot);
+  }
+
+  /// Records an idempotent runtime-owned mutation and returns its exact token.
+  ///
+  /// Legacy [push] calls remain append-only. Runtime callers supply a
+  /// replacement-resistant compensation token so a retry cannot create a
+  /// second checkpoint for the same effect.
+  String? recordMutationSnapshot(
+    ChatTurnOwner owner,
+    TextFileSnapshot snapshot, {
+    required String compensationToken,
+  }) {
+    final normalizedCompensationToken = compensationToken.trim();
+    if (normalizedCompensationToken.isEmpty ||
+        normalizedCompensationToken != compensationToken ||
+        _isRetired(owner) ||
+        snapshot.error != null) {
+      return null;
+    }
+    final existing = _recordedEntryForCompensation(
+      owner,
+      normalizedCompensationToken,
+    );
+    if (existing != null) {
+      return existing.recordToken;
+    }
+    return _push(
+      owner,
+      snapshot,
+      compensationToken: normalizedCompensationToken,
+    )?.recordToken;
+  }
+
+  /// Removes only the rollback record created for one exact runtime effect.
+  bool removeRecordedMutation(
+    ChatTurnOwner owner, {
+    required String recordToken,
+    required String compensationToken,
+  }) {
+    if (recordToken.trim().isEmpty ||
+        recordToken != recordToken.trim() ||
+        compensationToken.trim().isEmpty ||
+        compensationToken != compensationToken.trim()) {
+      return false;
+    }
+    final state = _states[owner];
+    if (state == null) {
+      return _isRetired(owner);
+    }
+    final entry = _recordedEntries(state)
+        .cast<_FileRollbackEntry?>()
+        .firstWhere(
+          (candidate) =>
+              candidate?.recordToken == recordToken &&
+              candidate?.compensationToken == compensationToken,
+          orElse: () => null,
+        );
+    if (entry == null) {
+      return false;
     }
 
+    state.singleChanges.removeWhere((candidate) => identical(candidate, entry));
+    state.activeTurnCheckpoint?.entries.removeWhere(
+      (candidate) => identical(candidate, entry),
+    );
+    for (var index = state.turnCheckpoints.length - 1; index >= 0; index--) {
+      final checkpoint = state.turnCheckpoints[index];
+      if (!checkpoint.entries.any((candidate) => identical(candidate, entry))) {
+        continue;
+      }
+      final remaining = checkpoint.entries
+          .where((candidate) => !identical(candidate, entry))
+          .toList(growable: false);
+      if (remaining.isEmpty) {
+        state.turnCheckpoints.removeAt(index);
+        _removeCheckpointReferences((owner: owner, token: checkpoint.token));
+      } else {
+        state.turnCheckpoints[index] = _FileTurnCheckpoint(
+          token: checkpoint.token,
+          turnId: checkpoint.turnId,
+          entries: List<_FileRollbackEntry>.unmodifiable(remaining),
+        );
+      }
+    }
+    _removeStateIfEmpty(owner);
+    return true;
+  }
+
+  _FileRollbackEntry? _push(
+    ChatTurnOwner owner,
+    TextFileSnapshot snapshot, {
+    String? compensationToken,
+  }) {
+    if (_isRetired(owner) || snapshot.error != null) {
+      return null;
+    }
+
+    final state = _stateFor(owner);
     final entry = _FileRollbackEntry(
+      token: _nextCheckpointToken++,
       path: snapshot.path,
+      pathKey:
+          snapshot.resolvedPathKey ??
+          FileMutationPathFence.lexicalPathKey(snapshot.path),
       existedBefore: snapshot.exists,
       previousContent: snapshot.content,
+      compensationToken: compensationToken,
     );
-    _fileRollbackStack.add(entry);
-    _activeFileTurnCheckpoint?.addFirstEntryForPath(entry);
+    state.singleChanges.add(entry);
+    state.activeTurnCheckpoint?.addFirstEntryForPath(entry);
 
-    if (_fileRollbackStack.length > 20) {
-      _fileRollbackStack.removeAt(0);
+    if (state.singleChanges.length > _maxSingleChangeCount) {
+      state.singleChanges.removeAt(0);
     }
+    return entry;
   }
 
-  Future<FileRollbackPreview?> previewLastFileRollbackChange() async {
-    final entry = _fileRollbackStack.isEmpty ? null : _fileRollbackStack.last;
-    if (entry == null) return null;
+  Future<FileRollbackPreview?> previewLastFileRollbackChange(
+    ChatTurnOwner owner,
+  ) => _previewLastFileRollbackChange(owner);
 
-    final currentSnapshot = await FilesystemTools.captureTextSnapshot(
-      entry.path,
-    );
-    final summary = entry.existedBefore
-        ? 'Restore the previous contents of this file.'
-        : 'Delete the newly created file.';
-
-    if (currentSnapshot.error != null) {
-      return FileRollbackPreview(
-        path: entry.path,
-        preview:
-            'Diff preview unavailable: ${currentSnapshot.error}\n\n'
-            'Rollback target: ${entry.path}\n'
-            '$summary',
-        summary: summary,
-      );
-    }
-
-    return FileRollbackPreview(
-      path: entry.path,
-      preview: FilesystemTools.buildUnifiedDiff(
-        path: entry.path,
-        oldContent: currentSnapshot.exists ? currentSnapshot.content : null,
-        newContent: entry.existedBefore ? (entry.previousContent ?? '') : null,
-      ),
-      summary: summary,
-    );
-  }
+  Future<FileRollbackCheckpointPreview?> previewFileRollbackCheckpoint(
+    ChatTurnOwner owner,
+  ) => _previewFileRollbackCheckpoint(owner);
 
   Future<McpToolResult> rollbackLastFileChange({
+    required ChatTurnOwner owner,
     required String toolName,
-  }) async {
-    final entry = _fileRollbackStack.isEmpty
-        ? null
-        : _fileRollbackStack.removeLast();
-    if (entry == null) {
-      return McpToolResult(
-        toolName: toolName,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'No recent file change is available to roll back',
-      );
-    }
+  }) => _rollbackLastFileChange(owner: owner, toolName: toolName);
 
-    final result = await FilesystemTools.restoreTextSnapshot(
-      path: entry.path,
-      existedBefore: entry.existedBefore,
-      content: entry.previousContent,
-    );
-    if (!_isFilesystemPayloadSuccess(result)) {
-      _fileRollbackStack.add(entry);
-      return McpToolResult(
-        toolName: toolName,
-        result: result,
-        isSuccess: false,
-        errorMessage: 'Failed to roll back the last file change',
-      );
-    }
+  Future<FileRollbackCheckpointExecutionResult> rollbackFileCheckpoint({
+    required ChatTurnOwner owner,
+    required String expectedCheckpointToken,
+    required String toolName,
+  }) => _rollbackFileCheckpoint(
+    owner: owner,
+    expectedCheckpointToken: expectedCheckpointToken,
+    toolName: toolName,
+  );
 
-    return McpToolResult(toolName: toolName, result: result, isSuccess: true);
-  }
-
-  void beginFileTurnCheckpoint(String turnId) {
+  void beginFileTurnCheckpoint(ChatTurnOwner owner, String turnId) {
     final normalizedTurnId = turnId.trim();
-    if (normalizedTurnId.isEmpty) {
+    if (_isRetired(owner) || normalizedTurnId.isEmpty) {
       return;
     }
-    if (_activeFileTurnCheckpoint?.turnId == normalizedTurnId) {
+    final activeCheckpoint = _states[owner]?.activeTurnCheckpoint;
+    if (activeCheckpoint?.turnId == normalizedTurnId) {
       return;
     }
-    endFileTurnCheckpoint();
-    _activeFileTurnCheckpoint = _FileTurnCheckpoint(
+    if (activeCheckpoint != null) {
+      endFileTurnCheckpoint(owner);
+    }
+    _stateFor(owner).activeTurnCheckpoint = _FileTurnCheckpoint(
+      token: _nextCheckpointToken++,
       turnId: normalizedTurnId,
       entries: <_FileRollbackEntry>[],
     );
   }
 
-  void endFileTurnCheckpoint() {
-    final checkpoint = _activeFileTurnCheckpoint;
-    _activeFileTurnCheckpoint = null;
+  bool endFileTurnCheckpoint(ChatTurnOwner owner) {
+    if (_isRetired(owner)) {
+      _states.remove(owner);
+      return false;
+    }
+    final state = _states[owner];
+    final checkpoint = state?.activeTurnCheckpoint;
+    if (state != null) {
+      state.activeTurnCheckpoint = null;
+      state.singleChanges.clear();
+    }
     if (checkpoint == null || checkpoint.entries.isEmpty) {
+      _removeStateIfEmpty(owner);
+      return false;
+    }
+
+    state!.turnCheckpoints.add(checkpoint.toImmutable());
+    final reference = (owner: owner, token: checkpoint.token);
+    final completed = _completedFor(owner.conversationId)..add(reference);
+    if (state.turnCheckpoints.length > _maxTurnCheckpointCount) {
+      _evictCheckpoint((
+        owner: owner,
+        token: state.turnCheckpoints.first.token,
+      ));
+    }
+    if (completed.length > _maxConversationCheckpointCount) {
+      _evictCheckpoint(completed.first);
+    }
+    return true;
+  }
+
+  ChatTurnOwner? latestCompletedCheckpointOwner(String conversationId) {
+    final normalizedConversationId = conversationId.trim();
+    if (normalizedConversationId.isEmpty) {
+      return null;
+    }
+    final completed = _completedByConversation[normalizedConversationId];
+    return completed == null || completed.isEmpty ? null : completed.last.owner;
+  }
+
+  Future<FileTurnRollbackPreview?> previewLastFileTurnCheckpoint(
+    ChatTurnOwner owner,
+  ) => _previewLastFileTurnCheckpoint(owner);
+
+  Future<McpToolResult> rollbackLastFileTurnCheckpoint(
+    ChatTurnOwner owner,
+    int expectedCheckpointToken,
+  ) => _rollbackLastFileTurnCheckpoint(owner, expectedCheckpointToken);
+
+  void clear(ChatTurnOwner owner) {
+    _clearedOwners.add(owner);
+    _states.remove(owner);
+    _turnPreviewBindings.removeWhere((_, binding) => binding.owner == owner);
+    final completed = _completedByConversation[owner.conversationId];
+    if (completed == null) {
       return;
     }
-
-    _fileTurnCheckpointStack.add(checkpoint.toImmutable());
-    if (_fileTurnCheckpointStack.length > 10) {
-      _fileTurnCheckpointStack.removeAt(0);
+    final removed = completed.where((item) => item.owner == owner).toSet();
+    completed.removeWhere(removed.contains);
+    if (completed.isEmpty) {
+      _completedByConversation.remove(owner.conversationId);
     }
   }
 
-  Future<FileTurnRollbackPreview?> previewLastFileTurnCheckpoint() async {
-    final checkpoint = _fileTurnCheckpointStack.isEmpty
-        ? null
-        : _fileTurnCheckpointStack.last;
-    if (checkpoint == null) return null;
-
-    final previews = <String>[];
-    for (final entry in checkpoint.entries) {
-      previews.add(await _buildPreviewForEntry(entry));
+  Future<void> retireConversation(String conversationId) async {
+    final normalizedId = conversationId.trim();
+    if (normalizedId.isEmpty) {
+      return;
     }
+    _retiredConversationIds.add(normalizedId);
+    _states.removeWhere((owner, _) => owner.conversationId == normalizedId);
+    _turnPreviewBindings.removeWhere(
+      (_, binding) => binding.owner.conversationId == normalizedId,
+    );
+    _clearedOwners.removeWhere((owner) => owner.conversationId == normalizedId);
+    _completedByConversation.remove(normalizedId);
 
-    final count = checkpoint.entries.length;
-    return FileTurnRollbackPreview(
-      turnId: checkpoint.turnId,
-      paths: checkpoint.entries
-          .map((entry) => entry.path)
-          .toList(growable: false),
-      preview: previews.join('\n\n'),
-      summary: count == 1
-          ? 'Revert the last agent turn file change.'
-          : 'Revert $count file changes from the last agent turn.',
+    final attempts = _turnRollbackAttempts.values
+        .where(
+          (attempt) => attempt.binding.owner.conversationId == normalizedId,
+        )
+        .toList(growable: false);
+    await Future.wait(
+      attempts.map((attempt) => attempt.initialSettlement.future),
+    );
+    final recoveries = _turnRollbackRecoveries.values
+        .where(
+          (recovery) =>
+              recovery.attempt.binding.owner.conversationId == normalizedId,
+        )
+        .toList(growable: false);
+    for (final recovery in recoveries) {
+      await _retireTurnRollbackRecovery(recovery);
+    }
+  }
+
+  _OwnerRollbackState _stateFor(ChatTurnOwner owner) {
+    return _states.putIfAbsent(owner, _OwnerRollbackState.new);
+  }
+
+  List<_CheckpointRef> _completedFor(String conversationId) {
+    return _completedByConversation.putIfAbsent(
+      conversationId,
+      () => <_CheckpointRef>[],
     );
   }
 
-  Future<McpToolResult> rollbackLastFileTurnCheckpoint() async {
-    final checkpoint = _fileTurnCheckpointStack.isEmpty
-        ? null
-        : _fileTurnCheckpointStack.removeLast();
-    if (checkpoint == null) {
-      return const McpToolResult(
-        toolName: 'rollback_last_turn_file_changes',
-        result: '',
-        isSuccess: false,
-        errorMessage:
-            'No recent turn file checkpoint is available to roll back',
-      );
+  void _evictCheckpoint(_CheckpointRef reference) {
+    if (_turnRollbackAttempts.containsKey(reference)) {
+      return;
     }
+    _states[reference.owner]?.turnCheckpoints.removeWhere(
+      (checkpoint) => checkpoint.token == reference.token,
+    );
+    _removeCheckpointReferences(reference);
+    _removeStateIfEmpty(reference.owner);
+  }
 
-    final restored = <Map<String, Object?>>[];
-    for (final entry in checkpoint.entries.reversed) {
-      final result = await FilesystemTools.restoreTextSnapshot(
-        path: entry.path,
-        existedBefore: entry.existedBefore,
-        content: entry.previousContent,
-      );
-      final ok = _isFilesystemPayloadSuccess(result);
-      restored.add({
-        'path': entry.path,
-        'ok': ok,
-        'result': _tryDecodeJson(result) ?? result,
-      });
-      if (!ok) {
-        _fileTurnCheckpointStack.add(checkpoint);
-        return McpToolResult(
-          toolName: 'rollback_last_turn_file_changes',
-          result: jsonEncode({
-            'ok': false,
-            'turn_id': checkpoint.turnId,
-            'restored': restored.reversed.toList(growable: false),
-          }),
-          isSuccess: false,
-          errorMessage: 'Failed to roll back the last turn file checkpoint',
-        );
+  void _removeCheckpointReferences(_CheckpointRef reference) {
+    _turnPreviewBindings.removeWhere(
+      (_, binding) => binding.checkpointRef == reference,
+    );
+    final completed = _completedByConversation[reference.owner.conversationId];
+    completed?.remove(reference);
+    if (completed?.isEmpty ?? false) {
+      _completedByConversation.remove(reference.owner.conversationId);
+    }
+  }
+
+  void _removeStateIfEmpty(ChatTurnOwner owner) {
+    final state = _states[owner];
+    if (state == null ||
+        state.singleChanges.isNotEmpty ||
+        state.turnCheckpoints.isNotEmpty ||
+        state.activeTurnCheckpoint != null) {
+      return;
+    }
+    _states.remove(owner);
+  }
+
+  _FileRollbackEntry? _recordedEntryForCompensation(
+    ChatTurnOwner owner,
+    String compensationToken,
+  ) {
+    final state = _states[owner];
+    if (state == null) return null;
+    for (final entry in _recordedEntries(state)) {
+      if (entry.compensationToken == compensationToken) {
+        return entry;
       }
     }
-
-    return McpToolResult(
-      toolName: 'rollback_last_turn_file_changes',
-      result: jsonEncode({
-        'ok': true,
-        'turn_id': checkpoint.turnId,
-        'restored': restored.reversed.toList(growable: false),
-      }),
-      isSuccess: true,
-    );
+    return null;
   }
 
-  Future<String> _buildPreviewForEntry(_FileRollbackEntry entry) async {
-    final currentSnapshot = await FilesystemTools.captureTextSnapshot(
-      entry.path,
-    );
-    final summary = entry.existedBefore
-        ? 'Restore the previous contents of this file.'
-        : 'Delete the newly created file.';
-    if (currentSnapshot.error != null) {
-      return 'Diff preview unavailable: ${currentSnapshot.error}\n\n'
-          'Rollback target: ${entry.path}\n'
-          '$summary';
+  Iterable<_FileRollbackEntry> _recordedEntries(
+    _OwnerRollbackState state,
+  ) sync* {
+    final seen = <_FileRollbackEntry>{};
+    for (final entry in state.singleChanges) {
+      if (entry.compensationToken != null && seen.add(entry)) {
+        yield entry;
+      }
     }
-    return FilesystemTools.buildUnifiedDiff(
-      path: entry.path,
-      oldContent: currentSnapshot.exists ? currentSnapshot.content : null,
-      newContent: entry.existedBefore ? (entry.previousContent ?? '') : null,
-    );
+    final active = state.activeTurnCheckpoint;
+    if (active != null) {
+      for (final entry in active.entries) {
+        if (entry.compensationToken != null && seen.add(entry)) {
+          yield entry;
+        }
+      }
+    }
+    for (final checkpoint in state.turnCheckpoints) {
+      for (final entry in checkpoint.entries) {
+        if (entry.compensationToken != null && seen.add(entry)) {
+          yield entry;
+        }
+      }
+    }
   }
 
   bool _isFilesystemPayloadSuccess(String payload) {
@@ -257,38 +398,5 @@ class FileRollbackCheckpointStore {
     } catch (_) {
       return null;
     }
-  }
-}
-
-class _FileRollbackEntry {
-  const _FileRollbackEntry({
-    required this.path,
-    required this.existedBefore,
-    this.previousContent,
-  });
-
-  final String path;
-  final bool existedBefore;
-  final String? previousContent;
-}
-
-class _FileTurnCheckpoint {
-  _FileTurnCheckpoint({required this.turnId, required this.entries});
-
-  final String turnId;
-  final List<_FileRollbackEntry> entries;
-
-  void addFirstEntryForPath(_FileRollbackEntry entry) {
-    if (entries.any((existing) => existing.path == entry.path)) {
-      return;
-    }
-    entries.add(entry);
-  }
-
-  _FileTurnCheckpoint toImmutable() {
-    return _FileTurnCheckpoint(
-      turnId: turnId,
-      entries: List<_FileRollbackEntry>.unmodifiable(entries),
-    );
   }
 }

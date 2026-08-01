@@ -4,6 +4,8 @@ import 'dart:io';
 
 import '../../../../core/services/login_shell_environment.dart';
 
+typedef GitProcessHandoff = bool Function();
+
 /// Local Git command execution utilities for built-in MCP tools.
 ///
 /// Desktop only (macOS, Linux, Windows). Uses [Process.run] to invoke
@@ -30,22 +32,18 @@ class GitTools {
     'log',
     'diff',
     'show',
-    'remote',
     'blame',
     'rev-parse',
     'describe',
     'shortlog',
     'ls-files',
     'ls-tree',
-    'reflog',
     'cat-file',
     'for-each-ref',
     'name-rev',
-    'symbolic-ref',
     'rev-list',
     'show-ref',
     'count-objects',
-    'fsck',
     'verify-pack',
     'diff-tree',
     'diff-files',
@@ -59,6 +57,10 @@ class GitTools {
     'tag',
     'stash',
     'config',
+    'remote',
+    'symbolic-ref',
+    'reflog',
+    'fsck',
   };
 
   /// Returns `true` when [command] is a read-only git operation that can
@@ -83,6 +85,14 @@ class GitTools {
         return _isStashReadOnly(args);
       case 'config':
         return _isConfigReadOnly(args);
+      case 'remote':
+        return _isRemoteReadOnly(args);
+      case 'symbolic-ref':
+        return _isSymbolicRefReadOnly(args);
+      case 'reflog':
+        return _isReflogReadOnly(args);
+      case 'fsck':
+        return _isFsckReadOnly(args);
       default:
         return false;
     }
@@ -114,11 +124,11 @@ class GitTools {
 
   /// Returns the first shell control operator outside quotes, if present.
   static String? firstShellControlOperator(String command) {
-    final normalized = normalizeCommand(command);
+    final inspectable = command.replaceAll(_modelControlTokenPattern, ' ');
     String? quoteChar;
 
-    for (var i = 0; i < normalized.length; i++) {
-      final c = normalized[i];
+    for (var i = 0; i < inspectable.length; i++) {
+      final c = inspectable[i];
 
       if (quoteChar != null) {
         if (quoteChar == '"' && c == '\\') {
@@ -137,19 +147,19 @@ class GitTools {
       }
 
       if (c == '&') {
-        if (i + 1 < normalized.length && normalized[i + 1] == '&') {
+        if (i + 1 < inspectable.length && inspectable[i + 1] == '&') {
           return '&&';
         }
         return '&';
       }
       if (c == '|') {
-        if (i + 1 < normalized.length && normalized[i + 1] == '|') {
+        if (i + 1 < inspectable.length && inspectable[i + 1] == '|') {
           return '||';
         }
         return '|';
       }
-      if (c == ';' || c == '<' || c == '>' || c == '\n') {
-        return c == '\n' ? 'newline' : c;
+      if (c == ';' || c == '<' || c == '>' || c == '\n' || c == '\r') {
+        return c == '\n' || c == '\r' ? 'newline' : c;
       }
     }
 
@@ -210,7 +220,7 @@ class GitTools {
 
   /// `git stash` is read-only for `list` and `show` sub-subcommands only.
   static bool _isStashReadOnly(List<String> args) {
-    if (args.length < 2) return true; // bare `git stash` = stash push (write)
+    if (args.length < 2) return false;
     const readOnlyStashActions = {'list', 'show'};
     return readOnlyStashActions.contains(args[1]);
   }
@@ -234,6 +244,116 @@ class GitTools {
     return positionals.length <= 1;
   }
 
+  /// `git remote` is read-only when listing remotes, inspecting a remote, or
+  /// resolving its URL. Pruning is read-only only in dry-run mode.
+  static bool _isRemoteReadOnly(List<String> args) {
+    var actionIndex = 1;
+    const listingFlags = {'-v', '--verbose', '--no-verbose'};
+    while (actionIndex < args.length &&
+        listingFlags.contains(args[actionIndex])) {
+      actionIndex += 1;
+    }
+    if (actionIndex == args.length) {
+      return true;
+    }
+
+    final action = args[actionIndex];
+    final actionArgs = args.sublist(actionIndex + 1);
+    switch (action) {
+      case 'show':
+        final positionals = _readOnlyPositionals(
+          actionArgs,
+          allowedFlags: const {'-n'},
+        );
+        return positionals?.length == 1;
+      case 'get-url':
+        final positionals = _readOnlyPositionals(
+          actionArgs,
+          allowedFlags: const {'--push', '--all'},
+        );
+        return positionals?.length == 1;
+      case 'prune':
+        final positionals = _readOnlyPositionals(
+          actionArgs,
+          allowedFlags: const {'-n', '--dry-run'},
+        );
+        final isDryRun =
+            actionArgs.contains('-n') || actionArgs.contains('--dry-run');
+        return isDryRun && positionals?.length == 1;
+      default:
+        return false;
+    }
+  }
+
+  /// `git symbolic-ref` is read-only only when resolving one symbolic ref.
+  static bool _isSymbolicRefReadOnly(List<String> args) {
+    final positionals = _readOnlyPositionals(
+      args.skip(1),
+      allowedFlags: const {
+        '-q',
+        '--quiet',
+        '--no-quiet',
+        '--short',
+        '--no-short',
+        '--recurse',
+        '--no-recurse',
+        '--no-delete',
+      },
+    );
+    return positionals?.length == 1;
+  }
+
+  /// `git reflog` defaults to `show`; its explicit maintenance actions write
+  /// reflog state and therefore require approval.
+  static bool _isReflogReadOnly(List<String> args) {
+    if (args.length == 1) {
+      return true;
+    }
+    const writeActions = {'expire', 'delete', 'drop', 'write'};
+    return !writeActions.contains(args[1]);
+  }
+
+  /// `git fsck` is observational except when `--lost-found` asks Git to write
+  /// dangling objects into `.git/lost-found`.
+  static bool _isFsckReadOnly(List<String> args) {
+    for (final arg in args.skip(1)) {
+      if (_enablesFsckLostFound(arg)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static bool _enablesFsckLostFound(String arg) {
+    if (arg == '--' || arg.startsWith('--no-')) {
+      return false;
+    }
+    final optionName = arg.split('=').first;
+    return optionName.length > 2 && '--lost-found'.startsWith(optionName);
+  }
+
+  static List<String>? _readOnlyPositionals(
+    Iterable<String> args, {
+    required Set<String> allowedFlags,
+  }) {
+    final positionals = <String>[];
+    var optionsEnded = false;
+    for (final arg in args) {
+      if (!optionsEnded && arg == '--') {
+        optionsEnded = true;
+        continue;
+      }
+      if (!optionsEnded && arg.startsWith('-')) {
+        if (!allowedFlags.contains(arg)) {
+          return null;
+        }
+        continue;
+      }
+      positionals.add(arg);
+    }
+    return positionals;
+  }
+
   // -------------------------------------------------------------------------
   // Execution
   // -------------------------------------------------------------------------
@@ -244,7 +364,9 @@ class GitTools {
     required String command,
     required String workingDirectory,
     String? reason,
+    GitProcessHandoff? beforeProcessStart,
   }) async {
+    final shellOperator = firstShellControlOperator(command);
     final normalizedCommand = normalizeCommand(command);
 
     // Validate working directory.
@@ -259,7 +381,6 @@ class GitTools {
     if (args.isEmpty) {
       return jsonEncode({'error': 'Empty git command'});
     }
-    final shellOperator = firstShellControlOperator(normalizedCommand);
     if (shellOperator != null) {
       return jsonEncode({
         'command': 'git $normalizedCommand',
@@ -339,6 +460,14 @@ class GitTools {
     }
 
     try {
+      if (beforeProcessStart != null && !beforeProcessStart()) {
+        return jsonEncode({
+          'command': 'git $normalizedCommand',
+          'working_directory': workingDirectory,
+          'exit_code': 130,
+          'error': 'Git process owner expired before process creation.',
+        });
+      }
       final result = await Process.run(
         'git',
         args,
@@ -386,6 +515,7 @@ class GitTools {
     String baseBranch = 'main',
     bool removeWorktree = true,
     String? mergeMessage,
+    GitProcessHandoff? beforeProcessStart,
   }) async {
     final normalizedWorktreePath = worktreePath.trim();
     final normalizedBaseBranch = _normalizeBranchName(baseBranch.trim());
@@ -574,6 +704,17 @@ class GitTools {
       mergeArgs.addAll(['-m', trimmedMessage]);
     }
     mergeArgs.add(currentBranch);
+    if (beforeProcessStart != null && !beforeProcessStart()) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'git_finish_worktree_owner_expired',
+        'worktree_path': worktreeDir.absolute.path,
+        'base_worktree_path': baseEntry.path,
+        'base_branch': normalizedBaseBranch,
+        'current_branch': currentBranch,
+        'error': 'Git process owner expired before process creation.',
+      });
+    }
     final mergeResult = await _runGitCommand(
       mergeArgs,
       workingDirectory: baseEntry.path,

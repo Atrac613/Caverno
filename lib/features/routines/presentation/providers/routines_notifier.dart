@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -9,6 +11,11 @@ import '../../data/routine_repository.dart';
 import '../../domain/entities/routine.dart';
 import '../../domain/services/routine_completion_action_service.dart';
 import '../../domain/services/routine_schedule_service.dart';
+import 'routine_catalog_reconciliation.dart';
+import 'routine_creation_receipt.dart';
+import 'routine_creation_receipt_ledger.dart';
+
+export 'routine_creation_receipt.dart';
 
 /// Sentinel used so [RoutinesState.copyWith] can distinguish "leave unchanged"
 /// from an explicit `null` (needed to clear the selected routine).
@@ -58,14 +65,44 @@ final routinesNotifierProvider =
 class RoutinesNotifier extends Notifier<RoutinesState> {
   final Uuid _uuid = const Uuid();
   static const int _maxStoredRuns = 8;
+  static const int maxPendingCreationReceipts = 64;
+  static const int maxCreationReceiptTombstones = 64;
 
   late RoutineRepositoryApi _repository;
+  final RoutineCreationReceiptLedger _creationReceipts =
+      RoutineCreationReceiptLedger(
+        maxPendingReceipts: maxPendingCreationReceipts,
+        maxTombstones: maxCreationReceiptTombstones,
+      );
+  Future<void> _routineMutationTail = Future<void>.value();
 
   @override
   RoutinesState build() {
     _repository = ref.read(routineRepositoryProvider);
     final routines = _orderedRoutines(_repository.loadAll());
     return RoutinesState(routines: routines);
+  }
+
+  List<Routine> get routinesSnapshot =>
+      List<Routine>.unmodifiable(state.routines);
+  int get pendingCreationReceiptCount => _creationReceipts.pendingCount;
+  int get creationReceiptTombstoneCount => _creationReceipts.tombstoneCount;
+
+  RoutineCreationReceipt? pendingCreationReceipt(
+    RoutineCreationReceiptClaim claim,
+  ) => _creationReceipts.pending(claim);
+
+  RoutineCreationReceiptTombstone? terminalCreationReceipt(
+    RoutineCreationReceiptClaim claim,
+  ) => _creationReceipts.terminal(claim);
+
+  RoutineCreationReceipt? releasedCreationReceipt(
+    RoutineCreationReceiptClaim claim,
+  ) {
+    final tombstone = terminalCreationReceipt(claim);
+    return tombstone?.disposition == RoutineCreationTerminalDisposition.released
+        ? tombstone!.receipt
+        : null;
   }
 
   Future<void> createRoutine({
@@ -83,13 +120,13 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     String workspaceDirectory = '',
     bool allowWorkspaceWrites = false,
   }) async {
-    final now = DateTime.now();
-    final routine = Routine(
-      id: _uuid.v4(),
-      name: name.trim(),
-      prompt: prompt.trim(),
-      createdAt: now,
-      updatedAt: now,
+    final prepared = _newRoutine(
+      name: name,
+      prompt: prompt,
+      intervalValue: intervalValue,
+      intervalUnit: intervalUnit,
+      scheduleMode: scheduleMode,
+      timeOfDayMinutes: timeOfDayMinutes,
       enabled: enabled,
       notifyOnCompletion: notifyOnCompletion,
       toolsEnabled: toolsEnabled,
@@ -97,19 +134,149 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       googleChatRule: googleChatRule,
       workspaceDirectory: workspaceDirectory,
       allowWorkspaceWrites: allowWorkspaceWrites,
-      intervalValue: RoutineScheduleService.normalizeIntervalValue(
-        intervalValue,
-      ),
-      intervalUnit: intervalUnit,
-      scheduleMode: scheduleMode,
-      timeOfDayMinutes: RoutineScheduleService.normalizeTimeOfDayMinutes(
-        timeOfDayMinutes,
+    );
+    await _withRoutineMutation(() => _persistLocalRoutine(prepared));
+  }
+
+  /// Preallocates a compensable receipt before any repository side effect.
+  Future<RoutineCreationAttempt> attemptRoutineCreationWithReceipt({
+    required RoutineCreationReceiptBinding binding,
+    required RoutineCreationPreEffectGuard preEffectOwnerIsCurrent,
+    required String name,
+    required String prompt,
+    required int intervalValue,
+    required RoutineIntervalUnit intervalUnit,
+    required RoutineScheduleMode scheduleMode,
+    required int timeOfDayMinutes,
+    required bool enabled,
+    required bool notifyOnCompletion,
+    required bool toolsEnabled,
+    required RoutineCompletionAction completionAction,
+    required RoutineGoogleChatRule googleChatRule,
+    String workspaceDirectory = '',
+    bool allowWorkspaceWrites = false,
+  }) async {
+    final priorTerminal = _creationReceipts.terminalWithBinding(binding);
+    if (priorTerminal != null) {
+      if (priorTerminal.disposition ==
+          RoutineCreationTerminalDisposition.released) {
+        return RoutineCreationAttempt(
+          receipt: priorTerminal.receipt,
+          disposition: RoutineCreationCommitDisposition.committed,
+        );
+      }
+      throw const RoutineCreationPreEffectRejection(
+        'This exact routine creation call was already compensated.',
+      );
+    }
+    late final RoutineCreationReceipt receipt;
+    try {
+      final prepared = _newRoutine(
+        name: name,
+        prompt: prompt,
+        intervalValue: intervalValue,
+        intervalUnit: intervalUnit,
+        scheduleMode: scheduleMode,
+        timeOfDayMinutes: timeOfDayMinutes,
+        enabled: enabled,
+        notifyOnCompletion: notifyOnCompletion,
+        toolsEnabled: toolsEnabled,
+        completionAction: completionAction,
+        googleChatRule: googleChatRule,
+        workspaceDirectory: workspaceDirectory,
+        allowWorkspaceWrites: allowWorkspaceWrites,
+      );
+      receipt = RoutineCreationReceipt(
+        token: _uuid.v4(),
+        binding: binding,
+        routine: prepared,
+        routineDigest: routineCreationDigest(prepared),
+        phase: RoutineCreationReceiptPhase.prepared,
+      );
+    } catch (error) {
+      throw RoutineCreationPreEffectRejection(
+        'Routine creation could not be prepared: $error',
+      );
+    }
+    _rememberCreationReceipt(receipt);
+    return _withRoutineMutation(
+      () => _commitRoutineCreation(
+        receipt.claim,
+        preEffectOwnerIsCurrent: preEffectOwnerIsCurrent,
       ),
     );
-
-    final prepared = _prepareRoutineForPersistence(routine, previous: null);
-    await _persistRoutines([...state.routines, prepared]);
   }
+
+  /// Removes only the unchanged routine named by an exact creation receipt.
+  Future<RoutineCreationCompensationDisposition> compensateRoutineCreation(
+    RoutineCreationReceiptClaim claim,
+  ) => _withRoutineMutation(() => _compensateRoutineCreation(claim));
+
+  Future<RoutineCreationSettlementDisposition> prepareRoutineCreationSettlement(
+    RoutineCreationReceiptClaim claim, {
+    bool Function()? isStillValid,
+  }) => _withRoutineMutation(() {
+    final terminal = terminalCreationReceipt(claim);
+    if (terminal != null) {
+      return terminal.disposition == RoutineCreationTerminalDisposition.released
+          ? RoutineCreationSettlementDisposition.released
+          : RoutineCreationSettlementDisposition.conflict;
+    }
+    final bool ownerCurrent;
+    try {
+      ownerCurrent = isStillValid?.call() ?? true;
+    } catch (_) {
+      return RoutineCreationSettlementDisposition.effectUncertain;
+    }
+    if (!ownerCurrent) {
+      return RoutineCreationSettlementDisposition.ownerExpired;
+    }
+    final receipt = pendingCreationReceipt(claim);
+    if (receipt == null) {
+      return _creationReceipts.containsToken(claim.token)
+          ? RoutineCreationSettlementDisposition.conflict
+          : RoutineCreationSettlementDisposition.unknownToken;
+    }
+    if (receipt.phase == RoutineCreationReceiptPhase.settlementPrepared) {
+      return RoutineCreationSettlementDisposition.prepared;
+    }
+    if (receipt.phase != RoutineCreationReceiptPhase.committed) {
+      return RoutineCreationSettlementDisposition.conflict;
+    }
+    late final List<Routine> persisted;
+    try {
+      persisted = _repository.loadAll();
+    } catch (_) {
+      return RoutineCreationSettlementDisposition.effectUncertain;
+    }
+    if (!sameExactRoutineCatalog(persisted, state.routines) ||
+        !containsUniqueExactRoutine(state.routines, receipt.routine) ||
+        !containsUniqueExactRoutine(persisted, receipt.routine)) {
+      return RoutineCreationSettlementDisposition.conflict;
+    }
+    _replaceReceiptPhase(
+      receipt,
+      RoutineCreationReceiptPhase.settlementPrepared,
+    );
+    return RoutineCreationSettlementDisposition.prepared;
+  });
+
+  Future<bool> releaseRoutineCreationSettlement(
+    RoutineCreationReceiptClaim claim,
+  ) => _withRoutineMutation(() {
+    final terminal = terminalCreationReceipt(claim);
+    if (terminal != null) {
+      return terminal.disposition ==
+          RoutineCreationTerminalDisposition.released;
+    }
+    final receipt = pendingCreationReceipt(claim);
+    if (receipt == null ||
+        receipt.phase != RoutineCreationReceiptPhase.settlementPrepared) {
+      return false;
+    }
+    _creationReceipts.rememberReleased(receipt);
+    return true;
+  });
 
   Future<void> updateRoutine({
     required String routineId,
@@ -181,14 +348,15 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
   }
 
   Future<void> deleteRoutine(String routineId) async {
-    final updated = state.routines
-        .where((routine) => routine.id != routineId)
-        .toList(growable: false);
-    await _persistRoutines(
-      updated,
-      runningRoutineIds: {
-        ...state.runningRoutineIds.where((id) => id != routineId),
-      },
+    await _withRoutineMutation(
+      () => _persistRoutinesUnlocked(
+        state.routines
+            .where((routine) => routine.id != routineId)
+            .toList(growable: false),
+        runningRoutineIds: {
+          ...state.runningRoutineIds.where((id) => id != routineId),
+        },
+      ),
     );
     if (state.selectedRoutineId == routineId) {
       state = state.copyWith(selectedRoutineId: null);
@@ -225,7 +393,9 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       timeOfDayMinutes: source.timeOfDayMinutes,
     );
     final prepared = _prepareRoutineForPersistence(duplicate, previous: null);
-    await _persistRoutines([...state.routines, prepared]);
+    await _withRoutineMutation(
+      () => _persistRoutinesUnlocked([...state.routines, prepared]),
+    );
     return prepared;
   }
 
@@ -500,8 +670,11 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     );
   }
 
-  Routine? _findRoutine(String routineId) {
-    for (final routine in state.routines) {
+  Routine? _findRoutine(String routineId) =>
+      _findRoutineIn(state.routines, routineId);
+
+  Routine? _findRoutineIn(Iterable<Routine> routines, String routineId) {
+    for (final routine in routines) {
       if (routine.id == routineId) {
         return routine;
       }
@@ -549,17 +722,63 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     );
   }
 
+  Routine _newRoutine({
+    required String name,
+    required String prompt,
+    required int intervalValue,
+    required RoutineIntervalUnit intervalUnit,
+    required RoutineScheduleMode scheduleMode,
+    required int timeOfDayMinutes,
+    required bool enabled,
+    required bool notifyOnCompletion,
+    required bool toolsEnabled,
+    required RoutineCompletionAction completionAction,
+    required RoutineGoogleChatRule googleChatRule,
+    required String workspaceDirectory,
+    required bool allowWorkspaceWrites,
+  }) {
+    final now = DateTime.now();
+    return _prepareRoutineForPersistence(
+      Routine(
+        id: _uuid.v4(),
+        name: name.trim(),
+        prompt: prompt.trim(),
+        createdAt: now,
+        updatedAt: now,
+        enabled: enabled,
+        notifyOnCompletion: notifyOnCompletion,
+        toolsEnabled: toolsEnabled,
+        completionAction: completionAction,
+        googleChatRule: googleChatRule,
+        workspaceDirectory: workspaceDirectory,
+        allowWorkspaceWrites: allowWorkspaceWrites,
+        intervalValue: RoutineScheduleService.normalizeIntervalValue(
+          intervalValue,
+        ),
+        intervalUnit: intervalUnit,
+        scheduleMode: scheduleMode,
+        timeOfDayMinutes: RoutineScheduleService.normalizeTimeOfDayMinutes(
+          timeOfDayMinutes,
+        ),
+      ),
+      previous: null,
+    );
+  }
+
   Future<void> _persistRoutine(
     Routine routine, {
     Set<String>? runningRoutineIds,
-  }) async {
+  }) => _withRoutineMutation(() async {
     final updated = state.routines
         .map((item) => item.id == routine.id ? routine : item)
         .toList(growable: false);
-    await _persistRoutines(updated, runningRoutineIds: runningRoutineIds);
-  }
+    await _persistRoutinesUnlocked(
+      updated,
+      runningRoutineIds: runningRoutineIds,
+    );
+  });
 
-  Future<void> _persistRoutines(
+  Future<void> _persistRoutinesUnlocked(
     List<Routine> routines, {
     Set<String>? runningRoutineIds,
   }) async {
@@ -569,6 +788,343 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       runningRoutineIds: runningRoutineIds,
     );
     await _repository.saveAll(ordered);
+  }
+
+  Future<void> _persistLocalRoutine(Routine routine) async {
+    if (_findRoutine(routine.id) != null) {
+      throw StateError('A routine with the generated ID already exists.');
+    }
+    final runningBefore = Set<String>.of(state.runningRoutineIds);
+    late final List<Routine> baseline;
+    try {
+      baseline = _repository.loadAll();
+    } catch (error) {
+      throw StateError('Routine catalog could not be refreshed: $error');
+    }
+    if (!sameExactRoutineCatalog(baseline, state.routines)) {
+      _adoptRoutineCatalog(baseline, runningBefore: runningBefore);
+      throw StateError('Routine catalog changed before local creation.');
+    }
+
+    final intended = _orderedRoutines([...baseline, routine]);
+    Object? persistenceError;
+    try {
+      await _persistRoutinesUnlocked(intended);
+    } catch (error) {
+      persistenceError = error;
+    }
+
+    List<Routine>? persisted;
+    try {
+      persisted = _repository.loadAll();
+    } catch (error) {
+      persistenceError ??= error;
+    }
+    final readback = persisted;
+    if (readback != null) {
+      _adoptRoutineCatalog(readback, runningBefore: runningBefore);
+      if (sameExactRoutineCatalog(readback, intended) &&
+          containsUniqueExactRoutine(readback, routine)) {
+        return;
+      }
+      if (containsUniqueExactRoutine(readback, routine) &&
+          isCompatibleCatalogProjection(readback, intended)) {
+        try {
+          await _persistRoutinesUnlocked(intended);
+        } catch (error) {
+          persistenceError ??= error;
+        }
+        try {
+          final repaired = _repository.loadAll();
+          _adoptRoutineCatalog(repaired, runningBefore: runningBefore);
+          if (sameExactRoutineCatalog(repaired, intended) &&
+              containsUniqueExactRoutine(repaired, routine)) {
+            return;
+          }
+        } catch (error) {
+          persistenceError ??= error;
+        }
+      }
+    }
+    throw persistenceError ??
+        StateError('The persisted routine did not match the local creation.');
+  }
+
+  Future<RoutineCreationAttempt> _commitRoutineCreation(
+    RoutineCreationReceiptClaim claim, {
+    required RoutineCreationPreEffectGuard preEffectOwnerIsCurrent,
+  }) async {
+    final receipt = pendingCreationReceipt(claim);
+    if (receipt == null) {
+      throw StateError('Routine creation receipt identity mismatch.');
+    }
+    if (receipt.phase == RoutineCreationReceiptPhase.committed) {
+      return RoutineCreationAttempt(
+        receipt: receipt,
+        disposition: RoutineCreationCommitDisposition.committed,
+      );
+    }
+    var ownerIsCurrent = false;
+    try {
+      ownerIsCurrent = preEffectOwnerIsCurrent(receipt.binding);
+    } catch (_) {
+      ownerIsCurrent = false;
+    }
+    if (!ownerIsCurrent) {
+      _creationReceipts.removePending(claim);
+      return RoutineCreationAttempt(
+        receipt: receipt,
+        disposition: RoutineCreationCommitDisposition.ownerExpiredBeforeEffect,
+      );
+    }
+
+    final runningBefore = Set<String>.of(state.runningRoutineIds);
+    late final List<Routine> baseline;
+    try {
+      baseline = _repository.loadAll();
+    } catch (error) {
+      _creationReceipts.removePending(claim);
+      return RoutineCreationAttempt(
+        receipt: receipt,
+        disposition: RoutineCreationCommitDisposition.rejectedBeforeEffect,
+        error: StateError('Routine catalog could not be refreshed: $error'),
+      );
+    }
+    if (!sameExactRoutineCatalog(baseline, state.routines)) {
+      _adoptRoutineCatalog(baseline, runningBefore: runningBefore);
+      _creationReceipts.removePending(claim);
+      return RoutineCreationAttempt(
+        receipt: receipt,
+        disposition: RoutineCreationCommitDisposition.rejectedBeforeEffect,
+        error: StateError('Routine catalog changed before creation.'),
+      );
+    }
+
+    final existing = _findRoutine(receipt.routine.id);
+    if (existing != null && existing != receipt.routine) {
+      _creationReceipts.removePending(claim);
+      return RoutineCreationAttempt(
+        receipt: receipt,
+        disposition: RoutineCreationCommitDisposition.rejectedBeforeEffect,
+        error: StateError('A routine with the generated ID already exists.'),
+      );
+    }
+
+    final candidate = existing == null
+        ? [...baseline, receipt.routine]
+        : baseline;
+    Object? persistenceError;
+    try {
+      await _persistRoutinesUnlocked(candidate);
+    } catch (error) {
+      persistenceError = error;
+    }
+
+    List<Routine>? persisted;
+    try {
+      persisted = _repository.loadAll();
+    } catch (error) {
+      persistenceError ??= error;
+    }
+    if (persisted != null &&
+        sameExactRoutineCatalog(persisted, state.routines) &&
+        containsUniqueExactRoutine(persisted, receipt.routine) &&
+        containsUniqueExactRoutine(state.routines, receipt.routine)) {
+      final committed = _replaceReceiptPhase(
+        receipt,
+        RoutineCreationReceiptPhase.committed,
+      );
+      return RoutineCreationAttempt(
+        receipt: committed,
+        disposition: RoutineCreationCommitDisposition.committed,
+        error: persistenceError,
+      );
+    }
+
+    if (persisted != null) {
+      _adoptRoutineCatalog(persisted, runningBefore: runningBefore);
+    }
+    final uncertain = _replaceReceiptPhase(
+      receipt,
+      RoutineCreationReceiptPhase.effectUncertain,
+    );
+    return RoutineCreationAttempt(
+      receipt: uncertain,
+      disposition: RoutineCreationCommitDisposition.effectUncertain,
+      error:
+          persistenceError ??
+          StateError(
+            'The persisted routine did not match the creation receipt.',
+          ),
+    );
+  }
+
+  Future<RoutineCreationCompensationDisposition> _compensateRoutineCreation(
+    RoutineCreationReceiptClaim claim,
+  ) async {
+    final terminal = terminalCreationReceipt(claim);
+    if (terminal != null) {
+      if (terminal.disposition ==
+          RoutineCreationTerminalDisposition.compensated) {
+        return terminal.compensationDisposition!;
+      }
+      return RoutineCreationCompensationDisposition.conflict;
+    }
+    final receipt = pendingCreationReceipt(claim);
+    if (receipt == null) {
+      return _creationReceipts.containsToken(claim.token)
+          ? RoutineCreationCompensationDisposition.conflict
+          : RoutineCreationCompensationDisposition.unknownToken;
+    }
+
+    late final List<Routine> persisted;
+    try {
+      persisted = _repository.loadAll();
+    } catch (_) {
+      _replaceReceiptPhase(
+        receipt,
+        RoutineCreationReceiptPhase.effectUncertain,
+      );
+      return RoutineCreationCompensationDisposition.effectUncertain;
+    }
+    final stateBefore = List<Routine>.of(state.routines);
+    final runningBefore = Set<String>.of(state.runningRoutineIds);
+    if (!hasUniqueRoutineIds(stateBefore) ||
+        !hasOnlyExactTargetMatches(stateBefore, receipt.routine) ||
+        !hasUniqueRoutineIds(persisted) ||
+        !hasOnlyExactTargetMatches(persisted, receipt.routine) ||
+        persisted.where((routine) => routine.id == receipt.routine.id).length >
+            1) {
+      return RoutineCreationCompensationDisposition.conflict;
+    }
+
+    final runningWithout = {
+      ...state.runningRoutineIds.where((id) => id != receipt.routine.id),
+    };
+    final targetWasPersisted = persisted.any(
+      (routine) => routine.id == receipt.routine.id,
+    );
+    if (!targetWasPersisted) {
+      _adoptRoutineCatalog(persisted, runningBefore: runningWithout);
+      _creationReceipts.rememberCompensated(
+        receipt,
+        RoutineCreationCompensationDisposition.alreadyAbsent,
+      );
+      return RoutineCreationCompensationDisposition.alreadyAbsent;
+    }
+
+    final desired = _orderedRoutines(
+      persisted
+          .where((routine) => routine.id != receipt.routine.id)
+          .toList(growable: false),
+    );
+    List<Routine>? readback = await _persistCompensationCandidate(
+      desired,
+      runningRoutineIds: runningWithout,
+    );
+    if (readback == null) {
+      _replaceReceiptPhase(
+        receipt,
+        RoutineCreationReceiptPhase.effectUncertain,
+      );
+      return RoutineCreationCompensationDisposition.effectUncertain;
+    }
+    var reconciled = collapseExactRoutineDuplicates(readback);
+    if (reconciled == null ||
+        !hasOnlyExactTargetMatches(reconciled, receipt.routine)) {
+      _replaceReceiptPhase(
+        receipt,
+        RoutineCreationReceiptPhase.effectUncertain,
+      );
+      return RoutineCreationCompensationDisposition.effectUncertain;
+    }
+    if (reconciled.length != readback.length ||
+        reconciled.any((routine) => routine.id == receipt.routine.id)) {
+      if (!isCompatibleCatalogProjection(reconciled, desired)) {
+        _replaceReceiptPhase(
+          receipt,
+          RoutineCreationReceiptPhase.effectUncertain,
+        );
+        return RoutineCreationCompensationDisposition.effectUncertain;
+      }
+      readback = await _persistCompensationCandidate(
+        desired,
+        runningRoutineIds: runningWithout,
+      );
+      if (readback == null) {
+        _replaceReceiptPhase(
+          receipt,
+          RoutineCreationReceiptPhase.effectUncertain,
+        );
+        return RoutineCreationCompensationDisposition.effectUncertain;
+      }
+      reconciled = collapseExactRoutineDuplicates(readback);
+    }
+    if (reconciled != null &&
+        hasOnlyExactTargetMatches(reconciled, receipt.routine) &&
+        !reconciled.any((routine) => routine.id == receipt.routine.id)) {
+      _adoptRoutineCatalog(reconciled, runningBefore: runningWithout);
+      _creationReceipts.rememberCompensated(
+        receipt,
+        RoutineCreationCompensationDisposition.reverted,
+      );
+      return RoutineCreationCompensationDisposition.reverted;
+    }
+    _adoptRoutineCatalog(readback, runningBefore: runningBefore);
+    _replaceReceiptPhase(receipt, RoutineCreationReceiptPhase.effectUncertain);
+    return RoutineCreationCompensationDisposition.effectUncertain;
+  }
+
+  Future<List<Routine>?> _persistCompensationCandidate(
+    List<Routine> routines, {
+    required Set<String> runningRoutineIds,
+  }) async {
+    try {
+      await _persistRoutinesUnlocked(
+        routines,
+        runningRoutineIds: runningRoutineIds,
+      );
+    } catch (_) {}
+    try {
+      return _repository.loadAll();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _adoptRoutineCatalog(
+    List<Routine> readback, {
+    required Set<String> runningBefore,
+  }) {
+    if (!hasUniqueRoutineIds(readback)) return false;
+    state = state.copyWith(
+      routines: _orderedRoutines(readback),
+      runningRoutineIds: reconciledRunningRoutineIds(runningBefore, readback),
+    );
+    return true;
+  }
+
+  Future<T> _withRoutineMutation<T>(FutureOr<T> Function() action) {
+    final predecessor = _routineMutationTail;
+    final released = Completer<void>();
+    _routineMutationTail = released.future;
+    return (() async {
+      await predecessor;
+      try {
+        return await action();
+      } finally {
+        released.complete();
+      }
+    })();
+  }
+
+  RoutineCreationReceipt _replaceReceiptPhase(
+    RoutineCreationReceipt receipt,
+    RoutineCreationReceiptPhase phase,
+  ) {
+    final updated = receipt.withPhase(phase);
+    _creationReceipts.replacePending(updated);
+    return updated;
   }
 
   List<Routine> _orderedRoutines(List<Routine> routines) {
@@ -594,5 +1150,9 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       return right.updatedAt.compareTo(left.updatedAt);
     });
     return ordered;
+  }
+
+  void _rememberCreationReceipt(RoutineCreationReceipt receipt) {
+    _creationReceipts.addPending(receipt);
   }
 }

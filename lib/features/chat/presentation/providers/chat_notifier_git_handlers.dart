@@ -1,12 +1,12 @@
-// Same-library extension on [ChatNotifier]; the `state` accessor is intentionally
-// reached through the part-of bridge. Riverpod marks `state` as `@protected` and
-// `@visibleForTesting`, which are not aware of extensions even in the same library.
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
 
 extension ChatNotifierGitHandlers on ChatNotifier {
-  Future<McpToolResult> _handleGitExecuteCommand(ToolCallInfo toolCall) async {
+  Future<McpToolResult> _handleGitExecuteCommand(
+    ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
+  ) async {
     final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
     if (accessFailure != null) return accessFailure;
 
@@ -31,6 +31,8 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       );
     }
 
+    // Shell control operators are rejected by GitTools.execute itself with a
+    // structured exit_code=2 payload; do not pre-empt that envelope here.
     final gitArguments = {
       ...resolvedArguments,
       'command': command,
@@ -45,13 +47,15 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       );
     }
 
-    final cachedResult = _lookupToolApprovalResult(toolCall.name, gitArguments);
-    if (cachedResult != null) {
-      return cachedResult;
-    }
+    final cachedResult = approvalCache.lookupDenial(
+      toolCall.name,
+      gitArguments,
+    );
+    if (cachedResult != null) return cachedResult;
 
     final reason = toolCall.arguments['reason'] as String?;
     final gate = await _resolveToolApprovalGate(
+      approvalCache,
       toolCall: toolCall,
       actionKind: 'git_execute_command',
       mode: _settings.codingApprovalMode,
@@ -59,6 +63,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       fullAccessEligible: true,
       approvalCacheArguments: gitArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
+        approvalCache.owner,
         toolCall: toolCall,
         actionKind: 'git_execute_command',
         arguments: gitArguments,
@@ -67,7 +72,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalDenial(
+      return approvalCache.rememberDenial(
         toolCall.name,
         gitArguments,
         _autoReviewDeniedResult(
@@ -79,12 +84,13 @@ extension ChatNotifierGitHandlers on ChatNotifier {
     if (gate.needsManual) {
       // Write commands require user approval.
       final approved = await requestGitCommand(
+        owner: approvalCache.owner,
         command: command,
         workingDirectory: workingDirectory,
         reason: reason,
       );
       if (!approved) {
-        return _rememberToolApprovalDenial(
+        return approvalCache.rememberDenial(
           toolCall.name,
           gitArguments,
           McpToolResult(
@@ -96,17 +102,20 @@ extension ChatNotifierGitHandlers on ChatNotifier {
         );
       }
     }
+    final expired = _expiredApproval(toolCall.name, approvalCache);
+    if (expired != null) return expired;
     final result = await _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: gitArguments,
     );
     return gate.bypassedApproval
         ? result
-        : _rememberToolApprovalResult(toolCall.name, gitArguments, result);
+        : approvalCache.rememberResult(toolCall.name, gitArguments, result);
   }
 
   Future<McpToolResult> _handleGitFinishWorktreeSession(
     ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
   ) async {
     final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
     if (accessFailure != null) return accessFailure;
@@ -156,16 +165,15 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       if (mergeMessage.isNotEmpty) 'merge_message': mergeMessage,
     };
 
-    final cachedResult = _lookupToolApprovalResult(
+    final cachedResult = approvalCache.lookupDenial(
       toolCall.name,
       finishArguments,
     );
-    if (cachedResult != null) {
-      return cachedResult;
-    }
+    if (cachedResult != null) return cachedResult;
 
     final reason = toolCall.arguments['reason'] as String?;
     final gate = await _resolveToolApprovalGate(
+      approvalCache,
       toolCall: toolCall,
       actionKind: 'git_finish_worktree_session',
       mode: _settings.codingApprovalMode,
@@ -173,6 +181,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       fullAccessEligible: true,
       approvalCacheArguments: finishArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
+        approvalCache.owner,
         toolCall: toolCall,
         actionKind: 'git_finish_worktree_session',
         arguments: finishArguments,
@@ -181,7 +190,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalDenial(
+      return approvalCache.rememberDenial(
         toolCall.name,
         finishArguments,
         _autoReviewDeniedResult(
@@ -195,12 +204,13 @@ extension ChatNotifierGitHandlers on ChatNotifier {
           ? 'finish worktree session: merge into $baseBranch and remove $worktreePath'
           : 'finish worktree session: merge into $baseBranch';
       final approved = await requestGitCommand(
+        owner: approvalCache.owner,
         command: commandSummary,
         workingDirectory: worktreePath,
         reason: reason,
       );
       if (!approved) {
-        return _rememberToolApprovalDenial(
+        return approvalCache.rememberDenial(
           toolCall.name,
           finishArguments,
           McpToolResult(
@@ -212,14 +222,15 @@ extension ChatNotifierGitHandlers on ChatNotifier {
         );
       }
     }
-
+    final expired = _expiredApproval(toolCall.name, approvalCache);
+    if (expired != null) return expired;
     final result = await _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: finishArguments,
     );
     return gate.bypassedApproval
         ? result
-        : _rememberToolApprovalResult(toolCall.name, finishArguments, result);
+        : approvalCache.rememberResult(toolCall.name, finishArguments, result);
   }
 
   bool _boolArgument(Object? value, {required bool defaultValue}) {
@@ -264,7 +275,8 @@ extension ChatNotifierGitHandlers on ChatNotifier {
     for (var index = 0; index < toolResults.length; index++) {
       final result = toolResults[index];
       final name = result.name.trim().toLowerCase();
-      if (name == 'write_file' && _isSuccessfulFileMutationToolResult(result)) {
+      if (name == 'write_file' &&
+          _fileMutationEvidencePolicy.isSuccessfulResult(result)) {
         hasFileCreation = true;
         continue;
       }
@@ -354,12 +366,14 @@ extension ChatNotifierGitHandlers on ChatNotifier {
   /// Puts a pending git command into state and returns a future that
   /// completes with `true` (approve) or `false` (deny).
   Future<bool> requestGitCommand({
+    required ChatTurnOwner owner,
     required String command,
     required String workingDirectory,
     String? reason,
   }) {
     final completer = Completer<bool>();
     final pending = PendingGitCommand(
+      owner: owner,
       id: const Uuid().v4(),
       command: command,
       workingDirectory: workingDirectory,
@@ -367,24 +381,17 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       completer: completer,
       origin: _activeInteractionOrigin,
     );
-    _routeApproval((s) => s.copyWith(pendingGitCommand: pending));
-    _emitRuntimeApprovalRequired(
-      id: pending.id,
-      capability: 'git_mutation',
-      summary: reason?.trim().isNotEmpty == true ? reason!.trim() : command,
-      target: workingDirectory,
-      rememberAllowed: true,
+    return _registerPendingToolApproval(
+      pending,
+      (s) => s.copyWith(pendingGitCommand: pending),
+      'git_mutation',
+      _approvalSummary(reason, command),
+      workingDirectory,
+      true,
     );
-    return completer.future;
   }
 
   /// Resolves a pending git command dialog from the UI layer.
-  void resolveGitCommand({required String id, required bool approved}) {
-    final pending = state.pendingGitCommand;
-    if (pending == null || pending.id != id) return;
-    if (!pending.completer.isCompleted) {
-      pending.completer.complete(approved);
-    }
-    state = state.copyWith(pendingGitCommand: null);
-  }
+  bool resolveGitCommand({required String id, required bool approved}) =>
+      _completeApproval<bool, PendingGitCommand>(id, (_) => approved);
 }

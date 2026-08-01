@@ -19,15 +19,20 @@ part of 'chat_notifier.dart';
 /// results by (name, arguments): repeated identical browser actions (e.g.
 /// clicking a "Next" button) must re-execute, so we only gate on approval.
 extension ChatNotifierBrowserHandlers on ChatNotifier {
-  Future<McpToolResult> _handleBrowserAction(ToolCallInfo toolCall) async {
+  Future<McpToolResult> _handleBrowserAction(
+    ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
+  ) async {
     final policy = BrowserToolPolicy.decision(toolCall.name);
     final gate = await _resolveToolApprovalGate(
+      approvalCache,
       toolCall: toolCall,
       actionKind: toolCall.name,
       mode: _settings.chatApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.browser,
       fullAccessEligible: true,
       buildReviewRequest: () async => _buildAutoReviewRequest(
+        approvalCache.owner,
         toolCall: toolCall,
         actionKind: toolCall.name,
         // Sanitized args: raw secret-bearing fields are dropped; a masked
@@ -38,12 +43,15 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
         preview: _browserSensitiveValuePreview(toolCall),
       ),
     );
+    final gateExpired = _expiredApproval(toolCall.name, approvalCache);
+    if (gateExpired != null) return gateExpired;
     if (gate.isDenied) {
       return _browserAutoReviewDeniedResult(toolCall, gate.deniedRationale!);
     }
     if (gate.needsManual) {
       final details = await _browserActionDetails(toolCall);
       final approved = await requestBrowserAction(
+        owner: approvalCache.owner,
         toolName: toolCall.name,
         title: policy.title,
         riskLabel: policy.riskLabel,
@@ -55,7 +63,7 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
         sensitiveValuePreview: _browserSensitiveValuePreview(toolCall),
         reason: toolCall.arguments['reason'] as String?,
       );
-      if (!approved) {
+      if (!approved && _isApprovalOwnerCurrent(approvalCache.owner)) {
         return McpToolResult(
           toolName: toolCall.name,
           result: jsonEncode({
@@ -70,6 +78,8 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
         );
       }
     }
+    final expired = _expiredApproval(toolCall.name, approvalCache);
+    if (expired != null) return expired;
     return _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: toolCall.arguments,
@@ -123,6 +133,7 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
   }
 
   Future<bool> requestBrowserAction({
+    required ChatTurnOwner owner,
     required String toolName,
     required String title,
     required String riskLabel,
@@ -136,6 +147,7 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
   }) {
     final completer = Completer<bool>();
     final pending = PendingBrowserAction(
+      owner: owner,
       id: const Uuid().v4(),
       toolName: toolName,
       title: title,
@@ -149,24 +161,17 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
       reason: reason,
       completer: completer,
     );
-    _routeApproval((s) => s.copyWith(pendingBrowserAction: pending));
-    _emitRuntimeApprovalRequired(
-      id: pending.id,
-      capability: 'browser_action',
-      summary: reason?.trim().isNotEmpty == true ? reason!.trim() : summary,
-      target: targetSummary,
+    return _registerPendingToolApproval(
+      pending,
+      (s) => s.copyWith(pendingBrowserAction: pending),
+      'browser_action',
+      _approvalSummary(reason, summary),
+      targetSummary,
     );
-    return completer.future;
   }
 
-  void resolveBrowserAction({required String id, required bool approved}) {
-    final pending = state.pendingBrowserAction;
-    if (pending == null || pending.id != id) return;
-    if (!pending.completer.isCompleted) {
-      pending.completer.complete(approved);
-    }
-    state = state.copyWith(pendingBrowserAction: null);
-  }
+  bool resolveBrowserAction({required String id, required bool approved}) =>
+      _completeApproval<bool, PendingBrowserAction>(id, (_) => approved);
 
   String _describeBrowserAction(ToolCallInfo toolCall) {
     final args = toolCall.arguments;

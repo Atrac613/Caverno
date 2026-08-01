@@ -259,6 +259,36 @@ void main() {
       },
     );
 
+    test('rolls back ownership when run_started preparation throws', () async {
+      final fixture = _RuntimeFixture(tools: const _ThrowingToolPort());
+      final events = <CavernoRuntimeEvent>[];
+      final subscription = fixture.runtime.events.listen(events.add);
+
+      await expectLater(
+        fixture.runtime.startTurn(
+          const CavernoRuntimeTurnRequest(turnId: 'turn-tool-failure'),
+        ),
+        throwsA(
+          isA<CavernoRuntimeTurnStartException>().having(
+            (error) => error.terminal.code,
+            'terminal code',
+            'turn_preparation_failed',
+          ),
+        ),
+      );
+
+      expect(fixture.runtime.hasActiveTurns, isFalse);
+      expect(fixture.ownership.handles.single.released, isTrue);
+      expect(events, hasLength(1));
+      expect(events.single, isA<CavernoRuntimeRunFailed>());
+      expect(fixture.repository.terminals, hasLength(1));
+      expect(fixture.lifecycle.started, isEmpty);
+      expect(fixture.lifecycle.terminals, hasLength(1));
+
+      await fixture.runtime.close();
+      await subscription.cancel();
+    });
+
     test('retains ownership until terminal persistence drains', () async {
       final fixture = _RuntimeFixture();
       final flushGate = Completer<void>();
@@ -301,49 +331,52 @@ void main() {
       await fixture.runtime.close();
     });
 
-    test('ownershipSettled waits for the lease, not the terminal event', () async {
-      // Live 2026-07-26: a queued plan approval drained 2 ms after
-      // run_completed and failed with a workspace ownership conflict. The
-      // terminal event means the model round-trip ended; the runtime still
-      // has to drain persistence before it hands the lease back.
-      final fixture = _RuntimeFixture();
-      final flushGate = Completer<void>();
-      fixture.repository.flushGate = flushGate;
+    test(
+      'ownershipSettled waits for the lease, not the terminal event',
+      () async {
+        // Live 2026-07-26: a queued plan approval drained 2 ms after
+        // run_completed and failed with a workspace ownership conflict. The
+        // terminal event means the model round-trip ended; the runtime still
+        // has to drain persistence before it hands the lease back.
+        final fixture = _RuntimeFixture();
+        final flushGate = Completer<void>();
+        fixture.repository.flushGate = flushGate;
 
-      final handle = await fixture.runtime.startTurn(
-        const CavernoRuntimeTurnRequest(turnId: 'turn-1'),
-      );
-      handle.complete(content: 'done');
-      await handle.done;
+        final handle = await fixture.runtime.startTurn(
+          const CavernoRuntimeTurnRequest(turnId: 'turn-1'),
+        );
+        handle.complete(content: 'done');
+        await handle.done;
 
-      var settled = false;
-      unawaited(fixture.runtime.ownershipSettled.then((_) => settled = true));
-      await Future<void>.delayed(Duration.zero);
+        var settled = false;
+        unawaited(fixture.runtime.ownershipSettled.then((_) => settled = true));
+        await Future<void>.delayed(Duration.zero);
 
-      expect(
-        fixture.ownership.handles.single.released,
-        isFalse,
-        reason: 'the lease is still held while persistence drains',
-      );
-      expect(
-        settled,
-        isFalse,
-        reason:
-            'starting the next turn here is what produced the ownership '
-            'conflict',
-      );
+        expect(
+          fixture.ownership.handles.single.released,
+          isFalse,
+          reason: 'the lease is still held while persistence drains',
+        );
+        expect(
+          settled,
+          isFalse,
+          reason:
+              'starting the next turn here is what produced the ownership '
+              'conflict',
+        );
 
-      flushGate.complete();
-      await fixture.runtime.ownershipSettled;
+        flushGate.complete();
+        await fixture.runtime.ownershipSettled;
 
-      expect(fixture.ownership.handles.single.released, isTrue);
-      await fixture.runtime.close();
-    });
+        expect(fixture.ownership.handles.single.released, isTrue);
+        await fixture.runtime.close();
+      },
+    );
   });
 }
 
 final class _RuntimeFixture {
-  _RuntimeFixture() {
+  _RuntimeFixture({CavernoRuntimeToolPort tools = const _ToolPort()}) {
     runtime = CavernoExecutionRuntime(
       composition: CavernoRuntimeComposition(
         surface: CavernoRuntimeSurface.headless,
@@ -351,7 +384,7 @@ final class _RuntimeFixture {
         repository: repository,
         ownership: ownership,
         llm: const _LlmPort(),
-        tools: const _ToolPort(),
+        tools: tools,
         approvals: approvals,
         logs: logs,
         lifecycle: lifecycle,
@@ -451,6 +484,14 @@ final class _ToolPort implements CavernoRuntimeToolPort {
 
   @override
   List<String> get availableToolNames => const <String>['read_file'];
+}
+
+final class _ThrowingToolPort implements CavernoRuntimeToolPort {
+  const _ThrowingToolPort();
+
+  @override
+  List<String> get availableToolNames =>
+      throw StateError('Tool definitions are unavailable.');
 }
 
 final class _ApprovalPort implements CavernoRuntimeApprovalPort {

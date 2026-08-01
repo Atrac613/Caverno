@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
@@ -103,6 +104,9 @@ final class WorkflowTaskRunCoordinator {
   final bool Function() _isContextMounted;
   final DateTime Function() _now;
 
+  List<ToolResultInfo> _takeToolResults(ChatTurnOwner? owner) =>
+      owner == null ? const [] : _chatNotifier.takeLatestToolResults(owner);
+
   Future<void> _setWorkflowTaskStatus({
     required Conversation currentConversation,
     required ConversationWorkflowTask task,
@@ -160,8 +164,7 @@ final class WorkflowTaskRunCoordinator {
     if (!_isContextMounted()) {
       return;
     }
-
-    await _chatNotifier.sendMessage(
+    final turnOwner = await _chatNotifier.sendMessage(
       ConversationPlanExecutionCoordinator.buildTaskPrompt(
         task: task,
         intro: promptText.intro,
@@ -176,8 +179,8 @@ final class WorkflowTaskRunCoordinator {
     if (!_isPageMounted() || !_isContextMounted()) {
       return;
     }
-
     await _processTaskTurnResults(
+      turnOwner,
       task: task,
       languageCode: languageCode,
       previousAssistantMessageId: previousAssistantMessageId,
@@ -219,8 +222,7 @@ final class WorkflowTaskRunCoordinator {
     if (!_isContextMounted()) {
       return;
     }
-
-    await _chatNotifier.sendMessage(
+    final validationOwner = await _chatNotifier.sendMessage(
       ConversationPlanExecutionCoordinator.buildValidationPrompt(
         task: task,
         intro: promptText.intro,
@@ -234,7 +236,7 @@ final class WorkflowTaskRunCoordinator {
     if (!_isPageMounted() || !_isContextMounted()) {
       return;
     }
-    final validationToolResults = _chatNotifier.takeLatestToolResults();
+    final validationToolResults = _takeToolResults(validationOwner);
     final toolResultApplied = await _conversationsNotifier
         .updateCurrentValidationProgressFromToolResults(
           task: task,
@@ -302,7 +304,7 @@ final class WorkflowTaskRunCoordinator {
         previousAssistantMessageId: previousAssistantMessageId,
         isValidationRun: true,
         fallbackAssistantResponse: _chatNotifier
-            .takeLatestHiddenAssistantResponse(),
+            .takeLatestHiddenAssistantResponse(validationOwner),
       );
     }
     if (!_isContextMounted()) {
@@ -346,12 +348,10 @@ final class WorkflowTaskRunCoordinator {
       lastRunAt: _now(),
       eventType: ConversationExecutionTaskEventType.started,
     );
-
     if (!_isContextMounted()) {
       return;
     }
-
-    await _chatNotifier.sendHiddenPrompt(
+    final turnOwner = await _chatNotifier.sendHiddenPrompt(
       ConversationPlanExecutionCoordinator.buildAutoContinueTaskPrompt(
         completedTask: latestCompletedTask,
         nextTask: nextTask,
@@ -362,6 +362,7 @@ final class WorkflowTaskRunCoordinator {
       return;
     }
     await _processTaskTurnResults(
+      turnOwner,
       task: nextTask,
       languageCode: languageCode,
       previousAssistantMessageId: previousAssistantMessageId,
@@ -376,14 +377,15 @@ final class WorkflowTaskRunCoordinator {
     );
   }
 
-  Future<void> _processTaskTurnResults({
+  Future<void> _processTaskTurnResults(
+    ChatTurnOwner? owner, {
     required ConversationWorkflowTask task,
     required String languageCode,
     required String? previousAssistantMessageId,
   }) async {
-    final toolResults = _chatNotifier.takeLatestToolResults();
+    final toolResults = _takeToolResults(owner);
     final hiddenAssistantResponse = _chatNotifier
-        .takeLatestHiddenAssistantResponse();
+        .takeLatestHiddenAssistantResponse(owner);
     final toolResultApplied =
         await _captureExecutionProgressFromLatestToolResults(
           task: task,
@@ -420,9 +422,7 @@ final class WorkflowTaskRunCoordinator {
             task: task,
             previousAssistantMessageId: previousAssistantMessageId,
             isValidationRun: false,
-            fallbackAssistantResponse:
-                hiddenAssistantResponse ??
-                _chatNotifier.takeLatestHiddenAssistantResponse(),
+            fallbackAssistantResponse: hiddenAssistantResponse,
           )
         : false;
     if (WorkflowTaskTurnRoutePolicy.shouldAttemptToolLessRecovery(
@@ -434,9 +434,7 @@ final class WorkflowTaskRunCoordinator {
         languageCode: languageCode,
         toolResults: toolResults,
         assistantEvidenceApplied: assistantEvidenceApplied,
-        fallbackAssistantResponse:
-            hiddenAssistantResponse ??
-            _chatNotifier.takeLatestHiddenAssistantResponse(),
+        fallbackAssistantResponse: hiddenAssistantResponse,
       );
     }
   }
@@ -592,7 +590,7 @@ final class WorkflowTaskRunCoordinator {
     final previousAssistantMessageId = _latestAssistantMessageId(
       currentConversation,
     );
-    await _chatNotifier.sendHiddenPrompt(
+    final recoveryOwner = await _chatNotifier.sendHiddenPrompt(
       ConversationPlanExecutionCoordinator.buildTaskDriftRecoveryPrompt(
         task: latestTask,
         unrelatedTouchedPaths: assessment.unrelatedTouchedPaths,
@@ -603,11 +601,10 @@ final class WorkflowTaskRunCoordinator {
       ),
       languageCode: languageCode,
     );
-
     return _captureExecutionProgressFromLatestToolResults(
       task: latestTask,
       previousAssistantMessageId: previousAssistantMessageId,
-      toolResults: _chatNotifier.takeLatestToolResults(),
+      toolResults: _takeToolResults(recoveryOwner),
     );
   }
 
@@ -673,7 +670,7 @@ final class WorkflowTaskRunCoordinator {
     final previousAssistantMessageId = _latestAssistantMessageId(
       currentConversation,
     );
-    await _chatNotifier.sendHiddenPrompt(
+    final recoveryOwner = await _chatNotifier.sendHiddenPrompt(
       shouldAttemptScaffoldRecovery
           ? existingTargetFiles.isEmpty
                 ? ConversationPlanExecutionCoordinator.buildScaffoldMissingTargetRecoveryPrompt(
@@ -695,7 +692,8 @@ final class WorkflowTaskRunCoordinator {
       languageCode: languageCode,
     );
 
-    final recoveryToolResults = _chatNotifier.takeLatestToolResults();
+    final recoveryToolResults = _takeToolResults(recoveryOwner);
+    var assistantEvidenceOwner = recoveryOwner;
     final onlyReadMismatchedFiles =
         editMismatchPaths.isNotEmpty &&
         recoveryToolResults.isNotEmpty &&
@@ -756,15 +754,16 @@ final class WorkflowTaskRunCoordinator {
         !recoveredFromMissingTarget &&
         !recoveredFromPythonImport &&
         onlyReadMismatchedFiles) {
-      await _chatNotifier.sendHiddenPrompt(
+      final retryOwner = await _chatNotifier.sendHiddenPrompt(
         ConversationPlanExecutionCoordinator.buildEditMismatchRetryPrompt(
           task: latestTask,
           editMismatchPaths: editMismatchPaths,
         ),
         languageCode: languageCode,
       );
+      assistantEvidenceOwner = retryOwner;
 
-      final retryToolResults = _chatNotifier.takeLatestToolResults();
+      final retryToolResults = _takeToolResults(retryOwner);
       final retryApplied = await _captureExecutionProgressFromLatestToolResults(
         task: latestTask,
         previousAssistantMessageId: previousAssistantMessageId,
@@ -785,7 +784,7 @@ final class WorkflowTaskRunCoordinator {
             previousAssistantMessageId: previousAssistantMessageId,
             isValidationRun: false,
             fallbackAssistantResponse: _chatNotifier
-                .takeLatestHiddenAssistantResponse(),
+                .takeLatestHiddenAssistantResponse(assistantEvidenceOwner),
           );
       if (!assistantResult && recoveryToolResults.isEmpty) {
         return false;
@@ -854,7 +853,7 @@ final class WorkflowTaskRunCoordinator {
           toolResults: toolResults,
         ) ??
         latestTask.validationCommand.trim();
-    await _chatNotifier.sendHiddenPrompt(
+    final recoveryOwner = await _chatNotifier.sendHiddenPrompt(
       ConversationPlanExecutionCoordinator.buildMissingTargetFileRecoveryPrompt(
         task: latestTask,
         missingTargetFiles: [missingTargetFile],
@@ -862,7 +861,7 @@ final class WorkflowTaskRunCoordinator {
       ),
       languageCode: languageCode,
     );
-    final recoveryToolResults = _chatNotifier.takeLatestToolResults();
+    final recoveryToolResults = _takeToolResults(recoveryOwner);
     final toolResultApplied =
         await _captureExecutionProgressFromLatestToolResults(
           task: latestTask,
@@ -888,7 +887,7 @@ final class WorkflowTaskRunCoordinator {
           previousAssistantMessageId: previousAssistantMessageId,
           isValidationRun: false,
           fallbackAssistantResponse: _chatNotifier
-              .takeLatestHiddenAssistantResponse(),
+              .takeLatestHiddenAssistantResponse(recoveryOwner),
         );
     if (!assistantResult) {
       return false;
@@ -966,7 +965,7 @@ final class WorkflowTaskRunCoordinator {
     final previousAssistantMessageId = _latestAssistantMessageId(
       currentConversation,
     );
-    await _chatNotifier.sendHiddenPrompt(
+    final recoveryOwner = await _chatNotifier.sendHiddenPrompt(
       ConversationPlanExecutionCoordinator.buildPythonTestDependencyRecoveryPrompt(
         task: latestTask,
         failedCommand: failedCommand,
@@ -975,8 +974,7 @@ final class WorkflowTaskRunCoordinator {
       ),
       languageCode: languageCode,
     );
-
-    final recoveryToolResults = _chatNotifier.takeLatestToolResults();
+    final recoveryToolResults = _takeToolResults(recoveryOwner);
     final toolResultApplied =
         await _captureExecutionProgressFromLatestToolResults(
           task: latestTask,
@@ -993,7 +991,7 @@ final class WorkflowTaskRunCoordinator {
           previousAssistantMessageId: previousAssistantMessageId,
           isValidationRun: false,
           fallbackAssistantResponse: _chatNotifier
-              .takeLatestHiddenAssistantResponse(),
+              .takeLatestHiddenAssistantResponse(recoveryOwner),
         );
     if (!assistantResult) {
       return false;
@@ -1061,7 +1059,7 @@ final class WorkflowTaskRunCoordinator {
     final previousAssistantMessageId = _latestAssistantMessageId(
       currentConversation,
     );
-    await _chatNotifier.sendHiddenPrompt(
+    final recoveryOwner = await _chatNotifier.sendHiddenPrompt(
       ConversationPlanExecutionCoordinator.buildPythonRuntimeDependencyRecoveryPrompt(
         task: latestTask,
         failedCommand: failedCommand,
@@ -1070,7 +1068,7 @@ final class WorkflowTaskRunCoordinator {
       languageCode: languageCode,
     );
 
-    final recoveryToolResults = _chatNotifier.takeLatestToolResults();
+    final recoveryToolResults = _takeToolResults(recoveryOwner);
     final toolResultApplied =
         await _captureExecutionProgressFromLatestToolResults(
           task: latestTask,
@@ -1087,7 +1085,7 @@ final class WorkflowTaskRunCoordinator {
           previousAssistantMessageId: previousAssistantMessageId,
           isValidationRun: false,
           fallbackAssistantResponse: _chatNotifier
-              .takeLatestHiddenAssistantResponse(),
+              .takeLatestHiddenAssistantResponse(recoveryOwner),
         );
     if (!assistantResult && recoveryToolResults.isEmpty) {
       return false;
@@ -1178,7 +1176,7 @@ final class WorkflowTaskRunCoordinator {
     final previousAssistantMessageId = _latestAssistantMessageId(
       currentConversation,
     );
-    await _chatNotifier.sendHiddenPrompt(
+    final recoveryOwner = await _chatNotifier.sendHiddenPrompt(
       ConversationPlanExecutionCoordinator.buildValidationFirstRecoveryPrompt(
         task: latestTask,
         touchedTargetFiles: completionAssessment.touchedTargetFiles,
@@ -1188,7 +1186,7 @@ final class WorkflowTaskRunCoordinator {
       languageCode: languageCode,
     );
 
-    final recoveryToolResults = _chatNotifier.takeLatestToolResults();
+    final recoveryToolResults = _takeToolResults(recoveryOwner);
     final toolResultApplied =
         await _captureExecutionProgressFromLatestToolResults(
           task: latestTask,
@@ -1205,7 +1203,7 @@ final class WorkflowTaskRunCoordinator {
           previousAssistantMessageId: previousAssistantMessageId,
           isValidationRun: false,
           fallbackAssistantResponse: _chatNotifier
-              .takeLatestHiddenAssistantResponse(),
+              .takeLatestHiddenAssistantResponse(recoveryOwner),
         );
     if (!assistantResult) {
       return false;
@@ -1334,7 +1332,7 @@ final class WorkflowTaskRunCoordinator {
       final previousAssistantMessageId = _latestAssistantMessageId(
         currentConversation,
       );
-      await _chatNotifier.sendHiddenPrompt(
+      final recoveryOwner = await _chatNotifier.sendHiddenPrompt(
         existingTargetFiles.isEmpty
             ? ConversationPlanExecutionCoordinator.buildScaffoldMissingTargetRecoveryPrompt(
                 task: latestTask,
@@ -1348,7 +1346,7 @@ final class WorkflowTaskRunCoordinator {
         languageCode: languageCode,
       );
 
-      final recoveryToolResults = _chatNotifier.takeLatestToolResults();
+      final recoveryToolResults = _takeToolResults(recoveryOwner);
       final toolResultApplied =
           await _captureExecutionProgressFromLatestToolResults(
             task: latestTask,
@@ -1371,14 +1369,14 @@ final class WorkflowTaskRunCoordinator {
         previousAssistantMessageId: previousAssistantMessageId,
         isValidationRun: false,
         fallbackAssistantResponse: _chatNotifier
-            .takeLatestHiddenAssistantResponse(),
+            .takeLatestHiddenAssistantResponse(recoveryOwner),
       );
     }
     if (!isScaffoldTask && missingTargetFiles.isNotEmpty) {
       final previousAssistantMessageId = _latestAssistantMessageId(
         currentConversation,
       );
-      await _chatNotifier.sendHiddenPrompt(
+      final recoveryOwner = await _chatNotifier.sendHiddenPrompt(
         ConversationPlanExecutionCoordinator.buildMissingTargetFileRecoveryPrompt(
           task: latestTask,
           missingTargetFiles: missingTargetFiles,
@@ -1387,7 +1385,7 @@ final class WorkflowTaskRunCoordinator {
         languageCode: languageCode,
       );
 
-      final recoveryToolResults = _chatNotifier.takeLatestToolResults();
+      final recoveryToolResults = _takeToolResults(recoveryOwner);
       final toolResultApplied =
           await _captureExecutionProgressFromLatestToolResults(
             task: latestTask,
@@ -1403,7 +1401,7 @@ final class WorkflowTaskRunCoordinator {
         previousAssistantMessageId: previousAssistantMessageId,
         isValidationRun: false,
         fallbackAssistantResponse: _chatNotifier
-            .takeLatestHiddenAssistantResponse(),
+            .takeLatestHiddenAssistantResponse(recoveryOwner),
       );
     }
 
@@ -1417,14 +1415,14 @@ final class WorkflowTaskRunCoordinator {
       final previousAssistantMessageId = _latestAssistantMessageId(
         currentConversation,
       );
-      await _chatNotifier.sendHiddenPrompt(
+      final recoveryOwner = await _chatNotifier.sendHiddenPrompt(
         ConversationPlanExecutionCoordinator.buildVerificationTaskRecoveryPrompt(
           task: latestTask,
         ),
         languageCode: languageCode,
       );
 
-      final recoveryToolResults = _chatNotifier.takeLatestToolResults();
+      final recoveryToolResults = _takeToolResults(recoveryOwner);
       final toolResultApplied =
           await _captureExecutionProgressFromLatestToolResults(
             task: latestTask,
@@ -1441,7 +1439,7 @@ final class WorkflowTaskRunCoordinator {
             previousAssistantMessageId: previousAssistantMessageId,
             isValidationRun: false,
             fallbackAssistantResponse: _chatNotifier
-                .takeLatestHiddenAssistantResponse(),
+                .takeLatestHiddenAssistantResponse(recoveryOwner),
           );
       if (!assistantResult) {
         return false;
@@ -1520,7 +1518,7 @@ final class WorkflowTaskRunCoordinator {
             ConversationExecutionValidationStatus.failed &&
         latestTask.validationCommand.trim().isNotEmpty &&
         missingTargetFiles.isEmpty) {
-      await _chatNotifier.sendHiddenPrompt(
+      final recoveryOwner = await _chatNotifier.sendHiddenPrompt(
         ConversationPlanExecutionCoordinator.buildFailedValidationRecoveryPrompt(
           task: latestTask,
           failedCommand:
@@ -1533,7 +1531,7 @@ final class WorkflowTaskRunCoordinator {
         languageCode: languageCode,
       );
 
-      final recoveryToolResults = _chatNotifier.takeLatestToolResults();
+      final recoveryToolResults = _takeToolResults(recoveryOwner);
       final toolResultApplied =
           await _captureExecutionProgressFromLatestToolResults(
             task: latestTask,
@@ -1550,7 +1548,7 @@ final class WorkflowTaskRunCoordinator {
             previousAssistantMessageId: previousAssistantMessageId,
             isValidationRun: false,
             fallbackAssistantResponse: _chatNotifier
-                .takeLatestHiddenAssistantResponse(),
+                .takeLatestHiddenAssistantResponse(recoveryOwner),
           );
       if (!assistantResult) {
         return false;
@@ -1573,14 +1571,14 @@ final class WorkflowTaskRunCoordinator {
           refreshedTask.status == ConversationWorkflowTaskStatus.blocked;
     }
 
-    await _chatNotifier.sendHiddenPrompt(
+    final recoveryOwner = await _chatNotifier.sendHiddenPrompt(
       ConversationPlanExecutionCoordinator.buildToolLessExecutionRecoveryPrompt(
         task: latestTask,
       ),
       languageCode: languageCode,
     );
 
-    final recoveryToolResults = _chatNotifier.takeLatestToolResults();
+    final recoveryToolResults = _takeToolResults(recoveryOwner);
     final toolResultApplied =
         await _captureExecutionProgressFromLatestToolResults(
           task: latestTask,
@@ -1597,7 +1595,7 @@ final class WorkflowTaskRunCoordinator {
           previousAssistantMessageId: previousAssistantMessageId,
           isValidationRun: false,
           fallbackAssistantResponse: _chatNotifier
-              .takeLatestHiddenAssistantResponse(),
+              .takeLatestHiddenAssistantResponse(recoveryOwner),
         );
     if (!assistantResult) {
       return false;
@@ -1730,7 +1728,7 @@ final class WorkflowTaskRunCoordinator {
     final previousAssistantMessageId = _latestAssistantMessageId(
       currentConversation,
     );
-    await _chatNotifier.sendHiddenPrompt(
+    final recoveryOwner = await _chatNotifier.sendHiddenPrompt(
       ConversationPlanExecutionCoordinator.buildPythonSrcLayoutValidationRecoveryPrompt(
         task: latestTask,
         failedCommand: failedCommand,
@@ -1743,7 +1741,7 @@ final class WorkflowTaskRunCoordinator {
       languageCode: languageCode,
     );
 
-    final recoveryToolResults = _chatNotifier.takeLatestToolResults();
+    final recoveryToolResults = _takeToolResults(recoveryOwner);
     final toolResultApplied =
         await _captureExecutionProgressFromLatestToolResults(
           task: latestTask,
@@ -1760,7 +1758,7 @@ final class WorkflowTaskRunCoordinator {
           previousAssistantMessageId: previousAssistantMessageId,
           isValidationRun: false,
           fallbackAssistantResponse: _chatNotifier
-              .takeLatestHiddenAssistantResponse(),
+              .takeLatestHiddenAssistantResponse(recoveryOwner),
         );
     if (!assistantResult) {
       return false;

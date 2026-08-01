@@ -13,6 +13,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -29,6 +30,7 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
@@ -100,7 +102,6 @@ void main() {
         runtimeDataRoot: runtimeDataRoot,
       );
       addTearDown(() {
-        _expectEveryThreadHandedBack(container);
         container.dispose();
         workspace.deleteSync(recursive: true);
       });
@@ -117,7 +118,15 @@ void main() {
       final alphaThread = container
           .read(conversationsNotifierProvider)
           .currentConversationId!;
-      await notifier.sendMessage('Remember the token $_alphaToken.');
+      await notifier.sendMessage(
+        'Remember the token $_alphaToken.',
+        bypassPlanMode: true,
+      );
+      await _expectEveryThreadHandedBack(
+        container: container,
+        sessionLogRoot: sessionLogRoot,
+        expectedCompletedTurnsByConversation: {alphaThread: 1},
+      );
 
       conversations.createNewConversation(
         workspaceMode: WorkspaceMode.coding,
@@ -126,10 +135,24 @@ void main() {
       final betaThread = container
           .read(conversationsNotifierProvider)
           .currentConversationId!;
-      await notifier.sendMessage('Remember the token $_betaToken.');
+      await notifier.sendMessage(
+        'Remember the token $_betaToken.',
+        bypassPlanMode: true,
+      );
+      // A queued send returns after enqueueing, not after its detached turn.
+      // Settle both seed turns before the plan-draft overlap begins so they
+      // cannot contend with their own conversation/workspace leases.
+      await _expectEveryThreadHandedBack(
+        container: container,
+        sessionLogRoot: sessionLogRoot,
+        expectedCompletedTurnsByConversation: {alphaThread: 1, betaThread: 1},
+      );
 
       conversations.selectConversation(alphaThread);
-      final alphaRun = notifier.generatePlanProposal();
+      var alphaRunCompleted = false;
+      final alphaRun = notifier.generatePlanProposal().whenComplete(
+        () => alphaRunCompleted = true,
+      );
 
       // Only open the second thread once the first is genuinely in flight,
       // otherwise the two runs can end up sequential and prove nothing.
@@ -139,31 +162,55 @@ void main() {
         describe: 'the first thread to start drafting',
       );
       conversations.selectConversation(betaThread);
-      final betaRun = notifier.generatePlanProposal();
+      var betaRunCompleted = false;
+      final betaRun = notifier.generatePlanProposal().whenComplete(
+        () => betaRunCompleted = true,
+      );
 
       // A plan flow may stop to ask the user something. Nobody is here to
-      // answer, so decline and let it proceed rather than hanging the canary.
+      // answer, so select the owning thread and answer rather than hanging the
+      // canary. Background decisions are intentionally not projected onto the
+      // visible thread.
       final decisionPump = Timer.periodic(const Duration(milliseconds: 200), (
         _,
       ) {
-        final pending = container
-            .read(chatNotifierProvider)
-            .pendingWorkflowDecision;
-        if (pending == null) return;
-        // Answer rather than decline: declining aborts the flow, and a canary
-        // that never reaches a plan cannot check where the plan lands.
-        final option = pending.decision.options.firstOrNull;
-        notifier.resolveWorkflowDecision(
-          id: pending.id,
-          answer: option == null
-              ? null
-              : WorkflowPlanningDecisionAnswer(
+        final state = container.read(chatNotifierProvider);
+        final pending = state.pendingWorkflowDecision;
+        if (pending != null) {
+          final option = pending.decision.options.firstOrNull;
+          final answer = option != null
+              ? WorkflowPlanningDecisionAnswer(
                   decisionId: pending.id,
                   question: pending.decision.question,
                   optionId: option.id,
                   optionLabel: option.label,
-                ),
-        );
+                )
+              : pending.decision.allowFreeText
+              ? WorkflowPlanningDecisionAnswer(
+                  decisionId: pending.id,
+                  question: pending.decision.question,
+                  optionId: 'free_text',
+                  optionLabel: 'Use the documented project requirements.',
+                )
+              : null;
+          notifier.resolveWorkflowDecision(id: pending.id, answer: answer);
+          return;
+        }
+
+        final visibleThread = container
+            .read(conversationsNotifierProvider)
+            .currentConversationId;
+        final pendingOwner = state.approvalRequiredConversationIds
+            .where(
+              (threadId) =>
+                  threadId != visibleThread &&
+                  !(threadId == alphaThread && alphaRunCompleted) &&
+                  !(threadId == betaThread && betaRunCompleted),
+            )
+            .firstOrNull;
+        if (pendingOwner != null) {
+          conversations.selectConversation(pendingOwner);
+        }
       });
       try {
         await Future.wait([
@@ -184,18 +231,11 @@ void main() {
             final parsed = _SessionLog.parse(file);
             if (parsed.requests.isEmpty) return false;
             logs[threadId] = parsed;
-            // The exit entry is appended after the last request, so wait for
-            // it rather than racing the append.
-            if (!parsed.entries.any(
-              (entry) => entry['operation'] == 'turn_exit',
-            )) {
-              return false;
-            }
           }
           return logs.length == 2;
         },
         timeout: const Duration(minutes: 2),
-        describe: 'both session logs to be written, each with an exit reason',
+        describe: 'both session logs to be written',
       );
 
       // 1. The runs really overlapped.
@@ -260,33 +300,17 @@ void main() {
         );
       }
 
-      // 5. Both turns reported why they ended. Plan drafting ended through
-      // _completeRuntimeTurn without ever classifying an exit reason, so it
-      // left no record at all — `unknown` is a finding, silence is not.
-      for (final threadId in [alphaThread, betaThread]) {
-        expect(
-          logs[threadId]!.entries.where(
-            (entry) => entry['operation'] == 'turn_exit',
-          ),
-          isNotEmpty,
-          reason:
-              'thread $threadId ended without recording a turn-exit reason, '
-              'so it is invisible to tool/triage_session_logs.py',
-        );
-      }
-
-      // 6. Both threads were handed back. Plan drafting registered an active
-      // response per draft and completed the runtime turn without releasing
-      // it, so both threads stayed listed as busy and a switch back to either
-      // showed the one-message snapshot taken at drafting time under a spinner
-      // that only an app restart cleared.
-      expect(
-        container.read(chatNotifierProvider).busyConversationIds,
-        isEmpty,
-        reason:
-            'both plan drafts finished, so neither thread may still be held: '
-            'a registration that outlives its turn is what a thread switch '
-            'shows instead of the persisted transcript',
+      // 5. Each seed turn and each plan-draft turn exits exactly once, and
+      // both conversations are handed back.
+      final expectedCompletedTurnsByConversation = <String, int>{
+        alphaThread: 2,
+        betaThread: 2,
+      };
+      await _expectEveryThreadHandedBack(
+        container: container,
+        sessionLogRoot: sessionLogRoot,
+        expectedCompletedTurnsByConversation:
+            expectedCompletedTurnsByConversation,
       );
     },
     skip: liveEnabled
@@ -332,7 +356,6 @@ void main() {
         assistantMode: AssistantMode.coding,
       );
       addTearDown(() {
-        _expectEveryThreadHandedBack(container);
         container.dispose();
         workspace.deleteSync(recursive: true);
       });
@@ -373,6 +396,20 @@ void main() {
         betaRun,
       ]).timeout(const Duration(minutes: 12));
 
+      final expectedCompletedTurnsByConversation = <String, int>{
+        alphaThread: 1,
+        betaThread: 1,
+      };
+      // A send that queues behind another visible turn may return before its
+      // detached response finishes. Require terminal handback before reading
+      // the persisted transcripts or deleting their log directory.
+      await _expectEveryThreadHandedBack(
+        container: container,
+        sessionLogRoot: sessionLogRoot,
+        expectedCompletedTurnsByConversation:
+            expectedCompletedTurnsByConversation,
+      );
+
       final logs = <String, _SessionLog>{};
       await _waitUntil(
         () {
@@ -388,29 +425,6 @@ void main() {
         timeout: const Duration(minutes: 2),
         describe: 'both session logs to be written',
       );
-      // The exit entry is appended after the last request, so re-parse until
-      // it lands rather than racing the append.
-      await _waitUntil(
-        () {
-          for (final threadId in [alphaThread, betaThread]) {
-            final parsed = _SessionLog.parse(
-              File('${sessionLogRoot.path}/coding/$threadId.jsonl'),
-            );
-            logs[threadId] = parsed;
-            if (!parsed.entries.any(
-              (entry) => entry['operation'] == 'turn_exit',
-            )) {
-              return false;
-            }
-          }
-          return true;
-        },
-        timeout: const Duration(minutes: 2),
-        describe:
-            'both turns to record an exit reason (a background turn that '
-            'records none is invisible to tool/triage_session_logs.py)',
-      );
-
       expect(
         _overlapped(logs[alphaThread]!, logs[betaThread]!),
         isTrue,
@@ -453,19 +467,6 @@ void main() {
               'thread $threadId never read its own project; the run proves '
               'nothing about isolation:\n$transcript',
         );
-        // A turn that finishes while the user is reading the other thread ends
-        // on the detached path, which used to record no exit reason at all —
-        // so the triage tooling's exit-reason distribution silently omitted
-        // every background turn, which under two threads is most of them.
-        expect(
-          logs[threadId]!.entries.where(
-            (entry) => entry['operation'] == 'turn_exit',
-          ),
-          isNotEmpty,
-          reason:
-              'thread $threadId finished without recording a turn-exit reason, '
-              'so it is invisible to tool/triage_session_logs.py',
-        );
       }
     },
     skip: liveEnabled ? false : 'See the plan canary for the required env.',
@@ -504,7 +505,6 @@ void main() {
         assistantMode: AssistantMode.coding,
       );
       addTearDown(() {
-        _expectEveryThreadHandedBack(container);
         container.dispose();
         workspace.deleteSync(recursive: true);
       });
@@ -555,6 +555,14 @@ void main() {
             'the queued turn produced no answer, which is what an ownership '
             'conflict looked like from the user side',
       );
+
+      final expectedCompletedTurnsByConversation = <String, int>{threadId: 2};
+      await _expectEveryThreadHandedBack(
+        container: container,
+        sessionLogRoot: sessionLogRoot,
+        expectedCompletedTurnsByConversation:
+            expectedCompletedTurnsByConversation,
+      );
     },
     skip: liveEnabled ? false : 'See the plan canary for the required env.',
     timeout: const Timeout(Duration(minutes: 20)),
@@ -600,7 +608,6 @@ void main() {
         assistantMode: AssistantMode.coding,
       );
       addTearDown(() {
-        _expectEveryThreadHandedBack(container);
         container.dispose();
         workspace.deleteSync(recursive: true);
       });
@@ -639,6 +646,9 @@ void main() {
         workspaceMode: WorkspaceMode.coding,
         projectId: beta.id,
       );
+      final betaThread = container
+          .read(conversationsNotifierProvider)
+          .currentConversationId!;
       await alphaRun.timeout(const Duration(minutes: 12));
       await _waitUntil(
         () => storedAlpha().any(
@@ -658,9 +668,11 @@ void main() {
 
       final visible = container.read(chatNotifierProvider);
       expect(
-        visible.messages.where((message) =>
-            message.role == MessageRole.assistant &&
-            message.content.trim().isNotEmpty),
+        visible.messages.where(
+          (message) =>
+              message.role == MessageRole.assistant &&
+              message.content.trim().isNotEmpty,
+        ),
         isNotEmpty,
         reason:
             'the turn finished while this thread was in the background and the '
@@ -679,30 +691,262 @@ void main() {
         isNot(contains(alphaThread)),
         reason: 'a finished turn must not leave its thread listed as busy',
       );
+
+      final expectedCompletedTurnsByConversation = <String, int>{
+        alphaThread: 1,
+        betaThread: 0,
+      };
+      await _expectEveryThreadHandedBack(
+        container: container,
+        sessionLogRoot: sessionLogRoot,
+        expectedCompletedTurnsByConversation:
+            expectedCompletedTurnsByConversation,
+      );
     },
     skip: liveEnabled ? false : 'See the plan canary for the required env.',
     timeout: const Timeout(Duration(minutes: 20)),
   );
 }
 
-/// The lifecycle gate every scenario ends on.
+/// The exact lifecycle gate every live scenario reaches.
 ///
-/// A turn holds an active-response registration while it runs, and that
-/// registration — not the conversation store — is what a thread switch renders
-/// and what the thread's spinner is derived from. One left behind therefore
-/// strands its thread on the snapshot taken when the user walked away, under a
-/// spinner nothing but an app restart clears, and it does so silently: session
-/// logs are written per request and a stranded registration issues none. Plan
-/// drafting leaked one per draft until 2026-07-27.
-void _expectEveryThreadHandedBack(ProviderContainer container) {
+/// A turn owns both one `turn_exit` record and one active-response
+/// registration. The session log proves the former by conversation and
+/// generation; [ChatState.busyConversationIds] proves the latter was released.
+Future<void> _expectEveryThreadHandedBack({
+  required ProviderContainer container,
+  required Directory sessionLogRoot,
+  required Map<String, int> expectedCompletedTurnsByConversation,
+}) async {
+  final expected = Map<String, int>.unmodifiable(
+    expectedCompletedTurnsByConversation,
+  );
+  expect(
+    expected,
+    isNotEmpty,
+    reason: 'each live scenario must declare its completed turns explicitly',
+  );
+  for (final entry in expected.entries) {
+    expect(
+      entry.key.trim(),
+      isNotEmpty,
+      reason: 'an expected conversation id must not be empty',
+    );
+    expect(
+      entry.value,
+      greaterThanOrEqualTo(0),
+      reason:
+          'conversation ${entry.key} cannot expect a negative completed-turn '
+          'count',
+    );
+  }
+
+  final logs = <String, _SessionLog>{};
+  final deadline = DateTime.now().add(const Duration(minutes: 2));
+  const quietPeriod = Duration(seconds: 2);
+  DateTime? exactAndIdleSince;
+  String? exactAndIdleSnapshot;
+  while (true) {
+    logs.clear();
+    var hasExactExpectedExits = true;
+    final excessExitCounts = <String, int>{};
+    for (final entry in expected.entries) {
+      final file = File('${sessionLogRoot.path}/coding/${entry.key}.jsonl');
+      if (!file.existsSync()) {
+        if (entry.value != 0) {
+          hasExactExpectedExits = false;
+        }
+        continue;
+      }
+      final parsed = _SessionLog.parse(file);
+      logs[entry.key] = parsed;
+      final actualExitCount = parsed.turnExitEntries.length;
+      if (actualExitCount != entry.value) {
+        hasExactExpectedExits = false;
+      }
+      if (actualExitCount > entry.value) {
+        excessExitCounts[entry.key] = actualExitCount;
+      }
+    }
+    final busyConversationIds = container
+        .read(chatNotifierProvider)
+        .busyConversationIds;
+    if (excessExitCounts.isNotEmpty) {
+      fail(
+        'Observed more turn_exit entries than expected: $excessExitCounts.\n'
+        '${_turnExitAccountingDiagnostics(expected: expected, logs: logs, busyConversationIds: busyConversationIds)}',
+      );
+    }
+
+    final currentSnapshot = _turnExitSnapshot(
+      conversationIds: expected.keys,
+      logs: logs,
+    );
+    final now = DateTime.now();
+    if (hasExactExpectedExits && busyConversationIds.isEmpty) {
+      if (currentSnapshot != exactAndIdleSnapshot) {
+        exactAndIdleSnapshot = currentSnapshot;
+        exactAndIdleSince = now;
+      } else if (now.difference(exactAndIdleSince!) >= quietPeriod) {
+        break;
+      }
+    } else {
+      exactAndIdleSnapshot = null;
+      exactAndIdleSince = null;
+    }
+    if (now.isAfter(deadline)) {
+      fail(
+        'Timed out waiting for exact turn-exit accounting and lifecycle '
+        'handback.\n'
+        '${_turnExitAccountingDiagnostics(expected: expected, logs: logs, busyConversationIds: busyConversationIds)}',
+      );
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+
+  // Re-read after the quiet period so assertions see the final stable snapshot.
+  logs.clear();
+  for (final conversationId in expected.keys) {
+    final file = File('${sessionLogRoot.path}/coding/$conversationId.jsonl');
+    if (file.existsSync()) {
+      logs[conversationId] = _SessionLog.parse(file);
+    }
+  }
+
+  for (final entry in expected.entries) {
+    final log = logs[entry.key] ?? _SessionLog.empty;
+    final turnIds = log.turnExitTurnIds;
+    final turnIdCounts = _turnIdCounts(turnIds);
+    final emptyTurnIds = turnIds.where((turnId) => turnId.trim().isEmpty);
+    final duplicateTurnIds = <String, int>{
+      for (final count in turnIdCounts.entries)
+        if (count.value != 1) count.key: count.value,
+    };
+    final diagnostics = _turnExitAccountingDiagnostics(
+      expected: expected,
+      logs: logs,
+      busyConversationIds: container
+          .read(chatNotifierProvider)
+          .busyConversationIds,
+    );
+
+    expect(log.turnExitEntries, hasLength(entry.value), reason: diagnostics);
+    expect(emptyTurnIds, isEmpty, reason: diagnostics);
+    expect(duplicateTurnIds, isEmpty, reason: diagnostics);
+    expect(turnIdCounts, hasLength(entry.value), reason: diagnostics);
+    expect(turnIdCounts.values, everyElement(equals(1)), reason: diagnostics);
+    expect(
+      _turnExitContextViolations(
+        expectedConversationId: entry.key,
+        entries: log.turnExitEntries,
+      ),
+      isEmpty,
+      reason: diagnostics,
+    );
+  }
+
+  final observed = <String, List<String>>{
+    for (final conversationId in expected.keys)
+      conversationId: List<String>.unmodifiable(
+        (logs[conversationId] ?? _SessionLog.empty).turnExitTurnIds,
+      ),
+  };
+  debugPrint(
+    '[MultiThreadLiveCanary] exact turn exits: '
+    'expected=$expected observed=$observed',
+  );
+
   expect(
     container.read(chatNotifierProvider).busyConversationIds,
     isEmpty,
     reason:
-        'the scenario is over, so no thread may still be held busy; see the '
-        '[ActiveResponse] register/release lines for the generation that never '
-        'came back',
+        'the scenario is over, so no conversation may remain busy.\n'
+        '${_turnExitAccountingDiagnostics(expected: expected, logs: logs, busyConversationIds: container.read(chatNotifierProvider).busyConversationIds)}',
   );
+}
+
+String _turnExitSnapshot({
+  required Iterable<String> conversationIds,
+  required Map<String, _SessionLog> logs,
+}) {
+  return jsonEncode({
+    for (final conversationId in conversationIds)
+      conversationId:
+          logs[conversationId]?.turnExitEntries ??
+          const <Map<String, dynamic>>[],
+  });
+}
+
+List<String> _turnExitContextViolations({
+  required String expectedConversationId,
+  required List<Map<String, dynamic>> entries,
+}) {
+  final violations = <String>[];
+  for (var index = 0; index < entries.length; index += 1) {
+    final context = entries[index]['context'];
+    final sessionId = context is Map ? context['sessionId'] : null;
+    final conversationId = context is Map ? context['conversationId'] : null;
+    if (sessionId != expectedConversationId ||
+        conversationId != expectedConversationId) {
+      violations.add(
+        'entry=${index + 1} sessionId=$sessionId '
+        'conversationId=$conversationId',
+      );
+    }
+  }
+  return List<String>.unmodifiable(violations);
+}
+
+Map<String, int> _turnIdCounts(Iterable<String> turnIds) {
+  final counts = <String, int>{};
+  for (final turnId in turnIds) {
+    counts.update(turnId, (count) => count + 1, ifAbsent: () => 1);
+  }
+  return Map<String, int>.unmodifiable(counts);
+}
+
+String _turnExitAccountingDiagnostics({
+  required Map<String, int> expected,
+  required Map<String, _SessionLog> logs,
+  required Set<String> busyConversationIds,
+}) {
+  final conversations = expected.entries
+      .map((entry) {
+        final log = logs[entry.key];
+        final turnIds = log?.turnExitTurnIds ?? const <String>[];
+        final counts = _turnIdCounts(turnIds);
+        final duplicateIds = <String, int>{
+          for (final count in counts.entries)
+            if (count.value > 1) count.key: count.value,
+        };
+        final emptyIdCount = turnIds
+            .where((turnId) => turnId.trim().isEmpty)
+            .length;
+        final contextViolations = _turnExitContextViolations(
+          expectedConversationId: entry.key,
+          entries: log?.turnExitEntries ?? const <Map<String, dynamic>>[],
+        );
+        final distinctNonEmptyCount = counts.keys
+            .where((turnId) => turnId.trim().isNotEmpty)
+            .length;
+        final missingExitEntries = entry.value > turnIds.length
+            ? entry.value - turnIds.length
+            : 0;
+        final missingDistinctTurnIds = entry.value > distinctNonEmptyCount
+            ? entry.value - distinctNonEmptyCount
+            : 0;
+        final rawExitEntries =
+            log?.turnExitEntries.map(jsonEncode).join('\n') ?? '(log missing)';
+        return 'conversation=${entry.key} expected=${entry.value} '
+            'actualTurnIds=$turnIds counts=$counts '
+            'duplicateIds=$duplicateIds emptyIds=$emptyIdCount '
+            'contextViolations=$contextViolations '
+            'missingExitEntries=$missingExitEntries '
+            'missingDistinctTurnIds=$missingDistinctTurnIds\n'
+            'raw turn_exit entries:\n$rawExitEntries';
+      })
+      .join('\n');
+  return '$conversations\nbusyConversationIds=$busyConversationIds';
 }
 
 String _specFor(String token) => _specDocument.replaceFirst(
@@ -751,9 +995,25 @@ Future<void> _waitUntil(
 class _SessionLog {
   const _SessionLog(this.requests, this.raw, this.entries);
 
+  static const empty = _SessionLog([], '', []);
+
   final List<_LoggedRequest> requests;
   final String raw;
   final List<Map<String, dynamic>> entries;
+
+  List<Map<String, dynamic>> get turnExitEntries =>
+      List<Map<String, dynamic>>.unmodifiable(
+        entries.where((entry) => entry['operation'] == 'turn_exit'),
+      );
+
+  List<String> get turnExitTurnIds => List<String>.unmodifiable(
+    turnExitEntries.map((entry) {
+      final turnExit = entry['turnExit'];
+      if (turnExit is! Map) return '';
+      final turnId = turnExit['turnId'];
+      return turnId is String ? turnId : '';
+    }),
+  );
 
   /// Which logged operations carry [rootPath], so a failure names the culprit
   /// instead of only reporting that one exists.
@@ -908,6 +1168,13 @@ class _WorkspaceToolService extends McpToolService {
       },
     },
   };
+
+  @override
+  Future<McpToolResult> executeFileTool({
+    required ChatTurnOwner owner,
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) => executeTool(name: name, arguments: arguments);
 
   @override
   Future<McpToolResult> executeTool({

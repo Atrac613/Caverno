@@ -6,6 +6,7 @@ import 'package:bluetooth_low_energy/bluetooth_low_energy.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../utils/logger.dart';
+import 'ble_connection_effect_port.dart';
 
 /// A discovered BLE device with cached advertisement data.
 class BleDiscoveredDevice {
@@ -37,7 +38,7 @@ class BleNotificationEntry {
 /// Central: scan, connect, discover services, read/write characteristics,
 /// subscribe to notifications.
 /// Peripheral: advertise, host GATT services, notify connected centrals.
-class BleService {
+class BleService implements BleConnectionEffectPort {
   CentralManager? _centralManager;
   PeripheralManager? _peripheralManager;
 
@@ -155,6 +156,7 @@ class BleService {
   // Central: Connect / Disconnect
   // ---------------------------------------------------------------------------
 
+  @override
   Future<void> connect(String deviceId) async {
     final device = _scanResults[deviceId];
     if (device == null) {
@@ -178,6 +180,7 @@ class BleService {
     appLog('[BleService] Connected to $deviceId');
   }
 
+  @override
   Future<void> disconnect(String deviceId) async {
     final peripheral = _connections[deviceId];
     if (peripheral == null) {
@@ -189,6 +192,7 @@ class BleService {
     appLog('[BleService] Disconnected from $deviceId');
   }
 
+  @override
   String getConnectionState(String deviceId) {
     return _connections.containsKey(deviceId) ? 'connected' : 'disconnected';
   }

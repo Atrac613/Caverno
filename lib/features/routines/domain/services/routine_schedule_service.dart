@@ -20,11 +20,24 @@ class RoutineScheduleService {
 
   static Duration intervalDuration(Routine routine) {
     final intervalValue = normalizeIntervalValue(routine.intervalValue);
-    return switch (routine.intervalUnit) {
+    final duration = switch (routine.intervalUnit) {
       RoutineIntervalUnit.minutes => Duration(minutes: intervalValue),
       RoutineIntervalUnit.hours => Duration(hours: intervalValue),
       RoutineIntervalUnit.days => Duration(days: intervalValue),
     };
+    final representedValue = switch (routine.intervalUnit) {
+      RoutineIntervalUnit.minutes => duration.inMinutes,
+      RoutineIntervalUnit.hours => duration.inHours,
+      RoutineIntervalUnit.days => duration.inDays,
+    };
+    if (representedValue != intervalValue) {
+      throw RangeError.value(
+        intervalValue,
+        'intervalValue',
+        'Routine interval exceeds the supported duration range.',
+      );
+    }
+    return duration;
   }
 
   static DateTime computeNextRunAt({required Routine routine, DateTime? from}) {

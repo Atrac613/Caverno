@@ -1104,15 +1104,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             );
     }
 
+    final currentThreadId = currentConversation?.id;
     final workspaceBody = CodingTerminalDock(
       workingDirectory: terminalWorkingDirectory,
-      threadId: currentConversation?.id,
+      threadId: currentThreadId,
       child: buildWorkspaceBody(),
     );
+    final taskBanner = SubagentTaskBanner(conversationId: currentThreadId);
     final scaffold = usePersistentDrawer
         ? ChatPageScaffold.persistent(
             workspaceBody: workspaceBody,
-            taskBanner: const SubagentTaskBanner(),
+            taskBanner: taskBanner,
             drawer: _buildConversationDrawer(
               closeOnAction: false,
               width: chatPagePersistentDrawerWidth,
@@ -1139,7 +1141,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           )
         : ChatPageScaffold.compact(
             workspaceBody: workspaceBody,
-            taskBanner: const SubagentTaskBanner(),
+            taskBanner: taskBanner,
             title: _buildWorkspaceHeaderTitle(
               context,
               isRoutinesWorkspace: isRoutinesWorkspace,

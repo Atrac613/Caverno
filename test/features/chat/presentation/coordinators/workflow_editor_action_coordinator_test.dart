@@ -38,6 +38,7 @@ class _WorkflowEditorConversationsNotifier extends ConversationsNotifier {
     DateTime? workflowDerivedAt,
     bool clearWorkflowSpec = false,
     bool preserveWorkflowProjection = false,
+    String? conversationId,
   }) async {
     operations.add('workflow');
     if (throwOnWorkflowWrite) {

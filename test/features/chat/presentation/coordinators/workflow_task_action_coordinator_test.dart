@@ -76,6 +76,7 @@ class _TaskActionConversationsNotifier extends ConversationsNotifier {
     DateTime? workflowDerivedAt,
     bool clearWorkflowSpec = false,
     bool preserveWorkflowProjection = false,
+    String? conversationId,
   }) async {
     operations.add('workflow');
     if (throwOnWorkflowWrite) {
@@ -115,6 +116,7 @@ class _TaskActionConversationsNotifier extends ConversationsNotifier {
     ConversationExecutionTaskEventType? eventType,
     String? eventSummary,
     DateTime? eventTimestamp,
+    String? conversationId,
   }) async {
     operations.add('progress');
     progressWrites.add(

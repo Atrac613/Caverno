@@ -9,7 +9,9 @@ import 'package:caverno/core/services/voicevox_audio_player.dart';
 import 'package:caverno/core/services/voicevox_service.dart';
 import 'package:caverno/core/services/whisper_service.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/voice_mode_notifier.dart';
@@ -43,7 +45,7 @@ class _ControllableChatNotifier extends ChatNotifier {
   ChatState build() => ChatState.initial();
 
   @override
-  Future<void> sendMessage(
+  Future<ChatTurnOwner?> sendMessage(
     String content, {
     String? imageBase64,
     String? imageMimeType,
@@ -55,20 +57,22 @@ class _ControllableChatNotifier extends ChatNotifier {
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
   }) async {
     sentMessages.add(content);
+    return null;
   }
 
   @override
-  Future<void> sendHiddenPrompt(
+  Future<ChatTurnOwner?> sendHiddenPrompt(
     String instruction, {
     bool isVoiceMode = false,
     String languageCode = 'en',
     bool persistAssistantResponse = false,
-    bool preserveGoalAutoContinueEvidence = false,
+    ToolResultCompletionEvidence? initialGoalCompletionEvidence,
     bool replayVerifierImmediatelyAfterMutation = false,
     bool verifierOnlyContinuation = false,
     Set<String>? allowedToolNames,
   }) async {
     hiddenPrompts.add(instruction);
+    return null;
   }
 
   @override

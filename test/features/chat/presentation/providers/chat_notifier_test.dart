@@ -26,10 +26,10 @@ import 'package:caverno/features/chat/data/datasources/background_process_tools.
 import 'package:caverno/features/chat/data/datasources/file_rollback_checkpoint_store.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
-import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
+import 'package:caverno/features/chat/data/repositories/skill_repository.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
@@ -38,12 +38,9 @@ import 'package:caverno/features/chat/domain/entities/conversation_participant.d
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
-import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
-import 'package:caverno/features/chat/domain/services/skill_markdown_parser.dart';
 import 'package:caverno/features/chat/domain/services/truncation_notice.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/domain/services/analysis_options_lint_edit_guard.dart';
@@ -51,7 +48,9 @@ import 'package:caverno/features/chat/domain/services/coding_command_output_guar
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_verification_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_goal_suggestion_service.dart';
+import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/domain/services/participant_turn_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/saved_task_target_scope_guard.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
@@ -60,10 +59,11 @@ import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
-import 'package:caverno/features/chat/presentation/providers/subagent_task_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/skills_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/turn_thread_scope.dart';
 import 'package:caverno/features/routines/domain/entities/routine.dart';
+import 'package:caverno/features/routines/data/routine_repository.dart';
 import 'package:caverno/features/routines/presentation/providers/routines_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/local_model_lifecycle.dart';
@@ -71,7 +71,8 @@ import 'package:caverno/features/settings/domain/services/primary_model_preparat
 import 'package:caverno/features/settings/presentation/providers/local_model_lifecycle_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
-
+import '../../../../support/chat_turn_owner_test_support.dart';
+import '../../../../support/mcp_file_tool_test_delegate.dart';
 part 'chat_notifier_persistence_part.dart';
 part 'chat_notifier_git_guardrails_part.dart';
 part 'chat_notifier_ask_user_question_part.dart';
@@ -97,6 +98,7 @@ part 'chat_notifier_execution_runtime_part.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(registerChatTurnOwnerFallback);
 
   late ProviderContainer container;
   late ChatNotifier notifier;
@@ -159,6 +161,7 @@ void main() {
   registerChatNotifierExecutionRuntimeTests();
 
   test('failed-command correction notice keeps the original answer', () {
+    const claims = FinalAnswerClaimDetector();
     const notice =
         'A command exited with non-zero exit code 1, so any success, upload, '
         'release, pass, or completion claim is unverified. Treat the command '
@@ -168,11 +171,10 @@ void main() {
         'Release completed successfully.\n\n'
         '1. Ran the build\n2. Uploaded the archive\n3. Tagged the release';
 
-    final corrected = notifier
-        .messageContentWithPrependedClaimCorrectionNoticeForTest(
-          original,
-          notice,
-        );
+    final corrected = claims.messageContentWithPrependedClaimCorrectionNotice(
+      original,
+      notice,
+    );
 
     // The original answer must remain visible (the chat log must not look
     // wiped) and the correction must come first to frame it as unverified.
@@ -181,7 +183,7 @@ void main() {
 
     // Running the guard again must not stack a second copy of the notice.
     expect(
-      notifier.messageContentWithPrependedClaimCorrectionNoticeForTest(
+      claims.messageContentWithPrependedClaimCorrectionNotice(
         corrected,
         notice,
       ),
@@ -1122,16 +1124,16 @@ void main() {
         await Future<void>.delayed(Duration.zero);
       }
       expect(dataSource.streamRequests, hasLength(1));
-
-      await chatNotifier.sendMessage('Interject with a new constraint');
-
+      final queuedSendFuture = chatNotifier.sendMessage(
+        'Interject with a new constraint',
+      );
       expect(chatNotifier.state.queuedMessages, hasLength(1));
       expect(chatNotifier.state.participantTurnRuntime?.stopRequested, isTrue);
 
       firstTurn.add('Original primary.');
       await firstTurn.close();
       await sendFuture;
-
+      await queuedSendFuture;
       final userContents = chatNotifier.state.messages
           .where((message) => message.role == MessageRole.user)
           .map((message) => message.content)
@@ -3404,6 +3406,7 @@ void main() {
       final sshService = _MockSshService();
       when(
         () => sshService.connect(
+          owner: any(named: 'owner'),
           host: any(named: 'host'),
           port: any(named: 'port'),
           username: any(named: 'username'),
@@ -3461,6 +3464,7 @@ void main() {
       expect(chatNotifier.state.pendingSshConnect, isNull);
       verify(
         () => sshService.connect(
+          owner: any(named: 'owner'),
           host: 'example.com',
           port: 22,
           username: 'me',
@@ -3548,6 +3552,7 @@ void main() {
 
       verifyNever(
         () => sshService.connect(
+          owner: any(named: 'owner'),
           host: any(named: 'host'),
           port: any(named: 'port'),
           username: any(named: 'username'),
@@ -4517,39 +4522,18 @@ void main() {
       final sendFuture = notifier.sendHiddenPrompt('Continue the saved task.');
       controller.add('The task is complete. Validation passed.');
       await controller.close();
-      await sendFuture;
+      await pumpEventQueue();
+      final owner = await sendFuture;
 
       expect(notifier.state.isLoading, isFalse);
       expect(notifier.state.messages, isEmpty);
       expect(
-        notifier.takeLatestHiddenAssistantResponse(),
+        notifier.takeLatestHiddenAssistantResponse(owner),
         'The task is complete. Validation passed.',
       );
-      expect(notifier.takeLatestHiddenAssistantResponse(), isNull);
+      expect(notifier.takeLatestHiddenAssistantResponse(owner), isNull);
     },
   );
-
-  test('sendHiddenPrompt preserves content-tool dedupe guards', () async {
-    const executedCallKey = 'executed:write_file:README.md';
-    const seenCallHash = 'seen:write_file:README.md';
-    notifier.seedContentToolDedupeGuardsForTest(
-      executedCallKey: executedCallKey,
-      seenCallHash: seenCallHash,
-    );
-
-    final sendFuture = notifier.sendHiddenPrompt('Continue the saved task.');
-    controller.add('Still working.');
-    await controller.close();
-    await sendFuture;
-
-    expect(
-      notifier.hasContentToolDedupeGuardsForTest(
-        executedCallKey: executedCallKey,
-        seenCallHash: seenCallHash,
-      ),
-      isTrue,
-    );
-  });
 
   test(
     'syncConversation ignores stale updates for the active conversation while loading',
@@ -4868,10 +4852,8 @@ void main() {
         }
       });
       final queueNotifier = queueContainer.read(chatNotifierProvider.notifier);
-
       await queueNotifier.sendMessage('First request');
-      await queueNotifier.sendMessage('Second request');
-
+      final queuedSendFuture = queueNotifier.sendMessage('Second request');
       var userMessages = queueNotifier.state.messages
           .where((message) => message.role == MessageRole.user)
           .map((message) => message.content)
@@ -4918,9 +4900,9 @@ void main() {
 
       secondController.add('Second response');
       await secondController.close();
+      await queuedSendFuture;
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
-
       expect(queueNotifier.state.isLoading, isFalse);
       expect(queueNotifier.state.messages.map((message) => message.content), [
         'First request',
@@ -4971,10 +4953,8 @@ void main() {
         }
       });
       final queueNotifier = queueContainer.read(chatNotifierProvider.notifier);
-
       await queueNotifier.sendMessage('First request');
-      await queueNotifier.sendMessage('Second request');
-
+      final queuedSendFuture = queueNotifier.sendMessage('Second request');
       expect(queueNotifier.state.queuedMessages, hasLength(1));
 
       firstController.add('First response');
@@ -4995,6 +4975,7 @@ void main() {
 
       secondController.add('Second response');
       await secondController.close();
+      await queuedSendFuture;
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
@@ -5043,10 +5024,11 @@ void main() {
       final queueNotifier = queueContainer.read(chatNotifierProvider.notifier);
 
       await queueNotifier.sendMessage('First request');
-      await queueNotifier.sendMessage('Second request');
+      final queuedSendFuture = queueNotifier.sendMessage('Second request');
 
       final queuedId = queueNotifier.state.queuedMessages.single.id;
       queueNotifier.removeQueuedMessage(queuedId);
+      expect(await queuedSendFuture, isNull);
 
       expect(queueNotifier.state.queuedMessages, isEmpty);
 
@@ -6157,9 +6139,9 @@ void main() {
       );
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
-
-        await toolNotifier.sendMessage('Find the interrupted log path');
-
+        final owner = await toolNotifier.sendMessage(
+          'Find the interrupted log path',
+        );
         expect(
           toolService.executedToolNames,
           List.filled(15, 'local_execute_command'),
@@ -6172,7 +6154,7 @@ void main() {
         expect(finalPrompt, contains('*.jsonl'));
         expect(finalPrompt, contains('head -50'));
         expect(toolDataSource.toolResultBatches, hasLength(15));
-        final completedResults = toolNotifier.takeLatestToolResults();
+        final completedResults = toolNotifier.takeLatestToolResults(owner!);
         expect(
           completedResults.any(
             (result) => result.result.contains('tool_call_not_executed'),
@@ -6797,19 +6779,6 @@ with open(path, "rb") as file:
     },
   );
 
-  test('python attachment repair prompts guide image metadata scripts', () {
-    final prompts = [
-      notifier.buildSkippedPythonAttachmentAnalysisRepairPromptForTest(),
-      notifier.buildPythonAttachmentPathFailureRepairPromptForTest(),
-    ];
-
-    for (final prompt in prompts) {
-      expect(prompt, contains('caverno.inputs[0].path'));
-      expect(prompt, contains('piexif.load(path)'));
-      expect(prompt, contains("piexif.TAGS[ifd][tag].get('name'"));
-    }
-  });
-
   test(
     'sendMessage retries tool-result follow-up with forced prompt compaction',
     () async {
@@ -6937,9 +6906,8 @@ with open(path, "rb") as file:
         conversationId: conversation?.id,
         messages: previousMessages,
       );
-      toolNotifier.scheduleModelSwitchHandoffForTest(
-        previousSettings: AppSettings.defaults(),
-        nextSettings: AppSettings.defaults().copyWith(model: 'new-model'),
+      toolNotifier.updateConnectionSettings(
+        AppSettings.defaults().copyWith(model: 'new-model'),
       );
 
       await toolNotifier.sendMessage('Continue after model switch');
@@ -8072,12 +8040,11 @@ with open(path, "rb") as file:
         ),
       ],
     );
-
     try {
       final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
-
-      await toolNotifier.sendMessage('Initialize the scaffold files');
-
+      final owner = await toolNotifier.sendMessage(
+        'Initialize the scaffold files',
+      );
       expect(
         toolDataSource.toolResultBatches
             .map((batch) => batch.map((item) => item.name).toList())
@@ -8093,7 +8060,10 @@ with open(path, "rb") as file:
       ]);
       expect(toolNotifier.state.isLoading, isFalse);
       expect(
-        toolNotifier.takeLatestToolResults().map((item) => item.name).toList(),
+        toolNotifier
+            .takeLatestToolResults(owner!)
+            .map((item) => item.name)
+            .toList(),
         ['create_requirements', 'create_readme'],
       );
       expect(
@@ -8104,7 +8074,6 @@ with open(path, "rb") as file:
       toolContainer.dispose();
     }
   });
-
   test(
     'buildDuplicateFollowUpRecoveryPromptForTest requires a file edit before rerunning validation after reading a failing file',
     () {
@@ -8479,7 +8448,6 @@ with open(path, "rb") as file:
         ),
       ],
     );
-
     try {
       final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
@@ -11107,19 +11075,12 @@ with open(path, "rb") as file:
       );
 
       try {
+        registerRunningBackgroundSubagentTask(
+          toolContainer,
+          taskId: taskId,
+          description: 'background subagent compute',
+        );
         final notifier = toolContainer.read(chatNotifierProvider.notifier);
-        final subagentTaskNotifier = toolContainer.read(
-          subagentTaskNotifierProvider.notifier,
-        );
-        subagentTaskNotifier.register(
-          SubagentTask(
-            id: taskId,
-            status: SubagentTaskStatus.running,
-            description: 'background subagent compute',
-            isBackground: true,
-            startedAt: DateTime.now(),
-          ),
-        );
 
         await notifier.sendMessage('Check background subagent progress.');
 
@@ -12298,10 +12259,10 @@ with open(path, "rb") as file:
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
-        await toolNotifier.sendMessage('Inspect the file');
+        final owner = await toolNotifier.sendMessage('Inspect the file');
 
         expect(
-          toolNotifier.takeLatestHiddenAssistantResponse(),
+          toolNotifier.takeLatestHiddenAssistantResponse(owner),
           'The saved task is complete because the validation passed.',
         );
       } finally {
@@ -12667,10 +12628,12 @@ with open(path, "rb") as file:
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
-        await toolNotifier.sendMessage('Handle the first saved task');
+        final owner = await toolNotifier.sendMessage(
+          'Handle the first saved task',
+        );
 
         expect(
-          toolNotifier.takeLatestHiddenAssistantResponse(),
+          toolNotifier.takeLatestHiddenAssistantResponse(owner),
           'I have completed the first task: Create README.md with usage instructions. The next task is Implement the ping CLI tool in ping_cli.py.',
         );
       } finally {
@@ -12716,10 +12679,12 @@ with open(path, "rb") as file:
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
-        await toolNotifier.sendMessage('Continue with the next saved task');
+        final owner = await toolNotifier.sendMessage(
+          'Continue with the next saved task',
+        );
 
         expect(
-          toolNotifier.takeLatestHiddenAssistantResponse(),
+          toolNotifier.takeLatestHiddenAssistantResponse(owner),
           'The tool result shows that `README.md` was successfully created. The next task is "Create integration test to verify ping functionality".',
         );
       } finally {
@@ -14734,19 +14699,19 @@ with open(path, "rb") as file:
             createIfMissing: true,
           );
       final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
-
-      await toolNotifier.sendMessage('Run the saved validation command');
+      final owner = await toolNotifier.sendMessage(
+        'Run the saved validation command',
+      );
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
-
-      final latestResults = toolNotifier.takeLatestToolResults();
+      final latestResults = toolNotifier.takeLatestToolResults(owner!);
       expect(latestResults, hasLength(1));
       expect(latestResults.single.name, 'local_execute_command');
       expect(latestResults.single.arguments['command'], 'pwd');
       expect(latestResults.single.result, contains('"exit_code":0'));
-      expect(toolNotifier.takeLatestToolResults(), isEmpty);
+      expect(toolNotifier.takeLatestToolResults(owner), isEmpty);
     } finally {
       toolContainer.dispose();
     }

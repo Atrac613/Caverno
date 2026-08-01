@@ -5,10 +5,17 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierWorkflowProposalParser on ChatNotifier {
-  WorkflowProposalParser get _workflowProposalParser => WorkflowProposalParser(
-    qualityService: _taskProposalQualityService,
-    onJsonRepair: _recordPlanningJsonRepairRuntimeFeedback,
-  );
+  WorkflowProposalParser get _workflowProposalParser =>
+      _buildWorkflowProposalParser(_planningJsonRepairFeedbackBinding());
+
+  WorkflowProposalParser _buildWorkflowProposalParser(
+    RuntimeSamplerFeedbackEventBinding? jsonRepairFeedback,
+  ) {
+    return WorkflowProposalParser(
+      qualityService: _taskProposalQualityService,
+      jsonRepairFeedback: jsonRepairFeedback,
+    );
+  }
 
   WorkflowProposalParseResult? _parseWorkflowProposalResponse(
     String rawContent,

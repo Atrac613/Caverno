@@ -5,14 +5,15 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierComputerUseHandlers on ChatNotifier {
-  Future<McpToolResult> _handleComputerUseAction(ToolCallInfo toolCall) async {
-    final cachedResult = _lookupToolApprovalResult(
+  Future<McpToolResult> _handleComputerUseAction(
+    ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
+  ) async {
+    final cachedResult = approvalCache.lookupDenial(
       toolCall.name,
       toolCall.arguments,
     );
-    if (cachedResult != null) {
-      return cachedResult;
-    }
+    if (cachedResult != null) return cachedResult;
 
     final policy = MacosComputerUseToolPolicy.decision(toolCall.name);
     final actionProposalPolicy =
@@ -49,6 +50,7 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
     ];
 
     final decision = await requestComputerUseAction(
+      owner: approvalCache.owner,
       toolName: toolCall.name,
       title: approvalCopy.title,
       riskCategory: policy?.riskCategory.name ?? 'unknown',
@@ -75,6 +77,8 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
       visionObservationDetails: visionObservationContext.details,
       reason: toolCall.arguments['reason'] as String?,
     );
+    final expiredAfterDecision = _expiredApproval(toolCall.name, approvalCache);
+    if (expiredAfterDecision != null) return expiredAfterDecision;
     if (!decision.approved) {
       final blockerCode = decision.blockerCode ?? 'approval_denied';
       MacosComputerUseAuditLog.instance.record(
@@ -91,7 +95,7 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
         policy: policy,
         code: blockerCode,
       );
-      return _rememberToolApprovalDenial(
+      return approvalCache.rememberDenial(
         toolCall.name,
         toolCall.arguments,
         McpToolResult(
@@ -119,7 +123,7 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
         approvalBlockerCodes: actionProposalPolicy!.blockerCodes,
         actionProposalNextAction: actionProposalPolicy.nextAction,
       );
-      return _rememberToolApprovalDenial(
+      return approvalCache.rememberDenial(
         toolCall.name,
         toolCall.arguments,
         McpToolResult(
@@ -131,12 +135,18 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
       );
     }
 
+    final expired = _expiredApproval(toolCall.name, approvalCache);
+    if (expired != null) return expired;
     final result = await _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: toolCall.arguments,
     );
     final postActionObservation = result.isSuccess
-        ? await _runComputerUsePostActionObservation(policy, toolCall)
+        ? await _runComputerUsePostActionObservation(
+            policy,
+            toolCall,
+            owner: approvalCache.owner,
+          )
         : null;
     MacosComputerUseAuditLog.instance.record(
       toolName: toolCall.name,
@@ -176,8 +186,9 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
   Future<MacosComputerUsePostActionObservation?>
   _runComputerUsePostActionObservation(
     MacosComputerUseToolPolicyDecision? policy,
-    ToolCallInfo toolCall,
-  ) async {
+    ToolCallInfo toolCall, {
+    required ChatTurnOwner owner,
+  }) async {
     if (policy?.requiresPostActionObservation != true) {
       return null;
     }
@@ -190,6 +201,13 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
     };
     if (observationToolName == null) {
       return null;
+    }
+    if (!_isApprovalOwnerCurrent(owner)) {
+      return MacosComputerUsePostActionObservation(
+        toolName: observationToolName,
+        success: false,
+        errorCode: 'owner_expired',
+      );
     }
 
     final observationArguments = switch (observationToolName) {
@@ -347,6 +365,7 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
   }
 
   Future<ComputerUseActionApprovalDecision> requestComputerUseAction({
+    required ChatTurnOwner owner,
     required String toolName,
     required String title,
     required String riskCategory,
@@ -371,6 +390,7 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
   }) {
     final completer = Completer<ComputerUseActionApprovalDecision>();
     final pending = PendingComputerUseAction(
+      owner: owner,
       id: const Uuid().v4(),
       toolName: toolName,
       title: title,
@@ -395,38 +415,24 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
       reason: reason,
       completer: completer,
     );
-    _routeApproval((s) => s.copyWith(pendingComputerUseAction: pending));
-    _emitRuntimeApprovalRequired(
-      id: pending.id,
-      capability: 'computer_use',
-      summary: reason?.trim().isNotEmpty == true ? reason!.trim() : summary,
-      target: targetSummary,
+    return _registerPendingToolApproval(
+      pending,
+      (s) => s.copyWith(pendingComputerUseAction: pending),
+      'computer_use',
+      _approvalSummary(reason, summary),
+      targetSummary,
     );
-    return completer.future;
   }
 
-  void resolveComputerUseAction({
+  bool resolveComputerUseAction({
     required String id,
     required bool approved,
     bool armed = false,
-  }) {
-    final pending = state.pendingComputerUseAction;
-    if (pending == null || pending.id != id) return;
-    if (!pending.completer.isCompleted) {
-      pending.completer.complete(
-        ComputerUseActionApprovalDecision(
-          approved: approved && (!pending.requiresSmokeArming || armed),
-          armed: armed,
-          blockerCode: approved && pending.requiresSmokeArming && !armed
-              ? 'arming_missing'
-              : approved
-              ? null
-              : 'approval_denied',
-        ),
-      );
-    }
-    state = state.copyWith(pendingComputerUseAction: null);
-  }
+  }) =>
+      _completeApproval<
+        ComputerUseActionApprovalDecision,
+        PendingComputerUseAction
+      >(id, (pending) => pending.resolve(approved: approved, armed: armed));
 
   ({String? summary, List<String> details}) _computerUseApprovalTargetContext(
     ToolCallInfo toolCall,

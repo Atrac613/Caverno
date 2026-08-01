@@ -581,19 +581,15 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   ) {
     final approvalId = (message.payload['approvalId'] as String?)?.trim() ?? '';
     final approved = message.payload['approved'] == true;
-    final chatState = ref.read(chatNotifierProvider);
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
-
-    if (chatState.pendingFileOperation?.id == approvalId) {
-      chatNotifier.resolveFileOperation(id: approvalId, approved: approved);
-    } else if (chatState.pendingGitCommand?.id == approvalId) {
-      chatNotifier.resolveGitCommand(id: approvalId, approved: approved);
-    } else if (chatState.pendingLocalCommand?.id == approvalId) {
-      chatNotifier.resolveLocalCommand(
-        id: approvalId,
-        approval: LocalCommandApproval(approved: approved),
-      );
-    } else {
+    final resolved =
+        chatNotifier.resolveFileOperation(id: approvalId, approved: approved) ||
+        chatNotifier.resolveGitCommand(id: approvalId, approved: approved) ||
+        chatNotifier.resolveLocalCommand(
+          id: approvalId,
+          approval: LocalCommandApproval(approved: approved),
+        );
+    if (!resolved) {
       client.sendError(
         id: message.id,
         code: 'approval_not_found',

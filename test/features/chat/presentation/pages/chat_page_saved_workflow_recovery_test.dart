@@ -4,12 +4,14 @@ import 'dart:io';
 
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
+import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -101,6 +103,7 @@ class _WorkflowConversationsNotifier extends ConversationsNotifier {
     DateTime? workflowDerivedAt,
     bool clearWorkflowSpec = false,
     bool preserveWorkflowProjection = false,
+    String? conversationId,
   }) async {
     final current = state.currentConversation;
     if (current == null) {
@@ -136,6 +139,7 @@ class _WorkflowConversationsNotifier extends ConversationsNotifier {
     ConversationExecutionTaskEventType? eventType,
     String? eventSummary,
     DateTime? eventTimestamp,
+    String? conversationId,
   }) async {
     final current = state.currentConversation;
     if (current == null) {
@@ -207,8 +211,9 @@ class _ScriptedWorkflowChatNotifier extends ChatNotifier {
   final List<String> hiddenPrompts = [];
   final Queue<_ScriptedWorkflowTurn> _visibleTurns;
   final Queue<_ScriptedWorkflowTurn> _hiddenTurns;
-  List<ToolResultInfo> _latestToolResults = const [];
-  String? _latestHiddenAssistantResponse;
+  final Map<ChatTurnOwner, List<ToolResultInfo>> _toolResultsByOwner = {};
+  final Map<ChatTurnOwner, String> _hiddenAssistantResponsesByOwner = {};
+  var _interactionGeneration = 0;
   var hiddenAssistantResponseReadCount = 0;
 
   bool get hasPendingTurns =>
@@ -218,7 +223,7 @@ class _ScriptedWorkflowChatNotifier extends ChatNotifier {
   ChatState build() => ChatState.initial();
 
   @override
-  Future<void> sendMessage(
+  Future<ChatTurnOwner?> sendMessage(
     String content, {
     String? imageBase64,
     String? imageMimeType,
@@ -230,40 +235,37 @@ class _ScriptedWorkflowChatNotifier extends ChatNotifier {
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
   }) async {
     sentMessages.add(content);
-    _activateNextTurn(_visibleTurns, label: 'visible');
+    return _activateNextTurn(_visibleTurns, label: 'visible');
   }
 
   @override
-  Future<void> sendHiddenPrompt(
+  Future<ChatTurnOwner?> sendHiddenPrompt(
     String instruction, {
     bool isVoiceMode = false,
     String languageCode = 'en',
     bool persistAssistantResponse = false,
-    bool preserveGoalAutoContinueEvidence = false,
+    ToolResultCompletionEvidence? initialGoalCompletionEvidence,
     bool replayVerifierImmediatelyAfterMutation = false,
     bool verifierOnlyContinuation = false,
     Set<String>? allowedToolNames,
   }) async {
     hiddenPrompts.add(instruction);
-    _activateNextTurn(_hiddenTurns, label: 'hidden');
+    return _activateNextTurn(_hiddenTurns, label: 'hidden');
   }
 
   @override
-  List<ToolResultInfo> takeLatestToolResults() {
-    final results = _latestToolResults;
-    _latestToolResults = const [];
-    return results;
-  }
+  List<ToolResultInfo> takeLatestToolResults(ChatTurnOwner owner) =>
+      _toolResultsByOwner.remove(owner) ?? const [];
 
   @override
-  String? takeLatestHiddenAssistantResponse() {
+  String? takeLatestHiddenAssistantResponse(ChatTurnOwner? owner) {
     hiddenAssistantResponseReadCount += 1;
-    final response = _latestHiddenAssistantResponse;
-    _latestHiddenAssistantResponse = null;
-    return response;
+    return owner == null
+        ? null
+        : _hiddenAssistantResponsesByOwner.remove(owner);
   }
 
-  void _activateNextTurn(
+  ChatTurnOwner _activateNextTurn(
     Queue<_ScriptedWorkflowTurn> turns, {
     required String label,
   }) {
@@ -271,8 +273,16 @@ class _ScriptedWorkflowChatNotifier extends ChatNotifier {
       throw StateError('Unexpected $label workflow turn.');
     }
     final turn = turns.removeFirst();
-    _latestToolResults = turn.toolResults;
-    _latestHiddenAssistantResponse = turn.hiddenAssistantResponse;
+    final owner = ChatTurnOwner(
+      conversationId: 'saved-workflow-recovery-test',
+      interactionGeneration: ++_interactionGeneration,
+    );
+    _toolResultsByOwner[owner] = turn.toolResults;
+    final hiddenAssistantResponse = turn.hiddenAssistantResponse;
+    if (hiddenAssistantResponse != null) {
+      _hiddenAssistantResponsesByOwner[owner] = hiddenAssistantResponse;
+    }
+    return owner;
   }
 }
 
@@ -1101,7 +1111,7 @@ void main() {
         ConversationExecutionValidationStatus.passed,
       );
       expect(harness.conversationsNotifier.assistantEvidenceTaskIds, isEmpty);
-      expect(harness.chatNotifier.hiddenAssistantResponseReadCount, 3);
+      expect(harness.chatNotifier.hiddenAssistantResponseReadCount, 2);
       expect(harness.chatNotifier.hasPendingTurns, isFalse);
     },
   );

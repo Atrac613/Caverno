@@ -8,13 +8,16 @@ part of 'chat_notifier.dart';
 extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
   ToolTerminalResponsePolicy get _terminalToolResponsePolicy =>
       ToolTerminalResponsePolicy(
-        looksLikeUnexecutedToolRequest: _looksLikeUnexecutedToolRequest,
-        looksLikePlanOnlyFinalToolAnswer: _looksLikePlanOnlyFinalToolAnswer,
+        looksLikeUnexecutedToolRequest:
+            const UnexecutedFinalAnswerToolRequestPolicy()
+                .looksLikeUnexecutedToolRequest,
+        looksLikePlanOnlyFinalToolAnswer:
+            const UnexecutedFinalAnswerToolRequestPolicy()
+                .looksLikePlanOnlyFinalToolAnswer,
         looksLikePendingToolActionResponse: _looksLikePendingToolActionResponse,
-        looksLikeStructuredToolRequest: _looksLikeStructuredToolRequest,
-        isFileMutationToolName: _isFileMutationToolName,
-        isSuccessfulFileMutationToolResult: _isSuccessfulFileMutationToolResult,
-        toolResultPayloadPath: _toolResultPayloadPath,
+        looksLikeStructuredToolRequest:
+            const UnexecutedFinalAnswerToolRequestPolicy()
+                .looksLikeStructuredToolRequest,
         containsAnyCodeUnitSequence: _containsAnyCodeUnitSequence,
         containsCjkBlockerMarker: _containsCjkBlockerMarker,
         containsCjkMissingEvidenceMarker: _containsCjkMissingEvidenceMarker,

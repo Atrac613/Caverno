@@ -73,6 +73,7 @@ final class CavernoExecutionRuntime {
         : null;
     CavernoRuntimeOwnershipHandle? ownership;
     var ownershipTransferred = false;
+    var startCompleted = false;
     try {
       ownership = await composition.ownership.acquire(
         CavernoRuntimeOwnershipRequest(
@@ -134,6 +135,7 @@ final class CavernoExecutionRuntime {
               )
               as CavernoRuntimeRunStarted;
       composition.lifecycle.onTurnStarted(started);
+      startCompleted = true;
       return handle;
     } on CavernoRuntimeTurnStartException {
       rethrow;
@@ -154,6 +156,10 @@ final class CavernoExecutionRuntime {
         exitCode: 74,
       );
     } finally {
+      if (ownershipTransferred && !startCompleted) {
+        _activeTurns.remove(request.turnId);
+        ownershipTransferred = false;
+      }
       if (!ownershipTransferred) {
         ownership?.release();
       }

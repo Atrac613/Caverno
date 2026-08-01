@@ -1,0 +1,1152 @@
+{
+  "schemaName": "caverno_chat_notifier_decomposition_manifest",
+  "schemaVersion": 1,
+  "baselineRevision": "b0c19fdb",
+  "notifierLibraryPath": "lib/features/chat/presentation/providers/chat_notifier.dart",
+  "entrypointSemantics": "All methods and getters declared by a ChatNotifier extension in the historical part, in source order.",
+  "parts": [
+    {
+      "id": "approval-handlers",
+      "partPath": "chat_notifier_approval_handlers.dart",
+      "entrypoints": [
+        "_lookupToolApprovalResult",
+        "_rememberToolApprovalResult",
+        "_rememberToolApprovalDenial",
+        "_resolveToolApprovalGate",
+        "_recordApprovalAudit",
+        "_buildAutoReviewRequest",
+        "_runApprovalAutoReview",
+        "_domainEscalatesDeniedActionToManual",
+        "_escalatedApprovalWarningTitle",
+        "_escalatedApprovalWarningMessage",
+        "_autoReviewDeniedResult"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "turn-tool-approval-coordinator",
+          "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart"
+        }
+      ]
+    },
+    {
+      "id": "ask-user-question",
+      "partPath": "chat_notifier_ask_user_question.dart",
+      "entrypoints": [
+        "_handleAskUserQuestion",
+        "_buildRepeatedAskUserQuestionResult",
+        "requestAskUserQuestion",
+        "resolveAskUserQuestion",
+        "_dismissAllPendingAskUserQuestions",
+        "_parseAskUserQuestionOptions",
+        "_askUserQuestionOptionId",
+        "_clipAskUserQuestionText"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "ask-user-question-policy",
+          "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/ask_user_question_policy.dart"
+        },
+        {
+          "id": "ask-user-question-turn-cache",
+          "path": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart"
+        }
+      ]
+    },
+    {
+      "id": "ble-handlers",
+      "partPath": "chat_notifier_ble_handlers.dart",
+      "entrypoints": [
+        "_handleBleConnect",
+        "requestBleConnect",
+        "resolveBleConnect"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "ble-connection-tool-handler",
+          "path": "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/ble_connection_tool_handler.dart"
+        }
+      ]
+    },
+    {
+      "id": "browser-handlers",
+      "partPath": "chat_notifier_browser_handlers.dart",
+      "entrypoints": [
+        "_handleBrowserAction",
+        "_handleBrowserActionWithoutApproval",
+        "_browserReviewArguments",
+        "_browserAutoReviewDeniedResult",
+        "requestBrowserAction",
+        "resolveBrowserAction",
+        "_describeBrowserAction",
+        "_browserTargetLabel",
+        "_browserActionDetails",
+        "_browserActionTargetSummary",
+        "_browserSensitiveValuePreview",
+        "_browserLooksLikeSecret"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "browser-session-ownership-coordinator",
+          "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart"
+        },
+        {
+          "id": "browser-tool-handler",
+          "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/browser_tool_handler.dart"
+        }
+      ]
+    },
+    {
+      "id": "cancellation",
+      "partPath": "chat_notifier_cancellation.dart",
+      "entrypoints": [
+        "_cancelStreaming"
+      ],
+      "status": "keep",
+      "collaborators": []
+    },
+    {
+      "id": "coding-continuation-recovery",
+      "partPath": "chat_notifier_coding_continuation_recovery.dart",
+      "entrypoints": [
+        "_requestCodingContinuationRecovery",
+        "_codingContinuationRecoveryCode",
+        "_hasPendingAutoContinueExecutionWorkflow",
+        "_isCodingWorkspaceOrMode",
+        "_hasCodingContinuationRecoveryTools",
+        "_isCodingContinuationRecoveryToolName",
+        "_looksLikeContinuationOnlyUserRequest",
+        "looksLikeContinuationOnlyUserRequestForTest",
+        "_looksLikeProseOnlyCodingContinuation",
+        "looksLikeProseOnlyCodingContinuationForTest",
+        "_buildCodingContinuationRecoveryToolResult",
+        "_buildCodingContinuationRecoveryPrompt",
+        "_codingContinuationRecoveryPartialProgressNotice",
+        "_codingContinuationRecoveryLogLabel",
+        "_codingContinuationRecoveryReason",
+        "_codingContinuationRecoveryError",
+        "_codingContinuationRecoveryRequiredAction",
+        "_codingContinuationRecoveryPromptLead"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "coding-continuation-recovery-policy",
+          "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart"
+        }
+      ]
+    },
+    {
+      "id": "command-guardrails",
+      "partPath": "chat_notifier_command_guardrails.dart",
+      "entrypoints": [
+        "_buildProductionReleaseApprovalGuardResult",
+        "_currentSavedTaskForToolLoop",
+        "_isProductionReleaseCommandToolCall",
+        "_looksLikeProductionReleaseCommand",
+        "_latestUserExplicitlyApprovedProductionRelease",
+        "_previousAssistantAskedForProductionReleaseApproval",
+        "_hasExplicitProductionReleaseApproval",
+        "_answerGrantsProductionReleaseApproval",
+        "_looksLikeExplicitProductionReleaseApproval",
+        "_looksLikeProductionReleaseApprovalPrompt",
+        "_mentionsProductionRelease",
+        "_looksLikeAffirmativeReleaseApprovalAnswer"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "goal-validation-probe-guard",
+          "path": "lib/features/chat/domain/services/goal_validation_probe_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/goal_validation_probe_guard.dart"
+        },
+        {
+          "id": "material-contract-assumption-guard",
+          "path": "lib/features/chat/domain/services/material_contract_assumption_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/material_contract_assumption_guard.dart"
+        },
+        {
+          "id": "saved-validation-command-guard",
+          "path": "lib/features/chat/domain/services/saved_validation_command_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/saved_validation_command_guard.dart"
+        },
+        {
+          "id": "saved-task-target-scope-guard",
+          "path": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart"
+        },
+        {
+          "id": "unexecuted-file-mutation-before-command-guard",
+          "path": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart"
+        },
+        {
+          "id": "tool-loop-exhaustion-policy",
+          "path": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart"
+        },
+        {
+          "id": "git-write-confirmation-policy",
+          "path": "lib/features/chat/domain/services/git_write_confirmation_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/git_write_confirmation_policy.dart"
+        },
+        {
+          "id": "analysis-options-lint-edit-guard",
+          "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart"
+        },
+        {
+          "id": "command-diagnostic-verifier-replay-guard",
+          "path": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart"
+        },
+        {
+          "id": "coding-command-output-guardrail-service",
+          "path": "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart"
+        },
+        {
+          "id": "git-tag-format-inspection-guard",
+          "path": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart"
+        },
+        {
+          "id": "timed-out-command-retry-guard",
+          "path": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart"
+        },
+        {
+          "id": "production-release-approval-policy",
+          "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/production_release_approval_policy.dart"
+        }
+      ]
+    },
+    {
+      "id": "computer-use-handlers",
+      "partPath": "chat_notifier_computer_use_handlers.dart",
+      "entrypoints": [
+        "_handleComputerUseAction",
+        "_handleComputerUseActionWithoutApproval",
+        "_runComputerUsePostActionObservation",
+        "_computerUseResultWithPostActionObservation",
+        "_redactComputerUseActionResult",
+        "_computerUsePostActionVisionArguments",
+        "_computerUseBlockedResult",
+        "_computerUseBlockedErrorMessage",
+        "requestComputerUseAction",
+        "resolveComputerUseAction",
+        "_computerUseApprovalTargetContext",
+        "_computerUseApprovalExactTextContext",
+        "_computerUseMetadataString",
+        "_computerUseVisionObservationContext",
+        "_computerUseActionTarget",
+        "_computerUseExactText",
+        "_describeComputerUseAction",
+        "_computerUseActionDetails",
+        "_summarizeComputerUseText",
+        "_formatComputerUseKey",
+        "_formatComputerUseSpaceDirection"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "computer-use-action-policy",
+          "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/computer_use_action_policy.dart"
+        },
+        {
+          "id": "computer-use-runtime-coordinator",
+          "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart"
+        },
+        {
+          "id": "computer-use-tool-handler",
+          "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/computer_use_tool_handler.dart"
+        }
+      ]
+    },
+    {
+      "id": "context-surgery",
+      "partPath": "chat_notifier_context_surgery.dart",
+      "entrypoints": [
+        "updateConnectionSettings",
+        "_updateConnectionSettings",
+        "_scheduleModelSwitchHandoff",
+        "_updateContextSurgeryObservation"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "model-switch-settings-policy",
+          "path": "lib/features/chat/domain/services/model_switch_settings_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/model_switch_settings_policy.dart"
+        },
+        {
+          "id": "model-switch-handoff-registry",
+          "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/model_switch_handoff_registry.dart"
+        },
+        {
+          "id": "context-surgery-protected-path-policy",
+          "path": "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart"
+        },
+        {
+          "id": "request-tool-observation-collector",
+          "path": "lib/features/chat/domain/services/request_tool_observation_collector.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/request_tool_observation_collector.dart"
+        },
+        {
+          "id": "context-surgery-observation-accumulator",
+          "path": "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart"
+        }
+      ]
+    },
+    {
+      "id": "duplicate-recovery",
+      "partPath": "chat_notifier_duplicate_recovery.dart",
+      "entrypoints": [
+        "_buildDuplicateRecoveryToolResults",
+        "_buildDuplicateResultReusePayload"
+      ],
+      "status": "extracted",
+      "collaborators": [
+        {
+          "id": "duplicate-tool-result-recovery",
+          "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart"
+        }
+      ]
+    },
+    {
+      "id": "error-handling",
+      "partPath": "chat_notifier_error_handling.dart",
+      "entrypoints": [
+        "_handleError",
+        "_buildDisplayError",
+        "_cleanRawError"
+      ],
+      "status": "keep",
+      "collaborators": []
+    },
+    {
+      "id": "execution-runtime",
+      "partPath": "chat_notifier_execution_runtime.dart",
+      "entrypoints": [
+        "_startRuntimeTurn",
+        "_runtimeTurnForGeneration",
+        "_emitRuntimeAssistantContent",
+        "_emitRuntimeToolLifecycle",
+        "_emitRuntimeApprovalRequired",
+        "_emitRuntimeQuestionRequired",
+        "_emitRuntimeWorkflowTransition",
+        "_emitRuntimeUsage",
+        "_completeRuntimeTurn",
+        "_failRuntimeTurn",
+        "_runtimeToolLifecycleState"
+      ],
+      "status": "keep",
+      "collaborators": []
+    },
+    {
+      "id": "final-answer-recovery",
+      "partPath": "chat_notifier_final_answer_recovery.dart",
+      "entrypoints": [
+        "_streamToolResultAnswerWithContextRetry"
+      ],
+      "status": "remaining",
+      "collaborators": []
+    },
+    {
+      "id": "git-handlers",
+      "partPath": "chat_notifier_git_handlers.dart",
+      "entrypoints": [
+        "_handleGitExecuteCommand",
+        "_handleGitFinishWorktreeSession",
+        "_boolArgument",
+        "_toolResultsSatisfyCurrentGoalGitLifecycle",
+        "_buildGitLifecycleCompletionResponse",
+        "_normalizedGitSubcommand",
+        "_gitStatusResultIsClean",
+        "_firstCodingGoalMarker",
+        "requestGitCommand",
+        "resolveGitCommand"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "git-process-execution-coordinator",
+          "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/git_process_execution_coordinator.dart"
+        },
+        {
+          "id": "git-tool-handler",
+          "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/git_tool_handler.dart"
+        }
+      ]
+    },
+    {
+      "id": "local-file-handlers",
+      "partPath": "chat_notifier_local_file_handlers.dart",
+      "entrypoints": [
+        "_handleLspGoToDefinition",
+        "_oneBasedPositionValue",
+        "_lspDefinitionToJson",
+        "_pathFromLspUri",
+        "_handleWriteFile",
+        "_handleEditFile",
+        "_handleDeleteFile",
+        "_fileChangedSinceApprovalResult",
+        "_executeFileMutationToolAndCapture",
+        "_isSuccessfulFileMutationResult",
+        "_handleRollbackLastFileChange",
+        "_handleLocalExecuteCommand",
+        "_handleProcessStart",
+        "_handleProcessCancel",
+        "_handleRunTests",
+        "_buildRunTestsError",
+        "_normalizeRunTestsRunner",
+        "_buildRunTestsCommand",
+        "_inferRunTestsRunner",
+        "_normalizeRunTestsPathForWorkingDirectory",
+        "_shellQuoteRunTestsArgument",
+        "_normalizeRunTestsAbsolutePath",
+        "requestLocalCommand",
+        "resolveLocalCommand",
+        "requestFileOperation",
+        "resolveFileOperation"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "file-mutation-tool-handler",
+          "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/file_mutation_tool_handler.dart"
+        },
+        {
+          "id": "file-rollback-tool-handler",
+          "path": "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/file_rollback_tool_handler.dart"
+        },
+        {
+          "id": "lsp-go-to-definition-tool-handler",
+          "path": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart"
+        },
+        {
+          "id": "local-command-tool-handler",
+          "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/local_command_tool_handler.dart"
+        },
+        {
+          "id": "background-process-tool-handler",
+          "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/background_process_tool_handler.dart"
+        },
+        {
+          "id": "project-scoped-read-tool-handler",
+          "path": "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart"
+        },
+        {
+          "id": "run-tests-tool-handler",
+          "path": "lib/features/chat/domain/services/run_tests_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/run_tests_tool_handler.dart"
+        }
+      ]
+    },
+    {
+      "id": "mesh-routing",
+      "partPath": "chat_notifier_mesh_routing.dart",
+      "entrypoints": [
+        "_runSecondaryCompletion",
+        "_runPlanningCompletion"
+      ],
+      "status": "extracted",
+      "collaborators": [
+        {
+          "id": "secondary-completion-router",
+          "path": "lib/features/chat/domain/services/secondary_completion_router.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/secondary_completion_router.dart"
+        }
+      ]
+    },
+    {
+      "id": "participant-turns",
+      "partPath": "chat_notifier_participant_turns.dart",
+      "entrypoints": [
+        "requestParticipantTurnStop",
+        "continueParticipantTurns",
+        "_sendWithParticipantTurns",
+        "_runParticipantTurnLoop",
+        "_streamParticipantTurn",
+        "_participantToolDefinitionsFor",
+        "_executeParticipantToolCall",
+        "_resolveParticipantToolApproval",
+        "_participantToolReviewArguments",
+        "requestParticipantToolApproval",
+        "resolveParticipantToolApproval",
+        "_setParticipantToolActivity",
+        "_clearParticipantToolActivity",
+        "_appendParticipantPlaceholder",
+        "_finalizeParticipantTurnMessage",
+        "_dedupeParticipantToolNames",
+        "_participantTurnHandoffTarget",
+        "_pauseParticipantTurns",
+        "_completeParticipantTurns",
+        "_setParticipantTurnRuntime",
+        "_clearPausedParticipantTurn",
+        "_sameParticipants"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "participant-message-finalizer",
+          "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/participant_message_finalizer.dart"
+        },
+        {
+          "id": "participant-tool-executor",
+          "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/participant_tool_executor.dart"
+        },
+        {
+          "id": "participant-turn-planner",
+          "path": "lib/features/chat/domain/services/participant_turn_planner.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/participant_turn_planner.dart"
+        }
+      ]
+    },
+    {
+      "id": "serial-handlers",
+      "partPath": "chat_notifier_serial_handlers.dart",
+      "entrypoints": [
+        "_handleSerialOpen",
+        "requestSerialOpen",
+        "resolveSerialOpen",
+        "_serialResultIsError"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "serial-connection-attempt-coordinator",
+          "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart"
+        },
+        {
+          "id": "serial-connection-tool-handler",
+          "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/serial_connection_tool_handler.dart"
+        }
+      ]
+    },
+    {
+      "id": "skill-handlers",
+      "partPath": "chat_notifier_skill_handlers.dart",
+      "entrypoints": [
+        "_handleSaveSkill",
+        "_findSkillByName"
+      ],
+      "status": "extracted",
+      "collaborators": [
+        {
+          "id": "save-skill-tool-handler",
+          "path": "lib/features/chat/domain/services/save_skill_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/save_skill_tool_handler.dart"
+        }
+      ]
+    },
+    {
+      "id": "routine-handlers",
+      "partPath": "chat_notifier_routine_handlers.dart",
+      "entrypoints": [
+        "_handleCreateRoutine",
+        "_findNewestRoutineNamed",
+        "_routineScheduleSummary",
+        "_buildRoutinePreview",
+        "_parseRoutineScheduleMode",
+        "_parseRoutineIntervalUnit",
+        "_parseRoutineCompletionAction",
+        "_parseRoutineGoogleChatRule",
+        "_parseRoutineTimeOfDayMinutes"
+      ],
+      "status": "extracted",
+      "collaborators": [
+        {
+          "id": "create-routine-tool-handler",
+          "path": "lib/features/chat/domain/services/create_routine_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/create_routine_tool_handler.dart"
+        }
+      ]
+    },
+    {
+      "id": "ssh-handlers",
+      "partPath": "chat_notifier_ssh_handlers.dart",
+      "entrypoints": [
+        "_handleSshConnect",
+        "_handleSshExecuteCommand",
+        "requestSshConnect",
+        "resolveSshConnect",
+        "requestSshCommand",
+        "resolveSshCommand"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "ssh-session-ownership-coordinator",
+          "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart"
+        },
+        {
+          "id": "ssh-tool-handler",
+          "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/ssh_tool_handler.dart"
+        }
+      ]
+    },
+    {
+      "id": "subagent-handlers",
+      "partPath": "chat_notifier_subagent_handlers.dart",
+      "entrypoints": [
+        "_handleSpawnSubagent",
+        "_startBackgroundSubagent",
+        "_runBackgroundSubagent",
+        "_runSubagent",
+        "_dispatchChildToolCall",
+        "_notifySubagentDone",
+        "_handleGetSubagentResult"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "subagent-tool-handler",
+          "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/subagent_tool_handler.dart"
+        }
+      ]
+    },
+    {
+      "id": "python-attachment-repair",
+      "partPath": "chat_notifier_python_attachment_repair.dart",
+      "entrypoints": [
+        "_requestSkippedPythonAttachmentAnalysisRepair",
+        "_shouldRepairSkippedPythonAttachmentAnalysis",
+        "_hasRunPythonScriptToolResult",
+        "_looksLikePythonAttachmentAnalysisRequest",
+        "_containsCjkAnalysisMarker",
+        "_buildSkippedPythonAttachmentAnalysisRepairPrompt",
+        "_requestPythonAttachmentPathFailureRepair",
+        "_shouldRepairPythonAttachmentPathFailure",
+        "_hasRunPythonScriptPathFailure",
+        "_buildPythonAttachmentPathFailureRepairPrompt"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "python-attachment-repair-policy",
+          "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/python_attachment_repair_policy.dart"
+        }
+      ]
+    },
+    {
+      "id": "unexecuted-action-recovery",
+      "partPath": "chat_notifier_unexecuted_action_recovery.dart",
+      "entrypoints": [
+        "_appendUnexecutedToolRequestNoticeForContentIfNeeded",
+        "_requestNarratedTranscriptRepairForCompletionClaim",
+        "_applyNarratedTranscriptRepairToStreamedFinalAnswer"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "unexecuted-final-answer-tool-request-policy",
+          "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart"
+        },
+        {
+          "id": "final-answer-claim-notice-applicator",
+          "path": "lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart"
+        },
+        {
+          "id": "narrated-transcript-repair-planner",
+          "path": "lib/features/chat/domain/services/narrated_transcript_repair_planner.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/narrated_transcript_repair_planner.dart"
+        }
+      ]
+    },
+    {
+      "id": "content-tool-result-format",
+      "partPath": "chat_notifier_content_tool_result_format.dart",
+      "entrypoints": [
+        "_buildContentToolResultTag",
+        "_buildContentToolResultPayload",
+        "_summarizeToolResultMap",
+        "_compactToolResultValue",
+        "_truncateToolResultText"
+      ],
+      "status": "extracted",
+      "collaborators": [
+        {
+          "id": "content-tool-result-formatter",
+          "path": "lib/features/chat/domain/services/content_tool_result_formatter.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/content_tool_result_formatter.dart"
+        }
+      ]
+    },
+    {
+      "id": "coding-verification-feedback",
+      "partPath": "chat_notifier_coding_verification_feedback.dart",
+      "entrypoints": [
+        "_buildCodingVerificationFeedbackRun",
+        "_requestCodingVerificationRepairForCompletionClaim",
+        "_codingVerificationEnabledFor",
+        "_recordCodingVerificationValidationProgress",
+        "_codingVerificationCommandSummary",
+        "_codingVerificationProgressSummary",
+        "_codingVerificationValidationSummary",
+        "_codingVerificationCountsSummary",
+        "_shouldVerifyCodingCompletionClaim",
+        "_codingVerificationMutationSignature",
+        "_codingVerificationFailureSignature",
+        "_codingVerificationConvergenceBlocker",
+        "_logCodingVerificationFeedbackSummary"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "coding-verification-feedback-presentation",
+          "path": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart"
+        },
+        {
+          "id": "coding-verification-mutation-signature",
+          "path": "lib/features/chat/domain/services/coding_verification_mutation_signature.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/coding_verification_mutation_signature.dart"
+        }
+      ]
+    },
+    {
+      "id": "python-handlers",
+      "partPath": "chat_notifier_python_handlers.dart",
+      "entrypoints": [
+        "_handlePythonScript",
+        "_latestPythonInputMessage"
+      ],
+      "status": "extracted",
+      "collaborators": [
+        {
+          "id": "python-script-tool-handler",
+          "path": "lib/features/chat/domain/services/python_script_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/python_script_tool_handler.dart"
+        }
+      ]
+    },
+    {
+      "id": "planning-research",
+      "partPath": "chat_notifier_planning_research.dart",
+      "entrypoints": [
+        "_buildPlanningResearchContext"
+      ],
+      "status": "remaining",
+      "collaborators": []
+    },
+    {
+      "id": "proposal-option-extraction",
+      "partPath": "chat_notifier_proposal_option_extraction.dart",
+      "entrypoints": [
+        "_removeAnsweredOpenQuestions",
+        "_promoteChoiceLikeOpenQuestions",
+        "_promoteOpenQuestionsToPlanningPrompts",
+        "_buildOrderedChoiceDecisionFromOpenQuestion",
+        "_buildAlternativeChoiceDecisionFromOpenQuestion",
+        "_buildYesNoDecisionFromOpenQuestion",
+        "_extractEnglishOrderedOptions",
+        "_extractJapaneseOrderedOptions",
+        "_extractEnglishAlternativeOptions",
+        "_extractJapaneseAlternativeOptions",
+        "_splitEnglishChoiceList",
+        "_splitJapaneseChoiceList",
+        "_stripEnglishChoicePrefix",
+        "_stripJapaneseChoicePrefix",
+        "_stripChoiceSuffix",
+        "_cleanDecisionOptionLabel",
+        "_decisionOptionId",
+        "_looksLikeYesNoOpenQuestion",
+        "_containsJapaneseText",
+        "_normalizeWorkflowDecisionText",
+        "_mergeWorkflowDecisionAnswers",
+        "_filterUnansweredWorkflowDecisions"
+      ],
+      "status": "deferred",
+      "collaborators": []
+    },
+    {
+      "id": "proposal-parsing",
+      "partPath": "chat_notifier_proposal_parsing.dart",
+      "entrypoints": [
+        "_proposalJsonExtractor",
+        "_extractJsonMap",
+        "_tryDecodeMap",
+        "_tryRepairAndDecodeMap",
+        "_repairJsonCandidate",
+        "_extractLooseJsonScalar",
+        "_extractLooseJsonStringList",
+        "_collectProposalSections",
+        "_matchWorkflowSectionLine",
+        "_inferWorkflowStageFromSectionKeys",
+        "_inferWorkflowStageFromLooseProposalContent",
+        "_normalizeProposalContent",
+        "_extractProposalReasoningContent",
+        "_extractStructuredWorkflowProposalReasoning",
+        "_extractStructuredTaskProposalReasoning",
+        "_sanitizeReasoningProposalValue",
+        "_looksLikeStructuredReasoningListItem",
+        "_isWorkflowListSection",
+        "_workflowSectionDisplayLabel",
+        "_taskFieldDisplayLabel",
+        "_asCleanString",
+        "_asStringList",
+        "_isCompletionTruncated",
+        "_stripMarkdownListMarker",
+        "_appendTextValue",
+        "_proposalPreview",
+        "_extractPlainTextForProposal",
+        "_extractInlineTaskPlanCandidate",
+        "_sanitizeInlineReasoningTaskTitle",
+        "_matchTaskTitleLine",
+        "_matchTaskFieldLine"
+      ],
+      "status": "deferred",
+      "collaborators": []
+    },
+    {
+      "id": "workflow-proposal-parser",
+      "partPath": "chat_notifier_workflow_proposal_parser.dart",
+      "entrypoints": [
+        "_workflowProposalParser",
+        "_parseWorkflowProposalResponse",
+        "_parseWorkflowProposalResponseWithFallback",
+        "_buildWorkflowProposalFallback",
+        "_buildWorkflowProposalTruncationFallback",
+        "_parseWorkflowStage",
+        "_inferWorkflowStageFromProposal",
+        "_parseWorkflowProposalMap",
+        "_parseWorkflowDecisionResponseMap",
+        "_parseWorkflowProposalFromSections",
+        "_parseWorkflowProposalFromLooseJson",
+        "_parseWorkflowProposalFromNarrative",
+        "_extractNarrativeWorkflowGoal",
+        "_trimNarrativeWorkflowGoalCandidate",
+        "_sanitizeNarrativeWorkflowGoal",
+        "_extractNarrativeWorkflowList",
+        "_deriveWorkflowFallbackGoalFromConversation"
+      ],
+      "status": "deferred",
+      "collaborators": []
+    },
+    {
+      "id": "prompt-context",
+      "partPath": "chat_notifier_prompt_context.dart",
+      "entrypoints": [
+        "_createSystemMessage",
+        "_ensureShortPromptExecutionContract",
+        "_markPendingExecutionTaskStarted",
+        "_loadReferencedSpecification",
+        "_observeExecutionSnapshot",
+        "_codingProjectForTurn",
+        "_turnProjectRootFor",
+        "_getEffectiveCodingProject",
+        "_loadAgentsMd",
+        "_repoMap"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "referenced-specification-loader",
+          "path": "lib/features/chat/domain/services/referenced_specification_loader.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/referenced_specification_loader.dart"
+        },
+        {
+          "id": "execution-snapshot-observer",
+          "path": "lib/features/chat/domain/services/execution_snapshot_observer.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/execution_snapshot_observer.dart"
+        }
+      ]
+    },
+    {
+      "id": "tool-result-telemetry",
+      "partPath": "chat_notifier_tool_result_telemetry.dart",
+      "entrypoints": [
+        "_recordModelEditApplyTelemetry",
+        "_recordContentToolResult",
+        "_recordContentToolResultInfo"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "model-edit-apply-telemetry-recorder",
+          "path": "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart"
+        },
+        {
+          "id": "runtime-sampler-feedback-recorder",
+          "path": "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart"
+        },
+        {
+          "id": "content-tool-failure-formatter",
+          "path": "lib/features/chat/domain/services/content_tool_failure_formatter.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/content_tool_failure_formatter.dart"
+        }
+      ]
+    },
+    {
+      "id": "tool-handler-registry",
+      "partPath": "chat_notifier_tool_handler_registry.dart",
+      "entrypoints": [
+        "_toolDefinitionsAllowedBy",
+        "_logAllowedToolDefinitions",
+        "_buildToolHandlerRegistry"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "chat-tool-handler-catalog",
+          "path": "lib/features/chat/domain/services/chat_tool_handler_catalog.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/chat_tool_handler_catalog.dart"
+        }
+      ]
+    },
+    {
+      "id": "turn-rollback-handlers",
+      "partPath": "chat_notifier_turn_rollback_handlers.dart",
+      "entrypoints": [
+        "previewLastFileTurnRollback",
+        "rollbackLastFileTurnChanges"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "file-turn-rollback-service",
+          "path": "lib/features/chat/domain/services/file_turn_rollback_service.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/file_turn_rollback_service.dart"
+        }
+      ]
+    },
+    {
+      "id": "turn-finalization-recovery",
+      "partPath": "chat_notifier_turn_finalization_recovery.dart",
+      "entrypoints": [
+        "_recoverBeforeTurnFinalizationIfNeeded",
+        "_hasTerminalGoalSuccessToolResults",
+        "_shouldSkipCompletedToolResultFinalAnswerRecovery",
+        "cacheStreamedToolResultFinalAnswerForTest",
+        "shouldSkipCompletedToolResultFinalAnswerRecoveryForTest",
+        "_turnFinalizationRecoveryInput",
+        "_shouldSkipCompletedToolResultCodingContinuationRecovery",
+        "_hasSuccessfulFinalAnswerToolEvidence",
+        "_looksLikeCompletedCodingFinalAnswer",
+        "_looksLikeCodingFutureAction",
+        "_turnFinalizationCandidateText",
+        "_contentBeforeFinalizationCandidate",
+        "_prepareLastAssistantForTurnFinalizationRecovery"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "turn-finalization-recovery-policy",
+          "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart"
+        }
+      ]
+    },
+    {
+      "id": "turn-exit",
+      "partPath": "chat_notifier_turn_exit.dart",
+      "entrypoints": [
+        "_logTurnExitReason",
+        "_recordTurnExitIfUnclassified"
+      ],
+      "status": "keep",
+      "collaborators": []
+    },
+    {
+      "id": "response-finalization",
+      "partPath": "chat_notifier_response_finalization.dart",
+      "entrypoints": [
+        "_saveMessages",
+        "_finishDetachedActiveResponse"
+      ],
+      "status": "keep",
+      "collaborators": []
+    },
+    {
+      "id": "goal-auto-continue",
+      "partPath": "chat_notifier_goal_auto_continue.dart",
+      "entrypoints": [
+        "_recordCommandDiagnosticStreak",
+        "_resetCommandDiagnosticStreak",
+        "_commandDiagnosticRepairFocusFor",
+        "_clearCommandDiagnosticRepairFocus",
+        "_recordExecutedVerifierReplayCandidate",
+        "recordExecutedVerifierReplayCandidateForTest",
+        "hasVerifierReplayCandidateForCurrentTaskForTest",
+        "_isReplayEligibleVerifierToolCall",
+        "_verifierReplayPriority",
+        "isVerifierReplayEligibleForTest",
+        "_takePostMutationVerifierReplay",
+        "_replayVerifierAfterRepairMutation",
+        "_finishExplicitTerminalSuccess",
+        "_acceptTerminalSuccessForCurrentGeneration",
+        "_recordSuccessfulVerificationGenerationIfNeeded",
+        "_settleFinalEvidenceForSuccessfulSavedValidation",
+        "_reconcileGoalAutoContinueEvidenceForFinalization",
+        "seedContentToolDedupeGuardsForTest",
+        "hasContentToolDedupeGuardsForTest",
+        "_resetGoalAutoContinueTrackerForConversation",
+        "_clearGoalAutoContinueIndicator",
+        "_currentVerificationCadence",
+        "_maybeAutoContinueCurrentGoal",
+        "_candidateGoalAutoContinueProgressStreak",
+        "_goalAutoContinueSafeBoundaryFromState",
+        "_endsWithQuestionMark",
+        "_elicitGoalCompletionReport",
+        "_logGoalAutoContinueSkip",
+        "_effectiveGoalAutoContinueBudget",
+        "_recordGoalAutoContinueSessionLog",
+        "handleUpdateGoal",
+        "_goalUpdateEvidenceAtCallTime",
+        "takeToolGoalCompletionClaim",
+        "recordGoalCompletionShadow"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "goal-auto-continue-decision-coordinator",
+          "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart"
+        },
+        {
+          "id": "goal-auto-continue-safe-boundary-builder",
+          "path": "lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart"
+        },
+        {
+          "id": "goal-auto-continue-tracker-registry",
+          "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart"
+        },
+        {
+          "id": "goal-continuation-log-record-builder",
+          "path": "lib/features/chat/domain/services/goal_continuation_log_record_builder.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/goal_continuation_log_record_builder.dart"
+        },
+        {
+          "id": "goal-update-tool-handler",
+          "path": "lib/features/chat/domain/services/goal_update_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/goal_update_tool_handler.dart"
+        }
+      ]
+    },
+    {
+      "id": "task-proposal-quality",
+      "partPath": "chat_notifier_task_proposal_quality.dart",
+      "entrypoints": [
+        "_taskProposalQualityService",
+        "_isReasoningWorkflowProposalPlausible",
+        "_isReasoningTaskProposalPlausible",
+        "_preferTaskProposalRetryCandidate",
+        "_buildHeuristicTaskProposalFallbackTasks",
+        "_finalizeTaskProposalDraft",
+        "_sanitizeTaskProposalTasks",
+        "_taskProposalNeedsRetry",
+        "_taskProposalNeedsRetryForWorkflow",
+        "_workflowPrefersExplicitSingleTask",
+        "_explicitFirstSliceTargetFiles",
+        "_reorderTaskProposalTasks"
+      ],
+      "status": "deferred",
+      "collaborators": []
+    },
+    {
+      "id": "terminal-tool-response-policy",
+      "partPath": "chat_notifier_terminal_tool_response_policy.dart",
+      "entrypoints": [
+        "_terminalToolResponsePolicy",
+        "_hiddenAssistantEvidenceScore",
+        "_shouldAcceptRecoveryFinalTextResponse",
+        "_shouldAcceptTerminalToolRoleFinalTextResponse",
+        "_shouldAcceptTerminalFileMutationFinalTextResponse",
+        "_shouldAcceptTerminalBrowserSaveDataResponse",
+        "_normalizeTerminalBrowserSaveDataResponse",
+        "_shouldAcceptTerminalSkillToolRoleResponse",
+        "_shouldAcceptConstrainedSkillResponseBeforeFollowUpTools",
+        "_looksLikeSkillContinuationWorkIntent",
+        "_normalizeTerminalSkillToolRoleResponse",
+        "_hasSuccessfulLoadSkillResult",
+        "_shouldAcceptTerminalToolRoleBlockerResponse"
+      ],
+      "status": "deferred",
+      "collaborators": []
+    },
+    {
+      "id": "tool-loop-batch",
+      "partPath": "chat_notifier_tool_loop_batch.dart",
+      "entrypoints": [
+        "_executeToolLoopBatch",
+        "_truncationCasualtyToolCallIds",
+        "_buildTruncatedToolCallArgumentsGuardResult",
+        "_persistToolResultForPrompt",
+        "_isCommandExecutionTool",
+        "_toolCommandArgument",
+        "_toolResultHasSuccessfulExit",
+        "_exitCodeValue",
+        "_recordBackgroundProcessStartResult",
+        "_buildStaleProcessStartGuardResult",
+        "_asBool",
+        "_toolResultTimedOut",
+        "_recordTurnCommandLedgerEntry"
+      ],
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "process-start-result-policy",
+          "path": "lib/features/chat/domain/services/process_start_result_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/process_start_result_policy.dart"
+        }
+      ]
+    },
+    {
+      "id": "task-proposal-parser",
+      "partPath": "chat_notifier_task_proposal_parser.dart",
+      "entrypoints": [
+        "_taskProposalParser",
+        "_parseTaskProposal",
+        "_parseTaskProposalWithFallback",
+        "_buildTaskProposalTruncationFallback",
+        "_parseTaskProposalMap",
+        "_parseTaskProposalFromLooseJson",
+        "_parseTaskProposalFromSections",
+        "_parseTaskProposalFromInlineReasoningPlan"
+      ],
+      "status": "deferred",
+      "collaborators": []
+    }
+  ]
+}

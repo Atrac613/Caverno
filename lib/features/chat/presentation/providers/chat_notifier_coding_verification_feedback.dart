@@ -1,7 +1,6 @@
 // Same-library extension on [ChatNotifier]: coding completion-verification
-// feedback — building the verification tool result, progress/validation/counts
-// summaries, mutation/failure signatures, and convergence-blocker logging.
-// Pure relocation from chat_notifier.dart (F5), no behavior change.
+// feedback — running verification, persisting progress, mutation signatures,
+// and adapting presentation telemetry to app logging.
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
@@ -22,6 +21,10 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
     if (turn == null) {
       return null;
     }
+    final owner = _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) {
+      return null;
+    }
     final projectRoot = turn.projectRoot;
 
     final changedPaths = _changedFileMutationPaths(toolResults);
@@ -39,7 +42,11 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
       if (!_isCurrentInteractionGeneration(interactionGeneration)) {
         return null;
       }
-      await _recordCodingVerificationValidationProgress(verification.snapshot);
+      await _recordCodingVerificationValidationProgress(
+        verification.snapshot,
+        owner: owner,
+        ownerConversation: turn.conversation,
+      );
       final feedback = verification.toolResult;
       if (feedback != null) {
         appLog(
@@ -73,11 +80,14 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
     )) {
       return null;
     }
-    if (!_shouldVerifyCodingCompletionClaim(candidateResponse)) {
+    if (!CodingVerificationFeedbackPresentation.shouldVerifyCompletionClaim(
+      candidateResponse,
+    )) {
       return null;
     }
     final mutationSignature = _codingVerificationMutationSignature(
       executedToolResults,
+      projectRoot: _projectRootForGeneration(interactionGeneration),
     );
     if (mutationSignature == null) {
       return null;
@@ -112,7 +122,8 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
     if (feedback == null) {
       return null;
     }
-    final failureSignature = _codingVerificationFailureSignature(feedback);
+    final failureSignature =
+        CodingVerificationFeedbackPresentation.failureSignature(feedback);
     if (failureSignature != null) {
       final failureCount =
           (verificationFailureCounts[failureSignature] ?? 0) + 1;
@@ -124,19 +135,25 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
           'repair limit; surfacing blocker',
         );
         return ChatCompletionResult(
-          content: _codingVerificationConvergenceBlocker(feedback),
+          content: CodingVerificationFeedbackPresentation.convergenceBlocker(
+            feedback,
+            maxRepairAttempts:
+                ChatNotifier._maxRepeatedCodingVerificationRepairAttempts,
+          ),
           finishReason: 'stop',
         );
       }
     }
 
+    final owner = _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) {
+      return null;
+    }
     final promptFeedback = await _toolResultArtifactStore.persistIfLarge(
       feedback,
-      conversationId:
-          _activeResponseConversationIdForGeneration(interactionGeneration) ??
-          conversationId,
+      conversationId: owner.conversationId,
     );
-    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+    if (!_activeResponseRegistry.containsOwner(owner)) {
       return null;
     }
     batchToolResults.add(promptFeedback);
@@ -185,20 +202,25 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
   }
 
   Future<void> _recordCodingVerificationValidationProgress(
-    CodingVerificationSnapshot? snapshot,
-  ) async {
-    if (snapshot == null) {
+    CodingVerificationSnapshot? snapshot, {
+    required ChatTurnOwner owner,
+    required Conversation ownerConversation,
+  }) async {
+    if (snapshot == null ||
+        ownerConversation.id != owner.conversationId ||
+        !_activeResponseRegistry.containsOwner(owner)) {
       return;
     }
-    final conversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (conversation == null || conversation.projectedExecutionTasks.isEmpty) {
+    if (ownerConversation.projectedExecutionTasks.isEmpty) {
       return;
     }
     final task =
-        ConversationPlanExecutionCoordinator.validationTask(conversation) ??
-        ConversationPlanExecutionCoordinator.executionFocusTask(conversation);
+        ConversationPlanExecutionCoordinator.validationTask(
+          ownerConversation,
+        ) ??
+        ConversationPlanExecutionCoordinator.executionFocusTask(
+          ownerConversation,
+        );
     if (task == null) {
       return;
     }
@@ -213,7 +235,8 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
             ? ConversationWorkflowTaskStatus.inProgress
             : task.status,
     };
-    final validationSummary = _codingVerificationValidationSummary(snapshot);
+    final validationSummary =
+        CodingVerificationFeedbackPresentation.validationSummary(snapshot);
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
@@ -223,9 +246,10 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
       allowStatusRegression: true,
       validationStatus: snapshot.validationStatus,
       lastValidationAt: DateTime.now(),
-      lastValidationCommand: _codingVerificationCommandSummary(snapshot),
+      lastValidationCommand:
+          CodingVerificationFeedbackPresentation.commandSummary(snapshot),
       lastValidationSummary: validationSummary,
-      summary: _codingVerificationProgressSummary(snapshot),
+      summary: CodingVerificationFeedbackPresentation.progressSummary(snapshot),
       blockedReason:
           snapshot.validationStatus ==
               ConversationExecutionValidationStatus.failed
@@ -233,11 +257,15 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
           : '',
       eventType: ConversationExecutionTaskEventType.validated,
       eventSummary: validationSummary,
+      conversationId: owner.conversationId,
     );
+    if (!_activeResponseRegistry.containsOwner(owner)) return;
     if (snapshot.validationStatus ==
         ConversationExecutionValidationStatus.passed) {
       try {
-        await conversationsNotifier.recordCurrentVerificationGeneration();
+        await conversationsNotifier.recordVerificationGeneration(
+          conversationId: owner.conversationId,
+        );
       } catch (error) {
         appLog(
           '[ExecutionEvidence] Failed to persist successful verification '
@@ -245,8 +273,9 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
         );
       }
     }
+    if (!_activeResponseRegistry.containsOwner(owner)) return;
 
-    if (!conversation.shouldPreferPlanDocument) {
+    if (!ownerConversation.shouldPreferPlanDocument) {
       return;
     }
     await conversationsNotifier.updateCurrentWorkflow(
@@ -254,228 +283,29 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
           ? ConversationWorkflowStage.review
           : ConversationWorkflowStage.implement,
       preserveWorkflowProjection: true,
+      conversationId: owner.conversationId,
     );
-  }
-
-  String _codingVerificationCommandSummary(
-    CodingVerificationSnapshot snapshot,
-  ) {
-    final command = snapshot.selectedAttempt?.command;
-    if (command != null) {
-      return [command.executable, ...command.arguments].join(' ');
-    }
-    final targets = snapshot.targetBatches
-        .expand((batch) => batch.targets)
-        .toList(growable: false);
-    if (targets.isEmpty) {
-      return 'coding verification';
-    }
-    return 'coding verification ${targets.join(' ')}';
-  }
-
-  String _codingVerificationProgressSummary(
-    CodingVerificationSnapshot snapshot,
-  ) {
-    final counts = _codingVerificationCountsSummary(snapshot);
-    final suffix = counts.isEmpty ? '' : ' ($counts)';
-    return switch (snapshot.validationStatus) {
-      ConversationExecutionValidationStatus.passed =>
-        'Coding verification passed$suffix.',
-      ConversationExecutionValidationStatus.failed =>
-        'Coding verification failed$suffix.',
-      ConversationExecutionValidationStatus.unknown =>
-        'Coding verification was inconclusive${snapshot.reason == null ? '' : ': ${snapshot.reason}'}$suffix.',
-    };
-  }
-
-  String _codingVerificationValidationSummary(
-    CodingVerificationSnapshot snapshot,
-  ) {
-    if (snapshot.validationStatus ==
-            ConversationExecutionValidationStatus.failed &&
-        snapshot.failures.isNotEmpty) {
-      final failure = snapshot.failures.first;
-      final locationParts = [
-        failure.absolutePath == null
-            ? null
-            : DartProjectPath.relativePath(
-                failure.absolutePath!,
-                snapshot.projectRoot,
-              ),
-        if (failure.line != null) 'line ${failure.line}',
-      ].whereType<String>().where((part) => part.trim().isNotEmpty);
-      final location = locationParts.join(':');
-      final label = [
-        if (location.isNotEmpty) location,
-        if (failure.testName.trim().isNotEmpty) failure.testName.trim(),
-      ].join(' ');
-      final message = failure.message.trim().isEmpty
-          ? 'Test failed.'
-          : failure.message.trim();
-      return label.isEmpty ? message : '$label: $message';
-    }
-    return _codingVerificationProgressSummary(snapshot);
-  }
-
-  String _codingVerificationCountsSummary(CodingVerificationSnapshot snapshot) {
-    final parts = <String>[
-      if (snapshot.passedCount > 0) '${snapshot.passedCount} passed',
-      if (snapshot.failedCount > 0) '${snapshot.failedCount} failed',
-      if (snapshot.skippedCount > 0) '${snapshot.skippedCount} skipped',
-    ];
-    return parts.join(', ');
-  }
-
-  bool _shouldVerifyCodingCompletionClaim(String response) {
-    final candidate = response.trim();
-    if (candidate.isEmpty) {
-      return false;
-    }
-    final normalized = candidate.toLowerCase();
-    if (normalized.contains('not complete') ||
-        normalized.contains('not completed') ||
-        normalized.contains('incomplete')) {
-      return false;
-    }
-    return _hiddenAssistantEvidenceScore(candidate) >= 2 ||
-        normalized.contains('done');
   }
 
   String? _codingVerificationMutationSignature(
-    List<ToolResultInfo> toolResults,
-  ) {
-    final entries = <Map<String, String>>[];
-    for (final toolResult in toolResults) {
-      if (!_isFileMutationToolName(toolResult.name)) {
-        continue;
-      }
-      if (!_isSuccessfulFileMutationToolResult(toolResult)) {
-        continue;
-      }
-      final path =
-          _toolResultPayloadPath(toolResult.result) ??
-          _toolPathFromArguments(toolResult.arguments);
-      if (path == null || !path.toLowerCase().endsWith('.dart')) {
-        continue;
-      }
-      final resolved = FilesystemTools.resolvePath(
-        path,
-        defaultRoot: _getActiveProjectRootPath(),
-      );
-      entries.add({
-        'id': toolResult.id,
-        'name': toolResult.name,
-        'path': resolved ?? path,
-      });
-    }
-    if (entries.isEmpty) {
-      return null;
-    }
-    return jsonEncode(entries);
-  }
-
-  String? _codingVerificationFailureSignature(ToolResultInfo feedback) {
-    final decoded = _tryDecodeMap(feedback.result);
-    if (decoded == null) {
-      return null;
-    }
-    final failingTests = decoded['failing_tests'];
-    if (failingTests is! List || failingTests.isEmpty) {
-      return null;
-    }
-    final entries = <Map<String, Object?>>[];
-    for (final test in failingTests) {
-      if (test is! Map) {
-        continue;
-      }
-      entries.add({
-        'relative_path': test['relative_path'] ?? test['path'],
-        'test_name': test['test_name'],
-        'line': test['line'],
-        'column': test['column'],
-        'message': test['message'],
-      });
-    }
-    if (entries.isEmpty) {
-      return null;
-    }
-    return jsonEncode({
-      'provider': decoded['provider'],
-      'validation_status': decoded['validation_status'],
-      'failures': entries,
-    });
-  }
-
-  String _codingVerificationConvergenceBlocker(ToolResultInfo feedback) {
-    final decoded = _tryDecodeMap(feedback.result);
-    final failingTests = decoded?['failing_tests'];
-    final buffer = StringBuffer(
-      'The coding task is not complete. The same failing tests persisted after '
-      '${ChatNotifier._maxRepeatedCodingVerificationRepairAttempts} repair attempts, so I am '
-      'stopping the automatic repair loop.',
+    List<ToolResultInfo> toolResults, {
+    required String? projectRoot,
+  }) {
+    return const CodingVerificationMutationSignature().compute(
+      CodingVerificationMutationSignatureInput(
+        toolResults: toolResults,
+        projectRoot: projectRoot,
+      ),
     );
-    if (failingTests is List && failingTests.isNotEmpty) {
-      buffer.writeln();
-      buffer.writeln();
-      buffer.writeln('Remaining failing tests:');
-      for (final test in failingTests.take(5)) {
-        if (test is! Map) {
-          continue;
-        }
-        final path = test['relative_path'] ?? test['path'];
-        final name = test['test_name'];
-        final line = test['line'];
-        final message = test['message'];
-        final location = [
-          if (path is String && path.isNotEmpty) path,
-          if (line != null) 'line $line',
-        ].join(':');
-        final label = [
-          if (location.isNotEmpty) location,
-          if (name is String && name.isNotEmpty) name,
-        ].join(' ');
-        buffer.write('- ');
-        if (label.isNotEmpty) {
-          buffer.write(label);
-          buffer.write(': ');
-        }
-        buffer.write(
-          message is String && message.isNotEmpty ? message : 'Test failed.',
-        );
-        buffer.writeln();
-      }
-    }
-    return buffer.toString().trimRight();
   }
 
   void _logCodingVerificationFeedbackSummary(ToolResultInfo feedback) {
-    final decoded = _tryDecodeMap(feedback.result);
-    if (decoded == null) {
+    final summary = CodingVerificationFeedbackPresentation.telemetrySummary(
+      feedback,
+    );
+    if (summary == null) {
       return;
     }
-    final telemetry = decoded['telemetry'];
-    final telemetryMap = telemetry is Map<String, dynamic> ? telemetry : null;
-    final counts = decoded['counts'];
-    final countsMap = counts is Map<String, dynamic> ? counts : null;
-    final summary = <String, Object?>{
-      'toolName': feedback.name,
-      'provider': decoded['provider'],
-      'trigger': decoded['trigger'],
-      'validationStatus': decoded['validation_status'],
-      'files': decoded['changed_paths'],
-      if (countsMap != null) ...{
-        'passedCount': countsMap['passed'],
-        'failedCount': countsMap['failed'],
-        'skippedCount': countsMap['skipped'],
-      },
-      if (telemetryMap != null) ...{
-        'durationMs': telemetryMap['duration_ms'],
-        'commandAttemptCount': telemetryMap['command_attempt_count'],
-        'fallbackCommandCount': telemetryMap['fallback_command_count'],
-        'timedOutCommandCount': telemetryMap['timed_out_command_count'],
-        'startErrorCommandCount': telemetryMap['start_error_command_count'],
-      },
-    };
     appLog(
       '[CodingVerification] Test feedback summary: ${jsonEncode(summary)}',
     );

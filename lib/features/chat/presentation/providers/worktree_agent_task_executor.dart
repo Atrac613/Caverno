@@ -11,6 +11,7 @@ import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/mesh_secondary_completion_runner.dart';
 import '../../data/datasources/mcp_tool_service.dart';
+import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/worktree_agent_task.dart';
@@ -147,6 +148,10 @@ class WorktreeAgentLlmExecutionDelegate {
     );
     final service = SubagentExecutionService(dataSource: resolved.dataSource);
     final task = await service.run(
+      owner: ChatTurnOwner(
+        conversationId: 'worktree-agent:${context.taskId}',
+        interactionGeneration: 1,
+      ),
       id: _subagentTaskId(context.taskId),
       description: _description(context),
       prompt: _prompt(context, toolNames: dispatcher.toolNames),

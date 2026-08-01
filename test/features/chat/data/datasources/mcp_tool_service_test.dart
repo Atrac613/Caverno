@@ -20,12 +20,14 @@ import 'package:caverno/features/chat/data/datasources/built_in_lan_scan_tool_ha
 import 'package:caverno/features/chat/data/datasources/built_in_serial_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/built_in_ssh_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/built_in_wifi_tool_handler.dart';
+import 'package:caverno/features/chat/data/datasources/file_rollback_checkpoint_store.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
 import 'package:caverno/features/chat/data/datasources/searxng_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/skill_repository.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:crypto/crypto.dart';
@@ -74,6 +76,14 @@ const _filesystemToolNames = [
   ..._filesystemInspectionToolNames,
   ..._filesystemMutationToolNames,
 ];
+
+ChatTurnOwner _turnOwner({
+  String conversationId = 'mcp-tool-service',
+  int generation = 1,
+}) => ChatTurnOwner(
+  conversationId: conversationId,
+  interactionGeneration: generation,
+);
 
 const _localCommandToolNames = [
   'local_execute_command',
@@ -126,6 +136,7 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     this.tailResult,
     this.waitResult,
     this.cancelResult,
+    this.visibleOwner,
   });
 
   final Map<String, String> statusResults;
@@ -133,14 +144,23 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   final String? tailResult;
   final String? waitResult;
   final String? cancelResult;
+  final ChatTurnOwner? visibleOwner;
   final List<Map<String, dynamic>> startCalls = [];
+  final List<ChatTurnOwner> startOwners = [];
+  final List<ChatTurnOwner> statusOwners = [];
+  final List<ChatTurnOwner> tailOwners = [];
+  final List<ChatTurnOwner> waitOwners = [];
+  final List<ChatTurnOwner> cancelOwners = [];
+  final List<ChatTurnOwner> clearedOwners = [];
 
   @override
   Future<String> start({
+    required ChatTurnOwner owner,
     required String command,
     required String workingDirectory,
     String? label,
   }) async {
+    startOwners.add(owner);
     startCalls.add({
       'command': command,
       'working_directory': workingDirectory,
@@ -159,8 +179,13 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   bool get isSupported => true;
 
   @override
-  Future<String> status({required String jobId, int? tailChars}) async {
-    return statusResults[jobId] ??
+  Future<String> status({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? tailChars,
+  }) async {
+    statusOwners.add(owner);
+    return _ownerResult(owner, jobId, statusResults[jobId]) ??
         jsonEncode({
           'ok': false,
           'code': 'job_not_found',
@@ -170,8 +195,13 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 
   @override
-  Future<String> tail({required String jobId, int? maxChars}) async {
-    return tailResult ??
+  Future<String> tail({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? maxChars,
+  }) async {
+    tailOwners.add(owner);
+    return _ownerResult(owner, jobId, tailResult) ??
         jsonEncode({
           'ok': false,
           'code': 'job_not_found',
@@ -181,8 +211,13 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 
   @override
-  Future<String> wait({required String jobId, int? waitMs}) async {
-    return waitResult ??
+  Future<String> wait({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? waitMs,
+  }) async {
+    waitOwners.add(owner);
+    return _ownerResult(owner, jobId, waitResult) ??
         jsonEncode({
           'ok': false,
           'code': 'job_not_found',
@@ -192,14 +227,35 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 
   @override
-  Future<String> cancel({required String jobId}) async {
-    return cancelResult ??
+  Future<String> cancel({
+    required ChatTurnOwner owner,
+    required String jobId,
+  }) async {
+    cancelOwners.add(owner);
+    return _ownerResult(owner, jobId, cancelResult) ??
         jsonEncode({
           'ok': false,
           'code': 'job_not_found',
           'job_id': jobId,
           'error': 'No background process job exists for job_id: $jobId',
         });
+  }
+
+  @override
+  Future<void> clearOwner({required ChatTurnOwner owner}) async {
+    clearedOwners.add(owner);
+  }
+
+  String? _ownerResult(ChatTurnOwner owner, String jobId, String? configured) {
+    if (visibleOwner == null || owner == visibleOwner) {
+      return configured;
+    }
+    return jsonEncode({
+      'ok': false,
+      'code': 'job_not_found',
+      'job_id': jobId,
+      'error': 'No background process job exists for job_id: $jobId',
+    });
   }
 }
 
@@ -232,6 +288,8 @@ void main() {
   });
 
   group('McpToolService', () {
+    final processOwner = _turnOwner(conversationId: 'process-owner');
+
     test('preserves the ordered built-in network tool definitions', () {
       final service = McpToolService();
 
@@ -361,6 +419,25 @@ void main() {
       expect(names.indexOf(_bleToolNames.first), sshEnd + 1);
     });
 
+    test('requires an owner on the generic SSH dispatch surface', () async {
+      final service = McpToolService(sshService: _FakeMcpSshService());
+
+      for (final name in _sshToolNames) {
+        final result = await service.executeTool(
+          name: name,
+          arguments: name == 'ssh_execute_command'
+              ? const {'command': 'pwd'}
+              : const {},
+        );
+        expect(result.isSuccess, isFalse, reason: name);
+        expect(
+          jsonDecode(result.result),
+          containsPair('code', 'chat_turn_owner_required'),
+          reason: name,
+        );
+      }
+    });
+
     test('preserves SSH direct denial and disabled routing', () async {
       final ssh = _FakeMcpSshService();
       final service = McpToolService(
@@ -373,11 +450,13 @@ void main() {
           .toSet();
       expect(names.intersection(_sshToolNames.toSet()), isEmpty);
 
-      final connect = await service.executeTool(
+      final connect = await service.executeSshTool(
+        owner: processOwner,
         name: 'ssh_connect',
         arguments: const {'host': 'example.com'},
       );
-      final disconnect = await service.executeTool(
+      final disconnect = await service.executeSshTool(
+        owner: processOwner,
         name: 'ssh_disconnect',
         arguments: const {},
       );
@@ -390,6 +469,7 @@ void main() {
       expect(disconnect.isSuccess, isTrue);
       expect(disconnect.result, 'No active SSH session');
       expect(ssh.disconnectCalls, 1);
+      expect(ssh.disconnectedOwners, [same(processOwner)]);
     });
 
     test('preserves approved SSH command execution and validation', () async {
@@ -403,11 +483,13 @@ void main() {
       );
       final service = McpToolService(sshService: ssh);
 
-      final executed = await service.executeTool(
+      final executed = await service.executeSshTool(
+        owner: processOwner,
         name: 'ssh_execute_command',
         arguments: const {'command': '  printf output  ', 'reason': 'verify'},
       );
-      final empty = await service.executeTool(
+      final empty = await service.executeSshTool(
+        owner: processOwner,
         name: 'ssh_execute_command',
         arguments: const {'command': '   '},
       );
@@ -418,6 +500,7 @@ void main() {
         'exit_code: 7\n--- stdout ---\nout\n\n--- stderr ---\nwarn\n\n',
       );
       expect(ssh.executedCommands, ['printf output']);
+      expect(ssh.executionOwners, [same(processOwner)]);
       expect(empty.isSuccess, isFalse);
       expect(empty.errorMessage, 'command is required');
       expect(ssh.executedCommands, hasLength(1));
@@ -428,15 +511,18 @@ void main() {
       final inactiveSsh = _FakeMcpSshService();
       final inactive = McpToolService(sshService: inactiveSsh);
 
-      final unavailableExecute = await unavailable.executeTool(
+      final unavailableExecute = await unavailable.executeSshTool(
+        owner: processOwner,
         name: 'ssh_execute_command',
         arguments: const {'command': 'pwd'},
       );
-      final unavailableDisconnect = await unavailable.executeTool(
+      final unavailableDisconnect = await unavailable.executeSshTool(
+        owner: processOwner,
         name: 'ssh_disconnect',
         arguments: const {},
       );
-      final inactiveExecute = await inactive.executeTool(
+      final inactiveExecute = await inactive.executeSshTool(
+        owner: processOwner,
         name: 'ssh_execute_command',
         arguments: const {'command': 'pwd'},
       );
@@ -470,7 +556,8 @@ void main() {
           sshToolHandler: BuiltInSshToolHandler(sshService: handlerSsh),
         );
 
-        final result = await service.executeTool(
+        final result = await service.executeSshTool(
+          owner: processOwner,
           name: 'ssh_execute_command',
           arguments: const {'command': 'whoami'},
         );
@@ -479,6 +566,7 @@ void main() {
         expect(result.isSuccess, isTrue);
         expect(result.result, 'exit_code: 0\n--- stdout ---\nhandler\n');
         expect(handlerSsh.executedCommands, ['whoami']);
+        expect(handlerSsh.executionOwners, [same(processOwner)]);
         expect(publicSsh.executedCommands, isEmpty);
       },
     );
@@ -1227,7 +1315,7 @@ void main() {
       expect(deleteResult.isSuccess, isFalse);
       expect(deleteResult.errorMessage, 'Failed to delete file');
       expect(jsonDecode(deleteResult.result), contains('error'));
-      expect(await service.previewLastFileRollbackChange(), isNull);
+      expect(await service.previewFileRollback(_turnOwner()), isNull);
     });
 
     test('includes LSP go-to-definition tool definition', () {
@@ -1312,6 +1400,43 @@ void main() {
       );
     });
 
+    test('requires an owner on the generic process dispatch surface', () async {
+      final service = McpToolService(
+        backgroundProcessTools: _FakeBackgroundProcessTools(
+          statusResults: const {},
+        ),
+      );
+      const calls = <(String, Map<String, dynamic>)>[
+        (
+          'local_execute_command',
+          {
+            'command': 'sleep 30',
+            'working_directory': '/tmp',
+            'background': true,
+          },
+        ),
+        ('process_start', {'command': 'sleep 30', 'working_directory': '/tmp'}),
+        ('process_status', {'job_id': 'job'}),
+        ('process_tail', {'job_id': 'job'}),
+        ('process_wait', {'job_id': 'job'}),
+        ('process_cancel', {'job_id': 'job'}),
+        ('process_list', {}),
+      ];
+
+      for (final call in calls) {
+        final result = await service.executeTool(
+          name: call.$1,
+          arguments: call.$2,
+        );
+        expect(result.isSuccess, isFalse, reason: call.$1);
+        expect(
+          jsonDecode(result.result),
+          containsPair('code', 'chat_turn_owner_required'),
+          reason: call.$1,
+        );
+      }
+    });
+
     test(
       'hides disabled local command definitions but keeps direct routing',
       () async {
@@ -1342,7 +1467,8 @@ void main() {
         ];
 
         for (final testCase in requiredArgumentCases) {
-          final result = await service.executeTool(
+          final result = await service.executeProcessTool(
+            owner: processOwner,
             name: testCase.$1,
             arguments: testCase.$2,
           );
@@ -1352,7 +1478,8 @@ void main() {
           expect(result.errorMessage, testCase.$3);
         }
 
-        final processList = await service.executeTool(
+        final processList = await service.executeProcessTool(
+          owner: processOwner,
           name: 'process_list',
           arguments: const {},
         );
@@ -1393,7 +1520,8 @@ void main() {
       };
 
       for (final background in [true, 1, -1, 'true', '1', 'YES']) {
-        final result = await service.executeTool(
+        final result = await service.executeProcessTool(
+          owner: processOwner,
           name: 'local_execute_command',
           arguments: {
             'command': 'sleep 30',
@@ -1409,7 +1537,8 @@ void main() {
         );
       }
 
-      final processStart = await service.executeTool(
+      final processStart = await service.executeProcessTool(
+        owner: processOwner,
         name: 'process_start',
         arguments: const {
           'command': 'sleep 30',
@@ -1429,7 +1558,8 @@ void main() {
         'process_wait',
         'process_cancel',
       ]) {
-        final result = await service.executeTool(
+        final result = await service.executeProcessTool(
+          owner: processOwner,
           name: name,
           arguments: const {'job_id': 'missing'},
         );
@@ -1492,7 +1622,8 @@ void main() {
       ];
 
       for (final call in providerCalls) {
-        final result = await service.executeTool(
+        final result = await service.executeProcessTool(
+          owner: processOwner,
           name: call.$1,
           arguments: call.$2,
         );
@@ -1643,7 +1774,8 @@ void main() {
         );
         final service = McpToolService(backgroundProcessTools: fakeTools);
 
-        final result = await service.executeTool(
+        final result = await service.executeProcessTool(
+          owner: processOwner,
           name: 'local_execute_command',
           arguments: const {
             'command': 'sleep 30',
@@ -1694,7 +1826,8 @@ void main() {
         final fakeTools = _FakeBackgroundProcessTools(statusResults: const {});
         final service = McpToolService(backgroundProcessTools: fakeTools);
 
-        final result = await service.executeTool(
+        final result = await service.executeProcessTool(
+          owner: processOwner,
           name: 'local_execute_command',
           arguments: const {
             'command': 'git worktree remove /tmp/worktree',
@@ -1720,7 +1853,8 @@ void main() {
       final fakeTools = _FakeBackgroundProcessTools(statusResults: const {});
       final service = McpToolService(backgroundProcessTools: fakeTools);
 
-      final result = await service.executeTool(
+      final result = await service.executeProcessTool(
+        owner: processOwner,
         name: 'process_start',
         arguments: const {
           'command': 'git checkout main',
@@ -1765,7 +1899,8 @@ void main() {
           backgroundProcessMonitorService: monitorService,
         );
 
-        final startResult = await service.executeTool(
+        final startResult = await service.executeProcessTool(
+          owner: processOwner,
           name: 'local_execute_command',
           arguments: {
             'command': 'echo done',
@@ -1784,7 +1919,8 @@ void main() {
 
         late Map<String, dynamic> waitPayload;
         for (var i = 0; i < 5; i++) {
-          final waitResult = await service.executeTool(
+          final waitResult = await service.executeProcessTool(
+            owner: processOwner,
             name: 'process_wait',
             arguments: {'job_id': jobId},
           );
@@ -1806,7 +1942,8 @@ void main() {
       'returns unavailable when background local_execute_command tools are missing',
       () async {
         final service = McpToolService();
-        final result = await service.executeTool(
+        final result = await service.executeProcessTool(
+          owner: processOwner,
           name: 'local_execute_command',
           arguments: const {
             'command': 'sleep 30',
@@ -1823,6 +1960,98 @@ void main() {
       },
     );
 
+    test('keeps executeProcessTool jobs invisible across owners', () async {
+      final peerOwner = _turnOwner(
+        conversationId: processOwner.conversationId,
+        generation: 2,
+      );
+      final fakeTools = _FakeBackgroundProcessTools(
+        visibleOwner: processOwner,
+        statusResults: const {
+          'shared-job': '{"ok":true,"job_id":"shared-job","status":"running"}',
+        },
+      );
+      final service = McpToolService(backgroundProcessTools: fakeTools);
+
+      final visible = await service.executeProcessTool(
+        owner: processOwner,
+        name: 'process_status',
+        arguments: const {'job_id': 'shared-job'},
+      );
+      final hidden = await service.executeProcessTool(
+        owner: peerOwner,
+        name: 'process_status',
+        arguments: const {'job_id': 'shared-job'},
+      );
+
+      expect(jsonDecode(visible.result), containsPair('ok', true));
+      expect(jsonDecode(hidden.result), containsPair('code', 'job_not_found'));
+      expect(fakeTools.statusOwners, [same(processOwner), same(peerOwner)]);
+    });
+
+    test(
+      'isolates process_list and clears only the requested process owner',
+      () async {
+        final peerOwner = _turnOwner(
+          conversationId: processOwner.conversationId,
+          generation: 2,
+        );
+        final fakeTools = _FakeBackgroundProcessTools(statusResults: const {});
+        final monitor = BackgroundProcessMonitorService(tools: fakeTools);
+        addTearDown(monitor.dispose);
+        for (final entry in [
+          (owner: processOwner, command: 'owner-command'),
+          (owner: peerOwner, command: 'peer-command'),
+        ]) {
+          monitor.registerProcessStartResult(
+            owner: entry.owner,
+            result: jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': 'shared-job',
+              'command': entry.command,
+              'working_directory': '/tmp',
+            }),
+            arguments: {'command': entry.command, 'working_directory': '/tmp'},
+          );
+        }
+        final service = McpToolService(
+          backgroundProcessTools: fakeTools,
+          backgroundProcessMonitorService: monitor,
+        );
+
+        final ownerList = await service.executeProcessTool(
+          owner: processOwner,
+          name: 'process_list',
+          arguments: const {},
+        );
+        final peerList = await service.executeProcessTool(
+          owner: peerOwner,
+          name: 'process_list',
+          arguments: const {},
+        );
+        await service.clearBackgroundProcessOwner(processOwner);
+
+        final ownerJobs =
+            (jsonDecode(ownerList.result) as Map<String, dynamic>)['jobs']
+                as List<dynamic>;
+        final peerJobs =
+            (jsonDecode(peerList.result) as Map<String, dynamic>)['jobs']
+                as List<dynamic>;
+        expect(
+          ownerJobs.single as Map<String, dynamic>,
+          containsPair('command', 'owner-command'),
+        );
+        expect(
+          peerJobs.single as Map<String, dynamic>,
+          containsPair('command', 'peer-command'),
+        );
+        expect(monitor.listJobs(processOwner), isEmpty);
+        expect(monitor.listJobs(peerOwner), hasLength(1));
+        expect(fakeTools.clearedOwners, [same(processOwner)]);
+      },
+    );
+
     test('returns monitored process snapshots from process_list', () async {
       final fakeTools = _FakeBackgroundProcessTools(
         statusResults: const {
@@ -1831,6 +2060,7 @@ void main() {
       );
       final monitor = BackgroundProcessMonitorService(tools: fakeTools);
       final registeredRunning = monitor.registerProcessStartResult(
+        owner: processOwner,
         result: jsonEncode({
           'ok': true,
           'status': 'running',
@@ -1841,6 +2071,7 @@ void main() {
         arguments: const {'command': 'sleep 1', 'working_directory': '/tmp'},
       );
       final registeredFinished = monitor.registerProcessStartResult(
+        owner: processOwner,
         result: jsonEncode({
           'ok': true,
           'status': 'exited',
@@ -1863,7 +2094,8 @@ void main() {
         backgroundProcessMonitorService: monitor,
       );
 
-      final runningOnly = await service.executeTool(
+      final runningOnly = await service.executeProcessTool(
+        owner: processOwner,
         name: 'process_list',
         arguments: {'include_finished': false},
       );
@@ -1878,7 +2110,8 @@ void main() {
         'proc_running',
       );
 
-      final filtered = await service.executeTool(
+      final filtered = await service.executeProcessTool(
+        owner: processOwner,
         name: 'process_list',
         arguments: {
           'job_ids': ['proc_done'],
@@ -3603,12 +3836,15 @@ BuildVersion: 23F79
     group('rollback_last_file_change', () {
       late Directory tempDir;
       late McpToolService service;
+      late ChatTurnOwner owner;
 
       setUp(() async {
-        tempDir = await Directory.systemTemp.createTemp(
+        final createdDirectory = await Directory.systemTemp.createTemp(
           'mcp_tool_service_test_',
         );
+        tempDir = Directory(await createdDirectory.resolveSymbolicLinks());
         service = McpToolService();
+        owner = _turnOwner();
       });
 
       tearDown(() async {
@@ -3624,19 +3860,21 @@ BuildVersion: 23F79
         file.createSync(recursive: true);
         file.writeAsStringSync('before\n');
 
-        final writeResult = await service.executeTool(
+        final writeResult = await service.executeFileTool(
+          owner: owner,
           name: 'write_file',
           arguments: {'path': path, 'content': 'after\n'},
         );
         expect(writeResult.isSuccess, isTrue);
 
-        final preview = await service.previewLastFileRollbackChange();
+        final preview = await service.previewFileRollback(owner);
         expect(preview, isNotNull);
         expect(preview!.path, path);
         expect(preview.preview, contains('-after'));
         expect(preview.preview, contains('+before'));
 
-        final rollbackResult = await service.executeTool(
+        final rollbackResult = await service.executeFileTool(
+          owner: owner,
           name: 'rollback_last_file_change',
           arguments: const {},
         );
@@ -3648,14 +3886,16 @@ BuildVersion: 23F79
         final path =
             '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}created.txt';
 
-        final writeResult = await service.executeTool(
+        final writeResult = await service.executeFileTool(
+          owner: owner,
           name: 'write_file',
           arguments: {'path': path, 'content': 'created\n'},
         );
         expect(writeResult.isSuccess, isTrue);
         expect(File(path).existsSync(), isTrue);
 
-        final rollbackResult = await service.executeTool(
+        final rollbackResult = await service.executeFileTool(
+          owner: owner,
           name: 'rollback_last_file_change',
           arguments: const {},
         );
@@ -3669,14 +3909,16 @@ BuildVersion: 23F79
         final file = File(path)..createSync(recursive: true);
         file.writeAsStringSync('restore me\n');
 
-        final deleteResult = await service.executeTool(
+        final deleteResult = await service.executeFileTool(
+          owner: owner,
           name: 'delete_file',
           arguments: {'path': path},
         );
         expect(deleteResult.isSuccess, isTrue);
         expect(file.existsSync(), isFalse);
 
-        final rollbackResult = await service.executeTool(
+        final rollbackResult = await service.executeFileTool(
+          owner: owner,
           name: 'rollback_last_file_change',
           arguments: const {},
         );
@@ -3695,16 +3937,19 @@ BuildVersion: 23F79
           final firstFile = File(firstPath)..createSync(recursive: true);
           firstFile.writeAsStringSync('before\n');
 
-          service.beginFileTurnCheckpoint('turn-1');
-          final firstWriteResult = await service.executeTool(
+          service.beginFileTurnCheckpoint(owner, 'turn-1');
+          final firstWriteResult = await service.executeFileTool(
+            owner: owner,
             name: 'write_file',
             arguments: {'path': firstPath, 'content': 'after first\n'},
           );
-          final secondWriteResult = await service.executeTool(
+          final secondWriteResult = await service.executeFileTool(
+            owner: owner,
             name: 'write_file',
             arguments: {'path': secondPath, 'content': 'created\n'},
           );
-          final firstEditResult = await service.executeTool(
+          final firstEditResult = await service.executeFileTool(
+            owner: owner,
             name: 'edit_file',
             arguments: {
               'path': firstPath,
@@ -3712,7 +3957,7 @@ BuildVersion: 23F79
               'new_text': 'after second\n',
             },
           );
-          service.endFileTurnCheckpoint();
+          service.endFileTurnCheckpoint(owner);
 
           expect(firstWriteResult.isSuccess, isTrue);
           expect(secondWriteResult.isSuccess, isTrue);
@@ -3720,32 +3965,185 @@ BuildVersion: 23F79
           expect(await firstFile.readAsString(), 'after second\n');
           expect(File(secondPath).existsSync(), isTrue);
 
-          final preview = await service.previewLastFileTurnCheckpoint();
+          final preview = await service.previewLastFileTurnCheckpoint(owner);
           expect(preview, isNotNull);
           expect(preview!.turnId, 'turn-1');
           expect(preview.paths, [firstPath, secondPath]);
           expect(preview.preview, contains(firstPath));
           expect(preview.preview, contains(secondPath));
 
-          final rollbackResult = await service.rollbackLastFileTurnCheckpoint();
+          final rollbackResult = await service.rollbackLastFileTurnCheckpoint(
+            owner,
+            preview.checkpointToken,
+          );
           expect(rollbackResult.isSuccess, isTrue);
           expect(await firstFile.readAsString(), 'before\n');
           expect(File(secondPath).existsSync(), isFalse);
         },
       );
 
-      test('discards empty turn checkpoints', () async {
-        service.beginFileTurnCheckpoint('empty-turn');
-        service.endFileTurnCheckpoint();
+      test(
+        'conversation facade selects its latest owner and isolates peers',
+        () async {
+          final earlierOwnerA = _turnOwner(
+            conversationId: 'conversation-a',
+            generation: 6,
+          );
+          final ownerA = _turnOwner(
+            conversationId: 'conversation-a',
+            generation: 7,
+          );
+          final ownerB = _turnOwner(
+            conversationId: 'conversation-b',
+            generation: 7,
+          );
+          final successorOwnerA = _turnOwner(
+            conversationId: 'conversation-a',
+            generation: 8,
+          );
+          final earlierPath =
+              '${tempDir.path}${Platform.pathSeparator}a-earlier.txt';
+          final pathA = '${tempDir.path}${Platform.pathSeparator}a-latest.txt';
+          final pathB = '${tempDir.path}${Platform.pathSeparator}b.txt';
+          final successorPath =
+              '${tempDir.path}${Platform.pathSeparator}a-successor.txt';
 
-        expect(await service.previewLastFileTurnCheckpoint(), isNull);
-        final rollbackResult = await service.rollbackLastFileTurnCheckpoint();
+          Future<void> completeTurn(
+            ChatTurnOwner turnOwner,
+            String turnId,
+            String path,
+          ) async {
+            service.beginFileTurnCheckpoint(turnOwner, turnId);
+            final result = await service.executeFileTool(
+              owner: turnOwner,
+              name: 'write_file',
+              arguments: {'path': path, 'content': '$turnId\n'},
+            );
+            expect(result.isSuccess, isTrue);
+            expect(service.endFileTurnCheckpoint(turnOwner), isTrue);
+          }
+
+          await completeTurn(earlierOwnerA, 'turn-a-earlier', earlierPath);
+          await completeTurn(ownerB, 'turn-b', pathB);
+          await completeTurn(ownerA, 'turn-a-latest', pathA);
+
+          final previewA = await service.previewFsTurn('conversation-a');
+          final previewB = await service.previewFsTurn('conversation-b');
+          expect(previewA?.owner, ownerA);
+          expect(previewA?.turnId, 'turn-a-latest');
+          expect(previewB?.owner, ownerB);
+          expect(previewB?.turnId, 'turn-b');
+
+          await completeTurn(
+            successorOwnerA,
+            'turn-a-successor',
+            successorPath,
+          );
+          final rollbackA = await service.rollbackLastFileTurnCheckpoint(
+            previewA!.owner,
+            previewA.checkpointToken,
+          );
+
+          expect(rollbackA.isSuccess, isFalse);
+          expect(rollbackA.errorMessage, contains('preview it again'));
+          expect(File(pathA).readAsStringSync(), 'turn-a-latest\n');
+          expect(File(successorPath).readAsStringSync(), 'turn-a-successor\n');
+          expect(File(pathB).readAsStringSync(), 'turn-b\n');
+          expect(File(earlierPath).readAsStringSync(), 'turn-a-earlier\n');
+          final nextPreviewA = await service.previewFsTurn('conversation-a');
+          final remainingPreviewB = await service.previewFsTurn(
+            'conversation-b',
+          );
+          expect(nextPreviewA?.owner, successorOwnerA);
+          expect(nextPreviewA?.turnId, 'turn-a-successor');
+          expect(remainingPreviewB?.owner, ownerB);
+          expect(remainingPreviewB?.turnId, 'turn-b');
+          expect(await service.previewLastFileTurnCheckpoint(ownerA), isNull);
+
+          final successorRollback = await service
+              .rollbackLastFileTurnCheckpoint(
+                nextPreviewA!.owner,
+                nextPreviewA.checkpointToken,
+              );
+          expect(successorRollback.isSuccess, isTrue);
+          expect(File(successorPath).existsSync(), isFalse);
+          final latestPreviewA = await service.previewFsTurn('conversation-a');
+          expect(latestPreviewA?.owner, ownerA);
+          expect(latestPreviewA?.turnId, 'turn-a-latest');
+          final latestRollback = await service.rollbackLastFileTurnCheckpoint(
+            latestPreviewA!.owner,
+            latestPreviewA.checkpointToken,
+          );
+          expect(latestRollback.isSuccess, isTrue);
+          expect(File(pathA).existsSync(), isFalse);
+          final earlierPreviewA = await service.previewFsTurn('conversation-a');
+          expect(earlierPreviewA?.owner, earlierOwnerA);
+          expect(earlierPreviewA?.turnId, 'turn-a-earlier');
+          expect(File(pathB).readAsStringSync(), 'turn-b\n');
+        },
+      );
+
+      test('discards empty turn checkpoints', () async {
+        service.beginFileTurnCheckpoint(owner, 'empty-turn');
+        service.endFileTurnCheckpoint(owner);
+
+        expect(await service.previewLastFileTurnCheckpoint(owner), isNull);
+        final rollbackResult = await service.rollbackLastFileTurnCheckpoint(
+          owner,
+          -1,
+        );
 
         expect(rollbackResult.isSuccess, isFalse);
         expect(
           rollbackResult.errorMessage,
           'No recent turn file checkpoint is available to roll back',
         );
+      });
+
+      test(
+        'ownerless mutations do not populate chat rollback history',
+        () async {
+          final path = '${tempDir.path}${Platform.pathSeparator}ownerless.txt';
+
+          final result = await service.executeTool(
+            name: 'write_file',
+            arguments: {'path': path, 'content': 'ownerless\n'},
+          );
+
+          expect(result.isSuccess, isTrue);
+          expect(await service.previewFileRollback(owner), isNull);
+          expect(File(path).readAsStringSync(), 'ownerless\n');
+        },
+      );
+
+      test('shares checkpoints across replacement tool services', () async {
+        final store = FileRollbackCheckpointStore();
+        final firstService = McpToolService(fileRollbackCheckpointStore: store);
+        final replacementService = McpToolService(
+          fileRollbackCheckpointStore: store,
+        );
+        final path = '${tempDir.path}${Platform.pathSeparator}service-swap.txt';
+
+        firstService.beginFileTurnCheckpoint(owner, 'service-swap-turn');
+        final write = await replacementService.executeFileTool(
+          owner: owner,
+          name: 'write_file',
+          arguments: {'path': path, 'content': 'after swap\n'},
+        );
+        expect(firstService.endFileTurnCheckpoint(owner), isTrue);
+
+        final preview = await replacementService.previewFsTurn(
+          owner.conversationId,
+        );
+        expect(write.isSuccess, isTrue);
+        expect(preview?.turnId, 'service-swap-turn');
+        final rollback = await replacementService
+            .rollbackLastFileTurnCheckpoint(
+              preview!.owner,
+              preview.checkpointToken,
+            );
+        expect(rollback.isSuccess, isTrue);
+        expect(File(path).existsSync(), isFalse);
       });
     });
   });
@@ -4072,23 +4470,29 @@ final class _FakeMcpSshService extends SshService {
   bool connected;
   final SshExecutionResult executionResult;
   final List<String> executedCommands = [];
+  final List<ChatTurnOwner> executionOwners = [];
+  final List<ChatTurnOwner> disconnectedOwners = [];
   int disconnectCalls = 0;
 
   @override
-  bool get isConnected => connected;
+  bool isConnected({required ChatTurnOwner owner}) => connected;
 
   @override
-  Future<SshExecutionResult> execute(
-    String command, {
+  Future<SshExecutionResult> execute({
+    required ChatTurnOwner owner,
+    required String command,
+    String? expectedFingerprint,
     Duration timeout = const Duration(seconds: 30),
   }) async {
+    executionOwners.add(owner);
     executedCommands.add(command);
     return executionResult;
   }
 
   @override
-  Future<void> disconnect() async {
+  Future<void> disconnect({required ChatTurnOwner owner}) async {
     disconnectCalls += 1;
+    disconnectedOwners.add(owner);
     connected = false;
   }
 }

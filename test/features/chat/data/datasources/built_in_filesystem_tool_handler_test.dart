@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:caverno/features/chat/data/datasources/built_in_filesystem_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -10,6 +11,11 @@ typedef _OperationCall = ({String name, Map<String, dynamic> arguments});
 
 void main() {
   group('BuiltInFilesystemToolHandler', () {
+    final owner = ChatTurnOwner(
+      conversationId: 'filesystem-handler',
+      interactionGeneration: 1,
+    );
+
     test('owns the exact split filesystem family', () {
       final handler = BuiltInFilesystemToolHandler(
         operationRunner: ({required name, required arguments}) async => '',
@@ -294,34 +300,54 @@ void main() {
       final failedWriteResult = await failedWrite.execute(
         name: 'write_file',
         arguments: {'path': targetPath, 'content': 'content'},
+        owner: owner,
       );
       expect(failedWriteResult.isSuccess, isTrue);
-      expect(await failedWrite.previewLastFileRollbackChange(), isNull);
+      expect(
+        await failedWrite.checkpointStore.previewLastFileRollbackChange(owner),
+        isNull,
+      );
 
       final alreadyApplied = handlerReturning('{"already_applied":true}');
       final alreadyAppliedResult = await alreadyApplied.execute(
         name: 'edit_file',
         arguments: {'path': targetPath, 'old_text': 'old', 'new_text': 'new'},
+        owner: owner,
       );
       expect(alreadyAppliedResult.isSuccess, isTrue);
-      expect(await alreadyApplied.previewLastFileRollbackChange(), isNull);
+      expect(
+        await alreadyApplied.checkpointStore.previewLastFileRollbackChange(
+          owner,
+        ),
+        isNull,
+      );
 
       final failedDelete = handlerReturning('{"error":"failed"}');
       final failedDeleteResult = await failedDelete.execute(
         name: 'delete_file',
         arguments: {'path': targetPath},
+        owner: owner,
       );
       expect(failedDeleteResult.isSuccess, isFalse);
       expect(failedDeleteResult.errorMessage, 'Failed to delete file');
-      expect(await failedDelete.previewLastFileRollbackChange(), isNull);
+      expect(
+        await failedDelete.checkpointStore.previewLastFileRollbackChange(owner),
+        isNull,
+      );
 
       final successfulWrite = handlerReturning('{}');
       final successfulWriteResult = await successfulWrite.execute(
         name: 'write_file',
         arguments: {'path': targetPath, 'content': 'content'},
+        owner: owner,
       );
       expect(successfulWriteResult.isSuccess, isTrue);
-      expect(await successfulWrite.previewLastFileRollbackChange(), isNotNull);
+      expect(
+        await successfulWrite.checkpointStore.previewLastFileRollbackChange(
+          owner,
+        ),
+        isNotNull,
+      );
     });
 
     test('owns the turn checkpoint used by mutation execution', () async {
@@ -340,10 +366,11 @@ void main() {
         ..writeAsStringSync('restore\n');
       final handler = BuiltInFilesystemToolHandler();
 
-      handler.beginFileTurnCheckpoint(' turn-1 ');
+      handler.checkpointStore.beginFileTurnCheckpoint(owner, ' turn-1 ');
       await handler.execute(
         name: 'write_file',
         arguments: {'path': changed.path, 'content': 'after\n'},
+        owner: owner,
       );
       await handler.execute(
         name: 'edit_file',
@@ -352,18 +379,22 @@ void main() {
           'old_text': 'after',
           'new_text': 'final',
         },
+        owner: owner,
       );
       await handler.execute(
         name: 'write_file',
         arguments: {'path': created.path, 'content': 'created\n'},
+        owner: owner,
       );
       await handler.execute(
         name: 'delete_file',
         arguments: {'path': deleted.path},
+        owner: owner,
       );
-      handler.endFileTurnCheckpoint();
+      handler.checkpointStore.endFileTurnCheckpoint(owner);
 
-      final preview = await handler.previewLastFileTurnCheckpoint();
+      final preview = await handler.checkpointStore
+          .previewLastFileTurnCheckpoint(owner);
       expect(preview, isNotNull);
       expect(preview!.turnId, 'turn-1');
       expect(preview.paths, [
@@ -372,12 +403,35 @@ void main() {
         deleted.absolute.path,
       ]);
 
-      final result = await handler.rollbackLastFileTurnCheckpoint();
+      final result = await handler.checkpointStore
+          .rollbackLastFileTurnCheckpoint(owner, preview.checkpointToken);
       expect(result.isSuccess, isTrue);
       expect(await changed.readAsString(), 'before\n');
       expect(created.existsSync(), isFalse);
       expect(await deleted.readAsString(), 'restore\n');
     });
+
+    test(
+      'does not record ownerless mutations in chat rollback history',
+      () async {
+        final handler = BuiltInFilesystemToolHandler(
+          operationRunner: ({required name, required arguments}) async => '{}',
+          snapshotReader: (path) async =>
+              TextFileSnapshot(path: path, exists: false),
+        );
+
+        final result = await handler.execute(
+          name: 'write_file',
+          arguments: const {'path': '/tmp/ownerless.txt', 'content': 'content'},
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(
+          await handler.checkpointStore.previewLastFileRollbackChange(owner),
+          isNull,
+        );
+      },
+    );
 
     test('propagates runner exceptions and rejects unknown operations', () {
       final handler = BuiltInFilesystemToolHandler(

@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../settings/domain/entities/app_settings.dart';
+import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation_workflow.dart';
+import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/services/context_surgery_observation_service.dart';
 
@@ -12,6 +14,32 @@ part 'chat_state.freezed.dart';
 enum ContextTokenPressureLevel { normal, warning, critical }
 
 enum ChatInteractionOrigin { local, remote }
+
+McpToolResult approvalTurnExpiredResult(String toolName) => McpToolResult(
+  toolName: toolName,
+  result: '',
+  isSuccess: false,
+  errorMessage: 'The approval turn expired before execution',
+);
+
+sealed class PendingToolApproval<T> {
+  PendingToolApproval({
+    required this.owner,
+    required this.id,
+    required this.completer,
+  });
+
+  final ChatTurnOwner owner;
+  final String id;
+  final Completer<T> completer;
+  T get cancellationValue;
+
+  void completeCancellation() {
+    if (!completer.isCompleted) {
+      completer.complete(cancellationValue);
+    }
+  }
+}
 
 /// Approval payload returned by the SSH connect dialog.
 ///
@@ -38,17 +66,17 @@ class SshConnectApproval {
 /// page observes it via [ref.listen] and opens a dialog. The dialog
 /// completes [completer] with an approval (possibly edited by the user)
 /// or `null` when the user cancels.
-class PendingSshConnect {
+class PendingSshConnect extends PendingToolApproval<SshConnectApproval?> {
   PendingSshConnect({
-    required this.id,
+    required super.owner,
+    required super.id,
     required this.host,
     required this.port,
     required this.username,
     required this.savedPassword,
-    required this.completer,
+    required super.completer,
   });
 
-  final String id;
   final String host;
   final int port;
   final String username;
@@ -57,68 +85,78 @@ class PendingSshConnect {
   /// previously in secure storage.
   final String? savedPassword;
 
-  final Completer<SshConnectApproval?> completer;
+  @override
+  SshConnectApproval? get cancellationValue => null;
 }
 
 /// Pending SSH command execution awaiting per-command user approval.
-class PendingSshCommand {
+class PendingSshCommand extends PendingToolApproval<bool> {
   PendingSshCommand({
-    required this.id,
+    required super.owner,
+    required super.id,
     required this.command,
     required this.reason,
     required this.host,
     required this.username,
-    required this.completer,
+    required super.completer,
   });
 
-  final String id;
   final String command;
   final String? reason;
   final String host;
   final String username;
-  final Completer<bool> completer;
+
+  @override
+  bool get cancellationValue => false;
 }
 
 /// Pending git command execution awaiting user approval for write operations.
-class PendingGitCommand {
+class PendingGitCommand extends PendingToolApproval<bool> {
   PendingGitCommand({
-    required this.id,
+    required super.owner,
+    required super.id,
     required this.command,
     required this.workingDirectory,
     required this.reason,
-    required this.completer,
+    required super.completer,
     this.origin = ChatInteractionOrigin.local,
   });
 
-  final String id;
   final String command;
   final String workingDirectory;
   final String? reason;
-  final Completer<bool> completer;
+
   final ChatInteractionOrigin origin;
+
+  @override
+  bool get cancellationValue => false;
 }
 
 /// Pending local shell command awaiting user approval.
-class PendingLocalCommand {
+class PendingLocalCommand extends PendingToolApproval<LocalCommandApproval> {
   PendingLocalCommand({
-    required this.id,
+    required super.owner,
+    required super.id,
     required this.command,
     required this.workingDirectory,
     required this.reason,
     required this.warningTitle,
     required this.warningMessage,
-    required this.completer,
+    required super.completer,
     this.origin = ChatInteractionOrigin.local,
   });
 
-  final String id;
   final String command;
   final String workingDirectory;
   final String? reason;
   final String? warningTitle;
   final String? warningMessage;
-  final Completer<LocalCommandApproval> completer;
+
   final ChatInteractionOrigin origin;
+
+  @override
+  LocalCommandApproval get cancellationValue =>
+      const LocalCommandApproval(approved: false);
 }
 
 class LocalCommandApproval {
@@ -150,9 +188,11 @@ class ComputerUseActionApprovalDecision {
 }
 
 /// Pending macOS computer-use action awaiting user approval.
-class PendingComputerUseAction {
+class PendingComputerUseAction
+    extends PendingToolApproval<ComputerUseActionApprovalDecision> {
   PendingComputerUseAction({
-    required this.id,
+    required super.owner,
+    required super.id,
     required this.toolName,
     required this.title,
     required this.riskCategory,
@@ -174,10 +214,9 @@ class PendingComputerUseAction {
     required this.visionObservationSummary,
     required this.visionObservationDetails,
     required this.reason,
-    required this.completer,
+    required super.completer,
   });
 
-  final String id;
   final String toolName;
   final String title;
   final String riskCategory;
@@ -199,15 +238,36 @@ class PendingComputerUseAction {
   final String? visionObservationSummary;
   final List<String> visionObservationDetails;
   final String? reason;
-  final Completer<ComputerUseActionApprovalDecision> completer;
+
+  @override
+  ComputerUseActionApprovalDecision get cancellationValue =>
+      const ComputerUseActionApprovalDecision(
+        approved: false,
+        armed: false,
+        blockerCode: 'approval_denied',
+      );
+
+  ComputerUseActionApprovalDecision resolve({
+    required bool approved,
+    required bool armed,
+  }) => ComputerUseActionApprovalDecision(
+    approved: approved && (!requiresSmokeArming || armed),
+    armed: armed,
+    blockerCode: approved && requiresSmokeArming && !armed
+        ? 'arming_missing'
+        : approved
+        ? null
+        : 'approval_denied',
+  );
 }
 
 /// Pending sensitive browser action (fill / click / submit / eval / save)
 /// awaiting user approval. Mirrors [PendingComputerUseAction] but carries only
 /// the lighter context the browser approval sheet needs.
-class PendingBrowserAction {
+class PendingBrowserAction extends PendingToolApproval<bool> {
   PendingBrowserAction({
-    required this.id,
+    required super.owner,
+    required super.id,
     required this.toolName,
     required this.title,
     required this.riskLabel,
@@ -218,10 +278,9 @@ class PendingBrowserAction {
     required this.targetSummary,
     required this.sensitiveValuePreview,
     required this.reason,
-    required this.completer,
+    required super.completer,
   });
 
-  final String id;
   final String toolName;
   final String title;
   final String riskLabel;
@@ -234,78 +293,218 @@ class PendingBrowserAction {
   /// Redacted preview for credential-like values (never the raw secret).
   final String? sensitiveValuePreview;
   final String? reason;
-  final Completer<bool> completer;
+
+  @override
+  bool get cancellationValue => false;
 }
 
 /// Pending local file operation awaiting user approval.
-class PendingFileOperation {
+class PendingFileOperation extends PendingToolApproval<bool> {
   PendingFileOperation({
-    required this.id,
+    required super.owner,
+    required super.id,
     required this.operation,
     required this.path,
     required this.preview,
     required this.reason,
-    required this.completer,
+    required super.completer,
     this.origin = ChatInteractionOrigin.local,
   });
 
-  final String id;
   final String operation;
   final String path;
   final String preview;
   final String? reason;
-  final Completer<bool> completer;
+
   final ChatInteractionOrigin origin;
+
+  @override
+  bool get cancellationValue => false;
+}
+
+class PendingToolApprovalRegistry {
+  final Map<ChatTurnOwner, Map<String, PendingToolApproval<dynamic>>>
+  _requestsByOwner = {};
+  final Map<String, PendingToolApproval<dynamic>> _requestsById = {};
+
+  int get length => _requestsById.length;
+  bool get isEmpty => _requestsById.isEmpty;
+
+  void register<T>(PendingToolApproval<T> request) {
+    if (_requestsById.containsKey(request.id)) {
+      throw StateError(
+        'A pending tool approval already uses ID ${request.id}.',
+      );
+    }
+    _requestsById[request.id] = request;
+    (_requestsByOwner[request.owner] ??= {})[request.id] = request;
+  }
+
+  Future<T> registerCurrent<T>(
+    PendingToolApproval<T> request, {
+    required bool ownerIsCurrent,
+    required void Function() show,
+  }) {
+    if (!ownerIsCurrent) {
+      request.completeCancellation();
+    } else {
+      register(request);
+      show();
+    }
+    return request.completer.future;
+  }
+
+  T? find<T extends PendingToolApproval<dynamic>>(String id) {
+    final request = _requestsById[id];
+    return request is T ? request : null;
+  }
+
+  T? take<T extends PendingToolApproval<dynamic>>({
+    required ChatTurnOwner owner,
+    required String id,
+  }) {
+    final request = _requestsByOwner[owner]?[id];
+    if (request is! T) {
+      return null;
+    }
+    _remove(owner: owner, id: id);
+    return request;
+  }
+
+  T? takeCurrent<T extends PendingToolApproval<dynamic>>({
+    required String id,
+    required bool Function(ChatTurnOwner owner) ownerIsCurrent,
+    required void Function(PendingToolApproval<dynamic> request) clear,
+  }) {
+    final request = find<T>(id);
+    if (request == null) return null;
+    if (!ownerIsCurrent(request.owner)) {
+      cancel(owner: request.owner, id: id);
+      clear(request);
+      return null;
+    }
+    final taken = take<T>(owner: request.owner, id: id);
+    if (taken != null) clear(taken);
+    return taken;
+  }
+
+  bool cancel({required ChatTurnOwner owner, required String id}) {
+    final request = _remove(owner: owner, id: id);
+    if (request == null) {
+      return false;
+    }
+    request.completeCancellation();
+    return true;
+  }
+
+  List<PendingToolApproval<dynamic>> cancelOwner(ChatTurnOwner owner) {
+    final requests = _requestsByOwner.remove(owner);
+    if (requests == null) {
+      return const [];
+    }
+    for (final entry in requests.entries) {
+      if (identical(_requestsById[entry.key], entry.value)) {
+        _requestsById.remove(entry.key);
+      }
+    }
+    final cancelled = requests.values.toList(growable: false);
+    for (final request in cancelled) {
+      request.completeCancellation();
+    }
+    return cancelled;
+  }
+
+  int cancelAll() {
+    if (_requestsById.isEmpty) {
+      return 0;
+    }
+    final requests = _requestsById.values.toList(growable: false);
+    _requestsById.clear();
+    _requestsByOwner.clear();
+    for (final request in requests) {
+      request.completeCancellation();
+    }
+    return requests.length;
+  }
+
+  PendingToolApproval<dynamic>? _remove({
+    required ChatTurnOwner owner,
+    required String id,
+  }) {
+    final ownerRequests = _requestsByOwner[owner];
+    final request = ownerRequests?.remove(id);
+    if (request == null) {
+      return null;
+    }
+    if (ownerRequests!.isEmpty) {
+      _requestsByOwner.remove(owner);
+    }
+    if (identical(_requestsById[id], request)) {
+      _requestsById.remove(id);
+    }
+    return request;
+  }
 }
 
 /// Pending BLE connect request awaiting user confirmation in the UI.
-class PendingBleConnect {
+class PendingBleConnect extends PendingToolApproval<bool> {
   PendingBleConnect({
-    required this.id,
+    required super.owner,
+    required super.id,
     required this.deviceId,
     required this.deviceName,
-    required this.completer,
+    required super.completer,
   });
 
-  final String id;
   final String deviceId;
   final String? deviceName;
-  final Completer<bool> completer;
+
+  @override
+  bool get cancellationValue => false;
 }
 
-class PendingSerialOpen {
+class PendingSerialOpen extends PendingToolApproval<bool> {
   PendingSerialOpen({
-    required this.id,
+    required super.owner,
+    required super.id,
     required this.portName,
     required this.baudRate,
-    required this.completer,
+    required super.completer,
   });
 
-  final String id;
   final String portName;
   final int baudRate;
-  final Completer<bool> completer;
+
+  @override
+  bool get cancellationValue => false;
 }
 
 /// Pending read-only participant tool execution awaiting user approval.
-class PendingParticipantToolApproval {
+class PendingParticipantToolApproval extends PendingToolApproval<bool> {
   PendingParticipantToolApproval({
-    required this.id,
+    required super.owner,
+    required super.id,
+    required this.participantId,
     required this.participantName,
     required this.participantRoleLabel,
     required this.toolName,
     required this.arguments,
     required this.reason,
-    required this.completer,
+    required super.completer,
   });
 
-  final String id;
+  final String participantId;
   final String participantName;
   final String participantRoleLabel;
   final String toolName;
   final Map<String, dynamic> arguments;
   final String? reason;
-  final Completer<bool> completer;
+
+  int get interactionGeneration => owner.interactionGeneration;
+  String get ownerConversationId => owner.conversationId;
+
+  @override
+  bool get cancellationValue => false;
 }
 
 class AskUserQuestionOption {

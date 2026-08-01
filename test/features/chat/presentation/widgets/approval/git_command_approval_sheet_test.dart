@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/widgets/approval/git_command_approval_sheet.dart';
 
@@ -55,6 +56,10 @@ Future<void> _pumpHarness(
                     await GitCommandApprovalSheet.show(
                       context,
                       PendingGitCommand(
+                        owner: ChatTurnOwner(
+                          conversationId: 'git-sheet-test',
+                          interactionGeneration: 1,
+                        ),
                         id: 'git-command-test',
                         command: 'git commit -m test',
                         workingDirectory: '/repo/caverno',

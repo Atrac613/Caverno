@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../entities/tool_call_info.dart';
+import 'file_mutation_evidence_policy.dart';
 import 'file_reference_extractor.dart';
 
 class UnwrittenFileClaim {
@@ -40,6 +41,8 @@ class UnwrittenFileClaimAssessment {
 
 class UnwrittenFileClaimGuard {
   const UnwrittenFileClaimGuard();
+
+  static const _fileMutationEvidencePolicy = FileMutationEvidencePolicy();
 
   static final RegExp _completedEnglishMutation = RegExp(
     r'\b(?:created|added|updated|wrote|written)\b',
@@ -308,7 +311,7 @@ class UnwrittenFileClaimGuard {
   ) {
     final paths = <String>{};
     for (final toolResult in toolResults) {
-      if (!_isMutationTool(toolResult.name) ||
+      if (!_fileMutationEvidencePolicy.isMutationToolName(toolResult.name) ||
           !_isSuccessfulResult(toolResult.result)) {
         continue;
       }
@@ -330,17 +333,6 @@ class UnwrittenFileClaimGuard {
       }
     }
     return paths;
-  }
-
-  bool _isMutationTool(String name) {
-    switch (name.trim().toLowerCase()) {
-      case 'write_file':
-      case 'edit_file':
-      case 'delete_file':
-      case 'rollback_last_file_change':
-        return true;
-    }
-    return false;
   }
 
   bool _isSuccessfulResult(String result) {

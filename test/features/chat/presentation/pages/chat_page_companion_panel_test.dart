@@ -7,6 +7,7 @@ import 'package:caverno/features/chat/data/datasources/file_rollback_checkpoint_
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
@@ -162,6 +163,9 @@ class _RollbackChatNotifier extends ChatNotifier {
   @override
   ChatState build() {
     updateMcpToolService(ref.read(mcpToolServiceProvider));
+    conversationId = ref
+        .read(conversationsNotifierProvider)
+        .currentConversationId;
     return ChatState.initial();
   }
 }
@@ -171,9 +175,14 @@ class _RollbackMcpToolService extends McpToolService {
   int rollbackCalls = 0;
 
   @override
-  Future<FileTurnRollbackPreview?> previewLastFileTurnCheckpoint() async {
+  Future<FileTurnRollbackPreview?> previewFsTurn(String? conversationId) async {
     previewCalls += 1;
-    return const FileTurnRollbackPreview(
+    return FileTurnRollbackPreview(
+      owner: ChatTurnOwner(
+        conversationId: conversationId!,
+        interactionGeneration: 1,
+      ),
+      checkpointToken: 41,
       turnId: 'turn-1',
       paths: ['lib/parser.dart'],
       preview: 'diff --git a/lib/parser.dart b/lib/parser.dart',
@@ -182,7 +191,11 @@ class _RollbackMcpToolService extends McpToolService {
   }
 
   @override
-  Future<McpToolResult> rollbackLastFileTurnCheckpoint() async {
+  Future<McpToolResult> rollbackLastFileTurnCheckpoint(
+    ChatTurnOwner _,
+    int expectedCheckpointToken,
+  ) async {
+    expect(expectedCheckpointToken, 41);
     rollbackCalls += 1;
     return const McpToolResult(
       toolName: 'rollback_last_turn_file_changes',

@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
@@ -289,6 +292,52 @@ void main() {
       );
     },
   );
+
+  test(
+    'scoped dispatcher mutations stay out of chat rollback history',
+    () async {
+      final worktree = Directory.systemTemp.createTempSync(
+        'worktree_agent_ownerless_',
+      );
+      addTearDown(() {
+        if (worktree.existsSync()) {
+          worktree.deleteSync(recursive: true);
+        }
+      });
+      final service = McpToolService();
+      final dispatcher = WorktreeAgentScopedToolDispatcher(
+        toolService: service,
+        worktreePath: worktree.path,
+      );
+      final target = File('${worktree.path}/lib/ownerless.txt');
+
+      final writeResult = await dispatcher.dispatch(
+        ToolCallInfo(
+          id: 'call-write',
+          name: 'write_file',
+          arguments: const {
+            'path': 'lib/ownerless.txt',
+            'content': 'worktree edit\n',
+          },
+        ),
+      );
+
+      expect(writeResult.isSuccess, isTrue);
+      expect(target.readAsStringSync(), 'worktree edit\n');
+      final chatOwner = ChatTurnOwner(
+        conversationId: 'chat-conversation',
+        interactionGeneration: 1,
+      );
+      expect(await service.previewFileRollback(chatOwner), isNull);
+
+      final ownerlessRollback = await service.executeTool(
+        name: 'rollback_last_file_change',
+        arguments: const {},
+      );
+      expect(ownerlessRollback.isSuccess, isFalse);
+      expect(target.readAsStringSync(), 'worktree edit\n');
+    },
+  );
 }
 
 ProviderContainer _container(
@@ -402,12 +451,12 @@ class _RecordingChatDataSource extends ChatDataSource {
   }
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) => const Stream<String>.empty();
+  }) => StreamedChatCompletion.fromStream(const Stream<String>.empty());
 
   @override
   Stream<String> streamWithToolResult({

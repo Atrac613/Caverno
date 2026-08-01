@@ -2,10 +2,16 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
 import 'package:caverno/features/chat/domain/services/subagent_execution_service.dart';
+
+final _owner = ChatTurnOwner(
+  conversationId: 'subagent-service-test',
+  interactionGeneration: 1,
+);
 
 /// Minimal [ChatDataSource] that returns a canned completion or throws.
 ///
@@ -35,12 +41,12 @@ class _StubChatDataSource extends ChatDataSource {
   }
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) => const Stream<String>.empty();
+  }) => StreamedChatCompletion.fromStream(const Stream<String>.empty());
 
   @override
   Stream<String> streamWithToolResult({
@@ -53,7 +59,7 @@ class _StubChatDataSource extends ChatDataSource {
     String? model,
     double? temperature,
     int? maxTokens,
-  }) => const Stream<String>.empty();
+  }) => StreamedChatCompletion.fromStream(const Stream<String>.empty());
 
   @override
   Future<ChatCompletionResult> createChatCompletionWithToolResult({
@@ -82,6 +88,7 @@ void main() {
       final service = SubagentExecutionService(dataSource: dataSource);
 
       final task = await service.run(
+        owner: _owner,
         id: 'task-1',
         description: 'Analyze files',
         prompt: 'Summarize lib/core',
@@ -98,6 +105,8 @@ void main() {
       expect(task.isTerminal, isTrue);
       expect(task.resultSummary, 'Subagent finished the analysis.');
       expect(task.id, 'task-1');
+      expect(task.conversationId, _owner.conversationId);
+      expect(task.interactionGeneration, _owner.interactionGeneration);
       expect(task.parentToolUseId, 'call-42');
       expect(dataSource.createChatCompletionCount, 1);
     });
@@ -107,6 +116,7 @@ void main() {
       final service = SubagentExecutionService(dataSource: dataSource);
 
       final task = await service.run(
+        owner: _owner,
         id: 'task-2',
         description: 'Analyze files',
         prompt: 'Summarize lib/core',
@@ -122,30 +132,34 @@ void main() {
       expect(task.error, contains('network down'));
     });
 
-    test('caps the summary so a runaway child cannot blow up context', () async {
-      final dataSource = _StubChatDataSource(
-        result: ChatCompletionResult(
-          content: 'x' * 20000,
-          finishReason: 'stop',
-        ),
-      );
-      final service = SubagentExecutionService(dataSource: dataSource);
+    test(
+      'caps the summary so a runaway child cannot blow up context',
+      () async {
+        final dataSource = _StubChatDataSource(
+          result: ChatCompletionResult(
+            content: 'x' * 20000,
+            finishReason: 'stop',
+          ),
+        );
+        final service = SubagentExecutionService(dataSource: dataSource);
 
-      final task = await service.run(
-        id: 'task-cap',
-        description: 'big output',
-        prompt: 'produce a lot of text',
-        tools: const <Map<String, dynamic>>[],
-        dispatchToolCall: (_) async => throw StateError('no tools'),
-        model: 'm',
-        temperature: 0.7,
-        maxTokens: 1024,
-      );
+        final task = await service.run(
+          owner: _owner,
+          id: 'task-cap',
+          description: 'big output',
+          prompt: 'produce a lot of text',
+          tools: const <Map<String, dynamic>>[],
+          dispatchToolCall: (_) async => throw StateError('no tools'),
+          model: 'm',
+          temperature: 0.7,
+          maxTokens: 1024,
+        );
 
-      expect(task.status, SubagentTaskStatus.completed);
-      expect(task.resultSummary.endsWith('...[truncated]'), isTrue);
-      expect(task.resultSummary.length, lessThan(20000));
-    });
+        expect(task.status, SubagentTaskStatus.completed);
+        expect(task.resultSummary.endsWith('...[truncated]'), isTrue);
+        expect(task.resultSummary.length, lessThan(20000));
+      },
+    );
 
     test('propagates the background flag onto the task', () async {
       final dataSource = _StubChatDataSource(
@@ -154,6 +168,7 @@ void main() {
       final service = SubagentExecutionService(dataSource: dataSource);
 
       final task = await service.run(
+        owner: _owner,
         id: 'task-bg',
         description: 'bg',
         prompt: 'p',
@@ -194,6 +209,7 @@ void main() {
       final service = SubagentExecutionService(dataSource: dataSource);
 
       final task = await service.run(
+        owner: _owner,
         id: 'task-loop',
         description: 'compute',
         prompt: 'use calc',
@@ -271,12 +287,12 @@ class _ScriptedChatDataSource extends ChatDataSource {
   }) async => withToolResults;
 
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) => const Stream<String>.empty();
+  }) => StreamedChatCompletion.fromStream(const Stream<String>.empty());
 
   @override
   Stream<String> streamWithToolResult({

@@ -5,15 +5,23 @@ import 'chat_remote_datasource.dart';
 /// Simulates LLM responses locally for demo / App Store review purposes.
 class DemoDataSource implements ChatDataSource {
   @override
-  Stream<String> streamChatCompletion({
+  StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
-  }) async* {
-    final userMessage = _lastUserMessage(messages);
-    final response = _selectResponse(userMessage);
-    yield* _streamText(response);
+  }) {
+    Stream<String> contentStream() async* {
+      final userMessage = _lastUserMessage(messages);
+      final response = _selectResponse(userMessage);
+      yield* _streamText(response);
+    }
+
+    return StreamedChatCompletion.capture(
+      stream: contentStream(),
+      terminalMetadata: () =>
+          const ChatCompletionTerminalMetadata(finishReason: 'stop'),
+    );
   }
 
   @override

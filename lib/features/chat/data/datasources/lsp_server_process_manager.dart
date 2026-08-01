@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import 'background_process_tools.dart';
@@ -89,18 +90,23 @@ class LspServerProcessStartResult {
 
 class LspServerProcessManager implements LspServerReadinessProbe {
   LspServerProcessManager({
+    required ChatTurnOwner owner,
     required BackgroundProcessTools backgroundProcessTools,
     LspServerCommandResolver commandResolver = const LspServerCommandResolver(),
     LspServerExecutableProbe executableProbe =
         const PathLspServerExecutableProbe(),
-  }) : _backgroundProcessTools = backgroundProcessTools,
+  }) : _owner = owner,
+       _backgroundProcessTools = backgroundProcessTools,
        _commandResolver = commandResolver,
        _executableProbe = executableProbe;
 
+  final ChatTurnOwner _owner;
   final BackgroundProcessTools _backgroundProcessTools;
   final LspServerCommandResolver _commandResolver;
   final LspServerExecutableProbe _executableProbe;
   final Map<String, LspServerProcessSession> _sessions = {};
+  Future<void>? _clearFuture;
+  bool _retired = false;
 
   List<LspServerProcessSession> get sessions =>
       List<LspServerProcessSession>.unmodifiable(_sessions.values);
@@ -109,6 +115,9 @@ class LspServerProcessManager implements LspServerReadinessProbe {
     required String projectRoot,
     required Iterable<String> changedPaths,
   }) async {
+    if (_retired) {
+      return _ownerRetiredResult();
+    }
     if (!_backgroundProcessTools.isSupported) {
       return const LspServerProcessStartResult(
         ok: false,
@@ -131,6 +140,9 @@ class LspServerProcessManager implements LspServerReadinessProbe {
       );
     }
     final availability = await _executableProbe.check(command);
+    if (_retired) {
+      return _ownerRetiredResult(languageId: command.languageId);
+    }
     if (!availability.available) {
       return LspServerProcessStartResult(
         ok: false,
@@ -154,6 +166,9 @@ class LspServerProcessManager implements LspServerReadinessProbe {
     final existing = _sessions[key];
     if (existing != null) {
       final status = await _refreshExistingSession(existing);
+      if (_retired) {
+        return _ownerRetiredResult(languageId: command.languageId);
+      }
       if (status.ok && status.session?.status == 'running') {
         return status;
       }
@@ -161,6 +176,9 @@ class LspServerProcessManager implements LspServerReadinessProbe {
     }
 
     final started = await _start(command: command, projectRoot: normalizedRoot);
+    if (_retired) {
+      return _ownerRetiredResult(languageId: command.languageId);
+    }
     if (started.ok && started.session != null) {
       _sessions[key] = started.session!;
     }
@@ -190,6 +208,9 @@ class LspServerProcessManager implements LspServerReadinessProbe {
     required String projectRoot,
     required String languageId,
   }) async {
+    if (_retired) {
+      return _ownerRetiredResult(languageId: languageId);
+    }
     final normalizedRoot = Directory(projectRoot).absolute.path;
     final session =
         _sessions[_sessionKey(
@@ -206,6 +227,9 @@ class LspServerProcessManager implements LspServerReadinessProbe {
       );
     }
     final refreshed = await _refreshExistingSession(session);
+    if (_retired) {
+      return _ownerRetiredResult(languageId: languageId);
+    }
     if (!refreshed.ok || refreshed.session?.status != 'running') {
       _sessions.remove(
         _sessionKey(projectRoot: normalizedRoot, languageId: languageId),
@@ -220,10 +244,17 @@ class LspServerProcessManager implements LspServerReadinessProbe {
     return refreshed;
   }
 
+  Future<void> clear() {
+    _retired = true;
+    _sessions.clear();
+    return _clearFuture ??= _backgroundProcessTools.clearOwner(owner: _owner);
+  }
+
   Future<LspServerProcessStartResult> _refreshExistingSession(
     LspServerProcessSession session,
   ) async {
     final statusResult = await _backgroundProcessTools.status(
+      owner: _owner,
       jobId: session.jobId,
       tailChars: 1000,
     );
@@ -258,6 +289,7 @@ class LspServerProcessManager implements LspServerReadinessProbe {
     required String projectRoot,
   }) async {
     final started = await _backgroundProcessTools.start(
+      owner: _owner,
       command: command.command,
       workingDirectory: command.workingDirectory,
       label: 'LSP ${command.languageId}',
@@ -299,6 +331,16 @@ class LspServerProcessManager implements LspServerReadinessProbe {
       status: 'ready',
       languageId: command.languageId,
       session: session,
+    );
+  }
+
+  LspServerProcessStartResult _ownerRetiredResult({String? languageId}) {
+    return LspServerProcessStartResult(
+      ok: false,
+      status: 'unavailable',
+      languageId: languageId,
+      code: 'language_server_owner_retired',
+      error: 'The language server owner has been retired.',
     );
   }
 

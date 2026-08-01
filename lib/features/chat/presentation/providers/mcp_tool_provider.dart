@@ -14,6 +14,7 @@ import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/background_process_monitor_service.dart';
 import '../../data/datasources/background_process_tools.dart';
+import '../../data/datasources/file_rollback_checkpoint_store.dart';
 import '../../data/datasources/mcp_client.dart';
 import '../../data/datasources/mcp_stdio_client.dart';
 import '../../data/datasources/mcp_tool_service.dart';
@@ -93,6 +94,13 @@ final backgroundProcessMonitorServiceProvider =
       return service;
     });
 
+final fileRollbackCheckpointStoreProvider =
+    Provider<FileRollbackCheckpointStore>((ref) {
+      final store = FileRollbackCheckpointStore();
+      ref.onDispose(() => unawaited(store.dispose()));
+      return store;
+    });
+
 /// Provides the MCP tool service.
 ///
 /// Exposes a service that fetches and executes tools from an MCP server.
@@ -119,6 +127,9 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final backgroundProcessTools = ref.watch(backgroundProcessToolsProvider);
   final backgroundProcessMonitorService = ref.watch(
     backgroundProcessMonitorServiceProvider,
+  );
+  final fileRollbackCheckpointStore = ref.watch(
+    fileRollbackCheckpointStoreProvider,
   );
   final settings = ref.watch(settingsNotifierProvider);
   // LL5: when semantic search is enabled, let search_past_conversations rank by
@@ -155,6 +166,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
     scriptRuntimeRegistry: scriptRuntimeRegistry,
     backgroundProcessTools: backgroundProcessTools,
     backgroundProcessMonitorService: backgroundProcessMonitorService,
+    fileRollbackCheckpointStore: fileRollbackCheckpointStore,
     semanticConversationRanker: semanticSearch == null
         ? null
         : (query, topK) async =>

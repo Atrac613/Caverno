@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/widgets/approval/serial_open_approval_sheet.dart';
 
@@ -54,6 +55,10 @@ Future<void> _pumpHarness(
                     await SerialOpenApprovalSheet.show(
                       context,
                       PendingSerialOpen(
+                        owner: ChatTurnOwner(
+                          conversationId: 'serial-test',
+                          interactionGeneration: 1,
+                        ),
                         id: 'serial-open-test',
                         portName: '/dev/tty.usbserial',
                         baudRate: 115200,

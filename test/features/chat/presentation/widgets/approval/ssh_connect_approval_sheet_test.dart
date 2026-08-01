@@ -6,6 +6,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/widgets/approval/ssh_connect_approval_sheet.dart';
 
@@ -135,6 +136,10 @@ Future<void> _pumpHarness(
 
 PendingSshConnect _buildPending({required String? savedPassword}) {
   return PendingSshConnect(
+    owner: ChatTurnOwner(
+      conversationId: 'ssh-sheet-test',
+      interactionGeneration: 1,
+    ),
     id: 'ssh-connect-test',
     host: 'remote.example',
     port: 2222,
