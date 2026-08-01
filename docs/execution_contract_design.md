@@ -43,9 +43,86 @@ It answers **how much the turn may spend** and **whether it is stuck**. It does
 not answer **what is being built** or **how anyone would know it works**. Run 9
 supplied that second half by hand. That is the whole finding.
 
+## Revision, same day: the baseline moved
+
+The three gaps below were written from run 10, measured on build `7f92e7bf`.
+Before implementing any of them the baseline was re-taken on current `main`
+(build `9a92e989`, same harness, same model, same minimal prompt) — call it
+**run 11**. It should be read before the gap sections, because two of the three
+no longer reproduce.
+
+| Run 10 failure | Run 11 |
+| --- | --- |
+| `lib/` + `bin/` split, package name contradicted, never compiled | single `bin/todo.dart`, **zero `package:` imports** |
+| confabulated `~/.todo_app.json`, outside the verifier's reach | state at `workspace/todo.json` |
+| verifier run once, at iteration 14 of 16 | verification attempted in turn 1 |
+
+717 s → **187 s**, one turn of five, 5,284 tokens of 60,000. The artifact
+works: an independent walk-through in a fresh state directory passed add, list,
+done, unknown id → exit 1, and cross-process persistence.
+
+So **gap 1 and gap 3 target failures the current build does not exhibit.**
+Implementing them now would be fixing a solved problem, and their sections are
+kept below only as the record of what was true on `7f92e7bf`.
+
+Run 11 still went red, on one assertion — `verificationAttempts >= 1` was 0 —
+and the cause is the instrument. The fixture accepts exactly one literal
+command, `dart run tool/verify_todo_app.dart`, while the spec it ships gives a
+`<run>` walk-through and says "adapt the invocation to the chosen stack". The
+model adapted it, exactly as instructed, and was refused. The refusal named
+neither the accepted command nor any action, so there was no way back.
+
+### Run 12: the instrument does not measure what it claims
+
+A second run followed, with one change: the fixture's refusal was made to name
+the accepted command instead of only saying "unsupported". It failed the same
+way, and tracing why produced the finding that matters most here.
+
+**The fixture verifier never runs in this scenario.** In run 12 the model did
+issue the accepted command, `dart run tool/verify_todo_app.dart`, from the
+project root. The result it received was
+`{"exit_code": 0, "stdout": "", "stderr": ""}` — the output of really executing
+`tool/verify_todo_app.dart`, which is a six-line `void main() {}` placeholder
+whose own comment claims "the Caverno test harness intercepts" it. Nothing
+intercepts it.
+
+The cause is wiring. `_buildContainer` overrides `mcpToolServiceProvider` only,
+and `local_execute_command` is a built-in tool
+(`chat_tool_handler_catalog.dart:80`), so the built-in handler shadows the
+fixture's same-named MCP definition at execution time. Confirmed across both
+runs: zero results carrying the fixture's `"canary": "todo_app"` marker appear
+in either session log.
+
+Two consequences, and the second is the serious one:
+
+1. `expect(toolService.verificationAttempts, greaterThanOrEqualTo(1))` cannot
+   pass in this scenario by construction. The red says nothing about the model.
+2. **The model is handed a false green.** It runs the command it was told to
+   run, receives a silent exit 0 from a file that checks nothing, and concludes
+   the work is verified. In run 11 that conclusion happened to be correct — the
+   artifact really does work — which is exactly what makes the defect hard to
+   see.
+
+Run 10's recorded failure has to be re-read in this light: with the same
+wiring, its "verifier" was the same placeholder. The run 9 / run 10 pair that
+this document is built on therefore rests on a verification signal that was
+vacuous on at least the run-10 side. What survives unharmed is the *artifact*
+evidence — run 11's app was walked by hand and passes — and the observation
+that prose does not bind, which run 12 demonstrates again: the accepted command
+was stated in the `local_execute_command` tool description and the model still
+mixed in its own chained commands.
+
+**Nothing further should be built on this fixture until `local_execute_command`
+reaches the fixture verifier.** That is the next piece of work, and it is
+instrument repair, not product work. The rejection-message change made for run
+12 was reverted: it sits on a path these scenarios never take, and it was aimed
+at a misdiagnosis.
+
 ## Three gaps, each measured
 
 ### 1. The artifact layout is never pinned
+
+**Superseded by run 11 — did not reproduce.** Kept as the `7f92e7bf` record.
 
 `targetFiles` exists, and `_effectiveTargetPaths` even infers targets from a
 task's title, notes and validation command when they are not explicit. None of
@@ -83,6 +160,10 @@ is no budget left to act on the answer. There is no gate that fires while the
 turn can still do something about it.
 
 ### 3. Writes are not fenced to the project root
+
+**Superseded by run 11 as motivation — the confabulated HOME path did not
+reproduce.** The code fact below still holds and is worth knowing on its own;
+it is no longer evidence for building a fence.
 
 `file_mutation_tool_handler.dart:233` checks `DartProjectPath.isInsideRoot`
 inside `else if (operation.kind == FileMutationKind.deleteFile)`. The root check
