@@ -192,6 +192,30 @@ const _todoTerminalMessage =
 String _exactShortMvpPrompt(String documentName) =>
     '$documentName を参考にしてMVPを実装。言語はdartとする。';
 
+/// Fails when a fixture names a support library or class that does not exist.
+///
+/// The generated verifier imports both by name, so a typo here produces a
+/// workspace script that cannot compile — which the model would meet as an
+/// opaque runtime error partway through a live run, long after it could be
+/// explained cheaply.
+void _expectVerifierSupportLibrary(
+  String library,
+  String className,
+  String label,
+) {
+  final file = File('tool/canaries/support/$library');
+  expect(
+    file.existsSync(),
+    isTrue,
+    reason: '$label names a missing support library: $library',
+  );
+  expect(
+    file.readAsStringSync(),
+    contains('class $className'),
+    reason: '$label names a class $library does not declare: $className',
+  );
+}
+
 void main() {
   final originalHttpOverrides = HttpOverrides.current;
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -223,6 +247,43 @@ void main() {
       Platform
           .environment['CAVERNO_CODING_PENDING_ACTION_LENGTH_RECOVERY_LIVE_CANARY'] ==
       '1';
+
+  test('every MVP fixture ships a verifier that verifies', () {
+    // The placeholder this replaces was `void main() {}`, and its comment
+    // claimed the harness intercepted the command. Nothing does -- the model
+    // really runs the file -- so every verification answered with a silent
+    // exit 0 and the model was handed a green it had no way to doubt. This
+    // guard is what stops the next fixture from reopening that hole: a spec
+    // without a support library still compiles and still runs, it just stops
+    // measuring anything.
+    const specs = <String, _MvpFixtureSpec>{
+      'word frequency': _wordFrequencyFixtureSpec,
+      'expense tracker': _expenseTrackerFixtureSpec,
+      'markdown TOC': _markdownTocFixtureSpec,
+    };
+
+    for (final entry in specs.entries) {
+      final spec = entry.value;
+      final library = spec.verifierSupportLibrary;
+      final className = spec.verifierClassName;
+      expect(
+        library,
+        isNotNull,
+        reason:
+            'The ${entry.key} fixture would write a placeholder verifier that '
+            'reports success without checking anything.',
+      );
+      expect(className, isNotNull, reason: entry.key);
+      _expectVerifierSupportLibrary(library!, className!, entry.key);
+    }
+
+    // The TODO fixture takes the generator's defaults rather than a spec.
+    _expectVerifierSupportLibrary(
+      'todo_app_behavior_verifier.dart',
+      'TodoAppBehaviorVerifier',
+      'TODO',
+    );
+  });
 
   test('TODO fixture blocks mutations after verifier success', () async {
     final root = Directory.systemTemp.createTempSync(
