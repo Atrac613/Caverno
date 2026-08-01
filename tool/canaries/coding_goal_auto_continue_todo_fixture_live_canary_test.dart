@@ -217,6 +217,24 @@ Future<void> main() async {
     stdout.writeln('All acceptance criteria passed.');
     return;
   }
+  // Also emit each diagnostic in `dart analyze --format=machine` syntax.
+  // Caverno reads diagnostics off a failing command by parsing that syntax out
+  // of its output, and a JSON array parses to nothing -- a verifier that only
+  // pretty-prints is legible to a human and invisible to the harness.
+  for (final diagnostic in diagnostics) {
+    stdout.writeln(
+      [
+        (diagnostic['severity'] ?? 'Error').toString().toUpperCase(),
+        'COMPILE_TIME_ERROR',
+        diagnostic['code'] ?? 'verifier_failure',
+        diagnostic['path'] ?? diagnostic['relative_path'] ?? '',
+        diagnostic['line'] ?? 1,
+        diagnostic['column'] ?? 1,
+        1,
+        (diagnostic['message'] ?? '').toString().replaceAll('|', '/'),
+      ].join('|'),
+    );
+  }
   stdout.writeln(const JsonEncoder.withIndent('  ').convert(diagnostics));
   stderr.writeln(failureStderr);
   exitCode = 1;
