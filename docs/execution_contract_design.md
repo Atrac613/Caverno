@@ -1,10 +1,17 @@
 # ExecutionContract
 
-A design for giving a plain coding turn the scaffolding that a hand-written
-prompt currently has to supply.
+**Status: not proceeding. Kept as the record of why.** Written 2026-08-01 as a
+design for giving a plain coding turn the scaffolding a hand-written prompt had
+to supply. Taking the baseline before implementing it — the discipline the
+document itself asked for — dissolved the premise the same day. The short
+version, in full below: two of its three gaps stopped reproducing, and the
+measurement the third rested on turned out to be a placeholder that answered
+every verification with a silent exit 0. With that fixed, the realistic short
+prompt builds and verifies the fixture in 127 s with no contract at all.
 
-Written 2026-08-01. Grounded in the CMVP-1 live-canary runs, not in
-speculation; every gap below names the run that exposed it.
+Read the three revision sections in order. The original design follows them
+unchanged, because a design that was wrong for a legible reason is worth more
+intact than deleted.
 
 ## The measurement this starts from
 
@@ -117,6 +124,50 @@ reaches the fixture verifier.** That is the next piece of work, and it is
 instrument repair, not product work. The rejection-message change made for run
 12 was reverted: it sits on a path these scenarios never take, and it was aimed
 at a misdiagnosis.
+
+### Run 13: with a real verifier, the short prompt passes
+
+The instrument was repaired (`42c7cbd2`). The generated entrypoint now forwards
+to `TodoAppBehaviorVerifier`, which already existed and already copies the
+sources to a fresh directory before checking them, so the isolation the
+placeholder was guarding is kept and the checks still live outside the
+model-edited project. Both directions were proven before spending a live run: a
+working artifact exits 0 with no diagnostics, an injected in-memory-only defect
+exits 1 with `todo_cli_persistence_failed`.
+
+| | Run 10 | Run 11 | Run 13 |
+| --- | --- | --- | --- |
+| Result | failed | failed (instrument) | **passed** |
+| Duration | 717 s | 187 s | **127 s** |
+| Verifier | placeholder | placeholder | real; one run, exit 0, 0 diagnostics |
+
+The artifact was re-verified independently from a clean copy, and the verifier
+file was unmodified at the end of the run.
+
+**This is the bar the document set for itself, and it is met without the
+design.** "How we will know it worked" below asks that run 10's prompt reach
+verifier exit 0 under the same model, temperature, tool set and loop cap. It
+does. The contract was proposed to close a gap between a hand-written prompt
+and a realistic one; on the current build, with an instrument that measures,
+that gap is not visible.
+
+What remains true, and is worth carrying forward wherever it applies:
+
+- **Prose does not bind.** Run 9's "do not call any more tools" was ignored and
+  the fixture's rejections were not; run 12's accepted command was stated in
+  the tool description and the model still wrote its own. Any future mechanism
+  that depends on the model reading an instruction should be assumed not to
+  work until measured.
+- **Take the baseline before building on a measurement.** Three of the four
+  conclusions in the original design would have shipped as fences against
+  failures that no longer happen.
+- **Check what a green means before trusting it, and a red too.** The red here
+  was an assertion that could not pass by construction, sitting on top of a
+  green the model was handed by a file that checked nothing.
+
+If a contract is wanted again, it needs new evidence — a task where the
+realistic prompt genuinely fails and a contract genuinely rescues it — not this
+pair.
 
 ## Three gaps, each measured
 
