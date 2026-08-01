@@ -406,6 +406,16 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         projectRoot: projectRoot,
         commandRetryGeneration: nextCommandRetryGeneration,
       );
+      // The diagnostic streak needs a key that survives an edit. The failure
+      // key above deliberately does not: commandRetryGeneration advances on
+      // every write_file or edit_file so a retry is not mistaken for a
+      // duplicate. Reusing it for the streak made a plateau unobservable by
+      // construction, because the edit between two attempts is exactly what
+      // the streak is trying to look across.
+      final commandStreakKey = _toolFailureKey(
+        toolCall,
+        projectRoot: projectRoot,
+      );
       if (scheduledResult.error != null) {
         final error = scheduledResult.error!;
         appLog('[Tool] Error: $error');
@@ -462,11 +472,11 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           if (result.outcome?.hasFailingExitCode ?? false) {
             _recordCommandDiagnosticStreak(
               owner: owner,
-              commandKey: toolFailureKey,
+              commandKey: commandStreakKey,
               toolResult: promptToolResult,
             );
           } else {
-            _resetCommandDiagnosticStreak(owner, toolFailureKey);
+            _resetCommandDiagnosticStreak(owner, commandStreakKey);
           }
         }
         final isMutationTool =
@@ -504,7 +514,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         toolFailureCounts.remove(toolFailureKey);
         _recordCommandDiagnosticStreak(
           owner: owner,
-          commandKey: toolFailureKey,
+          commandKey: commandStreakKey,
           toolResult: promptToolResult,
         );
         appLog(
