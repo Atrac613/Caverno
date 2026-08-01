@@ -7,7 +7,7 @@ import '../../tool/audit_chat_notifier_turn_scope.dart' as audit;
 
 void main() {
   group('manifest validation', () {
-    test('loads the checked-in initial inventory and status distribution', () {
+    test('loads the checked-in inventory and status distribution', () {
       final manifest = audit.ChatNotifierDecompositionManifest.load(
         File(audit.defaultDecompositionManifestPath),
         expectedPartCount: 43,
@@ -19,11 +19,11 @@ void main() {
         hasLength(43),
       );
       expect(_statusCounts(manifest), {
-        'remaining': 28,
-        'partial': 2,
+        'partial': 24,
         'keep': 5,
         'deferred': 6,
-        'extracted': 2,
+        'extracted': 6,
+        'remaining': 2,
       });
       audit.validateProgramManifest(manifest);
       expect(
@@ -46,9 +46,12 @@ void main() {
                   'chat_notifier_coding_verification_feedback.dart',
             )
             .collaborators
-            .single
-            .id,
-        'coding-verification-feedback-presentation',
+            .map((collaborator) => collaborator.id)
+            .toSet(),
+        {
+          'coding-verification-feedback-presentation',
+          'coding-verification-mutation-signature',
+        },
       );
       expect(
         manifest.parts

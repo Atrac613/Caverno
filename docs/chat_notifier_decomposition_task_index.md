@@ -421,6 +421,44 @@ The manifest retains 43 historical records, and the canonical baseline records
 exact-model live canary remain pending at tranche closure and are not claimed
 by these focused-acceptance records.
 
+### Turn-Scope Baseline Reconciliation (2026-08-02)
+
+The baseline committed in `7e66f3d9` was internally stale. At that revision the
+manifest already named 71 collaborators and the notifier declared 37 active
+parts, so the audit should have scanned 109 files including the notifier. The
+checked-in baseline recorded only 76. The paragraph above remains a historical
+focused-tree snapshot; it is not the current canonical measurement.
+
+The reviewed reconciliation to the current tree is:
+
+- 33 collaborator files already present in `7e66f3d9` were absent from that
+  baseline's scanned set.
+- `ask_user_question_option_parser.dart`,
+  `truncated_tool_call_arguments_guard.dart`, and
+  `verifier_replay_candidate_policy.dart` were added after `7e66f3d9`, taking
+  the current manifest to 74 collaborators and the scan to 112 files.
+- The audit unit test still expected the initial manifest distribution and a
+  single coding-verification collaborator. It now matches the two current
+  coding-verification collaborators and the checked-in 24 `partial`, six
+  `extracted`, five `keep`, six `deferred`, and two `remaining` records. These
+  manifest lifecycle states do not by themselves close the workstream status
+  rows below.
+- Resolvable historical-part entrypoints fell from 322 to 271. Eleven entries
+  were already absent from the `7e66f3d9` source despite remaining in its stale
+  baseline, 35 forwarding shims were removed by `818989a6`, three option-parser
+  methods moved in `477f40fa`, and two verifier-policy methods moved in
+  `0055df9f`.
+- No ambient read was added. `_handleLspGoToDefinition` lost one
+  `activeProjectRootPath` read, reducing ambient reads from 68 to 67. Nine
+  retained reads changed from turn-reachable to non-turn-reachable under the
+  current call graph, reducing that count from 59 to 50.
+
+The reconciled canonical summary is therefore 112 scanned files, 1,413
+methods, 271 resolvable manifest entrypoints, 665 reachable methods, 67 ambient
+reads, and 50 turn-reachable reads. This is a one-time evidence-backed reset,
+not permission for later baseline growth. Any future change must still explain
+its diff before using `--write-baseline`.
+
 ## Corrective Prerequisites
 
 | Slice | Task catalog | Goal | Start gate | Status |
