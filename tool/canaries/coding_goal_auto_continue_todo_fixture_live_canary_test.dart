@@ -74,9 +74,13 @@ List<Map<String, dynamic>> _recordedVerifierRuns(Directory root) {
 ///
 /// The checks themselves stay outside the model-edited project, imported by
 /// absolute path; this entrypoint only forwards to them and reports the result.
-String _verifierEntrypointSource() {
+String _verifierEntrypointSource({
+  String supportLibrary = 'todo_app_behavior_verifier.dart',
+  String className = 'TodoAppBehaviorVerifier',
+  String entrypointPolicy = 'singleUnderBin',
+}) {
   final verifier = File(
-    'tool/canaries/support/todo_app_behavior_verifier.dart',
+    'tool/canaries/support/$supportLibrary',
   ).absolute.uri;
   final resolver = File(
     'tool/canaries/support/dart_cli_entrypoint_resolver.dart',
@@ -102,9 +106,9 @@ Directory _projectRoot() {
 
 Future<void> main() async {
   final root = _projectRoot();
-  final result = await TodoAppBehaviorVerifier(
+  final result = await $className(
     root: root,
-    entrypointPolicy: DartCliEntrypointPolicy.singleUnderBin,
+    entrypointPolicy: DartCliEntrypointPolicy.$entrypointPolicy,
   ).verify();
   // Ground truth for the canary: whether the model ran this at all, recorded
   // where no tool-routing decision can hide it.
@@ -146,6 +150,8 @@ const _wordFrequencyFixtureSpec = _MvpFixtureSpec(
   terminalMessage:
       'The word-frequency verifier passed. The requested work is complete.',
   toolFailureMessage: 'Word-frequency verifier failed.',
+  verifierSupportLibrary: 'word_frequency_behavior_verifier.dart',
+  verifierClassName: 'WordFrequencyBehaviorVerifier',
 );
 const _expenseTrackerFixtureSpec = _MvpFixtureSpec(
   canaryId: 'expense_tracker',
@@ -1707,7 +1713,21 @@ Future<void> _runShortPromptMvpLiveScenario<T extends _TodoToolService>({
       reason: diagnostic,
     );
     expect(entrypointResolution.candidates, hasLength(1), reason: diagnostic);
-    expect(toolService.hasSuccessfulVerifierCall, isTrue, reason: diagnostic);
+    // Ground truth is the verifier's own log, not the fixture service: this
+    // scenario runs local_execute_command through Caverno's built-in handler,
+    // so the fixture's same-named MCP tool is shadowed and records nothing.
+    final verifierRuns = _recordedVerifierRuns(fixture.root);
+    expect(
+      verifierRuns,
+      isNotEmpty,
+      reason: '$diagnostic\nThe model never ran "${spec.verifierCommand}".',
+    );
+    expect(
+      verifierRuns.any((run) => run['exit_code'] == 0),
+      isTrue,
+      reason: '$diagnostic\nverifierRuns=$verifierRuns',
+    );
+    // Vacuous here for the same reason; kept for MCP-routed scenarios.
     expect(
       _unchangedPathBackedVerifierReplays(toolService.executedCalls),
       isEmpty,
@@ -1751,10 +1771,20 @@ void _configureMvpFixture(Directory root, _MvpFixtureSpec spec) {
   File(
     '${root.path}/${spec.documentName}',
   ).writeAsStringSync(source.readAsStringSync());
-  File('${root.path}/${spec.verifierPath}').writeAsStringSync('''
-// Live canary placeholder. The harness intercepts this verifier command.
-void main() {}
-''');
+  final supportLibrary = spec.verifierSupportLibrary;
+  final className = spec.verifierClassName;
+  File('${root.path}/${spec.verifierPath}').writeAsStringSync(
+    supportLibrary == null || className == null
+        // Still a placeholder, and still wrong: nothing intercepts this
+        // command, so the model runs it and is told everything passed. Give
+        // this fixture a support library to fix that, as word-frequency has.
+        ? '// Live canary placeholder. The harness does NOT intercept this.\n'
+              'void main() {}\n'
+        : _verifierEntrypointSource(
+            supportLibrary: supportLibrary,
+            className: className,
+          ),
+  );
 }
 
 Future<void> _runTodoMvpLiveScenario(
@@ -4184,7 +4214,16 @@ class _MvpFixtureSpec {
     required this.failureStderr,
     required this.terminalMessage,
     required this.toolFailureMessage,
+    this.verifierSupportLibrary,
+    this.verifierClassName,
   });
+
+  /// The `tool/canaries/support/` file holding this fixture's real checks, and
+  /// the class inside it. When both are set the workspace gets a verifier that
+  /// runs those checks; otherwise it still gets the placeholder, which reports
+  /// success without checking anything. See [_verifierEntrypointSource].
+  final String? verifierSupportLibrary;
+  final String? verifierClassName;
 
   final String canaryId;
   final String documentName;
