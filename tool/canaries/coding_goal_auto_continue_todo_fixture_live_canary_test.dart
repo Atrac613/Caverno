@@ -1532,6 +1532,30 @@ Future<void> _runWordFrequencyLiveScenario() =>
       verify: (service) => service.verifyWordFrequency(),
     );
 
+/// Drives a real turn into the stalled-diagnostic-repair path.
+///
+/// What a failure here means, as of 2026-08-01. Three defects used to make the
+/// path unreachable in production and are now fixed: a failing command carried
+/// no `diagnostics` so no signature could form; a failing command reset its own
+/// streak, because a non-zero exit is normalized to a successful tool result;
+/// and the streak key embedded `commandRetryGeneration`, which advances on
+/// every edit — so the sequence the feature detects, fail then edit then fail
+/// the same way, restarted the count on its middle step. One run has since
+/// reached four continuations and eight repair contracts where every earlier
+/// run produced none.
+///
+/// What remains is the model's own persistence, which this scenario also
+/// measures: it requires recovery and goal completion, and across six runs the
+/// model called the verifier 2, 2, 4, 5, 6 and 7 times, reaching a contract
+/// only in the longest. So a red here is most likely a short run, not a
+/// regression — check the verifier invocation log first. Lengthening the
+/// staged plateau to force continuations was tried and backfired, because it
+/// pushed recovery out of reach.
+///
+/// Contract construction itself is pinned deterministically in
+/// `goal_auto_continue_decision_coordinator_test.dart`, which stayed green
+/// throughout all of the above — which is exactly why unit coverage never
+/// revealed that nothing could reach it.
 Future<void> _runStalledDiagnosticRepairLiveScenario() async {
   final env = _TodoFixtureEnv.fromEnvironment();
   final fixture = _TodoFixture.create(env.workspaceRoot);
