@@ -6,9 +6,10 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_legacy_workflow_compatibility_service.dart';
+import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 
 const String auditSchemaName = 'caverno_legacy_workflow_compatibility_audit';
-const int auditSchemaVersion = 1;
+const int auditSchemaVersion = 2;
 
 final class CompatibilityAuditException implements Exception {
   const CompatibilityAuditException(this.message);
@@ -65,6 +66,17 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
   final blockerRecordCounts = _emptyBlockerCounts();
   final currentBlockerRecordCounts = _emptyBlockerCounts();
   final checkpointBlockerRecordCounts = _emptyBlockerCounts();
+  final currentProvenanceShapes = _ProvenanceShapeAccumulator();
+  final checkpointProvenanceShapes = _ProvenanceShapeAccumulator();
+  var provenanceBlockedRecordCount = 0;
+  var provenanceOnlyRecordCount = 0;
+  var planProgressConflictRecordCount = 0;
+  var danglingExecutionProgressRecordCount = 0;
+  var existingPlanConflictRecordCount = 0;
+  var combinedPlanProgressConflictRecordCount = 0;
+  var legacyCheckpointSnapshotCount = 0;
+  var freshCheckpointSnapshotCount = 0;
+  var inconsistentCheckpointSnapshotCount = 0;
 
   for (final encodedPayload in encodedPayloads) {
     databaseRowCount++;
@@ -110,6 +122,50 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
       checkpointBlockerRecordCounts[blocker.name] =
           checkpointBlockerRecordCounts[blocker.name]! + 1;
     }
+    final hasProvenanceBlocker = result.currentBlockers.contains(
+      ConversationLegacyWorkflowCompatibilityBlocker
+          .contractProvenanceWouldChange,
+    );
+    if (hasProvenanceBlocker) {
+      provenanceBlockedRecordCount++;
+      currentProvenanceShapes.add(conversation.effectiveWorkflowSpec);
+      final hasDanglingProgress = result.blockers.contains(
+        ConversationLegacyWorkflowCompatibilityBlocker
+            .danglingExecutionProgress,
+      );
+      final hasPlanConflict = result.blockers.contains(
+        ConversationLegacyWorkflowCompatibilityBlocker
+            .existingPlanDocumentConflict,
+      );
+      if (hasDanglingProgress) danglingExecutionProgressRecordCount++;
+      if (hasPlanConflict) existingPlanConflictRecordCount++;
+      if (hasDanglingProgress && hasPlanConflict) {
+        combinedPlanProgressConflictRecordCount++;
+      }
+      if (hasDanglingProgress || hasPlanConflict) {
+        planProgressConflictRecordCount++;
+      } else {
+        provenanceOnlyRecordCount++;
+      }
+
+      for (final checkpoint in conversation.checkpoints) {
+        final workflowSpec =
+            checkpoint.workflowSpec ?? const ConversationWorkflowSpec();
+        if (!_hasWorkflowContext(checkpoint.workflowStage, workflowSpec)) {
+          continue;
+        }
+        final checkpointOrigin = _checkpointOrigin(checkpoint, workflowSpec);
+        switch (checkpointOrigin) {
+          case _CheckpointOrigin.legacy:
+            legacyCheckpointSnapshotCount++;
+            checkpointProvenanceShapes.add(workflowSpec);
+          case _CheckpointOrigin.freshProjection:
+            freshCheckpointSnapshotCount++;
+          case _CheckpointOrigin.inconsistentProjection:
+            inconsistentCheckpointSnapshotCount++;
+        }
+      }
+    }
   }
 
   final migrationCandidateReady =
@@ -142,13 +198,194 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
       'migrationCandidateReady': migrationCandidateReady,
       'nextAction': nextAction,
     },
+    'provenanceShapes': {
+      'cohorts': {
+        'provenanceBlockedRecordCount': provenanceBlockedRecordCount,
+        'provenanceOnlyRecordCount': provenanceOnlyRecordCount,
+        'planProgressConflictRecordCount': planProgressConflictRecordCount,
+        'danglingExecutionProgressRecordCount':
+            danglingExecutionProgressRecordCount,
+        'existingPlanConflictRecordCount': existingPlanConflictRecordCount,
+        'combinedPlanProgressConflictRecordCount':
+            combinedPlanProgressConflictRecordCount,
+      },
+      'checkpointOrigins': {
+        'legacySnapshotCount': legacyCheckpointSnapshotCount,
+        'freshProjectionSnapshotCount': freshCheckpointSnapshotCount,
+        'inconsistentProjectionSnapshotCount':
+            inconsistentCheckpointSnapshotCount,
+      },
+      'currentWorkflows': currentProvenanceShapes.toJson(),
+      'legacyCheckpoints': checkpointProvenanceShapes.toJson(),
+    },
     'privacy': {
       'includesDatabasePath': false,
       'includesRecordIdentifiers': false,
       'includesRecordContent': false,
       'includesIndividualResults': false,
+      'includesSourceIdentifiers': false,
+      'includesItemIdentifiers': false,
+      'includesSourceLocators': false,
     },
   };
+}
+
+enum _CheckpointOrigin { legacy, freshProjection, inconsistentProjection }
+
+_CheckpointOrigin _checkpointOrigin(
+  ConversationCheckpoint checkpoint,
+  ConversationWorkflowSpec workflowSpec,
+) {
+  final sourceHash = checkpoint.workflowSourceHash.trim();
+  final executionDocument = checkpoint.planArtifact?.executionMarkdown;
+  final hasAnyProjectionMetadata =
+      sourceHash.isNotEmpty || checkpoint.workflowDerivedAt != null;
+  if (sourceHash.isNotEmpty &&
+      checkpoint.workflowDerivedAt != null &&
+      workflowSpec.hasContent &&
+      executionDocument != null &&
+      sourceHash == computeConversationPlanHash(executionDocument)) {
+    return _CheckpointOrigin.freshProjection;
+  }
+  return hasAnyProjectionMetadata
+      ? _CheckpointOrigin.inconsistentProjection
+      : _CheckpointOrigin.legacy;
+}
+
+bool _hasWorkflowContext(
+  ConversationWorkflowStage workflowStage,
+  ConversationWorkflowSpec workflowSpec,
+) {
+  return workflowStage != ConversationWorkflowStage.idle ||
+      workflowSpec.hasContent;
+}
+
+final class _ProvenanceShapeAccumulator {
+  var snapshotCount = 0;
+  final sourceKindSnapshotCounts = {
+    for (final kind in ConversationContractSourceKind.values) kind.name: 0,
+  };
+  final itemKindSnapshotCounts = {
+    for (final kind in ConversationContractItemKind.values) kind.name: 0,
+  };
+  final conditionSnapshotCounts = {
+    for (final condition in _ProvenanceCondition.values) condition.name: 0,
+  };
+
+  void add(ConversationWorkflowSpec workflowSpec) {
+    snapshotCount++;
+    for (final kind
+        in workflowSpec.sources.map((source) => source.kind).toSet()) {
+      sourceKindSnapshotCounts[kind.name] =
+          sourceKindSnapshotCounts[kind.name]! + 1;
+    }
+    for (final kind
+        in workflowSpec.provenance.map((item) => item.kind).toSet()) {
+      itemKindSnapshotCounts[kind.name] =
+          itemKindSnapshotCounts[kind.name]! + 1;
+    }
+
+    final sourceIds = workflowSpec.sources
+        .map((source) => source.id.trim())
+        .toList();
+    final itemIds = workflowSpec.provenance
+        .map((item) => item.itemId.trim())
+        .toList();
+    final definedSourceIds = sourceIds.where((id) => id.isNotEmpty).toSet();
+    final referencedSourceIds = workflowSpec.provenance
+        .expand((item) => item.sourceIds)
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final conditions = <_ProvenanceCondition>{};
+    if (workflowSpec.sources.isEmpty) {
+      conditions.add(_ProvenanceCondition.noSources);
+    }
+    if (workflowSpec.provenance.isEmpty) {
+      conditions.add(_ProvenanceCondition.noProvenance);
+    }
+    if (sourceIds.any((id) => id.isEmpty)) {
+      conditions.add(_ProvenanceCondition.emptySourceId);
+    }
+    if (_hasDuplicates(sourceIds.where((id) => id.isNotEmpty))) {
+      conditions.add(_ProvenanceCondition.duplicateSourceId);
+    }
+    if (itemIds.any((id) => id.isEmpty)) {
+      conditions.add(_ProvenanceCondition.emptyItemId);
+    }
+    if (_hasDuplicates(itemIds.where((id) => id.isNotEmpty))) {
+      conditions.add(_ProvenanceCondition.duplicateItemId);
+    }
+    if (workflowSpec.provenance.any(
+      (item) =>
+          item.sourceIds.isEmpty ||
+          item.sourceIds.any((id) => id.trim().isEmpty),
+    )) {
+      conditions.add(_ProvenanceCondition.emptySourceReferences);
+    }
+    if (workflowSpec.provenance.any(
+      (item) => item.sourceIds.where((id) => id.trim().isNotEmpty).length > 1,
+    )) {
+      conditions.add(_ProvenanceCondition.multipleSourceReferences);
+    }
+    if (referencedSourceIds.difference(definedSourceIds).isNotEmpty) {
+      conditions.add(_ProvenanceCondition.orphanSourceReference);
+    }
+    if (definedSourceIds.difference(referencedSourceIds).isNotEmpty) {
+      conditions.add(_ProvenanceCondition.unreferencedSource);
+    }
+    if (workflowSpec.provenance.any((item) => item.blocksExecution)) {
+      conditions.add(_ProvenanceCondition.blockingAssumption);
+    }
+    if (workflowSpec.provenance.any(
+      (item) => item.assumption && item.material,
+    )) {
+      conditions.add(_ProvenanceCondition.materialAssumption);
+    }
+    if (workflowSpec.provenance.any(
+      (item) => item.assumption && item.confirmed,
+    )) {
+      conditions.add(_ProvenanceCondition.confirmedAssumption);
+    }
+    if (workflowSpec.provenance.any(
+      (item) => item.normalizedClarificationQuestion != null,
+    )) {
+      conditions.add(_ProvenanceCondition.clarificationQuestionPresent);
+    }
+    for (final condition in conditions) {
+      conditionSnapshotCounts[condition.name] =
+          conditionSnapshotCounts[condition.name]! + 1;
+    }
+  }
+
+  Map<String, Object> toJson() => {
+    'snapshotCount': snapshotCount,
+    'sourceKindSnapshotCounts': sourceKindSnapshotCounts,
+    'itemKindSnapshotCounts': itemKindSnapshotCounts,
+    'conditionSnapshotCounts': conditionSnapshotCounts,
+  };
+}
+
+enum _ProvenanceCondition {
+  noSources,
+  noProvenance,
+  emptySourceId,
+  duplicateSourceId,
+  emptyItemId,
+  duplicateItemId,
+  emptySourceReferences,
+  multipleSourceReferences,
+  orphanSourceReference,
+  unreferencedSource,
+  blockingAssumption,
+  materialAssumption,
+  confirmedAssumption,
+  clarificationQuestionPresent,
+}
+
+bool _hasDuplicates(Iterable<String> values) {
+  final seen = <String>{};
+  return values.any((value) => !seen.add(value));
 }
 
 Map<String, int> _emptyBlockerCounts() {

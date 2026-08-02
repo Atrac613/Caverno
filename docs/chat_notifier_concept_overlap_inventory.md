@@ -101,10 +101,12 @@ planning paths emit a plan document.
   validation commands, plan canaries, and checkpoint restoration.
 - Completed evidence: read-only SQLite audits classify aggregate workflow
   origins and apply the pure compatibility gate without exposing record data.
-  Of 19 legacy records, 1 is compatible and 18 require current and checkpoint
-  provenance preservation; 4 also have plan/progress conflicts. The next safe
-  slice is an aggregate-only provenance-shape audit for those cohorts; do not
-  delete the editor or mutate the live database.
+  Of 19 legacy records, 1 is compatible, 14 have internally consistent
+  provenance as their only blocker, and 4 also have plan/progress conflicts.
+  All 33 legacy checkpoints have consistent source graphs without assumption
+  or reference-integrity hazards. The next safe slice is a pure additive
+  provenance-preserving fixture for the 14 clean records; do not delete the
+  editor or mutate the live database.
 
 ### C2 — Give task status one owner
 

@@ -69,7 +69,21 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: This audit does not authorize a live migration.
+- Summary: Extended the persisted compatibility audit with aggregate current
+  and checkpoint provenance graphs. All 18 blocked current workflows and all
+  33 legacy checkpoints have user-message and specification-file sources plus
+  goal, constraint, acceptance-criterion, and task provenance. Fourteen records
+  are provenance-only blockers; four also have plan/progress conflicts.
+- Tests run: All 7 focused audit tests pass, focused analysis reports no
+  issues, and the live database bytes were unchanged. `tool/codex_verify.sh`
+  passed generation, full analysis, package tests, and 6,494 of 6,495 Flutter
+  tests; the only failure is the pre-existing stale
+  `run_coding_stalled_diagnostic_repair_live_canary_test.dart` expectation.
+- Coverage or low-coverage notes: Fixtures cover source and item kinds,
+  duplicate IDs, empty and multiple references, orphan and unreferenced
+  sources, assumption states, checkpoint scope, conflict cohorts, and output
+  privacy.
+- Risks or follow-ups: This audit does not authorize a live migration. The live
+  capture contains zero malformed graph or assumption conditions, so the next
+  safe slice is a pure provenance-preserving candidate fixture for the 14 clean
+  records. Keep the 4 plan/progress conflicts in a separate blocked lane.

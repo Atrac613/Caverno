@@ -90,7 +90,89 @@ void main() {
       'includesRecordIdentifiers': false,
       'includesRecordContent': false,
       'includesIndividualResults': false,
+      'includesSourceIdentifiers': false,
+      'includesItemIdentifiers': false,
+      'includesSourceLocators': false,
     });
+  });
+
+  test('aggregates provenance graphs without exposing identifiers', () {
+    final shapedSpec = _workflowSpec.copyWith(
+      sources: const [
+        ConversationContractSourceReference(
+          id: 'private-source-a',
+          kind: ConversationContractSourceKind.userMessage,
+        ),
+        ConversationContractSourceReference(
+          id: 'private-source-b',
+          kind: ConversationContractSourceKind.legacy,
+        ),
+        ConversationContractSourceReference(
+          id: 'private-source-b',
+          kind: ConversationContractSourceKind.legacy,
+        ),
+      ],
+      provenance: const [
+        ConversationContractItemProvenance(
+          itemId: 'private-item-a',
+          kind: ConversationContractItemKind.goal,
+          sourceIds: ['private-source-a', 'missing-source'],
+          assumption: true,
+          material: true,
+          clarificationQuestion: 'Private clarification?',
+        ),
+        ConversationContractItemProvenance(
+          itemId: 'private-item-a',
+          kind: ConversationContractItemKind.task,
+        ),
+      ],
+    );
+    final conversation = _conversation(
+      workflowSpec: shapedSpec,
+      checkpoints: [
+        ConversationCheckpoint(
+          messageId: 'private-message',
+          messageCount: 2,
+          title: 'Private checkpoint',
+          createdAt: DateTime.utc(2026, 8, 2),
+          workflowStage: ConversationWorkflowStage.implement,
+          workflowSpec: shapedSpec,
+        ),
+      ],
+    );
+
+    final report = audit.buildLegacyWorkflowCompatibilityReport([
+      jsonEncode(conversation.toJson()),
+    ]);
+    final shapes = report['provenanceShapes']! as Map<String, Object>;
+    final cohorts = shapes['cohorts']! as Map<String, int>;
+    final current = shapes['currentWorkflows']! as Map<String, Object>;
+    final sourceKinds =
+        current['sourceKindSnapshotCounts']! as Map<String, int>;
+    final itemKinds = current['itemKindSnapshotCounts']! as Map<String, int>;
+    final conditions = current['conditionSnapshotCounts']! as Map<String, int>;
+
+    expect(cohorts['provenanceBlockedRecordCount'], 1);
+    expect(cohorts['provenanceOnlyRecordCount'], 1);
+    expect(cohorts['planProgressConflictRecordCount'], 0);
+    expect(sourceKinds[ConversationContractSourceKind.userMessage.name], 1);
+    expect(sourceKinds[ConversationContractSourceKind.legacy.name], 1);
+    expect(itemKinds[ConversationContractItemKind.goal.name], 1);
+    expect(itemKinds[ConversationContractItemKind.task.name], 1);
+    expect(conditions['duplicateSourceId'], 1);
+    expect(conditions['duplicateItemId'], 1);
+    expect(conditions['emptySourceReferences'], 1);
+    expect(conditions['multipleSourceReferences'], 1);
+    expect(conditions['orphanSourceReference'], 1);
+    expect(conditions['unreferencedSource'], 1);
+    expect(conditions['blockingAssumption'], 1);
+    expect(conditions['materialAssumption'], 1);
+    expect(conditions['clarificationQuestionPresent'], 1);
+    expect(shapes['legacyCheckpoints'], current);
+    final encodedReport = jsonEncode(report);
+    expect(encodedReport, isNot(contains('private-source')));
+    expect(encodedReport, isNot(contains('private-item')));
+    expect(encodedReport, isNot(contains('Private clarification')));
   });
 
   test('counts each blocker once per blocked record', () {
@@ -214,6 +296,7 @@ Conversation _conversation({
   DateTime? workflowDerivedAt,
   List<ConversationExecutionTaskProgress> executionProgress = const [],
   List<ConversationOpenQuestionProgress> openQuestionProgress = const [],
+  List<ConversationCheckpoint> checkpoints = const [],
 }) {
   return Conversation(
     id: id,
@@ -227,6 +310,7 @@ Conversation _conversation({
     workflowDerivedAt: workflowDerivedAt,
     executionProgress: executionProgress,
     openQuestionProgress: openQuestionProgress,
+    checkpoints: checkpoints,
   );
 }
 
