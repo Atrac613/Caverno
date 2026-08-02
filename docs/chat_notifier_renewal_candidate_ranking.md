@@ -22,8 +22,14 @@ Neither should be folded into the first `TurnRuntime` extraction. Status
 ownership should be corrected before task state crosses that boundary, while
 plan-artifact persistence remains outside the turn runtime.
 
-The operational next slice is I1, the persisted workflow-origin audit. It must
-remain read-only until legacy workflow-only records have a proven backfill.
+I1 is complete. The read-only local persistence audit classified 439 rows: 391
+without workflow context, 29 fresh plan-derived workflows, and 19 legacy-
+authored workflows. No stale, source-missing, metadata-incomplete, or invalid
+record was found. M3 therefore remains blocked.
+
+The operational next slice is a deterministic compatibility fixture and
+backfill design for the 19 legacy-authored records. It must not write the live
+database or remove the editor.
 
 ## Ranking Rules
 
@@ -61,16 +67,16 @@ cleanup, not a prerequisite for the runtime renewal.
 
 | Rank | Candidate | Estimated affected surface | Evidence | Dependencies and stop condition |
 | ---: | --- | --- | --- | --- |
-| M3 | Retire workflow as a second authored source while retaining a plan-derived execution projection | 25-40 source/test files | Approved plans are already preferred, hashed, and projected; plan-first conversations block the legacy editor | Requires the workflow-origin audit in I2 and a compatibility path for legacy workflow-only conversations. Stop if a supported current path still requires independently authored workflow state. |
 | M4 | Add explicit provenance or a snapshot invariant between goal text and plan/workflow objective text | 6-10 source/test files | Goal lifecycle policy and contract objective text are distinct, but current strings can diverge without provenance | Start with the read-only mismatch diagnostic in I4. Stop if fixtures show divergence is always deliberate or provenance cannot be added compatibly. |
 
-M3 is not a schema-deletion task yet. M4 defines a relationship between distinct
-entities; it does not merge goal and plan.
+M4 defines a relationship between distinct entities; it does not merge goal
+and plan.
 
 ## Blocked Migration
 
 | Candidate | Direction confidence | Measured surface | Blocker | Re-entry condition |
 | --- | --- | --- | --- | --- |
+| Retire workflow as a second authored source while retaining a plan-derived execution projection | High for the direction; blocked for implementation | 25-40 source/test files; 19 persisted legacy-authored workflows in the read-only capture | Those 19 records have workflow state without projection provenance, and the current reverse backfill makes plan-artifact presence insufficient proof of plan origin | Prove a deterministic, lossless compatibility backfill for legacy workflow fields, task IDs, progress, validation metadata, and checkpoint restoration before any live migration or editor removal |
 | Wire `ChatToolHandlerCatalog` as the production composition boundary | High that all six binding groups can fit an owner-aware catalogue; low that the current composition is ready | 118 static plus 52 private dynamic definitions across 6 binding groups | The registry-last WS6-19 gate remains unmet; all three named modules capture `ChatNotifier`, and Browser/Computer Use still require policy-aware adapters | Reconcile or replace the WS6-19 safety contract, expose typed owner/UI/approval/turn-result ports, and prove branch precedence plus fallback behavior before wiring |
 
 The pinned corpus contained only two records and one normalized submission. It
@@ -79,11 +85,11 @@ definition is a deletion candidate based on its zero count.
 
 ## Investigation Candidates
 
-### High confidence
+### Completed
 
 | Rank | Investigation | Decision unlocked | Measured decision surface | Bounded next action |
 | ---: | --- | --- | --- | --- |
-| I1 | Audit persisted workflow origins | Whether M3 can remove the legacy authored-workflow path | Potentially unlocks the 25-40-file M3 surface | Add a read-only repository audit or deterministic migration fixture that classifies plan-derived versus legacy workflow-only records. Stop before deletion if any supported legacy population lacks a backfill. |
+| I1 | Audit persisted workflow origins | Direct retirement is blocked | 439 rows: 391 no workflow context, 29 fresh plan-derived, 19 legacy-authored, and zero other or invalid classifications | Completed with a SQLite `mode=ro` aggregate audit; design a deterministic compatibility backfill before any mutation |
 
 The matching-build guard capture is complete and moved its two closed proofs
 into D1. With D1 deleted, I1 is now the next investigation.
@@ -115,8 +121,10 @@ keep every unresolved callback, registration, and configuration edge explicit.
 - Exclude dynamic MCP names, schemas, endpoint details, configuration
   fingerprints, private paths, and session identifiers.
 - Exclude runtime-frequency conclusions from the tiny synthetic tool corpus.
-- No persisted user corpus, schema migration prototype, or live LLM canary was
-  used for the concept ranking.
+- The workflow-origin audit emits aggregate counts only; it excludes database
+  paths, record identifiers, titles, messages, plan text, and workflow content.
+- No schema migration prototype or live LLM canary was used for the concept
+  ranking.
 
 ## Evidence Revisions and Dynamic Provenance
 
@@ -126,6 +134,7 @@ keep every unresolved callback, registration, and configuration edge explicit.
 | Tool catalogue residency inventory | `de73f746f16eed1125b0f4f92cb44a11b57ea7de` | 118 static and 52 private dynamic rows linked to 6 bindings |
 | Concept overlap inventory | `8561fedb42471f0e99cd15d897002acb30f5e88b` | Read-only lifecycle and ownership review |
 | Consolidated synthesis | `05a6a25c0237c0b2ce6e93fab3055c36121e45f4` | Documentation-only task-contract revision; classified production code is unchanged from the input reviews |
+| Workflow-origin audit | Current read-only local capture | 439 aggregate rows; 29 fresh plan-derived and 19 legacy-authored workflows; no path, identifier, or content fields emitted |
 
 The tool measurement used analyser revision
 `de73f746f16eed1125b0f4f92cb44a11b57ea7de`, corpus-manifest digest
@@ -141,6 +150,8 @@ report does not duplicate private topology.
 
 ```bash
 python3 test/python/analyze_chat_notifier_inventory_test.py
+python3 test/python/audit_conversation_workflow_origins_test.py
+python3 tool/audit_conversation_workflow_origins.py --database <path>
 python3 tool/analyze_chat_notifier_inventory.py \
   --source-revision HEAD \
   --check-guard-manifest tool/chat_notifier_guard_inventory.json
@@ -168,7 +179,8 @@ inventory so sensitive paths do not appear here.
 
 ## Unresolved Items
 
-- The legacy workflow-only persisted population is unknown.
+- The 19 legacy-authored workflows need a proven lossless compatibility
+  backfill before M3 can re-enter implementation.
 - The correct replacement, if any, for the deferred WS6-19 ordering contract is
   not approved.
 - Goal/objective divergence has no provenance marker, so mismatches cannot yet

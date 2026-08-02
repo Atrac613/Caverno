@@ -67,8 +67,16 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
+- Summary: Added a path-free SQLite read-only audit and classified the current
+  local database as 391 rows without workflow context, 29 fresh plan-derived
+  workflows, and 19 legacy-authored workflows. All other classifications were
+  zero, so direct workflow-authoring retirement is blocked.
+- Tests run: All 5 focused Python tests pass, including every origin class,
+  UTF-16 hash compatibility, read-only byte preservation, and failure paths.
+  `tool/codex_verify.sh` passed generation, analysis, package tests, and 6,481
+  of 6,482 Flutter tests; the only failure is the pre-existing stale
+  `run_coding_stalled_diagnostic_repair_live_canary_test.dart` expectation for
+  the removed `_isTodoVerifierCall` filtering expression.
 - Coverage or low-coverage notes: Synthetic SQLite fixtures cover every origin
   class and verify that the database bytes remain unchanged.
 - Risks or follow-ups: Aggregate evidence can determine whether M3 needs a

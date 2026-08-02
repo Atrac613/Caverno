@@ -81,10 +81,12 @@ fact.
 
 ### C1 — Retire workflow as a second authored source
 
-**Recommendation: pursue after a migration audit.** Keep a renamed internal
-projection such as `PlanExecutionProjection`, derived from the approved plan.
-Remove the legacy workflow editor/proposal mutation path once old conversations
-are backfilled and all supported planning paths emit a plan document.
+**Recommendation: blocked pending compatibility backfill.** Keep a renamed
+internal projection such as `PlanExecutionProjection`, derived from the
+approved plan. The read-only local audit found 19 legacy-authored workflows and
+29 fresh plan-derived workflows. Remove the legacy workflow editor/proposal
+mutation path only after the legacy records are backfilled and all supported
+planning paths emit a plan document.
 
 - Evidence: `Conversation.shouldPreferPlanDocument` switches to the plan as
   soon as an artifact exists; `refreshCurrentWorkflowProjectionFromApprovedPlan`
@@ -97,9 +99,10 @@ are backfilled and all supported planning paths emit a plan document.
 - Behaviors at risk: legacy conversation loading, plan-less workflow proposals,
   plan approval fallback, task-ID stability, open-question retention, saved
   validation commands, plan canaries, and checkpoint restoration.
-- Safe first slice: add a persisted-origin audit or deterministic repository
-  migration test that classifies workflow state as plan-derived versus legacy;
-  do not delete the editor until the legacy population is known.
+- Completed first slice: a read-only SQLite audit classifies aggregate workflow
+  origins without exposing record data. The next safe slice is a deterministic
+  compatibility fixture for the 19 legacy-authored records; do not delete the
+  editor or mutate the live database.
 
 ### C2 — Give task status one owner
 
@@ -224,8 +227,9 @@ rg -l 'SYMBOL' lib -g '*.dart' -g '!*.freezed.dart' -g '!*.g.dart' | wc -l
 
 ## Exclusions and Unresolved Items
 
-- No persisted user corpus was inspected. The number of legacy workflow-only
-  conversations is unresolved and blocks deletion of the legacy authoring path.
+- A read-only aggregate audit inspected 439 persisted rows without emitting
+  paths, identifiers, or record content. It found 19 legacy-authored workflows,
+  which blocks deletion of the legacy authoring path.
 - No schema migration was prototyped. All file estimates include generated and
   compatibility tests conceptually but are ranges, not implementation plans.
 - Plan, workflow, and progress canary behavior was inferred from current code
