@@ -185,6 +185,206 @@ BATCH_TOOL_RESULT_FIELDS = {"id", "name", "arguments", "result"}
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 FINGERPRINT_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-fA-F]{4,40}$")
+TOOL_MANIFEST_SCHEMA_NAME = "caverno_chat_notifier_tool_catalog_inventory"
+TOOL_MANIFEST_SCHEMA_VERSION = 1
+TOOL_DEFINITION_LITERAL_PATTERN = re.compile(
+    r"['\"]name['\"]\s*:\s*['\"]([a-z][a-z0-9_]*)['\"]"
+)
+TOOL_NAME_CONSTANT_PATTERN = re.compile(
+    r"static const(?: String)? toolName\s*=\s*"
+    r"['\"]([a-z][a-z0-9_]*)['\"]"
+)
+TOOL_HANDLER_NAME_PATTERN = re.compile(r"['\"]([a-z][a-z0-9_]*)['\"]")
+STABLE_TOOL_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+TOOL_DEFINITION_RULES = (
+    {
+        "id": "ble-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/ble_tools.dart",
+        "symbol": "BleTools.allTools",
+        "matcher": "function-name-literal",
+        "configurationGate": "BuiltInBleToolHandler.isAvailable and disabledBuiltInTools",
+    },
+    {
+        "id": "browser-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/built_in_browser_tool_handler.dart",
+        "symbol": "BuiltInBrowserToolHandler.definitions",
+        "matcher": "function-name-literal",
+        "configurationGate": "BuiltInBrowserToolHandler.isAvailable and disabledBuiltInTools",
+    },
+    {
+        "id": "computer-use-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/built_in_computer_use_tool_handler.dart",
+        "symbol": "BuiltInComputerUseToolHandler.definitions",
+        "matcher": "function-name-literal",
+        "configurationGate": "BuiltInComputerUseToolHandler.isAvailable and disabledBuiltInTools",
+    },
+    {
+        "id": "filesystem-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/built_in_filesystem_tool_definitions.dart",
+        "symbol": "BuiltInFilesystemToolDefinitions",
+        "matcher": "function-name-literal",
+        "configurationGate": "inspection is cross-platform; mutation requires FilesystemTools.isDesktopPlatform; disabledBuiltInTools applies",
+    },
+    {
+        "id": "local-command-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/built_in_local_command_tool_definitions.dart",
+        "symbol": "BuiltInLocalCommandToolDefinitions",
+        "matcher": "function-name-literal",
+        "configurationGate": "LocalShellTools.isDesktopPlatform, process capability where applicable, and disabledBuiltInTools",
+    },
+    {
+        "id": "network-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+        "symbol": "BuiltInNetworkToolHandler.definitions",
+        "matcher": "function-name-literal",
+        "configurationGate": "always registered subject to disabledBuiltInTools; runtime platform support may vary",
+    },
+    {
+        "id": "ssh-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart",
+        "symbol": "BuiltInSshToolHandler.definitions",
+        "matcher": "function-name-literal",
+        "configurationGate": "BuiltInSshToolHandler.isAvailable and disabledBuiltInTools",
+    },
+    {
+        "id": "lan-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/lan_scan_tools.dart",
+        "symbol": "LanScanTools.allTools",
+        "matcher": "function-name-literal",
+        "configurationGate": "BuiltInLanScanToolHandler.isAvailable and disabledBuiltInTools",
+    },
+    {
+        "id": "goal-routine-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/mcp_goal_routine_tool_definitions.dart",
+        "symbol": "McpGoalRoutineToolDefinitions",
+        "matcher": "function-name-literal",
+        "configurationGate": "always registered subject to disabledBuiltInTools",
+    },
+    {
+        "id": "mcp-service-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/mcp_tool_service.dart",
+        "symbol": "McpToolService.getOpenAiToolDefinitions",
+        "matcher": "function-name-literal",
+        "configurationGate": "McpToolService repository and feature availability plus disabledBuiltInTools",
+    },
+    {
+        "id": "core-built-in-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/mcp_tool_service_builtin_tool_definitions.dart",
+        "symbol": "McpToolService built-in definitions",
+        "matcher": "function-name-literal",
+        "configurationGate": "web_search requires SearXNG without connected MCP; other definitions are always registered; disabledBuiltInTools applies",
+    },
+    {
+        "id": "os-log-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/os_log_tools.dart",
+        "symbol": "OsLogTools.allTools",
+        "matcher": "function-name-literal",
+        "configurationGate": "OsLogTools platform capability and disabledBuiltInTools",
+    },
+    {
+        "id": "python-tool-definition-literal",
+        "path": "lib/features/chat/data/datasources/python_script_tools.dart",
+        "symbol": "PythonScriptTools.toolDefinition",
+        "matcher": "function-name-literal",
+        "configurationGate": "scriptRuntimeRegistry is configured and disabledBuiltInTools",
+    },
+    {
+        "id": "serial-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/serial_port_tools.dart",
+        "symbol": "SerialPortTools.allTools",
+        "matcher": "function-name-literal",
+        "configurationGate": "BuiltInSerialToolHandler.canExposeDefinitions and disabledBuiltInTools",
+    },
+    {
+        "id": "wifi-tool-definition-literals",
+        "path": "lib/features/chat/data/datasources/wifi_tools.dart",
+        "symbol": "WifiTools.allTools",
+        "matcher": "function-name-literal",
+        "configurationGate": "BuiltInWifiToolHandler.isAvailable and disabledBuiltInTools",
+    },
+    {
+        "id": "conversation-search-tool-name",
+        "path": "lib/features/chat/data/datasources/conversation_search_tool.dart",
+        "symbol": "ConversationSearchTool.definition",
+        "matcher": "tool-name-constant",
+        "configurationGate": "conversationRepository is configured and disabledBuiltInTools",
+    },
+    {
+        "id": "installed-dependency-tool-name",
+        "path": "lib/features/chat/data/datasources/installed_dependency_grounding_service.dart",
+        "symbol": "InstalledDependencyGroundingService.toolName",
+        "matcher": "tool-name-constant",
+        "configurationGate": "always registered subject to disabledBuiltInTools",
+    },
+    {
+        "id": "git-command-tool-name",
+        "path": "lib/features/chat/data/datasources/git_execute_command_tool.dart",
+        "symbol": "GitExecuteCommandTool.toolDefinition",
+        "matcher": "tool-name-constant",
+        "configurationGate": "GitTools.isDesktopPlatform and disabledBuiltInTools",
+    },
+    {
+        "id": "git-worktree-tool-name",
+        "path": "lib/features/chat/data/datasources/git_finish_worktree_session_tool.dart",
+        "symbol": "GitFinishWorktreeSessionTool.toolDefinition",
+        "matcher": "tool-name-constant",
+        "configurationGate": "GitTools.isDesktopPlatform and disabledBuiltInTools",
+    },
+    {
+        "id": "tool-search-tool-name",
+        "path": "lib/features/chat/domain/services/tool_definition_search_service.dart",
+        "symbol": "ToolDefinitionSearchService.toolName",
+        "matcher": "tool-name-constant",
+        "configurationGate": "appended when the effective catalogue is useful for deferred discovery",
+    },
+)
+TOOL_BINDING_RULES = (
+    {
+        "id": "named-handler-registry",
+        "path": "lib/features/chat/presentation/providers/chat_notifier_tool_handler_registry.dart",
+        "symbol": "ChatToolHandlerRegistry.fromModules",
+        "bindingKind": "named_registry",
+    },
+    {
+        "id": "computer-use-intercept",
+        "path": "lib/core/services/macos_computer_use_tool_policy.dart",
+        "symbol": "MacosComputerUseToolPolicy.allToolNames",
+        "bindingKind": "intercepted_computer_use",
+    },
+    {
+        "id": "browser-intercept",
+        "path": "lib/core/services/browser_tool_policy.dart",
+        "symbol": "BrowserToolPolicy.allTools",
+        "bindingKind": "intercepted_browser",
+    },
+    {
+        "id": "generic-mcp-fallback",
+        "path": "lib/features/chat/domain/services/chat_tool_dispatcher.dart",
+        "symbol": "ChatToolDispatcher.executeFallbackTool",
+        "bindingKind": "generic_mcp_fallback",
+    },
+)
+TOOL_MANIFEST_FIELDS = {
+    "schemaName",
+    "schemaVersion",
+    "sourceRevision",
+    "definitionDiscoveryRules",
+    "bindingDiscoveryRules",
+    "genericFallback",
+    "definitions",
+}
+TOOL_DEFINITION_FIELDS = {
+    "name",
+    "path",
+    "symbol",
+    "registrationPath",
+    "configurationGate",
+    "discoveryEvidence",
+    "discoveryRule",
+    "bindingKind",
+    "bindingSymbol",
+    "genericMcpFallback",
+}
 
 
 class InventoryError(ValueError):
@@ -244,6 +444,194 @@ def discover_guard_candidates(root: pathlib.Path) -> list[dict[str, str]]:
             )
 
     return sorted(candidates, key=lambda item: item["id"])
+
+
+def _read_required_source(root: pathlib.Path, relative_path: str) -> str:
+    path = root / relative_path
+    try:
+        return path.read_text()
+    except OSError as error:
+        raise InventoryError(
+            f"Could not read tool discovery source {relative_path}: {error}"
+        ) from error
+
+
+def _discover_names_for_rule(
+    root: pathlib.Path, rule: dict[str, str]
+) -> list[str]:
+    text = _read_required_source(root, rule["path"])
+    matcher = rule["matcher"]
+    pattern = (
+        TOOL_DEFINITION_LITERAL_PATTERN
+        if matcher == "function-name-literal"
+        else TOOL_NAME_CONSTANT_PATTERN
+    )
+    names = sorted(set(pattern.findall(text)))
+    if not names:
+        raise InventoryError(
+            f"Tool definition rule {rule['id']} discovered no names"
+        )
+    return names
+
+
+def discover_static_tool_definitions(
+    root: pathlib.Path,
+) -> list[dict[str, Any]]:
+    """Discover finite built-in and local tool definitions."""
+    definitions: list[dict[str, Any]] = []
+    seen: dict[str, str] = {}
+    for rule in TOOL_DEFINITION_RULES:
+        for name in _discover_names_for_rule(root, rule):
+            if name in seen:
+                raise InventoryError(
+                    f"Static tool definition {name} is discovered by both "
+                    f"{seen[name]} and {rule['id']}"
+                )
+            seen[name] = rule["id"]
+            definitions.append(
+                {
+                    "name": name,
+                    "path": rule["path"],
+                    "symbol": rule["symbol"],
+                    "registrationPath": (
+                        "McpToolService.getOpenAiToolDefinitions"
+                    ),
+                    "configurationGate": rule["configurationGate"],
+                    "discoveryEvidence": (
+                        f"{rule['matcher']} in {rule['path']}"
+                    ),
+                    "discoveryRule": rule["id"],
+                }
+            )
+    return sorted(definitions, key=lambda item: item["name"])
+
+
+def _discover_registry_bindings(root: pathlib.Path) -> dict[str, str]:
+    rule = TOOL_BINDING_RULES[0]
+    text = _read_required_source(root, rule["path"])
+    bindings: dict[str, str] = {}
+    modules = (
+        "_ProjectScopedToolHandlerModule",
+        "_OwnerToolHandlerModule",
+        "_ConversationToolHandlerModule",
+    )
+    for module in modules:
+        pattern = re.compile(
+            rf"final class {re.escape(module)}\b.*?"
+            r"Map<String, ChatToolHandler> get handlers => \{(.*?)\n  \};",
+            re.DOTALL,
+        )
+        match = pattern.search(text)
+        if match is None:
+            raise InventoryError(
+                f"Could not discover handlers for production module {module}"
+            )
+        for name in TOOL_HANDLER_NAME_PATTERN.findall(match.group(1)):
+            if name in bindings:
+                raise InventoryError(f"Duplicate named tool binding: {name}")
+            bindings[name] = module
+    return bindings
+
+
+def _discover_const_set(
+    root: pathlib.Path, relative_path: str, symbol: str
+) -> set[str]:
+    text = _read_required_source(root, relative_path)
+    pattern = re.compile(
+        rf"static const(?:\s+Set<String>)?\s+{re.escape(symbol)}\s*=\s*"
+        r"\{(.*?)\};",
+        re.DOTALL,
+    )
+    match = pattern.search(text)
+    if match is None:
+        raise InventoryError(
+            f"Could not discover tool-name set {symbol} in {relative_path}"
+        )
+    return set(TOOL_HANDLER_NAME_PATTERN.findall(match.group(1)))
+
+
+def discover_static_tool_bindings(
+    root: pathlib.Path,
+) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
+    """Discover named and intercepted bindings plus the generic fallback."""
+    bindings: dict[str, dict[str, str]] = {}
+    registry_rule = TOOL_BINDING_RULES[0]
+    for name, module in _discover_registry_bindings(root).items():
+        bindings[name] = {
+            "bindingKind": registry_rule["bindingKind"],
+            "bindingSymbol": module,
+        }
+
+    computer_rule = TOOL_BINDING_RULES[1]
+    computer_names = _discover_const_set(
+        root, computer_rule["path"], "allToolNames"
+    )
+    browser_rule = TOOL_BINDING_RULES[2]
+    browser_names = _discover_const_set(
+        root, browser_rule["path"], "allTools"
+    ) | _discover_const_set(root, browser_rule["path"], "sensitiveTools")
+    for names, rule in (
+        (computer_names, computer_rule),
+        (browser_names, browser_rule),
+    ):
+        for name in names:
+            if name in bindings:
+                raise InventoryError(f"Tool has multiple static bindings: {name}")
+            bindings[name] = {
+                "bindingKind": rule["bindingKind"],
+                "bindingSymbol": rule["symbol"],
+            }
+
+    fallback_rule = TOOL_BINDING_RULES[3]
+    fallback_text = _read_required_source(root, fallback_rule["path"])
+    if "return executeFallbackTool(toolCall);" not in fallback_text:
+        raise InventoryError("Generic MCP fallback binding is not discoverable")
+    fallback = {
+        "bindingKind": fallback_rule["bindingKind"],
+        "bindingSymbol": fallback_rule["symbol"],
+        "path": fallback_rule["path"],
+        "discoveryEvidence": "return executeFallbackTool(toolCall);",
+        "dynamicMcpDefinitions": "private_catalogue_snapshots_only",
+    }
+    return bindings, fallback
+
+
+def discover_tool_manifest_entries(root: pathlib.Path) -> dict[str, Any]:
+    """Join finite static definitions to their current dispatch binding."""
+    definitions = discover_static_tool_definitions(root)
+    bindings, fallback = discover_static_tool_bindings(root)
+    definition_names = {entry["name"] for entry in definitions}
+    unknown_bindings = sorted(set(bindings) - definition_names)
+    if unknown_bindings:
+        raise InventoryError(
+            "Static bindings have no discovered definitions: "
+            + ", ".join(unknown_bindings)
+        )
+    for definition in definitions:
+        binding = bindings.get(definition["name"])
+        if binding is None:
+            binding = {
+                "bindingKind": fallback["bindingKind"],
+                "bindingSymbol": fallback["bindingSymbol"],
+            }
+        definition.update(binding)
+        definition["genericMcpFallback"] = (
+            binding["bindingKind"] == "generic_mcp_fallback"
+        )
+    return {"genericFallback": fallback, "definitions": definitions}
+
+
+def build_tool_manifest_candidate(root: pathlib.Path) -> dict[str, Any]:
+    """Build the deterministic candidate that maintainers must review."""
+    discovered = discover_tool_manifest_entries(root)
+    return {
+        "schemaName": TOOL_MANIFEST_SCHEMA_NAME,
+        "schemaVersion": TOOL_MANIFEST_SCHEMA_VERSION,
+        "sourceRevision": "HEAD",
+        "definitionDiscoveryRules": [dict(rule) for rule in TOOL_DEFINITION_RULES],
+        "bindingDiscoveryRules": [dict(rule) for rule in TOOL_BINDING_RULES],
+        **discovered,
+    }
 
 
 def discover_lexical_selection_roots(
@@ -853,6 +1241,118 @@ def _candidate_key(item: dict[str, Any]) -> tuple[str, str, str, str]:
     )
 
 
+def validate_tool_manifest(
+    manifest_path: pathlib.Path,
+    root: pathlib.Path | None = None,
+    resolved_source_revision: str | None = None,
+) -> dict[str, int]:
+    """Validate the static tool definition and binding discovery contract."""
+    source_root = root or repository_root()
+    manifest = _load_json(manifest_path)
+    _require_exact_fields(manifest, TOOL_MANIFEST_FIELDS, "tool manifest")
+    if manifest["schemaName"] != TOOL_MANIFEST_SCHEMA_NAME:
+        raise InventoryError(f"Unexpected tool manifest schema in {manifest_path}")
+    if manifest["schemaVersion"] != TOOL_MANIFEST_SCHEMA_VERSION:
+        raise InventoryError(
+            f"Unsupported tool manifest version in {manifest_path}"
+        )
+    source_revision = manifest["sourceRevision"]
+    if not isinstance(source_revision, str) or not source_revision.strip():
+        raise InventoryError("Tool manifest sourceRevision must be non-empty")
+    if resolved_source_revision is not None:
+        manifest_revision = resolve_source_revision(source_root, source_revision)
+        if manifest_revision != resolved_source_revision:
+            raise InventoryError(
+                "Tool manifest sourceRevision does not match the classified "
+                "source revision"
+            )
+    if manifest["definitionDiscoveryRules"] != list(TOOL_DEFINITION_RULES):
+        raise InventoryError(
+            "Tool manifest definitionDiscoveryRules do not match the analyser contract"
+        )
+    if manifest["bindingDiscoveryRules"] != list(TOOL_BINDING_RULES):
+        raise InventoryError(
+            "Tool manifest bindingDiscoveryRules do not match the analyser contract"
+        )
+
+    definitions = manifest["definitions"]
+    if not isinstance(definitions, list) or not definitions:
+        raise InventoryError("Tool manifest definitions must be a non-empty list")
+    names: list[str] = []
+    for index, definition in enumerate(definitions):
+        label = f"tool manifest definitions[{index}]"
+        if not isinstance(definition, dict):
+            raise InventoryError(f"{label} must be an object")
+        _require_exact_fields(definition, TOOL_DEFINITION_FIELDS, label)
+        name = definition["name"]
+        if (
+            not isinstance(name, str)
+            or STABLE_TOOL_NAME_PATTERN.fullmatch(name) is None
+        ):
+            raise InventoryError(f"{label}.name must be a stable tool name")
+        names.append(name)
+        for field in (
+            "path",
+            "symbol",
+            "registrationPath",
+            "configurationGate",
+            "discoveryEvidence",
+            "discoveryRule",
+            "bindingKind",
+            "bindingSymbol",
+        ):
+            value = definition[field]
+            if not isinstance(value, str) or not value.strip():
+                raise InventoryError(f"{label}.{field} must be non-empty")
+        generic = definition["genericMcpFallback"]
+        if not isinstance(generic, bool):
+            raise InventoryError(f"{label}.genericMcpFallback must be a boolean")
+        if generic != (definition["bindingKind"] == "generic_mcp_fallback"):
+            raise InventoryError(
+                f"{label}.genericMcpFallback does not match bindingKind"
+            )
+    if names != sorted(names):
+        raise InventoryError("Tool manifest definitions must be sorted by name")
+    if len(names) != len(set(names)):
+        raise InventoryError("Tool manifest definition names must be unique")
+
+    discovered = discover_tool_manifest_entries(source_root)
+    if manifest["genericFallback"] != discovered["genericFallback"]:
+        raise InventoryError("Tool manifest generic fallback is stale")
+    expected_by_name = {
+        definition["name"]: definition
+        for definition in discovered["definitions"]
+    }
+    actual_by_name = {definition["name"]: definition for definition in definitions}
+    missing = sorted(set(expected_by_name) - set(actual_by_name))
+    stale = sorted(set(actual_by_name) - set(expected_by_name))
+    changed = sorted(
+        name
+        for name in set(expected_by_name) & set(actual_by_name)
+        if expected_by_name[name] != actual_by_name[name]
+    )
+    if missing or stale or changed:
+        details = []
+        if missing:
+            details.append("unrepresented: " + ", ".join(missing))
+        if stale:
+            details.append("stale: " + ", ".join(stale))
+        if changed:
+            details.append("changed evidence: " + ", ".join(changed))
+        raise InventoryError("Tool manifest discovery mismatch; " + "; ".join(details))
+
+    binding_counts = {
+        definition["bindingKind"] for definition in discovered["definitions"]
+    }
+    return {
+        "definitions": len(definitions),
+        "bindingKinds": len(binding_counts),
+        "genericFallbackDefinitions": sum(
+            definition["genericMcpFallback"] for definition in definitions
+        ),
+    }
+
+
 def validate_guard_manifest(
     manifest_path: pathlib.Path,
     root: pathlib.Path | None = None,
@@ -1286,6 +1786,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--check-telemetry-selection", type=pathlib.Path)
     parser.add_argument("--check-corpus-manifest", type=pathlib.Path)
     parser.add_argument("--print-guard-candidates", action="store_true")
+    parser.add_argument("--print-tool-candidates", action="store_true")
     return parser
 
 
@@ -1312,6 +1813,9 @@ def main(arguments: list[str] | None = None) -> int:
         if args.print_guard_candidates:
             print(json.dumps(discover_guard_candidates(root), indent=2))
             return 0
+        if args.print_tool_candidates:
+            print(json.dumps(build_tool_manifest_candidate(root), indent=2))
+            return 0
 
         guard_path = args.check_guard_manifest or args.guard_manifest
         if guard_path is not None:
@@ -1328,8 +1832,17 @@ def main(arguments: list[str] | None = None) -> int:
             )
 
         if args.check_tool_manifest is not None:
-            raise InventoryError(
-                "Tool-manifest validation is not implemented in Phase 0A"
+            counts = validate_tool_manifest(
+                args.check_tool_manifest,
+                root,
+                resolved_source_revision=revision,
+            )
+            print(
+                "Tool manifest valid: "
+                f"{counts['definitions']} definitions, "
+                f"{counts['bindingKinds']} binding kinds, "
+                f"{counts['genericFallbackDefinitions']} generic fallback "
+                f"definitions; source {revision}"
             )
         if args.check_telemetry_selection is not None:
             if guard_path is None:
@@ -1362,10 +1875,11 @@ def main(arguments: list[str] | None = None) -> int:
             )
         if (
             guard_path is None
+            and args.check_tool_manifest is None
             and args.check_telemetry_selection is None
             and args.check_corpus_manifest is None
         ):
-            parser.error("select a manifest check or --print-guard-candidates")
+            parser.error("select a manifest check or candidate print command")
         return 0
     except InventoryError as error:
         print(f"error: {error}", file=sys.stderr)

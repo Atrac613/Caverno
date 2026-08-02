@@ -314,6 +314,107 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             "request": request,
         }
 
+    def _write_tool_manifest(self, root, manifest):
+        path = root / "tool_inventory.json"
+        path.write_text(json.dumps(manifest))
+        return path
+
+    def test_discovers_static_tool_definitions_and_bindings(self):
+        candidate = analyzer.build_tool_manifest_candidate(ROOT)
+        binding_counts = {}
+        for definition in candidate["definitions"]:
+            kind = definition["bindingKind"]
+            binding_counts[kind] = binding_counts.get(kind, 0) + 1
+
+        self.assertEqual(len(candidate["definitions"]), 112)
+        self.assertEqual(
+            binding_counts,
+            {
+                "generic_mcp_fallback": 49,
+                "named_registry": 32,
+                "intercepted_computer_use": 19,
+                "intercepted_browser": 12,
+            },
+        )
+        by_name = {
+            definition["name"]: definition
+            for definition in candidate["definitions"]
+        }
+        self.assertEqual(
+            by_name["ask_user_question"]["bindingSymbol"],
+            "_ConversationToolHandlerModule",
+        )
+        self.assertTrue(by_name["web_search"]["genericMcpFallback"])
+        self.assertEqual(
+            by_name["computer_click"]["bindingKind"],
+            "intercepted_computer_use",
+        )
+        self.assertEqual(
+            by_name["browser_snapshot"]["bindingKind"],
+            "intercepted_browser",
+        )
+
+    def test_accepts_exact_tool_manifest_candidate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            path = self._write_tool_manifest(
+                root, analyzer.build_tool_manifest_candidate(ROOT)
+            )
+
+            counts = analyzer.validate_tool_manifest(path, ROOT)
+
+        self.assertEqual(
+            counts,
+            {
+                "definitions": 112,
+                "bindingKinds": 4,
+                "genericFallbackDefinitions": 49,
+            },
+        )
+
+    def test_rejects_unrepresented_static_tool_definition(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            manifest = analyzer.build_tool_manifest_candidate(ROOT)
+            manifest["definitions"].pop(0)
+            path = self._write_tool_manifest(root, manifest)
+
+            with self.assertRaisesRegex(analyzer.InventoryError, "unrepresented"):
+                analyzer.validate_tool_manifest(path, ROOT)
+
+    def test_rejects_changed_static_tool_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            manifest = analyzer.build_tool_manifest_candidate(ROOT)
+            manifest["definitions"][0]["bindingSymbol"] = "RemovedHandler"
+            path = self._write_tool_manifest(root, manifest)
+
+            with self.assertRaisesRegex(analyzer.InventoryError, "changed evidence"):
+                analyzer.validate_tool_manifest(path, ROOT)
+
+    def test_rejects_stale_generic_tool_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            manifest = analyzer.build_tool_manifest_candidate(ROOT)
+            manifest["genericFallback"]["bindingSymbol"] = "RemovedFallback"
+            path = self._write_tool_manifest(root, manifest)
+
+            with self.assertRaisesRegex(analyzer.InventoryError, "fallback is stale"):
+                analyzer.validate_tool_manifest(path, ROOT)
+
+    def test_rejects_changed_tool_discovery_rule(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            manifest = analyzer.build_tool_manifest_candidate(ROOT)
+            manifest["definitionDiscoveryRules"][0]["path"] = "removed.dart"
+            path = self._write_tool_manifest(root, manifest)
+
+            with self.assertRaisesRegex(
+                analyzer.InventoryError,
+                "definitionDiscoveryRules do not match",
+            ):
+                analyzer.validate_tool_manifest(path, ROOT)
+
     def test_discovers_types_and_notifier_members_deterministically(self):
         with tempfile.TemporaryDirectory() as directory:
             root = self._fixture(directory)
