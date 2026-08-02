@@ -42,6 +42,15 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             "  }\n"
             "}\n"
         )
+        (providers / "chat_notifier_turn_finalization_recovery.dart").write_text(
+            "part of 'chat_notifier.dart';\n\n"
+            "extension FinalizationChatNotifier on ChatNotifier {\n"
+            "  bool _shouldSkipCompletedToolResultFinalAnswerRecovery() => false;\n"
+            "  void _finalizeTurn() {\n"
+            "    _shouldSkipCompletedToolResultFinalAnswerRecovery();\n"
+            "  }\n"
+            "}\n"
+        )
         return root
 
     def _manifest(self, root, *, exclude_prompt=True):
@@ -93,6 +102,62 @@ class ChatNotifierInventoryTest(unittest.TestCase):
         path.write_text(json.dumps(manifest))
         return path
 
+    def _selection(self, manifest):
+        target_entries = [
+            entry for entry in manifest["entries"] if entry["telemetryEvent"] is None
+        ]
+        instrument_id = next(
+            entry["id"]
+            for entry in target_entries
+            if entry["symbol"]
+            == "_shouldSkipCompletedToolResultFinalAnswerRecovery"
+        )
+        entries = []
+        for entry in target_entries:
+            if entry["id"] == instrument_id:
+                entries.append(
+                    {
+                        "id": entry["id"],
+                        "disposition": "instrument",
+                        "question": "Which final-answer recovery branch ran?",
+                        "reason": "The turn-exit boundary can carry the decision.",
+                        "event": (
+                            "turn_exit.guardDecisions."
+                            "completedToolResultFinalAnswerRecovery"
+                        ),
+                        "recordedValues": [
+                            "not_evaluated",
+                            "skip_recovery",
+                            "allow_recovery",
+                        ],
+                        "dataClassification": "metadata_only",
+                        "verification": ["focused recovery test"],
+                    }
+                )
+            else:
+                entries.append(
+                    {
+                        "id": entry["id"],
+                        "disposition": "defer",
+                        "question": f"Was {entry['symbol']} evaluated?",
+                        "reason": "Keep the first slice to one decision event.",
+                        "prerequisite": "Re-rank after the first slice.",
+                    }
+                )
+        return {
+            "schemaName": analyzer.TELEMETRY_SELECTION_SCHEMA_NAME,
+            "schemaVersion": analyzer.TELEMETRY_SELECTION_SCHEMA_VERSION,
+            "sourceRevision": manifest["sourceRevision"],
+            "guardManifest": "guard_inventory.json",
+            "firstSliceLimit": 1,
+            "entries": entries,
+        }
+
+    def _write_selection(self, root, selection):
+        path = root / "telemetry_selection.json"
+        path.write_text(json.dumps(selection))
+        return path
+
     def test_discovers_types_and_notifier_members_deterministically(self):
         with tempfile.TemporaryDirectory() as directory:
             root = self._fixture(directory)
@@ -106,6 +171,7 @@ class ChatNotifierInventoryTest(unittest.TestCase):
                 "SampleRecovery",
                 "_buildSampleRepairPrompt",
                 "_requestSampleRecovery",
+                "_shouldSkipCompletedToolResultFinalAnswerRecovery",
             ],
         )
 
@@ -117,7 +183,7 @@ class ChatNotifierInventoryTest(unittest.TestCase):
 
             counts = analyzer.validate_guard_manifest(path, root)
 
-        self.assertEqual(counts, {"discovered": 5, "entries": 4, "exclusions": 1})
+        self.assertEqual(counts, {"discovered": 6, "entries": 5, "exclusions": 1})
 
     def test_rejects_unrepresented_discovery_result(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -194,6 +260,215 @@ class ChatNotifierInventoryTest(unittest.TestCase):
                 analyzer.InventoryError, "unresolved edges"
             ):
                 analyzer.validate_guard_manifest(path, root)
+
+    def test_accepts_complete_telemetry_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            manifest_path = self._write_manifest(root, manifest)
+            selection_path = self._write_selection(
+                root, self._selection(manifest)
+            )
+
+            counts = analyzer.validate_telemetry_selection(
+                selection_path, manifest_path, root
+            )
+
+        self.assertEqual(
+            counts,
+            {"selected": 5, "instrument": 1, "covered": 0, "defer": 4},
+        )
+
+    def test_rejects_incomplete_telemetry_selection_coverage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            manifest_path = self._write_manifest(root, manifest)
+            selection = self._selection(manifest)
+            selection["entries"].pop(0)
+            selection_path = self._write_selection(root, selection)
+
+            with self.assertRaisesRegex(analyzer.InventoryError, "missing"):
+                analyzer.validate_telemetry_selection(
+                    selection_path, manifest_path, root
+                )
+
+    def test_rejects_duplicate_telemetry_selection_id(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            manifest_path = self._write_manifest(root, manifest)
+            selection = self._selection(manifest)
+            selection["entries"].append(dict(selection["entries"][0]))
+            selection_path = self._write_selection(root, selection)
+
+            with self.assertRaisesRegex(analyzer.InventoryError, "Duplicate"):
+                analyzer.validate_telemetry_selection(
+                    selection_path, manifest_path, root
+                )
+
+    def test_rejects_already_covered_telemetry_selection_id(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            selection = self._selection(manifest)
+            manifest["entries"][0]["telemetryEvent"] = "turn_exit.existing"
+            manifest_path = self._write_manifest(root, manifest)
+            selection_path = self._write_selection(root, selection)
+
+            with self.assertRaisesRegex(
+                analyzer.InventoryError, "stale or already covered"
+            ):
+                analyzer.validate_telemetry_selection(
+                    selection_path, manifest_path, root
+                )
+
+    def test_rejects_non_metadata_instrument_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            manifest_path = self._write_manifest(root, manifest)
+            selection = self._selection(manifest)
+            instrument = next(
+                entry
+                for entry in selection["entries"]
+                if entry["disposition"] == "instrument"
+            )
+            instrument["dataClassification"] = "payload"
+            selection_path = self._write_selection(root, selection)
+
+            with self.assertRaisesRegex(analyzer.InventoryError, "metadata_only"):
+                analyzer.validate_telemetry_selection(
+                    selection_path, manifest_path, root
+                )
+
+    def test_rejects_covered_selection_without_existing_event(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            manifest_path = self._write_manifest(root, manifest)
+            selection = self._selection(manifest)
+            deferred = next(
+                entry
+                for entry in selection["entries"]
+                if entry["disposition"] == "defer"
+            )
+            deferred.clear()
+            deferred.update(
+                {
+                    "id": manifest["entries"][0]["id"],
+                    "disposition": "covered",
+                    "question": "Was the decision covered?",
+                    "reason": "An existing event may cover it.",
+                    "verification": ["focused event test"],
+                }
+            )
+            selection_path = self._write_selection(root, selection)
+
+            with self.assertRaisesRegex(
+                analyzer.InventoryError, "missing fields: event"
+            ):
+                analyzer.validate_telemetry_selection(
+                    selection_path, manifest_path, root
+                )
+
+    def test_rejects_deferred_selection_with_event(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            manifest_path = self._write_manifest(root, manifest)
+            selection = self._selection(manifest)
+            deferred = next(
+                entry
+                for entry in selection["entries"]
+                if entry["disposition"] == "defer"
+            )
+            deferred["event"] = "turn_exit.unexpected"
+            selection_path = self._write_selection(root, selection)
+
+            with self.assertRaisesRegex(
+                analyzer.InventoryError, "unexpected fields: event"
+            ):
+                analyzer.validate_telemetry_selection(
+                    selection_path, manifest_path, root
+                )
+
+    def test_rejects_deferred_selection_without_prerequisite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            manifest_path = self._write_manifest(root, manifest)
+            selection = self._selection(manifest)
+            deferred = next(
+                entry
+                for entry in selection["entries"]
+                if entry["disposition"] == "defer"
+            )
+            del deferred["prerequisite"]
+            selection_path = self._write_selection(root, selection)
+
+            with self.assertRaisesRegex(
+                analyzer.InventoryError, "missing fields: prerequisite"
+            ):
+                analyzer.validate_telemetry_selection(
+                    selection_path, manifest_path, root
+                )
+
+    def test_rejects_changed_first_slice_recorded_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            manifest_path = self._write_manifest(root, manifest)
+            selection = self._selection(manifest)
+            instrument = next(
+                entry
+                for entry in selection["entries"]
+                if entry["disposition"] == "instrument"
+            )
+            instrument["recordedValues"] = ["skip_recovery", "allow_recovery"]
+            selection_path = self._write_selection(root, selection)
+
+            with self.assertRaisesRegex(
+                analyzer.InventoryError,
+                "first instrument recordedValues",
+            ):
+                analyzer.validate_telemetry_selection(
+                    selection_path, manifest_path, root
+                )
+
+    def test_rejects_more_than_one_instrument_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            manifest_path = self._write_manifest(root, manifest)
+            selection = self._selection(manifest)
+            deferred = next(
+                entry
+                for entry in selection["entries"]
+                if entry["disposition"] == "defer"
+            )
+            identifier = deferred["id"]
+            deferred.clear()
+            deferred.update(
+                {
+                    "id": identifier,
+                    "disposition": "instrument",
+                    "question": "Which branch ran?",
+                    "reason": "Instrument another decision.",
+                    "event": "turn_exit.anotherDecision",
+                    "recordedValues": ["not_evaluated", "selected"],
+                    "dataClassification": "metadata_only",
+                    "verification": ["focused test"],
+                }
+            )
+            selection_path = self._write_selection(root, selection)
+
+            with self.assertRaisesRegex(
+                analyzer.InventoryError, "exactly one instrument"
+            ):
+                analyzer.validate_telemetry_selection(
+                    selection_path, manifest_path, root
+                )
 
 
 if __name__ == "__main__":

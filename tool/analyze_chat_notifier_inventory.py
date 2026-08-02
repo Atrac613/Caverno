@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Validate and eventually measure the ChatNotifier renewal inventories.
 
-Phase 0A intentionally implements only the finite static guard inventory. The
-corpus and tool-catalogue analysis arguments are accepted so the final command
-surface is stable, but dynamic measurement remains blocked until its own
-tested slice is complete.
+Phase 0A implements the finite static guard inventory. Phase 0B adds a finite
+telemetry-selection contract without changing production logging. The corpus
+and tool-catalogue analysis arguments are accepted so the final command surface
+is stable, but dynamic measurement remains blocked until its own tested slice
+is complete.
 """
 
 from __future__ import annotations
@@ -77,6 +78,49 @@ EXCLUSION_FIELDS = {
     "discoveryRule",
     "reason",
 }
+TELEMETRY_SELECTION_SCHEMA_NAME = (
+    "caverno_chat_notifier_guard_telemetry_selection"
+)
+TELEMETRY_SELECTION_SCHEMA_VERSION = 1
+TELEMETRY_SELECTION_MANIFEST_FIELDS = {
+    "schemaName",
+    "schemaVersion",
+    "sourceRevision",
+    "guardManifest",
+    "firstSliceLimit",
+    "entries",
+}
+TELEMETRY_SELECTION_COMMON_FIELDS = {
+    "id",
+    "disposition",
+    "question",
+    "reason",
+}
+TELEMETRY_SELECTION_FIELDS = {
+    "instrument": TELEMETRY_SELECTION_COMMON_FIELDS
+    | {
+        "event",
+        "recordedValues",
+        "dataClassification",
+        "verification",
+    },
+    "covered": TELEMETRY_SELECTION_COMMON_FIELDS
+    | {"event", "verification"},
+    "defer": TELEMETRY_SELECTION_COMMON_FIELDS | {"prerequisite"},
+}
+FIRST_TELEMETRY_SLICE_ID = (
+    "lib/features/chat/presentation/providers/"
+    "chat_notifier_turn_finalization_recovery.dart::"
+    "_shouldSkipCompletedToolResultFinalAnswerRecovery"
+)
+FIRST_TELEMETRY_SLICE_EVENT = (
+    "turn_exit.guardDecisions.completedToolResultFinalAnswerRecovery"
+)
+FIRST_TELEMETRY_SLICE_VALUES = [
+    "not_evaluated",
+    "skip_recovery",
+    "allow_recovery",
+]
 
 
 class InventoryError(ValueError):
@@ -183,6 +227,17 @@ def _require_fields(
     missing = sorted(required - item.keys())
     if missing:
         raise InventoryError(f"{label} is missing fields: {', '.join(missing)}")
+
+
+def _require_exact_fields(
+    item: dict[str, Any], required: set[str], label: str
+) -> None:
+    _require_fields(item, required, label)
+    unexpected = sorted(item.keys() - required)
+    if unexpected:
+        raise InventoryError(
+            f"{label} has unexpected fields: {', '.join(unexpected)}"
+        )
 
 
 def _validate_string_list(value: Any, label: str) -> None:
@@ -366,7 +421,9 @@ def validate_guard_manifest(
             raise InventoryError(
                 f"entries[{index}].selectionRoots are stale for {raw['symbol']}"
             )
-        expected_edges = [f"{root_name} -> {raw['symbol']}" for root_name in expected_roots]
+        expected_edges = [
+            f"{root_name} -> {raw['symbol']}" for root_name in expected_roots
+        ]
         if raw["staticEdges"] != expected_edges:
             raise InventoryError(
                 f"entries[{index}].staticEdges are stale for {raw['symbol']}"
@@ -376,6 +433,182 @@ def validate_guard_manifest(
         "discovered": len(discovered),
         "entries": len(entries),
         "exclusions": len(exclusions),
+    }
+
+
+def validate_telemetry_selection(
+    selection_path: pathlib.Path,
+    guard_manifest_path: pathlib.Path,
+    root: pathlib.Path | None = None,
+    resolved_source_revision: str | None = None,
+) -> dict[str, int]:
+    """Validate the finite Phase 0B selection against the guard inventory."""
+    source_root = root or repository_root()
+    validate_guard_manifest(
+        guard_manifest_path,
+        source_root,
+        resolved_source_revision=resolved_source_revision,
+    )
+    guard_manifest = _load_json(guard_manifest_path)
+    selection = _load_json(selection_path)
+    _require_exact_fields(
+        selection,
+        TELEMETRY_SELECTION_MANIFEST_FIELDS,
+        "telemetry selection manifest",
+    )
+    if selection["schemaName"] != TELEMETRY_SELECTION_SCHEMA_NAME:
+        raise InventoryError(
+            f"Unexpected telemetry selection schema in {selection_path}"
+        )
+    if selection["schemaVersion"] != TELEMETRY_SELECTION_SCHEMA_VERSION:
+        raise InventoryError(
+            f"Unsupported telemetry selection version in {selection_path}"
+        )
+    selection_revision = selection["sourceRevision"]
+    if not isinstance(selection_revision, str) or not selection_revision.strip():
+        raise InventoryError(
+            "Telemetry selection sourceRevision must be non-empty"
+        )
+    if resolved_source_revision is not None:
+        if (
+            resolve_source_revision(source_root, selection_revision)
+            != resolved_source_revision
+        ):
+            raise InventoryError(
+                "Telemetry selection sourceRevision does not match the "
+                "classified source revision"
+            )
+    elif selection_revision != guard_manifest["sourceRevision"]:
+        raise InventoryError(
+            "Telemetry selection sourceRevision does not match the guard "
+            "manifest revision"
+        )
+
+    try:
+        expected_guard_path = guard_manifest_path.resolve().relative_to(
+            source_root.resolve()
+        ).as_posix()
+    except ValueError:
+        expected_guard_path = guard_manifest_path.name
+    if selection["guardManifest"] != expected_guard_path:
+        raise InventoryError(
+            "Telemetry selection guardManifest does not match the validated "
+            "guard manifest"
+        )
+    first_slice_limit = selection["firstSliceLimit"]
+    if (
+        not isinstance(first_slice_limit, int)
+        or isinstance(first_slice_limit, bool)
+        or first_slice_limit != 1
+    ):
+        raise InventoryError("Telemetry selection firstSliceLimit must be 1")
+
+    raw_entries = selection["entries"]
+    if not isinstance(raw_entries, list):
+        raise InventoryError("Telemetry selection entries must be a list")
+    target_ids = {
+        entry["id"]
+        for entry in guard_manifest["entries"]
+        if entry["telemetryEvent"] is None
+    }
+    selected_ids: set[str] = set()
+    disposition_counts = {
+        "instrument": 0,
+        "covered": 0,
+        "defer": 0,
+    }
+    for index, raw in enumerate(raw_entries):
+        label = f"telemetry selection entries[{index}]"
+        if not isinstance(raw, dict):
+            raise InventoryError(f"{label} must be an object")
+        disposition = raw.get("disposition")
+        if disposition not in TELEMETRY_SELECTION_FIELDS:
+            raise InventoryError(
+                f"{label}.disposition must be instrument, covered, or defer"
+            )
+        _require_exact_fields(
+            raw,
+            TELEMETRY_SELECTION_FIELDS[disposition],
+            label,
+        )
+        identifier = raw["id"]
+        if not isinstance(identifier, str) or not identifier.strip():
+            raise InventoryError(f"{label}.id must be non-empty")
+        if identifier in selected_ids:
+            raise InventoryError(
+                f"Duplicate telemetry selection id: {identifier}"
+            )
+        selected_ids.add(identifier)
+        for field in ("question", "reason"):
+            value = raw[field]
+            if not isinstance(value, str) or not value.strip():
+                raise InventoryError(f"{label}.{field} must be non-empty")
+
+        if disposition == "instrument":
+            event = raw["event"]
+            if not isinstance(event, str) or not event.strip():
+                raise InventoryError(f"{label}.event must be non-empty")
+            _validate_string_list(
+                raw["recordedValues"], f"{label}.recordedValues"
+            )
+            if len(set(raw["recordedValues"])) != len(raw["recordedValues"]):
+                raise InventoryError(
+                    f"{label}.recordedValues must contain unique values"
+                )
+            if raw["dataClassification"] != "metadata_only":
+                raise InventoryError(
+                    f"{label}.dataClassification must be metadata_only"
+                )
+            _validate_string_list(raw["verification"], f"{label}.verification")
+        elif disposition == "covered":
+            event = raw["event"]
+            if not isinstance(event, str) or not event.strip():
+                raise InventoryError(f"{label}.event must be non-empty")
+            _validate_string_list(raw["verification"], f"{label}.verification")
+        else:
+            prerequisite = raw["prerequisite"]
+            if not isinstance(prerequisite, str) or not prerequisite.strip():
+                raise InventoryError(f"{label}.prerequisite must be non-empty")
+        disposition_counts[disposition] += 1
+
+    missing = sorted(target_ids - selected_ids)
+    stale = sorted(selected_ids - target_ids)
+    if missing or stale:
+        details = []
+        if missing:
+            details.append("missing: " + ", ".join(missing))
+        if stale:
+            details.append("stale or already covered: " + ", ".join(stale))
+        raise InventoryError(
+            "Telemetry selection coverage mismatch; " + "; ".join(details)
+        )
+    if disposition_counts["instrument"] != selection["firstSliceLimit"]:
+        raise InventoryError(
+            "Telemetry selection must contain exactly one instrument entry"
+        )
+    instrument = next(
+        entry
+        for entry in raw_entries
+        if entry["disposition"] == "instrument"
+    )
+    if instrument["id"] != FIRST_TELEMETRY_SLICE_ID:
+        raise InventoryError(
+            "Telemetry selection first instrument entry must be "
+            f"{FIRST_TELEMETRY_SLICE_ID}"
+        )
+    if instrument["event"] != FIRST_TELEMETRY_SLICE_EVENT:
+        raise InventoryError(
+            "Telemetry selection first instrument event must be "
+            f"{FIRST_TELEMETRY_SLICE_EVENT}"
+        )
+    if instrument["recordedValues"] != FIRST_TELEMETRY_SLICE_VALUES:
+        raise InventoryError(
+            "Telemetry selection first instrument recordedValues must be "
+            + ", ".join(FIRST_TELEMETRY_SLICE_VALUES)
+        )
+    return {
+        "selected": len(raw_entries),
+        **disposition_counts,
     }
 
 
@@ -433,6 +666,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=pathlib.Path)
     parser.add_argument("--check-guard-manifest", type=pathlib.Path)
     parser.add_argument("--check-tool-manifest", type=pathlib.Path)
+    parser.add_argument("--check-telemetry-selection", type=pathlib.Path)
     parser.add_argument("--print-guard-candidates", action="store_true")
     return parser
 
@@ -450,6 +684,7 @@ def main(arguments: list[str] | None = None) -> int:
                 args.tool_manifest,
                 args.check_guard_manifest,
                 args.check_tool_manifest,
+                args.check_telemetry_selection,
             )
             if path is not None
         ]
@@ -478,11 +713,29 @@ def main(arguments: list[str] | None = None) -> int:
             raise InventoryError(
                 "Tool-manifest validation is not implemented in Phase 0A"
             )
+        if args.check_telemetry_selection is not None:
+            if guard_path is None:
+                raise InventoryError(
+                    "--check-telemetry-selection requires --guard-manifest"
+                )
+            counts = validate_telemetry_selection(
+                args.check_telemetry_selection,
+                guard_path,
+                root,
+                resolved_source_revision=revision,
+            )
+            print(
+                "Telemetry selection valid: "
+                f"{counts['selected']} selected, "
+                f"{counts['instrument']} instrument, "
+                f"{counts['covered']} covered, "
+                f"{counts['defer']} defer; source {revision}"
+            )
         if args.corpus_manifest is not None or args.output is not None:
             raise InventoryError(
                 "Dynamic corpus analysis is not implemented in Phase 0A"
             )
-        if guard_path is None:
+        if guard_path is None and args.check_telemetry_selection is None:
             parser.error("select a manifest check or --print-guard-candidates")
         return 0
     except InventoryError as error:
