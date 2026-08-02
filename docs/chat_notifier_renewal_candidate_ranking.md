@@ -43,12 +43,13 @@ records are provenance-only blockers; the other 4 are the plan/progress
 conflict subset.
 
 The item-identity reconciliation, provenance-merge audit, conflict-policy
-classification, and pure preservation envelope are complete. All 14 clean
-workflows and their 27 legacy checkpoints are mergeable. The envelope preserves
-active and orphan progress, merged provenance, and both stage values while
-requiring explicit authority for stage divergence. The next slice is a
-privacy-safe read-only rehearsal against the 4 conflict records with authority
-intentionally absent; no persistence writes or editor removal are authorized.
+classification, pure preservation envelope, and live read-only rehearsal are
+complete. All 14 clean workflows and their 27 checkpoints are mergeable. All 4
+conflict records produce lossless envelopes with every execution-progress
+object preserved; their only blocker is intentionally absent stage authority.
+The next slice must define an explicit authority source and audit trail without
+using timestamps or implicit precedence. No persistence writes or editor
+removal are authorized.
 
 ## Ranking Rules
 
@@ -95,7 +96,7 @@ and plan.
 
 | Candidate | Direction confidence | Measured surface | Blocker | Re-entry condition |
 | --- | --- | --- | --- | --- |
-| Retire workflow as a second authored source while retaining a plan-derived execution projection | High for the direction; blocked for implementation | 25-40 source/test files; 19 persisted legacy-authored workflows: 1 compatible, 14 clean mergeable records, and 4 stage/progress-conflicted blockers | A pure envelope now preserves merged provenance and orphan progress, but the 4 live records have not been rehearsed through it and no stage authority is approved | Run the envelope read-only across the conflict cohort with authority absent before designing any persisted transformer |
+| Retire workflow as a second authored source while retaining a plan-derived execution projection | High for the direction; blocked for implementation | 25-40 source/test files; 19 persisted legacy-authored workflows: 1 compatible, 14 clean mergeable records, and 4 stage/progress-conflicted blockers | All 4 conflicts rehearse losslessly; the only remaining blocker is the absence of an explicit, auditable stage-authority decision | Define the authority input and audit contract before designing any persisted transformer |
 | Wire `ChatToolHandlerCatalog` as the production composition boundary | High that all six binding groups can fit an owner-aware catalogue; low that the current composition is ready | 118 static plus 52 private dynamic definitions across 6 binding groups | The registry-last WS6-19 gate remains unmet; all three named modules capture `ChatNotifier`, and Browser/Computer Use still require policy-aware adapters | Reconcile or replace the WS6-19 safety contract, expose typed owner/UI/approval/turn-result ports, and prove branch precedence plus fallback behavior before wiring |
 
 The pinned corpus contained only two records and one normalized submission. It
@@ -108,7 +109,7 @@ definition is a deletion candidate based on its zero count.
 
 | Rank | Investigation | Decision unlocked | Measured decision surface | Bounded next action |
 | ---: | --- | --- | --- | --- |
-| I1 | Audit persisted workflow origins, compatibility, provenance shape, additive merge viability, and conflict policy | Clean-cohort transformation is proven; a pure conflict envelope exists but still needs live read-only rehearsal | 439 rows; 14 clean current workflows and 27 checkpoints merge; all 4 conflicts are semantically mergeable but have stage divergence and meaningful progress owned by no task graph | Rehearse the pure envelope read-only across the 4-record cohort with stage authority absent |
+| I1 | Audit persisted workflow origins, compatibility, provenance shape, additive merge viability, conflict policy, and lossless preservation | Both clean and conflict cohorts have bounded lossless candidates; conflict application still requires explicit auditable authority | 439 rows; 14 clean current workflows and 27 checkpoints merge; 4/4 conflicts produce lossless envelopes with only `stageAuthorityRequired` | Completed read-only; define the explicit authority and audit contract next |
 
 The matching-build guard capture is complete and moved its two closed proofs
 into D1. With D1 deleted, I1 is now the next investigation.
@@ -162,6 +163,7 @@ keep every unresolved callback, registration, and configuration edge explicit.
 | Legacy item-identity reconciliation | Current pure domain fixture | Exact IDs plus documented positional constraint and acceptance IDs only; ambiguous, incomplete, malformed, semantic-drift, and projection-drift cases fail closed |
 | Plan/progress conflict policy audit | Current read-only local capture | 4/4 plans parse, 4/4 workflow specs are semantically equivalent and mergeable, 4/4 stages diverge, and 4/4 meaningful dangling progress records are owned by neither plan nor checkpoint task graphs; database bytes unchanged |
 | Workflow conflict preservation envelope | Current pure domain fixture | Exact progress ownership, merged provenance, active/orphan separation, immutable inputs and outputs, and explicit workflow-versus-plan stage authority; no persistence wiring |
+| Workflow conflict preservation rehearsal | Current read-only local capture | 4/4 envelopes created, 4/4 full execution-progress multisets preserved, 4/4 meaningful orphans retained, zero selected stages, zero mutation, and only stage-authority blockers; database bytes unchanged |
 
 The tool measurement used analyser revision
 `de73f746f16eed1125b0f4f92cb44a11b57ea7de`, corpus-manifest digest
@@ -212,9 +214,8 @@ inventory so sensitive paths do not appear here.
 ## Unresolved Items
 
 - The 14 provenance-only records and their 27 legacy checkpoints are proven
-  mergeable without persistence writes. The other 4 records have a pure
-  preservation envelope but still require read-only live rehearsal and an
-  explicit stage-authority decision.
+  mergeable without persistence writes. The other 4 records rehearse losslessly
+  but still require an explicit, auditable stage-authority decision.
 - The correct replacement, if any, for the deferred WS6-19 ordering contract is
   not approved.
 - Goal/objective divergence has no provenance marker, so mismatches cannot yet

@@ -9,10 +9,11 @@ import 'package:caverno/features/chat/domain/services/conversation_legacy_workfl
 import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
+import 'package:caverno/features/chat/domain/services/conversation_workflow_conflict_preservation_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_workflow_provenance_merge_service.dart';
 
 const String auditSchemaName = 'caverno_legacy_workflow_compatibility_audit';
-const int auditSchemaVersion = 4;
+const int auditSchemaVersion = 5;
 
 final class CompatibilityAuditException implements Exception {
   const CompatibilityAuditException(this.message);
@@ -84,6 +85,8 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
   final currentMergeCandidates = _ProvenanceMergeCandidateAccumulator();
   final checkpointMergeCandidates = _ProvenanceMergeCandidateAccumulator();
   final planProgressConflicts = _PlanProgressConflictAccumulator();
+  final conflictPreservationRehearsal =
+      _ConflictPreservationRehearsalAccumulator();
 
   for (final encodedPayload in encodedPayloads) {
     databaseRowCount++;
@@ -157,6 +160,7 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
       if (hasDanglingProgress && hasPlanConflict) {
         combinedPlanProgressConflictRecordCount++;
         planProgressConflicts.add(conversation);
+        conflictPreservationRehearsal.add(conversation);
       }
       if (hasDanglingProgress || hasPlanConflict) {
         planProgressConflictRecordCount++;
@@ -263,6 +267,7 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
       },
     },
     'planProgressConflictPolicy': planProgressConflicts.toJson(),
+    'conflictPreservationRehearsal': conflictPreservationRehearsal.toJson(),
     'privacy': {
       'includesDatabasePath': false,
       'includesRecordIdentifiers': false,
@@ -585,6 +590,126 @@ final class _PlanProgressConflictAccumulator {
     }
     return _ConflictCheckpointProgressOwnership.noneOwnedByCheckpoints;
   }
+}
+
+final class _ConflictPreservationRehearsalAccumulator {
+  var evaluatedRecordCount = 0;
+  var envelopeCreatedRecordCount = 0;
+  var readyRecordCount = 0;
+  var selectedStagePresentRecordCount = 0;
+  var allExecutionProgressPreservedRecordCount = 0;
+  var meaningfulOrphanProgressRecordCount = 0;
+  var onlyStageAuthorityBlockedRecordCount = 0;
+  var inputMutationDetectedRecordCount = 0;
+  final blockerRecordCounts = {
+    for (final blocker
+        in ConversationWorkflowConflictPreservationBlocker.values)
+      blocker.name: 0,
+  };
+  final mergeBlockerRecordCounts = {
+    for (final blocker in ConversationWorkflowProvenanceMergeBlocker.values)
+      blocker.name: 0,
+  };
+
+  void add(Conversation conversation) {
+    evaluatedRecordCount++;
+    final before = jsonEncode(conversation.toJson());
+    final result = const ConversationWorkflowConflictPreservationService()
+        .preserve(conversation: conversation);
+    if (jsonEncode(conversation.toJson()) != before) {
+      inputMutationDetectedRecordCount++;
+    }
+    if (result.isReady) readyRecordCount++;
+    for (final blocker in result.blockers.toSet()) {
+      _increment(blockerRecordCounts, blocker.name);
+    }
+    for (final blocker in result.mergeBlockers.toSet()) {
+      _increment(mergeBlockerRecordCounts, blocker.name);
+    }
+    if (result.blockers.length == 1 &&
+        result.blockers.single ==
+            ConversationWorkflowConflictPreservationBlocker
+                .stageAuthorityRequired) {
+      onlyStageAuthorityBlockedRecordCount++;
+    }
+
+    final envelope = result.envelope;
+    if (envelope == null) return;
+    envelopeCreatedRecordCount++;
+    if (envelope.selectedStage != null) selectedStagePresentRecordCount++;
+    if (envelope.orphanExecutionProgress.any(
+      (progress) => progress.hasMeaningfulState,
+    )) {
+      meaningfulOrphanProgressRecordCount++;
+    }
+    if (_sameProgressMultiset(conversation.executionProgress, [
+      ...envelope.activeExecutionProgress,
+      ...envelope.orphanExecutionProgress,
+    ])) {
+      allExecutionProgressPreservedRecordCount++;
+    }
+  }
+
+  Map<String, Object> toJson() {
+    final allRecordsLosslesslyBlockedOnAuthority =
+        evaluatedRecordCount > 0 &&
+        envelopeCreatedRecordCount == evaluatedRecordCount &&
+        readyRecordCount == 0 &&
+        selectedStagePresentRecordCount == 0 &&
+        allExecutionProgressPreservedRecordCount == evaluatedRecordCount &&
+        meaningfulOrphanProgressRecordCount == evaluatedRecordCount &&
+        onlyStageAuthorityBlockedRecordCount == evaluatedRecordCount &&
+        inputMutationDetectedRecordCount == 0 &&
+        mergeBlockerRecordCounts.values.every((count) => count == 0);
+    return {
+      'cohort': {'eligibleRecordCount': evaluatedRecordCount},
+      'currentWorkflows': {
+        'evaluatedRecordCount': evaluatedRecordCount,
+        'envelopeCreatedRecordCount': envelopeCreatedRecordCount,
+        'readyRecordCount': readyRecordCount,
+        'selectedStagePresentRecordCount': selectedStagePresentRecordCount,
+        'allExecutionProgressPreservedRecordCount':
+            allExecutionProgressPreservedRecordCount,
+        'meaningfulOrphanProgressRecordCount':
+            meaningfulOrphanProgressRecordCount,
+        'onlyStageAuthorityBlockedRecordCount':
+            onlyStageAuthorityBlockedRecordCount,
+        'inputMutationDetectedRecordCount': inputMutationDetectedRecordCount,
+        'blockerRecordCounts': blockerRecordCounts,
+        'mergeBlockerRecordCounts': mergeBlockerRecordCounts,
+      },
+      'decision': {
+        'allRecordsLosslesslyBlockedOnAuthority':
+            allRecordsLosslesslyBlockedOnAuthority,
+        'nextAction': evaluatedRecordCount == 0
+            ? 'verify_conflict_preservation_cohort_selection'
+            : allRecordsLosslesslyBlockedOnAuthority
+            ? 'define_explicit_stage_authority_source'
+            : 'inspect_conflict_preservation_rehearsal_blockers',
+      },
+    };
+  }
+}
+
+bool _sameProgressMultiset(
+  List<ConversationExecutionTaskProgress> expected,
+  List<ConversationExecutionTaskProgress> actual,
+) {
+  Map<String, int> frequencies(List<ConversationExecutionTaskProgress> values) {
+    final counts = <String, int>{};
+    for (final value in values) {
+      final encoded = jsonEncode(value.toJson());
+      counts[encoded] = (counts[encoded] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  final expectedFrequencies = frequencies(expected);
+  final actualFrequencies = frequencies(actual);
+  return expectedFrequencies.length == actualFrequencies.length &&
+      expectedFrequencies.entries.every(
+        (entry) => actualFrequencies[entry.key] == entry.value,
+      );
 }
 
 void _increment(Map<String, int> counts, String key) {

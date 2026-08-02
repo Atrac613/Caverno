@@ -10,6 +10,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_legacy_workflow_compatibility_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
+import 'package:caverno/features/chat/domain/services/conversation_workflow_conflict_preservation_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_workflow_provenance_merge_service.dart';
 
 import '../../tool/audit_legacy_workflow_compatibility.dart' as audit;
@@ -349,7 +350,7 @@ void main() {
       ),
     ]);
 
-    expect(report['schemaVersion'], 4);
+    expect(report['schemaVersion'], 5);
     expect(report['planProgressConflictPolicy'], {
       'cohort': {'eligibleRecordCount': 3},
       'currentWorkflows': {
@@ -395,6 +396,59 @@ void main() {
     expect(encodedReport, isNot(contains('Private progress')));
     expect(encodedReport, isNot(contains('Private note')));
     expect(encodedReport, isNot(contains('Private invalid')));
+  });
+
+  test('rehearses lossless envelopes without choosing stage authority', () {
+    final provenanceWorkflowSpec = _provenanceWorkflowSpec();
+    final planArtifact = ConversationPlanDocumentBuilder.buildApprovedArtifact(
+      workflowStage: ConversationWorkflowStage.review,
+      workflowSpec: provenanceWorkflowSpec,
+      updatedAt: DateTime.utc(2026, 8, 2),
+    );
+    final conversation = _conversation(
+      id: 'private-rehearsal-record',
+      workflowSpec: provenanceWorkflowSpec,
+      executionProgress: [
+        ConversationExecutionTaskProgress(
+          taskId: 'private-orphan-task',
+          status: ConversationWorkflowTaskStatus.inProgress,
+          summary: 'Private orphan progress',
+        ),
+      ],
+      planArtifact: planArtifact,
+    );
+    final before = jsonEncode(conversation.toJson());
+
+    final report = audit.buildLegacyWorkflowCompatibilityReport([
+      jsonEncode(conversation.toJson()),
+    ]);
+
+    expect(jsonEncode(conversation.toJson()), before);
+    expect(report['conflictPreservationRehearsal'], {
+      'cohort': {'eligibleRecordCount': 1},
+      'currentWorkflows': {
+        'evaluatedRecordCount': 1,
+        'envelopeCreatedRecordCount': 1,
+        'readyRecordCount': 0,
+        'selectedStagePresentRecordCount': 0,
+        'allExecutionProgressPreservedRecordCount': 1,
+        'meaningfulOrphanProgressRecordCount': 1,
+        'onlyStageAuthorityBlockedRecordCount': 1,
+        'inputMutationDetectedRecordCount': 0,
+        'blockerRecordCounts': _emptyPreservationBlockerCounts(
+          stageAuthorityRequired: 1,
+        ),
+        'mergeBlockerRecordCounts': _emptyMergeBlockerCounts(),
+      },
+      'decision': {
+        'allRecordsLosslesslyBlockedOnAuthority': true,
+        'nextAction': 'define_explicit_stage_authority_source',
+      },
+    });
+    final encodedReport = jsonEncode(report);
+    expect(encodedReport, isNot(contains('private-rehearsal')));
+    expect(encodedReport, isNot(contains('private-orphan')));
+    expect(encodedReport, isNot(contains('Private orphan')));
   });
 
   test('reports migration readiness only for compatible legacy candidates', () {
@@ -522,6 +576,18 @@ ConversationWorkflowSpec _provenanceWorkflowSpec() {
 Map<String, int> _emptyMergeBlockerCounts() => {
   for (final blocker in ConversationWorkflowProvenanceMergeBlocker.values)
     blocker.name: 0,
+};
+
+Map<String, int> _emptyPreservationBlockerCounts({
+  int stageAuthorityRequired = 0,
+}) => {
+  for (final blocker in ConversationWorkflowConflictPreservationBlocker.values)
+    blocker.name:
+        blocker ==
+            ConversationWorkflowConflictPreservationBlocker
+                .stageAuthorityRequired
+        ? stageAuthorityRequired
+        : 0,
 };
 
 Conversation _conversation({

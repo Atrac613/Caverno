@@ -111,9 +111,11 @@ planning paths emit a plan document.
   semantically mergeable content, but all four disagree on stage and carry
   meaningful progress owned by no plan or checkpoint task graph. A pure
   immutable envelope now preserves merged provenance, active/orphan progress,
-  and both stages while requiring explicit stage authority. The next safe slice
-  is a read-only live cohort rehearsal with authority absent; do not delete the
-  editor or mutate the live database.
+  and both stages while requiring explicit stage authority. A schema-v5
+  rehearsal proves all 4 live records preserve every progress object and stop
+  only on absent authority. The next safe slice is an explicit authority input
+  and audit contract with no timestamp or precedence inference; do not delete
+  the editor or mutate the live database.
 
 ### C2 — Give task status one owner
 

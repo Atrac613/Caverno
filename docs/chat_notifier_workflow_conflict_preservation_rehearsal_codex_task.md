@@ -65,7 +65,21 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: This rehearsal does not authorize a live migration.
+- Summary: Added a privacy-safe schema-v5 aggregate and rehearsed all four live
+  conflict records with null stage authority. Every record produced an
+  envelope, preserved every execution-progress object, retained meaningful
+  orphan progress, selected no stage, and reported only
+  `stageAuthorityRequired` with zero merge blockers or input mutation.
+- Tests run: The focused audit test passes 10/10. `tool/codex_verify.sh`
+  completes generation, analysis, and package tests; the Flutter suite passes
+  6,516/6,517 tests. Its only failure is the pre-existing stale
+  `run_coding_stalled_diagnostic_repair_live_canary` expectation for the
+  removed `_isTodoVerifierCall` helper. The live database SHA-256 was
+  `ad5fc676bbca7a2fc926587b8c14f72940bff465f93825d01167d8ea960c9698`
+  both before and after the read-only rehearsal.
+- Coverage or low-coverage notes: Fixtures cover positive authority-free
+  rehearsal, complete progress multiset preservation, meaningful orphans,
+  selected-stage absence, blocker aggregates, mutation detection, and privacy.
+- Risks or follow-ups: This rehearsal does not authorize a live migration. The
+  next slice must define an explicit stage-authority source and audit trail; it
+  must not infer authority from timestamps, enum ordering, or current storage.
