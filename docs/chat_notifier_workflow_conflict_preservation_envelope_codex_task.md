@@ -67,7 +67,19 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: This fixture does not authorize a live migration.
+- Summary: Added a pure preservation service that projects the existing plan,
+  requires semantic equality and a provenance merge, classifies progress by
+  exact task ID, and retains active plus fully orphaned progress in an immutable
+  envelope. Divergent stages require explicit workflow or approved-plan
+  authority before the result becomes ready.
+- Tests run: The focused preservation-service test passes 8/8.
+  `tool/codex_verify.sh` completes generation, analysis, and package tests; the
+  Flutter suite passes 6,515/6,516 tests. Its only failure is the pre-existing
+  stale `run_coding_stalled_diagnostic_repair_live_canary` expectation for the
+  removed `_isTodoVerifierCall` helper.
+- Coverage or low-coverage notes: Fixtures cover input immutability, list
+  immutability, both explicit authorities, matching stages, missing and invalid
+  plans, semantic drift, exact merge blockers, and plan/checkpoint ownership.
+- Risks or follow-ups: This fixture does not authorize a live migration. Add a
+  privacy-safe read-only aggregate rehearsal against the four live records;
+  stage authority must remain absent in that diagnostic.

@@ -109,9 +109,11 @@ planning paths emit a plan document.
   read-only additive candidate merges all 14 clean records and their 27 legacy
   checkpoints with zero blockers. The four conflict records also have
   semantically mergeable content, but all four disagree on stage and carry
-  meaningful progress owned by no plan or checkpoint task graph. The next safe
-  slice is a pure lossless orphan-progress preservation fixture with explicit
-  stage authority; do not delete the editor or mutate the live database.
+  meaningful progress owned by no plan or checkpoint task graph. A pure
+  immutable envelope now preserves merged provenance, active/orphan progress,
+  and both stages while requiring explicit stage authority. The next safe slice
+  is a read-only live cohort rehearsal with authority absent; do not delete the
+  editor or mutate the live database.
 
 ### C2 — Give task status one owner
 
