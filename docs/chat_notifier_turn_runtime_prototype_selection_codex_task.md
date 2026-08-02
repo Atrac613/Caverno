@@ -30,6 +30,9 @@
   - The decomposition manifest retains 43 historical part records, while the
     current audit declares 37 active part files. Only the audit's current
     `entrypoints` list is eligible for prototype selection.
+  - A current part can retain historical manifest entrypoint names that no
+    longer resolve in the AST audit. Selection records those names explicitly
+    and ranks only resolved audited methods.
   - The checked-in audit is a working-tree baseline. Selection binds its bytes
     and the manifest bytes to the resolved source revision rather than claiming
     that the JSON embeds a build revision.
@@ -55,8 +58,9 @@
   - Do not modify Dart production files or checked-in audit baselines.
   - Do not add heuristic weighting or manual allow/deny lists.
   - Reject malformed or inconsistent schemas, duplicate part paths, missing
-    manifest joins, missing source files, and entrypoints that cannot be joined
-    uniquely to audited methods.
+    manifest joins, missing source files, and entrypoints that join ambiguously
+    to audited methods. Preserve unresolved historical entrypoint names in the
+    output instead of treating them as current methods.
   - Keep errors concise, deterministic, and English-only.
 - Generated files needed: None.
 - Migration or data compatibility concerns: None. The output is an ephemeral
@@ -95,7 +99,8 @@
   - A dirty worktree fails when `--require-clean` is set and is accepted when it
     is omitted.
   - Duplicate, missing, or inconsistent audit/manifest entries fail.
-  - Missing or ambiguous audited methods for a declared entrypoint fail.
+  - Ambiguous audited methods for a declared entrypoint fail; unresolved
+    historical entrypoints remain visible but do not affect ranking.
 - Failure paths: Invalid input or repository state exits with status 2 and a
   concise English error without writing a partial output file.
 - Accessibility, localization, or platform expectations: None.
