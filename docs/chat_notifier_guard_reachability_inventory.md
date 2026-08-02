@@ -173,12 +173,39 @@ excluded while the discovery rule continues to match it.
 - 2 orphan delegates are statically unreachable. Their action states remain unresolved pending matching-build observations.
 - The other 63 candidates remain statically unresolved; none is classified dead, live, or unexercised in this slice.
 
+## Phase 0B telemetry selection
+
+The checked-in `tool/chat_notifier_guard_telemetry_selection.json` covers all 52
+entries without a mapped structured event. The analyser joins it to this guard
+inventory by stable ID and enforces a first-slice limit of one:
+
+- 1 `instrument`:
+  `_shouldSkipCompletedToolResultFinalAnswerRecovery`.
+- 0 `covered`.
+- 51 `defer`, each with an explicit prerequisite.
+
+The selected decision will eventually reuse the existing `turn_exit` boundary
+and record only `not_evaluated`, `skip_recovery`, or `allow_recovery`. This
+selection does not add production logging, prove that any candidate fires, or
+change an action state.
+
+Validate the selection with:
+
+```bash
+python3 tool/analyze_chat_notifier_inventory.py \
+  --source-revision HEAD \
+  --guard-manifest tool/chat_notifier_guard_inventory.json \
+  --check-telemetry-selection \
+  tool/chat_notifier_guard_telemetry_selection.json
+```
+
 ## Explicit unresolved items
 
 - Resolve the remaining callers to production turn-loop roots rather than
   stopping at lexical references.
 - Review callback, extension, module-registration, and runtime configuration
   edges for the remaining candidates.
-- Complete Phase 0B telemetry selection before changing logging.
+- Implement the single selected Phase 0B telemetry event before collecting the
+  matching-build corpus.
 - Run the private, hash-pinned matching-build corpus analysis before deriving
   action states.

@@ -3,10 +3,12 @@
 Status: Phase 0A static guard inventory completed on 2026-08-02. The checked-in
 manifest contains 65 decision candidates and 15 explicit helper exclusions,
 and its deterministic discovery check is covered by eight focused Python tests.
-Dynamic corpus analysis, tool-catalogue validation, and Phase 0B telemetry
-selection remain pending; no dynamic action state is claimed yet. Static review
-has proven `_tryRepairAndDecodeMap` and `_repairJsonCandidate` unreachable, but
-their action state remains unresolved until matching-build observations exist.
+Phase 0B telemetry selection completed on 2026-08-02 with one bounded
+instrumentation candidate and 51 explicit deferrals. Production instrumentation,
+dynamic corpus analysis, and tool-catalogue validation remain pending; no
+dynamic action state is claimed yet. Static review has proven
+`_tryRepairAndDecodeMap` and `_repairJsonCandidate` unreachable, but their action
+state remains unresolved until matching-build observations exist.
 
 Phase 1 of the architecture renewal. **Do not refactor, delete, or change
 product behaviour.** A prerequisite tooling slice may add measurement code and

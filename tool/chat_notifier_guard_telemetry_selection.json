@@ -1,0 +1,383 @@
+{
+  "schemaName": "caverno_chat_notifier_guard_telemetry_selection",
+  "schemaVersion": 1,
+  "sourceRevision": "HEAD",
+  "guardManifest": "tool/chat_notifier_guard_inventory.json",
+  "firstSliceLimit": 1,
+  "entries": [
+    {
+      "id": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart::AnalysisOptionsLintEditGuard",
+      "disposition": "defer",
+      "question": "Was AnalysisOptionsLintEditGuard evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/ask_user_question_policy.dart::AskUserQuestionPolicy",
+      "disposition": "defer",
+      "question": "Was AskUserQuestionPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/background_process_follow_up_policy.dart::BackgroundProcessFollowUpPolicy",
+      "disposition": "defer",
+      "question": "Was BackgroundProcessFollowUpPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/background_process_path_policy.dart::BackgroundProcessPathPolicy",
+      "disposition": "defer",
+      "question": "Was BackgroundProcessPathPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart::CommandDiagnosticVerifierReplayGuard",
+      "disposition": "defer",
+      "question": "Was CommandDiagnosticVerifierReplayGuard evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_policy.dart::CommandDiagnosticVerifierReplayPolicy",
+      "disposition": "defer",
+      "question": "Was CommandDiagnosticVerifierReplayPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/computer_use_action_policy.dart::ComputerUseActionPolicy",
+      "disposition": "defer",
+      "question": "Was ComputerUseActionPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart::ContextSurgeryProtectedPathPolicy",
+      "disposition": "defer",
+      "question": "Was ContextSurgeryProtectedPathPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/conversation_goal_auto_continue_policy.dart::ConversationGoalAutoContinuePolicy",
+      "disposition": "defer",
+      "question": "Was ConversationGoalAutoContinuePolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart::DuplicateToolResultRecovery",
+      "disposition": "defer",
+      "question": "Was DuplicateToolResultRecovery evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/execution_budget_policy.dart::ExecutionBudgetPolicy",
+      "disposition": "defer",
+      "question": "Was ExecutionBudgetPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/file_mutation_evidence_policy.dart::FileMutationEvidencePolicy",
+      "disposition": "defer",
+      "question": "Was FileMutationEvidencePolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart::GitTagFormatInspectionGuard",
+      "disposition": "defer",
+      "question": "Was GitTagFormatInspectionGuard evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/git_write_confirmation_policy.dart::GitWriteConfirmationPolicy",
+      "disposition": "defer",
+      "question": "Was GitWriteConfirmationPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/goal_validation_probe_guard.dart::GoalValidationProbeGuard",
+      "disposition": "defer",
+      "question": "Was GoalValidationProbeGuard evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/material_contract_assumption_guard.dart::MaterialContractAssumptionGuard",
+      "disposition": "defer",
+      "question": "Was MaterialContractAssumptionGuard evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/model_switch_settings_policy.dart::ModelSwitchSettingsPolicy",
+      "disposition": "defer",
+      "question": "Was ModelSwitchSettingsPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/participant_message_finalizer.dart::ParticipantMessageVisibilityPolicy",
+      "disposition": "defer",
+      "question": "Was ParticipantMessageVisibilityPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/participant_tool_policy.dart::ParticipantToolPolicy",
+      "disposition": "defer",
+      "question": "Was ParticipantToolPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/planning_tool_policy.dart::PlanningToolPolicy",
+      "disposition": "defer",
+      "question": "Was PlanningToolPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/process_start_result_policy.dart::ProcessStartResultPolicy",
+      "disposition": "defer",
+      "question": "Was ProcessStartResultPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/production_release_approval_policy.dart::ProductionReleaseApprovalPolicy",
+      "disposition": "defer",
+      "question": "Was ProductionReleaseApprovalPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/python_attachment_repair_policy.dart::PythonAttachmentRepairPolicy",
+      "disposition": "defer",
+      "question": "Was PythonAttachmentRepairPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart::SavedTaskTargetScopeGuard",
+      "disposition": "defer",
+      "question": "Was SavedTaskTargetScopeGuard evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/saved_validation_command_guard.dart::SavedValidationCommandGuard",
+      "disposition": "defer",
+      "question": "Was SavedValidationCommandGuard evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/subagent_tool_policy.dart::SubagentToolPolicy",
+      "disposition": "defer",
+      "question": "Was SubagentToolPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart::TimedOutCommandRetryGuard",
+      "disposition": "defer",
+      "question": "Was TimedOutCommandRetryGuard evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/tool_call_execution_policy.dart::ToolCallExecutionPolicy",
+      "disposition": "defer",
+      "question": "Was ToolCallExecutionPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart::ToolLoopExhaustionPolicy",
+      "disposition": "defer",
+      "question": "Was ToolLoopExhaustionPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/tool_loop_recovery_policy.dart::ToolLoopRecoveryPolicy",
+      "disposition": "defer",
+      "question": "Was ToolLoopRecoveryPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/tool_terminal_response_policy.dart::ToolTerminalResponsePolicy",
+      "disposition": "defer",
+      "question": "Was ToolTerminalResponsePolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/tool_terminal_success_policy.dart::ToolTerminalSuccessPolicy",
+      "disposition": "defer",
+      "question": "Was ToolTerminalSuccessPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart::TurnFinalizationRecoveryPolicy",
+      "disposition": "defer",
+      "question": "Was TurnFinalizationRecoveryPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart::UnexecutedFileMutationBeforeCommandGuard",
+      "disposition": "defer",
+      "question": "Was UnexecutedFileMutationBeforeCommandGuard evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart::UnexecutedFinalAnswerToolRequestPolicy",
+      "disposition": "defer",
+      "question": "Was UnexecutedFinalAnswerToolRequestPolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/unwritten_file_claim_guard.dart::UnwrittenFileClaimGuard",
+      "disposition": "defer",
+      "question": "Was UnwrittenFileClaimGuard evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/verification_cadence_policy.dart::VerificationCadencePolicy",
+      "disposition": "defer",
+      "question": "Was VerificationCadencePolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart::VerifierReplayCandidatePolicy",
+      "disposition": "defer",
+      "question": "Was VerifierReplayCandidatePolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart::WorkflowTaskRunLifecyclePolicy",
+      "disposition": "defer",
+      "question": "Was WorkflowTaskRunLifecyclePolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/domain/services/workflow_task_turn_route_policy.dart::WorkflowTaskTurnRoutePolicy",
+      "disposition": "defer",
+      "question": "Was WorkflowTaskTurnRoutePolicy evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_postSavedValidationEvidenceRequiresRepair",
+      "disposition": "defer",
+      "question": "Was _postSavedValidationEvidenceRequiresRepair evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_requestBackgroundProcessMonitorRepairForCompletionClaim",
+      "disposition": "defer",
+      "question": "Was _requestBackgroundProcessMonitorRepairForCompletionClaim evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_requestSkippedBrowserActionRepairAfterSnapshot",
+      "disposition": "defer",
+      "question": "Was _requestSkippedBrowserActionRepairAfterSnapshot evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_shouldRepairSkippedBrowserActionAfterSnapshot",
+      "disposition": "defer",
+      "question": "Was _shouldRepairSkippedBrowserActionAfterSnapshot evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_command_guardrails.dart::_buildProductionReleaseApprovalGuardResult",
+      "disposition": "defer",
+      "question": "Was _buildProductionReleaseApprovalGuardResult evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart::_replayVerifierAfterRepairMutation",
+      "disposition": "defer",
+      "question": "Was _replayVerifierAfterRepairMutation evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart::_repairJsonCandidate",
+      "disposition": "defer",
+      "question": "Was _repairJsonCandidate evaluated, and which branch did it select?",
+      "reason": "Static reachability is closed, but action state still needs matching-build contradiction evidence.",
+      "prerequisite": "Complete matching-build corpus analysis before proposing deletion or instrumentation."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart::_tryRepairAndDecodeMap",
+      "disposition": "defer",
+      "question": "Was _tryRepairAndDecodeMap evaluated, and which branch did it select?",
+      "reason": "Static reachability is closed, but action state still needs matching-build contradiction evidence.",
+      "prerequisite": "Complete matching-build corpus analysis before proposing deletion or instrumentation."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart::_requestPythonAttachmentPathFailureRepair",
+      "disposition": "defer",
+      "question": "Was _requestPythonAttachmentPathFailureRepair evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart::_requestSkippedPythonAttachmentAnalysisRepair",
+      "disposition": "defer",
+      "question": "Was _requestSkippedPythonAttachmentAnalysisRepair evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart::_prepareLastAssistantForTurnFinalizationRecovery",
+      "disposition": "defer",
+      "question": "Was _prepareLastAssistantForTurnFinalizationRecovery evaluated, and which branch did it select?",
+      "reason": "Keep the first Phase 0B production change to one decision event.",
+      "prerequisite": "Re-rank after the first instrumentation slice and pinned-corpus contract are available."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart::_shouldSkipCompletedToolResultFinalAnswerRecovery",
+      "disposition": "instrument",
+      "question": "Was completed-tool final-answer recovery evaluated, and which branch did it select?",
+      "reason": "This load-bearing decision can reuse the existing turn_exit boundary without recording user or tool payloads.",
+      "event": "turn_exit.guardDecisions.completedToolResultFinalAnswerRecovery",
+      "recordedValues": [
+        "not_evaluated",
+        "skip_recovery",
+        "allow_recovery"
+      ],
+      "dataClassification": "metadata_only",
+      "verification": [
+        "test/features/chat/presentation/providers/chat_notifier_final_answer_recovery_part.dart",
+        "test/features/chat/data/datasources/session_logging_chat_datasource_test.dart"
+      ]
+    }
+  ]
+}

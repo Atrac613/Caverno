@@ -49,8 +49,9 @@
      guard manifest by stable inventory ID and reject incomplete, duplicate,
      stale, or over-broad selections.
 - Constraints:
-  - Store no prompts, tool arguments, tool results, paths, or user content in
-    the selection manifest.
+  - Store no prompts, tool arguments, tool results, runtime file paths, or user
+    content in the selection manifest. Stable source IDs retain repository
+    paths so they can join the guard inventory exactly.
   - Require `metadata_only` data classification for an `instrument` entry.
   - Require planned event, finite recorded values, and verification commands
     for an `instrument` entry.
@@ -118,8 +119,23 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
+- Summary: The checked-in selection covers all 52 unmapped candidates, selects
+  one metadata-only first slice, and defers 51 candidates behind explicit
+  prerequisites.
+- Tests run:
+  - `python3 test/python/analyze_chat_notifier_inventory_test.py`: 18 passed.
+  - `python3 tool/analyze_chat_notifier_inventory.py --source-revision HEAD
+    --guard-manifest tool/chat_notifier_guard_inventory.json
+    --check-telemetry-selection
+    tool/chat_notifier_guard_telemetry_selection.json`: 52 selected, one
+    instrument, zero covered, and 51 deferred.
+  - `tool/codex_verify.sh`: dependency install, generation check, project and
+    package analysis, and package tests passed. The full Flutter suite reached
+    6,475 passing tests and failed one unrelated existing assertion in
+    `test/tool/run_coding_stalled_diagnostic_repair_live_canary_test.dart`; the
+    test still requires the removed source text `.where(_isTodoVerifierCall)`.
 - Coverage or low-coverage notes: Python validation is covered by focused unit
   tests; no product Dart behavior changes in this slice.
 - Risks or follow-ups: Do not add the planned `turn_exit` field in this task.
+  Reconcile the stale canary-runner source assertion in a separate focused
+  change.
