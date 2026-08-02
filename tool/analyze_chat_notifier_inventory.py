@@ -177,6 +177,7 @@ SINGLE_TOOL_RESULT_OPERATIONS = {
     "createChatCompletionWithToolResult",
 }
 BATCH_TOOL_RESULT_OPERATION = "createChatCompletionWithToolResults"
+REPLAYED_TOOL_RESULT_OPERATIONS = {"streamChatCompletion"}
 SINGLE_TOOL_RESULT_REQUIRED_FIELDS = {
     "toolCallId",
     "toolName",
@@ -974,7 +975,9 @@ def _extract_tool_result_submissions(
             raise InventoryError(f"{label}.request.toolName must be non-empty")
         return [(call_id, name)]
 
-    if operation == BATCH_TOOL_RESULT_OPERATION:
+    if operation == BATCH_TOOL_RESULT_OPERATION or (
+        operation in REPLAYED_TOOL_RESULT_OPERATIONS and present_result_fields
+    ):
         if not isinstance(request, dict):
             raise InventoryError(f"{label}.request must be an object")
         if present_result_fields - {"toolResults"}:
@@ -1003,6 +1006,8 @@ def _extract_tool_result_submissions(
             if not isinstance(name, str) or not name.strip():
                 raise InventoryError(f"{result_label}.name must be non-empty")
             submissions.append((call_id, name))
+        if operation in REPLAYED_TOOL_RESULT_OPERATIONS:
+            return []
         return submissions
 
     if present_result_fields:

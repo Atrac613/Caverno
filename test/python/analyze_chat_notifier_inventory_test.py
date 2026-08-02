@@ -1021,6 +1021,50 @@ class ChatNotifierInventoryTest(unittest.TestCase):
         self.assertEqual(generic["dynamicDefinitionCount"], 3)
         self.assertEqual(generic["toolResultSubmissionCount"], 3)
 
+    def test_accepts_replayed_tool_results_without_double_counting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path, manifest, session_path, records, commit = (
+                self._write_corpus_fixture(directory)
+            )
+            records[:] = [
+                self._tool_result_record(
+                    commit,
+                    "2026-08-02T00:15:00Z",
+                    "createChatCompletionWithToolResults",
+                    {
+                        "toolResults": [
+                            {
+                                "id": "call-first",
+                                "name": "first",
+                                "arguments": {},
+                                "result": {},
+                            }
+                        ]
+                    },
+                ),
+                self._tool_result_record(
+                    commit,
+                    "2026-08-02T00:30:00Z",
+                    "streamChatCompletion",
+                    {
+                        "toolResults": [
+                            {
+                                "id": "call-first",
+                                "name": "first",
+                                "arguments": {},
+                                "result": {},
+                            }
+                        ]
+                    },
+                ),
+            ]
+            self._rewrite_session(session_path, records, manifest, manifest_path)
+
+            summary = analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+        self.assertEqual(summary["toolResultSubmissionCount"], 1)
+        self.assertEqual(summary["observedCatalogueDefinitionCount"], 1)
+
     def test_scopes_repeated_dynamic_names_to_catalogue_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:
             manifest_path, manifest, _, _, commit = self._write_corpus_fixture(
