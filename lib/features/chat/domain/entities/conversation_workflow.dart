@@ -226,6 +226,27 @@ abstract class ConversationExecutionTaskProgress
       events.isNotEmpty;
 }
 
+final class ExecutionTaskView {
+  const ExecutionTaskView({required this.task, this.progress});
+
+  final ConversationWorkflowTask task;
+  final ConversationExecutionTaskProgress? progress;
+
+  ConversationWorkflowTaskStatus get status =>
+      progress?.status ?? ConversationWorkflowTaskStatus.pending;
+
+  bool get hasLegacyAuthoredExecutionState =>
+      progress == null && task.status != ConversationWorkflowTaskStatus.pending;
+
+  ConversationWorkflowTask get legacyProjectedTask {
+    final currentProgress = progress;
+    if (currentProgress == null) {
+      return task;
+    }
+    return task.copyWith(status: currentProgress.status);
+  }
+}
+
 @freezed
 abstract class ConversationExecutionTaskEvent
     with _$ConversationExecutionTaskEvent {

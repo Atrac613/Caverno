@@ -70,6 +70,82 @@ void main() {
     expect(staleConversation.needsWorkflowProjectionRefresh, isTrue);
   });
 
+  test('execution task view joins task intent with progress status', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-1',
+      title: 'Run focused verification',
+      status: ConversationWorkflowTaskStatus.inProgress,
+      targetFiles: ['lib/example.dart'],
+      validationCommand: 'flutter test test/example_test.dart',
+      notes: 'Keep the slice focused.',
+    );
+    const progress = ConversationExecutionTaskProgress(
+      taskId: 'task-1',
+      status: ConversationWorkflowTaskStatus.completed,
+    );
+    const view = ExecutionTaskView(task: task, progress: progress);
+
+    expect(view.task.title, 'Run focused verification');
+    expect(view.task.targetFiles, ['lib/example.dart']);
+    expect(view.task.hasMetadata, isTrue);
+    expect(view.progress, same(progress));
+    expect(view.status, ConversationWorkflowTaskStatus.completed);
+    expect(view.hasLegacyAuthoredExecutionState, isFalse);
+    expect(
+      view.legacyProjectedTask.status,
+      ConversationWorkflowTaskStatus.completed,
+    );
+  });
+
+  test('execution task view treats missing progress as pending', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-1',
+      title: 'Legacy completed task',
+      status: ConversationWorkflowTaskStatus.completed,
+    );
+    const view = ExecutionTaskView(task: task);
+
+    expect(view.progress, isNull);
+    expect(view.status, ConversationWorkflowTaskStatus.pending);
+    expect(view.hasLegacyAuthoredExecutionState, isTrue);
+    expect(
+      view.legacyProjectedTask.status,
+      ConversationWorkflowTaskStatus.completed,
+    );
+  });
+
+  test(
+    'conversation preserves legacy projection while exposing task views',
+    () {
+      final conversation = Conversation(
+        id: 'conversation-1',
+        title: 'Legacy task state',
+        messages: const [],
+        createdAt: DateTime(2026, 8, 3, 12),
+        updatedAt: DateTime(2026, 8, 3, 12),
+        workflowSpec: const ConversationWorkflowSpec(
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-1',
+              title: 'Already completed',
+              status: ConversationWorkflowTaskStatus.completed,
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        conversation.executionTaskViews.single.status,
+        ConversationWorkflowTaskStatus.pending,
+      );
+      expect(
+        conversation.projectedExecutionTasks.single.status,
+        ConversationWorkflowTaskStatus.completed,
+      );
+      expect(conversation.toJson(), isNot(contains('executionTaskViews')));
+    },
+  );
+
   test('execution progress exposes validation and blocked metadata', () {
     const progress = ConversationExecutionTaskProgress(
       taskId: 'task-1',

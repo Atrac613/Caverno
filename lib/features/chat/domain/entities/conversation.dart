@@ -450,14 +450,17 @@ abstract class Conversation with _$Conversation {
     return 'open-question-$prefix';
   }
 
+  List<ExecutionTaskView> get executionTaskViews => effectiveWorkflowSpec.tasks
+      .map(
+        (task) => ExecutionTaskView(
+          task: task,
+          progress: executionProgressForTask(task.id),
+        ),
+      )
+      .toList(growable: false);
+
   List<ConversationWorkflowTask> get projectedExecutionTasks =>
-      effectiveWorkflowSpec.tasks
-          .map((task) {
-            final progress = executionProgressForTask(task.id);
-            if (progress == null) {
-              return task;
-            }
-            return task.copyWith(status: progress.status);
-          })
+      executionTaskViews
+          .map((view) => view.legacyProjectedTask)
           .toList(growable: false);
 }
