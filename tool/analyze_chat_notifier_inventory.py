@@ -4,8 +4,8 @@
 Phase 0A implements the finite static guard inventory. Phase 0B adds a finite
 telemetry-selection contract without changing production logging. Phase 1
 validates immutable private corpus inputs and their effective tool-catalogue
-snapshots. Dynamic measurement remains blocked until its own tested slice
-completes.
+snapshots, then derives guard action states and tool residency from matching
+build observations.
 """
 
 from __future__ import annotations
@@ -133,7 +133,7 @@ CORPUS_MANIFEST_SCHEMA_VERSION = 1
 CORPUS_SUMMARY_SCHEMA_NAME = "caverno_chat_notifier_inventory_corpus_summary"
 CORPUS_SUMMARY_SCHEMA_VERSION = 2
 TOOL_RESIDENCY_SCHEMA_NAME = "caverno_chat_notifier_tool_residency_measurement"
-TOOL_RESIDENCY_SCHEMA_VERSION = 1
+TOOL_RESIDENCY_SCHEMA_VERSION = 2
 CORPUS_MANIFEST_FIELDS = {
     "schemaName",
     "schemaVersion",
@@ -1041,6 +1041,10 @@ def _inspect_corpus_manifest(
     tool_result_submission_count = 0
     observed_catalogue_definitions: set[tuple[int, int, str]] = set()
     tool_result_counts: dict[tuple[int, int, str], int] = {}
+    guard_telemetry_counts: dict[
+        tuple[str, str, bool, str], int
+    ] = {}
+    record_counts_by_build: dict[tuple[str, bool], int] = {}
     catalogue_snapshots: list[dict[str, Any]] = []
     record_count = 0
     segment_count = 0
@@ -1195,6 +1199,52 @@ def _inspect_corpus_manifest(
                 raise InventoryError(
                     f"{record_label}.build.dirty does not match its file declaration"
                 )
+            record_build_key = (record_commit, dirty)
+            record_counts_by_build[record_build_key] = (
+                record_counts_by_build.get(record_build_key, 0) + 1
+            )
+            if record.get("operation") == "turn_exit":
+                turn_exit = record.get("turnExit")
+                if not isinstance(turn_exit, dict):
+                    raise InventoryError(
+                        f"{record_label}.turnExit must be an object"
+                    )
+                guard_decisions = turn_exit.get("guardDecisions", {})
+                if not isinstance(guard_decisions, dict):
+                    raise InventoryError(
+                        f"{record_label}.turnExit.guardDecisions must be an object"
+                    )
+                for decision, value in guard_decisions.items():
+                    if not isinstance(decision, str) or not isinstance(value, str):
+                        raise InventoryError(
+                            f"{record_label}.turnExit.guardDecisions must map strings"
+                        )
+                    key = (
+                        f"turn_exit.guardDecisions.{decision}",
+                        record_commit,
+                        dirty,
+                        value,
+                    )
+                    guard_telemetry_counts[key] = (
+                        guard_telemetry_counts.get(key, 0) + 1
+                    )
+                transforms = turn_exit.get("transforms", [])
+                if not isinstance(transforms, list) or any(
+                    not isinstance(value, str) for value in transforms
+                ):
+                    raise InventoryError(
+                        f"{record_label}.turnExit.transforms must be a string list"
+                    )
+                for value in transforms:
+                    key = (
+                        f"turn_exit.transforms:{value}",
+                        record_commit,
+                        dirty,
+                        value,
+                    )
+                    guard_telemetry_counts[key] = (
+                        guard_telemetry_counts.get(key, 0) + 1
+                    )
             submissions = _extract_tool_result_submissions(record, record_label)
             for _, tool_name in submissions:
                 if tool_name not in matching_segment["definitionNames"]:
@@ -1254,6 +1304,26 @@ def _inspect_corpus_manifest(
                 tool_result_counts.items()
             )
         ],
+        "guardTelemetryCounts": [
+            {
+                "event": event,
+                "commit": commit,
+                "dirty": dirty,
+                "value": value,
+                "count": count,
+            }
+            for (event, commit, dirty, value), count in sorted(
+                guard_telemetry_counts.items()
+            )
+        ],
+        "recordCountsByBuild": [
+            {
+                "commit": commit,
+                "dirty": dirty,
+                "recordCount": count,
+            }
+            for (commit, dirty), count in sorted(record_counts_by_build.items())
+        ],
     }
     return summary, details
 
@@ -1265,6 +1335,82 @@ def validate_corpus_manifest(
     """Validate immutable private corpus inputs without exposing their paths."""
     summary, _ = _inspect_corpus_manifest(manifest_path, root)
     return summary
+
+
+def _guard_event_matches(pattern: str, event: str) -> bool:
+    if pattern.endswith("*"):
+        return event.startswith(pattern[:-1])
+    return pattern == event
+
+
+def _build_guard_measurement(
+    *,
+    guard_manifest: dict[str, Any],
+    corpus_details: dict[str, Any],
+    source_revision: str,
+) -> list[dict[str, Any]]:
+    record_counts_by_build = {
+        (row["commit"], row["dirty"]): row["recordCount"]
+        for row in corpus_details["recordCountsByBuild"]
+    }
+    matching_record_count = record_counts_by_build.get(
+        (source_revision, False), 0
+    )
+    observations = corpus_details["guardTelemetryCounts"]
+    rows: list[dict[str, Any]] = []
+    for entry in guard_manifest["entries"]:
+        telemetry_event = entry["telemetryEvent"]
+        matching_observations = [
+            observation
+            for observation in observations
+            if telemetry_event is not None
+            and _guard_event_matches(telemetry_event, observation["event"])
+        ]
+        matching_source_observation_count = sum(
+            observation["count"]
+            for observation in matching_observations
+            if observation["commit"] == source_revision
+            and observation["dirty"] is False
+        )
+        static_state = entry["currentStaticState"]
+        if static_state == "unreachable":
+            if matching_source_observation_count:
+                raise InventoryError(
+                    "Matching-build observation contradicts unreachable guard "
+                    f"proof: {entry['id']}"
+                )
+            action_state = (
+                "dead" if matching_record_count > 0 else "unresolved"
+            )
+        elif static_state == "reachable":
+            if matching_record_count == 0:
+                action_state = "unresolved"
+            elif matching_source_observation_count:
+                action_state = "live"
+            else:
+                action_state = "unexercised"
+        else:
+            action_state = "unresolved"
+        rows.append(
+            {
+                "id": entry["id"],
+                "symbol": entry["symbol"],
+                "currentStaticState": static_state,
+                "telemetryEvent": telemetry_event,
+                "observedByBuild": [
+                    {
+                        "commit": observation["commit"],
+                        "dirty": observation["dirty"],
+                        "value": observation["value"],
+                        "count": observation["count"],
+                    }
+                    for observation in matching_observations
+                ],
+                "matchingSourceRecordCount": matching_record_count,
+                "actionState": action_state,
+            }
+        )
+    return rows
 
 
 def _observation_summary(
@@ -1318,6 +1464,7 @@ def build_tool_residency_measurement(
     corpus_summary, corpus_details = _inspect_corpus_manifest(
         corpus_manifest_path, source_root
     )
+    guard_manifest = _load_json(guard_manifest_path)
     tool_manifest = _load_json(tool_manifest_path)
     snapshots = corpus_details["catalogueSnapshots"]
     counts_by_snapshot = {
@@ -1432,6 +1579,16 @@ def build_tool_residency_measurement(
             "toolResultSubmissionCount"
         ]
 
+    guards = _build_guard_measurement(
+        guard_manifest=guard_manifest,
+        corpus_details=corpus_details,
+        source_revision=revision,
+    )
+    guard_action_counts = {
+        state: sum(row["actionState"] == state for row in guards)
+        for state in ("dead", "unexercised", "live", "unresolved")
+    }
+
     return {
         "schemaName": TOOL_RESIDENCY_SCHEMA_NAME,
         "schemaVersion": TOOL_RESIDENCY_SCHEMA_VERSION,
@@ -1468,7 +1625,10 @@ def build_tool_residency_measurement(
             "toolResultSubmissionCount": sum(
                 row["toolResultSubmissionCount"] for row in definitions
             ),
+            "guardCount": len(guards),
+            "guardActionCounts": guard_action_counts,
         },
+        "guards": guards,
         "definitions": definitions,
         "bindings": [binding_rows[key] for key in sorted(binding_rows)],
     }

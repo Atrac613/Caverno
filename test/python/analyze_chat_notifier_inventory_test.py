@@ -233,6 +233,7 @@ class ChatNotifierInventoryTest(unittest.TestCase):
                 "timestamp": "2026-08-02T00:15:00Z",
                 "build": {"commit": commit[:10], "dirty": False},
                 "operation": "turn_exit",
+                "turnExit": {"guardDecisions": {}},
             },
             {
                 "schemaName": analyzer.SESSION_LOG_SCHEMA_NAME,
@@ -240,6 +241,7 @@ class ChatNotifierInventoryTest(unittest.TestCase):
                 "timestamp": "2026-08-02T00:30:00+00:00",
                 "build": {"commit": commit[:12], "dirty": False},
                 "operation": "turn_exit",
+                "turnExit": {"guardDecisions": {}},
             },
         ]
         session_path.write_text(
@@ -840,7 +842,7 @@ class ChatNotifierInventoryTest(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertEqual(first_bytes, second_bytes)
-        self.assertEqual(first["schemaVersion"], 1)
+        self.assertEqual(first["schemaVersion"], 2)
         self.assertEqual(first["inputs"]["guardManifestRevision"], commit)
         self.assertEqual(first["inputs"]["toolManifestRevision"], commit)
         self.assertEqual(
@@ -852,6 +854,13 @@ class ChatNotifierInventoryTest(unittest.TestCase):
                 "unobservedDefinitionCount": 121,
                 "bindingCount": 6,
                 "toolResultSubmissionCount": 0,
+                "guardCount": 65,
+                "guardActionCounts": {
+                    "dead": 2,
+                    "unexercised": 0,
+                    "live": 0,
+                    "unresolved": 63,
+                },
             },
         )
         static_arp = next(
@@ -868,6 +877,85 @@ class ChatNotifierInventoryTest(unittest.TestCase):
         )
         self.assertEqual(dynamic_names, ["first", "second", "shared"])
         self.assertNotIn(directory, json.dumps(first["corpus"], sort_keys=True))
+
+    def test_derives_dead_guards_and_preserves_observed_decision_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path, manifest, session_path, records, commit = (
+                self._write_corpus_fixture(directory)
+            )
+            records[0]["turnExit"]["guardDecisions"] = {
+                "completedToolResultFinalAnswerRecovery": "allow_recovery"
+            }
+            self._rewrite_session(session_path, records, manifest, manifest_path)
+
+            measurement = analyzer.build_tool_residency_measurement(
+                corpus_manifest_path=manifest_path,
+                guard_manifest_path=ROOT
+                / "tool/chat_notifier_guard_inventory.json",
+                tool_manifest_path=ROOT
+                / "tool/chat_notifier_tool_catalog_inventory.json",
+                root=ROOT,
+                resolved_source_revision=commit,
+            )
+
+        dead = [
+            row for row in measurement["guards"]
+            if row["actionState"] == "dead"
+        ]
+        self.assertEqual(
+            sorted(row["symbol"] for row in dead),
+            ["_repairJsonCandidate", "_tryRepairAndDecodeMap"],
+        )
+        covered = next(
+            row for row in measurement["guards"]
+            if row["id"] == analyzer.FIRST_TELEMETRY_SLICE_ID
+        )
+        self.assertEqual(covered["actionState"], "unresolved")
+        self.assertEqual(
+            covered["observedByBuild"],
+            [
+                {
+                    "commit": commit,
+                    "dirty": False,
+                    "value": "allow_recovery",
+                    "count": 1,
+                }
+            ],
+        )
+
+    def test_rejects_matching_build_observation_for_unreachable_guard(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            manifest_path, manifest, session_path, records, commit = (
+                self._write_corpus_fixture(directory)
+            )
+            records[0]["turnExit"]["guardDecisions"] = {
+                "completedToolResultFinalAnswerRecovery": "skip_recovery"
+            }
+            self._rewrite_session(session_path, records, manifest, manifest_path)
+            guard_manifest = json.loads(
+                (ROOT / "tool/chat_notifier_guard_inventory.json").read_text()
+            )
+            unreachable = next(
+                entry for entry in guard_manifest["entries"]
+                if entry["currentStaticState"] == "unreachable"
+            )
+            unreachable["telemetryEvent"] = analyzer.FIRST_TELEMETRY_SLICE_EVENT
+            guard_path = root / "guard.json"
+            guard_path.write_text(json.dumps(guard_manifest))
+
+            with self.assertRaisesRegex(
+                analyzer.InventoryError,
+                "contradicts unreachable guard proof",
+            ):
+                analyzer.build_tool_residency_measurement(
+                    corpus_manifest_path=manifest_path,
+                    guard_manifest_path=guard_path,
+                    tool_manifest_path=ROOT
+                    / "tool/chat_notifier_tool_catalog_inventory.json",
+                    root=ROOT,
+                    resolved_source_revision=commit,
+                )
 
     def test_joins_tool_residency_observations_and_bindings(self):
         with tempfile.TemporaryDirectory() as directory:
