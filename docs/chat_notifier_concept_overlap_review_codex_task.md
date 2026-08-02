@@ -72,7 +72,13 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending.
-- Tests run: Pending.
+- Summary: Identified three durable user concepts, evaluated all ten pairs,
+  and costed four bounded consolidation candidates without changing schemas or
+  behavior.
+- Tests run: Inventory structure/count checks, `git diff --check`, and the
+  standard repository verifier. Generation, analysis, and package tests passed;
+  the Flutter suite reproduced the unrelated stale stalled-diagnostic canary
+  fixture failure after 6,482 passing tests.
 - Coverage or low-coverage notes: Documentation-only investigation.
-- Risks or follow-ups: Pending.
+- Risks or follow-ups: A persisted-origin audit must measure legacy
+  workflow-only conversations before retiring the second authoring path.
