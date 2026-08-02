@@ -99,12 +99,12 @@ planning paths emit a plan document.
 - Behaviors at risk: legacy conversation loading, plan-less workflow proposals,
   plan approval fallback, task-ID stability, open-question retention, saved
   validation commands, plan canaries, and checkpoint restoration.
-- Completed evidence: a read-only SQLite audit classifies aggregate workflow
-  origins without exposing record data, and a pure compatibility fixture now
-  fails closed on provenance, progress, plan, projection, round-trip, and
-  checkpoint hazards. The next safe slice is an aggregate-only read-only gate
-  run for the 19 legacy-authored records; do not delete the editor or mutate the
-  live database.
+- Completed evidence: read-only SQLite audits classify aggregate workflow
+  origins and apply the pure compatibility gate without exposing record data.
+  Of 19 legacy records, 1 is compatible and 18 require current and checkpoint
+  provenance preservation; 4 also have plan/progress conflicts. The next safe
+  slice is an aggregate-only provenance-shape audit for those cohorts; do not
+  delete the editor or mutate the live database.
 
 ### C2 — Give task status one owner
 

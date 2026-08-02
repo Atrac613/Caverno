@@ -2,6 +2,7 @@ import '../entities/conversation.dart';
 import '../entities/conversation_plan_artifact.dart';
 import '../entities/conversation_workflow.dart';
 import 'conversation_plan_document_builder.dart';
+import 'conversation_plan_hash.dart';
 import 'conversation_plan_projection_service.dart';
 
 enum ConversationLegacyWorkflowCompatibilityBlocker {
@@ -12,16 +13,21 @@ enum ConversationLegacyWorkflowCompatibilityBlocker {
   danglingExecutionProgress,
   danglingOpenQuestionProgress,
   projectionFailed,
+  checkpointProjectionInconsistent,
   checkpointIncompatible,
 }
 
 class ConversationLegacyWorkflowCompatibilityResult {
   const ConversationLegacyWorkflowCompatibilityResult({
     required this.blockers,
+    required this.currentBlockers,
+    required this.checkpointBlockers,
     required this.workflowCheckpointCount,
   });
 
   final List<ConversationLegacyWorkflowCompatibilityBlocker> blockers;
+  final List<ConversationLegacyWorkflowCompatibilityBlocker> currentBlockers;
+  final List<ConversationLegacyWorkflowCompatibilityBlocker> checkpointBlockers;
   final int workflowCheckpointCount;
 
   bool get isCompatible => blockers.isEmpty;
@@ -36,16 +42,15 @@ class ConversationLegacyWorkflowCompatibilityService {
   static ConversationLegacyWorkflowCompatibilityResult evaluate(
     Conversation conversation,
   ) {
-    final blockers = <ConversationLegacyWorkflowCompatibilityBlocker>{};
-    blockers.addAll(
-      _evaluateSnapshot(
-        workflowStage: conversation.workflowStage,
-        workflowSpec: conversation.effectiveWorkflowSpec,
-        executionProgress: conversation.executionProgress,
-        openQuestionProgress: conversation.openQuestionProgress,
-        planArtifact: conversation.planArtifact,
-      ),
+    final currentBlockers = _evaluateSnapshot(
+      workflowStage: conversation.workflowStage,
+      workflowSpec: conversation.effectiveWorkflowSpec,
+      executionProgress: conversation.executionProgress,
+      openQuestionProgress: conversation.openQuestionProgress,
+      planArtifact: conversation.planArtifact,
     );
+    final checkpointBlockers =
+        <ConversationLegacyWorkflowCompatibilityBlocker>{};
 
     var workflowCheckpointCount = 0;
     for (final checkpoint in conversation.checkpoints) {
@@ -55,16 +60,32 @@ class ConversationLegacyWorkflowCompatibilityService {
         continue;
       }
       workflowCheckpointCount++;
-      final checkpointBlockers = _evaluateSnapshot(
+      if (_hasFreshCheckpointProjection(checkpoint, workflowSpec)) {
+        continue;
+      }
+      if (checkpoint.workflowSourceHash.trim().isNotEmpty ||
+          checkpoint.workflowDerivedAt != null) {
+        checkpointBlockers
+          ..add(
+            ConversationLegacyWorkflowCompatibilityBlocker
+                .checkpointProjectionInconsistent,
+          )
+          ..add(
+            ConversationLegacyWorkflowCompatibilityBlocker
+                .checkpointIncompatible,
+          );
+        continue;
+      }
+      final snapshotBlockers = _evaluateSnapshot(
         workflowStage: checkpoint.workflowStage,
         workflowSpec: workflowSpec,
         executionProgress: checkpoint.executionProgress,
         openQuestionProgress: checkpoint.openQuestionProgress,
         planArtifact: checkpoint.planArtifact,
       );
-      if (checkpointBlockers.isNotEmpty) {
-        blockers
-          ..addAll(checkpointBlockers)
+      if (snapshotBlockers.isNotEmpty) {
+        checkpointBlockers
+          ..addAll(snapshotBlockers)
           ..add(
             ConversationLegacyWorkflowCompatibilityBlocker
                 .checkpointIncompatible,
@@ -72,12 +93,22 @@ class ConversationLegacyWorkflowCompatibilityService {
       }
     }
 
+    final blockers = {...currentBlockers, ...checkpointBlockers};
+
     return ConversationLegacyWorkflowCompatibilityResult(
-      blockers: ConversationLegacyWorkflowCompatibilityBlocker.values
-          .where(blockers.contains)
-          .toList(growable: false),
+      blockers: _orderedBlockers(blockers),
+      currentBlockers: _orderedBlockers(currentBlockers),
+      checkpointBlockers: _orderedBlockers(checkpointBlockers),
       workflowCheckpointCount: workflowCheckpointCount,
     );
+  }
+
+  static List<ConversationLegacyWorkflowCompatibilityBlocker> _orderedBlockers(
+    Set<ConversationLegacyWorkflowCompatibilityBlocker> blockers,
+  ) {
+    return ConversationLegacyWorkflowCompatibilityBlocker.values
+        .where(blockers.contains)
+        .toList(growable: false);
   }
 
   static Set<ConversationLegacyWorkflowCompatibilityBlocker> _evaluateSnapshot({
@@ -175,6 +206,19 @@ class ConversationLegacyWorkflowCompatibilityService {
   ) {
     return workflowStage != ConversationWorkflowStage.idle ||
         workflowSpec.hasContent;
+  }
+
+  static bool _hasFreshCheckpointProjection(
+    ConversationCheckpoint checkpoint,
+    ConversationWorkflowSpec workflowSpec,
+  ) {
+    final sourceHash = checkpoint.workflowSourceHash.trim();
+    final executionDocument = checkpoint.planArtifact?.executionMarkdown;
+    return sourceHash.isNotEmpty &&
+        checkpoint.workflowDerivedAt != null &&
+        workflowSpec.hasContent &&
+        executionDocument != null &&
+        sourceHash == computeConversationPlanHash(executionDocument);
   }
 
   static ConversationWorkflowSpec _withoutProvenance(

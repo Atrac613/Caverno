@@ -7,6 +7,8 @@ import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_legacy_workflow_compatibility_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
+import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
+import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 
 void main() {
   const workflowSpec = ConversationWorkflowSpec(
@@ -63,6 +65,11 @@ void main() {
       note: 'Decide before live migration.',
       updatedAt: DateTime.utc(2026, 8, 2, 1, 2),
     );
+    final projectedCheckpoint =
+        ConversationPlanProjectionService.deriveExecutionProjection(
+          approvedMarkdown: planArtifact.normalizedApprovedMarkdown!,
+          derivedAt: DateTime.utc(2026, 8, 2),
+        );
     final conversation = _conversation(
       executionProgress: [progress],
       openQuestionProgress: [questionProgress],
@@ -78,6 +85,21 @@ void main() {
           openQuestionProgress: [questionProgress],
           planArtifact: planArtifact,
         ),
+        ConversationCheckpoint(
+          messageId: 'assistant-2',
+          messageCount: 4,
+          title: 'Plan-derived checkpoint',
+          createdAt: DateTime.utc(2026, 8, 2, 2),
+          workflowStage: ConversationWorkflowStage.implement,
+          workflowSpec: projectedCheckpoint.workflowSpec,
+          workflowSourceHash: computeConversationPlanHash(
+            planArtifact.normalizedApprovedMarkdown!,
+          ),
+          workflowDerivedAt: DateTime.utc(2026, 8, 2, 2),
+          executionProgress: [progress],
+          openQuestionProgress: [questionProgress],
+          planArtifact: planArtifact,
+        ),
       ],
     );
     final before = jsonEncode(conversation.toJson());
@@ -88,7 +110,9 @@ void main() {
 
     expect(result.isCompatible, isTrue);
     expect(result.blockers, isEmpty);
-    expect(result.workflowCheckpointCount, 1);
+    expect(result.currentBlockers, isEmpty);
+    expect(result.checkpointBlockers, isEmpty);
+    expect(result.workflowCheckpointCount, 2);
     expect(jsonEncode(conversation.toJson()), before);
   });
 
@@ -115,6 +139,8 @@ void main() {
             .contractProvenanceWouldChange,
       ),
     );
+    expect(result.currentBlockers, result.blockers);
+    expect(result.checkpointBlockers, isEmpty);
   });
 
   test('blocks dangling task and open-question progress', () {
@@ -143,6 +169,8 @@ void main() {
             .danglingOpenQuestionProgress,
       ]),
     );
+    expect(result.currentBlockers, result.blockers);
+    expect(result.checkpointBlockers, isEmpty);
   });
 
   test('blocks empty task IDs and conflicting plan documents', () {
@@ -200,7 +228,42 @@ void main() {
         ConversationLegacyWorkflowCompatibilityBlocker.checkpointIncompatible,
       ]),
     );
+    expect(result.currentBlockers, isEmpty);
+    expect(result.checkpointBlockers, result.blockers);
     expect(result.workflowCheckpointCount, 1);
+  });
+
+  test('blocks checkpoints with inconsistent projection metadata', () {
+    final conversation = _conversation(
+      checkpoints: [
+        ConversationCheckpoint(
+          messageId: 'assistant-1',
+          messageCount: 2,
+          title: 'Stale checkpoint',
+          createdAt: DateTime.utc(2026, 8, 2),
+          workflowStage: ConversationWorkflowStage.implement,
+          workflowSpec: workflowSpec,
+          workflowSourceHash: 'stale-source-hash',
+          workflowDerivedAt: DateTime.utc(2026, 8, 2),
+          planArtifact: planArtifact,
+        ),
+      ],
+    );
+
+    final result = ConversationLegacyWorkflowCompatibilityService.evaluate(
+      conversation,
+    );
+
+    expect(
+      result.blockers,
+      containsAll([
+        ConversationLegacyWorkflowCompatibilityBlocker
+            .checkpointProjectionInconsistent,
+        ConversationLegacyWorkflowCompatibilityBlocker.checkpointIncompatible,
+      ]),
+    );
+    expect(result.currentBlockers, isEmpty);
+    expect(result.checkpointBlockers, result.blockers);
   });
 }
 
