@@ -83,5 +83,6 @@ tool/codex_verify.sh
   non-UTC times, malformed digests, state-change replay, authority-free
   rehearsal compatibility, and existing preservation blockers.
 - Risks or follow-ups: This contract does not authorize a live migration.
-  Define a persistence-neutral audit receipt and read-only replay fixture before
-  any confirmation UI or transformer wiring.
+  The persistence-neutral receipt and replay validator are now defined. Rehearse
+  them end-to-end with synthetic explicit authority before any confirmation UI
+  or transformer wiring.

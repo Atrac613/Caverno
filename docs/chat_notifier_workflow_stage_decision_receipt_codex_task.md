@@ -64,7 +64,20 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: This fixture does not authorize a live migration.
+- Summary: Added a schema-v1 persistence-neutral receipt containing decision,
+  context, authority, both stages, selected stage, and a SHA-256 receipt digest
+  without Plan, workflow, or progress content. Replay validates schema and
+  fields, verifies the receipt digest, rebuilds current context, reconstructs
+  the manual decision, and accepts only the exact selected stage.
+- Tests run: The focused receipt-service test passes 8/8.
+  `tool/codex_verify.sh` completes generation, analysis, and package tests; the
+  Flutter suite passes 6,526/6,527 tests. Its only failure is the pre-existing
+  stale `run_coding_stalled_diagnostic_repair_live_canary` expectation for the
+  removed `_isTodoVerifierCall` helper.
+- Coverage or low-coverage notes: Fixtures cover both authorities, JSON
+  round-trip, content exclusion, input immutability, not-ready and missing
+  decisions, malformed JSON, schema and field failures, tampering, stale state,
+  selected-stage contradiction, and unavailable current context.
+- Risks or follow-ups: This fixture does not authorize a live migration. Run an
+  end-to-end synthetic explicit-authority rehearsal next; do not manufacture a
+  decision for any live conflict record.
