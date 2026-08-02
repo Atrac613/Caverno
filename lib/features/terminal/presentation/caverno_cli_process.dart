@@ -11,15 +11,20 @@ import '../../chat/application/persistence/caverno_chat_memory_mutation_coordina
 import '../../chat/application/persistence/caverno_persistence_bootstrap.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import '../../chat/data/datasources/session_logging_chat_datasource.dart';
+import '../../chat/data/datasources/chat_tool_catalogue_snapshot_store.dart';
 import '../../chat/data/repositories/chat_memory_repository.dart';
 import '../../chat/data/repositories/coding_project_repository.dart';
 import '../../chat/data/repositories/conversation_repository.dart';
 import '../../chat/data/datasources/app_database.dart';
 import '../../chat/data/repositories/skill_repository.dart';
+import '../../chat/domain/entities/mcp_tool_entity.dart';
+import '../../chat/domain/services/chat_tool_catalogue_snapshot.dart';
 import '../../chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import '../../chat/presentation/providers/conversations_notifier.dart';
+import '../../chat/presentation/providers/mcp_tool_provider.dart';
 import '../../chat/presentation/providers/semantic_search_provider.dart';
 import '../../settings/data/settings_repository.dart';
+import '../../settings/domain/entities/app_settings.dart';
 import '../../settings/presentation/providers/settings_notifier.dart';
 import '../../routines/data/routine_repository.dart';
 import '../application/caverno_cli_application.dart';
@@ -82,6 +87,7 @@ Future<int> runCavernoCliProcess(
       await terminal.flush();
       return CavernoCliExitCode.success;
     case CavernoCliInvocationAction.doctor:
+    case CavernoCliInvocationAction.catalogueSnapshot:
     case CavernoCliInvocationAction.run:
     case CavernoCliInvocationAction.conversationResume:
     case CavernoCliInvocationAction.conversationList:
@@ -98,6 +104,14 @@ Future<int> runCavernoCliProcess(
       : Directory(dataDirectory).absolute;
   if (invocation.action == CavernoCliInvocationAction.doctor) {
     return _runCavernoCliDoctor(
+      invocation: invocation,
+      environment: resolvedEnvironment,
+      dataDirectory: resolvedDataDirectory,
+      terminal: terminal,
+    );
+  }
+  if (invocation.action == CavernoCliInvocationAction.catalogueSnapshot) {
+    return _runChatToolCatalogueSnapshot(
       invocation: invocation,
       environment: resolvedEnvironment,
       dataDirectory: resolvedDataDirectory,
@@ -324,6 +338,15 @@ Options:
   --data-dir <path>    Override CAVERNO_HOME
 ''';
   }
+  if (utilityCommand == CavernoCliUtilityCommand.catalogueSnapshot) {
+    return '''Usage: caverno catalogue snapshot --output <path> [options]
+
+Options:
+  --output <path>      Write a new versioned catalogue snapshot
+  --json               Emit a path-free JSON result
+  --data-dir <path>    Override CAVERNO_HOME
+''';
+  }
   if (conversationCommand != null) {
     return switch (conversationCommand) {
       CavernoCliConversationCommand.list =>
@@ -361,7 +384,181 @@ $common''',
   caverno conversations show <conversation-id> [--json]
   caverno conversations resume <conversation-id> [input options] [prompt]
   caverno doctor [--project <path>] [--json]
+  caverno catalogue snapshot --output <path> [--json]
 $common''';
+}
+
+Future<int> _runChatToolCatalogueSnapshot({
+  required CavernoCliInvocation invocation,
+  required Map<String, String> environment,
+  required Directory? dataDirectory,
+  required _SystemTerminal terminal,
+}) async {
+  Box<String>? conversationBox;
+  Box<String>? memoryBox;
+  Box<String>? skillBox;
+  ProviderContainer? container;
+  try {
+    if (dataDirectory == null) {
+      await Hive.initFlutter();
+    } else {
+      await dataDirectory.create(recursive: true);
+      Hive.init(dataDirectory.path);
+    }
+    final preferences = await SharedPreferences.getInstance();
+    final settings = SettingsRepository(preferences).loadReadOnly();
+    conversationBox = await Hive.openBox<String>('conversations');
+    memoryBox = await Hive.openBox<String>('chat_memory');
+    skillBox = await Hive.openBox<String>('skills');
+    container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        settingsNotifierProvider.overrideWith(
+          () => _ReadOnlyCatalogueSettingsNotifier(settings),
+        ),
+        conversationBoxProvider.overrideWithValue(conversationBox),
+        chatMemoryBoxProvider.overrideWithValue(memoryBox),
+        skillBoxProvider.overrideWithValue(skillBox),
+      ],
+    );
+    final result = await _captureChatToolCatalogueSnapshot(
+      invocation: invocation,
+      environment: environment,
+      container: container,
+      terminal: terminal,
+    );
+    await terminal.flush();
+    return result;
+  } on CavernoCliFailure catch (failure) {
+    _presentEarlyFailure(
+      failure,
+      json: invocation.isJson,
+      terminal: terminal,
+      secrets: const <String>[],
+    );
+    await terminal.flush();
+    return failure.exitCode;
+  } on Object {
+    const failure = CavernoCliFailure(
+      code: 'catalogue_bootstrap_failed',
+      message: 'The catalogue snapshot runtime could not be initialized.',
+      exitCode: CavernoCliExitCode.persistence,
+    );
+    _presentEarlyFailure(
+      failure,
+      json: invocation.isJson,
+      terminal: terminal,
+      secrets: const <String>[],
+    );
+    await terminal.flush();
+    return failure.exitCode;
+  } finally {
+    container?.dispose();
+    await skillBox?.close();
+    await memoryBox?.close();
+    await conversationBox?.close();
+  }
+}
+
+Future<int> _captureChatToolCatalogueSnapshot({
+  required CavernoCliInvocation invocation,
+  required Map<String, String> environment,
+  required ProviderContainer container,
+  required _SystemTerminal terminal,
+}) async {
+  final settings = container.read(settingsNotifierProvider);
+  final toolService = container.read(mcpToolServiceProvider);
+  if (toolService == null) {
+    throw const CavernoCliFailure(
+      code: 'catalogue_unavailable',
+      message: 'The effective tool catalogue is unavailable.',
+      exitCode: CavernoCliExitCode.unavailable,
+    );
+  }
+
+  await toolService.connect();
+  final configuredServerCount = settings.mcpEnabled
+      ? settings.enabledMcpServers.length
+      : 0;
+  final serverStates = toolService.serverStates;
+  final hasIncompleteMcpDiscovery =
+      configuredServerCount != toolService.mcpClients.length ||
+      serverStates.length != configuredServerCount ||
+      serverStates.any(
+        (state) => state.status != McpConnectionStatus.connected,
+      );
+  if (hasIncompleteMcpDiscovery) {
+    throw const CavernoCliFailure(
+      code: 'catalogue_mcp_discovery_incomplete',
+      message:
+          'The catalogue snapshot was not written because configured MCP '
+          'discovery was incomplete.',
+      exitCode: CavernoCliExitCode.unavailable,
+    );
+  }
+
+  final secrets = <String>{
+    settings.apiKey,
+    settings.googleChatWebhookUrl,
+    settings.feedbackEndpointAuthToken,
+    environment['CAVERNO_LLM_API_KEY'] ?? '',
+    for (final endpoint in settings.usableLlmEndpoints) endpoint.apiKey,
+    for (final server in settings.enabledMcpServers)
+      ...server.normalizedEnv.values,
+  }..removeWhere((secret) => secret.trim().isEmpty);
+  const snapshotService = ChatToolCatalogueSnapshotService();
+  late final Map<String, Object?> snapshot;
+  try {
+    snapshot = snapshotService.build(
+      toolDefinitions: toolService.getOpenAiToolDefinitions(),
+      capturedAt: DateTime.now(),
+      buildProvenance: BuildInfo.toJson(),
+      secrets: secrets,
+    );
+    await const ChatToolCatalogueSnapshotStore().writeNew(
+      File(invocation.outputPath!).absolute,
+      snapshot,
+    );
+  } on FormatException catch (error) {
+    throw CavernoCliFailure(
+      code: 'catalogue_snapshot_invalid',
+      message: error.message,
+      exitCode: CavernoCliExitCode.unavailable,
+    );
+  } on FileSystemException catch (error) {
+    throw CavernoCliFailure(
+      code: 'catalogue_snapshot_write_failed',
+      message: error.message,
+      exitCode: CavernoCliExitCode.persistence,
+    );
+  }
+
+  final result = <String, Object?>{
+    'schema': 'caverno_chat_tool_catalogue_snapshot_result',
+    'version': 1,
+    'toolCount': snapshot['toolCount'],
+    'configurationFingerprint': snapshot['configurationFingerprint'],
+    'build': snapshot['build'],
+    'exporterRevision': snapshot['exporterRevision'],
+  };
+  if (invocation.isJson) {
+    terminal.writeStdout('${jsonEncode(result)}\n');
+  } else {
+    terminal.writeStdout(
+      'Captured ${snapshot['toolCount']} tool definitions to '
+      '${File(invocation.outputPath!).absolute.path}.\n',
+    );
+  }
+  return CavernoCliExitCode.success;
+}
+
+final class _ReadOnlyCatalogueSettingsNotifier extends SettingsNotifier {
+  _ReadOnlyCatalogueSettingsNotifier(this.settings);
+
+  final AppSettings settings;
+
+  @override
+  AppSettings build() => settings;
 }
 
 Future<int> _runCavernoCliDoctor({

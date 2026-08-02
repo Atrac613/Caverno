@@ -189,6 +189,68 @@ void main() {
       }
     });
 
+    test('parses catalogue snapshot output without a runtime prompt', () {
+      final invocation = CavernoCliInvocation.parse(const [
+        'catalogue',
+        'snapshot',
+        '--output=/tmp/catalogue.json',
+        '--data-dir',
+        '/tmp/caverno',
+        '--json',
+      ]);
+
+      expect(invocation.action, CavernoCliInvocationAction.catalogueSnapshot);
+      expect(
+        invocation.utilityCommand,
+        CavernoCliUtilityCommand.catalogueSnapshot,
+      );
+      expect(invocation.outputPath, '/tmp/catalogue.json');
+      expect(invocation.dataDirectory, '/tmp/caverno');
+      expect(invocation.outputMode, CavernoCliOutputMode.json);
+      expect(invocation.prompt, isNull);
+    });
+
+    test('parses catalogue snapshot help without requiring output', () {
+      final invocation = CavernoCliInvocation.parse(const [
+        'catalogue',
+        'snapshot',
+        '--help',
+      ]);
+
+      expect(invocation.action, CavernoCliInvocationAction.help);
+      expect(
+        invocation.utilityCommand,
+        CavernoCliUtilityCommand.catalogueSnapshot,
+      );
+    });
+
+    test('rejects incomplete or unsupported catalogue commands', () {
+      final cases = <(List<String>, String)>[
+        (const ['catalogue'], 'catalogue_command_required'),
+        (const ['catalogue', 'list'], 'unknown_catalogue_command'),
+        (const ['catalogue', 'snapshot'], 'catalogue_output_required'),
+        (
+          const ['catalogue', 'snapshot', 'unexpected'],
+          'unexpected_catalogue_argument',
+        ),
+        (const ['catalogue', 'snapshot', '--model', 'qwen'], 'unknown_flag'),
+      ];
+
+      for (final (arguments, code) in cases) {
+        expect(
+          () => CavernoCliInvocation.parse(arguments),
+          throwsA(
+            isA<CavernoCliFailure>().having(
+              (error) => error.code,
+              'code',
+              code,
+            ),
+          ),
+          reason: arguments.join(' '),
+        );
+      }
+    });
+
     test('rejects invalid conversation query arguments', () {
       final cases = <(List<String>, String)>[
         (const ['conversations'], 'conversation_command_required'),

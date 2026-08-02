@@ -1,5 +1,8 @@
 # Chat Tool Catalogue Snapshot: Codex Task
 
+Status: Implemented on 2026-08-02. A clean live capture remains the post-commit
+verification step because the command intentionally rejects dirty builds.
+
 ## Task
 
 - Goal: Add a read-only capture path for the complete effective chat tool
@@ -18,8 +21,8 @@
   `McpToolService`, a focused snapshot encoder/writer, and their tests.
 - Related docs: `docs/chat_notifier_inventory_codex_task.md` and
   `docs/chat_notifier_pinned_corpus_contract_codex_task.md`.
-- Reference implementation or pattern: Use the existing terminal bootstrap for
-  persisted settings and provider wiring, and use
+- Reference implementation or pattern: Reuse the terminal provider wiring with
+  a read-only settings bootstrap that does not run persistence migrations, and use
   `McpToolService.getOpenAiToolDefinitions()` as the single composition source.
 - Known quirks, compatibility rules, or release gates: Request-level `tools`
   arrays can be subsets and are not valid full catalogues. Dynamic MCP
@@ -59,7 +62,7 @@
   configuration fingerprint, and writes JSON atomically.
 - Edge cases: Reject a missing output path, an unknown build revision, a dirty
   build, duplicate or malformed tool names, and incomplete MCP connection
-  results. Refuse to overwrite an existing snapshot unless explicitly allowed.
+  results. Always refuse to overwrite an existing snapshot.
 - Failure paths: Return a non-zero CLI failure without leaving a partial output
   file. Redact configured secrets from definitions and diagnostics.
 - Accessibility, localization, or platform expectations: CLI-only English
@@ -80,9 +83,20 @@ temporary path and validate the emitted JSON without committing it.
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
+- Summary: Added `caverno catalogue snapshot --output <path>`, a read-only
+  bootstrap over the persisted settings and skills catalogue, fail-closed MCP
+  discovery, canonical secret-redacted encoding, clean build enforcement, and
+  atomic create-only persistence.
+- Tests run: Focused analysis passed; 21 focused tests passed. The standard
+  verifier passed dependency resolution, code generation, project and package
+  analysis, all package tests, and 6,482 Flutter tests. Its one failure is the
+  pre-existing stalled-diagnostic runner assertion that still expects the
+  removed `.where(_isTodoVerifierCall)` source text.
+- Coverage or low-coverage notes: The encoder, validation failures, redaction,
+  deterministic fingerprint, atomic write, overwrite refusal, and CLI parser
+  contract have focused coverage. Exact installed MCP discovery is verified by
+  the post-commit live capture rather than a synthetic process fixture.
 - Risks or follow-ups: The exporter proves catalogue completeness only for the
   runtime configuration present during capture; the private corpus manifest
-  must still join every log record to the correct snapshot segment.
+  must still join every log record to the correct snapshot segment. The
+  inventory analyser must validate schema version 1 before consuming it.

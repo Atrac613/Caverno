@@ -16,6 +16,7 @@ final class CavernoCliInvocation {
     this.model,
     this.apiKey,
     this.dataDirectory,
+    this.outputPath,
   });
 
   final CavernoCliInvocationAction action;
@@ -32,6 +33,7 @@ final class CavernoCliInvocation {
   final String? model;
   final String? apiKey;
   final String? dataDirectory;
+  final String? outputPath;
 
   bool get isJson => outputMode == CavernoCliOutputMode.json;
 
@@ -49,6 +51,7 @@ final class CavernoCliInvocation {
           'plan',
           'conversations',
           'doctor',
+          'catalogue',
           '--help',
           '-h',
           '--version',
@@ -61,7 +64,7 @@ final class CavernoCliInvocation {
       throw const CavernoCliFailure(
         code: 'command_required',
         message:
-            'A command is required. Use chat, coding, plan, conversations, or doctor.',
+            'A command is required. Use chat, coding, plan, conversations, doctor, or catalogue.',
         exitCode: CavernoCliExitCode.usage,
       );
     }
@@ -85,6 +88,9 @@ final class CavernoCliInvocation {
     }
     if (arguments.first == 'doctor') {
       return _parseDoctorInvocation(arguments);
+    }
+    if (arguments.first == 'catalogue') {
+      return _parseCatalogueInvocation(arguments);
     }
 
     final command = switch (arguments.first) {
@@ -467,6 +473,85 @@ final class CavernoCliInvocation {
       model: model,
       apiKey: apiKey,
       dataDirectory: dataDirectory,
+    );
+  }
+
+  static CavernoCliInvocation _parseCatalogueInvocation(
+    List<String> arguments,
+  ) {
+    if (arguments.length == 1) {
+      throw const CavernoCliFailure(
+        code: 'catalogue_command_required',
+        message: 'A catalogue command is required. Use snapshot.',
+        exitCode: CavernoCliExitCode.usage,
+      );
+    }
+    if (arguments[1] != 'snapshot') {
+      throw CavernoCliFailure(
+        code: 'unknown_catalogue_command',
+        message: 'Unknown catalogue command: ${arguments[1]}',
+        exitCode: CavernoCliExitCode.usage,
+      );
+    }
+
+    var outputMode = CavernoCliOutputMode.human;
+    String? outputPath;
+    String? dataDirectory;
+    var help = false;
+
+    for (var index = 2; index < arguments.length; index += 1) {
+      final argument = arguments[index];
+      if (argument == '--json') {
+        outputMode = CavernoCliOutputMode.json;
+        continue;
+      }
+      if (argument == '--help' || argument == '-h') {
+        help = true;
+        continue;
+      }
+      if (!argument.startsWith('-')) {
+        throw CavernoCliFailure(
+          code: 'unexpected_catalogue_argument',
+          message:
+              'The catalogue snapshot command does not accept an argument: '
+              '$argument',
+          exitCode: CavernoCliExitCode.usage,
+        );
+      }
+
+      final parsed = _parseOption(argument);
+      switch (parsed.name) {
+        case '--output':
+          outputPath = _optionValue(arguments, parsed, index: index);
+        case '--data-dir':
+          dataDirectory = _optionValue(arguments, parsed, index: index);
+        default:
+          throw CavernoCliFailure(
+            code: 'unknown_flag',
+            message: 'Unknown flag: ${parsed.name}',
+            exitCode: CavernoCliExitCode.usage,
+          );
+      }
+      if (parsed.inlineValue == null) {
+        index += 1;
+      }
+    }
+
+    if (!help && (outputPath == null || outputPath.trim().isEmpty)) {
+      throw const CavernoCliFailure(
+        code: 'catalogue_output_required',
+        message: '--output is required for the catalogue snapshot command.',
+        exitCode: CavernoCliExitCode.usage,
+      );
+    }
+    return CavernoCliInvocation(
+      action: help
+          ? CavernoCliInvocationAction.help
+          : CavernoCliInvocationAction.catalogueSnapshot,
+      outputMode: outputMode,
+      utilityCommand: CavernoCliUtilityCommand.catalogueSnapshot,
+      dataDirectory: dataDirectory,
+      outputPath: outputPath,
     );
   }
 
