@@ -44,7 +44,8 @@
      segments. Join every record to exactly one segment using logged timestamps.
   5. Pin each segment's full catalogue snapshot by path and SHA-256, and require
      a non-secret configuration fingerprint, capture command, and exporter
-     revision. Snapshot content analysis remains a follow-up.
+     revision. Schema-v1 snapshot content validation is implemented by the
+     follow-up catalogue-validation slice.
   6. Return a deterministic summary containing the corpus-manifest digest,
      file and record counts, logged date range, represented full build commits,
      and dirty-state markers.
@@ -126,7 +127,9 @@ tool/codex_verify.sh
   canonicalization, adjacent-boundary joins, deterministic output, missing and
   corrupted files, malformed JSONL, unknown or mixed builds, dirty-state
   mismatches, segment gaps and overlaps, uncovered records, snapshot pins, and
-  exact schema fields.
+  exact schema fields. The follow-up snapshot-validation slice additionally
+  covers canonical definition fingerprints and exporter/build provenance
+  joins.
 - Risks or follow-ups: A path-free structural scan on 2026-08-02 found 1,479
   local session-log files and 5,819 records. Eleven records contained the new
   recovery decision, but all eleven had `build.commit=unknown`; none can enter

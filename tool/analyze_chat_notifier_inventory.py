@@ -3,8 +3,9 @@
 
 Phase 0A implements the finite static guard inventory. Phase 0B adds a finite
 telemetry-selection contract without changing production logging. Phase 1
-starts by validating immutable private corpus inputs. Dynamic measurement and
-tool-catalogue analysis remain blocked until their own tested slices complete.
+validates immutable private corpus inputs and their effective tool-catalogue
+snapshots. Dynamic measurement remains blocked until its own tested slice
+completes.
 """
 
 from __future__ import annotations
@@ -151,7 +152,24 @@ CORPUS_SEGMENT_FIELDS = {
     "exporterRevision",
 }
 SESSION_LOG_SCHEMA_NAME = "caverno_llm_session_log_entry"
+CATALOGUE_SNAPSHOT_SCHEMA_NAME = "caverno_chat_tool_catalogue_snapshot"
+CATALOGUE_SNAPSHOT_SCHEMA_VERSION = 1
+CATALOGUE_SNAPSHOT_EXPORTER_REVISION = "1"
+CATALOGUE_SNAPSHOT_FIELDS = {
+    "schema",
+    "version",
+    "exporterRevision",
+    "capturedAt",
+    "build",
+    "configurationFingerprint",
+    "toolCount",
+    "toolDefinitions",
+}
+CATALOGUE_BUILD_REQUIRED_FIELDS = {"commit", "dirty"}
+CATALOGUE_BUILD_OPTIONAL_FIELDS = {"builtAt"}
+CATALOGUE_DEFINITION_REQUIRED_FIELDS = {"type", "function"}
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+FINGERPRINT_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-fA-F]{4,40}$")
 
 
@@ -353,6 +371,154 @@ def _load_session_records(path: pathlib.Path, label: str) -> list[dict[str, Any]
     return records
 
 
+def _load_catalogue_snapshot(path: pathlib.Path, label: str) -> dict[str, Any]:
+    try:
+        decoded = json.loads(path.read_text())
+    except (OSError, UnicodeError) as error:
+        raise InventoryError(f"Could not read {label}") from error
+    except json.JSONDecodeError as error:
+        raise InventoryError(f"{label} is invalid JSON") from error
+    if not isinstance(decoded, dict):
+        raise InventoryError(f"{label} must be an object")
+    return decoded
+
+
+def _validate_catalogue_snapshot(
+    path: pathlib.Path,
+    label: str,
+    source_root: pathlib.Path,
+    expected_commit: str,
+    expected_dirty: bool,
+    expected_fingerprint: str,
+    expected_exporter_revision: str,
+    revision_cache: dict[str, str],
+) -> dict[str, Any]:
+    snapshot = _load_catalogue_snapshot(path, label)
+    _require_exact_fields(snapshot, CATALOGUE_SNAPSHOT_FIELDS, label)
+    if snapshot["schema"] != CATALOGUE_SNAPSHOT_SCHEMA_NAME:
+        raise InventoryError(f"{label}.schema is unsupported")
+    version = snapshot["version"]
+    if (
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or version != CATALOGUE_SNAPSHOT_SCHEMA_VERSION
+    ):
+        raise InventoryError(f"{label}.version is unsupported")
+
+    exporter_revision = snapshot["exporterRevision"]
+    if exporter_revision != CATALOGUE_SNAPSHOT_EXPORTER_REVISION:
+        raise InventoryError(f"{label}.exporterRevision is unsupported")
+    if exporter_revision != expected_exporter_revision:
+        raise InventoryError(
+            f"{label}.exporterRevision does not match its segment declaration"
+        )
+    _parse_timestamp(snapshot["capturedAt"], f"{label}.capturedAt")
+
+    build = snapshot["build"]
+    if not isinstance(build, dict):
+        raise InventoryError(f"{label}.build must be an object")
+    _require_fields(build, CATALOGUE_BUILD_REQUIRED_FIELDS, f"{label}.build")
+    unexpected_build_fields = sorted(
+        build.keys()
+        - CATALOGUE_BUILD_REQUIRED_FIELDS
+        - CATALOGUE_BUILD_OPTIONAL_FIELDS
+    )
+    if unexpected_build_fields:
+        raise InventoryError(
+            f"{label}.build has unexpected fields: "
+            + ", ".join(unexpected_build_fields)
+        )
+    snapshot_commit = _canonical_commit(
+        source_root,
+        build["commit"],
+        f"{label}.build.commit",
+        revision_cache,
+    )
+    if snapshot_commit != expected_commit:
+        raise InventoryError(
+            f"{label}.build.commit does not match its corpus file declaration"
+        )
+    snapshot_dirty = build["dirty"]
+    if not isinstance(snapshot_dirty, bool):
+        raise InventoryError(f"{label}.build.dirty must be a boolean")
+    if snapshot_dirty != expected_dirty:
+        raise InventoryError(
+            f"{label}.build.dirty does not match its corpus file declaration"
+        )
+    if "builtAt" in build:
+        _parse_timestamp(build["builtAt"], f"{label}.build.builtAt")
+
+    fingerprint = snapshot["configurationFingerprint"]
+    if (
+        not isinstance(fingerprint, str)
+        or FINGERPRINT_PATTERN.fullmatch(fingerprint) is None
+    ):
+        raise InventoryError(
+            f"{label}.configurationFingerprint must be a SHA-256 fingerprint"
+        )
+    if fingerprint != expected_fingerprint:
+        raise InventoryError(
+            f"{label}.configurationFingerprint does not match its segment declaration"
+        )
+
+    definitions = snapshot["toolDefinitions"]
+    if not isinstance(definitions, list) or not definitions:
+        raise InventoryError(f"{label}.toolDefinitions must be a non-empty list")
+    names: list[str] = []
+    for index, definition in enumerate(definitions):
+        definition_label = f"{label}.toolDefinitions[{index}]"
+        if not isinstance(definition, dict):
+            raise InventoryError(f"{definition_label} must be an object")
+        _require_fields(
+            definition,
+            CATALOGUE_DEFINITION_REQUIRED_FIELDS,
+            definition_label,
+        )
+        if definition["type"] != "function":
+            raise InventoryError(f"{definition_label}.type must be function")
+        function = definition["function"]
+        if not isinstance(function, dict):
+            raise InventoryError(f"{definition_label}.function must be an object")
+        name = function.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise InventoryError(
+                f"{definition_label}.function.name must be non-empty"
+            )
+        names.append(name)
+    if names != sorted(names):
+        raise InventoryError(f"{label}.toolDefinitions must be sorted by name")
+    if len(names) != len(set(names)):
+        raise InventoryError(f"{label}.toolDefinitions names must be unique")
+
+    tool_count = snapshot["toolCount"]
+    if (
+        not isinstance(tool_count, int)
+        or isinstance(tool_count, bool)
+        or tool_count != len(definitions)
+    ):
+        raise InventoryError(
+            f"{label}.toolCount must match the toolDefinitions length"
+        )
+    fingerprint_payload = json.dumps(
+        {"toolDefinitions": definitions},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    computed_fingerprint = "sha256:" + hashlib.sha256(
+        fingerprint_payload
+    ).hexdigest()
+    if fingerprint != computed_fingerprint:
+        raise InventoryError(
+            f"{label}.configurationFingerprint does not match its definitions"
+        )
+    return {
+        "definitionCount": tool_count,
+        "configurationFingerprint": fingerprint,
+        "exporterRevision": exporter_revision,
+    }
+
+
 def validate_corpus_manifest(
     manifest_path: pathlib.Path,
     root: pathlib.Path | None = None,
@@ -376,6 +542,9 @@ def validate_corpus_manifest(
     seen_snapshots: set[tuple[pathlib.Path, str]] = set()
     revision_cache: dict[str, str] = {}
     represented_builds: set[tuple[str, bool]] = set()
+    catalogue_definition_count = 0
+    catalogue_fingerprints: set[str] = set()
+    catalogue_exporter_revisions: set[str] = set()
     record_count = 0
     segment_count = 0
     timestamps: list[dt.datetime] = []
@@ -456,6 +625,23 @@ def validate_corpus_manifest(
                 )
             seen_snapshots.add(snapshot_pin)
             _verify_file_hash(snapshot_path, snapshot_hash, segment_label)
+            snapshot_summary = _validate_catalogue_snapshot(
+                snapshot_path,
+                f"{segment_label}.catalogueSnapshot",
+                source_root,
+                build_commit,
+                dirty,
+                raw_segment["configurationFingerprint"],
+                raw_segment["exporterRevision"],
+                revision_cache,
+            )
+            catalogue_definition_count += snapshot_summary["definitionCount"]
+            catalogue_fingerprints.add(
+                snapshot_summary["configurationFingerprint"]
+            )
+            catalogue_exporter_revisions.add(
+                snapshot_summary["exporterRevision"]
+            )
             segments.append((start, end))
             segment_count += 1
 
@@ -500,6 +686,9 @@ def validate_corpus_manifest(
         "recordCount": record_count,
         "configurationSegmentCount": segment_count,
         "catalogueSnapshotCount": len(seen_snapshots),
+        "catalogueDefinitionCount": catalogue_definition_count,
+        "catalogueConfigurationFingerprints": sorted(catalogue_fingerprints),
+        "catalogueExporterRevisions": sorted(catalogue_exporter_revisions),
         "loggedRange": {
             "startTimestampInclusive": _format_timestamp(min(timestamps)),
             "endTimestampInclusive": _format_timestamp(max(timestamps)),

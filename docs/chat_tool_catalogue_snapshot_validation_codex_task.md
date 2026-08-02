@@ -1,5 +1,8 @@
 # Chat Tool Catalogue Snapshot Validation: Codex Task
 
+Status: Implemented and live-verified on 2026-08-02 against the private
+169-definition snapshot captured from clean build `739957a5`.
+
 ## Task
 
 - Goal: Validate every pinned catalogue snapshot as a complete schema-v1
@@ -85,7 +88,26 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending implementation.
-- Coverage or low-coverage notes: Pending implementation.
-- Risks or follow-ups: Dynamic measurement remains a separate slice.
+- Summary: Corpus validation now parses every pinned snapshot, enforces the
+  exact schema-v1 envelope, checks canonical tool ordering, uniqueness, count,
+  and fingerprint integrity, and joins exporter and build provenance to its
+  segment and file declarations. Its deterministic summary reports validated
+  definition counts, fingerprints, and exporter revisions without paths or
+  tool names.
+- Tests run:
+  - `python3 test/python/analyze_chat_notifier_inventory_test.py`: 30 passed.
+  - The private clean-build snapshot passed through a one-record pinned corpus
+    fixture with all 169 definitions and its original fingerprint intact.
+  - `tool/codex_verify.sh`: dependency installation, generated-file check,
+    project and package analysis, and package tests passed. The full Flutter
+    suite reached 6,482 passing tests and failed the same unrelated stale
+    assertion in
+    `test/tool/run_coding_stalled_diagnostic_repair_live_canary_test.dart`,
+    which still requires the removed source text `.where(_isTodoVerifierCall)`.
+- Coverage or low-coverage notes: Focused tests cover exact snapshot fields,
+  exporter extensions on definitions, invalid JSON without path disclosure,
+  malformed definitions, ordering, uniqueness, count, canonical fingerprint,
+  capture and build timestamps, and segment/file provenance mismatches.
+- Risks or follow-ups: Dynamic measurement remains a separate slice. Its first
+  useful corpus still requires clean matching-build session logs joined to
+  snapshots captured for each represented runtime configuration.

@@ -178,13 +178,53 @@ class ChatNotifierInventoryTest(unittest.TestCase):
     def _sha256(self, path):
         return hashlib.sha256(path.read_bytes()).hexdigest()
 
+    def _catalogue_snapshot(self, commit, *names):
+        definitions = [
+            {
+                "type": "function",
+                "x-caverno-fixture-source": "test",
+                "function": {
+                    "description": f"Fixture definition {index}",
+                    "name": name,
+                    "parameters": {"properties": {}, "type": "object"},
+                },
+            }
+            for index, name in enumerate(sorted(names), 1)
+        ]
+        fingerprint_payload = json.dumps(
+            {"toolDefinitions": definitions},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+        return {
+            "schema": analyzer.CATALOGUE_SNAPSHOT_SCHEMA_NAME,
+            "version": analyzer.CATALOGUE_SNAPSHOT_SCHEMA_VERSION,
+            "exporterRevision": analyzer.CATALOGUE_SNAPSHOT_EXPORTER_REVISION,
+            "capturedAt": "2026-08-01T23:55:00Z",
+            "build": {
+                "commit": commit[:10],
+                "dirty": False,
+                "builtAt": "2026-08-01T23:50:00Z",
+            },
+            "configurationFingerprint": "sha256:"
+            + hashlib.sha256(fingerprint_payload).hexdigest(),
+            "toolCount": len(definitions),
+            "toolDefinitions": definitions,
+        }
+
+    def _write_snapshot(self, path, snapshot):
+        path.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n")
+
     def _write_corpus_fixture(self, directory):
         root = pathlib.Path(directory)
         commit = analyzer.resolve_source_revision(ROOT, "HEAD")
         first_snapshot = root / "catalogue-a.json"
         second_snapshot = root / "catalogue-b.json"
-        first_snapshot.write_text('{"tools":["first"]}\n')
-        second_snapshot.write_text('{"tools":["second"]}\n')
+        first_catalogue = self._catalogue_snapshot(commit, "first")
+        second_catalogue = self._catalogue_snapshot(commit, "second", "shared")
+        self._write_snapshot(first_snapshot, first_catalogue)
+        self._write_snapshot(second_snapshot, second_catalogue)
         session_path = root / "session.jsonl"
         records = [
             {
@@ -218,20 +258,28 @@ class ChatNotifierInventoryTest(unittest.TestCase):
                         {
                             "startTimestampInclusive": "2026-08-02T00:00:00Z",
                             "endTimestampExclusive": "2026-08-02T00:30:00Z",
-                            "configurationFingerprint": "config-a",
+                            "configurationFingerprint": first_catalogue[
+                                "configurationFingerprint"
+                            ],
                             "catalogueSnapshotPath": first_snapshot.name,
                             "catalogueSnapshotSha256": self._sha256(first_snapshot),
                             "snapshotCaptureCommand": "capture catalogue a",
-                            "exporterRevision": "exporter-v1",
+                            "exporterRevision": first_catalogue[
+                                "exporterRevision"
+                            ],
                         },
                         {
                             "startTimestampInclusive": "2026-08-02T00:30:00Z",
                             "endTimestampExclusive": "2026-08-02T01:00:00Z",
-                            "configurationFingerprint": "config-b",
+                            "configurationFingerprint": second_catalogue[
+                                "configurationFingerprint"
+                            ],
                             "catalogueSnapshotPath": second_snapshot.name,
                             "catalogueSnapshotSha256": self._sha256(second_snapshot),
                             "snapshotCaptureCommand": "capture catalogue b",
-                            "exporterRevision": "exporter-v1",
+                            "exporterRevision": second_catalogue[
+                                "exporterRevision"
+                            ],
                         },
                     ],
                 }
@@ -240,6 +288,13 @@ class ChatNotifierInventoryTest(unittest.TestCase):
         manifest_path = root / "corpus.json"
         self._write_corpus_manifest(manifest_path, manifest)
         return manifest_path, manifest, session_path, records, commit
+
+    def _rewrite_snapshot(self, manifest_path, manifest, index, snapshot):
+        segment = manifest["files"][0]["segments"][index]
+        snapshot_path = manifest_path.parent / segment["catalogueSnapshotPath"]
+        self._write_snapshot(snapshot_path, snapshot)
+        segment["catalogueSnapshotSha256"] = self._sha256(snapshot_path)
+        self._write_corpus_manifest(manifest_path, manifest)
 
     def _write_corpus_manifest(self, path, manifest):
         path.write_text(json.dumps(manifest, sort_keys=True))
@@ -604,7 +659,13 @@ class ChatNotifierInventoryTest(unittest.TestCase):
 
     def test_accepts_hash_pinned_corpus_with_exact_segment_join(self):
         with tempfile.TemporaryDirectory() as directory:
-            manifest_path, _, _, _, commit = self._write_corpus_fixture(directory)
+            manifest_path, manifest, _, _, commit = self._write_corpus_fixture(
+                directory
+            )
+            expected_fingerprints = sorted(
+                segment["configurationFingerprint"]
+                for segment in manifest["files"][0]["segments"]
+            )
 
             first = analyzer.validate_corpus_manifest(manifest_path, ROOT)
             second = analyzer.validate_corpus_manifest(manifest_path, ROOT)
@@ -614,6 +675,12 @@ class ChatNotifierInventoryTest(unittest.TestCase):
         self.assertEqual(first["recordCount"], 2)
         self.assertEqual(first["configurationSegmentCount"], 2)
         self.assertEqual(first["catalogueSnapshotCount"], 2)
+        self.assertEqual(first["catalogueDefinitionCount"], 3)
+        self.assertEqual(first["catalogueExporterRevisions"], ["1"])
+        self.assertEqual(
+            first["catalogueConfigurationFingerprints"],
+            expected_fingerprints,
+        )
         self.assertEqual(
             first["loggedRange"],
             {
@@ -745,6 +812,104 @@ class ChatNotifierInventoryTest(unittest.TestCase):
                         "catalogueSnapshotSha256"
                     ]
                 self._write_corpus_manifest(manifest_path, manifest)
+
+                with self.assertRaisesRegex(analyzer.InventoryError, expected):
+                    analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+    def test_rejects_malformed_catalogue_snapshot_schema_and_definitions(self):
+        scenarios = (
+            ("schema", "schema is unsupported"),
+            ("field", "unexpected fields"),
+            ("count", "toolCount must match"),
+            ("unsorted", "must be sorted by name"),
+            ("duplicate", "names must be unique"),
+            ("definition", "missing fields"),
+        )
+        for scenario, expected in scenarios:
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                manifest_path, manifest, _, _, _ = self._write_corpus_fixture(
+                    directory
+                )
+                segment = manifest["files"][0]["segments"][1]
+                snapshot_path = (
+                    manifest_path.parent / segment["catalogueSnapshotPath"]
+                )
+                snapshot = json.loads(snapshot_path.read_text())
+                if scenario == "schema":
+                    snapshot["schema"] = "unsupported"
+                elif scenario == "field":
+                    snapshot["privatePath"] = "/private/catalogue"
+                elif scenario == "count":
+                    snapshot["toolCount"] += 1
+                elif scenario == "unsorted":
+                    snapshot["toolDefinitions"].reverse()
+                elif scenario == "duplicate":
+                    snapshot["toolDefinitions"][1]["function"]["name"] = "second"
+                else:
+                    snapshot["toolDefinitions"][0].pop("function")
+                self._rewrite_snapshot(manifest_path, manifest, 1, snapshot)
+
+                with self.assertRaisesRegex(analyzer.InventoryError, expected):
+                    analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+    def test_rejects_invalid_catalogue_snapshot_json_without_exposing_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path, manifest, _, _, _ = self._write_corpus_fixture(
+                directory
+            )
+            segment = manifest["files"][0]["segments"][0]
+            snapshot_path = manifest_path.parent / segment["catalogueSnapshotPath"]
+            snapshot_path.write_text("not-json\n")
+            segment["catalogueSnapshotSha256"] = self._sha256(snapshot_path)
+            self._write_corpus_manifest(manifest_path, manifest)
+
+            with self.assertRaises(analyzer.InventoryError) as context:
+                analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+        self.assertIn("catalogueSnapshot is invalid JSON", str(context.exception))
+        self.assertNotIn(directory, str(context.exception))
+
+    def test_rejects_catalogue_fingerprint_and_segment_provenance_drift(self):
+        scenarios = (
+            ("fingerprint", "does not match its definitions"),
+            ("segment", "does not match its segment declaration"),
+            ("exporter", "exporterRevision does not match"),
+            ("commit", "build.commit does not match"),
+            ("dirty", "build.dirty does not match"),
+            ("builtAt", "must include a UTC offset"),
+        )
+        for scenario, expected in scenarios:
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                manifest_path, manifest, _, _, _ = self._write_corpus_fixture(
+                    directory
+                )
+                segment = manifest["files"][0]["segments"][0]
+                snapshot_path = (
+                    manifest_path.parent / segment["catalogueSnapshotPath"]
+                )
+                snapshot = json.loads(snapshot_path.read_text())
+                if scenario == "fingerprint":
+                    snapshot["toolDefinitions"][0]["function"][
+                        "description"
+                    ] = "Changed after capture"
+                    self._rewrite_snapshot(manifest_path, manifest, 0, snapshot)
+                elif scenario == "segment":
+                    segment["configurationFingerprint"] = "sha256:" + "0" * 64
+                    self._write_corpus_manifest(manifest_path, manifest)
+                elif scenario == "exporter":
+                    segment["exporterRevision"] = "2"
+                    self._write_corpus_manifest(manifest_path, manifest)
+                elif scenario == "commit":
+                    snapshot["build"]["commit"] = analyzer.resolve_source_revision(
+                        ROOT, "HEAD^"
+                    )
+                    self._rewrite_snapshot(manifest_path, manifest, 0, snapshot)
+                elif scenario == "dirty":
+                    snapshot["build"]["dirty"] = True
+                    self._rewrite_snapshot(manifest_path, manifest, 0, snapshot)
+                else:
+                    snapshot["build"]["builtAt"] = "2026-08-01T23:50:00"
+                    self._rewrite_snapshot(manifest_path, manifest, 0, snapshot)
 
                 with self.assertRaisesRegex(analyzer.InventoryError, expected):
                     analyzer.validate_corpus_manifest(manifest_path, ROOT)
