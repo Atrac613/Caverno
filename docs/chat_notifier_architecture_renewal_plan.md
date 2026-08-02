@@ -204,12 +204,15 @@ An earlier draft had Phase 0 instrument "guards whose silent non-firing decides
 reachability" and Phase 1 inventory the guards. That is circular — the
 selection needs the inventory. Split:
 
-**Phase 0A — static guard inventory.** Create the finite checked-in inventory
-defined by the investigation task. Enumerate the guards and recovery paths and,
-for each, whether a silent non-fire can make a feature unreachable. Static
-reading only. Historical notes counted 376 of 377 `return null;` statements in
+**Phase 0A — static guard inventory (complete 2026-08-02).** The finite
+checked-in inventory now represents 65 decision candidates and explicitly
+excludes 15 matched helpers. It records whether silent non-fire can suppress a
+guarded or recovery path, maps 13 existing structured events, and leaves all
+action states unresolved pending production-root edge review and matching-build
+observations. The focused analyser test enforces exact discovery coverage.
+Historical notes counted 376 of 377 `return null;` statements in
 `domain/services` without a nearby log, but that heuristic is not a reachability
-proof and must not define the inventory by itself.
+proof and did not define this inventory.
 
 **Phase 0B — telemetry for the subset 0A selects.** Adding one such field
 (`hasVerifierReplayCandidate`) on 2026-08-01 resolved in a single run a question

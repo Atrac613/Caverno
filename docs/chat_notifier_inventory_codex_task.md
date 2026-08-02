@@ -1,5 +1,11 @@
 # ChatNotifier Inventory: Codex Investigation Task
 
+Status: Phase 0A static guard inventory completed on 2026-08-02. The checked-in
+manifest contains 65 decision candidates and 15 explicit helper exclusions,
+and its deterministic discovery check is covered by seven focused Python tests.
+Dynamic corpus analysis, tool-catalogue validation, and Phase 0B telemetry
+selection remain pending; no dynamic action state is claimed yet.
+
 Phase 1 of the architecture renewal. **Do not refactor, delete, or change
 product behaviour.** A prerequisite tooling slice may add measurement code and
 tests; no architectural implementation starts in this task.
@@ -94,6 +100,12 @@ test at `test/python/analyze_chat_notifier_inventory_test.py`. The tool must:
   catalogue-snapshot digests; and
 - emit `currentStaticState`, `observedByBuild`, and the derived action state
   separately, rejecting a matching-build dead/live contradiction.
+
+Phase 0A establishes only the static half of this contract. The analyser now
+accepts the final command surface and validates the finite guard discovery set,
+required evidence fields, exact entry/exclusion coverage, and stale entries.
+It deliberately rejects tool-manifest and dynamic-corpus operations until
+their focused slices implement the remaining contract.
 
 `--require-clean-source` checks the classified `lib/` paths plus the analyser
 and checked-in manifests against the resolved source commit. Findings documents

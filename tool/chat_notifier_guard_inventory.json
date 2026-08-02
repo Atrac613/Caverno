@@ -1,0 +1,1709 @@
+{
+  "schemaName": "caverno_chat_notifier_guard_inventory",
+  "schemaVersion": 1,
+  "sourceRevision": "HEAD",
+  "auditedSourceRoots": [
+    "lib/features/chat/domain/services",
+    "lib/features/chat/presentation/providers"
+  ],
+  "discoveryRules": [
+    {
+      "id": "domain-guard-policy-recovery-types",
+      "root": "lib/features/chat/domain/services",
+      "glob": "*.dart",
+      "description": "Top-level production types whose names end in Guard, Policy, or Recovery."
+    },
+    {
+      "id": "notifier-guard-recovery-members",
+      "root": "lib/features/chat/presentation/providers",
+      "glob": "chat_notifier*.dart",
+      "description": "ChatNotifier members whose names contain guard, recovery, or repair."
+    }
+  ],
+  "explicitExclusions": [
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_buildCodingCommandOutputGuardrailToolResult",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_buildCodingCommandOutputGuardrailToolResult",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Construction or formatting helper; it does not select whether the guard or recovery path runs."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_buildDuplicateFollowUpRecoveryPrompt",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_buildDuplicateFollowUpRecoveryPrompt",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Construction or formatting helper; it does not select whether the guard or recovery path runs."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_buildDuplicateInspectionRecoveryPrompt",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_buildDuplicateInspectionRecoveryPrompt",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Construction or formatting helper; it does not select whether the guard or recovery path runs."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_buildSkippedBrowserActionRecoveryToolCall",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_buildSkippedBrowserActionRecoveryToolCall",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Construction or formatting helper; it does not select whether the guard or recovery path runs."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_buildSkippedBrowserActionRepairPrompt",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_buildSkippedBrowserActionRepairPrompt",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Construction or formatting helper; it does not select whether the guard or recovery path runs."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_buildSkippedSkillLoadRecoveryToolCall",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_buildSkippedSkillLoadRecoveryToolCall",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Construction or formatting helper; it does not select whether the guard or recovery path runs."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_buildToolLoopExhaustionRecoveryPrompt",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_buildToolLoopExhaustionRecoveryPrompt",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Construction or formatting helper; it does not select whether the guard or recovery path runs."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_buildToolLoopRecoveryToolResults",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_buildToolLoopRecoveryToolResults",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Construction or formatting helper; it does not select whether the guard or recovery path runs."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_logCodingCommandOutputGuardrailSummary",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_logCodingCommandOutputGuardrailSummary",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Telemetry writer; it records a decision but does not select the guarded path."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart::_codingContinuationRecoveryCode",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart",
+      "symbol": "_codingContinuationRecoveryCode",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Result-code formatter; the owning recovery policy represents the decision."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart::_clearCommandDiagnosticRepairFocus",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart",
+      "symbol": "_clearCommandDiagnosticRepairFocus",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Lifecycle cleanup helper; it does not select the repair path."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart::_commandDiagnosticRepairFocusFor",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart",
+      "symbol": "_commandDiagnosticRepairFocusFor",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "State lookup helper; the replay guard and replay action represent the selection."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart::_pythonAttachmentRepairInput",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart",
+      "symbol": "_pythonAttachmentRepairInput",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Input adapter; the owning policy or recovery entry represents the decision."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_tool_result_telemetry.dart::_planningJsonRepairFeedbackBinding",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_tool_result_telemetry.dart",
+      "symbol": "_planningJsonRepairFeedbackBinding",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Feedback binding helper; it does not select the JSON repair path."
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart::_turnFinalizationRecoveryInput",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart",
+      "symbol": "_turnFinalizationRecoveryInput",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "reason": "Input adapter; the owning policy or recovery entry represents the decision."
+    }
+  ],
+  "entries": [
+    {
+      "id": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart::AnalysisOptionsLintEditGuard",
+      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "symbol": "AnalysisOptionsLintEditGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart:47",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:212"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart:47 -> AnalysisOptionsLintEditGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:212 -> AnalysisOptionsLintEditGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/ask_user_question_policy.dart::AskUserQuestionPolicy",
+      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "symbol": "AskUserQuestionPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:27",
+        "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:38",
+        "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:45",
+        "lexical reference at lib/features/chat/domain/services/ask_user_question_policy.dart:179"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:27 -> AskUserQuestionPolicy",
+        "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:38 -> AskUserQuestionPolicy",
+        "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:45 -> AskUserQuestionPolicy",
+        "lexical reference at lib/features/chat/domain/services/ask_user_question_policy.dart:179 -> AskUserQuestionPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/background_process_follow_up_policy.dart::BackgroundProcessFollowUpPolicy",
+      "path": "lib/features/chat/domain/services/background_process_follow_up_policy.dart",
+      "symbol": "BackgroundProcessFollowUpPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/background_process_follow_up_policy.dart:9",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6032",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6034",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6068",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6070",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6518",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6520"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/background_process_follow_up_policy.dart:9 -> BackgroundProcessFollowUpPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6032 -> BackgroundProcessFollowUpPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6034 -> BackgroundProcessFollowUpPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6068 -> BackgroundProcessFollowUpPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6070 -> BackgroundProcessFollowUpPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6518 -> BackgroundProcessFollowUpPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6520 -> BackgroundProcessFollowUpPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/background_process_path_policy.dart::BackgroundProcessPathPolicy",
+      "path": "lib/features/chat/domain/services/background_process_path_policy.dart",
+      "symbol": "BackgroundProcessPathPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/background_process_path_policy.dart:5",
+        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:26",
+        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:27",
+        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:53"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/background_process_path_policy.dart:5 -> BackgroundProcessPathPolicy",
+        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:26 -> BackgroundProcessPathPolicy",
+        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:27 -> BackgroundProcessPathPolicy",
+        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:53 -> BackgroundProcessPathPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart::CodingContinuationRecoveryPolicy",
+      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "symbol": "CodingContinuationRecoveryPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/coding_continuation_recovery_policy.dart:38",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:115",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:120",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:125",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:34",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:52",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:65",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:85"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/coding_continuation_recovery_policy.dart:38 -> CodingContinuationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:115 -> CodingContinuationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:120 -> CodingContinuationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:125 -> CodingContinuationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:34 -> CodingContinuationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:52 -> CodingContinuationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:65 -> CodingContinuationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:85 -> CodingContinuationRecoveryPolicy"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": "turn_exit.transforms:coding_continuation_recovery_*",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/coding_verification_claim_guard.dart::CodingVerificationClaimGuard",
+      "path": "lib/features/chat/domain/services/coding_verification_claim_guard.dart",
+      "symbol": "CodingVerificationClaimGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/coding_verification_claim_guard.dart:53",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:55",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:56",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:70"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/coding_verification_claim_guard.dart:53 -> CodingVerificationClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:55 -> CodingVerificationClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:56 -> CodingVerificationClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:70 -> CodingVerificationClaimGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": "tool_result.trigger:completionClaim",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart::CommandDiagnosticVerifierReplayGuard",
+      "path": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart",
+      "symbol": "CommandDiagnosticVerifierReplayGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart:65",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:296",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:461"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart:65 -> CommandDiagnosticVerifierReplayGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:296 -> CommandDiagnosticVerifierReplayGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:461 -> CommandDiagnosticVerifierReplayGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_policy.dart::CommandDiagnosticVerifierReplayPolicy",
+      "path": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_policy.dart",
+      "symbol": "CommandDiagnosticVerifierReplayPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart:68",
+        "lexical reference at lib/features/chat/domain/services/command_diagnostic_verifier_replay_policy.dart:4"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart:68 -> CommandDiagnosticVerifierReplayPolicy",
+        "lexical reference at lib/features/chat/domain/services/command_diagnostic_verifier_replay_policy.dart:4 -> CommandDiagnosticVerifierReplayPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/computer_use_action_policy.dart::ComputerUseActionPolicy",
+      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "symbol": "ComputerUseActionPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/data/datasources/computer_use_tool_runtime_adapter.dart:55",
+        "lexical reference at lib/features/chat/data/datasources/computer_use_tool_runtime_adapter.dart:97",
+        "lexical reference at lib/features/chat/domain/services/computer_use_action_policy.dart:98",
+        "lexical reference at lib/features/chat/domain/services/computer_use_tool_handler.dart:20",
+        "lexical reference at lib/features/chat/domain/services/computer_use_tool_handler.dart:40"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/data/datasources/computer_use_tool_runtime_adapter.dart:55 -> ComputerUseActionPolicy",
+        "lexical reference at lib/features/chat/data/datasources/computer_use_tool_runtime_adapter.dart:97 -> ComputerUseActionPolicy",
+        "lexical reference at lib/features/chat/domain/services/computer_use_action_policy.dart:98 -> ComputerUseActionPolicy",
+        "lexical reference at lib/features/chat/domain/services/computer_use_tool_handler.dart:20 -> ComputerUseActionPolicy",
+        "lexical reference at lib/features/chat/domain/services/computer_use_tool_handler.dart:40 -> ComputerUseActionPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart::ContextSurgeryProtectedPathPolicy",
+      "path": "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart",
+      "symbol": "ContextSurgeryProtectedPathPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/context_surgery_protected_path_policy.dart:7",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:3837",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:15"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/context_surgery_protected_path_policy.dart:7 -> ContextSurgeryProtectedPathPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:3837 -> ContextSurgeryProtectedPathPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:15 -> ContextSurgeryProtectedPathPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/conversation_goal_auto_continue_policy.dart::ConversationGoalAutoContinuePolicy",
+      "path": "lib/features/chat/domain/services/conversation_goal_auto_continue_policy.dart",
+      "symbol": "ConversationGoalAutoContinuePolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/conversation_goal_auto_continue_policy.dart:213",
+        "lexical reference at lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart:102",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart:7"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/conversation_goal_auto_continue_policy.dart:213 -> ConversationGoalAutoContinuePolicy",
+        "lexical reference at lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart:102 -> ConversationGoalAutoContinuePolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart:7 -> ConversationGoalAutoContinuePolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart::DuplicateToolResultRecovery",
+      "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+      "symbol": "DuplicateToolResultRecovery",
+      "kind": "recovery_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:10",
+        "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:11",
+        "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:71",
+        "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:75",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:2060",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:2061",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5342",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5343"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:10 -> DuplicateToolResultRecovery",
+        "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:11 -> DuplicateToolResultRecovery",
+        "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:71 -> DuplicateToolResultRecovery",
+        "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:75 -> DuplicateToolResultRecovery",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:2060 -> DuplicateToolResultRecovery",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:2061 -> DuplicateToolResultRecovery",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5342 -> DuplicateToolResultRecovery",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5343 -> DuplicateToolResultRecovery"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/execution_budget_policy.dart::ExecutionBudgetPolicy",
+      "path": "lib/features/chat/domain/services/execution_budget_policy.dart",
+      "symbol": "ExecutionBudgetPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/execution_budget_policy.dart:24",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5221"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/execution_budget_policy.dart:24 -> ExecutionBudgetPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5221 -> ExecutionBudgetPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/file_mutation_evidence_policy.dart::FileMutationEvidencePolicy",
+      "path": "lib/features/chat/domain/services/file_mutation_evidence_policy.dart",
+      "symbol": "FileMutationEvidencePolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/coding_verification_mutation_signature.dart:34",
+        "lexical reference at lib/features/chat/domain/services/file_mutation_evidence_policy.dart:7",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:15",
+        "lexical reference at lib/features/chat/domain/services/git_tool_handler.dart:32",
+        "lexical reference at lib/features/chat/domain/services/saved_task_target_scope_guard.dart:35",
+        "lexical reference at lib/features/chat/domain/services/tool_call_execution_policy.dart:13",
+        "lexical reference at lib/features/chat/domain/services/tool_result_prompt_builder.dart:228",
+        "lexical reference at lib/features/chat/domain/services/tool_terminal_response_policy.dart:28",
+        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:42",
+        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:43",
+        "lexical reference at lib/features/chat/domain/services/unwritten_file_claim_guard.dart:45",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:343"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/coding_verification_mutation_signature.dart:34 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/file_mutation_evidence_policy.dart:7 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:15 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/git_tool_handler.dart:32 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/saved_task_target_scope_guard.dart:35 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/tool_call_execution_policy.dart:13 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/tool_result_prompt_builder.dart:228 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/tool_terminal_response_policy.dart:28 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:42 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:43 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/unwritten_file_claim_guard.dart:45 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:343 -> FileMutationEvidencePolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/final_answer_recovery_policy.dart::FinalAnswerRecoveryPolicy",
+      "path": "lib/features/chat/domain/services/final_answer_recovery_policy.dart",
+      "symbol": "FinalAnswerRecoveryPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/final_answer_recovery_policy.dart:16",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:342",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:46",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:48",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:58"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/final_answer_recovery_policy.dart:16 -> FinalAnswerRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:342 -> FinalAnswerRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:46 -> FinalAnswerRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:48 -> FinalAnswerRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:58 -> FinalAnswerRecoveryPolicy"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": "turn_exit.transforms:final_answer_concise_retry",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart::GitTagFormatInspectionGuard",
+      "path": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart",
+      "symbol": "GitTagFormatInspectionGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/git_tag_format_inspection_guard.dart:29",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:219"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/git_tag_format_inspection_guard.dart:29 -> GitTagFormatInspectionGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:219 -> GitTagFormatInspectionGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/git_write_confirmation_policy.dart::GitWriteConfirmationPolicy",
+      "path": "lib/features/chat/domain/services/git_write_confirmation_policy.dart",
+      "symbol": "GitWriteConfirmationPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/git_write_confirmation_policy.dart:26",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5286",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5797"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/git_write_confirmation_policy.dart:26 -> GitWriteConfirmationPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5286 -> GitWriteConfirmationPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5797 -> GitWriteConfirmationPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/goal_validation_probe_guard.dart::GoalValidationProbeGuard",
+      "path": "lib/features/chat/domain/services/goal_validation_probe_guard.dart",
+      "symbol": "GoalValidationProbeGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/goal_validation_probe_guard.dart:12",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:189",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:483"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/goal_validation_probe_guard.dart:12 -> GoalValidationProbeGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:189 -> GoalValidationProbeGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:483 -> GoalValidationProbeGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/material_contract_assumption_guard.dart::MaterialContractAssumptionGuard",
+      "path": "lib/features/chat/domain/services/material_contract_assumption_guard.dart",
+      "symbol": "MaterialContractAssumptionGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/material_contract_assumption_guard.dart:14",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:183",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:198",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:484"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/material_contract_assumption_guard.dart:14 -> MaterialContractAssumptionGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:183 -> MaterialContractAssumptionGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:198 -> MaterialContractAssumptionGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:484 -> MaterialContractAssumptionGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/model_switch_settings_policy.dart::ModelSwitchSettingsPolicy",
+      "path": "lib/features/chat/domain/services/model_switch_settings_policy.dart",
+      "symbol": "ModelSwitchSettingsPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/model_switch_settings_policy.dart:22",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_context_surgery.dart:15"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/model_switch_settings_policy.dart:22 -> ModelSwitchSettingsPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_context_surgery.dart:15 -> ModelSwitchSettingsPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/narrated_transcript_claim_guard.dart::NarratedTranscriptClaimGuard",
+      "path": "lib/features/chat/domain/services/narrated_transcript_claim_guard.dart",
+      "symbol": "NarratedTranscriptClaimGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:57",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:58",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:71",
+        "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:40",
+        "lexical reference at lib/features/chat/domain/services/narrated_transcript_repair_planner.dart:94"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:57 -> NarratedTranscriptClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:58 -> NarratedTranscriptClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:71 -> NarratedTranscriptClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:40 -> NarratedTranscriptClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/narrated_transcript_repair_planner.dart:94 -> NarratedTranscriptClaimGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": "turn_exit.transforms:narrated_transcript_repair",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/participant_message_finalizer.dart::ParticipantMessageVisibilityPolicy",
+      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "symbol": "ParticipantMessageVisibilityPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/participant_message_finalizer.dart:212",
+        "lexical reference at lib/features/chat/domain/services/participant_message_finalizer.dart:238"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/participant_message_finalizer.dart:212 -> ParticipantMessageVisibilityPolicy",
+        "lexical reference at lib/features/chat/domain/services/participant_message_finalizer.dart:238 -> ParticipantMessageVisibilityPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/participant_tool_policy.dart::ParticipantToolPolicy",
+      "path": "lib/features/chat/domain/services/participant_tool_policy.dart",
+      "symbol": "ParticipantToolPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/data/datasources/participant_tool_runtime_adapter.dart:35",
+        "lexical reference at lib/features/chat/domain/services/participant_tool_executor.dart:185",
+        "lexical reference at lib/features/chat/domain/services/participant_tool_executor.dart:198",
+        "lexical reference at lib/features/chat/domain/services/participant_tool_policy.dart:7",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart:294",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart:379",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart:389"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/data/datasources/participant_tool_runtime_adapter.dart:35 -> ParticipantToolPolicy",
+        "lexical reference at lib/features/chat/domain/services/participant_tool_executor.dart:185 -> ParticipantToolPolicy",
+        "lexical reference at lib/features/chat/domain/services/participant_tool_executor.dart:198 -> ParticipantToolPolicy",
+        "lexical reference at lib/features/chat/domain/services/participant_tool_policy.dart:7 -> ParticipantToolPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart:294 -> ParticipantToolPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart:379 -> ParticipantToolPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart:389 -> ParticipantToolPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/pending_action_length_recovery_policy.dart::PendingActionLengthRecoveryPolicy",
+      "path": "lib/features/chat/domain/services/pending_action_length_recovery_policy.dart",
+      "symbol": "PendingActionLengthRecoveryPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/pending_action_length_recovery_policy.dart:6",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:344"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/pending_action_length_recovery_policy.dart:6 -> PendingActionLengthRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:344 -> PendingActionLengthRecoveryPolicy"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": "turn_exit.transforms:pending_action_length_recovery",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/planning_tool_policy.dart::PlanningToolPolicy",
+      "path": "lib/features/chat/domain/services/planning_tool_policy.dart",
+      "symbol": "PlanningToolPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/planning_tool_policy.dart:17",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:346",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7542",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7586"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/planning_tool_policy.dart:17 -> PlanningToolPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:346 -> PlanningToolPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7542 -> PlanningToolPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7586 -> PlanningToolPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/process_start_result_policy.dart::ProcessStartResultPolicy",
+      "path": "lib/features/chat/domain/services/process_start_result_policy.dart",
+      "symbol": "ProcessStartResultPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:24",
+        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:25",
+        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:52",
+        "lexical reference at lib/features/chat/domain/services/process_start_result_policy.dart:10",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:358"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:24 -> ProcessStartResultPolicy",
+        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:25 -> ProcessStartResultPolicy",
+        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:52 -> ProcessStartResultPolicy",
+        "lexical reference at lib/features/chat/domain/services/process_start_result_policy.dart:10 -> ProcessStartResultPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:358 -> ProcessStartResultPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/production_release_approval_policy.dart::ProductionReleaseApprovalPolicy",
+      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "symbol": "ProductionReleaseApprovalPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:66"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:66 -> ProductionReleaseApprovalPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/python_attachment_repair_policy.dart::PythonAttachmentRepairPolicy",
+      "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+      "symbol": "PythonAttachmentRepairPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/python_attachment_repair_policy.dart:25",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:2033",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:2037",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:100",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:117",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:156",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:22",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:39"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/python_attachment_repair_policy.dart:25 -> PythonAttachmentRepairPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:2033 -> PythonAttachmentRepairPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:2037 -> PythonAttachmentRepairPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:100 -> PythonAttachmentRepairPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:117 -> PythonAttachmentRepairPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:156 -> PythonAttachmentRepairPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:22 -> PythonAttachmentRepairPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:39 -> PythonAttachmentRepairPolicy"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart::SavedTaskTargetScopeGuard",
+      "path": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
+      "symbol": "SavedTaskTargetScopeGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/saved_task_target_scope_guard.dart:32",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7161",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7163",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:286"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/saved_task_target_scope_guard.dart:32 -> SavedTaskTargetScopeGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7161 -> SavedTaskTargetScopeGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7163 -> SavedTaskTargetScopeGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:286 -> SavedTaskTargetScopeGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/saved_validation_command_guard.dart::SavedValidationCommandGuard",
+      "path": "lib/features/chat/domain/services/saved_validation_command_guard.dart",
+      "symbol": "SavedValidationCommandGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:30",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:274"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:30 -> SavedValidationCommandGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:274 -> SavedValidationCommandGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/subagent_tool_policy.dart::SubagentToolPolicy",
+      "path": "lib/features/chat/domain/services/subagent_tool_policy.dart",
+      "symbol": "SubagentToolPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/subagent_execution_service.dart:108",
+        "lexical reference at lib/features/chat/domain/services/subagent_execution_service.dart:31",
+        "lexical reference at lib/features/chat/domain/services/subagent_tool_policy.dart:13",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_subagent_handlers.dart:258",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_subagent_handlers.dart:44"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/subagent_execution_service.dart:108 -> SubagentToolPolicy",
+        "lexical reference at lib/features/chat/domain/services/subagent_execution_service.dart:31 -> SubagentToolPolicy",
+        "lexical reference at lib/features/chat/domain/services/subagent_tool_policy.dart:13 -> SubagentToolPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_subagent_handlers.dart:258 -> SubagentToolPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_subagent_handlers.dart:44 -> SubagentToolPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart::TimedOutCommandRetryGuard",
+      "path": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart",
+      "symbol": "TimedOutCommandRetryGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/timed_out_command_retry_guard.dart:26",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:124",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:232"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/timed_out_command_retry_guard.dart:26 -> TimedOutCommandRetryGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:124 -> TimedOutCommandRetryGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:232 -> TimedOutCommandRetryGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/tool_call_execution_policy.dart::ToolCallExecutionPolicy",
+      "path": "lib/features/chat/domain/services/tool_call_execution_policy.dart",
+      "symbol": "ToolCallExecutionPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/coding_continuation_recovery_policy.dart:40",
+        "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:73",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:10",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:13",
+        "lexical reference at lib/features/chat/domain/services/git_tool_handler.dart:31",
+        "lexical reference at lib/features/chat/domain/services/git_write_confirmation_policy.dart:28",
+        "lexical reference at lib/features/chat/domain/services/git_write_confirmation_policy.dart:29",
+        "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:41",
+        "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:44",
+        "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:68",
+        "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:69",
+        "lexical reference at lib/features/chat/domain/services/run_tests_tool_handler.dart:153",
+        "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:32",
+        "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:33",
+        "lexical reference at lib/features/chat/domain/services/successful_read_result_replay_cache.dart:6",
+        "lexical reference at lib/features/chat/domain/services/successful_read_result_replay_cache.dart:9",
+        "lexical reference at lib/features/chat/domain/services/timed_out_command_retry_guard.dart:29",
+        "lexical reference at lib/features/chat/domain/services/tool_call_batch_executor.dart:21",
+        "lexical reference at lib/features/chat/domain/services/tool_call_batch_executor.dart:22",
+        "lexical reference at lib/features/chat/domain/services/tool_call_batch_executor.dart:27",
+        "lexical reference at lib/features/chat/domain/services/tool_call_execution_policy.dart:11",
+        "lexical reference at lib/features/chat/domain/services/tool_failure_classifier.dart:16",
+        "lexical reference at lib/features/chat/domain/services/tool_failure_classifier.dart:17",
+        "lexical reference at lib/features/chat/domain/services/tool_failure_classifier.dart:20",
+        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:40",
+        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:41",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:339",
+        "lexical reference at lib/features/chat/presentation/providers/tool_approval_cache.dart:29",
+        "lexical reference at lib/features/chat/presentation/providers/tool_dedupe_keys.dart:9"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/coding_continuation_recovery_policy.dart:40 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:73 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:10 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:13 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/git_tool_handler.dart:31 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/git_write_confirmation_policy.dart:28 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/git_write_confirmation_policy.dart:29 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:41 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:44 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:68 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:69 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/run_tests_tool_handler.dart:153 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:32 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:33 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/successful_read_result_replay_cache.dart:6 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/successful_read_result_replay_cache.dart:9 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/timed_out_command_retry_guard.dart:29 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/tool_call_batch_executor.dart:21 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/tool_call_batch_executor.dart:22 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/tool_call_batch_executor.dart:27 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/tool_call_execution_policy.dart:11 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/tool_failure_classifier.dart:16 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/tool_failure_classifier.dart:17 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/tool_failure_classifier.dart:20 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:40 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:41 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:339 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/tool_approval_cache.dart:29 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/tool_dedupe_keys.dart:9 -> ToolCallExecutionPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart::ToolLoopExhaustionPolicy",
+      "path": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart",
+      "symbol": "ToolLoopExhaustionPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart:32",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5785"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart:32 -> ToolLoopExhaustionPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5785 -> ToolLoopExhaustionPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/tool_loop_recovery_policy.dart::ToolLoopRecoveryPolicy",
+      "path": "lib/features/chat/domain/services/tool_loop_recovery_policy.dart",
+      "symbol": "ToolLoopRecoveryPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/tool_loop_recovery_policy.dart:12",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:338"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/tool_loop_recovery_policy.dart:12 -> ToolLoopRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:338 -> ToolLoopRecoveryPolicy"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/tool_terminal_response_policy.dart::ToolTerminalResponsePolicy",
+      "path": "lib/features/chat/domain/services/tool_terminal_response_policy.dart",
+      "symbol": "ToolTerminalResponsePolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:14",
+        "lexical reference at lib/features/chat/domain/services/ask_user_question_policy.dart:182",
+        "lexical reference at lib/features/chat/domain/services/ask_user_question_policy.dart:196",
+        "lexical reference at lib/features/chat/domain/services/tool_terminal_response_policy.dart:12",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:10",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:9"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:14 -> ToolTerminalResponsePolicy",
+        "lexical reference at lib/features/chat/domain/services/ask_user_question_policy.dart:182 -> ToolTerminalResponsePolicy",
+        "lexical reference at lib/features/chat/domain/services/ask_user_question_policy.dart:196 -> ToolTerminalResponsePolicy",
+        "lexical reference at lib/features/chat/domain/services/tool_terminal_response_policy.dart:12 -> ToolTerminalResponsePolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:10 -> ToolTerminalResponsePolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:9 -> ToolTerminalResponsePolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/tool_terminal_success_policy.dart::ToolTerminalSuccessPolicy",
+      "path": "lib/features/chat/domain/services/tool_terminal_success_policy.dart",
+      "symbol": "ToolTerminalSuccessPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/tool_terminal_success_policy.dart:44",
+        "lexical reference at lib/features/chat/domain/services/tool_terminal_success_policy.dart:5",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:123"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/tool_terminal_success_policy.dart:44 -> ToolTerminalSuccessPolicy",
+        "lexical reference at lib/features/chat/domain/services/tool_terminal_success_policy.dart:5 -> ToolTerminalSuccessPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:123 -> ToolTerminalSuccessPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart::TruncatedToolCallArgumentsGuard",
+      "path": "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart",
+      "symbol": "TruncatedToolCallArgumentsGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart:11",
+        "lexical reference at lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart:25",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:207",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:630"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart:11 -> TruncatedToolCallArgumentsGuard",
+        "lexical reference at lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart:25 -> TruncatedToolCallArgumentsGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:207 -> TruncatedToolCallArgumentsGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:630 -> TruncatedToolCallArgumentsGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": "turn_exit.transforms:truncated_tool_call_arguments_feedback",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart::TurnFinalizationRecoveryPolicy",
+      "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+      "symbol": "TurnFinalizationRecoveryPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/turn_finalization_recovery_policy.dart:46",
+        "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:73",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:140",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:212",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:227",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:238"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/turn_finalization_recovery_policy.dart:46 -> TurnFinalizationRecoveryPolicy",
+        "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:73 -> TurnFinalizationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:140 -> TurnFinalizationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:212 -> TurnFinalizationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:227 -> TurnFinalizationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:238 -> TurnFinalizationRecoveryPolicy"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart::UnexecutedFileMutationBeforeCommandGuard",
+      "path": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart",
+      "symbol": "UnexecutedFileMutationBeforeCommandGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:38",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:320"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:38 -> UnexecutedFileMutationBeforeCommandGuard",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:320 -> UnexecutedFileMutationBeforeCommandGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart::UnexecutedFinalAnswerToolRequestPolicy",
+      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "symbol": "UnexecutedFinalAnswerToolRequestPolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:65",
+        "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:94",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7890",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7892",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7914",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7916",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:101",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:12",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:15",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:19",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart:17"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:65 -> UnexecutedFinalAnswerToolRequestPolicy",
+        "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:94 -> UnexecutedFinalAnswerToolRequestPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7890 -> UnexecutedFinalAnswerToolRequestPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7892 -> UnexecutedFinalAnswerToolRequestPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7914 -> UnexecutedFinalAnswerToolRequestPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7916 -> UnexecutedFinalAnswerToolRequestPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:101 -> UnexecutedFinalAnswerToolRequestPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:12 -> UnexecutedFinalAnswerToolRequestPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:15 -> UnexecutedFinalAnswerToolRequestPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:19 -> UnexecutedFinalAnswerToolRequestPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart:17 -> UnexecutedFinalAnswerToolRequestPolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/unwritten_file_claim_guard.dart::UnwrittenFileClaimGuard",
+      "path": "lib/features/chat/domain/services/unwritten_file_claim_guard.dart",
+      "symbol": "UnwrittenFileClaimGuard",
+      "kind": "guard_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:59",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:60",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:72",
+        "lexical reference at lib/features/chat/domain/services/unwritten_file_claim_guard.dart:43"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:59 -> UnwrittenFileClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:60 -> UnwrittenFileClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:72 -> UnwrittenFileClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/unwritten_file_claim_guard.dart:43 -> UnwrittenFileClaimGuard"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/verification_cadence_policy.dart::VerificationCadencePolicy",
+      "path": "lib/features/chat/domain/services/verification_cadence_policy.dart",
+      "symbol": "VerificationCadencePolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/execution_snapshot_projector.dart:296",
+        "lexical reference at lib/features/chat/domain/services/verification_cadence_policy.dart:4"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/execution_snapshot_projector.dart:296 -> VerificationCadencePolicy",
+        "lexical reference at lib/features/chat/domain/services/verification_cadence_policy.dart:4 -> VerificationCadencePolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart::VerifierReplayCandidatePolicy",
+      "path": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart",
+      "symbol": "VerifierReplayCandidatePolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/domain/services/verifier_replay_candidate_policy.dart:15",
+        "lexical reference at lib/features/chat/domain/services/verifier_replay_candidate_policy.dart:56"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/domain/services/verifier_replay_candidate_policy.dart:15 -> VerifierReplayCandidatePolicy",
+        "lexical reference at lib/features/chat/domain/services/verifier_replay_candidate_policy.dart:56 -> VerifierReplayCandidatePolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart::WorkflowTaskRunLifecyclePolicy",
+      "path": "lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart",
+      "symbol": "WorkflowTaskRunLifecyclePolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart:2376",
+        "lexical reference at lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart:328"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart:2376 -> WorkflowTaskRunLifecyclePolicy",
+        "lexical reference at lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart:328 -> WorkflowTaskRunLifecyclePolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/domain/services/workflow_task_turn_route_policy.dart::WorkflowTaskTurnRoutePolicy",
+      "path": "lib/features/chat/domain/services/workflow_task_turn_route_policy.dart",
+      "symbol": "WorkflowTaskTurnRoutePolicy",
+      "kind": "policy_type",
+      "discoveryRule": "domain-guard-policy-recovery-types",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart:403",
+        "lexical reference at lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart:417",
+        "lexical reference at lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart:428"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart:403 -> WorkflowTaskTurnRoutePolicy",
+        "lexical reference at lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart:417 -> WorkflowTaskTurnRoutePolicy",
+        "lexical reference at lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart:428 -> WorkflowTaskTurnRoutePolicy"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_postSavedValidationEvidenceRequiresRepair",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_postSavedValidationEvidenceRequiresRepair",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5623"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5623 -> _postSavedValidationEvidenceRequiresRepair"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_requestBackgroundProcessMonitorRepairForCompletionClaim",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_requestBackgroundProcessMonitorRepairForCompletionClaim",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5998",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6479"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5998 -> _requestBackgroundProcessMonitorRepairForCompletionClaim",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6479 -> _requestBackgroundProcessMonitorRepairForCompletionClaim"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_requestSkippedBrowserActionRepairAfterSnapshot",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_requestSkippedBrowserActionRepairAfterSnapshot",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5896"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5896 -> _requestSkippedBrowserActionRepairAfterSnapshot"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_shouldRepairSkippedBrowserActionAfterSnapshot",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "symbol": "_shouldRepairSkippedBrowserActionAfterSnapshot",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:936"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:936 -> _shouldRepairSkippedBrowserActionAfterSnapshot"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart::_hasCodingContinuationRecoveryTools",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart",
+      "symbol": "_hasCodingContinuationRecoveryTools",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6377",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6401"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6377 -> _hasCodingContinuationRecoveryTools",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6401 -> _hasCodingContinuationRecoveryTools"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": "turn_exit.transforms:coding_continuation_recovery_*",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart::_requestCodingContinuationRecovery",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart",
+      "symbol": "_requestCodingContinuationRecovery",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:4100",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6150",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6416",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:75"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:4100 -> _requestCodingContinuationRecovery",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6150 -> _requestCodingContinuationRecovery",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6416 -> _requestCodingContinuationRecovery",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:75 -> _requestCodingContinuationRecovery"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": "turn_exit.transforms:coding_continuation_recovery_*",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_coding_verification_feedback.dart::_requestCodingVerificationRepairForCompletionClaim",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_coding_verification_feedback.dart",
+      "symbol": "_requestCodingVerificationRepairForCompletionClaim",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6091",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6555"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6091 -> _requestCodingVerificationRepairForCompletionClaim",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6555 -> _requestCodingVerificationRepairForCompletionClaim"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": "tool_result.trigger:completionClaim",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_command_guardrails.dart::_buildProductionReleaseApprovalGuardResult",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_command_guardrails.dart",
+      "symbol": "_buildProductionReleaseApprovalGuardResult",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:243"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:243 -> _buildProductionReleaseApprovalGuardResult"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart::_replayVerifierAfterRepairMutation",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart",
+      "symbol": "_replayVerifierAfterRepairMutation",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5328"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5328 -> _replayVerifierAfterRepairMutation"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart::_repairJsonCandidate",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
+      "symbol": "_repairJsonCandidate",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [],
+      "staticEdges": [],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No non-declaration lexical selection root was found.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart::_tryRepairAndDecodeMap",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
+      "symbol": "_tryRepairAndDecodeMap",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [],
+      "staticEdges": [],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No non-declaration lexical selection root was found.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart::_requestPythonAttachmentPathFailureRepair",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart",
+      "symbol": "_requestPythonAttachmentPathFailureRepair",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5934"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5934 -> _requestPythonAttachmentPathFailureRepair"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart::_requestSkippedPythonAttachmentAnalysisRepair",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart",
+      "symbol": "_requestSkippedPythonAttachmentAnalysisRepair",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5968"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5968 -> _requestSkippedPythonAttachmentAnalysisRepair"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart::_buildTruncatedToolCallArgumentsGuardResult",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart",
+      "symbol": "_buildTruncatedToolCallArgumentsGuardResult",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:207"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:207 -> _buildTruncatedToolCallArgumentsGuardResult"
+      ],
+      "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
+      "telemetryEvent": "turn_exit.transforms:truncated_tool_call_arguments_feedback",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart::_prepareLastAssistantForTurnFinalizationRecovery",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart",
+      "symbol": "_prepareLastAssistantForTurnFinalizationRecovery",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:90"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:90 -> _prepareLastAssistantForTurnFinalizationRecovery"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart::_shouldSkipCompletedToolResultCodingContinuationRecovery",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart",
+      "symbol": "_shouldSkipCompletedToolResultCodingContinuationRecovery",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6137"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6137 -> _shouldSkipCompletedToolResultCodingContinuationRecovery"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": "turn_exit.transforms:coding_continuation_recovery_*",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart::_shouldSkipCompletedToolResultFinalAnswerRecovery",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart",
+      "symbol": "_shouldSkipCompletedToolResultFinalAnswerRecovery",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:166",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:40"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:166 -> _shouldSkipCompletedToolResultFinalAnswerRecovery",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:40 -> _shouldSkipCompletedToolResultFinalAnswerRecovery"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
+      "telemetryEvent": null,
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
+        "No structured firing event is mapped yet."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart::_applyNarratedTranscriptRepairToStreamedFinalAnswer",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart",
+      "symbol": "_applyNarratedTranscriptRepairToStreamedFinalAnswer",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6604"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6604 -> _applyNarratedTranscriptRepairToStreamedFinalAnswer"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": "turn_exit.transforms:narrated_transcript_repair",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    },
+    {
+      "id": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart::_requestNarratedTranscriptRepairForCompletionClaim",
+      "path": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart",
+      "symbol": "_requestNarratedTranscriptRepairForCompletionClaim",
+      "kind": "notifier_member",
+      "discoveryRule": "notifier-guard-recovery-members",
+      "selectionRoots": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart:186"
+      ],
+      "staticEdges": [
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart:186 -> _requestNarratedTranscriptRepairForCompletionClaim"
+      ],
+      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
+      "telemetryEvent": "turn_exit.transforms:narrated_transcript_repair",
+      "unresolvedEdges": [
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
+      ]
+    }
+  ]
+}
