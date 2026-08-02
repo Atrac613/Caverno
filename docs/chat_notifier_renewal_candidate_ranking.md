@@ -7,9 +7,9 @@ persisted-schema change.
 
 ## Decision
 
-There is one ready deletion slice: remove the two orphan proposal-parsing
-delegates. A clean matching-build corpus now completes their static unreachable
-proof without a contradictory observation.
+The D1 deletion slice is complete: the two orphan proposal-parsing delegates
+and their current-source inventory rows have been removed. The clean
+matching-build corpus remains the historical evidence for that action.
 
 The highest-confidence implementation candidates are:
 
@@ -22,9 +22,8 @@ Neither should be folded into the first `TurnRuntime` extraction. Status
 ownership should be corrected before task state crosses that boundary, while
 plan-artifact persistence remains outside the turn runtime.
 
-The operational next slice is deleting those two delegates and updating the
-finite guard manifest. After that focused deletion, proceed to the persisted
-workflow-origin audit.
+The operational next slice is I1, the persisted workflow-origin audit. It must
+remain read-only until legacy workflow-only records have a proven backfill.
 
 ## Ranking Rules
 
@@ -39,11 +38,11 @@ workflow-origin audit.
 
 ## Delete Candidates
 
-### Ready
+### Completed
 
 | Rank | Candidate | Current evidence | Current size |
 | ---: | --- | --- | ---: |
-| D1 | Remove `_tryRepairAndDecodeMap` and `_repairJsonCandidate` delegates | Zero production selection roots, no unresolved invocation edge, direct live replacements in `ProposalParsingTextUtils`, and no contradiction in 4 clean matching-build records | 1 file; 6 declaration/body lines, 8 lines including separators |
+| D1 | Remove `_tryRepairAndDecodeMap` and `_repairJsonCandidate` delegates | Completed; zero production selection roots, no unresolved invocation edge, direct live replacements in `ProposalParsingTextUtils`, and no contradiction in 4 clean matching-build records | 1 file; 6 declaration/body lines, 8 lines including separators |
 
 ## Migration Candidates
 
@@ -86,8 +85,8 @@ definition is a deletion candidate based on its zero count.
 | ---: | --- | --- | --- | --- |
 | I1 | Audit persisted workflow origins | Whether M3 can remove the legacy authored-workflow path | Potentially unlocks the 25-40-file M3 surface | Add a read-only repository audit or deterministic migration fixture that classifies plan-derived versus legacy workflow-only records. Stop before deletion if any supported legacy population lacks a backfill. |
 
-The matching-build guard capture is complete and has moved its two closed
-proofs into D1. I1 becomes the next investigation after D1 is deleted.
+The matching-build guard capture is complete and moved its two closed proofs
+into D1. With D1 deleted, I1 is now the next investigation.
 
 ### Medium confidence
 
@@ -123,7 +122,7 @@ keep every unresolved callback, registration, and configuration edge explicit.
 
 | Input | Evidence revision | Notes |
 | --- | --- | --- |
-| Guard reachability inventory | `55efb18f51e2739f195bca0d5bd7b1669d5c0f9d` | 65 represented candidates; 2 dead and 63 unresolved after matching-build analysis |
+| Guard reachability inventory | `55efb18f51e2739f195bca0d5bd7b1669d5c0f9d` | Historical measurement: 65 represented candidates, 2 dead and 63 unresolved; the 2 dead entries are now deleted |
 | Tool catalogue residency inventory | `de73f746f16eed1125b0f4f92cb44a11b57ea7de` | 118 static and 52 private dynamic rows linked to 6 bindings |
 | Concept overlap inventory | `8561fedb42471f0e99cd15d897002acb30f5e88b` | Read-only lifecycle and ownership review |
 | Consolidated synthesis | `05a6a25c0237c0b2ce6e93fab3055c36121e45f4` | Documentation-only task-contract revision; classified production code is unchanged from the input reviews |
@@ -169,7 +168,6 @@ inventory so sensitive paths do not appear here.
 
 ## Unresolved Items
 
-- The two `dead` delegates remain present until the focused deletion slice.
 - The legacy workflow-only persisted population is unknown.
 - The correct replacement, if any, for the deferred WS6-19 ordering contract is
   not approved.

@@ -808,8 +808,6 @@
         "_proposalJsonExtractor",
         "_extractJsonMap",
         "_tryDecodeMap",
-        "_tryRepairAndDecodeMap",
-        "_repairJsonCandidate",
         "_extractLooseJsonScalar",
         "_extractLooseJsonStringList",
         "_collectProposalSections",

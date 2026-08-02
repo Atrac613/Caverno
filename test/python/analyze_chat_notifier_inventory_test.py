@@ -9,6 +9,7 @@ import json
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -854,9 +855,9 @@ class ChatNotifierInventoryTest(unittest.TestCase):
                 "unobservedDefinitionCount": 121,
                 "bindingCount": 6,
                 "toolResultSubmissionCount": 0,
-                "guardCount": 65,
+                "guardCount": 63,
                 "guardActionCounts": {
-                    "dead": 2,
+                    "dead": 0,
                     "unexercised": 0,
                     "live": 0,
                     "unresolved": 63,
@@ -887,16 +888,36 @@ class ChatNotifierInventoryTest(unittest.TestCase):
                 "completedToolResultFinalAnswerRecovery": "allow_recovery"
             }
             self._rewrite_session(session_path, records, manifest, manifest_path)
-
-            measurement = analyzer.build_tool_residency_measurement(
-                corpus_manifest_path=manifest_path,
-                guard_manifest_path=ROOT
-                / "tool/chat_notifier_guard_inventory.json",
-                tool_manifest_path=ROOT
-                / "tool/chat_notifier_tool_catalog_inventory.json",
-                root=ROOT,
-                resolved_source_revision=commit,
+            guard_manifest = json.loads(
+                (ROOT / "tool/chat_notifier_guard_inventory.json").read_text()
             )
+            unreachable = next(
+                entry for entry in guard_manifest["entries"]
+                if entry["id"] != analyzer.FIRST_TELEMETRY_SLICE_ID
+            )
+            unreachable.update(
+                {
+                    "selectionRoots": [],
+                    "staticEdges": [],
+                    "telemetryEvent": None,
+                    "unresolvedEdges": [],
+                    "currentStaticState": "unreachable",
+                    "staticProof": "Synthetic closed proof for action-state coverage.",
+                }
+            )
+            expected_dead_symbol = unreachable["symbol"]
+            guard_path = pathlib.Path(directory) / "guard.json"
+            guard_path.write_text(json.dumps(guard_manifest))
+
+            with mock.patch.object(analyzer, "validate_guard_manifest"):
+                measurement = analyzer.build_tool_residency_measurement(
+                    corpus_manifest_path=manifest_path,
+                    guard_manifest_path=guard_path,
+                    tool_manifest_path=ROOT
+                    / "tool/chat_notifier_tool_catalog_inventory.json",
+                    root=ROOT,
+                    resolved_source_revision=commit,
+                )
 
         dead = [
             row for row in measurement["guards"]
@@ -904,7 +925,7 @@ class ChatNotifierInventoryTest(unittest.TestCase):
         ]
         self.assertEqual(
             sorted(row["symbol"] for row in dead),
-            ["_repairJsonCandidate", "_tryRepairAndDecodeMap"],
+            [expected_dead_symbol],
         )
         covered = next(
             row for row in measurement["guards"]
@@ -938,24 +959,34 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             )
             unreachable = next(
                 entry for entry in guard_manifest["entries"]
-                if entry["currentStaticState"] == "unreachable"
+                if entry["id"] == analyzer.FIRST_TELEMETRY_SLICE_ID
             )
-            unreachable["telemetryEvent"] = analyzer.FIRST_TELEMETRY_SLICE_EVENT
+            unreachable.update(
+                {
+                    "selectionRoots": [],
+                    "staticEdges": [],
+                    "telemetryEvent": analyzer.FIRST_TELEMETRY_SLICE_EVENT,
+                    "unresolvedEdges": [],
+                    "currentStaticState": "unreachable",
+                    "staticProof": "Synthetic closed proof for contradiction coverage.",
+                }
+            )
             guard_path = root / "guard.json"
             guard_path.write_text(json.dumps(guard_manifest))
 
-            with self.assertRaisesRegex(
-                analyzer.InventoryError,
-                "contradicts unreachable guard proof",
-            ):
-                analyzer.build_tool_residency_measurement(
-                    corpus_manifest_path=manifest_path,
-                    guard_manifest_path=guard_path,
-                    tool_manifest_path=ROOT
-                    / "tool/chat_notifier_tool_catalog_inventory.json",
-                    root=ROOT,
-                    resolved_source_revision=commit,
-                )
+            with mock.patch.object(analyzer, "validate_guard_manifest"):
+                with self.assertRaisesRegex(
+                    analyzer.InventoryError,
+                    "contradicts unreachable guard proof",
+                ):
+                    analyzer.build_tool_residency_measurement(
+                        corpus_manifest_path=manifest_path,
+                        guard_manifest_path=guard_path,
+                        tool_manifest_path=ROOT
+                        / "tool/chat_notifier_tool_catalog_inventory.json",
+                        root=ROOT,
+                        resolved_source_revision=commit,
+                    )
 
     def test_joins_tool_residency_observations_and_bindings(self):
         with tempfile.TemporaryDirectory() as directory:

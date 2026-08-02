@@ -1,11 +1,10 @@
 # ChatNotifier Inventory: Codex Investigation Task
 
-Status: Phase 1 inventory and consolidated ranking completed on 2026-08-02.
-The checked-in
-manifest contains 65 decision candidates and 15 explicit helper exclusions,
-and its deterministic discovery check is covered by eight focused Python tests.
+Status: Phase 1 inventory, consolidated ranking, and the first focused deletion
+completed on 2026-08-02. The checked-in manifest now contains 63 unresolved
+decision candidates and 15 explicit helper exclusions.
 Phase 0B telemetry selection completed on 2026-08-02 with one bounded
-candidate and 51 explicit deferrals. The first selected telemetry event is now
+candidate and 49 current explicit deferrals. The first selected telemetry event is now
 implemented and marked covered. Catalogue snapshot validation and structured
 tool-result observation joins are complete. The tool catalogue residency
 inventory now links 118 static and 52 private dynamic definitions to six
@@ -17,9 +16,9 @@ validates hashes, build provenance, complete configuration segments,
 canonical snapshot fingerprints, exact schema-v1 catalogue provenance, and
 submitted tool membership before measurement. A 2026-08-02 structural scan
 originally found no provenance-bearing record for the first telemetry event.
-A clean 2026-08-02 capture at `55efb18f` now derives 2 `dead` and 63
-`unresolved` action states. The dead entries are `_tryRepairAndDecodeMap` and
-`_repairJsonCandidate`.
+A clean 2026-08-02 capture at `55efb18f` derived 2 `dead` and 63
+`unresolved` action states. The two dead delegates were removed in the focused
+follow-up; their evidence remains in the reachability report.
 
 Phase 1 of the architecture renewal. **Do not refactor, delete, or change
 product behaviour.** A prerequisite tooling slice may add measurement code and

@@ -1634,34 +1634,6 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart::_repairJsonCandidate",
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "symbol": "_repairJsonCandidate",
-      "kind": "notifier_member",
-      "discoveryRule": "notifier-guard-recovery-members",
-      "selectionRoots": [],
-      "staticEdges": [],
-      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
-      "telemetryEvent": null,
-      "unresolvedEdges": [],
-      "currentStaticState": "unreachable",
-      "staticProof": "No non-declaration production reference exists; the member is private to the ChatNotifier library, production imports no dart:mirrors, ProposalJsonExtractor calls ProposalParsingTextUtils directly, commit 1140b25e removed the old wrapper call sites, and e90f6643 retained only the orphan delegates."
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart::_tryRepairAndDecodeMap",
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "symbol": "_tryRepairAndDecodeMap",
-      "kind": "notifier_member",
-      "discoveryRule": "notifier-guard-recovery-members",
-      "selectionRoots": [],
-      "staticEdges": [],
-      "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
-      "telemetryEvent": null,
-      "unresolvedEdges": [],
-      "currentStaticState": "unreachable",
-      "staticProof": "No non-declaration production reference exists; the member is private to the ChatNotifier library, production imports no dart:mirrors, ProposalJsonExtractor calls ProposalParsingTextUtils directly, commit 1140b25e removed the old wrapper call sites, and e90f6643 retained only the orphan delegates."
-    },
-    {
       "id": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart::_requestPythonAttachmentPathFailureRepair",
       "path": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart",
       "symbol": "_requestPythonAttachmentPathFailureRepair",

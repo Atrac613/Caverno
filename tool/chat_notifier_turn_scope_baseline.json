@@ -469,8 +469,6 @@
         "_proposalJsonExtractor",
         "_extractJsonMap",
         "_tryDecodeMap",
-        "_tryRepairAndDecodeMap",
-        "_repairJsonCandidate",
         "_extractLooseJsonScalar",
         "_extractLooseJsonStringList",
         "_collectProposalSections",
@@ -725,9 +723,9 @@
   },
   "summary": {
     "scannedFiles": 112,
-    "methods": 1413,
-    "manifestEntrypoints": 271,
-    "reachableMethods": 665,
+    "methods": 1411,
+    "manifestEntrypoints": 269,
+    "reachableMethods": 663,
     "ambientReads": 67,
     "methodsWithAmbientReads": 40,
     "methodTurnIdentityReads": 26,
@@ -21355,19 +21353,6 @@
     },
     {
       "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_repairJsonCandidate",
-      "signature": "String? _repairJsonCandidate(String value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "repairJsonCandidate"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
       "declaration": "_sanitizeInlineReasoningTaskTitle",
       "signature": "String _sanitizeInlineReasoningTaskTitle(String rawValue)",
       "turnIdentityParameters": [],
@@ -21426,19 +21411,6 @@
       "turnScopedAccessors": [],
       "calls": [
         "tryDecodeMap"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_tryRepairAndDecodeMap",
-      "signature": "Map<String, dynamic>? _tryRepairAndDecodeMap(String value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "tryRepairAndDecodeMap"
       ],
       "entrypoint": true,
       "reachable": true,
@@ -23068,7 +23040,7 @@
     {
       "path": "lib/features/chat/presentation/providers/chat_notifier_turn_exit.dart",
       "declaration": "_logTurnExitReason",
-      "signature": "/// Classify, log, and persist the exit reason for the just-finalized turn,\n  /// then clear the per-turn hint the tool loop set. Called from\n  /// `_finishStreaming` after finalization recovery has declined and before the\n  /// messages are persisted.\n  ///\n  /// The reason is both `appLog`'d (debug console) and — when session logging is\n  /// enabled — written to the persisted `*.jsonl` via\n  /// [LlmSessionLogStore.recordTurnExit], so `tool/triage_session_logs.py` can\n  /// read the exit-reason distribution. Without the persisted write the\n  /// instrument would be invisible in release builds and to triage.\n  Future<void> _logTurnExitReason({\n    required ChatTurnOwner owner,\n    required List<Message> finalizedMessages,\n    required bool shouldDropLastAssistant,\n    required String? finishReason,\n  })",
+      "signature": "/// Classify and persist the finalized turn after recovery declines.\n  /// The persisted [LlmSessionLogStore.recordTurnExit] marker keeps release\n  /// builds visible to `tool/triage_session_logs.py` without changing output.\n  /// The per-turn tool-loop hint is consumed exactly once here.\n  Future<void> _logTurnExitReason({\n    required ChatTurnOwner owner,\n    required List<Message> finalizedMessages,\n    required bool shouldDropLastAssistant,\n    required String? finishReason,\n  })",
       "turnIdentityParameters": [
         "required ChatTurnOwner owner"
       ],
@@ -23079,6 +23051,7 @@
         "add",
         "appLog",
         "classify",
+        "finalAnswerRecoveryDecisionLogValue",
         "isEnabled",
         "logToken",
         "now",
@@ -23101,6 +23074,8 @@
       "turnScopedAccessors": [],
       "calls": [
         "_llmSessionLogContextForGeneration",
+        "_turnOwnerForGeneration",
+        "finalAnswerRecoveryDecisionLogValue",
         "isEnabled",
         "now",
         "read",
@@ -23194,6 +23169,7 @@
         "contains",
         "getOpenAiToolDefinitions",
         "map",
+        "recordFinalAnswerRecoveryDecision",
         "toolNamesFromDefinitions"
       ],
       "entrypoint": true,
@@ -24254,7 +24230,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart",
       "declaration": "_prepareLastAssistantForTurnFinalizationRecovery",
       "kind": "state.messages",
-      "line": 264,
+      "line": 270,
       "column": 25,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24265,7 +24241,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart",
       "declaration": "_prepareLastAssistantForTurnFinalizationRecovery",
       "kind": "state.messages",
-      "line": 265,
+      "line": 271,
       "column": 33,
       "methodHasTurnIdentity": true,
       "turnReachable": true,

@@ -102,5 +102,6 @@ git diff --check
   `run_coding_stalled_diagnostic_repair_live_canary_test.dart` fixture fails.
 - Coverage or low-coverage notes: Runtime evidence depends on one bounded live
   capture and is not a production-frequency sample.
-- Risks or follow-ups: Delete the two dead proposal-parsing delegates in a
-  separate focused slice. The remaining 63 guard candidates stay unresolved.
+- Risks or follow-ups: The separate focused slice removed the two dead
+  proposal-parsing delegates. The remaining 63 guard candidates stay
+  unresolved.

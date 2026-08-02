@@ -1,8 +1,9 @@
 # ChatNotifier Guard Reachability Inventory
 
-Status: Phase 1 matching-build classification complete. Two orphan
-proposal-parsing delegates satisfy the `dead` contract; the other 63 candidates
-remain unresolved.
+Status: Phase 1 matching-build classification and the focused dead-code
+deletion are complete. The current inventory contains 63 unresolved candidates.
+The historical measurement below classified two now-deleted proposal-parsing
+delegates as `dead`.
 
 Classified source revision: `55efb18f51e2739f195bca0d5bd7b1669d5c0f9d`. The checked-in manifest uses
 `HEAD` as its symbolic revision so the post-commit clean-source check can resolve
@@ -96,8 +97,6 @@ unresolved even when the corpus contains no firing.
 | `_requestCodingVerificationRepairForCompletionClaim` | `chat_notifier_coding_verification_feedback.dart` | notifier_member | 2 | silent non-fire can leave a recovery path unreachable | `tool_result.trigger:completionClaim` | Unresolved | Not measured | Unresolved |
 | `_buildProductionReleaseApprovalGuardResult` | `chat_notifier_command_guardrails.dart` | notifier_member | 1 | selection may enable, block, or redirect turn behavior | Not mapped | Unresolved | Not measured | Unresolved |
 | `_replayVerifierAfterRepairMutation` | `chat_notifier_goal_auto_continue.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
-| `_repairJsonCandidate` | `chat_notifier_proposal_parsing.dart` | notifier_member | 0 | silent non-fire can leave a recovery path unreachable | Not mapped | Unreachable | No contradictory observation in 4 clean matching-build records | Dead |
-| `_tryRepairAndDecodeMap` | `chat_notifier_proposal_parsing.dart` | notifier_member | 0 | silent non-fire can leave a recovery path unreachable | Not mapped | Unreachable | No contradictory observation in 4 clean matching-build records | Dead |
 | `_requestPythonAttachmentPathFailureRepair` | `chat_notifier_python_attachment_repair.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
 | `_requestSkippedPythonAttachmentAnalysisRepair` | `chat_notifier_python_attachment_repair.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
 | `_buildTruncatedToolCallArgumentsGuardResult` | `chat_notifier_tool_loop_batch.dart` | notifier_member | 1 | selection may enable, block, or redirect turn behavior | `turn_exit.transforms:truncated_tool_call_arguments_feedback` | Unresolved | Not measured | Unresolved |
@@ -107,13 +106,13 @@ unresolved even when the corpus contains no firing.
 | `_applyNarratedTranscriptRepairToStreamedFinalAnswer` | `chat_notifier_unexecuted_action_recovery.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | `turn_exit.transforms:narrated_transcript_repair` | Unresolved | Not measured | Unresolved |
 | `_requestNarratedTranscriptRepairForCompletionClaim` | `chat_notifier_unexecuted_action_recovery.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | `turn_exit.transforms:narrated_transcript_repair` | Unresolved | Not measured | Unresolved |
 
-## Static unreachable proofs
+## Removed dead-candidate evidence
 
 ### `_tryRepairAndDecodeMap`
 
-- The only production occurrence of the private extension member is its
-  declaration. There is no tear-off, callback registration, or other lexical
-  selection root.
+- Before deletion, the only production occurrence of the private extension
+  member was its declaration. There was no tear-off, callback registration, or
+  other lexical selection root.
 - `ProposalJsonExtractor.extractJsonMap` calls
   `ProposalParsingTextUtils.tryRepairAndDecodeMap` directly for direct, sliced,
   and trailing candidates. The user-visible repair behavior remains live
@@ -123,15 +122,16 @@ unresolved even when the corpus contains no firing.
 
 ### `_repairJsonCandidate`
 
-- The only production occurrence of the private extension member is its
-  declaration. `ProposalParsingTextUtils.tryRepairAndDecodeMap` calls the static
-  `repairJsonCandidate` implementation directly.
+- Before deletion, the only production occurrence of the private extension
+  member was its declaration. `ProposalParsingTextUtils.tryRepairAndDecodeMap`
+  calls the static `repairJsonCandidate` implementation directly.
 - Production imports no `dart:mirrors`, and private extension members cannot be
   selected by string name. No unresolved invocation edge remains.
 
-These proofs establish `currentStaticState: unreachable` for the two wrappers.
-The matching-build measurement below supplies the required non-empty clean
-corpus and contains no contradictory firing, so both wrappers are `dead`.
+These proofs established `currentStaticState: unreachable` for the two
+wrappers. The matching-build measurement below supplied the required non-empty
+clean corpus and contained no contradictory firing, so both wrappers were
+classified `dead` and removed from the current source and inventories.
 
 Reproduce the proof search with:
 
@@ -169,29 +169,33 @@ excluded while the discovery rule continues to match it.
 
 ## Phase 0A findings
 
-- 65 decision candidates are represented and 15 helper matches are explicitly excluded (80 total discovery results).
-- 13 candidates have a directly mapped structured firing event; the remaining 52 require Phase 0B telemetry review.
-- 2 orphan delegates are statically unreachable and now classified `dead` by the matching-build measurement.
-- The other 63 candidates remain statically unresolved; none is classified dead, live, or unexercised in this slice.
+- 63 decision candidates are represented and 15 helper matches are explicitly
+  excluded (78 current discovery results).
+- 13 candidates have a directly mapped structured firing event; the remaining
+  50 retain Phase 0B telemetry selections.
+- The historical matching-build measurement classified 2 orphan delegates as
+  `dead`; the focused follow-up removed them.
+- All 63 current candidates remain statically unresolved; none is classified
+  dead, live, or unexercised in the current inventory.
 
 ## Phase 0B telemetry selection
 
-The checked-in `tool/chat_notifier_guard_telemetry_selection.json` retains all
-52 entries that lacked a mapped structured event when Phase 0B began. The
+The checked-in `tool/chat_notifier_guard_telemetry_selection.json` retains the
+50 current entries that lack a mapped structured event. The
 analyser joins it to this guard inventory by stable ID and enforces a first-
 slice limit of one:
 
 - 0 `instrument`.
 - 1 `covered`:
   `_shouldSkipCompletedToolResultFinalAnswerRecovery`.
-- 51 `defer`, each with an explicit prerequisite.
+- 49 `defer`, each with an explicit prerequisite.
 
 The selected decision now reuses the existing `turn_exit` boundary and records
 only `not_evaluated`, `skip_recovery`, or `allow_recovery`. The matching-build
 corpus observed `allow_recovery` once. Because the candidate's static graph is
 still unresolved, its action state remains unresolved.
 
-## Matching-build measurement
+## Historical matching-build measurement
 
 The private corpus contains one schema-v2 session-log file with four records,
 one complete schema-v1 catalogue snapshot with 169 definitions, one

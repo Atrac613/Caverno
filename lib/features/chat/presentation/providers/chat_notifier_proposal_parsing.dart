@@ -13,14 +13,6 @@ extension ChatNotifierProposalParsing on ChatNotifier {
     return ProposalParsingTextUtils.tryDecodeMap(value);
   }
 
-  Map<String, dynamic>? _tryRepairAndDecodeMap(String value) {
-    return ProposalParsingTextUtils.tryRepairAndDecodeMap(value);
-  }
-
-  String? _repairJsonCandidate(String value) {
-    return ProposalParsingTextUtils.repairJsonCandidate(value);
-  }
-
   String? _extractLooseJsonScalar(
     String rawContent, {
     required List<String> keys,

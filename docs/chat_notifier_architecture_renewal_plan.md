@@ -205,21 +205,20 @@ reachability" and Phase 1 inventory the guards. That is circular — the
 selection needs the inventory. Split:
 
 **Phase 0A — static guard inventory (complete 2026-08-02).** The finite
-checked-in inventory now represents 65 decision candidates and explicitly
-excludes 15 matched helpers. It records whether silent non-fire can suppress a
-guarded or recovery path, maps 13 existing structured events, and leaves all
-action states unresolved pending production-root edge review and matching-build
-observations. Two orphan proposal-parsing delegates are statically unreachable,
-but are not deletion candidates until a matching-build corpus supplies the
-contradiction check. The focused analyser test enforces exact discovery
-coverage and closed-proof requirements.
+checked-in inventory now represents 63 unresolved decision candidates and
+explicitly excludes 15 matched helpers. It records whether silent non-fire can
+suppress a guarded or recovery path and maps 13 existing structured events.
+A historical matching-build measurement closed two orphan proposal-parsing
+delegates as dead, and the focused follow-up removed them. The focused analyser
+test enforces exact discovery coverage and closed-proof requirements.
 Historical notes counted 376 of 377 `return null;` statements in
 `domain/services` without a nearby log, but that heuristic is not a reachability
 proof and did not define this inventory.
 
 **Phase 0B — telemetry for the subset 0A selects.** Selection completed on
-2026-08-02. The checked-in selection manifest classifies all 52 candidates
-that lacked a mapped event: zero `instrument`, one `covered`, and 51 `defer`.
+2026-08-02. After the dead-code deletion, the checked-in selection manifest
+classifies 50 current candidates that lack a mapped event: zero `instrument`,
+one `covered`, and 49 `defer`.
 The first bounded production slice is
 `_shouldSkipCompletedToolResultFinalAnswerRecovery`, recorded as metadata-only
 decision state on the existing `turn_exit` boundary. Completing the slice does

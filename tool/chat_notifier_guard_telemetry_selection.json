@@ -328,20 +328,6 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart::_repairJsonCandidate",
-      "disposition": "defer",
-      "question": "Was _repairJsonCandidate evaluated, and which branch did it select?",
-      "reason": "Static reachability is closed, but action state still needs matching-build contradiction evidence.",
-      "prerequisite": "Complete matching-build corpus analysis before proposing deletion or instrumentation."
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart::_tryRepairAndDecodeMap",
-      "disposition": "defer",
-      "question": "Was _tryRepairAndDecodeMap evaluated, and which branch did it select?",
-      "reason": "Static reachability is closed, but action state still needs matching-build contradiction evidence.",
-      "prerequisite": "Complete matching-build corpus analysis before proposing deletion or instrumentation."
-    },
-    {
       "id": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart::_requestPythonAttachmentPathFailureRepair",
       "disposition": "defer",
       "question": "Was _requestPythonAttachmentPathFailureRepair evaluated, and which branch did it select?",

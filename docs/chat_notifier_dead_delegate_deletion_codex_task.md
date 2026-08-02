@@ -63,8 +63,14 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
+- Summary: Removed both dead delegates and synchronized the guard, telemetry,
+  decomposition, turn-scope, test, and renewal artifacts.
+- Tests run: All 47 focused Python analyzer tests, current guard and telemetry
+  manifest validation, turn-scope baseline comparison, and all 4 focused
+  proposal parsing tests pass. The standard verifier passes generation,
+  project and package analysis, package tests, and 6,481 of 6,482 Flutter
+  tests; only the known stale
+  `run_coding_stalled_diagnostic_repair_live_canary_test.dart` fixture fails.
 - Coverage or low-coverage notes: Focused analyzer tests cover dead-state
   derivation and contradiction rejection.
 - Risks or follow-ups: The remaining 63 candidates stay unresolved until a
