@@ -70,8 +70,17 @@ tool/codex_verify.sh --test test/features/chat/domain/entities/conversation_test
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
+- Summary: Migrated the active workflow-preservation cardinality guard to
+  `executionTaskViews`. A legacy completed task without progress remains
+  preserved with its workflow source hash and derived timestamp unchanged.
+- Tests run:
+  - The exact no-progress notifier preservation regression passed.
+  - `tool/codex_verify.sh --test test/features/chat/domain/entities/conversation_test.dart`
+    passed, including generated-file verification, project and package
+    analysis, package tests, and 10 focused Flutter tests.
 - Coverage or low-coverage notes: The focused notifier test covers the
-  persistence-affecting no-progress branch.
+  persistence-affecting no-progress branch. Coverage mode was not run.
 - Risks or follow-ups: Status-based readers remain on the legacy projection.
+  The only direct cardinality-shaped legacy reference left is nested in the
+  uninvoked `_buildWorkflowPanel` and is tracked as dead-path cleanup rather
+  than production migration work.
