@@ -67,10 +67,16 @@ tool/codex_verify.sh --test test/features/chat/domain/entities/conversation_test
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: The focused widget test covers the migrated
-  presence condition; status rendering remains covered by existing workflow UI
-  tests.
-- Risks or follow-ups: The persistence-affecting cardinality check remains on
-  the compatibility projection pending a separate audit.
+- Summary: Stopped before implementation. Repository-wide invocation search
+  found no caller for `_buildWorkflowPanel`; the method is explicitly covered
+  by an unused-element suppression. Its nested hydrated-view condition is not
+  an active production read path.
+- Tests run: The proposed widget regression failed because the hydrated view
+  was absent from the mounted `ChatPage`, confirming the invocation audit. The
+  uncommitted production and test changes were removed.
+- Coverage or low-coverage notes: No coverage was added because the candidate
+  path is not mounted. Existing workflow UI tests do not reach this method.
+- Risks or follow-ups: Do not count this dead nested condition as M1 migration
+  progress. Audit whether `_buildWorkflowPanel` should be removed or reconnected
+  as a separate ChatPage cleanup. Continue M1 with the active
+  `conversations_notifier` workflow-preservation guard.
