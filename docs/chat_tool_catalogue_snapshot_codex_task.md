@@ -1,7 +1,7 @@
 # Chat Tool Catalogue Snapshot: Codex Task
 
-Status: Implemented on 2026-08-02. A clean live capture remains the post-commit
-verification step because the command intentionally rejects dirty builds.
+Status: Implemented and live-verified on 2026-08-02. The command intentionally
+rejects dirty builds, so live verification ran from the committed slice.
 
 ## Task
 
@@ -92,6 +92,11 @@ temporary path and validate the emitted JSON without committing it.
   analysis, all package tests, and 6,482 Flutter tests. Its one failure is the
   pre-existing stalled-diagnostic runner assertion that still expects the
   removed `.where(_isTodoVerifierCall)` source text.
+- Live verification: Six configured MCP servers connected and contributed 52
+  dynamic definitions. The snapshot contained 169 sorted, uniquely named
+  function definitions; its recorded commit matched the clean build, its
+  configuration fingerprint was present, and its JSON SHA-256 was recorded for
+  private manifest pinning.
 - Coverage or low-coverage notes: The encoder, validation failures, redaction,
   deterministic fingerprint, atomic write, overwrite refusal, and CLI parser
   contract have focused coverage. Exact installed MCP discovery is verified by
