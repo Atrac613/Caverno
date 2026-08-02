@@ -42,9 +42,9 @@
   `replay`, `orphanExecutionProgress`, and `conflictPreservationRehearsal`.
 - Files or modules inspected: Preservation and receipt services, their focused
   tests, the schema-v5 live authority-free rehearsal, and renewal evidence.
-- Follow-up tasks found: If both synthetic paths pass, the investigation can
-  close and the next action is to specify a user-confirmation boundary without
-  wiring storage or transformation.
+- Follow-up tasks found: Both synthetic paths pass and the persistence-neutral
+  confirmation contract is now defined. Audit adapter ownership and stale
+  request lifecycle before wiring any UI, storage, or transformation.
 
 ## Acceptance Criteria
 
@@ -82,5 +82,6 @@ tool/codex_verify.sh
   preservation, receipt field minimization, JSON round-trip, replay, and input
   immutability.
 - Risks or follow-ups: This rehearsal does not authorize a live migration.
-  Specify a persistence-neutral user-confirmation request/result boundary next;
-  keep receipt storage and conversation transformation outside that slice.
+  The confirmation contract is now defined without an adapter. Audit its
+  owner-scoped UI lifecycle and stale-request disposal next; keep receipt
+  storage and conversation transformation outside that slice.

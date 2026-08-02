@@ -69,7 +69,19 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: Pending.
+- Summary: Added a pure content-free confirmation request, confirmed and
+  declined results, an asynchronous port boundary, and a resolver that emits a
+  manual decision only after request identity, context, current state, fields,
+  and time ordering validate.
+- Tests run: The focused confirmation-contract test passes 9/9.
+  `tool/codex_verify.sh` completes generation, all analyzers, and package tests;
+  the Flutter suite passes 6,538 tests. Its only failure is the pre-existing
+  stale `run_coding_stalled_diagnostic_repair_live_canary` expectation for the
+  removed `_isTodoVerifierCall` helper.
+- Coverage or low-coverage notes: Fixtures cover request construction, both
+  authorities, downstream preservation acceptance, unavailable contexts,
+  invalid request fields, decline, result identity and digest mismatch,
+  invalid confirmation fields, and current-state drift.
+- Risks or follow-ups: No adapter implements this port. Audit and specify its
+  owner-scoped UI lifecycle and stale-request disposal before adding a dialog;
+  persistence and transformation remain separate blocked gates.

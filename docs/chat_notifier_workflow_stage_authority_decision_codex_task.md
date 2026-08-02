@@ -84,6 +84,6 @@ tool/codex_verify.sh
   rehearsal compatibility, and existing preservation blockers.
 - Risks or follow-ups: This contract does not authorize a live migration.
   The persistence-neutral receipt and replay validator are defined, and both
-  synthetic explicit-authority paths now pass end to end. Specify the
-  user-confirmation request/result boundary before any UI, persistence, or
-  transformer wiring.
+  synthetic explicit-authority paths pass end to end. The confirmation contract
+  is now defined without an adapter. Audit owner-scoped UI lifecycle and stale
+  request disposal before any UI, persistence, or transformer wiring.

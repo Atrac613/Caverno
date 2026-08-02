@@ -118,8 +118,10 @@ planning paths emit a plan document.
   replay. A content-free schema-v1 receipt now verifies integrity and rebuilds
   current state before accepting the selected stage. A test-only composed
   rehearsal now completes both explicit authority paths without losing progress
-  or mutating inputs. The next safe slice is a persistence-neutral
-  user-confirmation request/result contract; do not invent live authority,
+  or mutating inputs. A persistence-neutral request/result contract now rejects
+  decline, identity mismatch, invalid time ordering, and current-state drift
+  before emitting a manual decision. The next safe slice is an owner-scoped
+  adapter and stale-request lifecycle audit; do not invent live authority,
   delete the editor, persist receipts, or mutate the live database.
 
 ### C2 — Give task status one owner

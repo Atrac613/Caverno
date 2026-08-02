@@ -79,6 +79,7 @@ tool/codex_verify.sh
   decisions, malformed JSON, schema and field failures, tampering, stale state,
   selected-stage contradiction, and unavailable current context.
 - Risks or follow-ups: This fixture does not authorize a live migration. The
-  end-to-end synthetic rehearsal now passes for both authorities. Specify a
-  persistence-neutral user-confirmation request/result boundary next; do not
-  manufacture a decision for any live conflict record.
+  end-to-end synthetic rehearsal passes for both authorities and the
+  persistence-neutral confirmation contract is defined. Audit adapter
+  ownership and stale-request disposal next; do not manufacture a decision for
+  any live conflict record.
