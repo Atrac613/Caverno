@@ -6,9 +6,11 @@ and its deterministic discovery check is covered by eight focused Python tests.
 Phase 0B telemetry selection completed on 2026-08-02 with one bounded
 candidate and 51 explicit deferrals. The first selected telemetry event is now
 implemented and marked covered. Catalogue snapshot validation and structured
-tool-result observation joins are complete; full dynamic output remains
-pending and no dynamic action state is claimed yet. The private corpus contract
-now validates hashes, build provenance, complete configuration segments,
+tool-result observation joins are complete. The tool catalogue residency
+inventory now links 118 static and 52 private dynamic definitions to six
+production binding groups and traces the unwired catalogue to the unmet
+WS6-19 registry-last gate; no dynamic action state is claimed. The private
+corpus contract now validates hashes, build provenance, complete configuration segments,
 canonical snapshot fingerprints, exact schema-v1 catalogue provenance, and
 submitted tool membership before measurement. A 2026-08-02 structural scan
 found no provenance-bearing record for the first telemetry event, so a new

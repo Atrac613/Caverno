@@ -76,8 +76,15 @@ git diff --check
 
 ## Handoff Notes
 
-- Summary: Pending.
-- Tests run: Pending.
+- Summary: Published the complete static/dynamic definition inventory, linked
+  it to six production binding groups, and traced the unwired catalogue to the
+  unmet WS6-19 registry-last gate.
+- Tests run: 44 focused analyser tests, deterministic tool-manifest validation,
+  report-to-private-output count reconciliation, `git diff --check`, and the
+  standard verifier. The verifier passed generation, analysis, and package
+  tests, then reproduced the unrelated stale stalled-diagnostic canary fixture
+  failure after 6,482 passing Flutter tests.
 - Coverage or low-coverage notes: Documentation-only slice; focused analyser
-  tests and deterministic manifest validation are required.
-- Risks or follow-ups: Production catalogue migration remains a separate task.
+  tests cover the measurement tooling rather than this Markdown finding.
+- Risks or follow-ups: Production catalogue migration remains a separate task
+  behind the existing gate or an explicitly reviewed replacement contract.
