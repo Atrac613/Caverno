@@ -111,18 +111,18 @@ test at `test/python/analyze_chat_notifier_inventory_test.py`. The tool must:
 - emit `currentStaticState`, `observedByBuild`, and the derived action state
   separately, rejecting a matching-build dead/live contradiction.
 
-Phase 0A establishes only the static half of this contract. The analyser now
-accepts the final command surface and validates the finite guard discovery set,
-required evidence fields, exact entry/exclusion coverage, and stale entries.
-It deliberately rejects tool-manifest and dynamic measurement operations until
-their focused slices implement the remaining contract. The
-`--check-corpus-manifest` slice now validates the immutable private input and
-every pinned schema-v1 catalogue snapshot. It verifies canonical definition
-fingerprints and segment/file provenance joins, then structurally counts only
-normalized tool-result submissions. Its deterministic path-free summary keeps
-zero-observation catalogue definitions in the denominator without exposing
-tool names. It does not yet emit definition-level rows or derive guard action
-states.
+Phase 0A establishes the static guard contract. The analyser validates the
+finite guard and static tool manifests, including generated and platform-gated
+definitions. `--check-corpus-manifest` validates the immutable private input
+and every pinned schema-v1 catalogue snapshot, verifies canonical definition
+fingerprints and segment/file provenance joins, and structurally counts only
+normalized tool-result submissions. The full `--corpus-manifest`,
+`--guard-manifest`, `--tool-manifest`, and `--output` command now emits private,
+deterministic definition-level tool residency evidence. It preserves every
+static definition and every configuration-scoped dynamic definition, including
+zero observations, and links them to named, intercepted, or generic fallback
+bindings. Guard observation rows and derived action states remain a later
+slice.
 
 `--require-clean-source` checks the classified `lib/` paths plus the analyser
 and checked-in manifests against the resolved source commit. Findings documents

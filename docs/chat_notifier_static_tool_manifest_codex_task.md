@@ -72,13 +72,15 @@ git diff --check
 
 ## Handoff Notes
 
-- Summary: Implemented schema-v1 validation for 112 static definitions joined
+- Summary: Implemented schema-v1 validation for 118 static definitions joined
   to four production binding kinds: 32 named registry, 19 Computer Use
-  intercept, 12 Browser intercept, and 49 generic MCP fallback definitions.
+  intercept, 12 Browser intercept, and 55 generic MCP fallback definitions.
+  The residency dogfood added six generated HTTP method definitions that use
+  named constructor arguments rather than literal `function.name` maps.
   Dynamic MCP names remain private snapshot data.
-- Tests run: The 40 focused Python tests pass. The committed clean-source
-  manifest gate passes at `5892a999`. `tool/codex_verify.sh` completed with
-  6,482 passing Flutter tests and one unrelated known failure.
+- Tests run: The 44 focused Python tests pass. The committed clean-source
+  manifest and residency gates pass at `76b0ec11`. `tool/codex_verify.sh`
+  completed with 6,482 passing Flutter tests and one unrelated known failure.
 - Coverage or low-coverage notes: Focused tests cover exact manifest success,
   missing definitions, changed bindings, stale generic fallback evidence, and
   changed discovery rules.

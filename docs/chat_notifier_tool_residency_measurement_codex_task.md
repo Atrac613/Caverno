@@ -80,10 +80,22 @@ git diff --check
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Focused tests must cover deterministic output,
-  zero-observation static rows, dynamic configuration scoping, and binding
-  aggregation.
+- Summary: Implemented schema-v1 private residency output with 118 static
+  definitions, configuration-scoped dynamic definitions, six binding rows,
+  normalized observation counts, represented-build grouping, and full-SHA
+  provenance. Live dogfood correctly separated 52 dynamic definitions from a
+  169-definition pinned catalogue after discovering six generated static HTTP
+  definitions that the initial manifest missed.
+- Tests run: All 44 focused Python tests pass. Two clean-source runs produced
+  byte-identical output. `tool/codex_verify.sh` completed analysis, package
+  tests, and 6,482 passing Flutter tests with the one known unrelated
+  `run_coding_stalled_diagnostic_repair_live_canary_test.dart` source-text
+  expectation failure.
+- Coverage or low-coverage notes: Focused tests cover deterministic output,
+  zero-observation static rows, normalized result joins, dynamic configuration
+  scoping, binding aggregation, CLI output, and canonical manifest revisions.
 - Risks or follow-ups: This output supplies evidence for the residency report;
-  it does not decide which handlers should be rewired.
+  it does not decide which handlers should be rewired. The live private fixture
+  is intentionally narrow: it contains one normalized tool-result submission,
+  so its 1 observed and 169 unobserved rows are pipeline evidence rather than a
+  representative traffic conclusion.
