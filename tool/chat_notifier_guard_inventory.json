@@ -162,7 +162,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/ask_user_question_policy.dart::AskUserQuestionPolicy",
@@ -187,7 +189,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/background_process_follow_up_policy.dart::BackgroundProcessFollowUpPolicy",
@@ -218,7 +222,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/background_process_path_policy.dart::BackgroundProcessPathPolicy",
@@ -243,7 +249,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart::CodingContinuationRecoveryPolicy",
@@ -275,7 +283,9 @@
       "telemetryEvent": "turn_exit.transforms:coding_continuation_recovery_*",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/coding_verification_claim_guard.dart::CodingVerificationClaimGuard",
@@ -299,7 +309,9 @@
       "telemetryEvent": "tool_result.trigger:completionClaim",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart::CommandDiagnosticVerifierReplayGuard",
@@ -322,7 +334,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_policy.dart::CommandDiagnosticVerifierReplayPolicy",
@@ -343,7 +357,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/computer_use_action_policy.dart::ComputerUseActionPolicy",
@@ -370,7 +386,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart::ContextSurgeryProtectedPathPolicy",
@@ -393,7 +411,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/conversation_goal_auto_continue_policy.dart::ConversationGoalAutoContinuePolicy",
@@ -416,7 +436,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart::DuplicateToolResultRecovery",
@@ -449,7 +471,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/execution_budget_policy.dart::ExecutionBudgetPolicy",
@@ -470,7 +494,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/file_mutation_evidence_policy.dart::FileMutationEvidencePolicy",
@@ -511,7 +537,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/final_answer_recovery_policy.dart::FinalAnswerRecoveryPolicy",
@@ -537,7 +565,9 @@
       "telemetryEvent": "turn_exit.transforms:final_answer_concise_retry",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart::GitTagFormatInspectionGuard",
@@ -558,7 +588,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/git_write_confirmation_policy.dart::GitWriteConfirmationPolicy",
@@ -581,7 +613,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/goal_validation_probe_guard.dart::GoalValidationProbeGuard",
@@ -604,7 +638,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/material_contract_assumption_guard.dart::MaterialContractAssumptionGuard",
@@ -629,7 +665,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/model_switch_settings_policy.dart::ModelSwitchSettingsPolicy",
@@ -650,7 +688,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/narrated_transcript_claim_guard.dart::NarratedTranscriptClaimGuard",
@@ -676,7 +716,9 @@
       "telemetryEvent": "turn_exit.transforms:narrated_transcript_repair",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/participant_message_finalizer.dart::ParticipantMessageVisibilityPolicy",
@@ -697,7 +739,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/participant_tool_policy.dart::ParticipantToolPolicy",
@@ -728,7 +772,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/pending_action_length_recovery_policy.dart::PendingActionLengthRecoveryPolicy",
@@ -748,7 +794,9 @@
       "telemetryEvent": "turn_exit.transforms:pending_action_length_recovery",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/planning_tool_policy.dart::PlanningToolPolicy",
@@ -773,7 +821,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/process_start_result_policy.dart::ProcessStartResultPolicy",
@@ -800,7 +850,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/production_release_approval_policy.dart::ProductionReleaseApprovalPolicy",
@@ -819,7 +871,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/python_attachment_repair_policy.dart::PythonAttachmentRepairPolicy",
@@ -852,7 +906,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart::SavedTaskTargetScopeGuard",
@@ -877,7 +933,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/saved_validation_command_guard.dart::SavedValidationCommandGuard",
@@ -898,7 +956,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/subagent_tool_policy.dart::SubagentToolPolicy",
@@ -925,7 +985,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart::TimedOutCommandRetryGuard",
@@ -948,7 +1010,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/tool_call_execution_policy.dart::ToolCallExecutionPolicy",
@@ -1023,7 +1087,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart::ToolLoopExhaustionPolicy",
@@ -1044,7 +1110,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/tool_loop_recovery_policy.dart::ToolLoopRecoveryPolicy",
@@ -1065,7 +1133,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/tool_terminal_response_policy.dart::ToolTerminalResponsePolicy",
@@ -1094,7 +1164,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/tool_terminal_success_policy.dart::ToolTerminalSuccessPolicy",
@@ -1117,7 +1189,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart::TruncatedToolCallArgumentsGuard",
@@ -1141,7 +1215,9 @@
       "telemetryEvent": "turn_exit.transforms:truncated_tool_call_arguments_feedback",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart::TurnFinalizationRecoveryPolicy",
@@ -1170,7 +1246,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart::UnexecutedFileMutationBeforeCommandGuard",
@@ -1191,7 +1269,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart::UnexecutedFinalAnswerToolRequestPolicy",
@@ -1230,7 +1310,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/unwritten_file_claim_guard.dart::UnwrittenFileClaimGuard",
@@ -1255,7 +1337,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/verification_cadence_policy.dart::VerificationCadencePolicy",
@@ -1276,7 +1360,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart::VerifierReplayCandidatePolicy",
@@ -1297,7 +1383,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart::WorkflowTaskRunLifecyclePolicy",
@@ -1318,7 +1406,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/domain/services/workflow_task_turn_route_policy.dart::WorkflowTaskTurnRoutePolicy",
@@ -1341,7 +1431,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_postSavedValidationEvidenceRequiresRepair",
@@ -1360,7 +1452,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_requestBackgroundProcessMonitorRepairForCompletionClaim",
@@ -1381,7 +1475,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_requestSkippedBrowserActionRepairAfterSnapshot",
@@ -1400,7 +1496,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_shouldRepairSkippedBrowserActionAfterSnapshot",
@@ -1419,7 +1517,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart::_hasCodingContinuationRecoveryTools",
@@ -1439,7 +1539,9 @@
       "telemetryEvent": "turn_exit.transforms:coding_continuation_recovery_*",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart::_requestCodingContinuationRecovery",
@@ -1463,7 +1565,9 @@
       "telemetryEvent": "turn_exit.transforms:coding_continuation_recovery_*",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_coding_verification_feedback.dart::_requestCodingVerificationRepairForCompletionClaim",
@@ -1483,7 +1587,9 @@
       "telemetryEvent": "tool_result.trigger:completionClaim",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_command_guardrails.dart::_buildProductionReleaseApprovalGuardResult",
@@ -1502,7 +1608,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart::_replayVerifierAfterRepairMutation",
@@ -1521,7 +1629,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart::_repairJsonCandidate",
@@ -1533,11 +1643,9 @@
       "staticEdges": [],
       "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
       "telemetryEvent": null,
-      "unresolvedEdges": [
-        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
-        "No non-declaration lexical selection root was found.",
-        "No structured firing event is mapped yet."
-      ]
+      "unresolvedEdges": [],
+      "currentStaticState": "unreachable",
+      "staticProof": "No non-declaration production reference exists; the member is private to the ChatNotifier library, production imports no dart:mirrors, ProposalJsonExtractor calls ProposalParsingTextUtils directly, commit 1140b25e removed the old wrapper call sites, and e90f6643 retained only the orphan delegates."
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart::_tryRepairAndDecodeMap",
@@ -1549,11 +1657,9 @@
       "staticEdges": [],
       "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
       "telemetryEvent": null,
-      "unresolvedEdges": [
-        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
-        "No non-declaration lexical selection root was found.",
-        "No structured firing event is mapped yet."
-      ]
+      "unresolvedEdges": [],
+      "currentStaticState": "unreachable",
+      "staticProof": "No non-declaration production reference exists; the member is private to the ChatNotifier library, production imports no dart:mirrors, ProposalJsonExtractor calls ProposalParsingTextUtils directly, commit 1140b25e removed the old wrapper call sites, and e90f6643 retained only the orphan delegates."
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart::_requestPythonAttachmentPathFailureRepair",
@@ -1572,7 +1678,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart::_requestSkippedPythonAttachmentAnalysisRepair",
@@ -1591,7 +1699,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart::_buildTruncatedToolCallArgumentsGuardResult",
@@ -1609,7 +1719,9 @@
       "telemetryEvent": "turn_exit.transforms:truncated_tool_call_arguments_feedback",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart::_prepareLastAssistantForTurnFinalizationRecovery",
@@ -1628,7 +1740,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart::_shouldSkipCompletedToolResultCodingContinuationRecovery",
@@ -1646,7 +1760,9 @@
       "telemetryEvent": "turn_exit.transforms:coding_continuation_recovery_*",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart::_shouldSkipCompletedToolResultFinalAnswerRecovery",
@@ -1667,7 +1783,9 @@
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
         "No structured firing event is mapped yet."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart::_applyNarratedTranscriptRepairToStreamedFinalAnswer",
@@ -1685,7 +1803,9 @@
       "telemetryEvent": "turn_exit.transforms:narrated_transcript_repair",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart::_requestNarratedTranscriptRepairForCompletionClaim",
@@ -1703,7 +1823,9 @@
       "telemetryEvent": "turn_exit.transforms:narrated_transcript_repair",
       "unresolvedEdges": [
         "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
-      ]
+      ],
+      "currentStaticState": "unresolved",
+      "staticProof": null
     }
   ]
 }

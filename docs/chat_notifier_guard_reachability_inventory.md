@@ -1,9 +1,10 @@
 # ChatNotifier Guard Reachability Inventory
 
-Status: Phase 0A static inventory complete; dynamic observations and action
+Status: Phase 0A static inventory complete. Two orphan proposal-parsing
+delegates are statically unreachable; dynamic observations and final action
 classification remain pending the manifest-driven corpus analyser.
 
-Classified source revision: `280bc383df102dab108f51a02c772fd81ad29d1d`. The checked-in manifest uses
+Classified source revision: `4222d74d7598a9ec8d2aa3fe8d31b8e4f8592708`. The checked-in manifest uses
 `HEAD` as its symbolic revision so the post-commit clean-source check can resolve
 the exact commit without embedding a self-referential commit hash.
 
@@ -17,10 +18,10 @@ The finite discovery contract covers:
   `repair`.
 
 Every discovery result is either an inventory entry or an explicit exclusion.
-Phase 0A uses lexical references only. It does not claim that a reference is
-reachable from a production turn root, and it does not use missing telemetry as
-evidence of death. The unresolved callback and runtime-configuration edges are
-recorded on every entry for the later static proof pass.
+Phase 0A uses lexical references and reviewable source/history proofs. It does
+not use missing telemetry as evidence of death. Unresolved callback and
+runtime-configuration edges remain recorded for every candidate whose static
+call graph is not closed.
 
 Reproduce the inventory check with:
 
@@ -34,9 +35,8 @@ git diff --check
 
 ## Static inventory
 
-`currentStaticState` and `actionState` remain `unresolved` until static call-edge
-review and matching-build corpus analysis are both available. `observedByBuild`
-is intentionally not measured in Phase 0A.
+`actionState` remains `unresolved` until matching-build corpus analysis is
+available. `observedByBuild` is intentionally not measured in Phase 0A.
 
 | Symbol | Source | Kind | Selection refs | Reachability impact | Telemetry | Current static state | Observed by build | Action state |
 | --- | --- | --- | ---: | --- | --- | --- | --- | --- |
@@ -95,8 +95,8 @@ is intentionally not measured in Phase 0A.
 | `_requestCodingVerificationRepairForCompletionClaim` | `chat_notifier_coding_verification_feedback.dart` | notifier_member | 2 | silent non-fire can leave a recovery path unreachable | `tool_result.trigger:completionClaim` | Unresolved | Not measured | Unresolved |
 | `_buildProductionReleaseApprovalGuardResult` | `chat_notifier_command_guardrails.dart` | notifier_member | 1 | selection may enable, block, or redirect turn behavior | Not mapped | Unresolved | Not measured | Unresolved |
 | `_replayVerifierAfterRepairMutation` | `chat_notifier_goal_auto_continue.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
-| `_repairJsonCandidate` | `chat_notifier_proposal_parsing.dart` | notifier_member | 0 | silent non-fire can leave a recovery path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
-| `_tryRepairAndDecodeMap` | `chat_notifier_proposal_parsing.dart` | notifier_member | 0 | silent non-fire can leave a recovery path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
+| `_repairJsonCandidate` | `chat_notifier_proposal_parsing.dart` | notifier_member | 0 | silent non-fire can leave a recovery path unreachable | Not mapped | Unreachable | Not measured | Unresolved |
+| `_tryRepairAndDecodeMap` | `chat_notifier_proposal_parsing.dart` | notifier_member | 0 | silent non-fire can leave a recovery path unreachable | Not mapped | Unreachable | Not measured | Unresolved |
 | `_requestPythonAttachmentPathFailureRepair` | `chat_notifier_python_attachment_repair.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
 | `_requestSkippedPythonAttachmentAnalysisRepair` | `chat_notifier_python_attachment_repair.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
 | `_buildTruncatedToolCallArgumentsGuardResult` | `chat_notifier_tool_loop_batch.dart` | notifier_member | 1 | selection may enable, block, or redirect turn behavior | `turn_exit.transforms:truncated_tool_call_arguments_feedback` | Unresolved | Not measured | Unresolved |
@@ -105,6 +105,42 @@ is intentionally not measured in Phase 0A.
 | `_shouldSkipCompletedToolResultFinalAnswerRecovery` | `chat_notifier_turn_finalization_recovery.dart` | notifier_member | 2 | silent non-fire can leave a guarded or corrective path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
 | `_applyNarratedTranscriptRepairToStreamedFinalAnswer` | `chat_notifier_unexecuted_action_recovery.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | `turn_exit.transforms:narrated_transcript_repair` | Unresolved | Not measured | Unresolved |
 | `_requestNarratedTranscriptRepairForCompletionClaim` | `chat_notifier_unexecuted_action_recovery.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | `turn_exit.transforms:narrated_transcript_repair` | Unresolved | Not measured | Unresolved |
+
+## Static unreachable proofs
+
+### `_tryRepairAndDecodeMap`
+
+- The only production occurrence of the private extension member is its
+  declaration. There is no tear-off, callback registration, or other lexical
+  selection root.
+- `ProposalJsonExtractor.extractJsonMap` calls
+  `ProposalParsingTextUtils.tryRepairAndDecodeMap` directly for direct, sliced,
+  and trailing candidates. The user-visible repair behavior remains live
+  without the wrapper.
+- Commit `1140b25e` moved the call sites to `ProposalParsingTextUtils`; commit
+  `e90f6643` later retained the delegate while decomposing the notifier.
+
+### `_repairJsonCandidate`
+
+- The only production occurrence of the private extension member is its
+  declaration. `ProposalParsingTextUtils.tryRepairAndDecodeMap` calls the static
+  `repairJsonCandidate` implementation directly.
+- Production imports no `dart:mirrors`, and private extension members cannot be
+  selected by string name. No unresolved invocation edge remains.
+
+These proofs establish `currentStaticState: unreachable` for the two wrappers.
+They do not establish action state `dead`: a non-empty clean matching-build
+corpus must still show no contradictory firing before deletion is proposed.
+
+Reproduce the proof search with:
+
+```bash
+rg -n "_tryRepairAndDecodeMap|_repairJsonCandidate" lib
+rg -n "ProposalParsingTextUtils\.(tryRepairAndDecodeMap|repairJsonCandidate)" lib test
+rg -n "dart:mirrors|Function\.apply|Symbol\(" lib
+git show 1140b25e^:lib/features/chat/presentation/providers/chat_notifier.dart
+git show 1140b25e -- lib/features/chat
+```
 
 ## Explicit exclusions
 
@@ -134,15 +170,15 @@ excluded while the discovery rule continues to match it.
 
 - 65 decision candidates are represented and 15 helper matches are explicitly excluded (80 total discovery results).
 - 13 candidates have a directly mapped structured firing event; the remaining 52 require Phase 0B telemetry review.
-- 2 entries have no non-declaration lexical selection reference. They are high-priority static-edge review candidates, not dead-code findings.
-- No entry is classified dead, live, or unexercised in this slice.
+- 2 orphan delegates are statically unreachable. Their action states remain unresolved pending matching-build observations.
+- The other 63 candidates remain statically unresolved; none is classified dead, live, or unexercised in this slice.
 
 ## Explicit unresolved items
 
-- Resolve callers to production turn-loop roots rather than stopping at lexical
-  references.
+- Resolve the remaining callers to production turn-loop roots rather than
+  stopping at lexical references.
 - Review callback, extension, module-registration, and runtime configuration
-  edges.
+  edges for the remaining candidates.
 - Complete Phase 0B telemetry selection before changing logging.
 - Run the private, hash-pinned matching-build corpus analysis before deriving
   action states.

@@ -71,6 +71,8 @@ class ChatNotifierInventoryTest(unittest.TestCase):
                     ],
                     "reachabilityImpact": "may suppress a feature or recovery path",
                     "telemetryEvent": None,
+                    "currentStaticState": "unresolved",
+                    "staticProof": None,
                     "unresolvedEdges": ["Runtime callback dispatch is not resolved."],
                 }
             )
@@ -172,6 +174,24 @@ class ChatNotifierInventoryTest(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 analyzer.InventoryError, "selectionRoots are stale"
+            ):
+                analyzer.validate_guard_manifest(path, root)
+
+    def test_requires_closed_proof_for_unreachable_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            candidate = next(
+                entry
+                for entry in manifest["entries"]
+                if entry["symbol"] == "SampleGuard"
+            )
+            candidate["currentStaticState"] = "unreachable"
+            candidate["staticProof"] = "No production selection root exists."
+            path = self._write_manifest(root, manifest)
+
+            with self.assertRaisesRegex(
+                analyzer.InventoryError, "unresolved edges"
             ):
                 analyzer.validate_guard_manifest(path, root)
 

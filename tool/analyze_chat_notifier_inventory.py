@@ -65,6 +65,8 @@ ENTRY_FIELDS = {
     "staticEdges",
     "reachabilityImpact",
     "telemetryEvent",
+    "currentStaticState",
+    "staticProof",
     "unresolvedEdges",
 }
 EXCLUSION_FIELDS = {
@@ -279,6 +281,32 @@ def validate_guard_manifest(
             raise InventoryError(
                 f"entries[{index}].telemetryEvent must be null or non-empty"
             )
+        static_state = raw["currentStaticState"]
+        if static_state not in {"reachable", "unreachable", "unresolved"}:
+            raise InventoryError(
+                f"entries[{index}].currentStaticState must be reachable, "
+                "unreachable, or unresolved"
+            )
+        static_proof = raw["staticProof"]
+        if static_proof is not None and (
+            not isinstance(static_proof, str) or not static_proof.strip()
+        ):
+            raise InventoryError(
+                f"entries[{index}].staticProof must be null or non-empty"
+            )
+        if static_state == "unreachable":
+            if static_proof is None:
+                raise InventoryError(
+                    f"entries[{index}] needs a proof for unreachable state"
+                )
+            if raw["selectionRoots"]:
+                raise InventoryError(
+                    f"entries[{index}] cannot be unreachable with selection roots"
+                )
+            if raw["unresolvedEdges"]:
+                raise InventoryError(
+                    f"entries[{index}] cannot be unreachable with unresolved edges"
+                )
         key = _candidate_key(raw)
         if key in represented:
             raise InventoryError(f"Candidate represented twice: {key[0]}::{key[1]}")

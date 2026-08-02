@@ -209,7 +209,10 @@ checked-in inventory now represents 65 decision candidates and explicitly
 excludes 15 matched helpers. It records whether silent non-fire can suppress a
 guarded or recovery path, maps 13 existing structured events, and leaves all
 action states unresolved pending production-root edge review and matching-build
-observations. The focused analyser test enforces exact discovery coverage.
+observations. Two orphan proposal-parsing delegates are statically unreachable,
+but are not deletion candidates until a matching-build corpus supplies the
+contradiction check. The focused analyser test enforces exact discovery
+coverage and closed-proof requirements.
 Historical notes counted 376 of 377 `return null;` statements in
 `domain/services` without a nearby log, but that heuristic is not a reachability
 proof and did not define this inventory.
