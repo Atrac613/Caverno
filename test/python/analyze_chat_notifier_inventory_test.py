@@ -304,6 +304,16 @@ class ChatNotifierInventoryTest(unittest.TestCase):
         manifest["files"][0]["sha256"] = self._sha256(path)
         self._write_corpus_manifest(manifest_path, manifest)
 
+    def _tool_result_record(self, commit, timestamp, operation, request):
+        return {
+            "schemaName": analyzer.SESSION_LOG_SCHEMA_NAME,
+            "schemaVersion": 2,
+            "timestamp": timestamp,
+            "build": {"commit": commit[:10], "dirty": False},
+            "operation": operation,
+            "request": request,
+        }
+
     def test_discovers_types_and_notifier_members_deterministically(self):
         with tempfile.TemporaryDirectory() as directory:
             root = self._fixture(directory)
@@ -671,12 +681,16 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             second = analyzer.validate_corpus_manifest(manifest_path, ROOT)
 
         self.assertEqual(first, second)
+        self.assertEqual(first["schemaVersion"], 2)
         self.assertEqual(first["fileCount"], 1)
         self.assertEqual(first["recordCount"], 2)
         self.assertEqual(first["configurationSegmentCount"], 2)
         self.assertEqual(first["catalogueSnapshotCount"], 2)
         self.assertEqual(first["catalogueDefinitionCount"], 3)
         self.assertEqual(first["catalogueExporterRevisions"], ["1"])
+        self.assertEqual(first["toolResultSubmissionCount"], 0)
+        self.assertEqual(first["observedCatalogueDefinitionCount"], 0)
+        self.assertEqual(first["unobservedCatalogueDefinitionCount"], 3)
         self.assertEqual(
             first["catalogueConfigurationFingerprints"],
             expected_fingerprints,
@@ -693,6 +707,178 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             [{"commit": commit, "dirty": False}],
         )
         self.assertNotIn(directory, json.dumps(first, sort_keys=True))
+
+    def test_counts_structured_tool_result_submissions_by_joined_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path, manifest, session_path, records, commit = (
+                self._write_corpus_fixture(directory)
+            )
+            records[:] = [
+                self._tool_result_record(
+                    commit,
+                    "2026-08-02T00:15:00Z",
+                    "streamWithToolResult",
+                    {
+                        "toolCallId": "call-first",
+                        "toolName": "first",
+                        "toolArguments": {},
+                        "toolResult": {"ok": True},
+                    },
+                ),
+                self._tool_result_record(
+                    commit,
+                    "2026-08-02T00:30:00Z",
+                    "createChatCompletionWithToolResults",
+                    {
+                        "toolResults": [
+                            {
+                                "id": "call-second",
+                                "name": "second",
+                                "arguments": {},
+                                "result": {"ok": True},
+                            },
+                            {
+                                "id": "call-shared",
+                                "name": "shared",
+                                "arguments": {},
+                                "result": {"ok": False},
+                            },
+                        ]
+                    },
+                ),
+            ]
+            self._rewrite_session(session_path, records, manifest, manifest_path)
+
+            summary = analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+        self.assertEqual(summary["toolResultSubmissionCount"], 3)
+        self.assertEqual(summary["observedCatalogueDefinitionCount"], 3)
+        self.assertEqual(summary["unobservedCatalogueDefinitionCount"], 0)
+
+    def test_counts_repeated_results_without_inflating_definition_coverage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path, manifest, session_path, records, commit = (
+                self._write_corpus_fixture(directory)
+            )
+            records[:] = [
+                self._tool_result_record(
+                    commit,
+                    "2026-08-02T00:30:00Z",
+                    "createChatCompletionWithToolResults",
+                    {
+                        "toolResults": [
+                            {
+                                "id": f"call-{index}",
+                                "name": "second",
+                                "arguments": {},
+                                "result": {},
+                            }
+                            for index in range(2)
+                        ]
+                    },
+                )
+            ]
+            self._rewrite_session(session_path, records, manifest, manifest_path)
+
+            summary = analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+        self.assertEqual(summary["toolResultSubmissionCount"], 2)
+        self.assertEqual(summary["observedCatalogueDefinitionCount"], 1)
+        self.assertEqual(summary["unobservedCatalogueDefinitionCount"], 2)
+
+    def test_does_not_count_model_requested_tool_calls_as_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path, manifest, session_path, records, commit = (
+                self._write_corpus_fixture(directory)
+            )
+            records[:] = [
+                {
+                    **self._tool_result_record(
+                        commit,
+                        "2026-08-02T00:15:00Z",
+                        "streamChatCompletionWithTools",
+                        {"messages": [], "tools": []},
+                    ),
+                    "response": {
+                        "content": "",
+                        "toolCalls": [
+                            {"id": "requested", "name": "absent", "arguments": {}}
+                        ],
+                    },
+                }
+            ]
+            self._rewrite_session(session_path, records, manifest, manifest_path)
+
+            summary = analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+        self.assertEqual(summary["toolResultSubmissionCount"], 0)
+        self.assertEqual(summary["observedCatalogueDefinitionCount"], 0)
+
+    def test_rejects_malformed_or_unjoined_tool_result_submissions(self):
+        scenarios = (
+            ("unknown", "absent from its catalogue snapshot"),
+            ("request", "request must be an object"),
+            ("empty_id", "toolCallId must be non-empty"),
+            ("duplicate", "toolResults has duplicate IDs"),
+            ("batch_shape", "missing fields"),
+            ("operation", "incompatible operation"),
+            ("mixed", "incompatible batch result field"),
+        )
+        for scenario, expected in scenarios:
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                manifest_path, manifest, session_path, records, commit = (
+                    self._write_corpus_fixture(directory)
+                )
+                operation = "streamWithToolResult"
+                request = {
+                    "toolCallId": "call-first",
+                    "toolName": "first",
+                    "toolArguments": {},
+                    "toolResult": {},
+                }
+                timestamp = "2026-08-02T00:15:00Z"
+                if scenario == "unknown":
+                    request["toolName"] = "private_absent_tool"
+                elif scenario == "request":
+                    request = None
+                elif scenario == "empty_id":
+                    request["toolCallId"] = " "
+                elif scenario in {"duplicate", "batch_shape"}:
+                    operation = "createChatCompletionWithToolResults"
+                    timestamp = "2026-08-02T00:30:00Z"
+                    item = {
+                        "id": "duplicate",
+                        "name": "second",
+                        "arguments": {},
+                        "result": {},
+                    }
+                    request = {
+                        "toolResults": [dict(item), dict(item)]
+                    }
+                    if scenario == "batch_shape":
+                        request["toolResults"][0].pop("result")
+                elif scenario == "operation":
+                    operation = "streamChatCompletionWithTools"
+                else:
+                    request["toolResults"] = []
+                records[:] = [
+                    self._tool_result_record(
+                        commit,
+                        timestamp,
+                        operation,
+                        request,
+                    )
+                ]
+                self._rewrite_session(
+                    session_path, records, manifest, manifest_path
+                )
+
+                with self.assertRaisesRegex(
+                    analyzer.InventoryError, expected
+                ) as context:
+                    analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+                self.assertNotIn("private_absent_tool", str(context.exception))
 
     def test_check_corpus_manifest_cli_prints_only_the_json_summary(self):
         with tempfile.TemporaryDirectory() as directory:

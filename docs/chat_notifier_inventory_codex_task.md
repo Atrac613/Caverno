@@ -5,13 +5,14 @@ manifest contains 65 decision candidates and 15 explicit helper exclusions,
 and its deterministic discovery check is covered by eight focused Python tests.
 Phase 0B telemetry selection completed on 2026-08-02 with one bounded
 candidate and 51 explicit deferrals. The first selected telemetry event is now
-implemented and marked covered. Catalogue snapshot validation is complete;
-dynamic corpus analysis remains pending and no dynamic action state is claimed
-yet. The private corpus contract now validates hashes, build provenance,
-complete configuration segments, canonical snapshot fingerprints, and exact
-schema-v1 catalogue provenance before measurement. A 2026-08-02 structural
-scan found no provenance-bearing record for the first telemetry event, so a
-new clean capture is required. Static review has proven
+implemented and marked covered. Catalogue snapshot validation and structured
+tool-result observation joins are complete; full dynamic output remains
+pending and no dynamic action state is claimed yet. The private corpus contract
+now validates hashes, build provenance, complete configuration segments,
+canonical snapshot fingerprints, exact schema-v1 catalogue provenance, and
+submitted tool membership before measurement. A 2026-08-02 structural scan
+found no provenance-bearing record for the first telemetry event, so a new
+clean capture is required. Static review has proven
 `_tryRepairAndDecodeMap` and `_repairJsonCandidate` unreachable, but their action
 state remains unresolved until matching-build observations exist.
 
@@ -117,8 +118,11 @@ It deliberately rejects tool-manifest and dynamic measurement operations until
 their focused slices implement the remaining contract. The
 `--check-corpus-manifest` slice now validates the immutable private input and
 every pinned schema-v1 catalogue snapshot. It verifies canonical definition
-fingerprints and segment/file provenance joins, then emits a deterministic
-path-free summary without deriving invocation counts or action states.
+fingerprints and segment/file provenance joins, then structurally counts only
+normalized tool-result submissions. Its deterministic path-free summary keeps
+zero-observation catalogue definitions in the denominator without exposing
+tool names. It does not yet emit definition-level rows or derive guard action
+states.
 
 `--require-clean-source` checks the classified `lib/` paths plus the analyser
 and checked-in manifests against the resolved source commit. Findings documents

@@ -130,6 +130,8 @@ FIRST_TELEMETRY_SLICE_VALUES = [
 ]
 CORPUS_MANIFEST_SCHEMA_NAME = "caverno_chat_notifier_inventory_corpus"
 CORPUS_MANIFEST_SCHEMA_VERSION = 1
+CORPUS_SUMMARY_SCHEMA_NAME = "caverno_chat_notifier_inventory_corpus_summary"
+CORPUS_SUMMARY_SCHEMA_VERSION = 2
 CORPUS_MANIFEST_FIELDS = {
     "schemaName",
     "schemaVersion",
@@ -168,6 +170,18 @@ CATALOGUE_SNAPSHOT_FIELDS = {
 CATALOGUE_BUILD_REQUIRED_FIELDS = {"commit", "dirty"}
 CATALOGUE_BUILD_OPTIONAL_FIELDS = {"builtAt"}
 CATALOGUE_DEFINITION_REQUIRED_FIELDS = {"type", "function"}
+SINGLE_TOOL_RESULT_OPERATIONS = {
+    "streamWithToolResult",
+    "createChatCompletionWithToolResult",
+}
+BATCH_TOOL_RESULT_OPERATION = "createChatCompletionWithToolResults"
+SINGLE_TOOL_RESULT_REQUIRED_FIELDS = {
+    "toolCallId",
+    "toolName",
+    "toolArguments",
+    "toolResult",
+}
+BATCH_TOOL_RESULT_FIELDS = {"id", "name", "arguments", "result"}
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 FINGERPRINT_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-fA-F]{4,40}$")
@@ -514,9 +528,86 @@ def _validate_catalogue_snapshot(
         )
     return {
         "definitionCount": tool_count,
+        "definitionNames": frozenset(names),
         "configurationFingerprint": fingerprint,
         "exporterRevision": exporter_revision,
     }
+
+
+def _extract_tool_result_submissions(
+    record: dict[str, Any], label: str
+) -> list[tuple[str, str]]:
+    operation = record.get("operation")
+    if not isinstance(operation, str) or not operation.strip():
+        raise InventoryError(f"{label}.operation must be non-empty")
+    request = record.get("request")
+    result_fields = {
+        "toolResults",
+        "toolCallId",
+        "toolName",
+        "toolArguments",
+        "toolResult",
+    }
+    present_result_fields = (
+        result_fields & request.keys() if isinstance(request, dict) else set()
+    )
+
+    if operation in SINGLE_TOOL_RESULT_OPERATIONS:
+        if not isinstance(request, dict):
+            raise InventoryError(f"{label}.request must be an object")
+        _require_fields(
+            request,
+            SINGLE_TOOL_RESULT_REQUIRED_FIELDS,
+            f"{label}.request",
+        )
+        if "toolResults" in request:
+            raise InventoryError(
+                f"{label}.request has an incompatible batch result field"
+            )
+        call_id = request["toolCallId"]
+        name = request["toolName"]
+        if not isinstance(call_id, str) or not call_id.strip():
+            raise InventoryError(f"{label}.request.toolCallId must be non-empty")
+        if not isinstance(name, str) or not name.strip():
+            raise InventoryError(f"{label}.request.toolName must be non-empty")
+        return [(call_id, name)]
+
+    if operation == BATCH_TOOL_RESULT_OPERATION:
+        if not isinstance(request, dict):
+            raise InventoryError(f"{label}.request must be an object")
+        if present_result_fields - {"toolResults"}:
+            raise InventoryError(
+                f"{label}.request has incompatible singleton result fields"
+            )
+        raw_results = request.get("toolResults")
+        if not isinstance(raw_results, list) or not raw_results:
+            raise InventoryError(
+                f"{label}.request.toolResults must be a non-empty list"
+            )
+        submissions: list[tuple[str, str]] = []
+        seen_ids: set[str] = set()
+        for index, raw_result in enumerate(raw_results):
+            result_label = f"{label}.request.toolResults[{index}]"
+            if not isinstance(raw_result, dict):
+                raise InventoryError(f"{result_label} must be an object")
+            _require_exact_fields(raw_result, BATCH_TOOL_RESULT_FIELDS, result_label)
+            call_id = raw_result["id"]
+            name = raw_result["name"]
+            if not isinstance(call_id, str) or not call_id.strip():
+                raise InventoryError(f"{result_label}.id must be non-empty")
+            if call_id in seen_ids:
+                raise InventoryError(f"{label}.request.toolResults has duplicate IDs")
+            seen_ids.add(call_id)
+            if not isinstance(name, str) or not name.strip():
+                raise InventoryError(f"{result_label}.name must be non-empty")
+            submissions.append((call_id, name))
+        return submissions
+
+    if present_result_fields:
+        raise InventoryError(
+            f"{label}.request has tool-result fields for an incompatible operation"
+        )
+    return []
 
 
 def validate_corpus_manifest(
@@ -545,6 +636,8 @@ def validate_corpus_manifest(
     catalogue_definition_count = 0
     catalogue_fingerprints: set[str] = set()
     catalogue_exporter_revisions: set[str] = set()
+    tool_result_submission_count = 0
+    observed_catalogue_definitions: set[tuple[int, int, str]] = set()
     record_count = 0
     segment_count = 0
     timestamps: list[dt.datetime] = []
@@ -578,7 +671,7 @@ def validate_corpus_manifest(
         raw_segments = raw_file["segments"]
         if not isinstance(raw_segments, list) or not raw_segments:
             raise InventoryError(f"{file_label}.segments must be a non-empty list")
-        segments: list[tuple[dt.datetime, dt.datetime]] = []
+        segments: list[dict[str, Any]] = []
         for segment_index, raw_segment in enumerate(raw_segments):
             segment_label = f"{file_label}.segments[{segment_index}]"
             if not isinstance(raw_segment, dict):
@@ -594,8 +687,8 @@ def validate_corpus_manifest(
             )
             if start >= end:
                 raise InventoryError(f"{segment_label} must have a positive range")
-            if segments and start != segments[-1][1]:
-                relation = "overlap" if start < segments[-1][1] else "gap"
+            if segments and start != segments[-1]["end"]:
+                relation = "overlap" if start < segments[-1]["end"] else "gap"
                 raise InventoryError(
                     f"{file_label}.segments contain a timestamp {relation}"
                 )
@@ -642,20 +735,30 @@ def validate_corpus_manifest(
             catalogue_exporter_revisions.add(
                 snapshot_summary["exporterRevision"]
             )
-            segments.append((start, end))
+            segments.append(
+                {
+                    "start": start,
+                    "end": end,
+                    "index": segment_index,
+                    "definitionNames": snapshot_summary["definitionNames"],
+                }
+            )
             segment_count += 1
 
         records = _load_session_records(session_path, file_label)
         for line_index, record in enumerate(records, 1):
             record_label = f"{file_label} line {line_index}"
             timestamp = _parse_timestamp(record.get("timestamp"), f"{record_label}.timestamp")
-            matching_segments = sum(
-                1 for start, end in segments if start <= timestamp < end
-            )
-            if matching_segments != 1:
+            matching_segments = [
+                segment
+                for segment in segments
+                if segment["start"] <= timestamp < segment["end"]
+            ]
+            if len(matching_segments) != 1:
                 raise InventoryError(
                     f"{record_label} must match exactly one configuration segment"
                 )
+            matching_segment = matching_segments[0]
             build = record.get("build")
             if not isinstance(build, dict):
                 raise InventoryError(f"{record_label}.build must be an object")
@@ -675,12 +778,22 @@ def validate_corpus_manifest(
                 raise InventoryError(
                     f"{record_label}.build.dirty does not match its file declaration"
                 )
+            submissions = _extract_tool_result_submissions(record, record_label)
+            for _, tool_name in submissions:
+                if tool_name not in matching_segment["definitionNames"]:
+                    raise InventoryError(
+                        f"{record_label} submits a tool absent from its catalogue snapshot"
+                    )
+                observed_catalogue_definitions.add(
+                    (file_index, matching_segment["index"], tool_name)
+                )
+            tool_result_submission_count += len(submissions)
             timestamps.append(timestamp)
             record_count += 1
 
     return {
-        "schemaName": "caverno_chat_notifier_inventory_corpus_summary",
-        "schemaVersion": 1,
+        "schemaName": CORPUS_SUMMARY_SCHEMA_NAME,
+        "schemaVersion": CORPUS_SUMMARY_SCHEMA_VERSION,
         "corpusManifestSha256": manifest_digest,
         "fileCount": len(raw_files),
         "recordCount": record_count,
@@ -689,6 +802,11 @@ def validate_corpus_manifest(
         "catalogueDefinitionCount": catalogue_definition_count,
         "catalogueConfigurationFingerprints": sorted(catalogue_fingerprints),
         "catalogueExporterRevisions": sorted(catalogue_exporter_revisions),
+        "toolResultSubmissionCount": tool_result_submission_count,
+        "observedCatalogueDefinitionCount": len(observed_catalogue_definitions),
+        "unobservedCatalogueDefinitionCount": (
+            catalogue_definition_count - len(observed_catalogue_definitions)
+        ),
         "loggedRange": {
             "startTimestampInclusive": _format_timestamp(min(timestamps)),
             "endTimestampInclusive": _format_timestamp(max(timestamps)),

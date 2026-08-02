@@ -1,5 +1,8 @@
 # Chat Tool-Result Observation Join: Codex Task
 
+Status: Implemented and live-verified on 2026-08-02 against the private
+169-definition snapshot captured from clean build `739957a5`.
+
 ## Task
 
 - Goal: Structurally count logged tool-result submissions in a validated
@@ -89,7 +92,32 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending implementation.
-- Coverage or low-coverage notes: Pending implementation.
+- Summary: Corpus validation now reads only normalized singleton and batch
+  tool-result submissions, joins every submission to the timestamp-selected
+  catalogue snapshot, and rejects names absent from that full catalogue. The
+  version-2 path-free summary reports total submissions plus observed and
+  unobserved configuration-specific definition counts.
+- Tests run:
+  - `python3 test/python/analyze_chat_notifier_inventory_test.py`: 34 passed.
+  - A private live fixture joined one normalized submission to the clean
+    169-definition snapshot and reported one observed plus 168 unobserved
+    definitions.
+  - A payload-free structural compatibility scan recognized 1,936 normalized
+    submissions in 5,773 local schema-v2 records. It rejected 69 historical
+    `streamChatCompletion` records carrying accumulated `toolResults`, because
+    those replayed lists cannot establish one execution per item.
+  - `tool/codex_verify.sh`: dependency installation, generated-file check,
+    project and package analysis, and package tests passed. The full Flutter
+    suite reached 6,482 passing tests and failed the same unrelated stale
+    assertion in
+    `test/tool/run_coding_stalled_diagnostic_repair_live_canary_test.dart`,
+    which still requires the removed source text `.where(_isTodoVerifierCall)`.
+- Coverage or low-coverage notes: Focused tests cover zero observations,
+  singleton and batch submissions, repeated tools without coverage inflation,
+  requested-but-unexecuted model calls, malformed request shapes, empty and
+  duplicate IDs, incompatible operations, unknown catalogue names, timestamp
+  segment selection, and deterministic private-field-free output.
 - Risks or follow-ups: Definition-level private output remains a later slice.
+  The pinned measurement corpus must use normalized result-submission records;
+  historical accumulated-result records require exclusion rather than an
+  inferred replay correction.
