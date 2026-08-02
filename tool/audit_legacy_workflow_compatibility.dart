@@ -6,10 +6,13 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_legacy_workflow_compatibility_service.dart';
+import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
+import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
+import 'package:caverno/features/chat/domain/services/conversation_workflow_provenance_merge_service.dart';
 
 const String auditSchemaName = 'caverno_legacy_workflow_compatibility_audit';
-const int auditSchemaVersion = 2;
+const int auditSchemaVersion = 3;
 
 final class CompatibilityAuditException implements Exception {
   const CompatibilityAuditException(this.message);
@@ -77,6 +80,9 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
   var legacyCheckpointSnapshotCount = 0;
   var freshCheckpointSnapshotCount = 0;
   var inconsistentCheckpointSnapshotCount = 0;
+  var provenanceMergeCandidateRecordCount = 0;
+  final currentMergeCandidates = _ProvenanceMergeCandidateAccumulator();
+  final checkpointMergeCandidates = _ProvenanceMergeCandidateAccumulator();
 
   for (final encodedPayload in encodedPayloads) {
     databaseRowCount++;
@@ -122,6 +128,14 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
       checkpointBlockerRecordCounts[blocker.name] =
           checkpointBlockerRecordCounts[blocker.name]! + 1;
     }
+    final isProvenanceMergeCandidate = _isProvenanceMergeCandidate(result);
+    if (isProvenanceMergeCandidate) {
+      provenanceMergeCandidateRecordCount++;
+      currentMergeCandidates.add(
+        workflowStage: conversation.workflowStage,
+        workflowSpec: conversation.effectiveWorkflowSpec,
+      );
+    }
     final hasProvenanceBlocker = result.currentBlockers.contains(
       ConversationLegacyWorkflowCompatibilityBlocker
           .contractProvenanceWouldChange,
@@ -159,6 +173,12 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
           case _CheckpointOrigin.legacy:
             legacyCheckpointSnapshotCount++;
             checkpointProvenanceShapes.add(workflowSpec);
+            if (isProvenanceMergeCandidate) {
+              checkpointMergeCandidates.add(
+                workflowStage: checkpoint.workflowStage,
+                workflowSpec: workflowSpec,
+              );
+            }
           case _CheckpointOrigin.freshProjection:
             freshCheckpointSnapshotCount++;
           case _CheckpointOrigin.inconsistentProjection:
@@ -179,6 +199,15 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
       : blockedRecordCount > 0
       ? 'design_blocker_specific_preservation'
       : 'design_candidate_transformer';
+  final allProvenanceMergeCandidatesMergeable =
+      provenanceMergeCandidateRecordCount > 0 &&
+      currentMergeCandidates.allMergeable &&
+      checkpointMergeCandidates.allMergeable;
+  final provenanceMergeNextAction = provenanceMergeCandidateRecordCount == 0
+      ? 'verify_provenance_only_cohort_selection'
+      : allProvenanceMergeCandidatesMergeable
+      ? 'define_plan_progress_conflict_policy'
+      : 'inspect_aggregate_provenance_merge_blockers';
 
   return {
     'schemaName': auditSchemaName,
@@ -218,6 +247,19 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
       'currentWorkflows': currentProvenanceShapes.toJson(),
       'legacyCheckpoints': checkpointProvenanceShapes.toJson(),
     },
+    'provenanceMergeCandidate': {
+      'cohort': {
+        'eligibleRecordCount': provenanceMergeCandidateRecordCount,
+        'excludedProvenanceBlockedRecordCount':
+            provenanceBlockedRecordCount - provenanceMergeCandidateRecordCount,
+      },
+      'currentWorkflows': currentMergeCandidates.toJson(),
+      'legacyCheckpoints': checkpointMergeCandidates.toJson(),
+      'decision': {
+        'allEligibleSnapshotsMergeable': allProvenanceMergeCandidatesMergeable,
+        'nextAction': provenanceMergeNextAction,
+      },
+    },
     'privacy': {
       'includesDatabasePath': false,
       'includesRecordIdentifiers': false,
@@ -227,6 +269,85 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
       'includesItemIdentifiers': false,
       'includesSourceLocators': false,
     },
+  };
+}
+
+bool _isProvenanceMergeCandidate(
+  ConversationLegacyWorkflowCompatibilityResult result,
+) {
+  const provenance = ConversationLegacyWorkflowCompatibilityBlocker
+      .contractProvenanceWouldChange;
+  const checkpointIncompatible =
+      ConversationLegacyWorkflowCompatibilityBlocker.checkpointIncompatible;
+  return result.currentBlockers.length == 1 &&
+      result.currentBlockers.single == provenance &&
+      result.blockers.every(
+        (blocker) => blocker == provenance || blocker == checkpointIncompatible,
+      );
+}
+
+final class _ProvenanceMergeCandidateAccumulator {
+  static final DateTime _deterministicDerivedAt =
+      DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+
+  var evaluatedSnapshotCount = 0;
+  var mergeableSnapshotCount = 0;
+  var blockedSnapshotCount = 0;
+  var projectionFailureSnapshotCount = 0;
+  final blockerSnapshotCounts = {
+    for (final blocker in ConversationWorkflowProvenanceMergeBlocker.values)
+      blocker.name: 0,
+  };
+
+  bool get allMergeable =>
+      blockedSnapshotCount == 0 && projectionFailureSnapshotCount == 0;
+
+  void add({
+    required ConversationWorkflowStage workflowStage,
+    required ConversationWorkflowSpec workflowSpec,
+  }) {
+    evaluatedSnapshotCount++;
+    try {
+      final artifact = ConversationPlanDocumentBuilder.buildApprovedArtifact(
+        workflowStage: workflowStage,
+        workflowSpec: workflowSpec,
+        updatedAt: _deterministicDerivedAt,
+      );
+      final projection =
+          ConversationPlanProjectionService.deriveExecutionProjection(
+            approvedMarkdown: artifact.normalizedApprovedMarkdown!,
+            derivedAt: _deterministicDerivedAt,
+          );
+      final stabilizedWorkflowSpec =
+          ConversationPlanProjectionService.stabilizeTaskIds(
+            previousTasks: workflowSpec.tasks,
+            workflowSpec: projection.workflowSpec,
+            anchoredTaskIndexes: projection.anchoredTaskIndexes,
+          );
+      final result = const ConversationWorkflowProvenanceMergeService().merge(
+        legacyWorkflowSpec: workflowSpec,
+        projectedWorkflowSpec: stabilizedWorkflowSpec,
+      );
+      if (result.isMergeable) {
+        mergeableSnapshotCount++;
+        return;
+      }
+      blockedSnapshotCount++;
+      for (final blocker in result.blockers) {
+        blockerSnapshotCounts[blocker.name] =
+            blockerSnapshotCounts[blocker.name]! + 1;
+      }
+    } on FormatException {
+      projectionFailureSnapshotCount++;
+    }
+  }
+
+  Map<String, Object> toJson() => {
+    'evaluatedSnapshotCount': evaluatedSnapshotCount,
+    'mergeableSnapshotCount': mergeableSnapshotCount,
+    'blockedSnapshotCount': blockedSnapshotCount,
+    'projectionFailureSnapshotCount': projectionFailureSnapshotCount,
+    'blockerSnapshotCounts': blockerSnapshotCounts,
   };
 }
 

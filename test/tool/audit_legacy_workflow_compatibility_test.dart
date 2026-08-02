@@ -6,7 +6,9 @@ import 'package:test/test.dart';
 
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_legacy_workflow_compatibility_service.dart';
+import 'package:caverno/features/chat/domain/services/conversation_workflow_provenance_merge_service.dart';
 
 import '../../tool/audit_legacy_workflow_compatibility.dart' as audit;
 
@@ -169,6 +171,16 @@ void main() {
     expect(conditions['materialAssumption'], 1);
     expect(conditions['clarificationQuestionPresent'], 1);
     expect(shapes['legacyCheckpoints'], current);
+    final candidate =
+        report['provenanceMergeCandidate']! as Map<String, Object>;
+    final candidateCurrent =
+        candidate['currentWorkflows']! as Map<String, Object>;
+    final candidateBlockers =
+        candidateCurrent['blockerSnapshotCounts']! as Map<String, int>;
+    expect(candidateCurrent['evaluatedSnapshotCount'], 1);
+    expect(candidateCurrent['blockedSnapshotCount'], 1);
+    expect(candidateBlockers['invalidLegacySourceGraph'], 1);
+    expect(candidateBlockers['invalidLegacyItemGraph'], 1);
     final encodedReport = jsonEncode(report);
     expect(encodedReport, isNot(contains('private-source')));
     expect(encodedReport, isNot(contains('private-item')));
@@ -209,6 +221,60 @@ void main() {
     );
   });
 
+  test('validates merge candidates only for the provenance-only cohort', () {
+    final provenanceWorkflowSpec = _provenanceWorkflowSpec();
+    final cleanConversation = _conversation(
+      workflowSpec: provenanceWorkflowSpec,
+      checkpoints: [
+        ConversationCheckpoint(
+          messageId: 'checkpoint-message',
+          messageCount: 2,
+          title: 'Checkpoint',
+          createdAt: DateTime.utc(2026, 8, 2),
+          workflowStage: ConversationWorkflowStage.implement,
+          workflowSpec: provenanceWorkflowSpec,
+        ),
+      ],
+    );
+    final conflictConversation = _conversation(
+      id: 'conflict-legacy',
+      workflowSpec: provenanceWorkflowSpec,
+      executionProgress: const [
+        ConversationExecutionTaskProgress(taskId: 'missing-task'),
+      ],
+    );
+
+    final report = audit.buildLegacyWorkflowCompatibilityReport([
+      jsonEncode(cleanConversation.toJson()),
+      jsonEncode(conflictConversation.toJson()),
+    ]);
+    final candidate =
+        report['provenanceMergeCandidate']! as Map<String, Object>;
+
+    expect(candidate['cohort'], {
+      'eligibleRecordCount': 1,
+      'excludedProvenanceBlockedRecordCount': 1,
+    });
+    expect(candidate['currentWorkflows'], {
+      'evaluatedSnapshotCount': 1,
+      'mergeableSnapshotCount': 1,
+      'blockedSnapshotCount': 0,
+      'projectionFailureSnapshotCount': 0,
+      'blockerSnapshotCounts': _emptyMergeBlockerCounts(),
+    });
+    expect(candidate['legacyCheckpoints'], {
+      'evaluatedSnapshotCount': 1,
+      'mergeableSnapshotCount': 1,
+      'blockedSnapshotCount': 0,
+      'projectionFailureSnapshotCount': 0,
+      'blockerSnapshotCounts': _emptyMergeBlockerCounts(),
+    });
+    expect(candidate['decision'], {
+      'allEligibleSnapshotsMergeable': true,
+      'nextAction': 'define_plan_progress_conflict_policy',
+    });
+  });
+
   test('reports migration readiness only for compatible legacy candidates', () {
     final report = audit.buildLegacyWorkflowCompatibilityReport([
       jsonEncode(_conversation().toJson()),
@@ -217,6 +283,30 @@ void main() {
     expect(report['decision'], {
       'migrationCandidateReady': true,
       'nextAction': 'design_candidate_transformer',
+    });
+    expect(report['provenanceMergeCandidate'], {
+      'cohort': {
+        'eligibleRecordCount': 0,
+        'excludedProvenanceBlockedRecordCount': 0,
+      },
+      'currentWorkflows': {
+        'evaluatedSnapshotCount': 0,
+        'mergeableSnapshotCount': 0,
+        'blockedSnapshotCount': 0,
+        'projectionFailureSnapshotCount': 0,
+        'blockerSnapshotCounts': _emptyMergeBlockerCounts(),
+      },
+      'legacyCheckpoints': {
+        'evaluatedSnapshotCount': 0,
+        'mergeableSnapshotCount': 0,
+        'blockedSnapshotCount': 0,
+        'projectionFailureSnapshotCount': 0,
+        'blockerSnapshotCounts': _emptyMergeBlockerCounts(),
+      },
+      'decision': {
+        'allEligibleSnapshotsMergeable': false,
+        'nextAction': 'verify_provenance_only_cohort_selection',
+      },
     });
   });
 
@@ -287,6 +377,30 @@ const _workflowSpec = ConversationWorkflowSpec(
     ),
   ],
 );
+
+ConversationWorkflowSpec _provenanceWorkflowSpec() {
+  final projected = const ConversationContractProvenanceService()
+      .attachApprovedPlanSource(
+        workflowSpec: _workflowSpec,
+        sourceHash: 'fixture-plan-hash',
+      );
+  return _workflowSpec.copyWith(
+    sources: const [
+      ConversationContractSourceReference(
+        id: 'legacy-user-source',
+        kind: ConversationContractSourceKind.userMessage,
+      ),
+    ],
+    provenance: projected.provenance
+        .map((item) => item.copyWith(sourceIds: const ['legacy-user-source']))
+        .toList(growable: false),
+  );
+}
+
+Map<String, int> _emptyMergeBlockerCounts() => {
+  for (final blocker in ConversationWorkflowProvenanceMergeBlocker.values)
+    blocker.name: 0,
+};
 
 Conversation _conversation({
   String id = 'compatible-legacy',

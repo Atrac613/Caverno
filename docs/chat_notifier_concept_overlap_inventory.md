@@ -104,10 +104,12 @@ planning paths emit a plan document.
   Of 19 legacy records, 1 is compatible, 14 have internally consistent
   provenance as their only blocker, and 4 also have plan/progress conflicts.
   All 33 legacy checkpoints have consistent source graphs without assumption
-  or reference-integrity hazards. A pure additive provenance-preserving merge
-  fixture now retains legacy graph metadata and fails closed on graph drift.
-  The next safe slice is read-only aggregate validation against the 14 clean
-  records; do not delete the editor or mutate the live database.
+  or reference-integrity hazards. The additive merge candidate was applied
+  read-only to the 14 clean records and their 27 legacy checkpoints. Every
+  snapshot remains blocked by legacy-versus-current item identity despite
+  valid semantic round trips and item kinds. The next safe slice is a pure
+  fail-closed identity reconciliation fixture; do not delete the editor or
+  mutate the live database.
 
 ### C2 — Give task status one owner
 

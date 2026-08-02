@@ -42,12 +42,14 @@ multi-source, assumption, or clarification condition was observed. Fourteen
 records are provenance-only blockers; the other 4 are the plan/progress
 conflict subset.
 
-The pure provenance-preserving candidate fixture is complete. It retains the
-existing source and item graph while adding approved-plan provenance and fails
-closed for malformed or unmatched graphs. The operational next slice is to
-apply that candidate read-only to the 14-record provenance-only cohort, report
-only aggregate compatibility results, and leave the 4 conflict records
-blocked.
+The read-only provenance-merge audit is complete. All 14 eligible current
+workflows and their 27 legacy checkpoints fail the pure candidate with both
+unmatched legacy items and projected items without matching legacy provenance.
+Projection, semantic round-trip, source-graph, and item-kind checks pass, so
+the remaining clean-cohort blocker is legacy-versus-current item identity. The
+operational next slice is a pure fail-closed identity reconciliation fixture;
+it must reject ambiguous or incomplete one-to-one matches and perform no
+persistence writes. The 4 plan/progress conflict records remain blocked.
 
 ## Ranking Rules
 
@@ -94,7 +96,7 @@ and plan.
 
 | Candidate | Direction confidence | Measured surface | Blocker | Re-entry condition |
 | --- | --- | --- | --- | --- |
-| Retire workflow as a second authored source while retaining a plan-derived execution projection | High for the direction; blocked for implementation | 25-40 source/test files; 19 persisted legacy-authored workflows: 1 compatible, 14 provenance-only blockers, and 4 plan/progress-conflicted blockers | Existing projection replaces internally consistent user-message and specification-file provenance across 18 current workflows and 33 legacy checkpoints | Validate the proven additive candidate read-only against all 14 clean records, then define an explicit repair policy for the 4 conflict records before any live migration or editor removal |
+| Retire workflow as a second authored source while retaining a plan-derived execution projection | High for the direction; blocked for implementation | 25-40 source/test files; 19 persisted legacy-authored workflows: 1 compatible, 14 provenance-only blockers, and 4 plan/progress-conflicted blockers | The additive merge is blocked across all 14 clean current workflows and 27 cohort checkpoints because legacy and current projection item identities do not match | Prove a fail-closed one-to-one identity reconciliation, re-run the aggregate candidate, then define an explicit repair policy for the 4 conflict records before any live migration or editor removal |
 | Wire `ChatToolHandlerCatalog` as the production composition boundary | High that all six binding groups can fit an owner-aware catalogue; low that the current composition is ready | 118 static plus 52 private dynamic definitions across 6 binding groups | The registry-last WS6-19 gate remains unmet; all three named modules capture `ChatNotifier`, and Browser/Computer Use still require policy-aware adapters | Reconcile or replace the WS6-19 safety contract, expose typed owner/UI/approval/turn-result ports, and prove branch precedence plus fallback behavior before wiring |
 
 The pinned corpus contained only two records and one normalized submission. It
@@ -107,7 +109,7 @@ definition is a deletion candidate based on its zero count.
 
 | Rank | Investigation | Decision unlocked | Measured decision surface | Bounded next action |
 | ---: | --- | --- | --- | --- |
-| I1 | Audit persisted workflow origins, compatibility, and provenance shape | Direct retirement is blocked; preservation work is now split into clean and conflict cohorts | 439 rows; 19 legacy candidates: 1 compatible, 14 provenance-only, 4 plan/progress-conflicted; 33 internally consistent legacy checkpoints; zero invalid or malformed provenance conditions | Completed with SQLite read-only aggregate audits, a pure fail-closed gate, and an additive merge fixture; validate the candidate aggregate-only against the 14 clean records next |
+| I1 | Audit persisted workflow origins, compatibility, provenance shape, and additive merge viability | Direct retirement is blocked; preservation work is split into item-identity and plan/progress conflict cohorts | 439 rows; 14 clean current workflows and 27 cohort checkpoints all fail additive merge on item identity; 4 records remain plan/progress-conflicted | Completed read-only; build a pure ambiguous-match-rejecting item identity reconciliation fixture next |
 
 The matching-build guard capture is complete and moved its two closed proofs
 into D1. With D1 deleted, I1 is now the next investigation.
@@ -157,6 +159,7 @@ keep every unresolved callback, registration, and configuration edge explicit.
 | Persisted compatibility audit | Current read-only local capture | 19 legacy candidates: 1 compatible, 18 provenance-blocked, 4 also plan/progress-conflicted, 33 workflow checkpoints, zero invalid records; database bytes unchanged |
 | Provenance-shape audit | Current read-only local capture | 18 current workflows and 33 legacy checkpoints have consistent user-message and specification-file graphs; 14 provenance-only and 4 conflict records; zero malformed graph or assumption conditions |
 | Provenance-preserving merge fixture | Current pure domain fixture | Additive source and item provenance merge with deterministic blockers for malformed, colliding, mismatched, or unmatched graphs; no persistence wiring |
+| Provenance-merge audit | Current read-only local capture | 14 eligible current workflows and 27 cohort checkpoints evaluated; zero mergeable, all blocked by legacy/projected item identity mismatch; database bytes unchanged |
 
 The tool measurement used analyser revision
 `de73f746f16eed1125b0f4f92cb44a11b57ea7de`, corpus-manifest digest
@@ -206,10 +209,10 @@ inventory so sensitive paths do not appear here.
 
 ## Unresolved Items
 
-- The additive projection candidate is proven by a pure fixture but still
-  needs read-only aggregate validation against the 14 provenance-only records.
-  The other 4 records need a separate policy for dangling execution progress
-  and conflicting plan documents.
+- The additive projection candidate needs a fail-closed item identity
+  reconciliation before it can merge the 14 provenance-only records and their
+  27 legacy checkpoints. The other 4 records need a separate policy for
+  dangling execution progress and conflicting plan documents.
 - The correct replacement, if any, for the deferred WS6-19 ordering contract is
   not approved.
 - Goal/objective divergence has no provenance marker, so mismatches cannot yet

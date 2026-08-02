@@ -68,7 +68,21 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: This audit does not authorize a live migration.
+- Summary: Extended the read-only aggregate audit with a strict provenance
+  merge candidate cohort and separate current-workflow and legacy-checkpoint
+  results. The live cohort contains 14 eligible records and 27 legacy
+  checkpoints. All 41 snapshots were blocked by both unmatched legacy item IDs
+  and projected items without matching legacy provenance; source graphs,
+  projections, semantic round trips, and item kinds remained valid.
+- Tests run: All 8 focused audit tests pass. The live database SHA-256 was
+  identical before and after the schema-v3 audit. `tool/codex_verify.sh`
+  passed generation checks, analysis, package tests, and 6,501 of 6,502
+  Flutter tests. The only failure is the pre-existing stalled-diagnostic live
+  canary assertion that still expects the removed `_isTodoVerifierCall`
+  predicate.
+- Coverage or low-coverage notes: Fixtures cover a successful current and
+  checkpoint merge, conflict-cohort exclusion, malformed legacy graphs, an
+  empty cohort, database immutability, and privacy-safe output.
+- Risks or follow-ups: This audit does not authorize a live migration. Define a
+  pure fail-closed item-identity reconciliation fixture before re-running the
+  aggregate candidate. Keep the four plan/progress conflict records separate.
