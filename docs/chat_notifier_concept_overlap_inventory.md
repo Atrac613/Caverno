@@ -116,9 +116,11 @@ planning paths emit a plan document.
   only on absent authority. A two-pass manual decision now binds authority to a
   schema-v1 SHA-256 digest of the exact preservation context and rejects stale
   replay. A content-free schema-v1 receipt now verifies integrity and rebuilds
-  current state before accepting the selected stage. The next safe slice is an
-  end-to-end synthetic authority rehearsal only; do not invent live authority,
-  delete the editor, or mutate the live database.
+  current state before accepting the selected stage. A test-only composed
+  rehearsal now completes both explicit authority paths without losing progress
+  or mutating inputs. The next safe slice is a persistence-neutral
+  user-confirmation request/result contract; do not invent live authority,
+  delete the editor, persist receipts, or mutate the live database.
 
 ### C2 — Give task status one owner
 

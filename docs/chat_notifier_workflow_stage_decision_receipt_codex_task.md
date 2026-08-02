@@ -78,6 +78,7 @@ tool/codex_verify.sh
   round-trip, content exclusion, input immutability, not-ready and missing
   decisions, malformed JSON, schema and field failures, tampering, stale state,
   selected-stage contradiction, and unavailable current context.
-- Risks or follow-ups: This fixture does not authorize a live migration. Run an
-  end-to-end synthetic explicit-authority rehearsal next; do not manufacture a
-  decision for any live conflict record.
+- Risks or follow-ups: This fixture does not authorize a live migration. The
+  end-to-end synthetic rehearsal now passes for both authorities. Specify a
+  persistence-neutral user-confirmation request/result boundary next; do not
+  manufacture a decision for any live conflict record.

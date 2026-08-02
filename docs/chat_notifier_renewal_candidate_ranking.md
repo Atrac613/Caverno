@@ -48,9 +48,11 @@ complete. All 14 clean workflows and their 27 checkpoints are mergeable. All 4
 conflict records produce lossless envelopes with every execution-progress
 object preserved. A two-pass manual decision now cryptographically binds stage
 authority to the exact Plan, merged workflow, and progress context, and a
-content-free schema-v1 receipt validates replay against current state. The next
-slice is an end-to-end synthetic authority rehearsal; live authority must not be
-invented. No persistence writes or editor removal are authorized.
+content-free schema-v1 receipt validates replay against current state. A
+test-only composed rehearsal now completes the full accepted-decision path for
+both authorities while preserving every progress object. The next slice is a
+persistence-neutral user-confirmation request/result contract; live authority
+must not be invented. No persistence writes or editor removal are authorized.
 
 ## Ranking Rules
 
@@ -97,7 +99,7 @@ and plan.
 
 | Candidate | Direction confidence | Measured surface | Blocker | Re-entry condition |
 | --- | --- | --- | --- | --- |
-| Retire workflow as a second authored source while retaining a plan-derived execution projection | High for the direction; blocked for implementation | 25-40 source/test files; 19 persisted legacy-authored workflows: 1 compatible, 14 clean mergeable records, and 4 stage/progress-conflicted blockers | Lossless envelopes, context-bound manual decisions, and content-free replayable receipts exist; the full accepted-decision path is not yet rehearsed as one bounded flow | Rehearse both authorities end-to-end on synthetic conflicts only before any UI or transformer |
+| Retire workflow as a second authored source while retaining a plan-derived execution projection | High for the direction; blocked for implementation | 25-40 source/test files; 19 persisted legacy-authored workflows: 1 compatible, 14 clean mergeable records, and 4 stage/progress-conflicted blockers | The synthetic accepted-decision path is complete, but no user-confirmation request/result boundary or persistence and transformer acceptance gate is defined | Specify a persistence-neutral confirmation contract before any UI, storage, or transformer |
 | Wire `ChatToolHandlerCatalog` as the production composition boundary | High that all six binding groups can fit an owner-aware catalogue; low that the current composition is ready | 118 static plus 52 private dynamic definitions across 6 binding groups | The registry-last WS6-19 gate remains unmet; all three named modules capture `ChatNotifier`, and Browser/Computer Use still require policy-aware adapters | Reconcile or replace the WS6-19 safety contract, expose typed owner/UI/approval/turn-result ports, and prove branch precedence plus fallback behavior before wiring |
 
 The pinned corpus contained only two records and one normalized submission. It
@@ -110,10 +112,11 @@ definition is a deletion candidate based on its zero count.
 
 | Rank | Investigation | Decision unlocked | Measured decision surface | Bounded next action |
 | ---: | --- | --- | --- | --- |
-| I1 | Audit persisted workflow origins, compatibility, provenance shape, additive merge viability, conflict policy, and lossless preservation | Both cohorts have bounded lossless candidates; decision and receipt contracts exist, but the composed accepted-decision flow remains unrehearsed | 439 rows; 14 clean current workflows and 27 checkpoints merge; 4/4 conflicts preserve progress; schema-v1 decisions and receipts reject stale replay | Rehearse both authority choices end-to-end with synthetic conflicts only |
+| I1 | Audit persisted workflow origins, compatibility, provenance shape, additive merge viability, conflict policy, and lossless preservation | Both cohorts have bounded lossless candidates and the complete synthetic accepted-decision path is proven; confirmation is the next design boundary | 439 rows; 14 clean current workflows and 27 checkpoints merge; 4/4 conflicts preserve progress; 2/2 synthetic authority paths round-trip and replay | Specify a persistence-neutral user-confirmation request/result contract |
 
 The matching-build guard capture is complete and moved its two closed proofs
-into D1. With D1 deleted, I1 is now the next investigation.
+into D1. I1 is complete; the confirmation boundary is the next bounded design
+slice for this migration lane.
 
 ### Medium confidence
 
@@ -167,6 +170,7 @@ keep every unresolved callback, registration, and configuration edge explicit.
 | Workflow conflict preservation rehearsal | Current read-only local capture | 4/4 envelopes created, 4/4 full execution-progress multisets preserved, 4/4 meaningful orphans retained, zero selected stages, zero mutation, and only stage-authority blockers; database bytes unchanged |
 | Workflow stage-authority decision | Current pure domain fixture | Schema-v1 SHA-256 context binds exact Plan text, both stages, merged provenance, active progress, and orphan progress; only manual UTC decisions with exact digests select a stage |
 | Workflow stage-decision receipt | Current pure domain fixture | Content-free schema-v1 JSON receipt with SHA-256 integrity; current-state replay rebuilds context, reconstructs the decision, rejects tampering and stale state, and verifies selected stage |
+| Workflow stage-decision end-to-end rehearsal | Current synthetic domain fixture | 2/2 explicit authority paths complete the authority-free pass, accepted decision, lossless envelope, content-free JSON receipt, and current-state replay without mutation |
 
 The tool measurement used analyser revision
 `de73f746f16eed1125b0f4f92cb44a11b57ea7de`, corpus-manifest digest
@@ -218,8 +222,9 @@ inventory so sensitive paths do not appear here.
 
 - The 14 provenance-only records and their 27 legacy checkpoints are proven
   mergeable without persistence writes. The other 4 records rehearse losslessly
-  and have explicit decision and receipt contracts, but live stage authority is
-  still absent and must not be inferred.
+  and have explicit decision, receipt, and synthetic end-to-end evidence, but
+  live stage authority is still absent and must not be inferred. The
+  user-confirmation request/result boundary is not yet defined.
 - The correct replacement, if any, for the deferred WS6-19 ordering contract is
   not approved.
 - Goal/objective divergence has no provenance marker, so mismatches cannot yet

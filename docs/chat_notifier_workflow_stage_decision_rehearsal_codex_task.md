@@ -68,7 +68,19 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: Pending.
+- Summary: Added a test-only composed rehearsal for workflow and approved-Plan
+  authority. Each path performs the authority-free pass, creates an explicit
+  manual synthetic decision, rebuilds the lossless envelope, creates and JSON
+  round-trips a content-free receipt, and validates current-state replay.
+- Tests run: The focused rehearsal passes 2/2. `tool/codex_verify.sh`
+  completes generation, all analyzers, and package tests; the Flutter suite
+  passes 6,529 tests. Its only failure is the pre-existing stale
+  `run_coding_stalled_diagnostic_repair_live_canary` expectation for the
+  removed `_isTodoVerifierCall` helper.
+- Coverage or low-coverage notes: Both authority choices prove the expected
+  selected stage, stable context binding, exact active-plus-orphan progress
+  preservation, receipt field minimization, JSON round-trip, replay, and input
+  immutability.
+- Risks or follow-ups: This rehearsal does not authorize a live migration.
+  Specify a persistence-neutral user-confirmation request/result boundary next;
+  keep receipt storage and conversation transformation outside that slice.
