@@ -67,9 +67,18 @@ tool/codex_verify.sh --test test/features/chat/domain/entities/conversation_test
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
+- Summary: Migrated the coding-verification task-presence guard to
+  `executionTaskViews`. Downstream focus-task selection, status calculation,
+  and progress writes remain unchanged.
+- Tests run:
+  - The exact coding-verification progress regression test passed.
+  - `tool/codex_verify.sh --test test/features/chat/domain/entities/conversation_test.dart`
+    passed, including generated-file verification, project and package
+    analysis, package tests, and 10 focused Flutter tests.
 - Coverage or low-coverage notes: This slice changes a cardinality-only guard;
   the existing end-to-end notifier test covers the progress write path.
+  Coverage mode was not run.
 - Risks or follow-ups: Status-reading consumers remain on the legacy projection
-  pending explicit fixture-backed compatibility decisions.
+  pending explicit fixture-backed compatibility decisions. The next safest
+  candidates are other cardinality-only guards; status-based prompt, snapshot,
+  goal-continuation, lifecycle, and UI readers still require separate audits.
