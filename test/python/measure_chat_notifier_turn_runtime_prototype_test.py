@@ -169,6 +169,113 @@ class TurnRuntimePrototypeSelectorTest(unittest.TestCase):
             require_clean=require_clean,
         )
 
+    def _verification_fixture(self, directory):
+        root, audit_path, manifest_path, _, _ = self._fixture(directory)
+        selected_source = (
+            root / selector.PROVIDER_ROOT / "chat_notifier_alpha.dart"
+        )
+        selected_source.write_text("void _alphaEntry0(ChatTurnOwner owner) {}\n")
+        focused_executable = root / "test/focused_test.dart"
+        focused_declaration = root / "test/focused_part.dart"
+        live_runner = root / "tool/run_live.sh"
+        live_test = root / "tool/live_test.dart"
+        focused_executable.parent.mkdir(parents=True)
+        focused_executable.write_text("part 'focused_part.dart';\n")
+        focused_declaration.write_text(
+            "test('focused gate', () {});\nfocused evidence\n"
+        )
+        live_runner.write_text(
+            "flutter test tool/live_test.dart --plain-name \"live gate\"\n"
+        )
+        live_test.write_text("test('live gate', () {});\nlive evidence\n")
+        verification_path = root / "tool/verification.json"
+        verification = {
+            "schemaName": selector.VERIFICATION_SCHEMA_NAME,
+            "schemaVersion": selector.VERIFICATION_SCHEMA_VERSION,
+            "selectedPart": {
+                "partPath": "chat_notifier_alpha.dart",
+                "sourcePath": (
+                    selector.PROVIDER_ROOT / "chat_notifier_alpha.dart"
+                ).as_posix(),
+                "migratedPathSymbols": ["_alphaEntry0"],
+            },
+            "focusedTest": {
+                "command": (
+                    "flutter test test/focused_test.dart "
+                    '--plain-name "focused gate"'
+                ),
+                "executablePath": "test/focused_test.dart",
+                "declarationPath": "test/focused_part.dart",
+                "testName": "focused gate",
+                "contract": "The focused path emits its expected evidence.",
+                "expectedEvidence": [
+                    {
+                        "id": "focused",
+                        "description": "Focused evidence is asserted.",
+                        "sourcePath": "test/focused_part.dart",
+                        "requiredText": ["focused evidence"],
+                    }
+                ],
+            },
+            "liveCanary": {
+                "command": "tool/run_live.sh",
+                "runnerPath": "tool/run_live.sh",
+                "testPath": "tool/live_test.dart",
+                "testName": "live gate",
+                "contract": "The live path emits its expected evidence.",
+                "expectedEvidence": [
+                    {
+                        "id": "live",
+                        "description": "Live evidence is asserted.",
+                        "sourcePath": "tool/live_test.dart",
+                        "requiredText": ["live evidence"],
+                    }
+                ],
+            },
+        }
+        verification_path.write_text(json.dumps(verification, indent=2) + "\n")
+        self._git(root, "add", ".")
+        self._git(root, "commit", "-qm", "verification fixture")
+        selection_path = pathlib.Path(directory) / "selection.json"
+        self._refresh_selection(
+            root, audit_path, manifest_path, selection_path
+        )
+        return (
+            root,
+            audit_path,
+            manifest_path,
+            selection_path,
+            verification_path,
+            verification,
+        )
+
+    def _refresh_selection(
+        self, root, audit_path, manifest_path, selection_path
+    ):
+        selection = self._select(
+            root,
+            audit_path,
+            manifest_path,
+            require_clean=True,
+        )
+        selector.write_json_atomic(selection_path, selection)
+        return selection
+
+    def _commit_verification_change(
+        self,
+        *,
+        root,
+        audit_path,
+        manifest_path,
+        selection_path,
+        verification_path,
+        verification,
+    ):
+        verification_path.write_text(json.dumps(verification, indent=2) + "\n")
+        self._git(root, "add", str(verification_path.relative_to(root)))
+        self._git(root, "commit", "-qm", "change verification")
+        self._refresh_selection(root, audit_path, manifest_path, selection_path)
+
     def test_ranks_all_current_parts_by_the_four_required_keys(self):
         parts = [
             self._part("alpha", identity_entrypoints=2, production_lines=1),
@@ -405,6 +512,218 @@ class TurnRuntimePrototypeSelectorTest(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(output["schemaName"], selector.SELECTION_SCHEMA_NAME)
         self.assertIn("chat_notifier_alpha.dart", stdout.getvalue())
+
+    def test_validate_gates_binds_focused_and_live_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (
+                root,
+                _,
+                _,
+                selection_path,
+                verification_path,
+                _,
+            ) = self._verification_fixture(directory)
+
+            validated = selector.validate_gates(
+                root=root,
+                selection_path=selection_path,
+                verification_manifest_path=verification_path,
+            )
+
+        self.assertEqual(
+            validated["schemaName"], selector.VALIDATED_SELECTION_SCHEMA_NAME
+        )
+        self.assertEqual(
+            validated["selected"]["partPath"], "chat_notifier_alpha.dart"
+        )
+        self.assertEqual(
+            validated["verification"]["selectedPart"]["migratedPathSymbols"],
+            ["_alphaEntry0"],
+        )
+        self.assertFalse(validated["liveCanaryExecuted"])
+
+    def test_validate_gates_rejects_a_selected_part_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = self._verification_fixture(directory)
+            (
+                root,
+                audit_path,
+                manifest_path,
+                selection_path,
+                verification_path,
+                verification,
+            ) = fixture
+            verification["selectedPart"]["partPath"] = (
+                "chat_notifier_other.dart"
+            )
+            self._commit_verification_change(
+                root=root,
+                audit_path=audit_path,
+                manifest_path=manifest_path,
+                selection_path=selection_path,
+                verification_path=verification_path,
+                verification=verification,
+            )
+
+            with self.assertRaisesRegex(
+                selector.SelectionError, "does not match the selected part"
+            ):
+                selector.validate_gates(
+                    root=root,
+                    selection_path=selection_path,
+                    verification_manifest_path=verification_path,
+                )
+
+    def test_validate_gates_rejects_a_tampered_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (
+                root,
+                _,
+                _,
+                selection_path,
+                verification_path,
+                _,
+            ) = self._verification_fixture(directory)
+            selection = json.loads(selection_path.read_text())
+            selection["selected"]["productionLines"] += 1
+            selection_path.write_text(json.dumps(selection))
+
+            with self.assertRaisesRegex(
+                selector.SelectionError, "does not match the current audited ranking"
+            ):
+                selector.validate_gates(
+                    root=root,
+                    selection_path=selection_path,
+                    verification_manifest_path=verification_path,
+                )
+
+    def test_validate_gates_rejects_a_missing_command(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = self._verification_fixture(directory)
+            (
+                root,
+                audit_path,
+                manifest_path,
+                selection_path,
+                verification_path,
+                verification,
+            ) = fixture
+            verification["focusedTest"]["command"] = ""
+            self._commit_verification_change(
+                root=root,
+                audit_path=audit_path,
+                manifest_path=manifest_path,
+                selection_path=selection_path,
+                verification_path=verification_path,
+                verification=verification,
+            )
+
+            with self.assertRaisesRegex(
+                selector.SelectionError, "focusedTest.command"
+            ):
+                selector.validate_gates(
+                    root=root,
+                    selection_path=selection_path,
+                    verification_manifest_path=verification_path,
+                )
+
+    def test_validate_gates_rejects_a_symbol_outside_the_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = self._verification_fixture(directory)
+            (
+                root,
+                audit_path,
+                manifest_path,
+                selection_path,
+                verification_path,
+                verification,
+            ) = fixture
+            verification["selectedPart"]["migratedPathSymbols"] = [
+                "_notSelected"
+            ]
+            self._commit_verification_change(
+                root=root,
+                audit_path=audit_path,
+                manifest_path=manifest_path,
+                selection_path=selection_path,
+                verification_path=verification_path,
+                verification=verification,
+            )
+
+            with self.assertRaisesRegex(
+                selector.SelectionError, "not a selected identity entrypoint"
+            ):
+                selector.validate_gates(
+                    root=root,
+                    selection_path=selection_path,
+                    verification_manifest_path=verification_path,
+                )
+
+    def test_validate_gates_rejects_missing_evidence_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = self._verification_fixture(directory)
+            (
+                root,
+                audit_path,
+                manifest_path,
+                selection_path,
+                verification_path,
+                verification,
+            ) = fixture
+            verification["liveCanary"]["expectedEvidence"][0][
+                "requiredText"
+            ] = ["missing live evidence"]
+            self._commit_verification_change(
+                root=root,
+                audit_path=audit_path,
+                manifest_path=manifest_path,
+                selection_path=selection_path,
+                verification_path=verification_path,
+                verification=verification,
+            )
+
+            with self.assertRaisesRegex(
+                selector.SelectionError, "is missing from"
+            ):
+                selector.validate_gates(
+                    root=root,
+                    selection_path=selection_path,
+                    verification_manifest_path=verification_path,
+                )
+
+    def test_validate_gates_cli_writes_an_atomic_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (
+                root,
+                _,
+                _,
+                selection_path,
+                verification_path,
+                _,
+            ) = self._verification_fixture(directory)
+            output_path = pathlib.Path(directory) / "validated.json"
+            stdout = io.StringIO()
+
+            with mock.patch.object(selector, "repository_root", return_value=root):
+                with contextlib.redirect_stdout(stdout):
+                    exit_code = selector.main(
+                        [
+                            "validate-gates",
+                            "--selection",
+                            str(selection_path),
+                            "--verification-manifest",
+                            str(verification_path),
+                            "--output",
+                            str(output_path),
+                        ]
+                    )
+            output = json.loads(output_path.read_text())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            output["schemaName"], selector.VALIDATED_SELECTION_SCHEMA_NAME
+        )
+        self.assertIn("live canary not executed", stdout.getvalue())
 
 
 if __name__ == "__main__":

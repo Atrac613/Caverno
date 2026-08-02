@@ -1,0 +1,91 @@
+{
+  "schemaName": "caverno_chat_notifier_turn_runtime_prototype_verification",
+  "schemaVersion": 1,
+  "selectedPart": {
+    "partPath": "chat_notifier_goal_auto_continue.dart",
+    "sourcePath": "lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart",
+    "migratedPathSymbols": [
+      "_maybeAutoContinueCurrentGoal",
+      "_recordGoalAutoContinueSessionLog"
+    ]
+  },
+  "focusedTest": {
+    "command": "fvm flutter test test/features/chat/presentation/providers/chat_notifier_test.dart --plain-name \"goal auto-continue dispatches one hidden continuation from current evidence\"",
+    "executablePath": "test/features/chat/presentation/providers/chat_notifier_test.dart",
+    "declarationPath": "test/features/chat/presentation/providers/chat_notifier_goal_auto_continue_part.dart",
+    "testName": "goal auto-continue dispatches one hidden continuation from current evidence",
+    "contract": "An incomplete diagnostic turn emits a structured continue decision, dispatches exactly one hidden continuation, then records a structured skip after verification clears the incomplete evidence.",
+    "expectedEvidence": [
+      {
+        "id": "hidden-continuation-dispatch",
+        "description": "The test waits for two turns and observes the automatic hidden continuation prompt.",
+        "sourcePath": "test/features/chat/presentation/providers/chat_notifier_goal_auto_continue_part.dart",
+        "requiredText": [
+          "dataSource.initialRequestMessages.length == 2",
+          "contains('Automatic goal continuation 2/5.')"
+        ]
+      },
+      {
+        "id": "ordered-focused-session-decisions",
+        "description": "The focused test requires ordered turn exits and goal decisions, including continue then skip.",
+        "sourcePath": "test/features/chat/presentation/providers/chat_notifier_goal_auto_continue_part.dart",
+        "requiredText": [
+          "containsAllInOrder([",
+          "'goal_auto_continue'",
+          "expect(marker['decision'], 'continue');",
+          "expect(skipMarker['decision'], 'skip');"
+        ]
+      }
+    ]
+  },
+  "liveCanary": {
+    "command": "tool/run_coding_goal_auto_continue_todo_fixture_live_canary.sh",
+    "runnerPath": "tool/run_coding_goal_auto_continue_todo_fixture_live_canary.sh",
+    "testPath": "tool/canaries/coding_goal_auto_continue_todo_fixture_live_canary_test.dart",
+    "testName": "live LLM auto-continues the todo_app.md MVP fixture from diagnostic evidence",
+    "contract": "A live coding goal produces repeated structured auto-continue decisions from verifier diagnostics, proves ordered turn-exit to decision to continuation-request flow, improves or clears evidence, and reaches a terminal goal condition.",
+    "expectedEvidence": [
+      {
+        "id": "multiple-live-decisions",
+        "description": "The session log contains at least two goal auto-continue decisions with unresolved diagnostics.",
+        "sourcePath": "tool/canaries/coding_goal_auto_continue_todo_fixture_live_canary_test.dart",
+        "requiredText": [
+          "autoContinueEntries.length,",
+          "unresolvedCounts.length,",
+          "greaterThanOrEqualTo(2),"
+        ]
+      },
+      {
+        "id": "ordered-live-continuation",
+        "description": "The canary observes turn exit, auto-continue decision, and continuation request in order.",
+        "sourcePath": "tool/canaries/coding_goal_auto_continue_todo_fixture_live_canary_test.dart",
+        "requiredText": [
+          "_hasOrderedTriple(",
+          "turnExitIndices,",
+          "autoContinueIndices,",
+          "continuationRequestIndices,"
+        ]
+      },
+      {
+        "id": "live-evidence-progress-or-success",
+        "description": "Diagnostic evidence strictly decreases or the verifier reaches terminal success.",
+        "sourcePath": "tool/canaries/coding_goal_auto_continue_todo_fixture_live_canary_test.dart",
+        "requiredText": [
+          "_hasStrictDecrease(unresolvedCounts) ||",
+          "_hasTerminalVerifierSuccess(entries),"
+        ]
+      },
+      {
+        "id": "live-terminal-goal",
+        "description": "The goal completes, blocks explicitly, or exhausts its turn budget.",
+        "sourcePath": "tool/canaries/coding_goal_auto_continue_todo_fixture_live_canary_test.dart",
+        "requiredText": [
+          "final terminalEnough =",
+          "goal?.status == ConversationGoalStatus.completed ||",
+          "goal?.status == ConversationGoalStatus.blocked ||",
+          "(goal?.turnBudgetExceeded ?? false)"
+        ]
+      }
+    ]
+  }
+}

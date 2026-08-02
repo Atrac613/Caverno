@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,16 @@ MANIFEST_SCHEMA_NAME = "caverno_chat_notifier_decomposition_manifest"
 MANIFEST_SCHEMA_VERSION = 1
 SELECTION_SCHEMA_NAME = "caverno_chat_notifier_turn_runtime_prototype_candidate"
 SELECTION_SCHEMA_VERSION = 1
+VERIFICATION_SCHEMA_NAME = (
+    "caverno_chat_notifier_turn_runtime_prototype_verification"
+)
+VERIFICATION_SCHEMA_VERSION = 1
+VALIDATED_SELECTION_SCHEMA_NAME = (
+    "caverno_chat_notifier_turn_runtime_prototype_validated_selection"
+)
+VALIDATED_SELECTION_SCHEMA_VERSION = 1
+SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 PROVIDER_ROOT = pathlib.PurePosixPath(
     "lib/features/chat/presentation/providers"
 )
@@ -382,6 +393,312 @@ def build_selection(
     }
 
 
+def _repository_file(
+    root: pathlib.Path, relative_path: str, context: str
+) -> pathlib.Path:
+    parsed = pathlib.PurePosixPath(relative_path)
+    if (
+        parsed.is_absolute()
+        or ".." in parsed.parts
+        or parsed.as_posix() != relative_path
+    ):
+        raise SelectionError(f"{context} must be a repository-relative path")
+    path = root / parsed
+    if not path.is_file():
+        raise SelectionError(f"{context} does not exist: {relative_path}")
+    return path
+
+
+def _require_unique_strings(value: Any, context: str) -> list[str]:
+    values = _require_list(value, context)
+    strings = [
+        _require_string(item, f"{context}[{index}]")
+        for index, item in enumerate(values)
+    ]
+    if not strings:
+        raise SelectionError(f"{context} must not be empty")
+    if len(strings) != len(set(strings)):
+        raise SelectionError(f"{context} must contain unique values")
+    return strings
+
+
+def _validate_selection_inputs(
+    root: pathlib.Path, selection: dict[str, Any]
+) -> dict[str, pathlib.Path]:
+    inputs = _require_object(selection.get("inputs"), "selection.inputs")
+    paths: dict[str, pathlib.Path] = {}
+    for name in ("audit", "manifest"):
+        binding = _require_object(
+            inputs.get(name), f"selection.inputs.{name}"
+        )
+        relative_path = _require_string(
+            binding.get("path"), f"selection.inputs.{name}.path"
+        )
+        expected_sha256 = _require_string(
+            binding.get("sha256"), f"selection.inputs.{name}.sha256"
+        )
+        if SHA256_PATTERN.fullmatch(expected_sha256) is None:
+            raise SelectionError(
+                f"selection.inputs.{name}.sha256 must be a SHA-256 digest"
+            )
+        path = _repository_file(
+            root, relative_path, f"selection.inputs.{name}.path"
+        )
+        if _sha256(path) != expected_sha256:
+            raise SelectionError(f"Selection {name} input hash does not match")
+        paths[name] = path
+    return paths
+
+
+def _validate_expected_evidence(
+    *, root: pathlib.Path, value: Any, context: str
+) -> list[dict[str, Any]]:
+    entries = _require_list(value, context)
+    if not entries:
+        raise SelectionError(f"{context} must not be empty")
+    validated: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for index, raw_entry in enumerate(entries):
+        entry_context = f"{context}[{index}]"
+        entry = _require_object(raw_entry, entry_context)
+        evidence_id = _require_string(entry.get("id"), f"{entry_context}.id")
+        if evidence_id in seen_ids:
+            raise SelectionError(f"{context} contains duplicate id: {evidence_id}")
+        seen_ids.add(evidence_id)
+        description = _require_string(
+            entry.get("description"), f"{entry_context}.description"
+        )
+        source_path = _require_string(
+            entry.get("sourcePath"), f"{entry_context}.sourcePath"
+        )
+        required_text = _require_unique_strings(
+            entry.get("requiredText"), f"{entry_context}.requiredText"
+        )
+        source = _repository_file(
+            root, source_path, f"{entry_context}.sourcePath"
+        ).read_text()
+        for token in required_text:
+            if token.strip().lower() in {"todo", "tbd", "placeholder"}:
+                raise SelectionError(
+                    f"{entry_context}.requiredText contains placeholder evidence"
+                )
+            if token not in source:
+                raise SelectionError(
+                    f"Evidence text for {evidence_id} is missing from {source_path}: "
+                    f"{token}"
+                )
+        validated.append(
+            {
+                "id": evidence_id,
+                "description": description,
+                "sourcePath": source_path,
+                "requiredText": required_text,
+            }
+        )
+    return validated
+
+
+def _validate_gate(
+    *,
+    root: pathlib.Path,
+    gate: dict[str, Any],
+    context: str,
+    path_fields: tuple[str, ...],
+) -> dict[str, Any]:
+    command = _require_string(gate.get("command"), f"{context}.command")
+    test_name = _require_string(gate.get("testName"), f"{context}.testName")
+    contract = _require_string(gate.get("contract"), f"{context}.contract")
+    paths: dict[str, str] = {}
+    for field in path_fields:
+        relative_path = _require_string(
+            gate.get(field), f"{context}.{field}"
+        )
+        _repository_file(root, relative_path, f"{context}.{field}")
+        paths[field] = relative_path
+    evidence = _validate_expected_evidence(
+        root=root,
+        value=gate.get("expectedEvidence"),
+        context=f"{context}.expectedEvidence",
+    )
+    return {
+        "command": command,
+        **paths,
+        "testName": test_name,
+        "contract": contract,
+        "expectedEvidence": evidence,
+    }
+
+
+def validate_gates(
+    *,
+    root: pathlib.Path,
+    selection_path: pathlib.Path,
+    verification_manifest_path: pathlib.Path,
+) -> dict[str, Any]:
+    root = root.resolve()
+    selection_path = selection_path.resolve()
+    verification_manifest_path = verification_manifest_path.resolve()
+    require_clean_worktree(root)
+    selection = _load_json(selection_path, "Prototype selection")
+    verification = _load_json(
+        verification_manifest_path, "Prototype verification manifest"
+    )
+    _require_schema(
+        selection,
+        label="Prototype selection",
+        schema_name=SELECTION_SCHEMA_NAME,
+        schema_version=SELECTION_SCHEMA_VERSION,
+    )
+    _require_schema(
+        verification,
+        label="Prototype verification manifest",
+        schema_name=VERIFICATION_SCHEMA_NAME,
+        schema_version=VERIFICATION_SCHEMA_VERSION,
+    )
+    source_revision = _require_string(
+        selection.get("sourceRevision"), "selection.sourceRevision"
+    )
+    if COMMIT_PATTERN.fullmatch(source_revision) is None:
+        raise SelectionError("selection.sourceRevision must be a full Git SHA")
+    resolve_source_revision(root, source_revision)
+    selection_inputs = _validate_selection_inputs(root, selection)
+    rebuilt_selection = build_selection(
+        root=root,
+        audit_path=selection_inputs["audit"],
+        manifest_path=selection_inputs["manifest"],
+        source_revision=source_revision,
+        require_clean=False,
+    )
+    if selection != rebuilt_selection:
+        raise SelectionError(
+            "Prototype selection does not match the current audited ranking"
+        )
+
+    selected = _require_object(selection.get("selected"), "selection.selected")
+    selected_part_path = _require_string(
+        selected.get("partPath"), "selection.selected.partPath"
+    )
+    selected_source_path = _require_string(
+        selected.get("sourcePath"), "selection.selected.sourcePath"
+    )
+    selected_source = _repository_file(
+        root, selected_source_path, "selection.selected.sourcePath"
+    ).read_text()
+    selected_identity = _require_object(
+        selected.get("turnReachableIdentityEntrypoints"),
+        "selection.selected.turnReachableIdentityEntrypoints",
+    )
+    selected_declarations = set(
+        _require_unique_strings(
+            selected_identity.get("declarations"),
+            "selection.selected.turnReachableIdentityEntrypoints.declarations",
+        )
+    )
+
+    selected_part = _require_object(
+        verification.get("selectedPart"), "verification.selectedPart"
+    )
+    manifest_part_path = _require_string(
+        selected_part.get("partPath"), "verification.selectedPart.partPath"
+    )
+    manifest_source_path = _require_string(
+        selected_part.get("sourcePath"), "verification.selectedPart.sourcePath"
+    )
+    if manifest_part_path != selected_part_path:
+        raise SelectionError(
+            "Verification manifest part does not match the selected part"
+        )
+    if manifest_source_path != selected_source_path:
+        raise SelectionError(
+            "Verification manifest source does not match the selected source"
+        )
+    migrated_symbols = _require_unique_strings(
+        selected_part.get("migratedPathSymbols"),
+        "verification.selectedPart.migratedPathSymbols",
+    )
+    for symbol in migrated_symbols:
+        if symbol not in selected_declarations:
+            raise SelectionError(
+                f"Migrated-path symbol is not a selected identity entrypoint: {symbol}"
+            )
+        if symbol not in selected_source:
+            raise SelectionError(
+                f"Migrated-path symbol is missing from selected source: {symbol}"
+            )
+
+    focused = _validate_gate(
+        root=root,
+        gate=_require_object(
+            verification.get("focusedTest"), "verification.focusedTest"
+        ),
+        context="verification.focusedTest",
+        path_fields=("executablePath", "declarationPath"),
+    )
+    if focused["executablePath"] not in focused["command"]:
+        raise SelectionError("Focused-test command must name its executable path")
+    if (
+        "--plain-name" not in focused["command"]
+        or focused["testName"] not in focused["command"]
+    ):
+        raise SelectionError("Focused-test command must name its exact test")
+    focused_declaration = _repository_file(
+        root,
+        focused["declarationPath"],
+        "verification.focusedTest.declarationPath",
+    ).read_text()
+    if focused["testName"] not in focused_declaration:
+        raise SelectionError("Focused test name is missing from its declaration source")
+
+    live = _validate_gate(
+        root=root,
+        gate=_require_object(
+            verification.get("liveCanary"), "verification.liveCanary"
+        ),
+        context="verification.liveCanary",
+        path_fields=("runnerPath", "testPath"),
+    )
+    if live["runnerPath"] not in live["command"]:
+        raise SelectionError("Live-canary command must name its runner path")
+    runner_source = _repository_file(
+        root, live["runnerPath"], "verification.liveCanary.runnerPath"
+    ).read_text()
+    if live["testPath"] not in runner_source or live["testName"] not in runner_source:
+        raise SelectionError(
+            "Live-canary runner must name its test path and exact test"
+        )
+    live_test_source = _repository_file(
+        root, live["testPath"], "verification.liveCanary.testPath"
+    ).read_text()
+    if live["testName"] not in live_test_source:
+        raise SelectionError("Live-canary test name is missing from its test source")
+
+    validated_verification = {
+        "selectedPart": {
+            "partPath": manifest_part_path,
+            "sourcePath": manifest_source_path,
+            "migratedPathSymbols": migrated_symbols,
+        },
+        "focusedTest": focused,
+        "liveCanary": live,
+    }
+    return {
+        "schemaName": VALIDATED_SELECTION_SCHEMA_NAME,
+        "schemaVersion": VALIDATED_SELECTION_SCHEMA_VERSION,
+        "sourceRevision": source_revision,
+        "selection": {
+            "path": _display_path(root, selection_path),
+            "sha256": _sha256(selection_path),
+        },
+        "verificationManifest": {
+            "path": _display_path(root, verification_manifest_path),
+            "sha256": _sha256(verification_manifest_path),
+        },
+        "selected": selected,
+        "verification": validated_verification,
+        "liveCanaryExecuted": False,
+    }
+
+
 def write_json_atomic(path: pathlib.Path, value: dict[str, Any]) -> None:
     path = path.resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -418,6 +735,14 @@ def build_parser() -> argparse.ArgumentParser:
     select.add_argument("--source-revision", default="HEAD")
     select.add_argument("--require-clean", action="store_true")
     select.add_argument("--output", required=True, type=pathlib.Path)
+    validate = subparsers.add_parser(
+        "validate-gates", help="Validate focused and live gates for a selection"
+    )
+    validate.add_argument("--selection", required=True, type=pathlib.Path)
+    validate.add_argument(
+        "--verification-manifest", required=True, type=pathlib.Path
+    )
+    validate.add_argument("--output", required=True, type=pathlib.Path)
     return parser
 
 
@@ -425,26 +750,39 @@ def main(arguments: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(arguments)
     try:
-        if args.command != "select":
+        if args.command == "select":
+            selection = build_selection(
+                root=repository_root(),
+                audit_path=args.audit,
+                manifest_path=args.manifest,
+                source_revision=args.source_revision,
+                require_clean=args.require_clean,
+            )
+            write_json_atomic(args.output, selection)
+            selected = selection["selected"]
+            print(
+                "TurnRuntime prototype candidate selected: "
+                f"{selected['partPath']} "
+                f"(identity entrypoints="
+                f"{selected['turnReachableIdentityEntrypoints']['count']}, "
+                f"ambient reads={selected['turnReachableAmbientReads']['count']}, "
+                f"production lines={selected['productionLines']}); "
+                f"source {selection['sourceRevision']}"
+            )
+        elif args.command == "validate-gates":
+            validated = validate_gates(
+                root=repository_root(),
+                selection_path=args.selection,
+                verification_manifest_path=args.verification_manifest,
+            )
+            write_json_atomic(args.output, validated)
+            print(
+                "TurnRuntime prototype gates valid: "
+                f"{validated['selected']['partPath']}; "
+                f"source {validated['sourceRevision']}; live canary not executed"
+            )
+        else:
             raise SelectionError(f"Unsupported command: {args.command}")
-        selection = build_selection(
-            root=repository_root(),
-            audit_path=args.audit,
-            manifest_path=args.manifest,
-            source_revision=args.source_revision,
-            require_clean=args.require_clean,
-        )
-        write_json_atomic(args.output, selection)
-        selected = selection["selected"]
-        print(
-            "TurnRuntime prototype candidate selected: "
-            f"{selected['partPath']} "
-            f"(identity entrypoints="
-            f"{selected['turnReachableIdentityEntrypoints']['count']}, "
-            f"ambient reads={selected['turnReachableAmbientReads']['count']}, "
-            f"production lines={selected['productionLines']}); "
-            f"source {selection['sourceRevision']}"
-        )
         return 0
     except SelectionError as error:
         print(f"error: {error}", file=sys.stderr)
