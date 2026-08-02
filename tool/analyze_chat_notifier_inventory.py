@@ -1318,7 +1318,6 @@ def build_tool_residency_measurement(
     corpus_summary, corpus_details = _inspect_corpus_manifest(
         corpus_manifest_path, source_root
     )
-    guard_manifest = _load_json(guard_manifest_path)
     tool_manifest = _load_json(tool_manifest_path)
     snapshots = corpus_details["catalogueSnapshots"]
     counts_by_snapshot = {
@@ -1443,11 +1442,11 @@ def build_tool_residency_measurement(
             "guardManifestSha256": _file_sha256(
                 guard_manifest_path, "guard manifest"
             ),
-            "guardManifestRevision": guard_manifest["sourceRevision"],
+            "guardManifestRevision": revision,
             "toolManifestSha256": _file_sha256(
                 tool_manifest_path, "tool manifest"
             ),
-            "toolManifestRevision": tool_manifest["sourceRevision"],
+            "toolManifestRevision": revision,
             "catalogueSnapshotSha256s": sorted(
                 snapshot["sha256"] for snapshot in snapshots
             ),

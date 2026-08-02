@@ -841,6 +841,8 @@ class ChatNotifierInventoryTest(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(first_bytes, second_bytes)
         self.assertEqual(first["schemaVersion"], 1)
+        self.assertEqual(first["inputs"]["guardManifestRevision"], commit)
+        self.assertEqual(first["inputs"]["toolManifestRevision"], commit)
         self.assertEqual(
             first["summary"],
             {
