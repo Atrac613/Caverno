@@ -85,5 +85,6 @@ tool/codex_verify.sh
 - Risks or follow-ups: This contract does not authorize a live migration.
   The persistence-neutral receipt and replay validator are defined, and both
   synthetic explicit-authority paths pass end to end. The confirmation contract
-  is now defined without an adapter. Audit owner-scoped UI lifecycle and stale
-  request disposal before any UI, persistence, or transformer wiring.
+  is defined without an adapter. The adapter audit now selects a dedicated
+  owner registry and owner-bound port; implement those without UI before any
+  persistence or transformer wiring.

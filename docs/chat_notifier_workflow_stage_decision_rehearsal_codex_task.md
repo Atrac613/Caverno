@@ -43,8 +43,9 @@
 - Files or modules inspected: Preservation and receipt services, their focused
   tests, the schema-v5 live authority-free rehearsal, and renewal evidence.
 - Follow-up tasks found: Both synthetic paths pass and the persistence-neutral
-  confirmation contract is now defined. Audit adapter ownership and stale
-  request lifecycle before wiring any UI, storage, or transformation.
+  confirmation contract is defined. The adapter ownership audit selects a
+  dedicated owner registry; implement that registry and bound adapter without
+  wiring any UI, storage, or transformation.
 
 ## Acceptance Criteria
 
@@ -82,6 +83,6 @@ tool/codex_verify.sh
   preservation, receipt field minimization, JSON round-trip, replay, and input
   immutability.
 - Risks or follow-ups: This rehearsal does not authorize a live migration.
-  The confirmation contract is now defined without an adapter. Audit its
-  owner-scoped UI lifecycle and stale-request disposal next; keep receipt
-  storage and conversation transformation outside that slice.
+  The confirmation contract and adapter ownership audit are complete. The
+  no-UI owner registry and bound adapter are the next bounded implementation;
+  keep receipt storage and conversation transformation outside that slice.

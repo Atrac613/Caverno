@@ -84,4 +84,6 @@ tool/codex_verify.sh
   invalid confirmation fields, and current-state drift.
 - Risks or follow-ups: No adapter implements this port. Audit and specify its
   owner-scoped UI lifecycle and stale-request disposal before adding a dialog;
-  persistence and transformation remain separate blocked gates.
+  persistence and transformation remain separate blocked gates. That audit is
+  now complete: implement the dedicated owner registry and bound adapter without
+  UI next.

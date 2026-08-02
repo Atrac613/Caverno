@@ -120,9 +120,11 @@ planning paths emit a plan document.
   rehearsal now completes both explicit authority paths without losing progress
   or mutating inputs. A persistence-neutral request/result contract now rejects
   decline, identity mismatch, invalid time ordering, and current-state drift
-  before emitting a manual decision. The next safe slice is an owner-scoped
-  adapter and stale-request lifecycle audit; do not invent live authority,
-  delete the editor, persist receipts, or mutate the live database.
+  before emitting a manual decision. An adapter audit now assigns authoritative
+  pending state to a dedicated `ChatTurnOwner` registry, with ChatState only a
+  thread projection and widget unmount carrying no authority. The next safe
+  slice is the no-UI registry and owner-bound adapter; do not invent live
+  authority, delete the editor, persist receipts, or mutate the live database.
 
 ### C2 — Give task status one owner
 

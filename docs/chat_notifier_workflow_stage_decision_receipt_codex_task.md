@@ -80,6 +80,7 @@ tool/codex_verify.sh
   selected-stage contradiction, and unavailable current context.
 - Risks or follow-ups: This fixture does not authorize a live migration. The
   end-to-end synthetic rehearsal passes for both authorities and the
-  persistence-neutral confirmation contract is defined. Audit adapter
-  ownership and stale-request disposal next; do not manufacture a decision for
-  any live conflict record.
+  persistence-neutral confirmation contract is defined. The adapter audit now
+  requires a dedicated owner registry and owner-bound adapter; implement those
+  without UI next and do not manufacture a decision for any live conflict
+  record.
