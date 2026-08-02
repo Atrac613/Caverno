@@ -6,8 +6,11 @@ and its deterministic discovery check is covered by eight focused Python tests.
 Phase 0B telemetry selection completed on 2026-08-02 with one bounded
 candidate and 51 explicit deferrals. The first selected telemetry event is now
 implemented and marked covered. Dynamic corpus analysis and tool-catalogue
-validation remain pending; no dynamic action state is claimed yet. Static
-review has proven
+validation remain pending; no dynamic action state is claimed yet. The private
+corpus contract now validates hashes, build provenance, and complete
+configuration segments before measurement. A 2026-08-02 structural scan found
+no provenance-bearing record for the first telemetry event, so a new clean
+capture is required. Static review has proven
 `_tryRepairAndDecodeMap` and `_repairJsonCandidate` unreachable, but their action
 state remains unresolved until matching-build observations exist.
 
@@ -109,8 +112,11 @@ test at `test/python/analyze_chat_notifier_inventory_test.py`. The tool must:
 Phase 0A establishes only the static half of this contract. The analyser now
 accepts the final command surface and validates the finite guard discovery set,
 required evidence fields, exact entry/exclusion coverage, and stale entries.
-It deliberately rejects tool-manifest and dynamic-corpus operations until
-their focused slices implement the remaining contract.
+It deliberately rejects tool-manifest and dynamic measurement operations until
+their focused slices implement the remaining contract. The
+`--check-corpus-manifest` slice now validates the immutable private input and
+emits a deterministic path-free provenance summary without deriving counts or
+action states.
 
 `--require-clean-source` checks the classified `lib/` paths plus the analyser
 and checked-in manifests against the resolved source commit. Findings documents

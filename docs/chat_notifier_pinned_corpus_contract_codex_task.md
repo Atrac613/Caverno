@@ -107,8 +107,29 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: Dynamic measurement and action-state derivation remain
-  explicitly out of scope.
+- Summary: The analyser now validates an exact private corpus manifest before
+  measurement. It verifies session-log and catalogue-snapshot SHA-256 pins,
+  canonicalizes unambiguous build revisions, rejects mixed provenance, joins
+  every record to exactly one contiguous configuration segment, and emits a
+  deterministic path-free summary.
+- Tests run:
+  - `python3 test/python/analyze_chat_notifier_inventory_test.py`: 27 passed.
+  - Guard inventory and Phase 0B telemetry selection validation passed at the
+    implementation revision.
+  - `tool/codex_verify.sh`: dependency installation, generated-file check,
+    project and package analysis, and package tests passed. The full Flutter
+    suite reached 6,475 passing tests and failed the same unrelated stale
+    assertion in
+    `test/tool/run_coding_stalled_diagnostic_repair_live_canary_test.dart`,
+    which still requires the removed source text `.where(_isTodoVerifierCall)`.
+- Coverage or low-coverage notes: Focused tests cover valid short-commit
+  canonicalization, adjacent-boundary joins, deterministic output, missing and
+  corrupted files, malformed JSONL, unknown or mixed builds, dirty-state
+  mismatches, segment gaps and overlaps, uncovered records, snapshot pins, and
+  exact schema fields.
+- Risks or follow-ups: A path-free structural scan on 2026-08-02 found 1,479
+  local session-log files and 5,819 records. Eleven records contained the new
+  recovery decision, but all eleven had `build.commit=unknown`; none can enter
+  the matching-build partition. Capture a clean provenance-bearing run and its
+  full catalogue snapshot before dynamic measurement. Action-state derivation
+  remains explicitly out of scope.

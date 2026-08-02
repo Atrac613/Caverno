@@ -232,7 +232,10 @@ long as the feature existed.
 `docs/chat_notifier_inventory_codex_task.md`. Fix the date range, file set and
 build revisions first; a re-measurement during review produced 33 invoked tools
 where an earlier note recorded 41, and without a pinned corpus there is no way
-to distinguish drift from a different sample.
+to distinguish drift from a different sample. The hash, provenance, and
+configuration-segment validator is now implemented. Existing records for the
+first Phase 0B event lack build provenance, so Phase 1 measurement still waits
+for a clean matching-build capture and full catalogue snapshot.
 
 **Phase 1.5 — bounded experiments and the decision point.** Before committing
 to a renewal:

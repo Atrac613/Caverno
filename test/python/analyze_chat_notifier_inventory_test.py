@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Focused tests for ``tool/analyze_chat_notifier_inventory.py``."""
 
+import contextlib
 import importlib.util
+import hashlib
+import io
 import json
 import pathlib
 import tempfile
@@ -171,6 +174,80 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             if entry["id"] == analyzer.FIRST_TELEMETRY_SLICE_ID
         )
         selection_entry["disposition"] = "covered"
+
+    def _sha256(self, path):
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def _write_corpus_fixture(self, directory):
+        root = pathlib.Path(directory)
+        commit = analyzer.resolve_source_revision(ROOT, "HEAD")
+        first_snapshot = root / "catalogue-a.json"
+        second_snapshot = root / "catalogue-b.json"
+        first_snapshot.write_text('{"tools":["first"]}\n')
+        second_snapshot.write_text('{"tools":["second"]}\n')
+        session_path = root / "session.jsonl"
+        records = [
+            {
+                "schemaName": analyzer.SESSION_LOG_SCHEMA_NAME,
+                "schemaVersion": 2,
+                "timestamp": "2026-08-02T00:15:00Z",
+                "build": {"commit": commit[:10], "dirty": False},
+                "operation": "turn_exit",
+            },
+            {
+                "schemaName": analyzer.SESSION_LOG_SCHEMA_NAME,
+                "schemaVersion": 2,
+                "timestamp": "2026-08-02T00:30:00+00:00",
+                "build": {"commit": commit[:12], "dirty": False},
+                "operation": "turn_exit",
+            },
+        ]
+        session_path.write_text(
+            "".join(f"{json.dumps(record)}\n" for record in records)
+        )
+        manifest = {
+            "schemaName": analyzer.CORPUS_MANIFEST_SCHEMA_NAME,
+            "schemaVersion": analyzer.CORPUS_MANIFEST_SCHEMA_VERSION,
+            "files": [
+                {
+                    "path": session_path.name,
+                    "sha256": self._sha256(session_path),
+                    "buildRevision": commit[:8],
+                    "dirty": False,
+                    "segments": [
+                        {
+                            "startTimestampInclusive": "2026-08-02T00:00:00Z",
+                            "endTimestampExclusive": "2026-08-02T00:30:00Z",
+                            "configurationFingerprint": "config-a",
+                            "catalogueSnapshotPath": first_snapshot.name,
+                            "catalogueSnapshotSha256": self._sha256(first_snapshot),
+                            "snapshotCaptureCommand": "capture catalogue a",
+                            "exporterRevision": "exporter-v1",
+                        },
+                        {
+                            "startTimestampInclusive": "2026-08-02T00:30:00Z",
+                            "endTimestampExclusive": "2026-08-02T01:00:00Z",
+                            "configurationFingerprint": "config-b",
+                            "catalogueSnapshotPath": second_snapshot.name,
+                            "catalogueSnapshotSha256": self._sha256(second_snapshot),
+                            "snapshotCaptureCommand": "capture catalogue b",
+                            "exporterRevision": "exporter-v1",
+                        },
+                    ],
+                }
+            ],
+        }
+        manifest_path = root / "corpus.json"
+        self._write_corpus_manifest(manifest_path, manifest)
+        return manifest_path, manifest, session_path, records, commit
+
+    def _write_corpus_manifest(self, path, manifest):
+        path.write_text(json.dumps(manifest, sort_keys=True))
+
+    def _rewrite_session(self, path, records, manifest, manifest_path):
+        path.write_text("".join(f"{json.dumps(record)}\n" for record in records))
+        manifest["files"][0]["sha256"] = self._sha256(path)
+        self._write_corpus_manifest(manifest_path, manifest)
 
     def test_discovers_types_and_notifier_members_deterministically(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -524,6 +601,178 @@ class ChatNotifierInventoryTest(unittest.TestCase):
                 analyzer.validate_telemetry_selection(
                     selection_path, manifest_path, root
                 )
+
+    def test_accepts_hash_pinned_corpus_with_exact_segment_join(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path, _, _, _, commit = self._write_corpus_fixture(directory)
+
+            first = analyzer.validate_corpus_manifest(manifest_path, ROOT)
+            second = analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+        self.assertEqual(first, second)
+        self.assertEqual(first["fileCount"], 1)
+        self.assertEqual(first["recordCount"], 2)
+        self.assertEqual(first["configurationSegmentCount"], 2)
+        self.assertEqual(first["catalogueSnapshotCount"], 2)
+        self.assertEqual(
+            first["loggedRange"],
+            {
+                "startTimestampInclusive": "2026-08-02T00:15:00Z",
+                "endTimestampInclusive": "2026-08-02T00:30:00Z",
+            },
+        )
+        self.assertEqual(
+            first["representedBuilds"],
+            [{"commit": commit, "dirty": False}],
+        )
+        self.assertNotIn(directory, json.dumps(first, sort_keys=True))
+
+    def test_check_corpus_manifest_cli_prints_only_the_json_summary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path, _, _, _, _ = self._write_corpus_fixture(directory)
+            output = io.StringIO()
+
+            with contextlib.redirect_stdout(output):
+                exit_code = analyzer.main(
+                    ["--check-corpus-manifest", str(manifest_path)]
+                )
+
+        self.assertEqual(exit_code, 0)
+        decoded = json.loads(output.getvalue())
+        self.assertEqual(decoded["fileCount"], 1)
+        self.assertNotIn(directory, output.getvalue())
+
+    def test_rejects_missing_mismatched_empty_and_malformed_corpus_files(self):
+        scenarios = (
+            ("missing", "does not exist or is not a file"),
+            ("hash", "SHA-256 does not match"),
+            ("empty", "at least one JSONL record"),
+            ("malformed", "invalid JSON"),
+        )
+        for scenario, expected in scenarios:
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                manifest_path, manifest, session_path, _, _ = (
+                    self._write_corpus_fixture(directory)
+                )
+                if scenario == "missing":
+                    manifest["files"][0]["path"] = "missing.jsonl"
+                    self._write_corpus_manifest(manifest_path, manifest)
+                elif scenario == "hash":
+                    manifest["files"][0]["sha256"] = "0" * 64
+                    self._write_corpus_manifest(manifest_path, manifest)
+                else:
+                    session_path.write_text("" if scenario == "empty" else "not-json\n")
+                    manifest["files"][0]["sha256"] = self._sha256(session_path)
+                    self._write_corpus_manifest(manifest_path, manifest)
+
+                with self.assertRaisesRegex(analyzer.InventoryError, expected):
+                    analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+    def test_rejects_unreliable_or_mixed_build_provenance(self):
+        scenarios = (
+            ("unknown", "unambiguous Git commit hash"),
+            ("dirty", "build.dirty does not match"),
+            ("mixed", "build.commit does not match"),
+        )
+        for scenario, expected in scenarios:
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                manifest_path, manifest, session_path, records, _ = (
+                    self._write_corpus_fixture(directory)
+                )
+                if scenario == "unknown":
+                    records[0]["build"]["commit"] = "unknown"
+                elif scenario == "dirty":
+                    records[0]["build"]["dirty"] = True
+                else:
+                    records[0]["build"]["commit"] = analyzer.resolve_source_revision(
+                        ROOT, "HEAD^"
+                    )
+                self._rewrite_session(
+                    session_path, records, manifest, manifest_path
+                )
+
+                with self.assertRaisesRegex(analyzer.InventoryError, expected):
+                    analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+    def test_rejects_segment_gaps_overlaps_and_uncovered_records(self):
+        scenarios = (
+            ("gap", "timestamp gap"),
+            ("overlap", "timestamp overlap"),
+            ("uncovered", "exactly one configuration segment"),
+        )
+        for scenario, expected in scenarios:
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                manifest_path, manifest, session_path, records, _ = (
+                    self._write_corpus_fixture(directory)
+                )
+                if scenario == "gap":
+                    manifest["files"][0]["segments"][1][
+                        "startTimestampInclusive"
+                    ] = "2026-08-02T00:31:00Z"
+                    self._write_corpus_manifest(manifest_path, manifest)
+                elif scenario == "overlap":
+                    manifest["files"][0]["segments"][1][
+                        "startTimestampInclusive"
+                    ] = "2026-08-02T00:29:00Z"
+                    self._write_corpus_manifest(manifest_path, manifest)
+                else:
+                    records[0]["timestamp"] = "2026-08-01T23:59:59Z"
+                    self._rewrite_session(
+                        session_path, records, manifest, manifest_path
+                    )
+
+                with self.assertRaisesRegex(analyzer.InventoryError, expected):
+                    analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+    def test_rejects_unpinned_or_duplicate_catalogue_snapshots(self):
+        scenarios = (
+            ("hash", "SHA-256 does not match"),
+            ("duplicate", "Duplicate catalogue snapshot pin"),
+        )
+        for scenario, expected in scenarios:
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                manifest_path, manifest, _, _, _ = self._write_corpus_fixture(
+                    directory
+                )
+                segments = manifest["files"][0]["segments"]
+                if scenario == "hash":
+                    segments[0]["catalogueSnapshotSha256"] = "0" * 64
+                else:
+                    segments[1]["catalogueSnapshotPath"] = segments[0][
+                        "catalogueSnapshotPath"
+                    ]
+                    segments[1]["catalogueSnapshotSha256"] = segments[0][
+                        "catalogueSnapshotSha256"
+                    ]
+                self._write_corpus_manifest(manifest_path, manifest)
+
+                with self.assertRaisesRegex(analyzer.InventoryError, expected):
+                    analyzer.validate_corpus_manifest(manifest_path, ROOT)
+
+    def test_rejects_unexpected_corpus_fields_and_invalid_timestamps(self):
+        scenarios = (
+            ("field", "unexpected fields"),
+            ("timezone", "must include a UTC offset"),
+            ("range", "positive range"),
+        )
+        for scenario, expected in scenarios:
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                manifest_path, manifest, _, _, _ = self._write_corpus_fixture(
+                    directory
+                )
+                segment = manifest["files"][0]["segments"][0]
+                if scenario == "field":
+                    manifest["files"][0]["sessionId"] = "private"
+                elif scenario == "timezone":
+                    segment["startTimestampInclusive"] = "2026-08-02T00:00:00"
+                else:
+                    segment["endTimestampExclusive"] = segment[
+                        "startTimestampInclusive"
+                    ]
+                self._write_corpus_manifest(manifest_path, manifest)
+
+                with self.assertRaisesRegex(analyzer.InventoryError, expected):
+                    analyzer.validate_corpus_manifest(manifest_path, ROOT)
 
 
 if __name__ == "__main__":

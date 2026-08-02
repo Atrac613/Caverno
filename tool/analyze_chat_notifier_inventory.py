@@ -2,15 +2,16 @@
 """Validate and eventually measure the ChatNotifier renewal inventories.
 
 Phase 0A implements the finite static guard inventory. Phase 0B adds a finite
-telemetry-selection contract without changing production logging. The corpus
-and tool-catalogue analysis arguments are accepted so the final command surface
-is stable, but dynamic measurement remains blocked until its own tested slice
-is complete.
+telemetry-selection contract without changing production logging. Phase 1
+starts by validating immutable private corpus inputs. Dynamic measurement and
+tool-catalogue analysis remain blocked until their own tested slices complete.
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import hashlib
 import json
 import pathlib
 import re
@@ -126,6 +127,32 @@ FIRST_TELEMETRY_SLICE_VALUES = [
     "skip_recovery",
     "allow_recovery",
 ]
+CORPUS_MANIFEST_SCHEMA_NAME = "caverno_chat_notifier_inventory_corpus"
+CORPUS_MANIFEST_SCHEMA_VERSION = 1
+CORPUS_MANIFEST_FIELDS = {
+    "schemaName",
+    "schemaVersion",
+    "files",
+}
+CORPUS_FILE_FIELDS = {
+    "path",
+    "sha256",
+    "buildRevision",
+    "dirty",
+    "segments",
+}
+CORPUS_SEGMENT_FIELDS = {
+    "startTimestampInclusive",
+    "endTimestampExclusive",
+    "configurationFingerprint",
+    "catalogueSnapshotPath",
+    "catalogueSnapshotSha256",
+    "snapshotCaptureCommand",
+    "exporterRevision",
+}
+SESSION_LOG_SCHEMA_NAME = "caverno_llm_session_log_entry"
+SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-fA-F]{4,40}$")
 
 
 class InventoryError(ValueError):
@@ -224,6 +251,264 @@ def _load_json(path: pathlib.Path) -> dict[str, Any]:
     if not isinstance(decoded, dict):
         raise InventoryError(f"Expected a JSON object in {path}")
     return decoded
+
+
+def _resolve_private_path(manifest_path: pathlib.Path, value: Any, label: str) -> pathlib.Path:
+    if not isinstance(value, str) or not value.strip():
+        raise InventoryError(f"{label} must be a non-empty path")
+    path = pathlib.Path(value).expanduser()
+    if not path.is_absolute():
+        path = manifest_path.parent / path
+    return path.resolve()
+
+
+def _validate_sha256(value: Any, label: str) -> str:
+    if not isinstance(value, str) or SHA256_PATTERN.fullmatch(value) is None:
+        raise InventoryError(f"{label} must be a lowercase SHA-256")
+    return value
+
+
+def _file_sha256(path: pathlib.Path, label: str) -> str:
+    try:
+        digest = hashlib.sha256()
+        with path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError as error:
+        raise InventoryError(f"Could not read {label}: {error}") from error
+
+
+def _verify_file_hash(path: pathlib.Path, expected: str, label: str) -> None:
+    if not path.is_file():
+        raise InventoryError(f"{label} does not exist or is not a file")
+    if _file_sha256(path, label) != expected:
+        raise InventoryError(f"{label} SHA-256 does not match its manifest pin")
+
+
+def _parse_timestamp(value: Any, label: str) -> dt.datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise InventoryError(f"{label} must be a non-empty ISO-8601 timestamp")
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise InventoryError(f"{label} must be a valid ISO-8601 timestamp") from error
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise InventoryError(f"{label} must include a UTC offset")
+    return parsed.astimezone(dt.timezone.utc)
+
+
+def _format_timestamp(value: dt.datetime) -> str:
+    return value.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _canonical_commit(
+    root: pathlib.Path,
+    revision: Any,
+    label: str,
+    cache: dict[str, str],
+) -> str:
+    if (
+        not isinstance(revision, str)
+        or GIT_COMMIT_PATTERN.fullmatch(revision) is None
+    ):
+        raise InventoryError(f"{label} must be an unambiguous Git commit hash")
+    normalized = revision.lower()
+    if normalized not in cache:
+        resolved = resolve_source_revision(root, normalized).lower()
+        if not resolved.startswith(normalized):
+            raise InventoryError(f"{label} does not prefix its resolved commit")
+        cache[normalized] = resolved
+    return cache[normalized]
+
+
+def _load_session_records(path: pathlib.Path, label: str) -> list[dict[str, Any]]:
+    try:
+        lines = path.read_text().splitlines()
+    except (OSError, UnicodeError) as error:
+        raise InventoryError(f"Could not read {label}: {error}") from error
+    if not lines:
+        raise InventoryError(f"{label} must contain at least one JSONL record")
+    records: list[dict[str, Any]] = []
+    for line_number, line in enumerate(lines, 1):
+        if not line.strip():
+            raise InventoryError(f"{label} line {line_number} is blank")
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise InventoryError(
+                f"{label} line {line_number} is invalid JSON"
+            ) from error
+        if not isinstance(record, dict):
+            raise InventoryError(f"{label} line {line_number} must be an object")
+        if record.get("schemaName") != SESSION_LOG_SCHEMA_NAME:
+            raise InventoryError(
+                f"{label} line {line_number} is not a Caverno session-log entry"
+            )
+        if not isinstance(record.get("schemaVersion"), int) or record["schemaVersion"] < 2:
+            raise InventoryError(
+                f"{label} line {line_number} lacks schema-v2 build provenance"
+            )
+        records.append(record)
+    return records
+
+
+def validate_corpus_manifest(
+    manifest_path: pathlib.Path,
+    root: pathlib.Path | None = None,
+) -> dict[str, Any]:
+    """Validate immutable private corpus inputs without exposing their paths."""
+    source_root = root or repository_root()
+    manifest = _load_json(manifest_path)
+    _require_exact_fields(manifest, CORPUS_MANIFEST_FIELDS, "corpus manifest")
+    if manifest["schemaName"] != CORPUS_MANIFEST_SCHEMA_NAME:
+        raise InventoryError(f"Unexpected corpus manifest schema in {manifest_path}")
+    if manifest["schemaVersion"] != CORPUS_MANIFEST_SCHEMA_VERSION:
+        raise InventoryError(
+            f"Unsupported corpus manifest version in {manifest_path}"
+        )
+    raw_files = manifest["files"]
+    if not isinstance(raw_files, list) or not raw_files:
+        raise InventoryError("Corpus manifest files must be a non-empty list")
+
+    manifest_digest = _file_sha256(manifest_path, "corpus manifest")
+    seen_files: set[pathlib.Path] = set()
+    seen_snapshots: set[tuple[pathlib.Path, str]] = set()
+    revision_cache: dict[str, str] = {}
+    represented_builds: set[tuple[str, bool]] = set()
+    record_count = 0
+    segment_count = 0
+    timestamps: list[dt.datetime] = []
+
+    for file_index, raw_file in enumerate(raw_files):
+        file_label = f"files[{file_index}]"
+        if not isinstance(raw_file, dict):
+            raise InventoryError(f"{file_label} must be an object")
+        _require_exact_fields(raw_file, CORPUS_FILE_FIELDS, file_label)
+        session_path = _resolve_private_path(
+            manifest_path, raw_file["path"], f"{file_label}.path"
+        )
+        if session_path in seen_files:
+            raise InventoryError(f"Duplicate corpus file at {file_label}.path")
+        seen_files.add(session_path)
+        session_hash = _validate_sha256(
+            raw_file["sha256"], f"{file_label}.sha256"
+        )
+        _verify_file_hash(session_path, session_hash, file_label)
+        build_commit = _canonical_commit(
+            source_root,
+            raw_file["buildRevision"],
+            f"{file_label}.buildRevision",
+            revision_cache,
+        )
+        dirty = raw_file["dirty"]
+        if not isinstance(dirty, bool):
+            raise InventoryError(f"{file_label}.dirty must be a boolean")
+        represented_builds.add((build_commit, dirty))
+
+        raw_segments = raw_file["segments"]
+        if not isinstance(raw_segments, list) or not raw_segments:
+            raise InventoryError(f"{file_label}.segments must be a non-empty list")
+        segments: list[tuple[dt.datetime, dt.datetime]] = []
+        for segment_index, raw_segment in enumerate(raw_segments):
+            segment_label = f"{file_label}.segments[{segment_index}]"
+            if not isinstance(raw_segment, dict):
+                raise InventoryError(f"{segment_label} must be an object")
+            _require_exact_fields(raw_segment, CORPUS_SEGMENT_FIELDS, segment_label)
+            start = _parse_timestamp(
+                raw_segment["startTimestampInclusive"],
+                f"{segment_label}.startTimestampInclusive",
+            )
+            end = _parse_timestamp(
+                raw_segment["endTimestampExclusive"],
+                f"{segment_label}.endTimestampExclusive",
+            )
+            if start >= end:
+                raise InventoryError(f"{segment_label} must have a positive range")
+            if segments and start != segments[-1][1]:
+                relation = "overlap" if start < segments[-1][1] else "gap"
+                raise InventoryError(
+                    f"{file_label}.segments contain a timestamp {relation}"
+                )
+            for field in (
+                "configurationFingerprint",
+                "snapshotCaptureCommand",
+                "exporterRevision",
+            ):
+                value = raw_segment[field]
+                if not isinstance(value, str) or not value.strip():
+                    raise InventoryError(
+                        f"{segment_label}.{field} must be a non-empty string"
+                    )
+            snapshot_path = _resolve_private_path(
+                manifest_path,
+                raw_segment["catalogueSnapshotPath"],
+                f"{segment_label}.catalogueSnapshotPath",
+            )
+            snapshot_hash = _validate_sha256(
+                raw_segment["catalogueSnapshotSha256"],
+                f"{segment_label}.catalogueSnapshotSha256",
+            )
+            snapshot_pin = (snapshot_path, snapshot_hash)
+            if snapshot_pin in seen_snapshots:
+                raise InventoryError(
+                    f"Duplicate catalogue snapshot pin at {segment_label}"
+                )
+            seen_snapshots.add(snapshot_pin)
+            _verify_file_hash(snapshot_path, snapshot_hash, segment_label)
+            segments.append((start, end))
+            segment_count += 1
+
+        records = _load_session_records(session_path, file_label)
+        for line_index, record in enumerate(records, 1):
+            record_label = f"{file_label} line {line_index}"
+            timestamp = _parse_timestamp(record.get("timestamp"), f"{record_label}.timestamp")
+            matching_segments = sum(
+                1 for start, end in segments if start <= timestamp < end
+            )
+            if matching_segments != 1:
+                raise InventoryError(
+                    f"{record_label} must match exactly one configuration segment"
+                )
+            build = record.get("build")
+            if not isinstance(build, dict):
+                raise InventoryError(f"{record_label}.build must be an object")
+            record_commit = _canonical_commit(
+                source_root,
+                build.get("commit"),
+                f"{record_label}.build.commit",
+                revision_cache,
+            )
+            if record_commit != build_commit:
+                raise InventoryError(
+                    f"{record_label}.build.commit does not match its file declaration"
+                )
+            if not isinstance(build.get("dirty"), bool):
+                raise InventoryError(f"{record_label}.build.dirty must be a boolean")
+            if build["dirty"] != dirty:
+                raise InventoryError(
+                    f"{record_label}.build.dirty does not match its file declaration"
+                )
+            timestamps.append(timestamp)
+            record_count += 1
+
+    return {
+        "schemaName": "caverno_chat_notifier_inventory_corpus_summary",
+        "schemaVersion": 1,
+        "corpusManifestSha256": manifest_digest,
+        "fileCount": len(raw_files),
+        "recordCount": record_count,
+        "configurationSegmentCount": segment_count,
+        "catalogueSnapshotCount": len(seen_snapshots),
+        "loggedRange": {
+            "startTimestampInclusive": _format_timestamp(min(timestamps)),
+            "endTimestampInclusive": _format_timestamp(max(timestamps)),
+        },
+        "representedBuilds": [
+            {"commit": commit, "dirty": dirty}
+            for commit, dirty in sorted(represented_builds)
+        ],
+    }
 
 
 def _require_fields(
@@ -692,6 +977,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--check-guard-manifest", type=pathlib.Path)
     parser.add_argument("--check-tool-manifest", type=pathlib.Path)
     parser.add_argument("--check-telemetry-selection", type=pathlib.Path)
+    parser.add_argument("--check-corpus-manifest", type=pathlib.Path)
     parser.add_argument("--print-guard-candidates", action="store_true")
     return parser
 
@@ -756,11 +1042,22 @@ def main(arguments: list[str] | None = None) -> int:
                 f"{counts['covered']} covered, "
                 f"{counts['defer']} defer; source {revision}"
             )
+        if args.check_corpus_manifest is not None:
+            summary = validate_corpus_manifest(
+                args.check_corpus_manifest,
+                root,
+            )
+            print(json.dumps(summary, sort_keys=True, separators=(",", ":")))
         if args.corpus_manifest is not None or args.output is not None:
             raise InventoryError(
-                "Dynamic corpus analysis is not implemented in Phase 0A"
+                "Dynamic corpus analysis is not implemented; validate the "
+                "private input with --check-corpus-manifest first"
             )
-        if guard_path is None and args.check_telemetry_selection is None:
+        if (
+            guard_path is None
+            and args.check_telemetry_selection is None
+            and args.check_corpus_manifest is None
+        ):
             parser.error("select a manifest check or --print-guard-candidates")
         return 0
     except InventoryError as error:

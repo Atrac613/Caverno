@@ -210,3 +210,6 @@ python3 tool/analyze_chat_notifier_inventory.py \
   0B telemetry event.
 - Run the private, hash-pinned matching-build corpus analysis before deriving
   action states.
+- Capture the first provenance-bearing recovery-decision records together with
+  the full catalogue snapshot for their runtime configuration; existing local
+  records for this event report an unknown build.
