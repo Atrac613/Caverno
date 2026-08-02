@@ -326,11 +326,11 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             kind = definition["bindingKind"]
             binding_counts[kind] = binding_counts.get(kind, 0) + 1
 
-        self.assertEqual(len(candidate["definitions"]), 112)
+        self.assertEqual(len(candidate["definitions"]), 118)
         self.assertEqual(
             binding_counts,
             {
-                "generic_mcp_fallback": 49,
+                "generic_mcp_fallback": 55,
                 "named_registry": 32,
                 "intercepted_computer_use": 19,
                 "intercepted_browser": 12,
@@ -345,6 +345,10 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             "_ConversationToolHandlerModule",
         )
         self.assertTrue(by_name["web_search"]["genericMcpFallback"])
+        self.assertEqual(
+            by_name["http_get"]["discoveryRule"],
+            "generated-network-http-tool-definitions",
+        )
         self.assertEqual(
             by_name["computer_click"]["bindingKind"],
             "intercepted_computer_use",
@@ -366,9 +370,9 @@ class ChatNotifierInventoryTest(unittest.TestCase):
         self.assertEqual(
             counts,
             {
-                "definitions": 112,
+                "definitions": 118,
                 "bindingKinds": 4,
-                "genericFallbackDefinitions": 49,
+                "genericFallbackDefinitions": 55,
             },
         )
 
@@ -808,6 +812,184 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             [{"commit": commit, "dirty": False}],
         )
         self.assertNotIn(directory, json.dumps(first, sort_keys=True))
+
+    def test_builds_deterministic_tool_residency_measurement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            manifest_path, _, _, _, commit = self._write_corpus_fixture(
+                directory
+            )
+            arguments = {
+                "corpus_manifest_path": manifest_path,
+                "guard_manifest_path": ROOT
+                / "tool/chat_notifier_guard_inventory.json",
+                "tool_manifest_path": ROOT
+                / "tool/chat_notifier_tool_catalog_inventory.json",
+                "root": ROOT,
+                "resolved_source_revision": commit,
+            }
+
+            first = analyzer.build_tool_residency_measurement(**arguments)
+            second = analyzer.build_tool_residency_measurement(**arguments)
+            first_path = root / "first.json"
+            second_path = root / "second.json"
+            analyzer.write_tool_residency_measurement(first_path, first)
+            analyzer.write_tool_residency_measurement(second_path, second)
+            first_bytes = first_path.read_bytes()
+            second_bytes = second_path.read_bytes()
+
+        self.assertEqual(first, second)
+        self.assertEqual(first_bytes, second_bytes)
+        self.assertEqual(first["schemaVersion"], 1)
+        self.assertEqual(
+            first["summary"],
+            {
+                "staticDefinitionCount": 118,
+                "dynamicDefinitionCount": 3,
+                "observedDefinitionCount": 0,
+                "unobservedDefinitionCount": 121,
+                "bindingCount": 6,
+                "toolResultSubmissionCount": 0,
+            },
+        )
+        static_arp = next(
+            row for row in first["definitions"] if row["id"] == "static::arp"
+        )
+        self.assertEqual(static_arp["catalogueSnapshotSha256s"], [])
+        self.assertEqual(
+            static_arp["observationState"], "unobserved_in_pinned_corpus"
+        )
+        dynamic_names = sorted(
+            row["name"]
+            for row in first["definitions"]
+            if row["origin"] == "dynamic_catalogue_snapshot"
+        )
+        self.assertEqual(dynamic_names, ["first", "second", "shared"])
+        self.assertNotIn(directory, json.dumps(first["corpus"], sort_keys=True))
+
+    def test_joins_tool_residency_observations_and_bindings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path, manifest, session_path, records, commit = (
+                self._write_corpus_fixture(directory)
+            )
+            records[:] = [
+                self._tool_result_record(
+                    commit,
+                    "2026-08-02T00:15:00Z",
+                    "streamWithToolResult",
+                    {
+                        "toolCallId": "call-first",
+                        "toolName": "first",
+                        "toolArguments": {},
+                        "toolResult": {},
+                    },
+                ),
+                self._tool_result_record(
+                    commit,
+                    "2026-08-02T00:30:00Z",
+                    "createChatCompletionWithToolResults",
+                    {
+                        "toolResults": [
+                            {
+                                "id": "call-second",
+                                "name": "second",
+                                "arguments": {},
+                                "result": {},
+                            },
+                            {
+                                "id": "call-shared",
+                                "name": "shared",
+                                "arguments": {},
+                                "result": {},
+                            },
+                        ]
+                    },
+                ),
+            ]
+            self._rewrite_session(session_path, records, manifest, manifest_path)
+
+            measurement = analyzer.build_tool_residency_measurement(
+                corpus_manifest_path=manifest_path,
+                guard_manifest_path=ROOT
+                / "tool/chat_notifier_guard_inventory.json",
+                tool_manifest_path=ROOT
+                / "tool/chat_notifier_tool_catalog_inventory.json",
+                root=ROOT,
+                resolved_source_revision=commit,
+            )
+
+        self.assertEqual(measurement["summary"]["observedDefinitionCount"], 3)
+        self.assertEqual(
+            measurement["summary"]["toolResultSubmissionCount"], 3
+        )
+        generic = next(
+            row
+            for row in measurement["bindings"]
+            if row["genericMcpFallback"]
+        )
+        self.assertEqual(generic["staticDefinitionCount"], 55)
+        self.assertEqual(generic["dynamicDefinitionCount"], 3)
+        self.assertEqual(generic["toolResultSubmissionCount"], 3)
+
+    def test_scopes_repeated_dynamic_names_to_catalogue_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path, manifest, _, _, commit = self._write_corpus_fixture(
+                directory
+            )
+            first_snapshot = self._catalogue_snapshot(commit, "first", "shared")
+            manifest["files"][0]["segments"][0][
+                "configurationFingerprint"
+            ] = first_snapshot["configurationFingerprint"]
+            self._rewrite_snapshot(manifest_path, manifest, 0, first_snapshot)
+
+            measurement = analyzer.build_tool_residency_measurement(
+                corpus_manifest_path=manifest_path,
+                guard_manifest_path=ROOT
+                / "tool/chat_notifier_guard_inventory.json",
+                tool_manifest_path=ROOT
+                / "tool/chat_notifier_tool_catalog_inventory.json",
+                root=ROOT,
+                resolved_source_revision=commit,
+            )
+
+        shared_rows = [
+            row
+            for row in measurement["definitions"]
+            if row["origin"] == "dynamic_catalogue_snapshot"
+            and row["name"] == "shared"
+        ]
+        self.assertEqual(len(shared_rows), 2)
+        self.assertEqual(len({row["id"] for row in shared_rows}), 2)
+
+    def test_cli_writes_tool_residency_measurement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path, _, _, _, _ = self._write_corpus_fixture(directory)
+            output_path = pathlib.Path(directory) / "residency.json"
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = analyzer.main(
+                    [
+                        "--source-revision",
+                        "HEAD",
+                        "--corpus-manifest",
+                        str(manifest_path),
+                        "--guard-manifest",
+                        str(ROOT / "tool/chat_notifier_guard_inventory.json"),
+                        "--tool-manifest",
+                        str(
+                            ROOT
+                            / "tool/chat_notifier_tool_catalog_inventory.json"
+                        ),
+                        "--output",
+                        str(output_path),
+                    ]
+                )
+
+            output = json.loads(output_path.read_text())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(output["schemaName"], analyzer.TOOL_RESIDENCY_SCHEMA_NAME)
+        self.assertIn("118 static definitions", stdout.getvalue())
 
     def test_counts_structured_tool_result_submissions_by_joined_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:

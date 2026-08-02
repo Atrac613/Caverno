@@ -132,6 +132,8 @@ CORPUS_MANIFEST_SCHEMA_NAME = "caverno_chat_notifier_inventory_corpus"
 CORPUS_MANIFEST_SCHEMA_VERSION = 1
 CORPUS_SUMMARY_SCHEMA_NAME = "caverno_chat_notifier_inventory_corpus_summary"
 CORPUS_SUMMARY_SCHEMA_VERSION = 2
+TOOL_RESIDENCY_SCHEMA_NAME = "caverno_chat_notifier_tool_residency_measurement"
+TOOL_RESIDENCY_SCHEMA_VERSION = 1
 CORPUS_MANIFEST_FIELDS = {
     "schemaName",
     "schemaVersion",
@@ -190,6 +192,9 @@ TOOL_MANIFEST_SCHEMA_VERSION = 1
 TOOL_DEFINITION_LITERAL_PATTERN = re.compile(
     r"['\"]name['\"]\s*:\s*['\"]([a-z][a-z0-9_]*)['\"]"
 )
+TOOL_DEFINITION_NAMED_ARGUMENT_PATTERN = re.compile(
+    r"\bname\s*:\s*['\"]([a-z][a-z0-9_]*)['\"]"
+)
 TOOL_NAME_CONSTANT_PATTERN = re.compile(
     r"static const(?: String)? toolName\s*=\s*"
     r"['\"]([a-z][a-z0-9_]*)['\"]"
@@ -237,6 +242,13 @@ TOOL_DEFINITION_RULES = (
         "path": "lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
         "symbol": "BuiltInNetworkToolHandler.definitions",
         "matcher": "function-name-literal",
+        "configurationGate": "always registered subject to disabledBuiltInTools; runtime platform support may vary",
+    },
+    {
+        "id": "generated-network-http-tool-definitions",
+        "path": "lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+        "symbol": "BuiltInNetworkToolHandler._httpMethodSchema",
+        "matcher": "named-argument-name-literal",
         "configurationGate": "always registered subject to disabledBuiltInTools; runtime platform support may vary",
     },
     {
@@ -461,11 +473,13 @@ def _discover_names_for_rule(
 ) -> list[str]:
     text = _read_required_source(root, rule["path"])
     matcher = rule["matcher"]
-    pattern = (
-        TOOL_DEFINITION_LITERAL_PATTERN
-        if matcher == "function-name-literal"
-        else TOOL_NAME_CONSTANT_PATTERN
-    )
+    pattern = {
+        "function-name-literal": TOOL_DEFINITION_LITERAL_PATTERN,
+        "named-argument-name-literal": TOOL_DEFINITION_NAMED_ARGUMENT_PATTERN,
+        "tool-name-constant": TOOL_NAME_CONSTANT_PATTERN,
+    }.get(matcher)
+    if pattern is None:
+        raise InventoryError(f"Unsupported tool definition matcher: {matcher}")
     names = sorted(set(pattern.findall(text)))
     if not names:
         raise InventoryError(
@@ -998,11 +1012,11 @@ def _extract_tool_result_submissions(
     return []
 
 
-def validate_corpus_manifest(
+def _inspect_corpus_manifest(
     manifest_path: pathlib.Path,
     root: pathlib.Path | None = None,
-) -> dict[str, Any]:
-    """Validate immutable private corpus inputs without exposing their paths."""
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Validate private corpus inputs and retain private definition facts."""
     source_root = root or repository_root()
     manifest = _load_json(manifest_path)
     _require_exact_fields(manifest, CORPUS_MANIFEST_FIELDS, "corpus manifest")
@@ -1026,6 +1040,8 @@ def validate_corpus_manifest(
     catalogue_exporter_revisions: set[str] = set()
     tool_result_submission_count = 0
     observed_catalogue_definitions: set[tuple[int, int, str]] = set()
+    tool_result_counts: dict[tuple[int, int, str], int] = {}
+    catalogue_snapshots: list[dict[str, Any]] = []
     record_count = 0
     segment_count = 0
     timestamps: list[dt.datetime] = []
@@ -1123,6 +1139,19 @@ def validate_corpus_manifest(
             catalogue_exporter_revisions.add(
                 snapshot_summary["exporterRevision"]
             )
+            catalogue_snapshots.append(
+                {
+                    "fileIndex": file_index,
+                    "segmentIndex": segment_index,
+                    "sha256": snapshot_hash,
+                    "configurationFingerprint": snapshot_summary[
+                        "configurationFingerprint"
+                    ],
+                    "exporterRevision": snapshot_summary["exporterRevision"],
+                    "build": {"commit": build_commit, "dirty": dirty},
+                    "definitionNames": snapshot_summary["definitionNames"],
+                }
+            )
             segments.append(
                 {
                     "start": start,
@@ -1175,11 +1204,19 @@ def validate_corpus_manifest(
                 observed_catalogue_definitions.add(
                     (file_index, matching_segment["index"], tool_name)
                 )
+                count_key = (
+                    file_index,
+                    matching_segment["index"],
+                    tool_name,
+                )
+                tool_result_counts[count_key] = (
+                    tool_result_counts.get(count_key, 0) + 1
+                )
             tool_result_submission_count += len(submissions)
             timestamps.append(timestamp)
             record_count += 1
 
-    return {
+    summary = {
         "schemaName": CORPUS_SUMMARY_SCHEMA_NAME,
         "schemaVersion": CORPUS_SUMMARY_SCHEMA_VERSION,
         "corpusManifestSha256": manifest_digest,
@@ -1204,6 +1241,254 @@ def validate_corpus_manifest(
             for commit, dirty in sorted(represented_builds)
         ],
     }
+    details = {
+        "catalogueSnapshots": catalogue_snapshots,
+        "toolResultCounts": [
+            {
+                "fileIndex": file_index,
+                "segmentIndex": segment_index,
+                "name": name,
+                "count": count,
+            }
+            for (file_index, segment_index, name), count in sorted(
+                tool_result_counts.items()
+            )
+        ],
+    }
+    return summary, details
+
+
+def validate_corpus_manifest(
+    manifest_path: pathlib.Path,
+    root: pathlib.Path | None = None,
+) -> dict[str, Any]:
+    """Validate immutable private corpus inputs without exposing their paths."""
+    summary, _ = _inspect_corpus_manifest(manifest_path, root)
+    return summary
+
+
+def _observation_summary(
+    snapshots: list[dict[str, Any]],
+    counts_by_snapshot: dict[tuple[int, int, str], int],
+    name: str,
+) -> tuple[int, list[dict[str, Any]]]:
+    by_build: dict[tuple[str, bool], int] = {}
+    total = 0
+    for snapshot in snapshots:
+        key = (snapshot["fileIndex"], snapshot["segmentIndex"], name)
+        count = counts_by_snapshot.get(key, 0)
+        total += count
+        if count:
+            build = snapshot["build"]
+            build_key = (build["commit"], build["dirty"])
+            by_build[build_key] = by_build.get(build_key, 0) + count
+    return total, [
+        {
+            "commit": commit,
+            "dirty": dirty,
+            "toolResultSubmissionCount": count,
+        }
+        for (commit, dirty), count in sorted(by_build.items())
+    ]
+
+
+def build_tool_residency_measurement(
+    *,
+    corpus_manifest_path: pathlib.Path,
+    guard_manifest_path: pathlib.Path,
+    tool_manifest_path: pathlib.Path,
+    root: pathlib.Path | None = None,
+    resolved_source_revision: str | None = None,
+) -> dict[str, Any]:
+    """Build private definition-level tool residency evidence."""
+    source_root = root or repository_root()
+    revision = resolved_source_revision or resolve_source_revision(
+        source_root, "HEAD"
+    )
+    validate_guard_manifest(
+        guard_manifest_path,
+        source_root,
+        resolved_source_revision=revision,
+    )
+    validate_tool_manifest(
+        tool_manifest_path,
+        source_root,
+        resolved_source_revision=revision,
+    )
+    corpus_summary, corpus_details = _inspect_corpus_manifest(
+        corpus_manifest_path, source_root
+    )
+    guard_manifest = _load_json(guard_manifest_path)
+    tool_manifest = _load_json(tool_manifest_path)
+    snapshots = corpus_details["catalogueSnapshots"]
+    counts_by_snapshot = {
+        (row["fileIndex"], row["segmentIndex"], row["name"]): row["count"]
+        for row in corpus_details["toolResultCounts"]
+    }
+    static_by_name = {
+        definition["name"]: definition
+        for definition in tool_manifest["definitions"]
+    }
+
+    definitions: list[dict[str, Any]] = []
+    for name, definition in sorted(static_by_name.items()):
+        matching_snapshots = [
+            snapshot
+            for snapshot in snapshots
+            if name in snapshot["definitionNames"]
+        ]
+        count, observed_by_build = _observation_summary(
+            matching_snapshots, counts_by_snapshot, name
+        )
+        binding_id = (
+            f"{definition['bindingKind']}::{definition['bindingSymbol']}"
+        )
+        definitions.append(
+            {
+                "id": f"static::{name}",
+                "origin": "static_manifest",
+                "name": name,
+                "bindingId": binding_id,
+                "bindingKind": definition["bindingKind"],
+                "bindingSymbol": definition["bindingSymbol"],
+                "genericMcpFallback": definition["genericMcpFallback"],
+                "configurationGate": definition["configurationGate"],
+                "catalogueSnapshotSha256s": sorted(
+                    {snapshot["sha256"] for snapshot in matching_snapshots}
+                ),
+                "configurationFingerprints": sorted(
+                    {
+                        snapshot["configurationFingerprint"]
+                        for snapshot in matching_snapshots
+                    }
+                ),
+                "toolResultSubmissionCount": count,
+                "observedByBuild": observed_by_build,
+                "observationState": (
+                    "observed_in_pinned_corpus"
+                    if count
+                    else "unobserved_in_pinned_corpus"
+                ),
+            }
+        )
+
+    fallback = tool_manifest["genericFallback"]
+    for snapshot in snapshots:
+        for name in snapshot["definitionNames"]:
+            if name in static_by_name:
+                continue
+            count, observed_by_build = _observation_summary(
+                [snapshot], counts_by_snapshot, name
+            )
+            definitions.append(
+                {
+                    "id": f"dynamic::{snapshot['sha256']}::{name}",
+                    "origin": "dynamic_catalogue_snapshot",
+                    "name": name,
+                    "bindingId": (
+                        f"{fallback['bindingKind']}::"
+                        f"{fallback['bindingSymbol']}"
+                    ),
+                    "bindingKind": fallback["bindingKind"],
+                    "bindingSymbol": fallback["bindingSymbol"],
+                    "genericMcpFallback": True,
+                    "configurationGate": "present in the pinned effective catalogue snapshot",
+                    "catalogueSnapshotSha256s": [snapshot["sha256"]],
+                    "configurationFingerprints": [
+                        snapshot["configurationFingerprint"]
+                    ],
+                    "toolResultSubmissionCount": count,
+                    "observedByBuild": observed_by_build,
+                    "observationState": (
+                        "observed_in_pinned_corpus"
+                        if count
+                        else "unobserved_in_pinned_corpus"
+                    ),
+                }
+            )
+    definitions.sort(key=lambda row: row["id"])
+
+    binding_rows: dict[str, dict[str, Any]] = {}
+    for definition in definitions:
+        binding_id = definition["bindingId"]
+        row = binding_rows.setdefault(
+            binding_id,
+            {
+                "id": binding_id,
+                "bindingKind": definition["bindingKind"],
+                "bindingSymbol": definition["bindingSymbol"],
+                "genericMcpFallback": definition["genericMcpFallback"],
+                "staticDefinitionCount": 0,
+                "dynamicDefinitionCount": 0,
+                "toolResultSubmissionCount": 0,
+            },
+        )
+        count_field = (
+            "staticDefinitionCount"
+            if definition["origin"] == "static_manifest"
+            else "dynamicDefinitionCount"
+        )
+        row[count_field] += 1
+        row["toolResultSubmissionCount"] += definition[
+            "toolResultSubmissionCount"
+        ]
+
+    return {
+        "schemaName": TOOL_RESIDENCY_SCHEMA_NAME,
+        "schemaVersion": TOOL_RESIDENCY_SCHEMA_VERSION,
+        "sourceRevision": revision,
+        "analyserRevision": revision,
+        "inputs": {
+            "corpusManifestSha256": corpus_summary["corpusManifestSha256"],
+            "guardManifestSha256": _file_sha256(
+                guard_manifest_path, "guard manifest"
+            ),
+            "guardManifestRevision": guard_manifest["sourceRevision"],
+            "toolManifestSha256": _file_sha256(
+                tool_manifest_path, "tool manifest"
+            ),
+            "toolManifestRevision": tool_manifest["sourceRevision"],
+            "catalogueSnapshotSha256s": sorted(
+                snapshot["sha256"] for snapshot in snapshots
+            ),
+        },
+        "corpus": corpus_summary,
+        "summary": {
+            "staticDefinitionCount": len(static_by_name),
+            "dynamicDefinitionCount": sum(
+                row["origin"] == "dynamic_catalogue_snapshot"
+                for row in definitions
+            ),
+            "observedDefinitionCount": sum(
+                row["toolResultSubmissionCount"] > 0 for row in definitions
+            ),
+            "unobservedDefinitionCount": sum(
+                row["toolResultSubmissionCount"] == 0 for row in definitions
+            ),
+            "bindingCount": len(binding_rows),
+            "toolResultSubmissionCount": sum(
+                row["toolResultSubmissionCount"] for row in definitions
+            ),
+        },
+        "definitions": definitions,
+        "bindings": [binding_rows[key] for key in sorted(binding_rows)],
+    }
+
+
+def write_tool_residency_measurement(
+    output_path: pathlib.Path,
+    measurement: dict[str, Any],
+) -> None:
+    """Write deterministic private measurement JSON."""
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(measurement, indent=2, sort_keys=True) + "\n"
+        )
+    except OSError as error:
+        raise InventoryError(
+            f"Could not write tool residency measurement: {error}"
+        ) from error
 
 
 def _require_fields(
@@ -1868,16 +2153,39 @@ def main(arguments: list[str] | None = None) -> int:
                 root,
             )
             print(json.dumps(summary, sort_keys=True, separators=(",", ":")))
-        if args.corpus_manifest is not None or args.output is not None:
+        if (args.corpus_manifest is None) != (args.output is None):
             raise InventoryError(
-                "Dynamic corpus analysis is not implemented; validate the "
-                "private input with --check-corpus-manifest first"
+                "--corpus-manifest and --output must be provided together"
+            )
+        if args.corpus_manifest is not None:
+            if args.guard_manifest is None or args.tool_manifest is None:
+                raise InventoryError(
+                    "Tool residency measurement requires --guard-manifest "
+                    "and --tool-manifest"
+                )
+            measurement = build_tool_residency_measurement(
+                corpus_manifest_path=args.corpus_manifest,
+                guard_manifest_path=args.guard_manifest,
+                tool_manifest_path=args.tool_manifest,
+                root=root,
+                resolved_source_revision=revision,
+            )
+            write_tool_residency_measurement(args.output, measurement)
+            counts = measurement["summary"]
+            print(
+                "Tool residency measurement written: "
+                f"{counts['staticDefinitionCount']} static definitions, "
+                f"{counts['dynamicDefinitionCount']} dynamic definitions, "
+                f"{counts['observedDefinitionCount']} observed in the pinned "
+                "corpus; source "
+                f"{revision}"
             )
         if (
             guard_path is None
             and args.check_tool_manifest is None
             and args.check_telemetry_selection is None
             and args.check_corpus_manifest is None
+            and args.corpus_manifest is None
         ):
             parser.error("select a manifest check or candidate print command")
         return 0

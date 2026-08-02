@@ -46,6 +46,13 @@
       "configurationGate": "always registered subject to disabledBuiltInTools; runtime platform support may vary"
     },
     {
+      "id": "generated-network-http-tool-definitions",
+      "path": "lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "symbol": "BuiltInNetworkToolHandler._httpMethodSchema",
+      "matcher": "named-argument-name-literal",
+      "configurationGate": "always registered subject to disabledBuiltInTools; runtime platform support may vary"
+    },
+    {
       "id": "ssh-tool-definition-literals",
       "path": "lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart",
       "symbol": "BuiltInSshToolHandler.definitions",
@@ -885,6 +892,78 @@
       "bindingKind": "named_registry",
       "bindingSymbol": "_OwnerToolHandlerModule",
       "genericMcpFallback": false
+    },
+    {
+      "name": "http_delete",
+      "path": "lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "symbol": "BuiltInNetworkToolHandler._httpMethodSchema",
+      "registrationPath": "McpToolService.getOpenAiToolDefinitions",
+      "configurationGate": "always registered subject to disabledBuiltInTools; runtime platform support may vary",
+      "discoveryEvidence": "named-argument-name-literal in lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "discoveryRule": "generated-network-http-tool-definitions",
+      "bindingKind": "generic_mcp_fallback",
+      "bindingSymbol": "ChatToolDispatcher.executeFallbackTool",
+      "genericMcpFallback": true
+    },
+    {
+      "name": "http_get",
+      "path": "lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "symbol": "BuiltInNetworkToolHandler._httpMethodSchema",
+      "registrationPath": "McpToolService.getOpenAiToolDefinitions",
+      "configurationGate": "always registered subject to disabledBuiltInTools; runtime platform support may vary",
+      "discoveryEvidence": "named-argument-name-literal in lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "discoveryRule": "generated-network-http-tool-definitions",
+      "bindingKind": "generic_mcp_fallback",
+      "bindingSymbol": "ChatToolDispatcher.executeFallbackTool",
+      "genericMcpFallback": true
+    },
+    {
+      "name": "http_head",
+      "path": "lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "symbol": "BuiltInNetworkToolHandler._httpMethodSchema",
+      "registrationPath": "McpToolService.getOpenAiToolDefinitions",
+      "configurationGate": "always registered subject to disabledBuiltInTools; runtime platform support may vary",
+      "discoveryEvidence": "named-argument-name-literal in lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "discoveryRule": "generated-network-http-tool-definitions",
+      "bindingKind": "generic_mcp_fallback",
+      "bindingSymbol": "ChatToolDispatcher.executeFallbackTool",
+      "genericMcpFallback": true
+    },
+    {
+      "name": "http_patch",
+      "path": "lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "symbol": "BuiltInNetworkToolHandler._httpMethodSchema",
+      "registrationPath": "McpToolService.getOpenAiToolDefinitions",
+      "configurationGate": "always registered subject to disabledBuiltInTools; runtime platform support may vary",
+      "discoveryEvidence": "named-argument-name-literal in lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "discoveryRule": "generated-network-http-tool-definitions",
+      "bindingKind": "generic_mcp_fallback",
+      "bindingSymbol": "ChatToolDispatcher.executeFallbackTool",
+      "genericMcpFallback": true
+    },
+    {
+      "name": "http_post",
+      "path": "lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "symbol": "BuiltInNetworkToolHandler._httpMethodSchema",
+      "registrationPath": "McpToolService.getOpenAiToolDefinitions",
+      "configurationGate": "always registered subject to disabledBuiltInTools; runtime platform support may vary",
+      "discoveryEvidence": "named-argument-name-literal in lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "discoveryRule": "generated-network-http-tool-definitions",
+      "bindingKind": "generic_mcp_fallback",
+      "bindingSymbol": "ChatToolDispatcher.executeFallbackTool",
+      "genericMcpFallback": true
+    },
+    {
+      "name": "http_put",
+      "path": "lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "symbol": "BuiltInNetworkToolHandler._httpMethodSchema",
+      "registrationPath": "McpToolService.getOpenAiToolDefinitions",
+      "configurationGate": "always registered subject to disabledBuiltInTools; runtime platform support may vary",
+      "discoveryEvidence": "named-argument-name-literal in lib/features/chat/data/datasources/built_in_network_tool_handler.dart",
+      "discoveryRule": "generated-network-http-tool-definitions",
+      "bindingKind": "generic_mcp_fallback",
+      "bindingSymbol": "ChatToolDispatcher.executeFallbackTool",
+      "genericMcpFallback": true
     },
     {
       "name": "http_status",
