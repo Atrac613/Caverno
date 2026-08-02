@@ -12,14 +12,14 @@ inventory now links 118 static and 52 private dynamic definitions to six
 production binding groups and traces the unwired catalogue to the unmet
 WS6-19 registry-last gate. The concept-overlap inventory now identifies three
 durable user concepts and costs the plan/workflow/progress consolidation
-boundaries; no dynamic action state is claimed. The private corpus contract now
+boundaries. The private corpus contract now
 validates hashes, build provenance, complete configuration segments,
 canonical snapshot fingerprints, exact schema-v1 catalogue provenance, and
 submitted tool membership before measurement. A 2026-08-02 structural scan
-found no provenance-bearing record for the first telemetry event, so a new
-clean capture is required. Static review has proven
-`_tryRepairAndDecodeMap` and `_repairJsonCandidate` unreachable, but their action
-state remains unresolved until matching-build observations exist.
+originally found no provenance-bearing record for the first telemetry event.
+A clean 2026-08-02 capture at `55efb18f` now derives 2 `dead` and 63
+`unresolved` action states. The dead entries are `_tryRepairAndDecodeMap` and
+`_repairJsonCandidate`.
 
 Phase 1 of the architecture renewal. **Do not refactor, delete, or change
 product behaviour.** A prerequisite tooling slice may add measurement code and

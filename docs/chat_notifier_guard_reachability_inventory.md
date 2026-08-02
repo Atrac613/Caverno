@@ -1,10 +1,10 @@
 # ChatNotifier Guard Reachability Inventory
 
-Status: Phase 0A static inventory complete. Two orphan proposal-parsing
-delegates are statically unreachable; dynamic observations and final action
-classification remain pending the manifest-driven corpus analyser.
+Status: Phase 1 matching-build classification complete. Two orphan
+proposal-parsing delegates satisfy the `dead` contract; the other 63 candidates
+remain unresolved.
 
-Classified source revision: `4222d74d7598a9ec8d2aa3fe8d31b8e4f8592708`. The checked-in manifest uses
+Classified source revision: `55efb18f51e2739f195bca0d5bd7b1669d5c0f9d`. The checked-in manifest uses
 `HEAD` as its symbolic revision so the post-commit clean-source check can resolve
 the exact commit without embedding a self-referential commit hash.
 
@@ -35,8 +35,9 @@ git diff --check
 
 ## Static inventory
 
-`actionState` remains `unresolved` until matching-build corpus analysis is
-available. `observedByBuild` is intentionally not measured in Phase 0A.
+The table combines the original static review with the clean matching-build
+measurement recorded below. Unmapped or statically open candidates remain
+unresolved even when the corpus contains no firing.
 
 | Symbol | Source | Kind | Selection refs | Reachability impact | Telemetry | Current static state | Observed by build | Action state |
 | --- | --- | --- | ---: | --- | --- | --- | --- | --- |
@@ -95,8 +96,8 @@ available. `observedByBuild` is intentionally not measured in Phase 0A.
 | `_requestCodingVerificationRepairForCompletionClaim` | `chat_notifier_coding_verification_feedback.dart` | notifier_member | 2 | silent non-fire can leave a recovery path unreachable | `tool_result.trigger:completionClaim` | Unresolved | Not measured | Unresolved |
 | `_buildProductionReleaseApprovalGuardResult` | `chat_notifier_command_guardrails.dart` | notifier_member | 1 | selection may enable, block, or redirect turn behavior | Not mapped | Unresolved | Not measured | Unresolved |
 | `_replayVerifierAfterRepairMutation` | `chat_notifier_goal_auto_continue.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
-| `_repairJsonCandidate` | `chat_notifier_proposal_parsing.dart` | notifier_member | 0 | silent non-fire can leave a recovery path unreachable | Not mapped | Unreachable | Not measured | Unresolved |
-| `_tryRepairAndDecodeMap` | `chat_notifier_proposal_parsing.dart` | notifier_member | 0 | silent non-fire can leave a recovery path unreachable | Not mapped | Unreachable | Not measured | Unresolved |
+| `_repairJsonCandidate` | `chat_notifier_proposal_parsing.dart` | notifier_member | 0 | silent non-fire can leave a recovery path unreachable | Not mapped | Unreachable | No contradictory observation in 4 clean matching-build records | Dead |
+| `_tryRepairAndDecodeMap` | `chat_notifier_proposal_parsing.dart` | notifier_member | 0 | silent non-fire can leave a recovery path unreachable | Not mapped | Unreachable | No contradictory observation in 4 clean matching-build records | Dead |
 | `_requestPythonAttachmentPathFailureRepair` | `chat_notifier_python_attachment_repair.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
 | `_requestSkippedPythonAttachmentAnalysisRepair` | `chat_notifier_python_attachment_repair.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
 | `_buildTruncatedToolCallArgumentsGuardResult` | `chat_notifier_tool_loop_batch.dart` | notifier_member | 1 | selection may enable, block, or redirect turn behavior | `turn_exit.transforms:truncated_tool_call_arguments_feedback` | Unresolved | Not measured | Unresolved |
@@ -129,8 +130,8 @@ available. `observedByBuild` is intentionally not measured in Phase 0A.
   selected by string name. No unresolved invocation edge remains.
 
 These proofs establish `currentStaticState: unreachable` for the two wrappers.
-They do not establish action state `dead`: a non-empty clean matching-build
-corpus must still show no contradictory firing before deletion is proposed.
+The matching-build measurement below supplies the required non-empty clean
+corpus and contains no contradictory firing, so both wrappers are `dead`.
 
 Reproduce the proof search with:
 
@@ -170,7 +171,7 @@ excluded while the discovery rule continues to match it.
 
 - 65 decision candidates are represented and 15 helper matches are explicitly excluded (80 total discovery results).
 - 13 candidates have a directly mapped structured firing event; the remaining 52 require Phase 0B telemetry review.
-- 2 orphan delegates are statically unreachable. Their action states remain unresolved pending matching-build observations.
+- 2 orphan delegates are statically unreachable and now classified `dead` by the matching-build measurement.
 - The other 63 candidates remain statically unresolved; none is classified dead, live, or unexercised in this slice.
 
 ## Phase 0B telemetry selection
@@ -186,9 +187,29 @@ slice limit of one:
 - 51 `defer`, each with an explicit prerequisite.
 
 The selected decision now reuses the existing `turn_exit` boundary and records
-only `not_evaluated`, `skip_recovery`, or `allow_recovery`. This metadata does
-not prove that any candidate fires in a matching-build corpus or change an
-action state.
+only `not_evaluated`, `skip_recovery`, or `allow_recovery`. The matching-build
+corpus observed `allow_recovery` once. Because the candidate's static graph is
+still unresolved, its action state remains unresolved.
+
+## Matching-build measurement
+
+The private corpus contains one schema-v2 session-log file with four records,
+one complete schema-v1 catalogue snapshot with 169 definitions, one
+configuration segment, and one normalized tool-result submission. Its logged
+range is `2026-08-02T07:20:18.999154Z` through
+`2026-08-02T07:20:34.700120Z`, inclusive. The represented build is clean
+revision `55efb18f51e2739f195bca0d5bd7b1669d5c0f9d`.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Private corpus manifest | `7b5ea1933c3e1189ee79251f5b0908eb9ed69fe79d8c4de50cf2ef7573a30035` |
+| Private catalogue snapshot | `2f32d0b009ed737f9e18a645571c4531f0c10614f77d203800af0dbe63a2adf4` |
+| Private deterministic measurement | `d5680bce8befb158a0dbef22022a4a58343301f5d2ee42e61e03f88ec84f4d9d` |
+
+Two analyser runs produced byte-identical output. The result contains 2 `dead`,
+0 `live`, 0 `unexercised`, and 63 `unresolved` candidates. Private paths,
+session identifiers, prompts, dynamic tool names, arguments, and results remain
+excluded from this report.
 
 Validate the selection with:
 
@@ -206,10 +227,5 @@ python3 tool/analyze_chat_notifier_inventory.py \
   stopping at lexical references.
 - Review callback, extension, module-registration, and runtime configuration
   edges for the remaining candidates.
-- Collect a hash-pinned matching-build corpus before selecting a second Phase
-  0B telemetry event.
-- Run the private, hash-pinned matching-build corpus analysis before deriving
-  action states.
-- Capture the first provenance-bearing recovery-decision records together with
-  the full catalogue snapshot for their runtime configuration; existing local
-  records for this event report an unknown build.
+- Select at most one second Phase 0B telemetry event only after closing its
+  production-root and runtime-configuration prerequisites.

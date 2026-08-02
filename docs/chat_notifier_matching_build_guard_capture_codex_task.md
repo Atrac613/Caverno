@@ -89,8 +89,18 @@ git diff --check
 
 ## Handoff Notes
 
-- Summary: Pending.
-- Tests run: Pending.
+- Summary: Captured and hash-pinned one clean matching-build corpus and complete
+  catalogue snapshot. Added deterministic guard action-state derivation, fixed
+  offset-free session timestamps, and accepted structured final-stream replays
+  without double-counting tool submissions. The measurement derives 2 `dead`
+  and 63 `unresolved` candidates.
+- Tests run: All 47 focused Python analyser tests and all 16 focused
+  session-logging Flutter tests pass. The private manifest validates and two
+  analyser runs produce byte-identical output. The standard verifier passes
+  generation, project and package analysis, package tests, and 6,481 of 6,482
+  Flutter tests; only the unrelated stale
+  `run_coding_stalled_diagnostic_repair_live_canary_test.dart` fixture fails.
 - Coverage or low-coverage notes: Runtime evidence depends on one bounded live
   capture and is not a production-frequency sample.
-- Risks or follow-ups: Pending capture result.
+- Risks or follow-ups: Delete the two dead proposal-parsing delegates in a
+  separate focused slice. The remaining 63 guard candidates stay unresolved.

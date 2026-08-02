@@ -7,10 +7,9 @@ persisted-schema change.
 
 ## Decision
 
-There is no ready deletion candidate. Two proposal-parsing delegates are
-statically unreachable, but the agreed action-state contract keeps them
-unresolved until a non-empty clean matching-build corpus exists. They remain an
-investigation candidate, not a deletion candidate.
+There is one ready deletion slice: remove the two orphan proposal-parsing
+delegates. A clean matching-build corpus now completes their static unreachable
+proof without a contradictory observation.
 
 The highest-confidence implementation candidates are:
 
@@ -23,11 +22,9 @@ Neither should be folded into the first `TurnRuntime` extraction. Status
 ownership should be corrected before task state crosses that boundary, while
 plan-artifact persistence remains outside the turn runtime.
 
-The operational next slice is the clean matching-build guard capture. It is
-smaller than the other high-confidence investigations, but it is the only
-bounded action that can promote a proven-unreachable path into the separate
-deletion lane. If the capture cannot provide reliable provenance, stop without
-deleting the delegates and proceed to the persisted workflow-origin audit.
+The operational next slice is deleting those two delegates and updating the
+finite guard manifest. After that focused deletion, proceed to the persisted
+workflow-origin audit.
 
 ## Ranking Rules
 
@@ -44,16 +41,9 @@ deleting the delegates and proceed to the persisted workflow-origin audit.
 
 ### Ready
 
-None.
-
-### Pending proof, not ranked as delete
-
-| Candidate | Current evidence | Current size | Missing proof |
-| --- | --- | ---: | --- |
-| Remove `_tryRepairAndDecodeMap` and `_repairJsonCandidate` delegates | Both have zero production selection roots, no unresolved invocation edge, and direct live replacements in `ProposalParsingTextUtils` | 1 file; 6 declaration/body lines, 8 lines including separators | A non-empty clean corpus whose represented build exactly matches the classified revision and contains no contradictory observation |
-
-The static proof is strong, but changing the action state from `unresolved` to
-`dead` without the matching-build input would violate the Phase 1 contract.
+| Rank | Candidate | Current evidence | Current size |
+| ---: | --- | --- | ---: |
+| D1 | Remove `_tryRepairAndDecodeMap` and `_repairJsonCandidate` delegates | Zero production selection roots, no unresolved invocation edge, direct live replacements in `ProposalParsingTextUtils`, and no contradiction in 4 clean matching-build records | 1 file; 6 declaration/body lines, 8 lines including separators |
 
 ## Migration Candidates
 
@@ -94,27 +84,24 @@ definition is a deletion candidate based on its zero count.
 
 | Rank | Investigation | Decision unlocked | Measured decision surface | Bounded next action |
 | ---: | --- | --- | --- | --- |
-| I1 | Capture a clean, provenance-bearing matching-build guard corpus | Whether the 2 statically unreachable delegates can enter the delete lane; later guard observations also gain a valid build anchor | 65 guard/policy/recovery candidates, including 2 closed static proofs | Produce one hash-pinned corpus through the documented capture path, validate hashes/build/dirty state, and re-run the manifest-driven analyser. Stop on unknown build, dirty build, incomplete catalogue provenance, or any dead/live contradiction. |
-| I2 | Audit persisted workflow origins | Whether M3 can remove the legacy authored-workflow path | Potentially unlocks the 25-40-file M3 surface | Add a read-only repository audit or deterministic migration fixture that classifies plan-derived versus legacy workflow-only records. Stop before deletion if any supported legacy population lacks a backfill. |
+| I1 | Audit persisted workflow origins | Whether M3 can remove the legacy authored-workflow path | Potentially unlocks the 25-40-file M3 surface | Add a read-only repository audit or deterministic migration fixture that classifies plan-derived versus legacy workflow-only records. Stop before deletion if any supported legacy population lacks a backfill. |
 
-I1 ranks first by measured decision surface. It also receives operational
-precedence because it is the only investigation with a possible deletion
-outcome.
+The matching-build guard capture is complete and has moved its two closed
+proofs into D1. I1 becomes the next investigation after D1 is deleted.
 
 ### Medium confidence
 
 | Rank | Investigation | Decision unlocked | Measured decision surface | Bounded next action |
 | ---: | --- | --- | --- | --- |
-| I3 | Reconcile the WS6-19 prerequisites against the new runtime boundary | Whether the blocked catalogue migration should retain its old sequence or use a replacement safety contract | 170 definition rows and 6 binding groups | Produce a prerequisite matrix for owner, UI, approval, result-store, Browser, Computer Use, and fallback ports. Do not implement handlers in the reconciliation slice. |
-| I4 | Diagnose goal/objective divergence read-only | Whether M4 needs provenance, one-way seeding, or no change | 6-10 source/test files | Add fixtures for deliberate and accidental mismatches plus a diagnostic that performs no mutation. |
+| I2 | Reconcile the WS6-19 prerequisites against the new runtime boundary | Whether the blocked catalogue migration should retain its old sequence or use a replacement safety contract | 170 definition rows and 6 binding groups | Produce a prerequisite matrix for owner, UI, approval, result-store, Browser, Computer Use, and fallback ports. Do not implement handlers in the reconciliation slice. |
+| I3 | Diagnose goal/objective divergence read-only | Whether M4 needs provenance, one-way seeding, or no change | 6-10 source/test files | Add fixtures for deliberate and accidental mismatches plus a diagnostic that performs no mutation. |
 
 ### Unranked unresolved guard work
 
 The other 63 guard candidates do not have a closed production call graph and a
-matching-build action state. Do not bulk-instrument or migrate them. After I1,
-select at most one additional event using the checked-in telemetry selection
-contract and keep every unresolved callback, registration, and configuration
-edge explicit.
+matching-build action state. Do not bulk-instrument or migrate them. Select at
+most one additional event using the checked-in telemetry selection contract and
+keep every unresolved callback, registration, and configuration edge explicit.
 
 ## Stable Boundaries and Exclusions
 
@@ -136,7 +123,7 @@ edge explicit.
 
 | Input | Evidence revision | Notes |
 | --- | --- | --- |
-| Guard reachability inventory | `4222d74d7598a9ec8d2aa3fe8d31b8e4f8592708` | 65 represented candidates; 15 explicit exclusions; matching-build action states unresolved |
+| Guard reachability inventory | `55efb18f51e2739f195bca0d5bd7b1669d5c0f9d` | 65 represented candidates; 2 dead and 63 unresolved after matching-build analysis |
 | Tool catalogue residency inventory | `de73f746f16eed1125b0f4f92cb44a11b57ea7de` | 118 static and 52 private dynamic rows linked to 6 bindings |
 | Concept overlap inventory | `8561fedb42471f0e99cd15d897002acb30f5e88b` | Read-only lifecycle and ownership review |
 | Consolidated synthesis | `05a6a25c0237c0b2ce6e93fab3055c36121e45f4` | Documentation-only task-contract revision; classified production code is unchanged from the input reviews |
@@ -182,7 +169,7 @@ inventory so sensitive paths do not appear here.
 
 ## Unresolved Items
 
-- The matching-build guard corpus does not yet exist with usable provenance.
+- The two `dead` delegates remain present until the focused deletion slice.
 - The legacy workflow-only persisted population is unknown.
 - The correct replacement, if any, for the deferred WS6-19 ordering contract is
   not approved.
