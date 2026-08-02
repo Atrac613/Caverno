@@ -107,9 +107,11 @@ planning paths emit a plan document.
   or reference-integrity hazards. A bounded reconciliation now recognizes the
   documented positional legacy IDs and rejects ambiguous identity. The
   read-only additive candidate merges all 14 clean records and their 27 legacy
-  checkpoints with zero blockers. The next safe slice is read-only policy
-  classification for the four plan/progress conflict records; do not delete
-  the editor or mutate the live database.
+  checkpoints with zero blockers. The four conflict records also have
+  semantically mergeable content, but all four disagree on stage and carry
+  meaningful progress owned by no plan or checkpoint task graph. The next safe
+  slice is a pure lossless orphan-progress preservation fixture with explicit
+  stage authority; do not delete the editor or mutate the live database.
 
 ### C2 — Give task status one owner
 

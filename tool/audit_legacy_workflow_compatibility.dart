@@ -12,7 +12,7 @@ import 'package:caverno/features/chat/domain/services/conversation_plan_projecti
 import 'package:caverno/features/chat/domain/services/conversation_workflow_provenance_merge_service.dart';
 
 const String auditSchemaName = 'caverno_legacy_workflow_compatibility_audit';
-const int auditSchemaVersion = 3;
+const int auditSchemaVersion = 4;
 
 final class CompatibilityAuditException implements Exception {
   const CompatibilityAuditException(this.message);
@@ -83,6 +83,7 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
   var provenanceMergeCandidateRecordCount = 0;
   final currentMergeCandidates = _ProvenanceMergeCandidateAccumulator();
   final checkpointMergeCandidates = _ProvenanceMergeCandidateAccumulator();
+  final planProgressConflicts = _PlanProgressConflictAccumulator();
 
   for (final encodedPayload in encodedPayloads) {
     databaseRowCount++;
@@ -155,6 +156,7 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
       if (hasPlanConflict) existingPlanConflictRecordCount++;
       if (hasDanglingProgress && hasPlanConflict) {
         combinedPlanProgressConflictRecordCount++;
+        planProgressConflicts.add(conversation);
       }
       if (hasDanglingProgress || hasPlanConflict) {
         planProgressConflictRecordCount++;
@@ -260,6 +262,7 @@ Map<String, Object> buildLegacyWorkflowCompatibilityReport(
         'nextAction': provenanceMergeNextAction,
       },
     },
+    'planProgressConflictPolicy': planProgressConflicts.toJson(),
     'privacy': {
       'includesDatabasePath': false,
       'includesRecordIdentifiers': false,
@@ -349,6 +352,252 @@ final class _ProvenanceMergeCandidateAccumulator {
     'projectionFailureSnapshotCount': projectionFailureSnapshotCount,
     'blockerSnapshotCounts': blockerSnapshotCounts,
   };
+}
+
+enum _ConflictPlanProjectionOutcome { parsed, failed }
+
+enum _ConflictStageRelation { equivalent, divergent, unavailable }
+
+enum _ConflictSemanticRelation { equivalent, divergent, unavailable }
+
+enum _ConflictProgressOwnership {
+  allOwnedByExistingPlan,
+  partiallyOwnedByExistingPlan,
+  noneOwnedByExistingPlan,
+  unavailable,
+}
+
+enum _ConflictProgressState { passiveOnly, meaningful }
+
+enum _ConflictCheckpointProgressOwnership {
+  allOwnedBySingleCheckpoint,
+  ownedAcrossMultipleCheckpoints,
+  partiallyOwnedByCheckpoints,
+  noneOwnedByCheckpoints,
+}
+
+enum _ConflictProvenanceMergeOutcome { mergeable, blocked, unavailable }
+
+final class _PlanProgressConflictAccumulator {
+  static final DateTime _deterministicDerivedAt =
+      DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+
+  var evaluatedRecordCount = 0;
+  var fullyConstrainedCandidateCount = 0;
+  final projectionOutcomeRecordCounts = {
+    for (final value in _ConflictPlanProjectionOutcome.values) value.name: 0,
+  };
+  final semanticRelationRecordCounts = {
+    for (final value in _ConflictSemanticRelation.values) value.name: 0,
+  };
+  final stageRelationRecordCounts = {
+    for (final value in _ConflictStageRelation.values) value.name: 0,
+  };
+  final progressOwnershipRecordCounts = {
+    for (final value in _ConflictProgressOwnership.values) value.name: 0,
+  };
+  final progressStateRecordCounts = {
+    for (final value in _ConflictProgressState.values) value.name: 0,
+  };
+  final checkpointProgressOwnershipRecordCounts = {
+    for (final value in _ConflictCheckpointProgressOwnership.values)
+      value.name: 0,
+  };
+  final provenanceMergeOutcomeRecordCounts = {
+    for (final value in _ConflictProvenanceMergeOutcome.values) value.name: 0,
+  };
+
+  void add(Conversation conversation) {
+    evaluatedRecordCount++;
+    final workflowSpec = conversation.effectiveWorkflowSpec;
+    final danglingProgress = conversation.executionProgress
+        .where(
+          (progress) => !workflowSpec.tasks.any(
+            (task) => task.id.trim() == progress.taskId.trim(),
+          ),
+        )
+        .toList(growable: false);
+    final progressState =
+        danglingProgress.any((progress) => progress.hasMeaningfulState)
+        ? _ConflictProgressState.meaningful
+        : _ConflictProgressState.passiveOnly;
+    _increment(progressStateRecordCounts, progressState.name);
+    final checkpointOwnership = _checkpointOwnership(
+      conversation,
+      danglingProgress.map((progress) => progress.taskId.trim()).toSet(),
+    );
+    _increment(
+      checkpointProgressOwnershipRecordCounts,
+      checkpointOwnership.name,
+    );
+
+    final existingMarkdown = conversation.planArtifact?.executionMarkdown;
+    if (existingMarkdown == null) {
+      _recordUnavailableProjection();
+      return;
+    }
+
+    final ConversationPlanProjection projection;
+    try {
+      projection = ConversationPlanProjectionService.deriveExecutionProjection(
+        approvedMarkdown: existingMarkdown,
+        derivedAt: _deterministicDerivedAt,
+      );
+    } on FormatException {
+      _recordUnavailableProjection();
+      return;
+    }
+    _increment(
+      projectionOutcomeRecordCounts,
+      _ConflictPlanProjectionOutcome.parsed.name,
+    );
+
+    final projectedTaskIds = projection.workflowSpec.tasks
+        .map((task) => task.id.trim())
+        .where((taskId) => taskId.isNotEmpty)
+        .toSet();
+    final ownedProgressCount = danglingProgress
+        .where((progress) => projectedTaskIds.contains(progress.taskId.trim()))
+        .length;
+    final progressOwnership = ownedProgressCount == danglingProgress.length
+        ? _ConflictProgressOwnership.allOwnedByExistingPlan
+        : ownedProgressCount == 0
+        ? _ConflictProgressOwnership.noneOwnedByExistingPlan
+        : _ConflictProgressOwnership.partiallyOwnedByExistingPlan;
+    _increment(progressOwnershipRecordCounts, progressOwnership.name);
+
+    final stabilizedWorkflowSpec =
+        ConversationPlanProjectionService.stabilizeTaskIds(
+          previousTasks: workflowSpec.tasks,
+          workflowSpec: projection.workflowSpec,
+          anchoredTaskIndexes: projection.anchoredTaskIndexes,
+        );
+    final stageRelation = projection.workflowStage == conversation.workflowStage
+        ? _ConflictStageRelation.equivalent
+        : _ConflictStageRelation.divergent;
+    _increment(stageRelationRecordCounts, stageRelation.name);
+    final semanticRelation =
+        _withoutProvenance(stabilizedWorkflowSpec) ==
+            _withoutProvenance(workflowSpec)
+        ? _ConflictSemanticRelation.equivalent
+        : _ConflictSemanticRelation.divergent;
+    _increment(semanticRelationRecordCounts, semanticRelation.name);
+
+    final mergeResult = const ConversationWorkflowProvenanceMergeService()
+        .merge(
+          legacyWorkflowSpec: workflowSpec,
+          projectedWorkflowSpec: stabilizedWorkflowSpec,
+        );
+    final mergeOutcome = mergeResult.isMergeable
+        ? _ConflictProvenanceMergeOutcome.mergeable
+        : _ConflictProvenanceMergeOutcome.blocked;
+    _increment(provenanceMergeOutcomeRecordCounts, mergeOutcome.name);
+
+    if (stageRelation == _ConflictStageRelation.equivalent &&
+        semanticRelation == _ConflictSemanticRelation.equivalent &&
+        progressOwnership ==
+            _ConflictProgressOwnership.allOwnedByExistingPlan &&
+        mergeOutcome == _ConflictProvenanceMergeOutcome.mergeable) {
+      fullyConstrainedCandidateCount++;
+    }
+  }
+
+  void _recordUnavailableProjection() {
+    _increment(
+      projectionOutcomeRecordCounts,
+      _ConflictPlanProjectionOutcome.failed.name,
+    );
+    _increment(
+      semanticRelationRecordCounts,
+      _ConflictSemanticRelation.unavailable.name,
+    );
+    _increment(
+      stageRelationRecordCounts,
+      _ConflictStageRelation.unavailable.name,
+    );
+    _increment(
+      progressOwnershipRecordCounts,
+      _ConflictProgressOwnership.unavailable.name,
+    );
+    _increment(
+      provenanceMergeOutcomeRecordCounts,
+      _ConflictProvenanceMergeOutcome.unavailable.name,
+    );
+  }
+
+  Map<String, Object> toJson() {
+    final manualReviewRecordCount =
+        evaluatedRecordCount - fullyConstrainedCandidateCount;
+    return {
+      'cohort': {'eligibleRecordCount': evaluatedRecordCount},
+      'currentWorkflows': {
+        'evaluatedRecordCount': evaluatedRecordCount,
+        'projectionOutcomeRecordCounts': projectionOutcomeRecordCounts,
+        'stageRelationRecordCounts': stageRelationRecordCounts,
+        'semanticRelationRecordCounts': semanticRelationRecordCounts,
+        'progressOwnershipRecordCounts': progressOwnershipRecordCounts,
+        'checkpointProgressOwnershipRecordCounts':
+            checkpointProgressOwnershipRecordCounts,
+        'progressStateRecordCounts': progressStateRecordCounts,
+        'provenanceMergeOutcomeRecordCounts':
+            provenanceMergeOutcomeRecordCounts,
+      },
+      'decision': {
+        'fullyConstrainedCandidateCount': fullyConstrainedCandidateCount,
+        'manualReviewRecordCount': manualReviewRecordCount,
+        'nextAction': evaluatedRecordCount == 0
+            ? 'verify_plan_progress_conflict_cohort_selection'
+            : manualReviewRecordCount == 0
+            ? 'design_conflict_transformer'
+            : 'define_manual_conflict_preservation',
+      },
+    };
+  }
+
+  _ConflictCheckpointProgressOwnership _checkpointOwnership(
+    Conversation conversation,
+    Set<String> danglingTaskIds,
+  ) {
+    final checkpointTaskIdSets = conversation.checkpoints
+        .map(
+          (checkpoint) => (checkpoint.workflowSpec?.tasks ?? const [])
+              .map((task) => task.id.trim())
+              .where((taskId) => taskId.isNotEmpty)
+              .toSet(),
+        )
+        .where((taskIds) => taskIds.isNotEmpty)
+        .toList(growable: false);
+    if (checkpointTaskIdSets.any(
+      (taskIds) => taskIds.containsAll(danglingTaskIds),
+    )) {
+      return _ConflictCheckpointProgressOwnership.allOwnedBySingleCheckpoint;
+    }
+    final checkpointTaskIds = checkpointTaskIdSets
+        .expand((taskIds) => taskIds)
+        .toSet();
+    final ownedCount = danglingTaskIds.intersection(checkpointTaskIds).length;
+    if (ownedCount == danglingTaskIds.length) {
+      return _ConflictCheckpointProgressOwnership
+          .ownedAcrossMultipleCheckpoints;
+    }
+    if (ownedCount > 0) {
+      return _ConflictCheckpointProgressOwnership.partiallyOwnedByCheckpoints;
+    }
+    return _ConflictCheckpointProgressOwnership.noneOwnedByCheckpoints;
+  }
+}
+
+void _increment(Map<String, int> counts, String key) {
+  counts[key] = counts[key]! + 1;
+}
+
+ConversationWorkflowSpec _withoutProvenance(
+  ConversationWorkflowSpec workflowSpec,
+) {
+  return workflowSpec.copyWith(
+    sources: const <ConversationContractSourceReference>[],
+    provenance: const <ConversationContractItemProvenance>[],
+  );
 }
 
 enum _CheckpointOrigin { legacy, freshProjection, inconsistentProjection }

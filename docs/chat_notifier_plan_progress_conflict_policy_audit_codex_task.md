@@ -70,7 +70,23 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: This audit does not authorize a live migration.
+- Summary: Added a privacy-safe schema-v4 aggregate for the combined conflict
+  cohort. All four live plans parse, are workflow-semantically equivalent, and
+  accept the provenance merge, but all four disagree on stage. Every dangling
+  progress entry is meaningful and is owned by neither the existing plan nor
+  any single or combined legacy checkpoint task graph.
+- Tests run: The focused audit test passes 9/9. `tool/codex_verify.sh`
+  completes generation, analysis, and package tests; the Flutter suite passes
+  6,507/6,508 tests. Its only failure is the pre-existing stale
+  `run_coding_stalled_diagnostic_repair_live_canary` expectation for the
+  removed `_isTodoVerifierCall` helper. The live database SHA-256 was
+  `ad5fc676bbca7a2fc926587b8c14f72940bff465f93825d01167d8ea960c9698`
+  both before and after the read-only audit.
+- Coverage or low-coverage notes: Fixtures cover parsed and invalid plans,
+  semantic equality and divergence, exact existing-plan ownership, exact
+  checkpoint ownership, passive and meaningful progress, merge readiness, and
+  privacy-safe output.
+- Risks or follow-ups: This audit does not authorize a live migration. Never
+  discard or heuristically remap the four meaningful orphan progress records.
+  A preservation envelope and explicit stage-authority decision are required
+  before a conflict transformer can be considered.

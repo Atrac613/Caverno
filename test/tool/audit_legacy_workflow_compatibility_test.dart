@@ -5,9 +5,11 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_legacy_workflow_compatibility_service.dart';
+import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
 import 'package:caverno/features/chat/domain/services/conversation_workflow_provenance_merge_service.dart';
 
 import '../../tool/audit_legacy_workflow_compatibility.dart' as audit;
@@ -275,6 +277,126 @@ void main() {
     });
   });
 
+  test('classifies plan progress conflicts without exposing record data', () {
+    final provenanceWorkflowSpec = _provenanceWorkflowSpec();
+    final equivalentPlan =
+        ConversationPlanDocumentBuilder.buildApprovedArtifact(
+          workflowStage: ConversationWorkflowStage.implement,
+          workflowSpec: provenanceWorkflowSpec,
+          updatedAt: DateTime.utc(2026, 8, 2),
+        ).approvedMarkdown;
+    final divergentPlan = ConversationPlanDocumentBuilder.buildApprovedArtifact(
+      workflowStage: ConversationWorkflowStage.implement,
+      workflowSpec: provenanceWorkflowSpec.copyWith(
+        tasks: [provenanceWorkflowSpec.tasks.single.copyWith(id: 'plan-task')],
+      ),
+      updatedAt: DateTime.utc(2026, 8, 2),
+    ).approvedMarkdown;
+    final report = audit.buildLegacyWorkflowCompatibilityReport([
+      jsonEncode(
+        _conversation(
+          id: 'plan-owned-private-record',
+          workflowSpec: provenanceWorkflowSpec,
+          executionProgress: [
+            ConversationExecutionTaskProgress(
+              taskId: 'plan-task',
+              status: ConversationWorkflowTaskStatus.inProgress,
+              summary: 'Private progress summary',
+            ),
+          ],
+          planArtifact: ConversationPlanArtifact(
+            approvedMarkdown: divergentPlan,
+          ),
+          checkpoints: [
+            ConversationCheckpoint(
+              messageId: 'private-checkpoint',
+              messageCount: 1,
+              title: 'Private checkpoint',
+              createdAt: DateTime.utc(2026, 8, 2),
+              workflowStage: ConversationWorkflowStage.implement,
+              workflowSpec: provenanceWorkflowSpec.copyWith(
+                tasks: [
+                  provenanceWorkflowSpec.tasks.single.copyWith(id: 'plan-task'),
+                ],
+              ),
+            ),
+          ],
+        ).toJson(),
+      ),
+      jsonEncode(
+        _conversation(
+          id: 'unowned-private-record',
+          workflowSpec: provenanceWorkflowSpec,
+          executionProgress: const [
+            ConversationExecutionTaskProgress(taskId: 'missing-task'),
+          ],
+          planArtifact: ConversationPlanArtifact(
+            approvedMarkdown: '$equivalentPlan\n\n## Notes\nPrivate note',
+          ),
+        ).toJson(),
+      ),
+      jsonEncode(
+        _conversation(
+          id: 'invalid-plan-private-record',
+          workflowSpec: provenanceWorkflowSpec,
+          executionProgress: const [
+            ConversationExecutionTaskProgress(taskId: 'missing-task'),
+          ],
+          planArtifact: const ConversationPlanArtifact(
+            approvedMarkdown: 'Private invalid plan',
+          ),
+        ).toJson(),
+      ),
+    ]);
+
+    expect(report['schemaVersion'], 4);
+    expect(report['planProgressConflictPolicy'], {
+      'cohort': {'eligibleRecordCount': 3},
+      'currentWorkflows': {
+        'evaluatedRecordCount': 3,
+        'projectionOutcomeRecordCounts': {'parsed': 2, 'failed': 1},
+        'stageRelationRecordCounts': {
+          'equivalent': 2,
+          'divergent': 0,
+          'unavailable': 1,
+        },
+        'semanticRelationRecordCounts': {
+          'equivalent': 1,
+          'divergent': 1,
+          'unavailable': 1,
+        },
+        'progressOwnershipRecordCounts': {
+          'allOwnedByExistingPlan': 1,
+          'partiallyOwnedByExistingPlan': 0,
+          'noneOwnedByExistingPlan': 1,
+          'unavailable': 1,
+        },
+        'checkpointProgressOwnershipRecordCounts': {
+          'allOwnedBySingleCheckpoint': 1,
+          'ownedAcrossMultipleCheckpoints': 0,
+          'partiallyOwnedByCheckpoints': 0,
+          'noneOwnedByCheckpoints': 2,
+        },
+        'progressStateRecordCounts': {'passiveOnly': 2, 'meaningful': 1},
+        'provenanceMergeOutcomeRecordCounts': {
+          'mergeable': 1,
+          'blocked': 1,
+          'unavailable': 1,
+        },
+      },
+      'decision': {
+        'fullyConstrainedCandidateCount': 0,
+        'manualReviewRecordCount': 3,
+        'nextAction': 'define_manual_conflict_preservation',
+      },
+    });
+    final encodedReport = jsonEncode(report);
+    expect(encodedReport, isNot(contains('private-record')));
+    expect(encodedReport, isNot(contains('Private progress')));
+    expect(encodedReport, isNot(contains('Private note')));
+    expect(encodedReport, isNot(contains('Private invalid')));
+  });
+
   test('reports migration readiness only for compatible legacy candidates', () {
     final report = audit.buildLegacyWorkflowCompatibilityReport([
       jsonEncode(_conversation().toJson()),
@@ -411,6 +533,7 @@ Conversation _conversation({
   List<ConversationExecutionTaskProgress> executionProgress = const [],
   List<ConversationOpenQuestionProgress> openQuestionProgress = const [],
   List<ConversationCheckpoint> checkpoints = const [],
+  ConversationPlanArtifact? planArtifact,
 }) {
   return Conversation(
     id: id,
@@ -424,6 +547,7 @@ Conversation _conversation({
     workflowDerivedAt: workflowDerivedAt,
     executionProgress: executionProgress,
     openQuestionProgress: openQuestionProgress,
+    planArtifact: planArtifact,
     checkpoints: checkpoints,
   );
 }
