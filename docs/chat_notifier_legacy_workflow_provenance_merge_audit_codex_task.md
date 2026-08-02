@@ -70,10 +70,10 @@ tool/codex_verify.sh
 
 - Summary: Extended the read-only aggregate audit with a strict provenance
   merge candidate cohort and separate current-workflow and legacy-checkpoint
-  results. The live cohort contains 14 eligible records and 27 legacy
-  checkpoints. All 41 snapshots were blocked by both unmatched legacy item IDs
-  and projected items without matching legacy provenance; source graphs,
-  projections, semantic round trips, and item kinds remained valid.
+  results. The initial live run showed positional legacy-versus-current item
+  identity drift across 14 eligible records and 27 legacy checkpoints. After
+  adding the documented fail-closed positional reconciliation, all 41
+  snapshots are mergeable with zero aggregate blockers.
 - Tests run: All 8 focused audit tests pass. The live database SHA-256 was
   identical before and after the schema-v3 audit. `tool/codex_verify.sh`
   passed generation checks, analysis, package tests, and 6,501 of 6,502
@@ -83,6 +83,5 @@ tool/codex_verify.sh
 - Coverage or low-coverage notes: Fixtures cover a successful current and
   checkpoint merge, conflict-cohort exclusion, malformed legacy graphs, an
   empty cohort, database immutability, and privacy-safe output.
-- Risks or follow-ups: This audit does not authorize a live migration. Define a
-  pure fail-closed item-identity reconciliation fixture before re-running the
-  aggregate candidate. Keep the four plan/progress conflict records separate.
+- Risks or follow-ups: This audit does not authorize a live migration. The four
+  plan/progress conflict records remain excluded and need a separate policy.

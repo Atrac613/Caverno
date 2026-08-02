@@ -104,12 +104,12 @@ planning paths emit a plan document.
   Of 19 legacy records, 1 is compatible, 14 have internally consistent
   provenance as their only blocker, and 4 also have plan/progress conflicts.
   All 33 legacy checkpoints have consistent source graphs without assumption
-  or reference-integrity hazards. The additive merge candidate was applied
-  read-only to the 14 clean records and their 27 legacy checkpoints. Every
-  snapshot remains blocked by legacy-versus-current item identity despite
-  valid semantic round trips and item kinds. The next safe slice is a pure
-  fail-closed identity reconciliation fixture; do not delete the editor or
-  mutate the live database.
+  or reference-integrity hazards. A bounded reconciliation now recognizes the
+  documented positional legacy IDs and rejects ambiguous identity. The
+  read-only additive candidate merges all 14 clean records and their 27 legacy
+  checkpoints with zero blockers. The next safe slice is read-only policy
+  classification for the four plan/progress conflict records; do not delete
+  the editor or mutate the live database.
 
 ### C2 — Give task status one owner
 

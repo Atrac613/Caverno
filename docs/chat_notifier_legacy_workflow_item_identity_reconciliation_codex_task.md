@@ -70,7 +70,21 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: This fixture does not authorize a live migration.
+- Summary: Added a one-to-one identity reconciliation that preserves exact
+  current IDs and recognizes only `constraint:<index>` and
+  `acceptance:<index>` legacy IDs. The live read-only audit now reports all 14
+  eligible current workflows and all 27 cohort checkpoints as mergeable with
+  zero identity, graph, semantic, or projection blockers.
+- Tests run: The focused merge-service test passes 11/11 and the focused audit
+  test passes 8/8. `tool/codex_verify.sh` completes generation, analysis, and
+  package tests; the Flutter suite passes 6,506/6,507 tests. Its only failure is
+  the pre-existing stale `run_coding_stalled_diagnostic_repair_live_canary`
+  expectation for the removed `_isTodoVerifierCall` helper. The live database
+  SHA-256 was identical before and after the schema-v3 audit.
+- Coverage or low-coverage notes: Fixtures cover multiple same-kind values,
+  reordered legacy provenance, exact and positional matches, malformed and
+  out-of-range indices, duplicate targets, semantic drift, projected identity
+  drift, metadata preservation, and input immutability.
+- Risks or follow-ups: This fixture does not authorize a live migration. The
+  clean cohort is proven mergeable; define a separate policy for the four
+  records with dangling progress and conflicting plan documents next.

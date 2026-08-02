@@ -1,11 +1,14 @@
 import '../entities/conversation_workflow.dart';
+import 'conversation_contract_provenance_service.dart';
 
 enum ConversationWorkflowProvenanceMergeBlocker {
   invalidLegacySourceGraph,
   invalidLegacyItemGraph,
   invalidProjectedGraph,
+  semanticWorkflowMismatch,
   approvedPlanSourceCollision,
   itemKindMismatch,
+  ambiguousItemIdentity,
   unmatchedLegacyItem,
   projectedItemMissingLegacyProvenance,
 }
@@ -34,11 +37,7 @@ final class ConversationWorkflowProvenanceMergeService {
       legacyWorkflowSpec,
       blockers,
     );
-    final legacyItems = _validateLegacyItems(
-      legacyWorkflowSpec,
-      legacySourceIds,
-      blockers,
-    );
+    _validateLegacyItems(legacyWorkflowSpec, legacySourceIds, blockers);
     final projectedGraph = _validateProjectedGraph(
       projectedWorkflowSpec,
       blockers,
@@ -47,16 +46,20 @@ final class ConversationWorkflowProvenanceMergeService {
       return _blocked(blockers);
     }
 
+    if (_withoutProvenance(legacyWorkflowSpec) !=
+        _withoutProvenance(projectedWorkflowSpec)) {
+      blockers.add(
+        ConversationWorkflowProvenanceMergeBlocker.semanticWorkflowMismatch,
+      );
+    }
     if (legacySourceIds.contains(projectedGraph.source.id)) {
       blockers.add(
         ConversationWorkflowProvenanceMergeBlocker.approvedPlanSourceCollision,
       );
     }
-    final projectedItems = {
-      for (final item in projectedWorkflowSpec.provenance) item.itemId: item,
-    };
+    final matchedProjectedItemIds = <String>{};
     for (final legacyItem in legacyWorkflowSpec.provenance) {
-      final projectedItem = projectedItems[legacyItem.itemId];
+      final projectedItem = _resolveProjectedItem(legacyItem, projectedGraph);
       if (projectedItem == null) {
         blockers.add(
           ConversationWorkflowProvenanceMergeBlocker.unmatchedLegacyItem,
@@ -65,10 +68,14 @@ final class ConversationWorkflowProvenanceMergeService {
         blockers.add(
           ConversationWorkflowProvenanceMergeBlocker.itemKindMismatch,
         );
+      } else if (!matchedProjectedItemIds.add(projectedItem.itemId)) {
+        blockers.add(
+          ConversationWorkflowProvenanceMergeBlocker.ambiguousItemIdentity,
+        );
       }
     }
     for (final projectedItem in projectedWorkflowSpec.provenance) {
-      if (!legacyItems.containsKey(projectedItem.itemId)) {
+      if (!matchedProjectedItemIds.contains(projectedItem.itemId)) {
         blockers.add(
           ConversationWorkflowProvenanceMergeBlocker
               .projectedItemMissingLegacyProvenance,
@@ -93,6 +100,35 @@ final class ConversationWorkflowProvenanceMergeService {
         provenance: mergedProvenance,
       ),
     );
+  }
+
+  ConversationContractItemProvenance? _resolveProjectedItem(
+    ConversationContractItemProvenance legacyItem,
+    _ProjectedGraph projectedGraph,
+  ) {
+    final exactMatch = projectedGraph.itemsById[legacyItem.itemId];
+    if (exactMatch != null) return exactMatch;
+
+    final positionalIndex = switch (legacyItem.kind) {
+      ConversationContractItemKind.constraint => _legacyPositionalIndex(
+        legacyItem.itemId,
+        prefix: 'constraint:',
+      ),
+      ConversationContractItemKind.acceptanceCriterion =>
+        _legacyPositionalIndex(legacyItem.itemId, prefix: 'acceptance:'),
+      _ => null,
+    };
+    if (positionalIndex == null) return null;
+    final projectedItems = projectedGraph.itemsByKind[legacyItem.kind]!;
+    if (positionalIndex >= projectedItems.length) return null;
+    return projectedItems[positionalIndex];
+  }
+
+  int? _legacyPositionalIndex(String itemId, {required String prefix}) {
+    if (!itemId.startsWith(prefix)) return null;
+    final suffix = itemId.substring(prefix.length);
+    if (!RegExp(r'^\d+$').hasMatch(suffix)) return null;
+    return int.tryParse(suffix);
   }
 
   Set<String> _validateLegacySources(
@@ -170,6 +206,7 @@ final class ConversationWorkflowProvenanceMergeService {
     final source = approvedSources.single;
     final sourceId = source.id.trim();
     final itemIds = <String>{};
+    final itemsById = <String, ConversationContractItemProvenance>{};
     var invalid = sourceId.isEmpty || workflowSpec.provenance.isEmpty;
     for (final item in workflowSpec.provenance) {
       final itemId = item.itemId.trim();
@@ -179,6 +216,25 @@ final class ConversationWorkflowProvenanceMergeService {
           item.sourceIds.single.trim() != sourceId) {
         invalid = true;
       }
+      itemsById[itemId] = item;
+    }
+    final semanticWorkflowSpec = _withoutProvenance(workflowSpec);
+    final expectedProvenance = const ConversationContractProvenanceService()
+        .attachApprovedPlanSource(
+          workflowSpec: semanticWorkflowSpec,
+          sourceHash: 'identity-validation',
+        )
+        .provenance;
+    if (expectedProvenance.length != workflowSpec.provenance.length) {
+      invalid = true;
+    } else {
+      for (final entry in expectedProvenance.indexed) {
+        final actual = workflowSpec.provenance[entry.$1];
+        final expected = entry.$2;
+        if (actual.itemId != expected.itemId || actual.kind != expected.kind) {
+          invalid = true;
+        }
+      }
     }
     if (invalid) {
       blockers.add(
@@ -186,7 +242,25 @@ final class ConversationWorkflowProvenanceMergeService {
       );
       return null;
     }
-    return _ProjectedGraph(source: source);
+    return _ProjectedGraph(
+      source: source,
+      itemsById: itemsById,
+      itemsByKind: {
+        for (final kind in ConversationContractItemKind.values)
+          kind: workflowSpec.provenance
+              .where((item) => item.kind == kind)
+              .toList(growable: false),
+      },
+    );
+  }
+
+  ConversationWorkflowSpec _withoutProvenance(
+    ConversationWorkflowSpec workflowSpec,
+  ) {
+    return workflowSpec.copyWith(
+      sources: const <ConversationContractSourceReference>[],
+      provenance: const <ConversationContractItemProvenance>[],
+    );
   }
 
   ConversationWorkflowProvenanceMergeResult _blocked(
@@ -201,7 +275,17 @@ final class ConversationWorkflowProvenanceMergeService {
 }
 
 final class _ProjectedGraph {
-  const _ProjectedGraph({required this.source});
+  const _ProjectedGraph({
+    required this.source,
+    required this.itemsById,
+    required this.itemsByKind,
+  });
 
   final ConversationContractSourceReference source;
+  final Map<String, ConversationContractItemProvenance> itemsById;
+  final Map<
+    ConversationContractItemKind,
+    List<ConversationContractItemProvenance>
+  >
+  itemsByKind;
 }
