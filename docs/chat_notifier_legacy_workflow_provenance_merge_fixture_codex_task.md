@@ -65,7 +65,17 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: This fixture does not authorize a live migration.
+- Summary: Added a pure fail-closed merge service that retains legacy source
+  and item order, metadata, and provenance while appending exactly one
+  approved-plan source to every matched item. Neither input is mutated.
+- Tests run: The focused service test passed 6/6. `tool/codex_verify.sh`
+  passed generation checks, analysis, package tests, and 6,500 of 6,501
+  Flutter tests. The only failure is the pre-existing stalled-diagnostic live
+  canary assertion that still expects the removed `_isTodoVerifierCall`
+  predicate.
+- Coverage or low-coverage notes: Focused tests cover success, invalid legacy
+  graphs, invalid projected graphs, source collisions, item-kind mismatches,
+  unmatched legacy items, and projected items without legacy provenance.
+- Risks or follow-ups: This fixture does not authorize a live migration. Apply
+  it read-only to the 14-record provenance-only cohort and compare the
+  candidate aggregate before adding any persistence path.
