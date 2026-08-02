@@ -71,7 +71,17 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: This fixture does not authorize a live migration.
+- Summary: Added a pure fail-closed compatibility evaluator. It verifies the
+  current workflow and every workflow-bearing checkpoint independently without
+  mutating the conversation or connecting to persistence.
+- Tests run: All 5 focused tests pass and focused analysis reports no issues.
+  `tool/codex_verify.sh` passed generation, full analysis, package tests, and
+  6,486 of 6,487 Flutter tests; the only failure is the pre-existing stale
+  `run_coding_stalled_diagnostic_repair_live_canary_test.dart` expectation.
+- Coverage or low-coverage notes: Fixtures cover a complete lossless workflow,
+  provenance replacement, dangling task and question progress, empty task IDs,
+  plan conflicts, malformed projections, input immutability, and incompatible
+  checkpoints.
+- Risks or follow-ups: This fixture does not authorize a live migration. The
+  next slice is an aggregate-only read-only compatibility audit of the 19
+  legacy-authored records.

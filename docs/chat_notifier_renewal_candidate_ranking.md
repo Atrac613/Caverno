@@ -27,9 +27,13 @@ without workflow context, 29 fresh plan-derived workflows, and 19 legacy-
 authored workflows. No stale, source-missing, metadata-incomplete, or invalid
 record was found. M3 therefore remains blocked.
 
-The operational next slice is a deterministic compatibility fixture and
-backfill design for the 19 legacy-authored records. It must not write the live
-database or remove the editor.
+The deterministic compatibility fixture is complete. It fails closed on
+provenance replacement, dangling progress, empty task IDs, existing plan
+conflicts, projection failures, round-trip drift, and incompatible checkpoints.
+
+The operational next slice is an aggregate-only read-only compatibility audit
+of the 19 legacy-authored records. It must not write the live database, emit
+record content, implement a migration, or remove the editor.
 
 ## Ranking Rules
 
@@ -89,7 +93,7 @@ definition is a deletion candidate based on its zero count.
 
 | Rank | Investigation | Decision unlocked | Measured decision surface | Bounded next action |
 | ---: | --- | --- | --- | --- |
-| I1 | Audit persisted workflow origins | Direct retirement is blocked | 439 rows: 391 no workflow context, 29 fresh plan-derived, 19 legacy-authored, and zero other or invalid classifications | Completed with a SQLite `mode=ro` aggregate audit; design a deterministic compatibility backfill before any mutation |
+| I1 | Audit persisted workflow origins and define its compatibility gate | Direct retirement is blocked; compatibility can now be evaluated fail-closed | 439 rows: 391 no workflow context, 29 fresh plan-derived, 19 legacy-authored, and zero other or invalid classifications; 8 deterministic compatibility blocker kinds | Completed with a SQLite `mode=ro` origin audit and a pure compatibility fixture; apply the gate aggregate-only to the 19 legacy records next |
 
 The matching-build guard capture is complete and moved its two closed proofs
 into D1. With D1 deleted, I1 is now the next investigation.
@@ -135,6 +139,7 @@ keep every unresolved callback, registration, and configuration edge explicit.
 | Concept overlap inventory | `8561fedb42471f0e99cd15d897002acb30f5e88b` | Read-only lifecycle and ownership review |
 | Consolidated synthesis | `05a6a25c0237c0b2ce6e93fab3055c36121e45f4` | Documentation-only task-contract revision; classified production code is unchanged from the input reviews |
 | Workflow-origin audit | Current read-only local capture | 439 aggregate rows; 29 fresh plan-derived and 19 legacy-authored workflows; no path, identifier, or content fields emitted |
+| Legacy workflow compatibility fixture | Current pure domain fixture | Fail-closed round-trip, provenance, progress-reference, plan-conflict, projection, and checkpoint gates; no persistence wiring |
 
 The tool measurement used analyser revision
 `de73f746f16eed1125b0f4f92cb44a11b57ea7de`, corpus-manifest digest
@@ -164,6 +169,8 @@ python3 tool/analyze_chat_notifier_inventory.py \
   --source-revision HEAD \
   --check-tool-manifest tool/chat_notifier_tool_catalog_inventory.json
 rg -n "_tryRepairAndDecodeMap|_repairJsonCandidate" lib test docs
+fvm flutter test \
+  test/features/chat/domain/services/conversation_legacy_workflow_compatibility_service_test.dart
 rg -l "ConversationWorkflowSpec|ConversationExecutionTaskProgress|ConversationWorkflowTaskStatus|RoutinePlanArtifact|ConversationPlanArtifact" \
   lib test -g '*.dart'
 git diff --quiet 4222d74d7598a9ec8d2aa3fe8d31b8e4f8592708 -- \
@@ -179,8 +186,9 @@ inventory so sensitive paths do not appear here.
 
 ## Unresolved Items
 
-- The 19 legacy-authored workflows need a proven lossless compatibility
-  backfill before M3 can re-enter implementation.
+- The 19 legacy-authored workflows have not yet been evaluated by the new
+  compatibility gate. Their aggregate blocker distribution is required before
+  a backfill can be designed or M3 can re-enter implementation.
 - The correct replacement, if any, for the deferred WS6-19 ordering contract is
   not approved.
 - Goal/objective divergence has no provenance marker, so mismatches cannot yet
