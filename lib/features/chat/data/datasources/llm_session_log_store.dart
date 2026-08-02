@@ -355,9 +355,9 @@ class LlmSessionLogStore {
       final entry = {
         'schemaName': schemaName,
         'schemaVersion': schemaVersion,
-        'timestamp': finishedAt.toIso8601String(),
-        'startedAt': startedAt.toIso8601String(),
-        'finishedAt': finishedAt.toIso8601String(),
+        'timestamp': _utcTimestamp(finishedAt),
+        'startedAt': _utcTimestamp(startedAt),
+        'finishedAt': _utcTimestamp(finishedAt),
         'durationMs': finishedAt.difference(startedAt).inMilliseconds,
         'build': BuildInfo.toJson(),
         'context': effectiveContext.toJson(),
@@ -404,7 +404,7 @@ class LlmSessionLogStore {
       final entry = {
         'schemaName': schemaName,
         'schemaVersion': schemaVersion,
-        'timestamp': at.toIso8601String(),
+        'timestamp': _utcTimestamp(at),
         'build': BuildInfo.toJson(),
         'context': effectiveContext.toJson(),
         'operation': 'turn_exit',
@@ -474,7 +474,7 @@ class LlmSessionLogStore {
       final entry = {
         'schemaName': schemaName,
         'schemaVersion': schemaVersion,
-        'timestamp': at.toIso8601String(),
+        'timestamp': _utcTimestamp(at),
         'build': BuildInfo.toJson(),
         'context': effectiveContext.toJson(),
         'operation': 'goal_auto_continue',
@@ -508,7 +508,7 @@ class LlmSessionLogStore {
       final entry = {
         'schemaName': schemaName,
         'schemaVersion': schemaVersion,
-        'timestamp': at.toIso8601String(),
+        'timestamp': _utcTimestamp(at),
         'build': BuildInfo.toJson(),
         'context': effectiveContext.toJson(),
         'operation': 'goal_completion_shadow',
@@ -565,7 +565,7 @@ class LlmSessionLogStore {
       final entry = {
         'schemaName': schemaName,
         'schemaVersion': schemaVersion,
-        'timestamp': at.toIso8601String(),
+        'timestamp': _utcTimestamp(at),
         'build': BuildInfo.toJson(),
         'context': effectiveContext.toJson(),
         'operation': 'execution_shadow',
@@ -671,7 +671,7 @@ class LlmSessionLogStore {
     return {
       'id': message.id,
       'role': message.role.name,
-      'timestamp': message.timestamp.toIso8601String(),
+      'timestamp': _utcTimestamp(message.timestamp),
       'content': message.content,
       if (message.imageBase64 != null)
         'image': {
@@ -685,6 +685,10 @@ class LlmSessionLogStore {
 
   Map<String, dynamic> _toolDefinitionToJson(Map<String, dynamic> tool) {
     return Map<String, dynamic>.from(_redactValue(tool) as Map);
+  }
+
+  static String _utcTimestamp(DateTime value) {
+    return value.toUtc().toIso8601String();
   }
 
   Map<String, dynamic> _toolResultToJson(ToolResultInfo toolResult) {

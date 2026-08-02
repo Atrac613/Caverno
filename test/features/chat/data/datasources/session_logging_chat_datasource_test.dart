@@ -89,11 +89,20 @@ void main() {
       // tool/safe-flutter's --dart-define injection.
       expect(decoded['build']['commit'], 'unknown');
       expect(decoded['build']['dirty'], false);
+      expect(DateTime.parse(decoded['timestamp'] as String).isUtc, isTrue);
+      expect(DateTime.parse(decoded['startedAt'] as String).isUtc, isTrue);
+      expect(DateTime.parse(decoded['finishedAt'] as String).isUtc, isTrue);
       expect(decoded['context']['workspaceMode'], 'coding');
       expect(decoded['context']['sessionId'], 'conversation/1');
       expect(
         decoded['request']['messages'][0]['image']['base64'],
         '[redacted]',
+      );
+      expect(
+        DateTime.parse(
+          decoded['request']['messages'][0]['timestamp'] as String,
+        ).isUtc,
+        isTrue,
       );
       expect(
         decoded['request']['toolResults'][0]['result']['imageBase64'],
