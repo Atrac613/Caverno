@@ -105,7 +105,12 @@ TELEMETRY_SELECTION_FIELDS = {
         "verification",
     },
     "covered": TELEMETRY_SELECTION_COMMON_FIELDS
-    | {"event", "verification"},
+    | {
+        "event",
+        "recordedValues",
+        "dataClassification",
+        "verification",
+    },
     "defer": TELEMETRY_SELECTION_COMMON_FIELDS | {"prerequisite"},
 }
 FIRST_TELEMETRY_SLICE_ID = (
@@ -506,9 +511,12 @@ def validate_telemetry_selection(
     raw_entries = selection["entries"]
     if not isinstance(raw_entries, list):
         raise InventoryError("Telemetry selection entries must be a list")
+    guard_entries_by_id = {
+        entry["id"]: entry for entry in guard_manifest["entries"]
+    }
     target_ids = {
-        entry["id"]
-        for entry in guard_manifest["entries"]
+        identifier
+        for identifier, entry in guard_entries_by_id.items()
         if entry["telemetryEvent"] is None
     }
     selected_ids: set[str] = set()
@@ -539,12 +547,17 @@ def validate_telemetry_selection(
                 f"Duplicate telemetry selection id: {identifier}"
             )
         selected_ids.add(identifier)
+        guard_entry = guard_entries_by_id.get(identifier)
+        if guard_entry is None:
+            raise InventoryError(
+                f"Telemetry selection id is stale: {identifier}"
+            )
         for field in ("question", "reason"):
             value = raw[field]
             if not isinstance(value, str) or not value.strip():
                 raise InventoryError(f"{label}.{field} must be non-empty")
 
-        if disposition == "instrument":
+        if disposition in {"instrument", "covered"}:
             event = raw["event"]
             if not isinstance(event, str) or not event.strip():
                 raise InventoryError(f"{label}.event must be non-empty")
@@ -560,50 +573,62 @@ def validate_telemetry_selection(
                     f"{label}.dataClassification must be metadata_only"
                 )
             _validate_string_list(raw["verification"], f"{label}.verification")
-        elif disposition == "covered":
-            event = raw["event"]
-            if not isinstance(event, str) or not event.strip():
-                raise InventoryError(f"{label}.event must be non-empty")
-            _validate_string_list(raw["verification"], f"{label}.verification")
+            mapped_event = guard_entry["telemetryEvent"]
+            if disposition == "instrument" and mapped_event is not None:
+                raise InventoryError(
+                    f"{label} cannot instrument an already mapped event"
+                )
+            if disposition == "covered" and mapped_event != event:
+                raise InventoryError(
+                    f"{label}.event must match the guard inventory mapping"
+                )
         else:
             prerequisite = raw["prerequisite"]
             if not isinstance(prerequisite, str) or not prerequisite.strip():
                 raise InventoryError(f"{label}.prerequisite must be non-empty")
+            if guard_entry["telemetryEvent"] is not None:
+                raise InventoryError(
+                    f"{label} cannot defer an already mapped event"
+                )
         disposition_counts[disposition] += 1
 
     missing = sorted(target_ids - selected_ids)
-    stale = sorted(selected_ids - target_ids)
+    stale = sorted(selected_ids - set(guard_entries_by_id))
     if missing or stale:
         details = []
         if missing:
             details.append("missing: " + ", ".join(missing))
         if stale:
-            details.append("stale or already covered: " + ", ".join(stale))
+            details.append("stale: " + ", ".join(stale))
         raise InventoryError(
             "Telemetry selection coverage mismatch; " + "; ".join(details)
         )
-    if disposition_counts["instrument"] != selection["firstSliceLimit"]:
+    bounded_slice_count = (
+        disposition_counts["instrument"] + disposition_counts["covered"]
+    )
+    if bounded_slice_count != selection["firstSliceLimit"]:
         raise InventoryError(
-            "Telemetry selection must contain exactly one instrument entry"
+            "Telemetry selection must contain exactly one instrument or "
+            "covered entry"
         )
-    instrument = next(
+    first_slice = next(
         entry
         for entry in raw_entries
-        if entry["disposition"] == "instrument"
+        if entry["disposition"] in {"instrument", "covered"}
     )
-    if instrument["id"] != FIRST_TELEMETRY_SLICE_ID:
+    if first_slice["id"] != FIRST_TELEMETRY_SLICE_ID:
         raise InventoryError(
-            "Telemetry selection first instrument entry must be "
+            "Telemetry selection first bounded entry must be "
             f"{FIRST_TELEMETRY_SLICE_ID}"
         )
-    if instrument["event"] != FIRST_TELEMETRY_SLICE_EVENT:
+    if first_slice["event"] != FIRST_TELEMETRY_SLICE_EVENT:
         raise InventoryError(
-            "Telemetry selection first instrument event must be "
+            "Telemetry selection first bounded event must be "
             f"{FIRST_TELEMETRY_SLICE_EVENT}"
         )
-    if instrument["recordedValues"] != FIRST_TELEMETRY_SLICE_VALUES:
+    if first_slice["recordedValues"] != FIRST_TELEMETRY_SLICE_VALUES:
         raise InventoryError(
-            "Telemetry selection first instrument recordedValues must be "
+            "Telemetry selection first bounded recordedValues must be "
             + ", ".join(FIRST_TELEMETRY_SLICE_VALUES)
         )
     return {

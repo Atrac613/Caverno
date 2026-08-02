@@ -158,6 +158,20 @@ class ChatNotifierInventoryTest(unittest.TestCase):
         path.write_text(json.dumps(selection))
         return path
 
+    def _mark_first_slice_covered(self, manifest, selection):
+        guard_entry = next(
+            entry
+            for entry in manifest["entries"]
+            if entry["id"] == analyzer.FIRST_TELEMETRY_SLICE_ID
+        )
+        guard_entry["telemetryEvent"] = analyzer.FIRST_TELEMETRY_SLICE_EVENT
+        selection_entry = next(
+            entry
+            for entry in selection["entries"]
+            if entry["id"] == analyzer.FIRST_TELEMETRY_SLICE_ID
+        )
+        selection_entry["disposition"] = "covered"
+
     def test_discovers_types_and_notifier_members_deterministically(self):
         with tempfile.TemporaryDirectory() as directory:
             root = self._fixture(directory)
@@ -279,6 +293,24 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             {"selected": 5, "instrument": 1, "covered": 0, "defer": 4},
         )
 
+    def test_accepts_completed_first_slice_telemetry_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            selection = self._selection(manifest)
+            self._mark_first_slice_covered(manifest, selection)
+            manifest_path = self._write_manifest(root, manifest)
+            selection_path = self._write_selection(root, selection)
+
+            counts = analyzer.validate_telemetry_selection(
+                selection_path, manifest_path, root
+            )
+
+        self.assertEqual(
+            counts,
+            {"selected": 5, "instrument": 0, "covered": 1, "defer": 4},
+        )
+
     def test_rejects_incomplete_telemetry_selection_coverage(self):
         with tempfile.TemporaryDirectory() as directory:
             root = self._fixture(directory)
@@ -307,7 +339,7 @@ class ChatNotifierInventoryTest(unittest.TestCase):
                     selection_path, manifest_path, root
                 )
 
-    def test_rejects_already_covered_telemetry_selection_id(self):
+    def test_rejects_deferred_selection_for_mapped_event(self):
         with tempfile.TemporaryDirectory() as directory:
             root = self._fixture(directory)
             manifest = self._manifest(root)
@@ -317,7 +349,7 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             selection_path = self._write_selection(root, selection)
 
             with self.assertRaisesRegex(
-                analyzer.InventoryError, "stale or already covered"
+                analyzer.InventoryError, "cannot defer an already mapped event"
             ):
                 analyzer.validate_telemetry_selection(
                     selection_path, manifest_path, root
@@ -366,7 +398,7 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             selection_path = self._write_selection(root, selection)
 
             with self.assertRaisesRegex(
-                analyzer.InventoryError, "missing fields: event"
+                analyzer.InventoryError, "missing fields: .*event"
             ):
                 analyzer.validate_telemetry_selection(
                     selection_path, manifest_path, root
@@ -430,7 +462,7 @@ class ChatNotifierInventoryTest(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 analyzer.InventoryError,
-                "first instrument recordedValues",
+                "first bounded recordedValues",
             ):
                 analyzer.validate_telemetry_selection(
                     selection_path, manifest_path, root
@@ -464,7 +496,30 @@ class ChatNotifierInventoryTest(unittest.TestCase):
             selection_path = self._write_selection(root, selection)
 
             with self.assertRaisesRegex(
-                analyzer.InventoryError, "exactly one instrument"
+                analyzer.InventoryError, "exactly one instrument or covered"
+            ):
+                analyzer.validate_telemetry_selection(
+                    selection_path, manifest_path, root
+                )
+
+    def test_rejects_covered_event_that_disagrees_with_guard_inventory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._fixture(directory)
+            manifest = self._manifest(root)
+            selection = self._selection(manifest)
+            self._mark_first_slice_covered(manifest, selection)
+            covered = next(
+                entry
+                for entry in selection["entries"]
+                if entry["disposition"] == "covered"
+            )
+            covered["event"] = "turn_exit.guardDecisions.wrong"
+            manifest_path = self._write_manifest(root, manifest)
+            selection_path = self._write_selection(root, selection)
+
+            with self.assertRaisesRegex(
+                analyzer.InventoryError,
+                "event must match the guard inventory mapping",
             ):
                 analyzer.validate_telemetry_selection(
                     selection_path, manifest_path, root
