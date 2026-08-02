@@ -124,10 +124,30 @@ git diff --check
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
+- Summary: Implemented the schema-v1 verification manifest and
+  `validate-gates`. A clean selection at
+  `b1c8774a843563747cea232db52f58c44f3a15cf` selected
+  `chat_notifier_goal_auto_continue.dart`, and gate validation bound
+  `_maybeAutoContinueCurrentGoal` plus `_recordGoalAutoContinueSessionLog` to
+  the focused and live evidence contracts. The validated artifact explicitly
+  records `liveCanaryExecuted: false`.
 - Tests run:
-  - Existing focused Flutter test passed before implementation:
-    `goal auto-continue dispatches one hidden continuation from current evidence`.
-- Coverage or low-coverage notes: Pending implementation.
-- Risks or follow-ups: The live canary is statically bound in this slice but is
-  not rerun or claimed as current runtime evidence.
+  - `python3 test/python/measure_chat_notifier_turn_runtime_prototype_test.py`:
+    19 passed.
+  - The documented clean-revision `select` command passed with 14 identity
+    entrypoints, zero ambient reads, and 1,020 production lines.
+  - The documented `validate-gates` command passed and wrote
+    `/tmp/chat_notifier_turn_runtime_selection.json`.
+  - The exact focused Flutter command passed after implementation.
+  - `git diff --check`: passed.
+- Coverage or low-coverage notes: Contract tests cover selection rebuilding,
+  input hashes, selected-part mismatch, missing commands, invalid migrated
+  symbols, missing source evidence, and atomic validated output. The focused
+  Flutter test covers continue/hidden-turn/skip behavior and ordered session
+  records.
+- Risks or follow-ups:
+  - The live canary is statically bound in this slice but was not rerun or
+    claimed as current runtime evidence.
+  - M1 task-status ownership and an explicit conversation goal-tracker port
+    remain prerequisites before production extraction.
+  - `compare` remains unimplemented until an isolated prototype exists.
