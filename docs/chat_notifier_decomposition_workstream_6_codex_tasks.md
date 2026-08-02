@@ -1,10 +1,12 @@
 # ChatNotifier Decomposition Workstream 6 Task Catalog
 
-Status: task catalog ready; Slices 2a1-2a3 and 2b1-2b7 are complete. The
-corrected exact-model live canary passed with loaded
-`qwen3.6-27b-vision` on 2026-07-28 and recorded every expected
-conversation/generation exit. Workstream 6 is unblocked subject to each
-slice's corrective prerequisites and ordering gates.
+Status: deferred to the architecture-renewal plan. WS6-1 through WS6-5,
+WS6-10, WS6-12, and WS6-13 completed focused acceptance and the merged-tree
+verification gate. WS6-6 through WS6-9, WS6-11a, WS6-11b, and WS6-14 through
+WS6-19 remain unimplemented while the renewal replaces their target
+composition boundary. Resume them only after that plan establishes a stable
+turn-runtime and composition-root API. WS6-19 retains its stricter registry-last
+gate; the existence of its catalog implementation does not satisfy that gate.
 
 This catalog decomposes the tool-handler workstream from
 `docs/chat_notifier_decomposition_codex_task.md`. Each approved section is one

@@ -1,10 +1,10 @@
 # ChatNotifier Decomposition Workstream 7 Task Catalog
 
-Status: task catalog ready; WS7-4, WS7-5, and WS7-8 have completed focused
-acceptance and remain in progress pending integrated verification. Slices
-2a1-2a3 and 2b1-2b7 are complete. The exact-model corrected canary passed on
-2026-07-28, so Workstream 7 is unblocked subject to each slice's corrective
-prerequisites.
+Status: closed with an explicit deferral. WS7-1 through WS7-6 and WS7-8
+through WS7-21 completed focused acceptance and the merged-tree verification
+gate. WS7-7 remains deferred because WS8-1 did not extract the required
+owner-keyed question cache; the Workstream 8 narrow-interface closeout does not
+satisfy that slice-level prerequisite.
 
 Current planning baseline after Slice 2b7: `chat_notifier.dart` is 9,364
 physical lines, 42 declared parts total 13,523 lines, and the same-library

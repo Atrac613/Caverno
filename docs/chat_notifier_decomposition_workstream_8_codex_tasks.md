@@ -1,9 +1,11 @@
 # ChatNotifier Decomposition Workstream 8 Task Catalog
 
-Status: task catalog ready; Slices 2a1-2a3 and 2b1-2b7 are complete. The
-exact-model corrected canary passed on 2026-07-28, so Workstream 8 is unblocked
-subject to each slice's corrective prerequisites. P2, P3a, and P3b are
-complete, so the WS8-7 ownership gate is satisfied.
+Status: complete under the narrow-interface rule. The 2026-08-01
+member-by-member review found no coherent extraction cluster: the remaining
+pure members total 82 lines across nine small helpers, while the other 1,878
+lines are notifier orchestration. WS8-1 through WS8-10 therefore remain
+unimplemented proposals rather than completed slice-level prerequisites. In
+particular, this closeout does not satisfy WS7-7 or WS6-19 ordering gates.
 
 Current planning baseline after P3b: `chat_notifier.dart` is 9,213 physical
 lines, 42 declared parts total 13,567 lines, and the same-library aggregate is

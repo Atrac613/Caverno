@@ -143,13 +143,28 @@ that reaches longer-lived state only through explicit boundaries.
 
 ## Prerequisite: reconcile the existing program's state
 
-`docs/chat_notifier_decomposition_task_index.md` still lists workstreams 4-7 as
-in progress and 8 as planned, while this plan and the decomposition doc treat
-the program as closed. One of those is wrong and the index is the authoritative
-one. Before any phase starts, either close the index or move its open items
-into this plan explicitly.
+Reconciled on 2026-08-02 with
+`docs/chat_notifier_decomposition_task_index.md` remaining authoritative:
 
-The same prerequisite must reconcile the checked-in turn-scope baseline. Run:
+- P1a-P14 and Workstreams 4 and 5 are complete.
+- Workstream 8 is complete under its narrow-interface review, but none of
+  WS8-1 through WS8-10 is thereby a completed slice-level prerequisite.
+- Workstream 7 is closed with WS7-7 deferred because WS8-1 was retained.
+- Workstream 6 is deferred after completing WS6-1 through WS6-5, WS6-10,
+  WS6-12, and WS6-13. WS6-6 through WS6-9, WS6-11a, WS6-11b, and WS6-14
+  through WS6-18 may be reconsidered only after this plan establishes stable
+  turn-runtime and composition-root APIs.
+- WS6-19 remains a separate Phase 1.5 decision. Its original registry-last
+  gate still requires every preceding WS6 handler plus implemented WS8-2 and
+  WS8-7; the workstream-level WS8 closeout does not satisfy those gates.
+
+This transfers the old program's open work without requiring it as a blocker
+for Phase 0. Do not revive a deferred extraction merely to lower line counts;
+use it only when the renewal exposes a stable boundary that needs the handler.
+
+The checked-in turn-scope baseline was also reconciled to 112 scanned files,
+1,413 methods, 271 resolvable manifest entrypoints, 665 reachable methods, 67
+ambient reads, and 50 turn-reachable reads. Recheck it before Phase 0 with:
 
 ```bash
 fvm dart run tool/audit_chat_notifier_turn_scope.dart \

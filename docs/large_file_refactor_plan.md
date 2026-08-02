@@ -499,7 +499,7 @@ Tranche 2 status (landed on `main` as 7e66f3d9, 2026-08-01):
   analysis clean across lib, packages, test and tool, and the four-scenario
   live multi-thread canary green against `qwen3.6-27b-vision`.
 
-Tranche 3 status (in progress, 2026-08-01):
+Tranche 3 status (closed 2026-08-02):
 
 - Removed 36 forwarding shims — private methods left behind by earlier
   extractions that did nothing but call the collaborator. The one change in
@@ -515,8 +515,14 @@ Tranche 3 status (in progress, 2026-08-01):
   everything left in the parts, which the same review says to keep. Steer by
   declared-part count (43 -> 37) and the turn-scope audit (132 -> 67 ambient
   reads, 118 -> 50 turn-reachable), and report the aggregate as an outcome.
-- Workstream 8 (2,296 lines) is the only remaining body with extractable mass,
-  and its own rules limit it to narrow interface extraction.
+- Reviewed Workstream 8 member by member and closed it under its
+  narrow-interface rule. Only nine scattered pure helpers totaling 82 lines
+  remain; the other 1,878 member lines are notifier orchestration. Its ten
+  catalog proposals remain unimplemented and do not satisfy slice-level gates
+  such as WS7-7 or WS6-19.
+- Closed the decomposition program on 2026-08-02. Workstreams 4 and 5 are
+  complete. Workstreams 6 and 7 carry explicit deferrals into the architecture
+  renewal rather than remaining ambiguous in-progress rows.
 
 Deferred follow-up candidates:
 

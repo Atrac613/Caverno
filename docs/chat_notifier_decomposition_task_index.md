@@ -473,35 +473,55 @@ its diff before using `--write-baseline`.
 | P5b | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed command/file/Git/SSH approvals | P1a complete | Complete |
 | P5c | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed device/browser/Computer Use/participant approvals | P1a complete | Complete |
 | P6 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed file rollback checkpoints | P1a complete | Complete |
-| P7 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed background processes and monitoring | P1a complete | In progress |
-| P8 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed SSH sessions | P1a complete | In progress |
-| P9 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed subagent tasks | P1a complete | In progress |
-| P10a | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Atomic streaming terminal metadata | Slices 2b1-2b7 complete | In progress |
-| P10b | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed response metadata | P1a and P10a focused acceptance complete | In progress |
-| P11 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed conversation taint | P1a complete | In progress |
+| P7 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed background processes and monitoring | P1a complete | Complete |
+| P8 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed SSH sessions | P1a complete | Complete |
+| P9 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed subagent tasks | P1a complete | Complete |
+| P10a | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Atomic streaming terminal metadata | Slices 2b1-2b7 complete | Complete |
+| P10b | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed response metadata | P1a and P10a focused acceptance complete | Complete |
+| P11 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed conversation taint | P1a complete | Complete |
 | P12 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Sub-500-line command output guardrails | Slices 2b1-2b7 complete | Complete |
-| P13 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed participant stop/pause control | P1a complete | In progress |
+| P13 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Owner-keyed participant stop/pause control | P1a complete | Complete |
 | P14 | `docs/chat_notifier_decomposition_prerequisite_codex_tasks.md` | Independent hidden-evidence scorer | Slices 2b1-2b7 complete | Complete |
 
 ## Extraction Workstreams
 
 | Workstream | Task catalog | Approved sub-slices | Start gate | Status |
 |---|---|---:|---|---|
-| 4 | `docs/chat_notifier_decomposition_workstream_4_codex_tasks.md` | 6 | Slices 2a1-2a3 and 2b1-2b7 complete | In progress |
-| 5 | `docs/chat_notifier_decomposition_workstream_5_codex_tasks.md` | 8 | Slices 2a1-2a3 and 2b1-2b7 complete | In progress |
-| 6 | `docs/chat_notifier_decomposition_workstream_6_codex_tasks.md` | 20 | Slices 2a1-2a3 and 2b1-2b7 complete | In progress |
-| 7 | `docs/chat_notifier_decomposition_workstream_7_codex_tasks.md` | 21 | Slices 2a1-2a3 and 2b1-2b7 complete | In progress |
-| 8 | `docs/chat_notifier_decomposition_workstream_8_codex_tasks.md` | 10 | Slices 2a1-2a3 and 2b1-2b7 complete | Planned |
+| 4 | `docs/chat_notifier_decomposition_workstream_4_codex_tasks.md` | 6 | Slices 2a1-2a3 and 2b1-2b7 complete | Complete |
+| 5 | `docs/chat_notifier_decomposition_workstream_5_codex_tasks.md` | 8 | Slices 2a1-2a3 and 2b1-2b7 complete | Complete |
+| 6 | `docs/chat_notifier_decomposition_workstream_6_codex_tasks.md` | 20 | Slices 2a1-2a3 and 2b1-2b7 complete | Deferred |
+| 7 | `docs/chat_notifier_decomposition_workstream_7_codex_tasks.md` | 21 | Slices 2a1-2a3 and 2b1-2b7 complete | Deferred |
+| 8 | `docs/chat_notifier_decomposition_workstream_8_codex_tasks.md` | 10 | Slices 2a1-2a3 and 2b1-2b7 complete | Complete |
 
 The catalogs now contain 65 approved extraction slices. Workstream 6 uses
 separate WS6-11a BLE and WS6-11b serial slices because one collaborator cannot
 represent two independently transitioning historical manifest parts.
 
+The 2026-08-02 reconciliation closes the decomposition program without
+pretending that every catalog proposal was implemented:
+
+- Workstreams 4 and 5 completed every approved sub-slice, including integrated
+  verification and the exact-model live canary on the merged tree.
+- Workstream 6 completed WS6-1 through WS6-5, WS6-10, WS6-12, and WS6-13.
+  WS6-6 through WS6-9, WS6-11a, WS6-11b, and WS6-14 through WS6-19 are
+  deferred to the architecture-renewal plan because their target composition
+  boundary is being replaced. They may resume only after that plan establishes
+  a stable turn-runtime and composition-root API.
+- Workstream 7 completed WS7-1 through WS7-6 and WS7-8 through WS7-21. WS7-7
+  is deferred because its required WS8-1 owner-keyed question cache was not
+  extracted.
+- Workstream 8 is complete under its narrow-interface rule. Its ten proposed
+  extractions were reviewed and retained because they either remain notifier
+  orchestration or would create tiny collaborators with no coherent boundary.
+  This workstream-level closeout does not mark WS8-1, WS8-2, or WS8-7 complete
+  as prerequisites for another slice.
+
 WS6-19 is a registry-last slice and has an additional ordering gate: WS6-1
 through WS6-10, WS6-11a, WS6-11b, WS6-12 through WS6-18, WS8-2, and WS8-7
 must be complete. The Workstream 8 question and goal-update handlers remove the
 final notifier-bound conversation-tool bindings before the catalog can enforce
-its no-`ChatNotifier` contract.
+its no-`ChatNotifier` contract. The workstream-level WS8 closeout does not
+satisfy those two slice-level gates, so WS6-19 remains deferred and unwired.
 
 Additional hard gates are:
 
@@ -542,5 +562,11 @@ retained to prevent regressions.
 - `Deferred`: a documented stop condition prevents safe extraction. The task
   must name the missing prerequisite and may not disguise the dependency with a
   broad context object or callback.
+
+A workstream-level `Complete` may also record a documented closeout review
+when every remaining proposal is retained by that workstream's explicit scope
+rule. Such a closeout does not make any unimplemented proposal `Complete` for
+dependency ordering; dependent slices must still satisfy their named
+slice-level gates.
 
 Update this index in the same focused commit that changes a slice status.

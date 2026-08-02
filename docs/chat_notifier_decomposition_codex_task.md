@@ -1,24 +1,26 @@
 # ChatNotifier Library Decomposition Program (Phase 1, Tranche 2)
 
-Status: Tranche 2 landed on `main` as 7e66f3d9 on 2026-08-01. Slice 1, Slices
-2a1-2a3 and 2b1-2b7, corrective prerequisites P1a-P14, and the WS4 and WS6
-sub-slices are complete: the integrated verification and exact-model live
-canary those were waiting on both ran green on the merged tree — 4,905 tests
-across chat, quality and core, analysis clean, and all four canary scenarios
-passing against `qwen3.6-27b-vision`, the tranche's first end-to-end run.
+Status: closed on 2026-08-02. Tranche 2 landed on `main` as 7e66f3d9 on
+2026-08-01. Slice 1, Slices 2a1-2a3 and 2b1-2b7, corrective prerequisites
+P1a-P14, and Workstreams 4 and 5 are complete. Workstream 8 is complete under
+its narrow-interface rule. Workstreams 6 and 7 are closed with explicit
+deferrals recorded in the task index and architecture-renewal plan. The merged
+tree passed 4,905 tests across chat, quality and core, clean analysis, and all
+four exact-model canary scenarios against `qwen3.6-27b-vision`.
 
 Closing it required repairing eight production regressions the slices' own
 acceptance could not see, and reconciling three ledgers — the manifest, the
 size budgets, and the boundary test's frozen marker set — with 27 collaborator
 files that had been created without entries in any of them. Read "Regression
-gate" before starting Workstream 5, 7 or 8; the rule that allowed those
+gate" before resuming any deferred slice; the rule that allowed those
 regressions has been changed.
 
 Achieved: the notifier library is 19,978 lines across 37 declared parts, down
 from 23,093 and 43, with 71 collaborators holding 18,107 lines. That is 27% of
 the way to the 11,546-line half-baseline. Note the ratio: 5.8 lines of new
 collaborator per line the library lost, because the owner-fencing work rewrote
-what it extracted rather than moving it. Workstreams 5, 7 and 8 remain.
+what it extracted rather than moving it. Further reduction belongs to the
+architecture-renewal plan rather than another broad extraction pass.
 
 Slice 1 completed on 2026-07-28 with a 9,375-line primary file, 42 declared
 parts, a 22,900-line same-library aggregate, and a 132-line independent
@@ -1117,11 +1119,11 @@ never one PR. Deferred-boundary rows are not approved implementation slices.
 | **P1a-P14** | 18 corrective ownership, completion, policy, and size areas split into 19 review slices | One stop-condition correction per task in the prerequisite catalog | Required after every production prerequisite |
 | **Deferred boundary** | Proposal parsing, option, workflow, task-parser, and quality facades | Blocked because draft DTOs are declared in `ChatState` and JSON-repair uses notifier-bound callbacks; both prerequisites are outside this tranche | Not applicable |
 | **Deferred boundary** | Terminal tool-response facade | Blocked until its notifier-capturing callback bag becomes a narrow explicit-input API | Not applicable |
-| **Workstream 4** | Low-state and prompt-context concerns; WS4-1 and WS4-2 focused acceptance complete | Extract one independent concern per sub-slice; leave unrelated code in its existing part | Required for prompt, planning, mesh, Python repair, or rollback paths |
-| **Workstream 5** | Recovery and verification services — **substantially complete**, 2,878 -> 2,009 lines | One recovery route or tightly coupled pair per sub-slice | Required |
-| **Workstream 6** | Tool handlers; WS6-1, WS6-2, WS6-5, WS6-12, and WS6-13 focused acceptance complete | Separate execution from approval/UI; split local-file and Computer Use into sub-500-line concern tasks; registry moves last | Required |
-| **Workstream 7** | Guardrails, context surgery, and telemetry — **substantially complete**, 1,483 -> 449 lines | One concern per sub-slice after poison tests exist | Required |
-| **Workstream 8** | Goal continuation, participant turns, and user questions | Narrow interface extraction only; leave justified orchestration in place | Required |
+| **Workstream 4** | **Complete**; WS4-1 through WS4-6 passed focused and merged-tree verification | Extract one independent concern per sub-slice; leave unrelated code in its existing part | Passed where applicable |
+| **Workstream 5** | **Complete**; WS5-1 through WS5-8 passed focused and merged-tree verification, 2,878 -> 2,009 lines | One recovery route or tightly coupled pair per sub-slice | Passed |
+| **Workstream 6** | **Deferred**; WS6-1 through WS6-5, WS6-10, WS6-12, and WS6-13 complete; remaining slices moved to architecture renewal | Resume only against a stable turn-runtime and composition-root API; registry remains last | Required if resumed |
+| **Workstream 7** | **Deferred**; WS7-1 through WS7-6 and WS7-8 through WS7-21 complete, 1,483 -> 449 lines; WS7-7 still requires WS8-1 | Do not bypass the owner-keyed question-cache prerequisite | Required if resumed |
+| **Workstream 8** | **Complete under narrow-interface review**; proposed WS8-1 through WS8-10 remain unimplemented | Leave measured notifier orchestration in place; workstream closeout does not satisfy slice-level gates | Not applicable to retained proposals |
 
 ### Workstreams 5 and 7: what is deliberately left in place
 

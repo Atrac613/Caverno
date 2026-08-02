@@ -1,11 +1,8 @@
 # ChatNotifier Decomposition Workstream 4 Task Catalog
 
-Status: task catalog ready; WS4-1 through WS4-6 have completed
-focused acceptance. They remain in progress pending integrated verification.
-Slices 2a1-2a3 and 2b1-2b7 are complete. The corrected four-scenario live
-canary passed against the loaded `qwen3.6-27b-vision` model on 2026-07-28, so
-the remaining Workstream 4 slices are unblocked subject to each slice's
-corrective prerequisites.
+Status: complete. WS4-1 through WS4-6 completed focused acceptance, and the
+merged tree passed integrated verification and the corrected four-scenario
+live canary against `qwen3.6-27b-vision` on 2026-08-01.
 
 This catalog decomposes the low-state and prompt-context workstream from
 `docs/chat_notifier_decomposition_codex_task.md`. Each approved section is one
