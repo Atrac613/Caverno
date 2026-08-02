@@ -120,8 +120,31 @@ git diff --check
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending implementation.
-- Coverage or low-coverage notes: Pending implementation.
-- Risks or follow-ups: `validate-gates`, `compare`, and production extraction
-  remain separate tasks.
+- Summary: Implemented the deterministic `select` command. From clean revision
+  `519c2c9aeec37eb999e793309b3538c238584290`, it selected
+  `chat_notifier_goal_auto_continue.dart`: 14 turn-reachable identity
+  entrypoints, zero turn-reachable ambient reads, and 1,020 production lines.
+  The output retains 22 resolved and 12 unresolved historical entrypoints.
+- Tests run:
+  - `python3 test/python/measure_chat_notifier_turn_runtime_prototype_test.py`:
+    12 passed.
+  - The documented clean-revision `select` command completed and wrote
+    `/tmp/chat_notifier_turn_runtime_candidate.json`.
+  - `git diff --check`: passed.
+- Coverage or low-coverage notes: Focused tests cover all four ranking keys,
+  input hashing, full-SHA resolution, clean and dirty worktrees, stale
+  revisions, malformed joins, unresolved historical entrypoints, and atomic
+  CLI output. No production behavior changed.
+- Risks or follow-ups:
+  - The selected part reads `projectedExecutionTasks` and task status, so task
+    state must not cross the runtime boundary before the M1 single-owner task
+    view work establishes its contract.
+  - The selected file also coordinates conversation-scoped goal trackers. A
+    prototype must leave that state outside `TurnRuntime` behind an explicit
+    port rather than moving the tracker into turn scope.
+  - A goal auto-continue live canary already exists at
+    `tool/run_coding_goal_auto_continue_todo_fixture_live_canary.sh`; the next
+    preparatory slice must bind it and an exact focused test to the selected
+    part in the verification manifest.
+  - `validate-gates`, `compare`, and production extraction remain separate
+    tasks.
