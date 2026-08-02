@@ -1,6 +1,7 @@
 # ChatNotifier Inventory: Codex Investigation Task
 
-Status: Phase 0A static guard inventory completed on 2026-08-02. The checked-in
+Status: Phase 1 inventory and consolidated ranking completed on 2026-08-02.
+The checked-in
 manifest contains 65 decision candidates and 15 explicit helper exclusions,
 and its deterministic discovery check is covered by eight focused Python tests.
 Phase 0B telemetry selection completed on 2026-08-02 with one bounded

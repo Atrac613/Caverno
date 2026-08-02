@@ -65,16 +65,24 @@ python3 test/python/analyze_chat_notifier_inventory_test.py
 python3 tool/analyze_chat_notifier_inventory.py \
   --source-revision HEAD \
   --check-guard-manifest tool/chat_notifier_guard_inventory.json
-python3 tool/analyze_chat_notifier_tool_catalog.py \
+python3 tool/analyze_chat_notifier_inventory.py \
   --source-revision HEAD \
-  --check-manifest tool/chat_notifier_tool_catalog_inventory.json
+  --check-tool-manifest tool/chat_notifier_tool_catalog_inventory.json
 git diff --check
 tool/codex_verify.sh
 ```
 
 ## Handoff Notes
 
-- Summary: Pending.
-- Tests run: Pending.
+- Summary: Ranked the Phase 1 findings in separate delete, migrate, blocked,
+  and investigate lanes. No candidate currently satisfies the complete delete
+  contract. The next bounded action is a clean matching-build guard capture.
+- Tests run: All 44 analyser tests, the guard manifest check, telemetry
+  selection check, tool manifest check, generation, analysis, package tests,
+  and 6,481 of 6,482 Flutter tests passed. The standard verifier retains the
+  unrelated stale failure in
+  `run_coding_stalled_diagnostic_repair_live_canary_test.dart`, which still
+  expects the removed `_isTodoVerifierCall` filter.
 - Coverage or low-coverage notes: This slice changes documentation only.
-- Risks or follow-ups: Pending ranking output.
+- Risks or follow-ups: The guard corpus, persisted workflow origin, WS6-19
+  replacement contract, and goal/objective provenance remain unresolved.
