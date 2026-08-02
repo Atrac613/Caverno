@@ -81,5 +81,6 @@ tool/codex_verify.sh
   rehearsal, complete progress multiset preservation, meaningful orphans,
   selected-stage absence, blocker aggregates, mutation detection, and privacy.
 - Risks or follow-ups: This rehearsal does not authorize a live migration. The
-  next slice must define an explicit stage-authority source and audit trail; it
-  must not infer authority from timestamps, enum ordering, or current storage.
+  explicit manual stage-decision contract is now defined. The next slice must
+  define its persistence-neutral audit receipt and replay validation; it must
+  not infer authority from timestamps, enum ordering, or current storage.

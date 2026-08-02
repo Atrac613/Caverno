@@ -1,9 +1,48 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 import '../entities/conversation.dart';
 import '../entities/conversation_workflow.dart';
 import 'conversation_plan_projection_service.dart';
 import 'conversation_workflow_provenance_merge_service.dart';
 
 enum ConversationWorkflowConflictStageAuthority { workflow, approvedPlan }
+
+enum ConversationWorkflowConflictStageDecisionSource {
+  manualUserConfirmation,
+  automatedInference,
+}
+
+final class ConversationWorkflowConflictStageDecisionContext {
+  const ConversationWorkflowConflictStageDecisionContext({
+    required this.schemaVersion,
+    required this.contextDigest,
+    required this.workflowStage,
+    required this.approvedPlanStage,
+  });
+
+  final int schemaVersion;
+  final String contextDigest;
+  final ConversationWorkflowStage workflowStage;
+  final ConversationWorkflowStage approvedPlanStage;
+}
+
+final class ConversationWorkflowConflictStageDecision {
+  const ConversationWorkflowConflictStageDecision({
+    required this.decisionId,
+    required this.contextDigest,
+    required this.authority,
+    required this.source,
+    required this.decidedAt,
+  });
+
+  final String decisionId;
+  final String contextDigest;
+  final ConversationWorkflowConflictStageAuthority authority;
+  final ConversationWorkflowConflictStageDecisionSource source;
+  final DateTime decidedAt;
+}
 
 enum ConversationWorkflowConflictPreservationBlocker {
   missingPlanDocument,
@@ -13,6 +52,8 @@ enum ConversationWorkflowConflictPreservationBlocker {
   progressOwnedByExistingPlan,
   progressOwnedByCheckpoint,
   orphanProgressMissing,
+  invalidStageDecision,
+  stageDecisionContextMismatch,
   stageAuthorityRequired,
 }
 
@@ -21,6 +62,8 @@ final class ConversationWorkflowConflictPreservationEnvelope {
     required this.workflowStage,
     required this.approvedPlanStage,
     required this.selectedStage,
+    required this.decisionContext,
+    required this.stageDecision,
     required this.workflowSpec,
     required List<ConversationExecutionTaskProgress> activeExecutionProgress,
     required List<ConversationExecutionTaskProgress> orphanExecutionProgress,
@@ -30,6 +73,8 @@ final class ConversationWorkflowConflictPreservationEnvelope {
   final ConversationWorkflowStage workflowStage;
   final ConversationWorkflowStage approvedPlanStage;
   final ConversationWorkflowStage? selectedStage;
+  final ConversationWorkflowConflictStageDecisionContext decisionContext;
+  final ConversationWorkflowConflictStageDecision? stageDecision;
   final ConversationWorkflowSpec workflowSpec;
   final List<ConversationExecutionTaskProgress> activeExecutionProgress;
   final List<ConversationExecutionTaskProgress> orphanExecutionProgress;
@@ -55,7 +100,7 @@ final class ConversationWorkflowConflictPreservationService {
 
   ConversationWorkflowConflictPreservationResult preserve({
     required Conversation conversation,
-    ConversationWorkflowConflictStageAuthority? stageAuthority,
+    ConversationWorkflowConflictStageDecision? stageDecision,
   }) {
     final existingMarkdown = conversation.planArtifact?.executionMarkdown;
     if (existingMarkdown == null) {
@@ -157,18 +202,43 @@ final class ConversationWorkflowConflictPreservationService {
       );
     }
 
+    final decisionContext = _decisionContext(
+      workflowStage: conversation.workflowStage,
+      approvedPlanStage: projection.workflowStage,
+      approvedPlanMarkdown: existingMarkdown,
+      workflowSpec: mergeResult.workflowSpec!,
+      activeExecutionProgress: activeProgress,
+      orphanExecutionProgress: orphanProgress,
+    );
     final stagesDiffer = conversation.workflowStage != projection.workflowStage;
-    final selectedStage = switch (stageAuthority) {
-      ConversationWorkflowConflictStageAuthority.workflow =>
-        conversation.workflowStage,
-      ConversationWorkflowConflictStageAuthority.approvedPlan =>
-        projection.workflowStage,
-      null => stagesDiffer ? null : conversation.workflowStage,
-    };
-    if (selectedStage == null) {
+    ConversationWorkflowStage? selectedStage;
+    ConversationWorkflowConflictStageDecision? acceptedDecision;
+    if (stageDecision == null) {
+      if (stagesDiffer) {
+        blockers.add(
+          ConversationWorkflowConflictPreservationBlocker
+              .stageAuthorityRequired,
+        );
+      } else {
+        selectedStage = conversation.workflowStage;
+      }
+    } else if (!_isValidDecision(stageDecision)) {
       blockers.add(
-        ConversationWorkflowConflictPreservationBlocker.stageAuthorityRequired,
+        ConversationWorkflowConflictPreservationBlocker.invalidStageDecision,
       );
+    } else if (stageDecision.contextDigest != decisionContext.contextDigest) {
+      blockers.add(
+        ConversationWorkflowConflictPreservationBlocker
+            .stageDecisionContextMismatch,
+      );
+    } else {
+      acceptedDecision = stageDecision;
+      selectedStage = switch (stageDecision.authority) {
+        ConversationWorkflowConflictStageAuthority.workflow =>
+          conversation.workflowStage,
+        ConversationWorkflowConflictStageAuthority.approvedPlan =>
+          projection.workflowStage,
+      };
     }
 
     return ConversationWorkflowConflictPreservationResult(
@@ -180,11 +250,52 @@ final class ConversationWorkflowConflictPreservationService {
         workflowStage: conversation.workflowStage,
         approvedPlanStage: projection.workflowStage,
         selectedStage: selectedStage,
+        decisionContext: decisionContext,
+        stageDecision: acceptedDecision,
         workflowSpec: mergeResult.workflowSpec!,
         activeExecutionProgress: activeProgress,
         orphanExecutionProgress: orphanProgress,
       ),
     );
+  }
+
+  ConversationWorkflowConflictStageDecisionContext _decisionContext({
+    required ConversationWorkflowStage workflowStage,
+    required ConversationWorkflowStage approvedPlanStage,
+    required String approvedPlanMarkdown,
+    required ConversationWorkflowSpec workflowSpec,
+    required List<ConversationExecutionTaskProgress> activeExecutionProgress,
+    required List<ConversationExecutionTaskProgress> orphanExecutionProgress,
+  }) {
+    const schemaVersion = 1;
+    final canonical = jsonEncode({
+      'schemaVersion': schemaVersion,
+      'workflowStage': workflowStage.name,
+      'approvedPlanStage': approvedPlanStage.name,
+      'approvedPlanMarkdown': approvedPlanMarkdown,
+      'workflowSpec': workflowSpec.toJson(),
+      'activeExecutionProgress': activeExecutionProgress
+          .map((progress) => progress.toJson())
+          .toList(growable: false),
+      'orphanExecutionProgress': orphanExecutionProgress
+          .map((progress) => progress.toJson())
+          .toList(growable: false),
+    });
+    return ConversationWorkflowConflictStageDecisionContext(
+      schemaVersion: schemaVersion,
+      contextDigest: sha256.convert(utf8.encode(canonical)).toString(),
+      workflowStage: workflowStage,
+      approvedPlanStage: approvedPlanStage,
+    );
+  }
+
+  bool _isValidDecision(ConversationWorkflowConflictStageDecision decision) {
+    return decision.decisionId.trim().isNotEmpty &&
+        RegExp(r'^[0-9a-f]{64}$').hasMatch(decision.contextDigest) &&
+        decision.source ==
+            ConversationWorkflowConflictStageDecisionSource
+                .manualUserConfirmation &&
+        decision.decidedAt.isUtc;
   }
 
   ConversationWorkflowConflictPreservationResult _blocked(

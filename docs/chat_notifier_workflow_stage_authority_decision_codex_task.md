@@ -66,7 +66,22 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
+- Summary: Replaced bare authority input with a two-pass manual decision. The
+  authority-free envelope emits a schema-v1 SHA-256 context over both stages,
+  the exact approved Plan document, merged workflow provenance, and active plus
+  orphan progress. A decision selects a stage only when its non-empty ID,
+  manual source, UTC time, digest, and authority all validate against that exact
+  context; accepted decisions are retained as the envelope receipt.
+- Tests run: The focused preservation service passes 10/10 and the focused
+  schema-v5 audit passes 10/10. `tool/codex_verify.sh` completes generation,
+  analysis, and package tests; the Flutter suite passes 6,518/6,519 tests. Its
+  only failure is the pre-existing stale
+  `run_coding_stalled_diagnostic_repair_live_canary` expectation for the
+  removed `_isTodoVerifierCall` helper.
+- Coverage or low-coverage notes: Fixtures cover deterministic context digests,
+  both authorities, accepted receipt identity, empty IDs, automated inference,
+  non-UTC times, malformed digests, state-change replay, authority-free
+  rehearsal compatibility, and existing preservation blockers.
 - Risks or follow-ups: This contract does not authorize a live migration.
+  Define a persistence-neutral audit receipt and read-only replay fixture before
+  any confirmation UI or transformer wiring.

@@ -39,6 +39,17 @@ void main() {
     expect(envelope.workflowStage, ConversationWorkflowStage.implement);
     expect(envelope.approvedPlanStage, ConversationWorkflowStage.review);
     expect(envelope.selectedStage, isNull);
+    expect(envelope.stageDecision, isNull);
+    expect(envelope.decisionContext.schemaVersion, 1);
+    expect(envelope.decisionContext.contextDigest, hasLength(64));
+    expect(
+      envelope.decisionContext.contextDigest,
+      service
+          .preserve(conversation: conversation)
+          .envelope!
+          .decisionContext
+          .contextDigest,
+    );
     expect(
       envelope.activeExecutionProgress.map((progress) => progress.taskId),
       ['legacy-task'],
@@ -65,14 +76,28 @@ void main() {
     final conversation = _conversation(
       planStage: ConversationWorkflowStage.review,
     );
+    final context = service
+        .preserve(conversation: conversation)
+        .envelope!
+        .decisionContext;
+    final workflowDecision = _decision(
+      context,
+      ConversationWorkflowConflictStageAuthority.workflow,
+      decisionId: 'workflow-decision',
+    );
+    final planDecision = _decision(
+      context,
+      ConversationWorkflowConflictStageAuthority.approvedPlan,
+      decisionId: 'plan-decision',
+    );
 
     final workflowResult = service.preserve(
       conversation: conversation,
-      stageAuthority: ConversationWorkflowConflictStageAuthority.workflow,
+      stageDecision: workflowDecision,
     );
     final planResult = service.preserve(
       conversation: conversation,
-      stageAuthority: ConversationWorkflowConflictStageAuthority.approvedPlan,
+      stageDecision: planDecision,
     );
 
     expect(workflowResult.isReady, isTrue);
@@ -80,11 +105,95 @@ void main() {
       workflowResult.envelope!.selectedStage,
       ConversationWorkflowStage.implement,
     );
+    expect(workflowResult.envelope!.stageDecision, same(workflowDecision));
     expect(planResult.isReady, isTrue);
     expect(
       planResult.envelope!.selectedStage,
       ConversationWorkflowStage.review,
     );
+    expect(planResult.envelope!.stageDecision, same(planDecision));
+  });
+
+  test('rejects malformed or non-manual stage decisions', () {
+    final conversation = _conversation(
+      planStage: ConversationWorkflowStage.review,
+    );
+    final context = service
+        .preserve(conversation: conversation)
+        .envelope!
+        .decisionContext;
+    final invalidDecisions = [
+      _decision(
+        context,
+        ConversationWorkflowConflictStageAuthority.workflow,
+        decisionId: ' ',
+      ),
+      _decision(
+        context,
+        ConversationWorkflowConflictStageAuthority.workflow,
+        source:
+            ConversationWorkflowConflictStageDecisionSource.automatedInference,
+      ),
+      _decision(
+        context,
+        ConversationWorkflowConflictStageAuthority.workflow,
+        decidedAt: DateTime(2026, 8, 2),
+      ),
+      _decision(
+        context,
+        ConversationWorkflowConflictStageAuthority.workflow,
+        contextDigest: 'not-a-sha256-digest',
+      ),
+    ];
+
+    for (final decision in invalidDecisions) {
+      final result = service.preserve(
+        conversation: conversation,
+        stageDecision: decision,
+      );
+      expect(result.isReady, isFalse);
+      expect(result.blockers, [
+        ConversationWorkflowConflictPreservationBlocker.invalidStageDecision,
+      ]);
+      expect(result.envelope!.selectedStage, isNull);
+      expect(result.envelope!.stageDecision, isNull);
+    }
+  });
+
+  test('rejects decision replay after envelope state changes', () {
+    final conversation = _conversation(
+      planStage: ConversationWorkflowStage.review,
+    );
+    final context = service
+        .preserve(conversation: conversation)
+        .envelope!
+        .decisionContext;
+    final decision = _decision(
+      context,
+      ConversationWorkflowConflictStageAuthority.workflow,
+    );
+    final changedConversation = conversation.copyWith(
+      executionProgress: [
+        ConversationExecutionTaskProgress(
+          taskId: 'orphan-task',
+          status: ConversationWorkflowTaskStatus.inProgress,
+          summary: 'State changed after confirmation.',
+        ),
+      ],
+    );
+
+    final result = service.preserve(
+      conversation: changedConversation,
+      stageDecision: decision,
+    );
+
+    expect(result.isReady, isFalse);
+    expect(result.blockers, [
+      ConversationWorkflowConflictPreservationBlocker
+          .stageDecisionContextMismatch,
+    ]);
+    expect(result.envelope!.selectedStage, isNull);
+    expect(result.envelope!.stageDecision, isNull);
   });
 
   test('uses the shared stage without requiring authority', () {
@@ -283,6 +392,24 @@ ConversationPlanArtifact _planArtifact(
     workflowStage: stage,
     workflowSpec: workflowSpec,
     updatedAt: DateTime.utc(2026, 8, 2),
+  );
+}
+
+ConversationWorkflowConflictStageDecision _decision(
+  ConversationWorkflowConflictStageDecisionContext context,
+  ConversationWorkflowConflictStageAuthority authority, {
+  String decisionId = 'manual-decision',
+  String? contextDigest,
+  ConversationWorkflowConflictStageDecisionSource source =
+      ConversationWorkflowConflictStageDecisionSource.manualUserConfirmation,
+  DateTime? decidedAt,
+}) {
+  return ConversationWorkflowConflictStageDecision(
+    decisionId: decisionId,
+    contextDigest: contextDigest ?? context.contextDigest,
+    authority: authority,
+    source: source,
+    decidedAt: decidedAt ?? DateTime.utc(2026, 8, 2),
   );
 }
 
