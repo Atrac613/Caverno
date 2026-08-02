@@ -72,10 +72,18 @@ git diff --check
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Focus tests must cover manifest success and
-  representative drift failures for every discovery category.
+- Summary: Implemented schema-v1 validation for 112 static definitions joined
+  to four production binding kinds: 32 named registry, 19 Computer Use
+  intercept, 12 Browser intercept, and 49 generic MCP fallback definitions.
+  Dynamic MCP names remain private snapshot data.
+- Tests run: The 40 focused Python tests pass. The committed clean-source
+  manifest gate passes at `5892a999`. `tool/codex_verify.sh` completed with
+  6,482 passing Flutter tests and one unrelated known failure.
+- Coverage or low-coverage notes: Focused tests cover exact manifest success,
+  missing definitions, changed bindings, stale generic fallback evidence, and
+  changed discovery rules.
 - Risks or follow-ups: Lexical discovery is intentionally bounded to reviewed
   production source files; new definition producers require an explicit rule
-  update rather than an open-ended repository scan.
+  update rather than an open-ended repository scan. The remaining suite failure
+  is `run_coding_stalled_diagnostic_repair_live_canary_test.dart`, which still
+  expects the deleted `.where(_isTodoVerifierCall)` source text.
