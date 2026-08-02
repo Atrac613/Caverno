@@ -48,11 +48,14 @@ Each line is one JSON object with schema name
 - Response content, finish reason, tool calls, token usage, or error details
 - Turn-level markers such as `turn_exit`, `goal_auto_continue`, and
   `execution_shadow`, which make non-request decisions visible in the same
-  JSONL timeline as model calls. `goal_auto_continue` records bounded continue,
-  stop, and active-goal skip decisions; its evidence includes the first safe
-  boundary veto when one prevented dispatch. `execution_shadow` stores only
-  redacted hashes, enum names, counts, and booleans; it excludes contract text,
-  task identifiers, and diagnostic text.
+  JSONL timeline as model calls. `turn_exit.guardDecisions` records metadata-
+  only guard outcomes. Its `completedToolResultFinalAnswerRecovery` field is
+  one of `not_evaluated`, `skip_recovery`, or `allow_recovery`; older v2 entries
+  can omit the object. `goal_auto_continue` records bounded continue, stop, and
+  active-goal skip decisions; its evidence includes the first safe boundary
+  veto when one prevented dispatch. `execution_shadow` stores only redacted
+  hashes, enum names, counts, and booleans; it excludes contract text, task
+  identifiers, and diagnostic text.
 
 ## Sensitivity
 

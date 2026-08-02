@@ -4,26 +4,15 @@
 
 part of 'chat_notifier.dart';
 
-/// LL31 turn-exit instrumentation (slice 2a).
-///
-/// Records a structured reason for why each tool-calling turn ended so the
-/// session-log triage tooling can see whether complex turns stop on a tool-call
-/// abort, a user-confirmation pause, the iteration cap, an empty/partial answer,
-/// or a normal completion. This is logging only — it does not alter the
-/// response. The user-visible completion explainer is the separate LL31 slice 2b.
+/// Persists structured, behavior-neutral tool-turn exit diagnostics.
+/// The user-visible completion explainer remains a separate concern.
 const ToolLoopExitClassifier _toolLoopExitClassifier = ToolLoopExitClassifier();
 
 extension ChatNotifierTurnExit on ChatNotifier {
-  /// Classify, log, and persist the exit reason for the just-finalized turn,
-  /// then clear the per-turn hint the tool loop set. Called from
-  /// `_finishStreaming` after finalization recovery has declined and before the
-  /// messages are persisted.
-  ///
-  /// The reason is both `appLog`'d (debug console) and — when session logging is
-  /// enabled — written to the persisted `*.jsonl` via
-  /// [LlmSessionLogStore.recordTurnExit], so `tool/triage_session_logs.py` can
-  /// read the exit-reason distribution. Without the persisted write the
-  /// instrument would be invisible in release builds and to triage.
+  /// Classify and persist the finalized turn after recovery declines.
+  /// The persisted [LlmSessionLogStore.recordTurnExit] marker keeps release
+  /// builds visible to `tool/triage_session_logs.py` without changing output.
+  /// The per-turn tool-loop hint is consumed exactly once here.
   Future<void> _logTurnExitReason({
     required ChatTurnOwner owner,
     required List<Message> finalizedMessages,
@@ -70,6 +59,8 @@ extension ChatNotifierTurnExit on ChatNotifier {
           context: _llmSessionLogContextForGeneration(generation),
           reason: token,
           noVisibleAnswer: shouldDropLastAssistant,
+          finalAnswerRecoveryDecision: _turnEnd
+              .finalAnswerRecoveryDecisionLogValue(owner),
           at: DateTime.now(),
           turnId: 'gen-$generation',
           assistantMessageId: assistantMessageId,
@@ -96,6 +87,7 @@ extension ChatNotifierTurnExit on ChatNotifier {
     String? reason,
   }) {
     if (_classifiedTurnExitGenerations.remove(generation)) return true;
+    final owner = _turnOwnerForGeneration(generation);
     if (!LlmSessionLogStore.isEnabled(
       settingsEnabled: _settings.enableLlmSessionLogs,
     )) {
@@ -108,6 +100,8 @@ extension ChatNotifierTurnExit on ChatNotifier {
             context: _llmSessionLogContextForGeneration(generation),
             reason: reason ?? 'unknown($outcome)',
             noVisibleAnswer: false,
+            finalAnswerRecoveryDecision: _turnEnd
+                .finalAnswerRecoveryDecisionLogValue(owner),
             at: DateTime.now(),
             turnId: 'gen-$generation',
           ),

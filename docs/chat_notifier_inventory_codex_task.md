@@ -4,9 +4,10 @@ Status: Phase 0A static guard inventory completed on 2026-08-02. The checked-in
 manifest contains 65 decision candidates and 15 explicit helper exclusions,
 and its deterministic discovery check is covered by eight focused Python tests.
 Phase 0B telemetry selection completed on 2026-08-02 with one bounded
-instrumentation candidate and 51 explicit deferrals. Production instrumentation,
-dynamic corpus analysis, and tool-catalogue validation remain pending; no
-dynamic action state is claimed yet. Static review has proven
+candidate and 51 explicit deferrals. The first selected telemetry event is now
+implemented and marked covered. Dynamic corpus analysis and tool-catalogue
+validation remain pending; no dynamic action state is claimed yet. Static
+review has proven
 `_tryRepairAndDecodeMap` and `_repairJsonCandidate` unreachable, but their action
 state remains unresolved until matching-build observations exist.
 

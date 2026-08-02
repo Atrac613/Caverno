@@ -26,6 +26,14 @@ void main() {
     expect(registry.addTransform(owner, 'missing'), isFalse);
     expect(registry.transforms(owner), isEmpty);
     expect(
+      registry.finalAnswerRecoveryDecisionLogValue(owner),
+      'not_evaluated',
+    );
+    expect(
+      registry.recordFinalAnswerRecoveryDecision(owner, shouldSkip: true),
+      isFalse,
+    );
+    expect(
       registry.setGoalOutcome(owner, GoalUpdateAckOutcome.completionRecorded),
       isFalse,
     );
@@ -38,6 +46,26 @@ void main() {
     expect(registry.contains(owner), isTrue);
     expect(registry.length, 1);
     expect(registry.isEmpty, isFalse);
+    expect(
+      registry.finalAnswerRecoveryDecisionLogValue(owner),
+      'not_evaluated',
+    );
+    expect(
+      registry.recordFinalAnswerRecoveryDecision(owner, shouldSkip: true),
+      isTrue,
+    );
+    expect(
+      registry.finalAnswerRecoveryDecisionLogValue(owner),
+      'skip_recovery',
+    );
+    expect(
+      registry.recordFinalAnswerRecoveryDecision(owner, shouldSkip: false),
+      isTrue,
+    );
+    expect(
+      registry.finalAnswerRecoveryDecisionLogValue(owner),
+      'allow_recovery',
+    );
 
     expect(registry.addTransform(owner, 'first'), isTrue);
     expect(registry.addTransform(owner, 'second'), isTrue);
@@ -78,6 +106,14 @@ void main() {
     expect(registry.addTransform(owner, 'a-first'), isTrue);
     expect(registry.addTransform(peer, 'b-first'), isTrue);
     expect(
+      registry.recordFinalAnswerRecoveryDecision(owner, shouldSkip: true),
+      isTrue,
+    );
+    expect(
+      registry.recordFinalAnswerRecoveryDecision(peer, shouldSkip: false),
+      isTrue,
+    );
+    expect(
       registry.setGoalOutcome(owner, GoalUpdateAckOutcome.completionRecorded),
       isTrue,
     );
@@ -97,6 +133,10 @@ void main() {
     );
     expect(registry.takeGoalOutcome(owner), isNull);
     expect(registry.transforms(owner), ['a-first']);
+    expect(
+      registry.finalAnswerRecoveryDecisionLogValue(owner),
+      'skip_recovery',
+    );
 
     expect(registry.takeHint(peer), ToolLoopExitReason.guardrailBlock);
     expect(registry.takeGoalClaim(peer), isFalse);
@@ -105,6 +145,10 @@ void main() {
       GoalUpdateAckOutcome.completionRejected,
     );
     expect(registry.transforms(peer), ['b-first']);
+    expect(
+      registry.finalAnswerRecoveryDecisionLogValue(peer),
+      'allow_recovery',
+    );
   });
 
   test('preserves replacement and set-if-absent hint semantics', () {
@@ -158,6 +202,10 @@ void main() {
     expect(registry.transforms(owner), isEmpty);
     expect(registry.takeHint(owner), isNull);
     expect(registry.takeGoalClaim(owner), isFalse);
+    expect(
+      registry.finalAnswerRecoveryDecisionLogValue(owner),
+      'not_evaluated',
+    );
     expect(registry.transforms(peer), ['b']);
     expect(registry.addTransform(owner, 'a-after-reset'), isTrue);
 
@@ -173,6 +221,10 @@ void main() {
       isFalse,
     );
     expect(registry.markGoalClaimed(owner), isFalse);
+    expect(
+      registry.recordFinalAnswerRecoveryDecision(owner, shouldSkip: true),
+      isFalse,
+    );
     expect(registry.transforms(peer), ['b']);
 
     expect(registry.begin(newerOwner), isTrue);

@@ -115,6 +115,7 @@ void main() {
         context: context,
         reason: 'tool_failure_abort',
         noVisibleAnswer: true,
+        finalAnswerRecoveryDecision: 'skip_recovery',
         at: DateTime(2026, 6, 25, 9),
         turnId: 'gen-7',
         assistantMessageId: 'msg-42',
@@ -130,6 +131,9 @@ void main() {
       expect(decoded['operation'], 'turn_exit');
       expect(decoded['turnExit']['reason'], 'tool_failure_abort');
       expect(decoded['turnExit']['noVisibleAnswer'], true);
+      expect(decoded['turnExit']['guardDecisions'], {
+        'completedToolResultFinalAnswerRecovery': 'skip_recovery',
+      });
       // Turn-provenance correlation keys link this entry to the on-screen
       // conversation message it finalized.
       expect(decoded['turnExit']['turnId'], 'gen-7');
@@ -153,6 +157,7 @@ void main() {
         context: context,
         reason: 'empty_response',
         noVisibleAnswer: true,
+        finalAnswerRecoveryDecision: 'not_evaluated',
         at: DateTime(2026, 6, 25, 10),
       );
 
@@ -167,6 +172,9 @@ void main() {
       expect(turnExit.containsKey('turnId'), isFalse);
       expect(turnExit.containsKey('assistantMessageId'), isFalse);
       expect(turnExit.containsKey('transforms'), isFalse);
+      expect(turnExit['guardDecisions'], {
+        'completedToolResultFinalAnswerRecovery': 'not_evaluated',
+      });
     });
 
     test('recordGoalAutoContinue appends a triage marker', () async {

@@ -102,7 +102,7 @@ available. `observedByBuild` is intentionally not measured in Phase 0A.
 | `_buildTruncatedToolCallArgumentsGuardResult` | `chat_notifier_tool_loop_batch.dart` | notifier_member | 1 | selection may enable, block, or redirect turn behavior | `turn_exit.transforms:truncated_tool_call_arguments_feedback` | Unresolved | Not measured | Unresolved |
 | `_prepareLastAssistantForTurnFinalizationRecovery` | `chat_notifier_turn_finalization_recovery.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
 | `_shouldSkipCompletedToolResultCodingContinuationRecovery` | `chat_notifier_turn_finalization_recovery.dart` | notifier_member | 1 | silent non-fire can leave a guarded or corrective path unreachable | `turn_exit.transforms:coding_continuation_recovery_*` | Unresolved | Not measured | Unresolved |
-| `_shouldSkipCompletedToolResultFinalAnswerRecovery` | `chat_notifier_turn_finalization_recovery.dart` | notifier_member | 2 | silent non-fire can leave a guarded or corrective path unreachable | Not mapped | Unresolved | Not measured | Unresolved |
+| `_shouldSkipCompletedToolResultFinalAnswerRecovery` | `chat_notifier_turn_finalization_recovery.dart` | notifier_member | 2 | silent non-fire can leave a guarded or corrective path unreachable | `turn_exit.guardDecisions.completedToolResultFinalAnswerRecovery` | Unresolved | Not measured | Unresolved |
 | `_applyNarratedTranscriptRepairToStreamedFinalAnswer` | `chat_notifier_unexecuted_action_recovery.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | `turn_exit.transforms:narrated_transcript_repair` | Unresolved | Not measured | Unresolved |
 | `_requestNarratedTranscriptRepairForCompletionClaim` | `chat_notifier_unexecuted_action_recovery.dart` | notifier_member | 1 | silent non-fire can leave a recovery path unreachable | `turn_exit.transforms:narrated_transcript_repair` | Unresolved | Not measured | Unresolved |
 
@@ -175,19 +175,20 @@ excluded while the discovery rule continues to match it.
 
 ## Phase 0B telemetry selection
 
-The checked-in `tool/chat_notifier_guard_telemetry_selection.json` covers all 52
-entries without a mapped structured event. The analyser joins it to this guard
-inventory by stable ID and enforces a first-slice limit of one:
+The checked-in `tool/chat_notifier_guard_telemetry_selection.json` retains all
+52 entries that lacked a mapped structured event when Phase 0B began. The
+analyser joins it to this guard inventory by stable ID and enforces a first-
+slice limit of one:
 
-- 1 `instrument`:
+- 0 `instrument`.
+- 1 `covered`:
   `_shouldSkipCompletedToolResultFinalAnswerRecovery`.
-- 0 `covered`.
 - 51 `defer`, each with an explicit prerequisite.
 
-The selected decision will eventually reuse the existing `turn_exit` boundary
-and record only `not_evaluated`, `skip_recovery`, or `allow_recovery`. This
-selection does not add production logging, prove that any candidate fires, or
-change an action state.
+The selected decision now reuses the existing `turn_exit` boundary and records
+only `not_evaluated`, `skip_recovery`, or `allow_recovery`. This metadata does
+not prove that any candidate fires in a matching-build corpus or change an
+action state.
 
 Validate the selection with:
 
@@ -205,7 +206,7 @@ python3 tool/analyze_chat_notifier_inventory.py \
   stopping at lexical references.
 - Review callback, extension, module-registration, and runtime configuration
   edges for the remaining candidates.
-- Implement the single selected Phase 0B telemetry event before collecting the
-  matching-build corpus.
+- Collect a hash-pinned matching-build corpus before selecting a second Phase
+  0B telemetry event.
 - Run the private, hash-pinned matching-build corpus analysis before deriving
   action states.

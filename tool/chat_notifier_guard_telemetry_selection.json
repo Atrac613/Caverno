@@ -364,7 +364,7 @@
     },
     {
       "id": "lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart::_shouldSkipCompletedToolResultFinalAnswerRecovery",
-      "disposition": "instrument",
+      "disposition": "covered",
       "question": "Was completed-tool final-answer recovery evaluated, and which branch did it select?",
       "reason": "This load-bearing decision can reuse the existing turn_exit boundary without recording user or tool payloads.",
       "event": "turn_exit.guardDecisions.completedToolResultFinalAnswerRecovery",

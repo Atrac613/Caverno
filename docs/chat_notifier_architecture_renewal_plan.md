@@ -219,13 +219,14 @@ proof and did not define this inventory.
 
 **Phase 0B — telemetry for the subset 0A selects.** Selection completed on
 2026-08-02. The checked-in selection manifest classifies all 52 candidates
-without a mapped event: one `instrument`, zero `covered`, and 51 `defer`. The
-first bounded production slice is
+that lacked a mapped event: zero `instrument`, one `covered`, and 51 `defer`.
+The first bounded production slice is
 `_shouldSkipCompletedToolResultFinalAnswerRecovery`, recorded as metadata-only
-decision state on the existing `turn_exit` boundary. The selection is a work-in-
-progress limit, not runtime evidence or an action-state classification. Adding
-one such field (`hasVerifierReplayCandidate`) on 2026-08-01 resolved in a single
-run a question that had been invisible for as long as the feature existed.
+decision state on the existing `turn_exit` boundary. Completing the slice does
+not itself provide matching-build runtime evidence or an action-state
+classification. Adding one such field (`hasVerifierReplayCandidate`) on
+2026-08-01 resolved in a single run a question that had been invisible for as
+long as the feature existed.
 
 **Phase 1 — inventory against a pinned corpus.** See
 `docs/chat_notifier_inventory_codex_task.md`. Fix the date range, file set and

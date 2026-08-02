@@ -116,6 +116,35 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
+- Summary: Every newly persisted `turn_exit` now includes the metadata-only
+  `completedToolResultFinalAnswerRecovery` decision. Turn-owned state starts at
+  `not_evaluated`, records `skip_recovery` or `allow_recovery` after the
+  existing policy evaluation, and remains isolated across equal-generation
+  conversations. The Phase 0B selection is marked `covered`; no recovery
+  behavior or session-log schema version changed.
+- Tests run:
+  - `python3 test/python/analyze_chat_notifier_inventory_test.py`: 20 passed.
+  - Guard inventory and telemetry selection validation: 52 selected, zero
+    instrument, one covered, and 51 deferred.
+  - Focused registry, session-log, and `ChatNotifier` tests: 333 passed.
+  - File-size and thread-scoped-state ratchets: 250 passed without raising a
+    budget.
+  - `fvm flutter analyze`: no issues.
+  - `tool/codex_verify.sh`: dependency install, generated-file check, project
+    and package analysis, and package tests passed. The full Flutter suite
+    reached 6,475 passing tests and failed one unrelated existing assertion in
+    `test/tool/run_coding_stalled_diagnostic_repair_live_canary_test.dart`; the
+    test still requires the removed source text `.where(_isTodoVerifierCall)`.
+- Coverage notes: Registry tests cover all three decision states, owner
+  isolation, reset, disposal, and late writes. Session-log tests cover the
+  exact `skip_recovery` and `not_evaluated` payloads. Existing notifier tests
+  continue to cover both policy outcomes and turn-exit paths.
+- Follow-up: Collect a hash-pinned matching-build corpus before selecting a
+  second guard. Repair the stale canary-runner source assertion as a separate
+  focused change.
+
+## Handoff Notes
+
 - Summary: Pending implementation.
 - Tests run: Pending.
 - Coverage or low-coverage notes: Cover the three serialized values and

@@ -1177,12 +1177,12 @@
       "selectionRoots": [
         "lexical reference at lib/features/chat/domain/services/tool_terminal_success_policy.dart:44",
         "lexical reference at lib/features/chat/domain/services/tool_terminal_success_policy.dart:5",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:123"
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:129"
       ],
       "staticEdges": [
         "lexical reference at lib/features/chat/domain/services/tool_terminal_success_policy.dart:44 -> ToolTerminalSuccessPolicy",
         "lexical reference at lib/features/chat/domain/services/tool_terminal_success_policy.dart:5 -> ToolTerminalSuccessPolicy",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:123 -> ToolTerminalSuccessPolicy"
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:129 -> ToolTerminalSuccessPolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
       "telemetryEvent": null,
@@ -1228,18 +1228,18 @@
       "selectionRoots": [
         "lexical reference at lib/features/chat/domain/services/turn_finalization_recovery_policy.dart:46",
         "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:73",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:140",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:212",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:227",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:238"
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:146",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:218",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:233",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:244"
       ],
       "staticEdges": [
         "lexical reference at lib/features/chat/domain/services/turn_finalization_recovery_policy.dart:46 -> TurnFinalizationRecoveryPolicy",
         "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:73 -> TurnFinalizationRecoveryPolicy",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:140 -> TurnFinalizationRecoveryPolicy",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:212 -> TurnFinalizationRecoveryPolicy",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:227 -> TurnFinalizationRecoveryPolicy",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:238 -> TurnFinalizationRecoveryPolicy"
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:146 -> TurnFinalizationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:218 -> TurnFinalizationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:233 -> TurnFinalizationRecoveryPolicy",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:244 -> TurnFinalizationRecoveryPolicy"
       ],
       "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
       "telemetryEvent": null,
@@ -1553,13 +1553,13 @@
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:4100",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6150",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6416",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:75"
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:81"
       ],
       "staticEdges": [
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:4100 -> _requestCodingContinuationRecovery",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6150 -> _requestCodingContinuationRecovery",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6416 -> _requestCodingContinuationRecovery",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:75 -> _requestCodingContinuationRecovery"
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:81 -> _requestCodingContinuationRecovery"
       ],
       "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
       "telemetryEvent": "turn_exit.transforms:coding_continuation_recovery_*",
@@ -1730,10 +1730,10 @@
       "kind": "notifier_member",
       "discoveryRule": "notifier-guard-recovery-members",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:90"
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:96"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:90 -> _prepareLastAssistantForTurnFinalizationRecovery"
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:96 -> _prepareLastAssistantForTurnFinalizationRecovery"
       ],
       "reachabilityImpact": "silent non-fire can leave a recovery path unreachable",
       "telemetryEvent": null,
@@ -1771,18 +1771,17 @@
       "kind": "notifier_member",
       "discoveryRule": "notifier-guard-recovery-members",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:166",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:40"
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:172",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:41"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:166 -> _shouldSkipCompletedToolResultFinalAnswerRecovery",
-        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:40 -> _shouldSkipCompletedToolResultFinalAnswerRecovery"
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:172 -> _shouldSkipCompletedToolResultFinalAnswerRecovery",
+        "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:41 -> _shouldSkipCompletedToolResultFinalAnswerRecovery"
       ],
       "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
-      "telemetryEvent": null,
+      "telemetryEvent": "turn_exit.guardDecisions.completedToolResultFinalAnswerRecovery",
       "unresolvedEdges": [
-        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges.",
-        "No structured firing event is mapped yet."
+        "Lexical discovery does not resolve callback, dynamic dispatch, or runtime configuration edges."
       ],
       "currentStaticState": "unresolved",
       "staticProof": null

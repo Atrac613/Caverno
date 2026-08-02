@@ -393,6 +393,7 @@ class LlmSessionLogStore {
     required LlmSessionLogContext? context,
     required String reason,
     required bool noVisibleAnswer,
+    required String finalAnswerRecoveryDecision,
     required DateTime at,
     String? turnId,
     String? assistantMessageId,
@@ -410,6 +411,10 @@ class LlmSessionLogStore {
         'turnExit': {
           'reason': reason,
           'noVisibleAnswer': noVisibleAnswer,
+          'guardDecisions': {
+            'completedToolResultFinalAnswerRecovery':
+                finalAnswerRecoveryDecision,
+          },
           if (turnId != null && turnId.isNotEmpty) 'turnId': turnId,
           if (assistantMessageId != null && assistantMessageId.isNotEmpty)
             'assistantMessageId': assistantMessageId,

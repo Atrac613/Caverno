@@ -37,11 +37,17 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
       );
       return false;
     }
-    if (_shouldSkipCompletedToolResultFinalAnswerRecovery(
-      generation: generation,
-      candidateResponse: candidateResponse,
-      toolResults: _turnToolResults.completed(owner),
-    )) {
+    final shouldSkipFinalAnswerRecovery =
+        _shouldSkipCompletedToolResultFinalAnswerRecovery(
+          generation: generation,
+          candidateResponse: candidateResponse,
+          toolResults: _turnToolResults.completed(owner),
+        );
+    _turnEnd.recordFinalAnswerRecoveryDecision(
+      owner,
+      shouldSkip: shouldSkipFinalAnswerRecovery,
+    );
+    if (shouldSkipFinalAnswerRecovery) {
       appLog(
         '[TurnFinalization] Skipping coding continuation recovery after completed tool-result final answer',
       );

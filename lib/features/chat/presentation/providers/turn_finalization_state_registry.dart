@@ -1,15 +1,12 @@
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/services/goal_update_ack.dart';
 import '../../domain/services/tool_loop_exit_reason.dart';
+import 'turn_finalization_state.dart';
 
-/// Owns finalization and goal-claim state for explicitly registered turns.
-///
-/// Mutations never create state. Call [begin] when the runtime turn starts and
-/// [dispose] when it reaches a terminal state. Disposed owners reject late
-/// writes so an asynchronous callback cannot resurrect completed-turn state.
+/// Owns explicitly registered turn-finalization state without late resurrection.
 final class TurnFinalizationStateRegistry {
-  final Map<ChatTurnOwner, _TurnFinalizationState> _states =
-      <ChatTurnOwner, _TurnFinalizationState>{};
+  final Map<ChatTurnOwner, TurnFinalizationState> _states =
+      <ChatTurnOwner, TurnFinalizationState>{};
   final Map<String, int> _disposedGenerationWatermarks = <String, int>{};
 
   int get length => _states.length;
@@ -24,13 +21,13 @@ final class TurnFinalizationStateRegistry {
         _states.containsKey(owner)) {
       return false;
     }
-    _states[owner] = _TurnFinalizationState();
+    _states[owner] = TurnFinalizationState();
     return true;
   }
 
   bool reset(ChatTurnOwner owner) {
     if (!_states.containsKey(owner)) return false;
-    _states[owner] = _TurnFinalizationState();
+    _states[owner] = TurnFinalizationState();
     return true;
   }
 
@@ -48,12 +45,8 @@ final class TurnFinalizationStateRegistry {
     return true;
   }
 
-  ToolLoopExitReason? takeHint(ChatTurnOwner owner) {
-    final state = _states[owner];
-    final hint = state?.exitReasonHint;
-    if (state != null) state.exitReasonHint = null;
-    return hint;
-  }
+  ToolLoopExitReason? takeHint(ChatTurnOwner owner) =>
+      _states[owner]?.takeHint();
 
   bool addTransform(ChatTurnOwner owner, String transform) {
     final state = _states[owner];
@@ -63,6 +56,21 @@ final class TurnFinalizationStateRegistry {
   List<String> transforms(ChatTurnOwner owner) =>
       List<String>.unmodifiable(_states[owner]?.transforms ?? const <String>{});
 
+  bool recordFinalAnswerRecoveryDecision(
+    ChatTurnOwner owner, {
+    required bool shouldSkip,
+  }) {
+    final state = _states[owner];
+    if (state == null) return false;
+    state.recordFinalAnswerRecoveryDecision(shouldSkip);
+    return true;
+  }
+
+  String finalAnswerRecoveryDecisionLogValue(ChatTurnOwner? owner) =>
+      (_states[owner]?.completedToolResultFinalAnswerRecoveryDecision ??
+              CompletedToolResultFinalAnswerRecoveryDecision.notEvaluated)
+          .logValue;
+
   bool setGoalOutcome(ChatTurnOwner owner, GoalUpdateAckOutcome outcome) {
     final state = _states[owner];
     if (state == null) return false;
@@ -70,12 +78,8 @@ final class TurnFinalizationStateRegistry {
     return true;
   }
 
-  GoalUpdateAckOutcome? takeGoalOutcome(ChatTurnOwner owner) {
-    final state = _states[owner];
-    final outcome = state?.shadowGoalCompletionOutcome;
-    if (state != null) state.shadowGoalCompletionOutcome = null;
-    return outcome;
-  }
+  GoalUpdateAckOutcome? takeGoalOutcome(ChatTurnOwner owner) =>
+      _states[owner]?.takeGoalOutcome();
 
   bool markGoalClaimed(ChatTurnOwner owner) {
     final state = _states[owner];
@@ -84,12 +88,8 @@ final class TurnFinalizationStateRegistry {
     return true;
   }
 
-  bool takeGoalClaim(ChatTurnOwner owner) {
-    final state = _states[owner];
-    final claimed = state?.toolGoalCompletionClaimed ?? false;
-    if (state != null) state.toolGoalCompletionClaimed = false;
-    return claimed;
-  }
+  bool takeGoalClaim(ChatTurnOwner owner) =>
+      _states[owner]?.takeGoalClaim() ?? false;
 
   bool dispose(ChatTurnOwner owner) {
     final removed = _states.remove(owner) != null;
@@ -107,11 +107,4 @@ final class TurnFinalizationStateRegistry {
       dispose(owner);
     }
   }
-}
-
-final class _TurnFinalizationState {
-  ToolLoopExitReason? exitReasonHint;
-  final Set<String> transforms = <String>{};
-  GoalUpdateAckOutcome? shadowGoalCompletionOutcome;
-  bool toolGoalCompletionClaimed = false;
 }
