@@ -211,7 +211,7 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
         !_activeResponseRegistry.containsOwner(owner)) {
       return;
     }
-    if (ownerConversation.projectedExecutionTasks.isEmpty) {
+    if (ownerConversation.executionTaskViews.isEmpty) {
       return;
     }
     final task =
