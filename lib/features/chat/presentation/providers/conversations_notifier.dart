@@ -932,7 +932,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final shouldPreserveProjectedTasks =
         preserveWorkflowProjection &&
         conversation.shouldPreferPlanDocument &&
-        conversation.projectedExecutionTasks.isNotEmpty &&
+        conversation.executionTaskViews.isNotEmpty &&
         (requestedWorkflowSpec == null ||
             !requestedWorkflowSpec.hasContent ||
             requestedWorkflowSpec.tasks.isEmpty);

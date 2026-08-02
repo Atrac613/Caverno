@@ -1209,6 +1209,72 @@ void main() {
   );
 
   test(
+    'updateCurrentWorkflow preserves task intent without progress',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'review\n'
+              '\n'
+              '## Goal\n'
+              'Keep completed task intent stable\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Preserve the completed task\n'
+              '   - Status: completed\n'
+              '   - Target files: main.py\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final originalConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!;
+      final originalTask =
+          originalConversation.effectiveWorkflowSpec.tasks.single;
+      final originalSourceHash = originalConversation.workflowSourceHash;
+      final originalDerivedAt = originalConversation.workflowDerivedAt;
+      expect(originalConversation.executionProgress, isEmpty);
+      expect(
+        originalConversation.executionTaskViews.single.status,
+        ConversationWorkflowTaskStatus.pending,
+      );
+
+      await notifier.updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.review,
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Keep completed task intent stable',
+        ),
+        preserveWorkflowProjection: true,
+      );
+
+      final refreshedConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!;
+      expect(refreshedConversation.effectiveWorkflowSpec.tasks, [originalTask]);
+      expect(refreshedConversation.executionProgress, isEmpty);
+      expect(refreshedConversation.workflowSourceHash, originalSourceHash);
+      expect(refreshedConversation.workflowDerivedAt, originalDerivedAt);
+      expect(
+        refreshedConversation.projectedExecutionTasks.single.status,
+        ConversationWorkflowTaskStatus.completed,
+      );
+    },
+  );
+
+  test(
     'updateCurrentExecutionTaskProgress stores rich execution metadata',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);
