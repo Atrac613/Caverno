@@ -20,7 +20,7 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     if (owner == null) return false;
     final lastMessage = finalizedMessages.last;
     if (lastMessage.role != MessageRole.assistant ||
-        !_assistantMessageHasVisibleContent(lastMessage.content)) {
+        !TurnFinalMessage.hasVisibleContent(lastMessage.content)) {
       return false;
     }
     final candidateResponse = _turnFinalizationCandidateText(

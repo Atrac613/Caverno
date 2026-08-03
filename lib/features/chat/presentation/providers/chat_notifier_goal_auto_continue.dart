@@ -335,7 +335,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   }
 
   bool _isGoalAutoContinueOwnerCurrent(ChatTurnOwner owner) =>
-      ref.mounted && _queueOwnerIsVisible(owner.conversationId);
+      _turnRuntimeOwnerLease.isCurrent(owner);
 
   GoalAutoContinueTrackerSnapshot _goalAutoContinueTrackerFor(
     ChatTurnOwner owner,
@@ -627,7 +627,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   GoalAutoContinueSafeBoundary _goalAutoContinueSafeBoundaryFor(
     ChatTurnOwner owner,
   ) {
-    final ownerIsVisible = _queueOwnerIsVisible(owner.conversationId);
+    final ownerIsVisible = _turnRuntimeOwnerLease.isCurrent(owner);
     final threadState = ownerIsVisible
         ? ThreadScopedChatState.from(state)
         : _threadStates[owner.conversationId] ?? ThreadScopedChatState.empty;

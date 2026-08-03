@@ -181,10 +181,16 @@ tests. They remain unwired in production. The next bounded task is to implement
 the narrow production boundary objects without storing `ChatNotifier` or `Ref`,
 then move only the two reserved symbols.
 
-The first boundary object is now implemented by
-`TurnRuntimeGoalTrackerAdapter`. It holds only the existing
-conversation-spanning tracker registry and remains unwired until the reserved
-symbol migration. `TurnRuntimeConversationGoalAdapter` and
-`ConversationsNotifierGoalRuntimeStore` now provide the second boundary with
-explicit conversation-ID reads and writes. Both remain unwired. Owner lease,
-safe-boundary capture, and logging remain pending.
+The first boundary object is implemented by `TurnRuntimeGoalTrackerAdapter`.
+It holds only the existing conversation-spanning tracker registry and remains
+unwired until the reserved symbol migration. `TurnRuntimeConversationGoalAdapter`
+and `ConversationsNotifierGoalRuntimeStore` provide the second boundary with
+explicit conversation-ID reads and writes; they also remain unwired.
+
+`TurnRuntimeOwnerLeaseRegistry` now provides the third boundary and is wired
+into the existing production wrapper. It stores only lifecycle, visible
+conversation, and selected conversation values. Queue ownership, turn
+finalization, and the reserved goal-continuation path query it without storing
+`ChatNotifier`, `Ref`, callbacks, or active-response state. This preserves the
+post-response continuation window, where active-response registration has
+already ended. Safe-boundary capture and logging remain pending.

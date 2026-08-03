@@ -30,7 +30,7 @@ extension ChatNotifierCancellation on ChatNotifier {
       final lastMessage = updatedMessages[lastIndex];
       var changedMessages = false;
       if (lastMessage.role == MessageRole.assistant &&
-          !_assistantMessageHasVisibleContent(lastMessage.content)) {
+          !TurnFinalMessage.hasVisibleContent(lastMessage.content)) {
         updatedMessages.removeAt(lastIndex);
         changedMessages = true;
       } else if (lastMessage.isStreaming) {

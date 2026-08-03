@@ -26,6 +26,7 @@ import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
+import '../../application/runtime/turn_runtime_owner_lease_registry.dart';
 import '../../domain/services/ask_user_question_turn_cache.dart';
 import '../../domain/services/conversation_goal_suggestion_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
@@ -354,7 +355,14 @@ class ChatNotifier extends Notifier<ChatState> {
   late final _fileMutationRuntime = _buildFileMutationRuntimeAdapter();
   late final _askUserQuestionRuntime = _buildAskUserQuestionRuntime();
   final _conversationTaintState = ConversationTaintState();
-  String? conversationId, _activeTurnUserPrompt;
+  final _turnRuntimeOwnerLease = TurnRuntimeOwnerLeaseRegistry();
+  String? _conversationId, _activeTurnUserPrompt;
+  String? get conversationId => _conversationId;
+  set conversationId(String? value) {
+    _conversationId = value;
+    _turnRuntimeOwnerLease.updateVisibleConversation(value);
+  }
+
   String _languageCode = 'en';
   String? _sessionMemoryContext, _temporalReferenceContext;
   Message? _hiddenPrompt;
@@ -430,6 +438,10 @@ class ChatNotifier extends Notifier<ChatState> {
     final initialMessages =
         conversationsState.currentConversation?.messages ?? const <Message>[];
     conversationId = conversationsState.currentConversation?.id;
+    _turnRuntimeOwnerLease.mount(
+      visibleConversationId: conversationId,
+      selectedConversationId: conversationsState.currentConversation?.id,
+    );
     ref.listen<AppSettings>(settingsNotifierProvider, (previous, next) {
       _updateConnectionSettings(next);
     });
@@ -475,6 +487,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     ref.onDispose(() {
+      _turnRuntimeOwnerLease.retire();
       _streamSubscription?.cancel();
       _streamSubscription = null;
       _cancelAllPendingToolApprovals();
@@ -731,6 +744,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required String? conversationId,
     required List<Message> messages,
   }) {
+    _turnRuntimeOwnerLease.updateSelectedConversation(conversationId);
     final sameConversation = this.conversationId == conversationId;
     final sameMessages = listEquals(state.messages, messages);
     if (sameConversation && sameMessages) {
@@ -2068,7 +2082,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   @visibleForTesting
   bool assistantMessageHasVisibleContentForTest(String content) =>
-      _assistantMessageHasVisibleContent(content);
+      TurnFinalMessage.hasVisibleContent(content);
 
   @visibleForTesting
   WorkflowProposalDraft? buildWorkflowProposalFallbackForTest({
@@ -2588,7 +2602,7 @@ class ChatNotifier extends Notifier<ChatState> {
           effectiveOwner,
           draftMessages,
         );
-        if (!_queueOwnerIsVisible(effectiveOwner)) {
+        if (!_turnRuntimeOwnerLease.isConversationCurrent(effectiveOwner)) {
           return _restoreQueuedMessageForRetry(
             queuedMessage,
             effectiveOwner,
@@ -2623,7 +2637,7 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       if (startedRuntime == null) {
         _clearActiveResponseForGeneration(interactionGeneration);
-        if (!_queueOwnerIsVisible(effectiveOwner)) {
+        if (!_turnRuntimeOwnerLease.isConversationCurrent(effectiveOwner)) {
           return _restoreQueuedMessageForRetry(
             queuedMessage,
             effectiveOwner,
@@ -2635,7 +2649,7 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       turnOwner = startedRuntime;
       runtimeStarted = true;
-      if (!_queueOwnerIsVisible(effectiveOwner)) {
+      if (!_turnRuntimeOwnerLease.isConversationCurrent(effectiveOwner)) {
         _failRuntimeTurn(
           interactionGeneration,
           code: 'queue_owner_changed',
@@ -2917,10 +2931,6 @@ class ChatNotifier extends Notifier<ChatState> {
       ownerConversationId == conversationId &&
       !state.isLoading &&
       _activeResponseGenerationForConversation(ownerConversationId) == null;
-
-  bool _queueOwnerIsVisible(String owner) =>
-      conversationId == owner &&
-      ref.read(conversationsNotifierProvider).currentConversation?.id == owner;
 
   Future<void> _drainQueuedChatMessagesForThreadIfIdle(String owner) async {
     if (!_canDrainQueuedMessagesForThread(owner) ||
@@ -8470,7 +8480,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_isCurrentInteractionGeneration(generation)) return;
     await _drainQueuedChatMessagesForThreadIfIdle(turnThreadId ?? '');
     if (!_isCurrentInteractionGeneration(generation)) return;
-    if (!_queueOwnerIsVisible(turnOwner.conversationId)) return;
+    if (!_turnRuntimeOwnerLease.isCurrent(turnOwner)) return;
     await _maybeAutoContinueCurrentGoal(
       owner: turnOwner,
       finalizedAssistantResponse: finalizedLastMessage.content,
@@ -8485,32 +8495,7 @@ class ChatNotifier extends Notifier<ChatState> {
   ) => TurnFinalMessage.resolve(
     lastMessage: lastMessage,
     contentToolFallback: _contentToolTurns.continuationFallback(owner),
-    hasVisibleContent: _assistantMessageHasVisibleContent,
   );
-
-  bool _assistantMessageHasVisibleContent(String content) {
-    if (content.trim().isEmpty) return false;
-
-    final result = ContentParser.parse(content);
-    for (final segment in result.segments) {
-      switch (segment.type) {
-        case ContentType.text:
-        case ContentType.thinking:
-          if (segment.content.trim().isNotEmpty) {
-            return true;
-          }
-        case ContentType.toolCall:
-          final toolName = segment.toolCall?.name.toLowerCase();
-          if (toolName != 'memory_update') {
-            return true;
-          }
-        case ContentType.toolResult:
-          continue;
-      }
-    }
-
-    return false;
-  }
 
   Future<McpToolResult?> _ensureActiveProjectAccess(String toolName) async {
     final scopedRoot = TurnProjectRoot.current?.rootPath.trim();

@@ -1,3 +1,5 @@
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 import '../../domain/entities/message.dart';
 import '../../domain/services/truncation_notice.dart';
 
@@ -26,13 +28,10 @@ class TurnFinalMessage {
 
   final String? fallbackContent;
 
-  /// [hasVisibleContent] answers whether an assistant message shows the user
-  /// anything — reasoning and tool calls count, a bare `memory_update` does
-  /// not.
+  /// Reasoning and tool calls count as visible; a bare `memory_update` does not.
   static TurnFinalMessage resolve({
     required Message lastMessage,
     required String? contentToolFallback,
-    required bool Function(String content) hasVisibleContent,
   }) {
     final fallback = contentToolFallback?.trim();
     final isEmptyAssistant =
@@ -45,6 +44,25 @@ class TurnFinalMessage {
       dropLastAssistant: isEmptyAssistant && !useFallback,
       fallbackContent: fallback,
     );
+  }
+
+  static bool hasVisibleContent(String content) {
+    if (content.trim().isEmpty) return false;
+    final result = ContentParser.parse(content);
+    for (final segment in result.segments) {
+      switch (segment.type) {
+        case ContentType.text:
+        case ContentType.thinking:
+          if (segment.content.trim().isNotEmpty) return true;
+        case ContentType.toolCall:
+          if (segment.toolCall?.name.toLowerCase() != 'memory_update') {
+            return true;
+          }
+        case ContentType.toolResult:
+          continue;
+      }
+    }
+    return false;
   }
 
   /// Returns [messages] with its last entry finalized: replaced by the
