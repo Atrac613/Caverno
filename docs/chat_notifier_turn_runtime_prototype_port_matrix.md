@@ -175,17 +175,15 @@ Production editing may begin after a review confirms all of the following:
    rejection gate.
 
 The typed inputs, five collaborators, two effect families, and runtime-owned
-reentrancy state are now defined in
+reentrancy state are defined in
 `lib/features/chat/application/runtime/turn_runtime.dart` with focused contract
-tests. They remain unwired in production. The next bounded task is to implement
-the narrow production boundary objects without storing `ChatNotifier` or `Ref`,
-then move only the two reserved symbols.
+tests. All five collaborators are now constructed in an owner-scoped production
+composition without storing `ChatNotifier`, `Ref`, providers, or callbacks.
 
-The first boundary object is implemented by `TurnRuntimeGoalTrackerAdapter`.
-It holds only the existing conversation-spanning tracker registry and remains
-unwired until the reserved symbol migration. `TurnRuntimeConversationGoalAdapter`
-and `ConversationsNotifierGoalRuntimeStore` provide the second boundary with
-explicit conversation-ID reads and writes; they also remain unwired.
+`TurnRuntimeGoalTrackerAdapter` holds only the existing conversation-spanning
+tracker registry. `TurnRuntimeConversationGoalAdapter` and
+`ConversationsNotifierGoalRuntimeStore` provide explicit conversation-ID reads
+and writes. Both boundaries are now wired into the reserved continuation path.
 
 `TurnRuntimeOwnerLeaseRegistry` now provides the third boundary and is wired
 into the existing production wrapper. It stores only lifecycle, visible
@@ -202,14 +200,22 @@ immediately before capture; the adapter combines it with the existing queue,
 detached thread-state, pending-question, and owner-lease collaborators. Exact
 approval-owner matching, including interaction generation, remains unchanged.
 
-`TurnRuntimeGoalContinuationLogAdapter` now provides the fifth boundary and is
-wired into the existing production wrapper. It implements the typed runtime
-port over `LlmSessionLogStore`, preserves environment-aware enablement and the
-disabled-before-conversation-read guard, and stores only an explicit session
-context plus a clock. The goal continuation path no longer calls the concrete
-store method directly.
+`TurnRuntimeGoalContinuationLogAdapter` provides the fifth boundary. It
+implements the typed runtime port over `LlmSessionLogStore`, preserves
+environment-aware enablement and the disabled-before-conversation-read guard,
+and accepts its store and session context only when a record is emitted. The
+goal continuation path no longer calls the concrete store method directly.
 
-All five longer-lived boundary implementations now exist. The next bounded task
-is to construct an owner-scoped `TurnRuntime` composition root from them,
-production-wire the previously isolated tracker and conversation adapters, and
-only then move the two reserved orchestration symbols.
+`TurnRuntimeProductionComposition` now creates one short-lived owner scope for
+each reserved continuation invocation. This scope is intentionally independent
+of normal execution-turn terminalization because continuation begins after the
+active response has retired. The production slice reuses all five ports, adds
+no callbacks, and reports a +109 production-line consequence; the parent file
+is one line below its 8,907-line ratchet limit.
+
+The next bounded task is to move the reserved orchestration behind a typed
+runtime operation that returns UI and hidden-dispatch effects. That task must
+preserve wrapper-side owner validation and should remove or relocate enough
+parent-file code before adding any new declarations. Only after hidden dispatch
+is returned as an effect should the legacy reentrancy flag move into runtime
+state.

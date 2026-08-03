@@ -100,6 +100,15 @@ void main() {
     expect(file.existsSync(), isTrue);
   });
 
+  test('enabled owner scope requires explicit configuration', () async {
+    final adapter = TurnRuntimeGoalContinuationLogAdapter(
+      settingsEnabled: true,
+      environment: const {},
+    );
+
+    await expectLater(adapter.record(_record()), throwsStateError);
+  });
+
   test('adapter has no notifier, Riverpod, or provider dependency', () {
     final source = File(
       'lib/features/chat/data/datasources/'
@@ -114,19 +123,27 @@ void main() {
   });
 
   test('production continuation logging uses the runtime adapter', () {
-    final source = File(
+    final continuationSource = File(
       'lib/features/chat/presentation/providers/'
       'chat_notifier_goal_auto_continue.dart',
     ).readAsStringSync();
+    final compositionSource = File(
+      'lib/features/chat/presentation/providers/'
+      'turn_runtime_production_composition.dart',
+    ).readAsStringSync();
 
-    expect(source, contains('TurnRuntimeGoalContinuationLogAdapter('));
-    expect(source, contains(').record(record);'));
-    expect(source, isNot(contains('.recordGoalAutoContinue(')));
-    final enablementCheck = source.indexOf(
-      'TurnRuntimeGoalContinuationLogAdapter.loggingEnabled(',
+    expect(
+      compositionSource,
+      contains('TurnRuntimeGoalContinuationLogAdapter('),
     );
-    final conversationRead = source.indexOf(
-      'final conversation = _conversationForId(owner.conversationId);',
+    expect(continuationSource, contains('.configureLogging('));
+    expect(continuationSource, contains('.log.record(record);'));
+    expect(continuationSource, isNot(contains('.recordGoalAutoContinue(')));
+    final enablementCheck = continuationSource.indexOf(
+      'if (!runtimeScope.loggingEnabled) return;',
+    );
+    final conversationRead = continuationSource.indexOf(
+      'final conversation = runtime.goalContinuation.conversationGoal',
       enablementCheck,
     );
     expect(enablementCheck, greaterThanOrEqualTo(0));

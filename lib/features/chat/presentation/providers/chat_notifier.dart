@@ -26,6 +26,7 @@ import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
+import '../../application/runtime/turn_runtime.dart';
 import '../../application/runtime/turn_runtime_owner_lease_registry.dart';
 import '../../domain/services/ask_user_question_turn_cache.dart';
 import '../../domain/services/conversation_goal_suggestion_service.dart';
@@ -69,7 +70,6 @@ import '../../data/datasources/python_script_tool_runtime_adapter.dart';
 import '../../data/datasources/save_skill_tool_runtime_adapter.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/session_logging_chat_datasource.dart';
-import '../../data/datasources/turn_runtime_goal_continuation_log_adapter.dart';
 import 'python_script_approval_cache_runtime_adapter.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/coding_project.dart';
@@ -181,6 +181,7 @@ import 'chat_state.dart';
 import 'chat_tool_execution_log_formatter.dart';
 import 'coding_projects_notifier.dart';
 import 'content_tool_turn_state_registry.dart';
+import 'conversations_notifier_goal_runtime_store.dart';
 import 'caverno_execution_runtime_provider.dart';
 import 'conversations_notifier.dart';
 import 'create_routine_notifier_runtime_store.dart';
@@ -203,6 +204,7 @@ import 'tool_dedupe_keys.dart';
 import 'turn_coding_project_resolver.dart';
 import 'turn_context_retry_coordinator.dart';
 import 'turn_runtime_goal_safe_boundary_adapter.dart';
+import 'turn_runtime_production_composition.dart';
 import 'turn_message_persistence_coordinator.dart';
 import 'turn_finalization_state_registry.dart';
 import 'turn_goal_completion_evidence_registry.dart';
@@ -357,6 +359,7 @@ class ChatNotifier extends Notifier<ChatState> {
   late final _askUserQuestionRuntime = _buildAskUserQuestionRuntime();
   final _conversationTaintState = ConversationTaintState();
   final _turnRuntimeOwnerLease = TurnRuntimeOwnerLeaseRegistry();
+  late final TurnRuntimeProductionComposition _turnRuntimeComposition;
   late final _turnRuntimeGoalSafeBoundary =
       TurnRuntimeGoalSafeBoundaryAdapter(
         ownerLease: _turnRuntimeOwnerLease,
@@ -449,6 +452,9 @@ class ChatNotifier extends Notifier<ChatState> {
     _turnRuntimeOwnerLease.mount(
       visibleConversationId: conversationId,
       selectedConversationId: conversationsState.currentConversation?.id,
+    );
+    _turnRuntimeComposition = _buildTurnRuntimeComposition(
+      ref.read(conversationsNotifierProvider.notifier),
     );
     ref.listen<AppSettings>(settingsNotifierProvider, (previous, next) {
       _updateConnectionSettings(next);
