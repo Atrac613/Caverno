@@ -201,4 +201,15 @@ setter, or callback. The wrapper supplies a narrow visible-thread projection
 immediately before capture; the adapter combines it with the existing queue,
 detached thread-state, pending-question, and owner-lease collaborators. Exact
 approval-owner matching, including interaction generation, remains unchanged.
-Continuation logging is the final longer-lived collaborator still pending.
+
+`TurnRuntimeGoalContinuationLogAdapter` now provides the fifth boundary and is
+wired into the existing production wrapper. It implements the typed runtime
+port over `LlmSessionLogStore`, preserves environment-aware enablement and the
+disabled-before-conversation-read guard, and stores only an explicit session
+context plus a clock. The goal continuation path no longer calls the concrete
+store method directly.
+
+All five longer-lived boundary implementations now exist. The next bounded task
+is to construct an owner-scoped `TurnRuntime` composition root from them,
+production-wire the previously isolated tracker and conversation adapters, and
+only then move the two reserved orchestration symbols.

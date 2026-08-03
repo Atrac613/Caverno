@@ -110,5 +110,5 @@ git diff --check
     no issues.
 - Coverage or low-coverage notes: The runtime composition root remains pending.
 - Risks or follow-ups: Safe-boundary state was addressed by the subsequent
-  `TurnRuntimeGoalSafeBoundaryAdapter` slice. Continuation logging remains the
-  next production boundary.
+  `TurnRuntimeGoalSafeBoundaryAdapter` slice, and continuation logging was
+  addressed by `TurnRuntimeGoalContinuationLogAdapter`.

@@ -678,7 +678,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     required ToolResultCompletionEvidence evidence,
     required GoalAutoContinueSafeBoundary safeBoundary,
   }) async {
-    if (!LlmSessionLogStore.isEnabled(
+    if (!TurnRuntimeGoalContinuationLogAdapter.loggingEnabled(
       settingsEnabled: _settings.enableLlmSessionLogs,
     )) {
       return;
@@ -698,21 +698,13 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       verificationGeneration: conversation?.verificationGeneration,
       safeBoundary: safeBoundary,
     );
-    await ref
-        .read(llmSessionLogStoreProvider)
-        .recordGoalAutoContinue(
-          context: _buildLlmSessionLogContext(
-            targetConversationId: record.owner.conversationId,
-          ),
-          decision: record.decision,
-          reason: record.reason,
-          at: DateTime.now(),
-          goalId: record.goalId,
-          nextTurnNumber: record.nextTurnNumber,
-          effectiveTurnBudget: record.effectiveTurnBudget,
-          consecutiveAutoContinuations: record.consecutiveAutoContinuations,
-          evidence: record.evidence,
-        );
+    await TurnRuntimeGoalContinuationLogAdapter(
+      logStore: ref.read(llmSessionLogStoreProvider),
+      context: _buildLlmSessionLogContext(
+        targetConversationId: record.owner.conversationId,
+      ),
+      settingsEnabled: _settings.enableLlmSessionLogs,
+    ).record(record);
   }
 
   /// Handles `update_goal` against the exact owner's current-turn results.

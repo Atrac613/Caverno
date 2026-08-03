@@ -88,7 +88,8 @@ git diff --check
     decreased from 804 to 777 lines.
   - Targeted analysis of the four changed implementation and test files found
     no issues.
-- Coverage or low-coverage notes: Logging and the runtime composition root
-  remain pending.
+- Coverage or low-coverage notes: Continuation logging was implemented by the
+  subsequent `TurnRuntimeGoalContinuationLogAdapter` slice. The runtime
+  composition root remains pending.
 - Risks or follow-ups: The wrapper still synchronizes visible state immediately
   before invoking the port until continuation orchestration moves.

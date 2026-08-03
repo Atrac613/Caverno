@@ -69,6 +69,7 @@ import '../../data/datasources/python_script_tool_runtime_adapter.dart';
 import '../../data/datasources/save_skill_tool_runtime_adapter.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/session_logging_chat_datasource.dart';
+import '../../data/datasources/turn_runtime_goal_continuation_log_adapter.dart';
 import 'python_script_approval_cache_runtime_adapter.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/coding_project.dart';
