@@ -129,6 +129,13 @@ void main() {
     );
     expect(reservedPath, contains('goalContinuation.conversationGoal'));
     expect(reservedPath, contains('goalContinuation.tracker'));
+    expect(reservedPath, contains('runtime.beginGoalContinuationDispatch('));
+    expect(reservedPath, contains('_applyTurnRuntimeGoalUiEffect('));
+    expect(reservedPath, contains('_dispatchTurnRuntimeHiddenTurn('));
+    expect(
+      reservedPath,
+      isNot(contains('sendHiddenPrompt(\n        continuationPrompt,')),
+    );
     expect(reservedPath, isNot(contains('_goalAutoContinueTrackerRegistry')));
     expect(reservedPath, isNot(contains('markCurrentGoalStatus(')));
   });

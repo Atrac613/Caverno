@@ -36,6 +36,55 @@ void main() {
       expect(runtime.isSchedulingGoalContinuation, isFalse);
       expect(runtime.beginGoalContinuationScheduling(), isTrue);
     });
+
+    test('returns owner-bound UI and hidden-turn dispatch effects', () {
+      final owner = _owner();
+      final runtime = TurnRuntime(owner: owner, goalContinuation: _ports());
+      final allowedTools = <String>{'run_tests'};
+
+      final dispatch = runtime.beginGoalContinuationDispatch(
+        prompt: 'Continue the task',
+        languageCode: 'en',
+        evidence: const ToolResultCompletionEvidence(
+          unresolvedErrorPaths: ['lib/main.dart'],
+        ),
+        count: 2,
+        budget: 5,
+        replayVerifierImmediatelyAfterMutation: true,
+        verifierOnlyContinuation: false,
+        allowedToolNames: allowedTools,
+      );
+      allowedTools.add('write_file');
+
+      expect(dispatch, isNotNull);
+      expect(dispatch!.uiEffect.owner, same(owner));
+      expect(dispatch.uiEffect.count, 2);
+      expect(dispatch.uiEffect.budget, 5);
+      expect(dispatch.hiddenTurn.owner, same(owner));
+      expect(dispatch.hiddenTurn.kind, TurnRuntimeHiddenTurnKind.continuation);
+      expect(dispatch.hiddenTurn.prompt, 'Continue the task');
+      expect(dispatch.hiddenTurn.evidence.unresolvedErrorPaths, [
+        'lib/main.dart',
+      ]);
+      expect(
+        dispatch.hiddenTurn.replayVerifierImmediatelyAfterMutation,
+        isTrue,
+      );
+      expect(dispatch.hiddenTurn.verifierOnlyContinuation, isFalse);
+      expect(dispatch.hiddenTurn.allowedToolNames, {'run_tests'});
+      expect(
+        runtime.beginGoalContinuationDispatch(
+          prompt: 'Recursive continuation',
+          languageCode: 'en',
+          evidence: const ToolResultCompletionEvidence(),
+          count: 3,
+          budget: 5,
+          replayVerifierImmediatelyAfterMutation: false,
+          verifierOnlyContinuation: false,
+        ),
+        isNull,
+      );
+    });
   });
 
   group('TurnRuntime goal continuation values', () {

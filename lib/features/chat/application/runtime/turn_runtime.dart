@@ -151,6 +151,17 @@ final class TurnRuntimeHiddenTurnRequest {
   final Set<String>? allowedToolNames;
 }
 
+/// Owner-bound effects required to dispatch one goal continuation.
+final class TurnRuntimeGoalContinuationDispatch {
+  const TurnRuntimeGoalContinuationDispatch({
+    required this.uiEffect,
+    required this.hiddenTurn,
+  });
+
+  final TurnRuntimeShowGoalProgress uiEffect;
+  final TurnRuntimeHiddenTurnRequest hiddenTurn;
+}
+
 /// Turn-lifetime owner and state for the bounded production prototype.
 final class TurnRuntime {
   TurnRuntime({required this.owner, required this.goalContinuation});
@@ -167,6 +178,39 @@ final class TurnRuntime {
     }
     _isSchedulingGoalContinuation = true;
     return true;
+  }
+
+  TurnRuntimeGoalContinuationDispatch? beginGoalContinuationDispatch({
+    required String prompt,
+    required String languageCode,
+    required ToolResultCompletionEvidence evidence,
+    required int count,
+    required int budget,
+    required bool replayVerifierImmediatelyAfterMutation,
+    required bool verifierOnlyContinuation,
+    Set<String>? allowedToolNames,
+  }) {
+    if (!beginGoalContinuationScheduling()) {
+      return null;
+    }
+    return TurnRuntimeGoalContinuationDispatch(
+      uiEffect: TurnRuntimeShowGoalProgress(
+        owner: owner,
+        count: count,
+        budget: budget,
+      ),
+      hiddenTurn: TurnRuntimeHiddenTurnRequest(
+        owner: owner,
+        kind: TurnRuntimeHiddenTurnKind.continuation,
+        prompt: prompt,
+        languageCode: languageCode,
+        evidence: evidence,
+        replayVerifierImmediatelyAfterMutation:
+            replayVerifierImmediatelyAfterMutation,
+        verifierOnlyContinuation: verifierOnlyContinuation,
+        allowedToolNames: allowedToolNames,
+      ),
+    );
   }
 
   void endGoalContinuationScheduling() {

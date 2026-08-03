@@ -585,26 +585,28 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       'conversation=$currentConversationId; evidence=${evidence.summary}',
     );
 
-    _isSchedulingGoalAutoContinue = true;
-    state = state.copyWith(
-      goalAutoContinueCount: limits.nextTurnNumber,
-      goalAutoContinueBudget: limits.effectiveTurnBudget,
-      goalAutoContinueNotice: null,
+    final dispatch = runtime.beginGoalContinuationDispatch(
+      prompt: continuationPrompt,
+      languageCode: languageCode,
+      evidence: evidence,
+      count: limits.nextTurnNumber,
+      budget: limits.effectiveTurnBudget,
+      replayVerifierImmediatelyAfterMutation:
+          limits.replayVerifierImmediatelyAfterMutation,
+      verifierOnlyContinuation: limits.verifierOnlyContinuation,
+      allowedToolNames: limits.allowedToolNames,
     );
+    if (dispatch == null) return;
+    _isSchedulingGoalAutoContinue = true;
     try {
       if (!ownerIsCurrent()) return;
-      final continuationFuture = sendHiddenPrompt(
-        continuationPrompt,
-        isVoiceMode: false,
-        languageCode: languageCode,
-        persistAssistantResponse: true,
-        initialGoalCompletionEvidence: evidence,
-        replayVerifierImmediatelyAfterMutation:
-            limits.replayVerifierImmediatelyAfterMutation,
-        verifierOnlyContinuation: limits.verifierOnlyContinuation,
-        allowedToolNames: limits.allowedToolNames,
+      _applyTurnRuntimeGoalUiEffect(dispatch.uiEffect);
+      if (!ownerIsCurrent()) return;
+      final continuationFuture = _dispatchTurnRuntimeHiddenTurn(
+        dispatch.hiddenTurn,
       );
       _isSchedulingGoalAutoContinue = false;
+      runtime.endGoalContinuationScheduling();
       await continuationFuture;
     } on Object catch (error, stackTrace) {
       goalContinuation.tracker.clearPendingRepairContract(owner);
@@ -618,7 +620,41 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       }
     } finally {
       _isSchedulingGoalAutoContinue = false;
+      runtime.endGoalContinuationScheduling();
     }
+  }
+
+  void _applyTurnRuntimeGoalUiEffect(TurnRuntimeGoalUiEffect effect) {
+    if (!_isGoalAutoContinueOwnerCurrent(effect.owner)) return;
+    switch (effect) {
+      case TurnRuntimeClearGoalIndicator():
+        _clearGoalAutoContinueIndicator();
+      case TurnRuntimeShowGoalProgress(:final count, :final budget):
+        state = state.copyWith(
+          goalAutoContinueCount: count,
+          goalAutoContinueBudget: budget,
+          goalAutoContinueNotice: null,
+        );
+      case TurnRuntimeShowGoalNotice(:final noticeKey):
+        state = state.copyWith(goalAutoContinueNotice: noticeKey);
+    }
+  }
+
+  Future<void> _dispatchTurnRuntimeHiddenTurn(
+    TurnRuntimeHiddenTurnRequest request,
+  ) async {
+    if (!_isGoalAutoContinueOwnerCurrent(request.owner)) return;
+    await sendHiddenPrompt(
+      request.prompt,
+      isVoiceMode: false,
+      languageCode: request.languageCode,
+      persistAssistantResponse: true,
+      initialGoalCompletionEvidence: request.evidence,
+      replayVerifierImmediatelyAfterMutation:
+          request.replayVerifierImmediatelyAfterMutation,
+      verifierOnlyContinuation: request.verifierOnlyContinuation,
+      allowedToolNames: request.allowedToolNames,
+    );
   }
 
   GoalAutoContinueTrackerSnapshot _applyGoalAutoContinueTrackerDelta(

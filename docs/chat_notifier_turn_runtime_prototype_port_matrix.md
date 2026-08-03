@@ -213,9 +213,17 @@ active response has retired. The production slice reuses all five ports, adds
 no callbacks, and reports a +109 production-line consequence; the parent file
 is one line below its 8,907-line ratchet limit.
 
-The next bounded task is to move the reserved orchestration behind a typed
-runtime operation that returns UI and hidden-dispatch effects. That task must
-preserve wrapper-side owner validation and should remove or relocate enough
-parent-file code before adding any new declarations. Only after hidden dispatch
-is returned as an effect should the legacy reentrancy flag move into runtime
-state.
+The normal continuation branch now calls
+`TurnRuntime.beginGoalContinuationDispatch`, which returns an owner-bound
+progress UI effect and hidden-turn request. The wrapper validates ownership
+before each effect, preserves the existing dispatch arguments, and ends runtime
+scheduling at the synchronous handoff. This adds no port, callback, provider
+capture, or ambient read; the reported production-line consequence is +80 and
+the 8,906-line parent file is unchanged.
+
+The next bounded task is to route completion elicitation and the remaining
+stop/clear UI projections through the same typed effect boundary. After both
+hidden-turn kinds are returned effects, the policy result can move behind one
+runtime operation. The legacy cross-invocation reentrancy flag must remain until
+that later slice defines how an active continuation runtime is shared or
+registered across recursive entry.
