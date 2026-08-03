@@ -627,39 +627,12 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   GoalAutoContinueSafeBoundary _goalAutoContinueSafeBoundaryFor(
     ChatTurnOwner owner,
   ) {
-    final ownerIsVisible = _turnRuntimeOwnerLease.isCurrent(owner);
-    final threadState = ownerIsVisible
-        ? ThreadScopedChatState.from(state)
-        : _threadStates[owner.conversationId] ?? ThreadScopedChatState.empty;
-    bool owns(PendingToolApproval<dynamic>? approval) =>
-        approval?.owner == owner;
-    return const GoalAutoContinueSafeBoundaryBuilder().build(
-      GoalAutoContinuePendingState(
-        owner: owner,
-        isLoading: ownerIsVisible && state.isLoading,
-        queuedUserInputCount: _queuedChatMessages.pendingFor(
-          owner.conversationId,
-        ),
-        hasPendingSshConnect: owns(threadState.pendingSshConnect),
-        hasPendingSshCommand: owns(threadState.pendingSshCommand),
-        hasPendingGitCommand: owns(threadState.pendingGitCommand),
-        hasPendingLocalCommand: owns(threadState.pendingLocalCommand),
-        hasPendingComputerUseAction: owns(threadState.pendingComputerUseAction),
-        hasPendingBrowserAction: owns(threadState.pendingBrowserAction),
-        hasPendingFileOperation: owns(threadState.pendingFileOperation),
-        hasPendingBleConnect: owns(threadState.pendingBleConnect),
-        hasPendingSerialOpen: owns(threadState.pendingSerialOpen),
-        hasPendingParticipantToolApproval: owns(
-          threadState.pendingParticipantToolApproval,
-        ),
-        hasPendingAskUserQuestion: _pendingAskUserQuestionsByThread.containsKey(
-          owner.conversationId,
-        ),
-        hasPendingWorkflowDecision: threadState.pendingWorkflowDecision != null,
-        hasParticipantTurnRuntime: threadState.participantTurnRuntime != null,
-        error: ownerIsVisible ? state.error : null,
-      ),
+    _turnRuntimeGoalSafeBoundary.synchronizeVisibleState(
+      ThreadScopedChatState.from(state),
+      isLoading: state.isLoading,
+      error: state.error,
     );
+    return _turnRuntimeGoalSafeBoundary.capture(owner);
   }
 
   /// Spend one hidden turn asking the model to settle a goal that has run dry.

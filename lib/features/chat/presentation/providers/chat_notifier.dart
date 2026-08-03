@@ -93,7 +93,6 @@ import '../../domain/services/duplicate_tool_result_recovery.dart';
 import '../../domain/services/fenced_tool_name_blocks.dart';
 import '../../domain/services/goal_auto_continue_decision_coordinator.dart';
 import '../../domain/services/goal_auto_continue_prompt_builder.dart';
-import '../../domain/services/goal_auto_continue_safe_boundary_builder.dart';
 import '../../domain/services/goal_auto_continue_tracker_registry.dart';
 import '../../domain/services/goal_completion_elicitation_prompt.dart';
 import '../../domain/services/goal_continuation_log_record_builder.dart';
@@ -202,6 +201,7 @@ import 'tool_approval_cache.dart';
 import 'tool_dedupe_keys.dart';
 import 'turn_coding_project_resolver.dart';
 import 'turn_context_retry_coordinator.dart';
+import 'turn_runtime_goal_safe_boundary_adapter.dart';
 import 'turn_message_persistence_coordinator.dart';
 import 'turn_finalization_state_registry.dart';
 import 'turn_goal_completion_evidence_registry.dart';
@@ -356,6 +356,13 @@ class ChatNotifier extends Notifier<ChatState> {
   late final _askUserQuestionRuntime = _buildAskUserQuestionRuntime();
   final _conversationTaintState = ConversationTaintState();
   final _turnRuntimeOwnerLease = TurnRuntimeOwnerLeaseRegistry();
+  late final _turnRuntimeGoalSafeBoundary =
+      TurnRuntimeGoalSafeBoundaryAdapter(
+        ownerLease: _turnRuntimeOwnerLease,
+        queuedMessages: _queuedChatMessages,
+        threadStates: _threadStates,
+        pendingQuestions: _pendingAskUserQuestionsByThread,
+      );
   String? _conversationId, _activeTurnUserPrompt;
   String? get conversationId => _conversationId;
   set conversationId(String? value) {

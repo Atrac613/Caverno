@@ -193,4 +193,12 @@ conversation, and selected conversation values. Queue ownership, turn
 finalization, and the reserved goal-continuation path query it without storing
 `ChatNotifier`, `Ref`, callbacks, or active-response state. This preserves the
 post-response continuation window, where active-response registration has
-already ended. Safe-boundary capture and logging remain pending.
+already ended.
+
+`TurnRuntimeGoalSafeBoundaryAdapter` now provides the fourth boundary and is
+wired into the existing production wrapper. It owns no notifier, `Ref`, state
+setter, or callback. The wrapper supplies a narrow visible-thread projection
+immediately before capture; the adapter combines it with the existing queue,
+detached thread-state, pending-question, and owner-lease collaborators. Exact
+approval-owner matching, including interaction generation, remains unchanged.
+Continuation logging is the final longer-lived collaborator still pending.
