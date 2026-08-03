@@ -28,6 +28,10 @@ VALIDATED_SELECTION_SCHEMA_NAME = (
     "caverno_chat_notifier_turn_runtime_prototype_validated_selection"
 )
 VALIDATED_SELECTION_SCHEMA_VERSION = 1
+COMPARISON_SCHEMA_NAME = (
+    "caverno_chat_notifier_turn_runtime_prototype_comparison"
+)
+COMPARISON_SCHEMA_VERSION = 1
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 EXPLICIT_TURN_IDENTITY_PATTERN = re.compile(
@@ -716,6 +720,550 @@ def validate_gates(
     }
 
 
+def _resolve_commit(root: pathlib.Path, revision: str, context: str) -> str:
+    resolved = _git(root, "rev-parse", "--verify", f"{revision}^{{commit}}")
+    if COMMIT_PATTERN.fullmatch(resolved) is None:
+        raise SelectionError(f"{context} must resolve to a full Git SHA")
+    return resolved
+
+
+def _require_ancestor(
+    root: pathlib.Path, ancestor: str, descendant: str, context: str
+) -> None:
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode == 1:
+        raise SelectionError(context)
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip()
+        raise SelectionError(f"Could not compare revisions: {message}")
+
+
+def _is_ancestor(root: pathlib.Path, ancestor: str, descendant: str) -> bool:
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode in {0, 1}:
+        return result.returncode == 0
+    message = result.stderr.strip() or result.stdout.strip()
+    raise SelectionError(f"Could not compare revisions: {message}")
+
+
+def _git_source(root: pathlib.Path, revision: str, relative_path: str) -> str:
+    return _git(root, "show", f"{revision}:{relative_path}", strip=False)
+
+
+def _is_generated_lib_path(relative_path: str) -> bool:
+    return relative_path.endswith((".g.dart", ".freezed.dart"))
+
+
+def _changed_production_paths(
+    root: pathlib.Path, before_revision: str
+) -> list[tuple[str, str | None, str]]:
+    output = _git(
+        root,
+        "diff",
+        "--name-status",
+        "--find-renames",
+        before_revision,
+        "--",
+        "lib",
+        strip=False,
+    )
+    changed: list[tuple[str, str | None, str]] = []
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        fields = line.split("\t")
+        status = fields[0]
+        if status.startswith("R"):
+            if len(fields) != 3:
+                raise SelectionError(f"Malformed renamed production path: {line}")
+            before_path, after_path = fields[1], fields[2]
+        else:
+            if len(fields) != 2 or status not in {"A", "M", "D", "T"}:
+                raise SelectionError(f"Unsupported production path change: {line}")
+            before_path = None if status == "A" else fields[1]
+            after_path = fields[1]
+        effective_path = after_path if status != "D" else before_path
+        if effective_path is None or _is_generated_lib_path(effective_path):
+            continue
+        changed.append((status, before_path, after_path))
+    known_after_paths = {after_path for _, _, after_path in changed}
+    untracked = _git(
+        root,
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "--",
+        "lib",
+        strip=False,
+    )
+    for relative_path in untracked.splitlines():
+        if (
+            relative_path
+            and relative_path not in known_after_paths
+            and not _is_generated_lib_path(relative_path)
+        ):
+            changed.append(("A", None, relative_path))
+    return changed
+
+
+def _line_count(source: str) -> int:
+    return len(source.splitlines())
+
+
+def _production_comparison(
+    root: pathlib.Path, before_revision: str
+) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    for status, before_path, after_path in _changed_production_paths(
+        root, before_revision
+    ):
+        before_source = (
+            ""
+            if before_path is None
+            else _git_source(root, before_revision, before_path)
+        )
+        after_file = root / after_path
+        after_source = "" if status == "D" else after_file.read_text()
+        before_lines = _line_count(before_source)
+        after_lines = _line_count(after_source)
+        rows.append(
+            {
+                "status": status,
+                "beforePath": before_path,
+                "afterPath": after_path,
+                "beforeLines": before_lines,
+                "afterLines": after_lines,
+                "delta": after_lines - before_lines,
+            }
+        )
+    rows.sort(key=lambda row: (row["afterPath"], row["beforePath"] or ""))
+    before_lines = sum(row["beforeLines"] for row in rows)
+    after_lines = sum(row["afterLines"] for row in rows)
+    return {
+        "files": rows,
+        "touchedFileCount": len(rows),
+        "beforeLines": before_lines,
+        "afterLines": after_lines,
+        "delta": after_lines - before_lines,
+    }
+
+
+def _symbol_parameter_source(source: str, symbol: str) -> str | None:
+    pattern = re.compile(rf"\b{re.escape(symbol)}\s*\(")
+    for match in pattern.finditer(source):
+        line_start = source.rfind("\n", 0, match.start()) + 1
+        prefix = source[line_start : match.start()]
+        declaration_prefix = prefix.strip()
+        if (
+            not declaration_prefix
+            or declaration_prefix in {"await", "return"}
+            or "=" in declaration_prefix
+            or "." in declaration_prefix
+        ):
+            continue
+        opening = source.find("(", match.start())
+        depth = 0
+        for index in range(opening, len(source)):
+            character = source[index]
+            if character == "(":
+                depth += 1
+            elif character == ")":
+                depth -= 1
+                if depth == 0:
+                    return source[opening + 1 : index]
+    return None
+
+
+def _split_parameters(source: str) -> list[str]:
+    parameters: list[str] = []
+    start = 0
+    depths = {"(": 0, "[": 0, "{": 0, "<": 0}
+    closing = {")": "(", "]": "[", "}": "{", ">": "<"}
+    for index, character in enumerate(source):
+        if character in depths:
+            depths[character] += 1
+        elif character in closing:
+            key = closing[character]
+            depths[key] = max(0, depths[key] - 1)
+        elif character == "," and not any(depths.values()):
+            parameters.append(source[start:index].strip())
+            start = index + 1
+    tail = source[start:].strip()
+    if tail:
+        parameters.append(tail)
+    return parameters
+
+
+def _identity_parameters(source: str, symbol: str) -> list[str]:
+    parameter_source = _symbol_parameter_source(source, symbol)
+    if parameter_source is None:
+        return []
+    return [
+        parameter
+        for parameter in _split_parameters(parameter_source)
+        if _is_explicit_turn_identity_parameter(parameter)
+    ]
+
+
+def _identity_comparison(
+    *,
+    root: pathlib.Path,
+    before_revision: str,
+    selected_source_path: str,
+    migrated_symbols: list[str],
+) -> dict[str, Any]:
+    before_source = _git_source(root, before_revision, selected_source_path)
+    after_source = _repository_file(
+        root, selected_source_path, "selection.selected.sourcePath"
+    ).read_text()
+    rows: list[dict[str, Any]] = []
+    for symbol in migrated_symbols:
+        before_parameters = _identity_parameters(before_source, symbol)
+        after_parameters = _identity_parameters(after_source, symbol)
+        rows.append(
+            {
+                "symbol": symbol,
+                "before": before_parameters,
+                "after": after_parameters,
+                "removed": max(0, len(before_parameters) - len(after_parameters)),
+            }
+        )
+    before_count = sum(len(row["before"]) for row in rows)
+    after_count = sum(len(row["after"]) for row in rows)
+    return {
+        "symbols": rows,
+        "beforeCount": before_count,
+        "afterCount": after_count,
+        "removedCount": max(0, before_count - after_count),
+    }
+
+
+def _port_methods(source: str, relative_path: str) -> set[str]:
+    methods: set[str] = set()
+    class_pattern = re.compile(
+        r"abstract\s+interface\s+class\s+(\w*Port)\s*\{"
+    )
+    for match in class_pattern.finditer(source):
+        opening = source.find("{", match.start())
+        depth = 0
+        closing = None
+        for index in range(opening, len(source)):
+            if source[index] == "{":
+                depth += 1
+            elif source[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    closing = index
+                    break
+        if closing is None:
+            continue
+        body = source[opening + 1 : closing]
+        for method in re.finditer(r"\b(\w+)\s*\([^;{}]*\)\s*;", body):
+            methods.add(
+                f"{relative_path}::{match.group(1)}.{method.group(1)}"
+            )
+    return methods
+
+
+def _callback_surfaces(source: str, relative_path: str) -> set[str]:
+    surfaces = {
+        f"{relative_path}::typedef:{match.group(1)}"
+        for match in re.finditer(
+            r"\btypedef\s+(\w+)\s*=\s*[^;]*\bFunction\s*\(", source
+        )
+    }
+    for match in re.finditer(
+        r"\bFunction\s*\([^)]*\)\s*(\w+)", source, re.MULTILINE
+    ):
+        surfaces.add(f"{relative_path}::value:{match.group(1)}")
+    return surfaces
+
+
+def _public_declarations(source: str, relative_path: str) -> set[str]:
+    declarations: set[str] = set()
+    pattern = re.compile(
+        r"^\s*(?:abstract\s+interface\s+|abstract\s+|base\s+|final\s+|"
+        r"sealed\s+)?(?:class|enum|mixin|extension|typedef)\s+(\w+)",
+        re.MULTILINE,
+    )
+    for match in pattern.finditer(source):
+        name = match.group(1)
+        if not name.startswith("_"):
+            declarations.add(f"{relative_path}::{name}")
+    return declarations
+
+
+def _surface_comparison(
+    root: pathlib.Path,
+    before_revision: str,
+    production: dict[str, Any],
+) -> dict[str, Any]:
+    before_ports: set[str] = set()
+    after_ports: set[str] = set()
+    before_callbacks: set[str] = set()
+    after_callbacks: set[str] = set()
+    before_public: set[str] = set()
+    after_public: set[str] = set()
+    for row in production["files"]:
+        before_path = row["beforePath"]
+        after_path = row["afterPath"]
+        if before_path is not None and before_path.endswith(".dart"):
+            source = _git_source(root, before_revision, before_path)
+            before_ports.update(_port_methods(source, before_path))
+            before_callbacks.update(_callback_surfaces(source, before_path))
+            before_public.update(_public_declarations(source, before_path))
+        if row["status"] != "D" and after_path.endswith(".dart"):
+            source = (root / after_path).read_text()
+            after_ports.update(_port_methods(source, after_path))
+            after_callbacks.update(_callback_surfaces(source, after_path))
+            after_public.update(_public_declarations(source, after_path))
+    return {
+        "ports": {
+            "introducedMethods": sorted(after_ports - before_ports),
+            "removedMethods": sorted(before_ports - after_ports),
+        },
+        "callbacks": {
+            "introducedSurfaces": sorted(after_callbacks - before_callbacks),
+            "removedSurfaces": sorted(before_callbacks - after_callbacks),
+        },
+        "publicSurface": {
+            "introducedDeclarations": sorted(after_public - before_public),
+            "removedDeclarations": sorted(before_public - after_public),
+        },
+    }
+
+
+def _added_diff_source(root: pathlib.Path, before_revision: str) -> str:
+    diff = _git(
+        root,
+        "diff",
+        "--unified=3",
+        before_revision,
+        "--",
+        "lib",
+        strip=False,
+    )
+    added = "\n".join(
+        line[1:]
+        for line in diff.splitlines()
+        if line.startswith("+") and not line.startswith("+++")
+    )
+    untracked = _git(
+        root,
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "--",
+        "lib",
+        strip=False,
+    )
+    untracked_sources = [
+        (root / relative_path).read_text()
+        for relative_path in untracked.splitlines()
+        if relative_path and not _is_generated_lib_path(relative_path)
+    ]
+    return "\n".join([added, *untracked_sources])
+
+
+def _chat_notifier_callback_captures(
+    root: pathlib.Path, before_revision: str
+) -> list[str]:
+    added = _added_diff_source(root, before_revision)
+    capture_pattern = re.compile(
+        r"(?:\([^)]*\)|\b\w+)\s*=>[^;\n]*"
+        r"(?:\bnotifier\b|\bref\b|\bstate\b|sendHiddenPrompt)",
+        re.IGNORECASE,
+    )
+    return sorted({match.group(0).strip() for match in capture_pattern.finditer(added)})
+
+
+def _run_after_audit(root: pathlib.Path) -> dict[str, Any]:
+    local_dart = root / ".fvm/flutter_sdk/bin/dart"
+    executable = str(local_dart) if local_dart.is_file() else "dart"
+    result = subprocess.run(
+        [
+            executable,
+            "run",
+            "tool/audit_chat_notifier_turn_scope.dart",
+            "--manifest",
+            "tool/chat_notifier_decomposition_manifest.json",
+        ],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip()
+        raise SelectionError(f"Turn-scope worktree audit failed: {message}")
+    try:
+        value = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise SelectionError(
+            f"Turn-scope worktree audit did not return JSON: {error}"
+        ) from error
+    if not isinstance(value, dict):
+        raise SelectionError("Turn-scope worktree audit must return an object")
+    return value
+
+
+def _ambient_read_comparison(
+    *,
+    root: pathlib.Path,
+    before_revision: str,
+    after_audit: dict[str, Any] | None,
+) -> dict[str, Any]:
+    baseline_source = _git_source(
+        root,
+        before_revision,
+        "tool/chat_notifier_turn_scope_baseline.json",
+    )
+    try:
+        before_audit = json.loads(baseline_source)
+    except json.JSONDecodeError as error:
+        raise SelectionError(f"Before turn-scope baseline is invalid: {error}") from error
+    current_audit = after_audit or _run_after_audit(root)
+    before_summary = _require_object(
+        before_audit.get("summary"), "beforeAudit.summary"
+    )
+    after_summary = _require_object(
+        current_audit.get("summary"), "afterAudit.summary"
+    )
+    before_count = before_summary.get("turnReachableReads")
+    after_count = after_summary.get("turnReachableReads")
+    if not isinstance(before_count, int) or not isinstance(after_count, int):
+        raise SelectionError("Turn-scope summaries require turnReachableReads")
+    before_ids = {
+        _require_string(read.get("id"), "beforeAudit.reads[].id")
+        for read in _require_list(before_audit.get("reads"), "beforeAudit.reads")
+        if _require_object(read, "beforeAudit.reads[]").get("turnReachable") is True
+    }
+    after_ids = {
+        _require_string(read.get("id"), "afterAudit.reads[].id")
+        for read in _require_list(current_audit.get("reads"), "afterAudit.reads")
+        if _require_object(read, "afterAudit.reads[]").get("turnReachable") is True
+    }
+    return {
+        "beforeCount": before_count,
+        "afterCount": after_count,
+        "delta": after_count - before_count,
+        "introducedIds": sorted(after_ids - before_ids),
+        "removedIds": sorted(before_ids - after_ids),
+    }
+
+
+def compare_prototype(
+    *,
+    root: pathlib.Path,
+    selection_path: pathlib.Path,
+    before_revision: str,
+    after_worktree: pathlib.Path,
+    after_audit: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    root = root.resolve()
+    if after_worktree.resolve() != root:
+        raise SelectionError("after-worktree must resolve to the repository root")
+    selection = _load_json(selection_path.resolve(), "Validated selection")
+    _require_schema(
+        selection,
+        label="Validated selection",
+        schema_name=VALIDATED_SELECTION_SCHEMA_NAME,
+        schema_version=VALIDATED_SELECTION_SCHEMA_VERSION,
+    )
+    selection_revision = _require_string(
+        selection.get("sourceRevision"), "selection.sourceRevision"
+    )
+    if COMMIT_PATTERN.fullmatch(selection_revision) is None:
+        raise SelectionError("selection.sourceRevision must be a full Git SHA")
+    resolved_before = _resolve_commit(root, before_revision, "before-revision")
+    resolved_after = _resolve_commit(root, "HEAD", "after revision")
+    _require_ancestor(
+        root,
+        resolved_before,
+        resolved_after,
+        "before-revision must be an ancestor of the checked-out HEAD",
+    )
+    selected = _require_object(selection.get("selected"), "selection.selected")
+    selected_source_path = _require_string(
+        selected.get("sourcePath"), "selection.selected.sourcePath"
+    )
+    if _is_ancestor(root, selection_revision, resolved_before):
+        selection_base_relation = "ancestor"
+    else:
+        selected_at_selection = _git_source(
+            root, selection_revision, selected_source_path
+        )
+        selected_at_before = _git_source(
+            root, resolved_before, selected_source_path
+        )
+        if selected_at_selection != selected_at_before:
+            raise SelectionError(
+                "Non-ancestral selection revision must have the same selected "
+                "source at before-revision"
+            )
+        selection_base_relation = "equivalent-selected-source"
+    verification = _require_object(
+        selection.get("verification"), "selection.verification"
+    )
+    selected_part = _require_object(
+        verification.get("selectedPart"), "selection.verification.selectedPart"
+    )
+    migrated_symbols = _require_unique_strings(
+        selected_part.get("migratedPathSymbols"),
+        "selection.verification.selectedPart.migratedPathSymbols",
+    )
+
+    production = _production_comparison(root, resolved_before)
+    identity = _identity_comparison(
+        root=root,
+        before_revision=resolved_before,
+        selected_source_path=selected_source_path,
+        migrated_symbols=migrated_symbols,
+    )
+    surfaces = _surface_comparison(root, resolved_before, production)
+    captures = _chat_notifier_callback_captures(root, resolved_before)
+    surfaces["callbacks"]["chatNotifierCaptureCandidates"] = captures
+    ambient_reads = _ambient_read_comparison(
+        root=root,
+        before_revision=resolved_before,
+        after_audit=after_audit,
+    )
+    return {
+        "schemaName": COMPARISON_SCHEMA_NAME,
+        "schemaVersion": COMPARISON_SCHEMA_VERSION,
+        "selectionRevision": selection_revision,
+        "selectionBaseRelation": selection_base_relation,
+        "beforeRevision": resolved_before,
+        "afterRevision": resolved_after,
+        "afterWorktree": ".",
+        "selectedPart": selected.get("partPath"),
+        "migratedPathSymbols": migrated_symbols,
+        "production": production,
+        "identityParameters": identity,
+        "ports": surfaces["ports"],
+        "callbacks": surfaces["callbacks"],
+        "publicSurface": surfaces["publicSurface"],
+        "turnReachableAmbientReads": ambient_reads,
+        "structuralGates": {
+            "identityParameterRemoved": identity["removedCount"] >= 1,
+            "turnReachableAmbientReadsDoNotIncrease": ambient_reads["delta"] <= 0,
+            "noNewCallbackCapturesChatNotifier": not captures,
+        },
+    }
+
+
 def write_json_atomic(path: pathlib.Path, value: dict[str, Any]) -> None:
     path = path.resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -760,6 +1308,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--verification-manifest", required=True, type=pathlib.Path
     )
     validate.add_argument("--output", required=True, type=pathlib.Path)
+    compare = subparsers.add_parser(
+        "compare", help="Compare the completed prototype with its clean base"
+    )
+    compare.add_argument("--selection", required=True, type=pathlib.Path)
+    compare.add_argument("--before-revision", required=True)
+    compare.add_argument("--after-worktree", required=True, type=pathlib.Path)
+    compare.add_argument("--output", required=True, type=pathlib.Path)
     return parser
 
 
@@ -797,6 +1352,25 @@ def main(arguments: list[str] | None = None) -> int:
                 "TurnRuntime prototype gates valid: "
                 f"{validated['selected']['partPath']}; "
                 f"source {validated['sourceRevision']}; live canary not executed"
+            )
+        elif args.command == "compare":
+            comparison = compare_prototype(
+                root=repository_root(),
+                selection_path=args.selection,
+                before_revision=args.before_revision,
+                after_worktree=args.after_worktree,
+            )
+            write_json_atomic(args.output, comparison)
+            gates = comparison["structuralGates"]
+            print(
+                "TurnRuntime prototype compared: "
+                f"production delta={comparison['production']['delta']:+d}; "
+                f"identity removed="
+                f"{comparison['identityParameters']['removedCount']}; "
+                f"ambient delta="
+                f"{comparison['turnReachableAmbientReads']['delta']:+d}; "
+                f"structural gates="
+                f"{'pass' if all(gates.values()) else 'fail'}"
             )
         else:
             raise SelectionError(f"Unsupported command: {args.command}")

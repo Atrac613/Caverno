@@ -266,8 +266,16 @@ read. The reported production-line consequence is +49;
 `chat_notifier.dart` falls from 8,906 to 8,904 lines and its
 goal-auto-continue part falls from 793 to 792 lines.
 
-The next bounded task is to implement the prototype measurement tool's
-`compare` mode, pin the pre-production revision, and report every structural
-gate and cost field from the completed isolated diff. Full coverage, the exact
-focused gate, and the post-prototype live canary remain required before the
-Phase 1.5 closure decision.
+The prototype measurement tool now implements `compare`. The validated
+selection revision predates a squash merge, so the tool proves that its
+selected source is byte identical at the `0bac2bc0` production comparison base
+and records that relation explicitly. The current comparison covers 15
+production files and reports +708 lines, one migrated identity parameter
+removed, a -1 turn-reachable ambient-read delta, one introduced port method,
+two clock callback surfaces, 19 public declarations, and zero new callbacks
+capturing `ChatNotifier`. All three automated structural gates pass.
+
+The remaining closure task is to run the exact focused gate, full coverage,
+the structural suites, and the post-prototype live canary, then record the
+Phase 1.5 Go or No-Go decision. The positive line delta requires explicit cost
+review but is not itself a structural failure.
