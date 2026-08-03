@@ -133,6 +133,9 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   /// index, so a turn embeds at most once even though saves fire repeatedly.
   final Map<String, String> _lastIndexedSignatures = <String, String>{};
 
+  Conversation? conversationForId(String conversationId) =>
+      state.conversationForId(conversationId);
+
   @override
   ConversationsState build() {
     _repository = ref.read(conversationRepositoryProvider);
@@ -1060,8 +1063,20 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     required ConversationGoalStatus status,
     String? blockedReason,
     String? completionSummary,
+  }) => markGoalStatus(
+    conversationId: state.currentConversationId,
+    status: status,
+    blockedReason: blockedReason,
+    completionSummary: completionSummary,
+  );
+
+  Future<void> markGoalStatus({
+    required String? conversationId,
+    required ConversationGoalStatus status,
+    String? blockedReason,
+    String? completionSummary,
   }) async {
-    final conversation = state.currentConversation;
+    final conversation = state.conversationForId(conversationId);
     final goal = conversation?.goal;
     if (conversation == null || goal == null || !goal.hasObjective) {
       return;
@@ -1095,7 +1110,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: now,
     );
 
-    await _persistCurrentGoal(nextGoal);
+    await _persistCurrentGoal(nextGoal, conversationId: conversation.id);
   }
 
   Future<void> clearCurrentGoal() async {

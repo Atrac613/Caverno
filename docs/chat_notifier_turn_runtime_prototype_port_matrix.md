@@ -184,4 +184,7 @@ then move only the two reserved symbols.
 The first boundary object is now implemented by
 `TurnRuntimeGoalTrackerAdapter`. It holds only the existing
 conversation-spanning tracker registry and remains unwired until the reserved
-symbol migration. The other four collaborators remain pending.
+symbol migration. `TurnRuntimeConversationGoalAdapter` and
+`ConversationsNotifierGoalRuntimeStore` now provide the second boundary with
+explicit conversation-ID reads and writes. Both remain unwired. Owner lease,
+safe-boundary capture, and logging remain pending.
