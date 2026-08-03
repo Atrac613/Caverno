@@ -199,6 +199,78 @@ void main() {
       expect(tracker.applyDeltaCalls, 1);
       expect(tracker.budgetNoticeCalls, 0);
     });
+
+    test('removes a requested tracker only after block finalization', () {
+      final owner = _owner();
+      final tracker = _GoalTrackerPort();
+      final runtime = TurnRuntime(
+        owner: owner,
+        goalContinuation: _ports(tracker: tracker),
+      );
+      final transition = runtime.applyGoalTrackerTransition(
+        _delta(removeTracker: true),
+      );
+
+      expect(tracker.removeCalls, 0);
+
+      final finalization = runtime.finalizePersistedGoalBlock(transition);
+
+      expect(finalization.owner, same(owner));
+      expect(finalization.trackerRemoved, isTrue);
+      expect(tracker.removeCalls, 1);
+      expect(tracker.lastRemoveOwner, same(owner));
+    });
+
+    test('keeps a tracker when persisted block removal was not requested', () {
+      final tracker = _GoalTrackerPort();
+      final runtime = TurnRuntime(
+        owner: _owner(),
+        goalContinuation: _ports(tracker: tracker),
+      );
+      final transition = runtime.applyGoalTrackerTransition(_delta());
+
+      final finalization = runtime.finalizePersistedGoalBlock(transition);
+
+      expect(finalization.trackerRemoved, isFalse);
+      expect(tracker.removeCalls, 0);
+    });
+
+    test('rejects persisted block finalization from another owner', () {
+      final runtime = TurnRuntime(owner: _owner(), goalContinuation: _ports());
+      final otherRuntime = TurnRuntime(
+        owner: ChatTurnOwner(
+          conversationId: 'other-conversation',
+          interactionGeneration: 2,
+        ),
+        goalContinuation: _ports(),
+      );
+      final transition = otherRuntime.applyGoalTrackerTransition(
+        _delta(removeTracker: true),
+      );
+
+      expect(
+        () => runtime.finalizePersistedGoalBlock(transition),
+        throwsArgumentError,
+      );
+    });
+
+    test('clears repair contract only on explicit dispatch failure', () {
+      final owner = _owner();
+      final tracker = _GoalTrackerPort();
+      final runtime = TurnRuntime(
+        owner: owner,
+        goalContinuation: _ports(tracker: tracker),
+      );
+
+      expect(tracker.clearRepairContractCalls, 0);
+
+      final finalization = runtime.finalizeFailedGoalContinuationDispatch();
+
+      expect(finalization.owner, same(owner));
+      expect(finalization.snapshot.noProgressStreak, 0);
+      expect(tracker.clearRepairContractCalls, 1);
+      expect(tracker.lastClearRepairOwner, same(owner));
+    });
   });
 
   group('TurnRuntime goal continuation values', () {
@@ -387,7 +459,11 @@ final class _GoalTrackerPort implements TurnRuntimeGoalTrackerPort {
   int snapshotCalls = 0;
   int applyDeltaCalls = 0;
   int budgetNoticeCalls = 0;
+  int clearRepairContractCalls = 0;
+  int removeCalls = 0;
   GoalAutoContinueTrackerDelta? lastDelta;
+  ChatTurnOwner? lastClearRepairOwner;
+  ChatTurnOwner? lastRemoveOwner;
 
   @override
   GoalAutoContinueTrackerSnapshot applyDelta(
@@ -408,10 +484,17 @@ final class _GoalTrackerPort implements TurnRuntimeGoalTrackerPort {
   @override
   GoalAutoContinueTrackerSnapshot clearPendingRepairContract(
     ChatTurnOwner owner,
-  ) => snapshotFor(owner);
+  ) {
+    clearRepairContractCalls += 1;
+    lastClearRepairOwner = owner;
+    return snapshotFor(owner);
+  }
 
   @override
-  void removeTracker(ChatTurnOwner owner) {}
+  void removeTracker(ChatTurnOwner owner) {
+    removeCalls += 1;
+    lastRemoveOwner = owner;
+  }
 
   @override
   GoalAutoContinueTrackerSnapshot snapshotFor(ChatTurnOwner owner) {

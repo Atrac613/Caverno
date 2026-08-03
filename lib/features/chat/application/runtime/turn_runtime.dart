@@ -122,6 +122,28 @@ final class TurnRuntimeGoalTrackerTransition {
   final bool removeTrackerAfterPersistence;
 }
 
+/// Tracker cleanup performed only after blocked status persistence completes.
+final class TurnRuntimePersistedGoalBlockFinalization {
+  const TurnRuntimePersistedGoalBlockFinalization({
+    required this.owner,
+    required this.trackerRemoved,
+  });
+
+  final ChatTurnOwner owner;
+  final bool trackerRemoved;
+}
+
+/// Tracker cleanup performed only after hidden continuation dispatch fails.
+final class TurnRuntimeFailedGoalDispatchFinalization {
+  const TurnRuntimeFailedGoalDispatchFinalization({
+    required this.owner,
+    required this.snapshot,
+  });
+
+  final ChatTurnOwner owner;
+  final GoalAutoContinueTrackerSnapshot snapshot;
+}
+
 /// Exact goal status mutation requested by a runtime owner.
 final class TurnRuntimeGoalStatusUpdate {
   const TurnRuntimeGoalStatusUpdate({
@@ -279,6 +301,32 @@ final class TurnRuntime {
       removeTrackerAfterPersistence: delta.removeTracker,
     );
   }
+
+  TurnRuntimePersistedGoalBlockFinalization finalizePersistedGoalBlock(
+    TurnRuntimeGoalTrackerTransition transition,
+  ) {
+    if (transition.owner != owner) {
+      throw ArgumentError.value(
+        transition.owner,
+        'transition',
+        'Tracker transition owner must match the runtime owner.',
+      );
+    }
+    if (transition.removeTrackerAfterPersistence) {
+      goalContinuation.tracker.removeTracker(owner);
+    }
+    return TurnRuntimePersistedGoalBlockFinalization(
+      owner: owner,
+      trackerRemoved: transition.removeTrackerAfterPersistence,
+    );
+  }
+
+  TurnRuntimeFailedGoalDispatchFinalization
+  finalizeFailedGoalContinuationDispatch() =>
+      TurnRuntimeFailedGoalDispatchFinalization(
+        owner: owner,
+        snapshot: goalContinuation.tracker.clearPendingRepairContract(owner),
+      );
 
   TurnRuntimeClearGoalIndicator clearGoalIndicator() =>
       TurnRuntimeClearGoalIndicator(owner: owner);

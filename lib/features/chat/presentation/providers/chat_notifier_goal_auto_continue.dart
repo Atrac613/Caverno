@@ -448,9 +448,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
           blockedReason: blockedReason,
         ),
       );
-      if (transition.removeTrackerAfterPersistence) {
-        goalContinuation.tracker.removeTracker(owner);
-      }
+      runtime.finalizePersistedGoalBlock(transition);
       if (ownerIsCurrent()) {
         _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       }
@@ -607,7 +605,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       runtime.endGoalContinuationScheduling();
       await continuationFuture;
     } on Object catch (error, stackTrace) {
-      goalContinuation.tracker.clearPendingRepairContract(owner);
+      runtime.finalizeFailedGoalContinuationDispatch();
       appLog(
         '[GoalAutoContinue] hidden continuation failed: '
         '${error.runtimeType}: $error',

@@ -129,7 +129,12 @@ void main() {
     );
     expect(reservedPath, contains('runtime.coordinateGoalContinuation('));
     expect(reservedPath, contains('runtime.applyGoalTrackerTransition('));
-    expect(reservedPath, contains('goalContinuation.tracker'));
+    expect(reservedPath, contains('runtime.finalizePersistedGoalBlock('));
+    expect(
+      reservedPath,
+      contains('runtime.finalizeFailedGoalContinuationDispatch()'),
+    );
+    expect(reservedPath, isNot(contains('goalContinuation.tracker')));
     expect(reservedPath, contains('runtime.beginGoalContinuationDispatch('));
     expect(reservedPath, contains('_applyTurnRuntimeGoalUiEffect('));
     expect(reservedPath, contains('_dispatchTurnRuntimeHiddenTurn('));
@@ -148,6 +153,8 @@ void main() {
     expect(reservedPath, isNot(contains('.snapshotFor(owner)')));
     expect(reservedPath, isNot(contains('.applyDelta(')));
     expect(reservedPath, isNot(contains('.markBudgetNoticePresented(')));
+    expect(reservedPath, isNot(contains('.removeTracker(')));
+    expect(reservedPath, isNot(contains('.clearPendingRepairContract(')));
     expect(
       reservedPath,
       isNot(contains('GoalAutoContinueDecisionCoordinator().coordinate(')),

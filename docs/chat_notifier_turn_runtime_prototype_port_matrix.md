@@ -247,10 +247,18 @@ capture, or ambient read. The reported production-line consequence is +25;
 `chat_notifier.dart` remains at 8,906 lines and its goal-auto-continue part
 falls from 800 to 795 lines.
 
-The next bounded task is to move delayed tracker removal and repair-contract
-cleanup behind typed runtime finalization operations. It must preserve removal
-after blocked-status persistence and cleanup only on hidden-dispatch failure.
-Awaited persistence, logging, and effect application remain wrapper concerns
-until a separate boundary has evidence to move them. The legacy
-cross-invocation reentrancy flag must remain until a later task defines how an
-active continuation runtime is shared or registered across recursive entry.
+Persisted-block and failed-dispatch finalization are now explicit runtime
+operations. Requested tracker removal occurs only after the wrapper completes
+blocked-status persistence, cross-owner transitions are rejected, and repair
+state is cleared only from the hidden-dispatch failure path. The wrapper no
+longer invokes tracker cleanup methods directly. This adds no port, callback,
+provider capture, or ambient read. The reported production-line consequence is
++46; `chat_notifier.dart` remains at 8,906 lines and its goal-auto-continue
+part falls from 795 to 793 lines.
+
+The next bounded task is to define an owner-scoped active continuation-runtime
+lifecycle and retire the duplicate `_isSchedulingGoalAutoContinue` notifier
+flag. It must preserve cross-invocation recursion blocking, release before the
+hidden continuation begins its own finalization path, and cancellation/reset
+behavior. Awaited persistence, logging, and effect application remain wrapper
+concerns until a separate boundary has evidence to move them.
