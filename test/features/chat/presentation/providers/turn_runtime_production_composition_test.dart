@@ -53,10 +53,12 @@ void main() {
     });
 
     test('shares tracker history and serializes active runtime scheduling', () {
+      final lifecycle = TurnRuntimeGoalContinuationLifecycle();
       final composition = _composition(
         ownerLease: _OwnerLease(_owner('conversation-a', 3)),
         conversationGoalStore: _GoalStore(const {}),
         safeBoundary: _SafeBoundary(),
+        goalContinuationLifecycle: lifecycle,
       );
       final first = composition.create(
         owner: _owner('conversation-a', 3),
@@ -94,7 +96,7 @@ void main() {
 
       expect(next.runtime.beginGoalContinuationScheduling(), isTrue);
       expect(next.claimGoalContinuationScheduling(), isTrue);
-      composition.clearGoalContinuationScheduling();
+      lifecycle.clear();
       expect(composition.isGoalContinuationScheduling, isFalse);
       expect(next.runtime.isSchedulingGoalContinuation, isFalse);
     });
@@ -213,6 +215,7 @@ TurnRuntimeProductionComposition _composition({
   required TurnRuntimeOwnerLeasePort ownerLease,
   required TurnRuntimeConversationGoalStore conversationGoalStore,
   required TurnRuntimeGoalSafeBoundaryPort safeBoundary,
+  TurnRuntimeGoalContinuationLifecycle? goalContinuationLifecycle,
 }) => TurnRuntimeProductionComposition(
   ownerLease: ownerLease,
   conversationGoalStore: conversationGoalStore,
@@ -220,6 +223,8 @@ TurnRuntimeProductionComposition _composition({
     replayIdFactory: (generation) => 'replay-$generation',
   ),
   safeBoundary: safeBoundary,
+  goalContinuationLifecycle:
+      goalContinuationLifecycle ?? TurnRuntimeGoalContinuationLifecycle(),
 );
 
 final class _OwnerLease implements TurnRuntimeOwnerLeasePort {

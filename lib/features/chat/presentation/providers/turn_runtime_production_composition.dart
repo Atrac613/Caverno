@@ -13,25 +13,23 @@ final class TurnRuntimeProductionComposition {
     required TurnRuntimeConversationGoalStore conversationGoalStore,
     required GoalAutoContinueTrackerRegistry trackerRegistry,
     required TurnRuntimeGoalSafeBoundaryPort safeBoundary,
+    required TurnRuntimeGoalContinuationLifecycle goalContinuationLifecycle,
   }) : _ownerLease = ownerLease,
        _conversationGoal = TurnRuntimeConversationGoalAdapter(
          store: conversationGoalStore,
        ),
        _tracker = TurnRuntimeGoalTrackerAdapter(registry: trackerRegistry),
-       _safeBoundary = safeBoundary;
+       _safeBoundary = safeBoundary,
+       _goalContinuationLifecycle = goalContinuationLifecycle;
 
   final TurnRuntimeOwnerLeasePort _ownerLease;
   final TurnRuntimeConversationGoalPort _conversationGoal;
   final TurnRuntimeGoalTrackerPort _tracker;
   final TurnRuntimeGoalSafeBoundaryPort _safeBoundary;
-  final _goalContinuationLifecycle = TurnRuntimeGoalContinuationLifecycle();
+  final TurnRuntimeGoalContinuationLifecycle _goalContinuationLifecycle;
 
   bool get isGoalContinuationScheduling =>
       _goalContinuationLifecycle.isScheduling;
-
-  void clearGoalContinuationScheduling() {
-    _goalContinuationLifecycle.clear();
-  }
 
   TurnRuntimeProductionScope create({
     required ChatTurnOwner owner,

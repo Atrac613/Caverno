@@ -14,6 +14,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     ),
     trackerRegistry: _goalAutoContinueTrackerRegistry,
     safeBoundary: _turnRuntimeGoalSafeBoundary,
+    goalContinuationLifecycle: _goalContinuationLifecycle,
   );
 
   TurnRuntimeProductionScope _createGoalContinuationRuntimeScope(

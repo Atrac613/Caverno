@@ -358,6 +358,7 @@ class ChatNotifier extends Notifier<ChatState> {
   late final _askUserQuestionRuntime = _buildAskUserQuestionRuntime();
   final _conversationTaintState = ConversationTaintState();
   final _turnRuntimeOwnerLease = TurnRuntimeOwnerLeaseRegistry();
+  final _goalContinuationLifecycle = TurnRuntimeGoalContinuationLifecycle();
   late final TurnRuntimeProductionComposition _turnRuntimeComposition;
   late final _turnRuntimeGoalSafeBoundary =
       TurnRuntimeGoalSafeBoundaryAdapter(
@@ -8893,7 +8894,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _queuedChatMessages.clear();
     _turnToolResults.clear();
     _goalAutoContinueTrackerRegistry.resetConversation(null);
-    _turnRuntimeComposition.clearGoalContinuationScheduling();
+    _goalContinuationLifecycle.clear();
     _dismissAllPendingAskUserQuestions();
     _clearAllActiveResponses();
     _sessionMemoryContext = null;

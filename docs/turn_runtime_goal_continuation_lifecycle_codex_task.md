@@ -21,8 +21,9 @@
 
 ## Implementation Notes
 
-1. Keep scheduling state on each runtime and share only the active runtime
-   identity through the production composition.
+1. Keep scheduling state on each runtime and let the notifier own the active
+   runtime lifecycle from construction, then inject it into the production
+   composition.
 2. Reject a second runtime while one runtime owns the synchronous dispatch
    handoff.
 3. Release the active runtime before awaiting the hidden continuation so its
@@ -51,11 +52,12 @@ git diff --check
 
 ## Handoff Notes
 
-- Summary: Added a shared active-runtime lifecycle to the production
-  composition. Each runtime still owns its scheduling state, while the shared
-  lifecycle serializes the synchronous hidden-dispatch handoff across
-  recursive entries. Release occurs before awaiting the continuation, and
-  cancellation or message reset clears the exact active runtime. The legacy
+- Summary: Added a shared active-runtime lifecycle owned eagerly by the
+  notifier and injected into the production composition. Each runtime still
+  owns its scheduling state, while the shared lifecycle serializes the
+  synchronous hidden-dispatch handoff across recursive entries. Release occurs
+  before awaiting the continuation, and cancellation or message reset clears
+  the exact active runtime even before Riverpod calls `build()`. The legacy
   notifier flag is removed from production.
 - Production impact: The lifecycle adds 27 runtime lines and 25 net
   composition lines while the notifier files fall by three net lines, for a
@@ -65,9 +67,13 @@ git diff --check
 - Tests run:
   - 24 focused runtime and production-composition tests passed.
   - 313 ChatNotifier regression tests passed.
+  - 28 production-composition, safe-boundary, and terminal-adapter regression
+    tests passed, including both pre-build `clearMessages` paths.
   - 262 file-size, collaborator-boundary, and thread-state quality tests
     passed.
   - Targeted analysis of the seven changed Dart files passed.
   - `git diff --check` passed.
-- Risks or follow-ups: Formal prototype comparison and final live verification
-  remain separate closure tasks.
+- Risks or follow-ups: Formal comparison passes at production delta `+708`, one
+  removed identity parameter, ambient-read delta `-1`, and zero new notifier
+  callback captures. Full coverage and final live verification remain separate
+  closure tasks.

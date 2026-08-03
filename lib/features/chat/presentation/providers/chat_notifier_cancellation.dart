@@ -13,7 +13,7 @@ extension ChatNotifierCancellation on ChatNotifier {
         cancelledOwner.conversationId,
       );
     }
-    _turnRuntimeComposition.clearGoalContinuationScheduling();
+    _goalContinuationLifecycle.clear();
 
     // Advance the global generation so recursive loops stop. The visible owner
     // is captured above because a restored participant turn can be older than

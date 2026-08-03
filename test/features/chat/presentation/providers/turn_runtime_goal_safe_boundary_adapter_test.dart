@@ -104,7 +104,7 @@ void main() {
     );
     expect(
       continuationSource,
-      contains('return _turnRuntimeGoalSafeBoundary.capture(owner);'),
+      contains('safeBoundary: _turnRuntimeGoalSafeBoundary,'),
     );
     expect(
       continuationSource,
