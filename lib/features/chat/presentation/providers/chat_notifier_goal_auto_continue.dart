@@ -420,7 +420,8 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     var tracker = initialTracker;
 
     if (decision.shouldBlock) {
-      tracker = _applyGoalAutoContinueTrackerDelta(runtime, delta);
+      final transition = runtime.applyGoalTrackerTransition(delta);
+      tracker = transition.snapshot;
       final blockedReason =
           decision.blockedReason ??
           'Goal auto-continue stopped because the task made no progress.';
@@ -447,7 +448,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
           blockedReason: blockedReason,
         ),
       );
-      if (delta.removeTracker) {
+      if (transition.removeTrackerAfterPersistence) {
         goalContinuation.tracker.removeTracker(owner);
       }
       if (ownerIsCurrent()) {
@@ -457,10 +458,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     }
 
     if (!decision.shouldContinue) {
-      tracker = _applyGoalAutoContinueTrackerDelta(runtime, delta);
-      final budgetNoticePresented =
-          delta.markBudgetNoticePresented &&
-          goalContinuation.tracker.markBudgetNoticePresented(owner);
+      final transition = runtime.applyGoalTrackerTransition(delta);
+      tracker = transition.snapshot;
+      final budgetNoticePresented = transition.budgetNoticePresented;
       _logGoalAutoContinueSkip(
         '${decision.reason}; conversation=$currentConversationId',
       );
@@ -541,7 +541,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       return;
     }
 
-    tracker = _applyGoalAutoContinueTrackerDelta(runtime, delta);
+    tracker = runtime.applyGoalTrackerTransition(delta).snapshot;
     final executionSnapshot = plan.executionSnapshot!;
     final repairContract = plan.repairContract;
     if (repairContract != null) {
@@ -654,11 +654,6 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       allowedToolNames: request.allowedToolNames,
     );
   }
-
-  GoalAutoContinueTrackerSnapshot _applyGoalAutoContinueTrackerDelta(
-    TurnRuntime runtime,
-    GoalAutoContinueTrackerDelta delta,
-  ) => runtime.goalContinuation.tracker.applyDelta(runtime.owner, delta);
 
   void _synchronizeGoalAutoContinueSafeBoundary() {
     _turnRuntimeGoalSafeBoundary.synchronizeVisibleState(

@@ -237,9 +237,20 @@ safe-boundary reads. The reported production-line consequence is +54;
 `chat_notifier.dart` remains at 8,906 lines and its goal-auto-continue part
 falls from 804 to 800 lines.
 
-The next bounded task is to turn tracker-delta application and budget-notice
-reservation into one typed runtime transition while preserving their current
-branch-specific timing. Awaited logging, status persistence, tracker removal,
-and effect application remain wrapper concerns for that slice. The legacy
+`TurnRuntime.applyGoalTrackerTransition` now applies tracker deltas and
+conditionally reserves the one-time budget notice through the owner-scoped
+tracker port. The typed result preserves the runtime owner, updated snapshot,
+notice outcome, and delayed-removal request. The wrapper invokes it at the
+original block, stop, and continue points, so tracker removal still occurs only
+after blocked-status persistence. This adds no port, callback, provider
+capture, or ambient read. The reported production-line consequence is +25;
+`chat_notifier.dart` remains at 8,906 lines and its goal-auto-continue part
+falls from 800 to 795 lines.
+
+The next bounded task is to move delayed tracker removal and repair-contract
+cleanup behind typed runtime finalization operations. It must preserve removal
+after blocked-status persistence and cleanup only on hidden-dispatch failure.
+Awaited persistence, logging, and effect application remain wrapper concerns
+until a separate boundary has evidence to move them. The legacy
 cross-invocation reentrancy flag must remain until a later task defines how an
 active continuation runtime is shared or registered across recursive entry.

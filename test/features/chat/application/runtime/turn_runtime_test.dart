@@ -160,6 +160,45 @@ void main() {
       expect(ready.plan.policyInput, isNotNull);
       expect(ready.plan.policyDecision.shouldContinue, isFalse);
     });
+
+    test('applies tracker delta and reserves a requested notice', () {
+      final owner = _owner();
+      final tracker = _GoalTrackerPort();
+      final runtime = TurnRuntime(
+        owner: owner,
+        goalContinuation: _ports(tracker: tracker),
+      );
+      final delta = _delta(
+        noProgressStreak: 2,
+        markBudgetNoticePresented: true,
+        removeTracker: true,
+      );
+
+      final transition = runtime.applyGoalTrackerTransition(delta);
+
+      expect(transition.owner, same(owner));
+      expect(transition.snapshot.noProgressStreak, 0);
+      expect(transition.budgetNoticePresented, isTrue);
+      expect(transition.removeTrackerAfterPersistence, isTrue);
+      expect(tracker.lastDelta, equals(delta));
+      expect(tracker.applyDeltaCalls, 1);
+      expect(tracker.budgetNoticeCalls, 1);
+    });
+
+    test('does not reserve an unrequested budget notice', () {
+      final tracker = _GoalTrackerPort();
+      final runtime = TurnRuntime(
+        owner: _owner(),
+        goalContinuation: _ports(tracker: tracker),
+      );
+
+      final transition = runtime.applyGoalTrackerTransition(_delta());
+
+      expect(transition.budgetNoticePresented, isFalse);
+      expect(transition.removeTrackerAfterPersistence, isFalse);
+      expect(tracker.applyDeltaCalls, 1);
+      expect(tracker.budgetNoticeCalls, 0);
+    });
   });
 
   group('TurnRuntime goal continuation values', () {
@@ -273,6 +312,28 @@ TurnRuntimeGoalContinuationInput _input() => TurnRuntimeGoalContinuationInput(
   isVoiceMode: false,
 );
 
+GoalAutoContinueTrackerDelta _delta({
+  int? noProgressStreak,
+  bool markBudgetNoticePresented = false,
+  bool removeTracker = false,
+}) => (
+  consecutiveAutoContinuationsDelta: 0,
+  diagnosticRepairContinuationsDelta: 0,
+  diagnosticRepairExtensionUsed: null,
+  noProgressStreak: noProgressStreak,
+  consecutiveValidationMisses: null,
+  failedVerificationObserved: null,
+  previousEvidence: null,
+  previousDiagnosticSignature: null,
+  identicalDiagnosticSignatureStreak: null,
+  pendingPostRepairReplayOutcome: null,
+  pendingRepairContractOutcome: null,
+  repairNoMutationRetryUsed: null,
+  completionElicitationMutationGeneration: null,
+  markBudgetNoticePresented: markBudgetNoticePresented,
+  removeTracker: removeTracker,
+);
+
 Conversation _conversation(String id) => Conversation(
   id: id,
   title: id,
@@ -324,15 +385,25 @@ final class _ConversationGoalPort implements TurnRuntimeConversationGoalPort {
 
 final class _GoalTrackerPort implements TurnRuntimeGoalTrackerPort {
   int snapshotCalls = 0;
+  int applyDeltaCalls = 0;
+  int budgetNoticeCalls = 0;
+  GoalAutoContinueTrackerDelta? lastDelta;
 
   @override
   GoalAutoContinueTrackerSnapshot applyDelta(
     ChatTurnOwner owner,
     GoalAutoContinueTrackerDelta delta,
-  ) => snapshotFor(owner);
+  ) {
+    applyDeltaCalls += 1;
+    lastDelta = delta;
+    return snapshotFor(owner);
+  }
 
   @override
-  bool markBudgetNoticePresented(ChatTurnOwner owner) => true;
+  bool markBudgetNoticePresented(ChatTurnOwner owner) {
+    budgetNoticeCalls += 1;
+    return true;
+  }
 
   @override
   GoalAutoContinueTrackerSnapshot clearPendingRepairContract(

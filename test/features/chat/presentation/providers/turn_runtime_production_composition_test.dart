@@ -128,6 +128,7 @@ void main() {
       contains('_createGoalContinuationRuntimeScope(owner)'),
     );
     expect(reservedPath, contains('runtime.coordinateGoalContinuation('));
+    expect(reservedPath, contains('runtime.applyGoalTrackerTransition('));
     expect(reservedPath, contains('goalContinuation.tracker'));
     expect(reservedPath, contains('runtime.beginGoalContinuationDispatch('));
     expect(reservedPath, contains('_applyTurnRuntimeGoalUiEffect('));
@@ -145,6 +146,8 @@ void main() {
     expect(reservedPath, isNot(contains('_goalAutoContinueTrackerRegistry')));
     expect(reservedPath, isNot(contains('.conversationFor(owner)')));
     expect(reservedPath, isNot(contains('.snapshotFor(owner)')));
+    expect(reservedPath, isNot(contains('.applyDelta(')));
+    expect(reservedPath, isNot(contains('.markBudgetNoticePresented(')));
     expect(
       reservedPath,
       isNot(contains('GoalAutoContinueDecisionCoordinator().coordinate(')),

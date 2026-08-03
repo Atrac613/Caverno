@@ -107,6 +107,21 @@ final class TurnRuntimeGoalCoordinationReady
   final GoalAutoContinueDecisionPlan plan;
 }
 
+/// Synchronous tracker changes produced at one branch-specific apply point.
+final class TurnRuntimeGoalTrackerTransition {
+  const TurnRuntimeGoalTrackerTransition({
+    required this.owner,
+    required this.snapshot,
+    required this.budgetNoticePresented,
+    required this.removeTrackerAfterPersistence,
+  });
+
+  final ChatTurnOwner owner;
+  final GoalAutoContinueTrackerSnapshot snapshot;
+  final bool budgetNoticePresented;
+  final bool removeTrackerAfterPersistence;
+}
+
 /// Exact goal status mutation requested by a runtime owner.
 final class TurnRuntimeGoalStatusUpdate {
   const TurnRuntimeGoalStatusUpdate({
@@ -247,6 +262,21 @@ final class TurnRuntime {
       tracker: tracker,
       safeBoundary: safeBoundary,
       plan: plan,
+    );
+  }
+
+  TurnRuntimeGoalTrackerTransition applyGoalTrackerTransition(
+    GoalAutoContinueTrackerDelta delta,
+  ) {
+    final snapshot = goalContinuation.tracker.applyDelta(owner, delta);
+    final budgetNoticePresented =
+        delta.markBudgetNoticePresented &&
+        goalContinuation.tracker.markBudgetNoticePresented(owner);
+    return TurnRuntimeGoalTrackerTransition(
+      owner: owner,
+      snapshot: snapshot,
+      budgetNoticePresented: budgetNoticePresented,
+      removeTrackerAfterPersistence: delta.removeTracker,
     );
   }
 
