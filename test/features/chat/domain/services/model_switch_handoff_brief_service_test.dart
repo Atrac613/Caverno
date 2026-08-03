@@ -36,6 +36,12 @@ void main() {
             ),
           ],
         ),
+        executionProgress: const [
+          ConversationExecutionTaskProgress(
+            taskId: 'task-1',
+            status: ConversationWorkflowTaskStatus.inProgress,
+          ),
+        ],
       ),
       messages: [
         _message(
@@ -98,7 +104,10 @@ void main() {
   });
 }
 
-Conversation _conversation({ConversationWorkflowSpec? workflowSpec}) {
+Conversation _conversation({
+  ConversationWorkflowSpec? workflowSpec,
+  List<ConversationExecutionTaskProgress> executionProgress = const [],
+}) {
   final now = DateTime(2026, 6, 14);
   return Conversation(
     id: 'conversation-1',
@@ -110,6 +119,7 @@ Conversation _conversation({ConversationWorkflowSpec? workflowSpec}) {
         ? ConversationWorkflowStage.idle
         : ConversationWorkflowStage.implement,
     workflowSpec: workflowSpec,
+    executionProgress: executionProgress,
     goal: ConversationGoal(
       id: 'goal-1',
       objective: 'Complete LL14 safely',

@@ -148,3 +148,13 @@ git diff --check
     part in the verification manifest.
   - `validate-gates`, `compare`, and production extraction remain separate
     tasks.
+
+## Selection Semantics Correction (2026-08-03)
+
+The original selection consumed the broad audit's `turnIdentityParameters`
+field without distinguishing `Conversation` context from explicit turn
+identity. The architecture plan requires only `ChatTurnOwner`,
+`interactionGeneration`, or `generation` parameters for its first ranking key.
+The selector now applies that narrower contract while leaving the broad audit
+and checked-in baseline unchanged. The clean-revision candidate must be
+re-recorded before prototype implementation.

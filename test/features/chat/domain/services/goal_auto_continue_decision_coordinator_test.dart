@@ -50,6 +50,7 @@ Conversation _conversation({
   ConversationGoal? goal,
   bool includeGoal = true,
   ConversationWorkflowSpec? workflowSpec,
+  List<ConversationExecutionTaskProgress> executionProgress = const [],
   int mutationGeneration = 1,
   int verificationGeneration = 1,
 }) {
@@ -61,6 +62,7 @@ Conversation _conversation({
     updatedAt: DateTime(2026),
     workspaceMode: workspaceMode,
     workflowSpec: workflowSpec,
+    executionProgress: executionProgress,
     mutationGeneration: mutationGeneration,
     verificationGeneration: verificationGeneration,
     goal: includeGoal ? (goal ?? _goal()) : null,
@@ -325,7 +327,50 @@ void main() {
       expect(plan.reason.detail, contains('saved workflow execution'));
     });
 
-    test('allows completed and synthetic saved workflow tasks', () {
+    test('defers legacy and progress-pending completed task intent', () {
+      final conversations = [
+        _conversation(
+          workflowSpec: const ConversationWorkflowSpec(
+            tasks: [
+              ConversationWorkflowTask(
+                id: 'saved-task',
+                title: 'Legacy finished task',
+                status: ConversationWorkflowTaskStatus.completed,
+              ),
+            ],
+          ),
+        ),
+        _conversation(
+          workflowSpec: const ConversationWorkflowSpec(
+            tasks: [
+              ConversationWorkflowTask(
+                id: 'saved-task',
+                title: 'Progress pending task',
+                status: ConversationWorkflowTaskStatus.completed,
+              ),
+            ],
+          ),
+          executionProgress: const [
+            ConversationExecutionTaskProgress(
+              taskId: 'saved-task',
+              status: ConversationWorkflowTaskStatus.pending,
+            ),
+          ],
+        ),
+      ];
+
+      for (final conversation in conversations) {
+        final plan = _coordinator.coordinate(
+          _input(conversation: conversation),
+        );
+        expect(
+          plan.reason.code,
+          GoalAutoContinueCoordinationReasonCode.savedWorkflowOwnsContinuation,
+        );
+      }
+    });
+
+    test('allows progress-completed and synthetic saved workflow tasks', () {
       final synthetic = const ShortPromptContractBuilder().build(
         userMessageId: 'message-1',
         userRequest: 'Fix the analyzer error',
@@ -337,10 +382,15 @@ void main() {
               ConversationWorkflowTask(
                 id: 'saved-task',
                 title: 'Finished task',
-                status: ConversationWorkflowTaskStatus.completed,
               ),
             ],
           ),
+          executionProgress: const [
+            ConversationExecutionTaskProgress(
+              taskId: 'saved-task',
+              status: ConversationWorkflowTaskStatus.completed,
+            ),
+          ],
         ),
         _conversation(workflowSpec: synthetic),
       ];

@@ -444,6 +444,48 @@ void main() {
     expect(snapshot.remainingTaskCount, 0);
   });
 
+  test('snapshot aggregates use progress-owned task status', () {
+    final snapshot = projector.project(
+      conversation(
+        workflowSpec: const ConversationWorkflowSpec(
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'legacy-completed',
+              title: 'Legacy completed task',
+              status: ConversationWorkflowTaskStatus.completed,
+            ),
+            ConversationWorkflowTask(
+              id: 'progress-completed',
+              title: 'Progress completed task',
+            ),
+            ConversationWorkflowTask(
+              id: 'progress-pending',
+              title: 'Progress pending task',
+              status: ConversationWorkflowTaskStatus.completed,
+            ),
+          ],
+        ),
+        progress: const [
+          ConversationExecutionTaskProgress(
+            taskId: 'progress-completed',
+            status: ConversationWorkflowTaskStatus.completed,
+          ),
+          ConversationExecutionTaskProgress(
+            taskId: 'progress-pending',
+            status: ConversationWorkflowTaskStatus.pending,
+          ),
+        ],
+      ),
+    );
+
+    expect(snapshot.action, ExecutionSnapshotAction.execute);
+    expect(snapshot.activeTaskId, 'legacy-completed');
+    expect(snapshot.activeTaskStatus, ConversationWorkflowTaskStatus.pending);
+    expect(snapshot.completedTaskCount, 1);
+    expect(snapshot.remainingTaskCount, 2);
+    expect(snapshot.remainingTaskIds, ['legacy-completed', 'progress-pending']);
+  });
+
   test('returns to verification after a post-success mutation', () {
     final snapshot = projector.project(
       conversation(

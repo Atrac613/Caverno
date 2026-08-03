@@ -24,17 +24,16 @@ abstract final class WorkflowTaskRunLifecyclePolicy {
       return null;
     }
 
-    ConversationWorkflowTask? completedTask;
-    for (final task in conversation.projectedExecutionTasks) {
-      if (task.id == completedTaskId) {
-        completedTask = task;
-        break;
-      }
-    }
-    if (completedTask == null ||
-        completedTask.status != ConversationWorkflowTaskStatus.completed) {
+    final completedTaskView = conversation.executionTaskViews
+        .where((view) => view.task.id == completedTaskId)
+        .firstOrNull;
+    if (completedTaskView == null ||
+        completedTaskView.status != ConversationWorkflowTaskStatus.completed) {
       return null;
     }
+    final completedTask = completedTaskView.task.copyWith(
+      status: completedTaskView.status,
+    );
 
     final nextTask = ConversationPlanExecutionCoordinator.nextTask(
       conversation,

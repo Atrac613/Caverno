@@ -44,10 +44,11 @@ directly visible in the current ownership boundaries:
 
 1. **Everything that participates in a turn becomes a notifier method.** The
    manifest records 414 entrypoints across 43 historical parts; the latest
-   recorded audit resolves **271**, of which **82 carry an identity parameter**
-   and 139 are turn-reachable. Reconcile the audit baseline before treating
-   those figures as current. A new tool, guard or recovery path has nowhere
-   else to land.
+   recorded audit resolves **271**. Its broad turn-awareness field marks 82
+   entrypoints, but seven carry only `Conversation` context; the prototype
+   selector's corrected owner-or-generation count is **75**. Reconcile the
+   audit baseline before treating those figures as current. A new tool, guard
+   or recovery path has nowhere else to land.
 2. **Turn operations reach longer-lived state through implicit notifier
    access.** `_goalAutoContinueTrackers`, `_threadStates` and similar maps are
    deliberately conversation- or thread-scoped; they are not candidates for
@@ -117,9 +118,10 @@ methods migrate *onto* the object that owns their state, and identity
 parameters become `this`.
 
 An earlier draft claimed 414 entrypoints' parameters collapse. That was the
-historical record used as an effect. The honest figure is **82 entrypoints
-carrying an identity parameter** out of 271 resolvable, so parameter
-elimination alone is worth low hundreds of lines, not thousands. Whether the
+historical record used as an effect. The corrected figure is **75 entrypoints
+carrying an explicit owner or generation parameter** out of 271 resolvable, so
+parameter elimination alone is worth low hundreds of lines, not thousands.
+Whether the
 migration is net-negative on lines depends on how many ports and callbacks a
 `TurnRuntime` needs to reach back into notifier scope — which is unknown and
 is exactly what the prototype below exists to measure.
@@ -154,9 +156,11 @@ Reconciled on 2026-08-02 with
   WS6-12, and WS6-13. WS6-6 through WS6-9, WS6-11a, WS6-11b, and WS6-14
   through WS6-18 may be reconsidered only after this plan establishes stable
   turn-runtime and composition-root APIs.
-- WS6-19 remains a separate Phase 1.5 decision. Its original registry-last
-  gate still requires every preceding WS6 handler plus implemented WS8-2 and
-  WS8-7; the workstream-level WS8 closeout does not satisfy those gates.
+- The WS6-19 investigation is resolved, but production wiring is deferred
+  beyond Phase 1.5. Its original registry-last gate still requires every
+  preceding WS6 handler plus implemented WS8-2 and WS8-7; the workstream-level
+  WS8 closeout does not satisfy those gates, and current bindings still violate
+  the no-`ChatNotifier`-capture stop condition.
 
 This transfers the old program's open work without requiring it as a blocker
 for Phase 0. Do not revive a deferred extraction merely to lower line counts;
@@ -236,20 +240,27 @@ configuration-segment validator is now implemented. Existing records for the
 first Phase 0B event lack build provenance, so Phase 1 measurement still waits
 for a clean matching-build capture and full catalogue snapshot.
 
-**Phase 1.5 — bounded experiments and the decision point.** Before committing
-to a renewal:
+**Phase 1.5 — one bounded experiment and the decision point.** Before
+committing to a renewal:
 
-- **Investigate why `ChatToolHandlerCatalog` is unwired** during Phase 1. Wire
-  it in Phase 1.5 only if reconciliation proves that workstream 6 slices 1-18
-  and workstream 8 slices 2 and 7 satisfy the existing WS6-19 gate. The
-  migration must also meet the WS6-19 stop conditions: remove the old registry
-  path, capture no `ChatNotifier` callback in catalogue bindings, and pass the
-  binding/poison tests. Otherwise finish those prerequisites or separately
-  review an explicit replacement safety contract; do not silently bypass the
-  gate.
-- **Prototype `TurnRuntime` on exactly one high-coupling part.** Measure lines
-  removed, parameters eliminated, longer-lived state accessed through ports,
-  and ports or callbacks introduced. It must not absorb thread-scoped state.
+- **Keep `ChatToolHandlerCatalog` wiring out of this phase.** The Phase 1
+  investigation is complete: production bindings capture `ChatNotifier`, so
+  the WS6-19 stop condition cannot be met without explicit port extraction.
+  The catalogue is a consumer of the boundary this prototype is meant to test,
+  not an independent experiment. Reconsider wiring only after the prototype
+  proves a viable boundary and I2 maps that boundary across all six binding
+  groups. The existing WS6-19 prerequisites, no-notifier-capture condition,
+  binding tests, and poison tests remain in force. If the prototype is
+  abandoned, catalogue wiring remains blocked.
+- **Prototype `TurnRuntime` on exactly one high-coupling part.** Measure
+  parameters eliminated, longer-lived state accessed through ports, ports or
+  callbacks introduced, files touched, public surface added, and production
+  line delta. It must not absorb conversation- or thread-scoped state. Line
+  delta is a reported cost consequence, not a structural pass/fail condition.
+  Use `docs/chat_notifier_turn_runtime_prototype_port_matrix.md` as the bounded
+  dependency contract: the first slice covers the two manifest-reserved
+  symbols and their 10-member path, not all 26 external private members in the
+  selected part.
 
 Make the prototype selection and decision reproducible. Before editing, add
 `tool/measure_chat_notifier_turn_runtime_prototype.py` and
@@ -264,6 +275,10 @@ mode ranks current declared part files by these keys, in order:
 
 Do not hand-pick an easier part. Run `select` from a clean commit after the
 baseline reconciliation; the tool must resolve `HEAD` to its full Git SHA:
+
+`Conversation` parameters are thread context, not turn identity, and therefore
+must not contribute to the first ranking key even though the broader
+turn-awareness audit records them.
 
 ```bash
 python3 test/python/measure_chat_notifier_turn_runtime_prototype_test.py
@@ -313,16 +328,30 @@ and confirm the canary exercises the migrated path rather than a placeholder.
 Do not refresh the global turn-scope baseline inside the experiment; compare
 the worktree audit to it so regressions remain visible.
 
-**Proceed to Phase 2 only if all gates pass and the comparison shows:**
+Pre-prototype status on 2026-08-03: **Conditional Go for one bounded production
+prototype.** The selected-path focused gate passes, and the seeded live baseline
+passes three of four runs while all four reach the verifier in turn 1 and emit
+at least two ordered continuations. The one observed flake has a bounded
+attribution rule. See
+`docs/chat_notifier_turn_runtime_preprototype_decision.md`. Before editing
+production, re-run the selector and static gate validation from the clean
+decision-contract commit and record that full revision as the comparison base.
 
-- production line delta is at most zero;
+**Proceed to Phase 2 only if all structural gates pass and the comparison
+shows:**
+
 - at least one identity parameter is removed;
 - turn-reachable ambient reads do not increase;
 - no new callback captures `ChatNotifier`; and
+- no conversation- or thread-scoped state moves into `TurnRuntime`; and
 - the focused test, coverage gate and live canary preserve behaviour.
 
-If any condition fails, abandon the full `TurnRuntime` renewal. Catalogue wiring
-may still proceed independently, but only under its existing WS6-19 gate.
+Report production line delta, new ports and callbacks, touched files, and public
+surface separately. A positive line delta updates the cost case and requires an
+explicit review, but does not by itself falsify the composition-root diagnosis.
+If any structural gate fails, abandon the full `TurnRuntime` renewal. Catalogue
+wiring remains blocked unless a separate review later establishes its required
+ports and satisfies the existing WS6-19 gate.
 
 **Phase 2 — design document.** Under the same discipline as the decomposition
 program: explicit safety contract, regression gate, live-canary gate, slice

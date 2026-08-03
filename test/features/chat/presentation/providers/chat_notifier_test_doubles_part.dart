@@ -160,10 +160,10 @@ class _GoalAutoContinueConversationsNotifier
             : (workflowSpec ?? conversation.workflowSpec),
         workflowSourceHash: workflowSourceHash ?? '',
         workflowDerivedAt: workflowDerivedAt,
+        executionProgress: workflowSpec?.tasks.map((task) => ConversationExecutionTaskProgress(taskId: task.id, status: task.status)).toList() ?? conversation.executionProgress,
       ),
     );
   }
-
   @override
   Future<void> saveCurrentGoal({
     required String objective,

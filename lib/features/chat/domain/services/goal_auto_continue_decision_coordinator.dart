@@ -324,13 +324,13 @@ GoalAutoContinueContinuationLimits _continuationLimits(
 }
 
 bool _savedWorkflowOwnsContinuation(Conversation conversation) {
-  final savedTasks = conversation.projectedExecutionTasks;
-  return savedTasks.isNotEmpty &&
+  final taskViews = conversation.executionTaskViews;
+  return taskViews.isNotEmpty &&
       !ShortPromptContractBuilder.isSyntheticRequestContract(
         conversation.effectiveWorkflowSpec,
       ) &&
-      savedTasks.any(
-        (task) => task.status != ConversationWorkflowTaskStatus.completed,
+      taskViews.any(
+        (view) => view.status != ConversationWorkflowTaskStatus.completed,
       );
 }
 

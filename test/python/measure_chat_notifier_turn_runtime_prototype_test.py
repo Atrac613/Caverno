@@ -326,6 +326,59 @@ class TurnRuntimePrototypeSelectorTest(unittest.TestCase):
             selection["selected"]["turnReachableAmbientReads"]["count"], 0
         )
 
+    def test_conversation_context_is_not_an_explicit_turn_identity(self):
+        parts = [
+            self._part("context", identity_entrypoints=1, production_lines=10),
+            self._part("owner", identity_entrypoints=1, production_lines=1),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root, audit_path, manifest_path, audit, _ = self._fixture(
+                directory, parts
+            )
+            audit["methods"][0]["turnIdentityParameters"] = [
+                "Conversation conversation"
+            ]
+            audit_path.write_text(json.dumps(audit, indent=2) + "\n")
+
+            selection = self._select(root, audit_path, manifest_path)
+
+        self.assertEqual(
+            selection["selected"]["partPath"], "chat_notifier_owner.dart"
+        )
+        context = next(
+            candidate
+            for candidate in selection["candidates"]
+            if candidate["partPath"] == "chat_notifier_context.dart"
+        )
+        self.assertEqual(
+            context["turnReachableIdentityEntrypoints"]["count"], 0
+        )
+
+    def test_explicit_turn_identity_parameter_contract(self):
+        self.assertTrue(
+            selector._is_explicit_turn_identity_parameter(
+                "required ChatTurnOwner? owner"
+            )
+        )
+        self.assertTrue(
+            selector._is_explicit_turn_identity_parameter(
+                "required int interactionGeneration"
+            )
+        )
+        self.assertTrue(
+            selector._is_explicit_turn_identity_parameter("int generation")
+        )
+        self.assertFalse(
+            selector._is_explicit_turn_identity_parameter(
+                "Conversation conversation"
+            )
+        )
+        self.assertFalse(
+            selector._is_explicit_turn_identity_parameter(
+                "int generationBudget"
+            )
+        )
+
     def test_binds_inputs_and_resolves_head_to_a_full_commit(self):
         with tempfile.TemporaryDirectory() as directory:
             root, audit_path, manifest_path, _, _ = self._fixture(directory)
@@ -375,6 +428,25 @@ class TurnRuntimePrototypeSelectorTest(unittest.TestCase):
             )
 
         self.assertEqual(selection["selected"]["partPath"], "chat_notifier_alpha.dart")
+
+    def test_reports_worktree_only_changes_with_their_full_path(self):
+        # Porcelain prints a leading space for a worktree-only change, and the
+        # first such line is the one a trailing strip() would shorten, taking a
+        # character off the reported path with it.
+        with tempfile.TemporaryDirectory() as directory:
+            root, audit_path, manifest_path, _, _ = self._fixture(directory)
+            tracked = selector.PROVIDER_ROOT / "chat_notifier_alpha.dart"
+            (root / tracked).write_text("// edited\n")
+
+            with self.assertRaises(selector.SelectionError) as raised:
+                self._select(
+                    root,
+                    audit_path,
+                    manifest_path,
+                    require_clean=True,
+                )
+
+        self.assertIn(tracked.as_posix(), str(raised.exception))
 
     def test_rejects_a_source_revision_other_than_checked_out_head(self):
         with tempfile.TemporaryDirectory() as directory:

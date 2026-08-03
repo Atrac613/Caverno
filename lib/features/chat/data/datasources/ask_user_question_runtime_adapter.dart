@@ -7,6 +7,9 @@ import '../../domain/services/ask_user_question_turn_cache.dart';
 import '../../domain/services/ask_user_question_ui_contract.dart';
 import '../../domain/services/tool_terminal_response_policy.dart';
 
+export '../../domain/services/ask_user_question_policy.dart';
+export '../../domain/services/ask_user_question_ui_contract.dart';
+
 /// Production bridge from exact tool calls to owner-keyed pending UI state.
 final class AskUserQuestionToolRuntimeAdapter {
   factory AskUserQuestionToolRuntimeAdapter({

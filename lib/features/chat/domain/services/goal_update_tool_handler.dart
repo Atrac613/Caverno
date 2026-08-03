@@ -1,35 +1,35 @@
 import '../entities/chat_turn_owner.dart';
-import '../entities/mcp_tool_entity.dart';
+import '../entities/conversation_goal.dart';
+import '../entities/tool_call_info.dart';
 import 'goal_update_ack.dart';
 import 'goal_update_tool_contract.dart';
 import 'tool_result_prompt_builder.dart';
 
+export 'goal_update_ack.dart';
 export 'goal_update_tool_contract.dart';
 
 // ChatNotifier decomposition collaborator: goal-update-tool-handler
-final class GoalUpdateToolHandlerOutcome {
-  const GoalUpdateToolHandlerOutcome({
-    required this.identity,
-    required this.toolResult,
-    required this.completionEvidence,
-    required this.acknowledgement,
-    required this.shadowOutcome,
-  });
-
-  final GoalUpdateOperationIdentity identity;
-  final McpToolResult toolResult;
-  final ToolResultCompletionEvidence completionEvidence;
-  final GoalUpdateCompletionAcknowledgement acknowledgement;
-  final GoalUpdateAckOutcome? shadowOutcome;
-
-  ChatTurnOwner get owner => identity.owner;
-  GoalUpdateAckOutcome get ackOutcome => acknowledgement.outcome;
-  bool get isCompletionClaim => acknowledgement.isCompletionClaim;
-  bool get completionAccepted => acknowledgement.completionAccepted;
-}
-
 final class GoalUpdateToolHandler {
   const GoalUpdateToolHandler();
+
+  GoalUpdateToolHandlerOutcome handleCall({
+    required ChatTurnOwner owner,
+    required ToolCallInfo toolCall,
+    required ConversationGoal? goal,
+    required List<ToolResultInfo> toolResults,
+    required ToolResultCompletionEvidence completionEvidence,
+  }) {
+    final request = GoalUpdateToolRequest.fromToolCall(owner, toolCall);
+    return handle(
+      request: request,
+      ownerSnapshot: GoalUpdateOwnerSnapshot(
+        identity: request.identity,
+        goal: goal,
+        toolResults: toolResults,
+        completionEvidence: completionEvidence,
+      ),
+    );
+  }
 
   GoalUpdateToolHandlerOutcome handle({
     required GoalUpdateToolRequest request,

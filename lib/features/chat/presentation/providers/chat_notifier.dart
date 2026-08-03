@@ -26,7 +26,7 @@ import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
-import '../../domain/services/ask_user_question_option_parser.dart';
+import '../../domain/services/ask_user_question_turn_cache.dart';
 import '../../domain/services/conversation_goal_suggestion_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_planning_prompt_service.dart';
@@ -43,12 +43,14 @@ import '../../../settings/domain/services/primary_model_preparation_service.dart
 import '../../../settings/presentation/providers/local_model_lifecycle_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/apple_foundation_models_datasource.dart';
+import '../../data/datasources/ask_user_question_runtime_adapter.dart';
 import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/create_routine_tool_runtime_adapter.dart';
 import '../../data/datasources/mesh_secondary_completion_runner.dart';
 import '../../data/datasources/participant_completion_runner.dart';
+import '../../data/datasources/participant_tool_production_ports.dart';
 import '../../data/datasources/demo_datasource.dart';
 import '../../data/datasources/background_process_completion_monitor.dart';
 import '../../data/datasources/background_process_monitor_service.dart';
@@ -88,17 +90,18 @@ import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../../domain/services/duplicate_tool_result_recovery.dart';
 import '../../domain/services/fenced_tool_name_blocks.dart';
-import '../../domain/services/goal_auto_continue_evidence_marker.dart';
+import '../../domain/services/goal_auto_continue_decision_coordinator.dart';
 import '../../domain/services/goal_auto_continue_prompt_builder.dart';
+import '../../domain/services/goal_auto_continue_safe_boundary_builder.dart';
+import '../../domain/services/goal_auto_continue_tracker_registry.dart';
 import '../../domain/services/goal_completion_elicitation_prompt.dart';
+import '../../domain/services/goal_continuation_log_record_builder.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../../../core/security/conversation_taint_state.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/tool_loop_context_digest.dart';
 import '../../domain/services/tool_loop_exit_reason.dart';
 import '../../domain/services/truncated_tool_call_arguments_guard.dart';
-import '../../domain/services/verifier_replay_candidate_policy.dart';
-import '../../domain/services/truncation_notice.dart';
 import 'tool_argument_json.dart';
 import 'turn_final_message.dart';
 import '../../domain/services/chat_command_guardrail_collaborators.dart';
@@ -132,8 +135,7 @@ import '../../domain/services/final_answer_recovery_policy.dart';
 import '../../domain/services/file_mutation_evidence_policy.dart';
 import '../../domain/services/file_mutation_tool_handler.dart';
 import '../../domain/services/file_turn_rollback_service.dart';
-import '../../domain/services/goal_completion_shadow.dart';
-import '../../domain/services/goal_update_ack.dart';
+import '../../domain/services/goal_update_tool_handler.dart';
 import '../../domain/services/coding_continuation_recovery_policy.dart';
 import '../../domain/services/coding_verification_mutation_signature.dart';
 import '../../domain/services/pending_action_length_recovery_policy.dart';
@@ -144,8 +146,8 @@ import '../../domain/services/runtime_sampler_feedback_recorder.dart';
 import '../../domain/services/successful_read_result_replay_cache.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/narrated_transcript_repair_planner.dart';
-import '../../domain/services/participant_tool_policy.dart';
-import '../../domain/services/participant_turn_coordinator.dart';
+import '../../domain/services/participant_message_finalizer.dart';
+import '../../domain/services/participant_turn_planner.dart';
 import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/planning_research_collector.dart';
 import '../../domain/services/ble_connect_attempt_coordinator.dart';
@@ -350,6 +352,7 @@ class ChatNotifier extends Notifier<ChatState> {
   final _runtimeFailureClassifier = const CavernoRuntimeFailureClassifier();
   late final _pythonScriptRuntime = _buildPythonScriptRuntimeAdapter();
   late final _fileMutationRuntime = _buildFileMutationRuntimeAdapter();
+  late final _askUserQuestionRuntime = _buildAskUserQuestionRuntime();
   final _conversationTaintState = ConversationTaintState();
   String? conversationId, _activeTurnUserPrompt;
   String _languageCode = 'en';
@@ -359,8 +362,7 @@ class ChatNotifier extends Notifier<ChatState> {
   AssistantMode? _assistantModeOverride;
   final _contextSurgeryObservations = ContextSurgeryObservationAccumulator();
   final _modelSwitchHandoffs = ModelSwitchHandoffRegistry(clock: DateTime.now);
-  // Null until build() wires it: parsing helpers run on notifiers that
-  // never build, and telemetry is a side channel a parse must not need.
+  // Parsing helpers may run before build, so telemetry starts null.
   ModelEditApplyTelemetryRuntimeAdapter? _modelEditTelemetry;
   final _turnToolResults = TurnToolResultLedger();
   final _contentToolTurns = ContentToolTurnStateRegistry();
@@ -1106,8 +1108,6 @@ class ChatNotifier extends Notifier<ChatState> {
     () => ref.read(codingProjectsNotifierProvider),
     ref.read(conversationsNotifierProvider),
   );
-
-
   String? _getActiveProjectRootPath() {
     final scoped = TurnProjectRoot.current;
     if (scoped != null) return scoped.rootPath;
@@ -2285,7 +2285,6 @@ class ChatNotifier extends Notifier<ChatState> {
   final _uuid = const Uuid();
   StreamSubscription<String>? _streamSubscription;
   final _queuedChatMessages = ThreadScopedMessageQueue();
-
   /// Plan drafting survives leaving the thread, so returning to it presents
   /// the review sheet instead of looking idle.
   final _threadStates = <String, ThreadScopedChatState>{};
@@ -2297,7 +2296,6 @@ class ChatNotifier extends Notifier<ChatState> {
   final Set<int> _turnFinalizationRecoveryGenerations = {};
   // Generations with a classified exit; the terminal funnel fills any gap.
   final Set<int> _classifiedTurnExitGenerations = <int>{};
-
   // Tool calls whose arguments were truncated; report the specific cause so
   // the model reissues them instead of treating them as malformed calls.
   Set<String> _lengthTruncatedToolCallIds = const <String>{};
@@ -2307,17 +2305,19 @@ class ChatNotifier extends Notifier<ChatState> {
         ref.read(conversationsNotifierProvider).currentConversationId,
   );
   bool _isSchedulingGoalAutoContinue = false;
-  final _goalAutoContinueTrackers = <String, _GoalAutoContinueTracker>{};
-  final Set<String> _goalAutoContinueBudgetNotifiedConversations = <String>{};
+  late final _goalAutoContinueTrackerRegistry = GoalAutoContinueTrackerRegistry(
+    replayIdFactory: (mutationGeneration) =>
+        'post_mutation_verifier_${mutationGeneration}_'
+        '${DateTime.now().microsecondsSinceEpoch}',
+  );
   final _goalCompletionEvidence = TurnGoalCompletionEvidenceRegistry();
-  // A successful save_skill generation suppresses false continuation recovery
-  // for its legitimate completion summary.
+  // A successful save_skill suppresses false continuation recovery.
   int? _lastSaveSkillGeneration;
   final _activeResponseRegistry = ActiveResponseRegistry();
   final _lastStreamedToolResultFinalAnswersByGeneration = <int, String>{};
   final Set<int> _pendingActionLengthRecoveryGenerations = <int>{};
   final _explicitTerminalSuccessSummariesByGeneration = <int, String>{};
-  final _askUserQuestionTurnCache = _AskUserQuestionTurnCache();
+  final _askUserQuestionTurnCache = AskUserQuestionTurnCache();
   final _releaseApprovalSnapshots = <int, _ReleaseProof>{};
   final ResponseMetadataRegistry _responseMetadata = ResponseMetadataRegistry();
   final _pendingAskUserQuestionsByThread = <String, PendingAskUserQuestion>{};
@@ -2445,11 +2445,11 @@ class ChatNotifier extends Notifier<ChatState> {
         !_participantTurnControls.isPaused(owner)) {
       _participantTurnControls.dispose(owner);
     }
+    if (owner != null) _askUserQuestionRuntime.retireOwner(owner);
     _activeResponseRegistry.clearGeneration(generation);
     _lastStreamedToolResultFinalAnswersByGeneration.remove(generation);
     _pendingActionLengthRecoveryGenerations.remove(generation);
     _explicitTerminalSuccessSummariesByGeneration.remove(generation);
-    _askUserQuestionTurnCache.removeGeneration(generation);
     _releaseApprovalSnapshots.remove(generation);
     if (owner != null) {
       _responseMetadata.dispose(owner);
@@ -8895,8 +8895,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _toolApprovalCache.clearAll();
     _queuedChatMessages.clear();
     _turnToolResults.clear();
-    _goalAutoContinueTrackers.clear();
-    _goalAutoContinueBudgetNotifiedConversations.clear();
+    _goalAutoContinueTrackerRegistry.resetConversation(null);
     _isSchedulingGoalAutoContinue = false;
     _dismissAllPendingAskUserQuestions();
     _clearAllActiveResponses();

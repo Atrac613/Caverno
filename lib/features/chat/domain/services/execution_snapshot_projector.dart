@@ -322,7 +322,7 @@ class ExecutionSnapshotProjector {
       );
     }
 
-    final tasks = conversation.projectedExecutionTasks;
+    final taskViews = conversation.executionTaskViews;
     final activeTask = ConversationPlanExecutionCoordinator.executionFocusTask(
       conversation,
     );
@@ -341,12 +341,12 @@ class ExecutionSnapshotProjector {
             'Confirm the material ${item.kind.name} assumption.',
       ),
     }.where((item) => item.isNotEmpty).toList(growable: false);
-    final completedTaskCount = tasks
+    final completedTaskCount = taskViews
         .where(
-          (task) => task.status == ConversationWorkflowTaskStatus.completed,
+          (view) => view.status == ConversationWorkflowTaskStatus.completed,
         )
         .length;
-    final remainingTaskCount = tasks.length - completedTaskCount;
+    final remainingTaskCount = taskViews.length - completedTaskCount;
     final validationStatus =
         progress?.validationStatus ??
         ConversationExecutionValidationStatus.unknown;
@@ -360,7 +360,7 @@ class ExecutionSnapshotProjector {
       workflowStage: conversation.workflowStage,
       action: _actionFor(
         workflowStage: conversation.workflowStage,
-        tasks: tasks,
+        taskViews: taskViews,
         activeTask: activeTask,
         progress: progress,
         unresolvedQuestionCount: clarificationQuestions.length,
@@ -380,11 +380,11 @@ class ExecutionSnapshotProjector {
       activeTaskTitle: activeTask?.title ?? '',
       activeTaskTargetFiles: activeTask?.targetFiles ?? const <String>[],
       activeTaskValidationCommand: activeTask?.validationCommand ?? '',
-      remainingTaskIds: tasks
+      remainingTaskIds: taskViews
           .where(
-            (task) => task.status != ConversationWorkflowTaskStatus.completed,
+            (view) => view.status != ConversationWorkflowTaskStatus.completed,
           )
-          .map((task) => task.id)
+          .map((view) => view.task.id)
           .where((id) => id.trim().isNotEmpty)
           .toList(growable: false),
       clarificationQuestions: clarificationQuestions,
@@ -401,7 +401,7 @@ class ExecutionSnapshotProjector {
 
   ExecutionSnapshotAction _actionFor({
     required ConversationWorkflowStage workflowStage,
-    required List<ConversationWorkflowTask> tasks,
+    required List<ExecutionTaskView> taskViews,
     required ConversationWorkflowTask? activeTask,
     required ConversationExecutionTaskProgress? progress,
     required int unresolvedQuestionCount,
@@ -424,9 +424,9 @@ class ExecutionSnapshotProjector {
     if (verificationCadence == VerificationCadence.required) {
       return ExecutionSnapshotAction.verify;
     }
-    if (tasks.isNotEmpty &&
-        tasks.every(
-          (task) => task.status == ConversationWorkflowTaskStatus.completed,
+    if (taskViews.isNotEmpty &&
+        taskViews.every(
+          (view) => view.status == ConversationWorkflowTaskStatus.completed,
         )) {
       return ExecutionSnapshotAction.complete;
     }

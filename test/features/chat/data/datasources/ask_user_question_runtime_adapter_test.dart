@@ -5,9 +5,7 @@ import 'package:caverno/features/chat/data/datasources/ask_user_question_runtime
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/ask_user_question_policy.dart';
 import 'package:caverno/features/chat/domain/services/ask_user_question_turn_cache.dart';
-import 'package:caverno/features/chat/domain/services/ask_user_question_ui_contract.dart';
 import 'package:caverno/features/chat/domain/services/tool_terminal_response_policy.dart';
 import 'package:test/test.dart';
 
@@ -121,6 +119,192 @@ void main() {
 
       _expectRetired(result);
       expect(started, isFalse);
+    });
+
+    test('rechecks owner after a cache-only policy result', () async {
+      final cache = AskUserQuestionTurnCache();
+      cache.store(
+        owner: _owner,
+        question: 'Choose a target?',
+        optionLabels: const ['Local', 'Remote'],
+        result: const McpToolResult(
+          toolName: askUserQuestionToolName,
+          result: '{"status":"answered"}',
+          isSuccess: true,
+        ),
+      );
+      var checks = 0;
+      final adapter = _adapter(
+        cache: cache,
+        ownerIsCurrent: (_) => ++checks == 1,
+      );
+
+      final result = await adapter.handle(
+        owner: _owner,
+        toolCall: _tool('question-a'),
+      );
+
+      _expectRetired(result);
+      expect(cache.anyResult(_owner, (_) => true), isFalse);
+    });
+
+    test('maps an owner-retired UI start without caching', () async {
+      final cache = AskUserQuestionTurnCache();
+      final adapter = _adapter(
+        cache: cache,
+        startQuestion: (identity, request) =>
+            AskUserQuestionUiStartAcknowledgement.ownerRetired(
+              identity: identity,
+            ),
+      );
+
+      _expectRetired(
+        await adapter.handle(owner: _owner, toolCall: _tool('question-a')),
+      );
+      expect(cache.anyResult(_owner, (_) => true), isFalse);
+    });
+
+    test('maps an already-pending UI start as a cancellation', () async {
+      final adapter = _adapter(
+        startQuestion: (identity, request) =>
+            AskUserQuestionUiStartAcknowledgement.alreadyPending(
+              identity: identity,
+            ),
+      );
+
+      final result = await adapter.handle(
+        owner: _owner,
+        toolCall: _tool('question-a'),
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(result.errorMessage, 'User dismissed the question');
+    });
+
+    test('does not start a second same-owner UI request', () async {
+      late AskUserQuestionOperationIdentity firstIdentity;
+      final completion =
+          Completer<AskUserQuestionUiCompletionAcknowledgement>();
+      var starts = 0;
+      final adapter = _adapter(
+        startQuestion: (identity, request) {
+          starts++;
+          firstIdentity = identity;
+          return AskUserQuestionUiStartAcknowledgement.started(
+            identity: identity,
+            pendingQuestionId: 'pending-a',
+            completion: completion.future,
+          );
+        },
+      );
+      final first = adapter.handle(
+        owner: _owner,
+        toolCall: _tool('question-a'),
+      );
+
+      final second = await adapter.handle(
+        owner: _owner,
+        toolCall: _tool('question-b'),
+      );
+      completion.complete(
+        AskUserQuestionUiCompletionAcknowledgement.cancelled(
+          identity: firstIdentity,
+          pendingQuestionId: 'pending-a',
+        ),
+      );
+
+      expect(starts, 1);
+      expect(second.isSuccess, isFalse);
+      expect(await first, isA<McpToolResult>());
+    });
+
+    test('cancels UI when the owner expires immediately after start', () async {
+      var checks = 0;
+      var cancellations = 0;
+      final adapter = _adapter(
+        ownerIsCurrent: (_) => ++checks < 3,
+        startQuestion: (identity, request) =>
+            AskUserQuestionUiStartAcknowledgement.started(
+              identity: identity,
+              pendingQuestionId: 'pending-a',
+              completion:
+                  Completer<AskUserQuestionUiCompletionAcknowledgement>()
+                      .future,
+            ),
+        cancelQuestion: (identity, pendingId) {
+          cancellations++;
+          return AskUserQuestionUiCancellationAcknowledgement(
+            identity: identity,
+            pendingQuestionId: pendingId,
+            disposition: AskUserQuestionUiCancellationDisposition.cancelled,
+          );
+        },
+      );
+
+      _expectRetired(
+        await adapter.handle(owner: _owner, toolCall: _tool('question-a')),
+      );
+      expect(cancellations, 1);
+    });
+
+    test('maps a throwing UI completion as effect-uncertain', () async {
+      var cancellations = 0;
+      final adapter = _adapter(
+        startQuestion: (identity, request) =>
+            AskUserQuestionUiStartAcknowledgement.started(
+              identity: identity,
+              pendingQuestionId: 'pending-a',
+              completion:
+                  Future<AskUserQuestionUiCompletionAcknowledgement>.error(
+                    StateError('completion failed'),
+                  ),
+            ),
+        cancelQuestion: (identity, pendingId) {
+          cancellations++;
+          return AskUserQuestionUiCancellationAcknowledgement(
+            identity: identity,
+            pendingQuestionId: pendingId,
+            disposition: AskUserQuestionUiCancellationDisposition.cancelled,
+          );
+        },
+      );
+
+      final result = await adapter.handle(
+        owner: _owner,
+        toolCall: _tool('question-a'),
+      );
+
+      expect(result.errorMessage, contains('could not be acknowledged safely'));
+      expect(cancellations, 1);
+    });
+
+    test('preserves cancellation failure during completion recovery', () async {
+      final adapter = _adapter(
+        startQuestion: (identity, request) =>
+            AskUserQuestionUiStartAcknowledgement.started(
+              identity: identity,
+              pendingQuestionId: 'pending-a',
+              completion: Future.value(
+                AskUserQuestionUiCompletionAcknowledgement.cancelled(
+                  identity: identity,
+                  pendingQuestionId: 'poisoned-pending',
+                ),
+              ),
+            ),
+        cancelQuestion: (identity, pendingId) =>
+            AskUserQuestionUiCancellationAcknowledgement(
+              identity: identity,
+              pendingQuestionId: pendingId,
+              disposition: AskUserQuestionUiCancellationDisposition.rejected,
+            ),
+      );
+
+      final result = await adapter.handle(
+        owner: _owner,
+        toolCall: _tool('question-a'),
+      );
+
+      expect(result.errorMessage, contains('could not be acknowledged safely'));
     });
 
     test('does not cache a late answer after owner retirement', () async {
@@ -405,6 +589,95 @@ void main() {
         AskUserQuestionOwnerRetirementDisposition.boundaryMismatch,
       );
       expect(retirement.identity, expected);
+    });
+
+    test('reports a throwing retirement cancellation as uncertain', () async {
+      late AskUserQuestionOperationIdentity identity;
+      final completion =
+          Completer<AskUserQuestionUiCompletionAcknowledgement>();
+      final adapter = _adapter(
+        startQuestion: (value, request) {
+          identity = value;
+          return AskUserQuestionUiStartAcknowledgement.started(
+            identity: value,
+            pendingQuestionId: 'pending-a',
+            completion: completion.future,
+          );
+        },
+        cancelQuestion: (identity, pendingId) {
+          throw StateError('cancel failed');
+        },
+      );
+      final result = adapter.handle(
+        owner: _owner,
+        toolCall: _tool('question-a'),
+      );
+
+      final retirement = adapter.retireOwner(_owner);
+      completion.complete(
+        AskUserQuestionUiCompletionAcknowledgement.ownerRetired(
+          identity: identity,
+          pendingQuestionId: 'pending-a',
+        ),
+      );
+
+      expect(
+        retirement.disposition,
+        AskUserQuestionOwnerRetirementDisposition.effectUncertain,
+      );
+      _expectRetired(await result);
+    });
+
+    test('maps every exact retirement cancellation disposition', () async {
+      final cases =
+          <
+            AskUserQuestionUiCancellationDisposition,
+            AskUserQuestionOwnerRetirementDisposition
+          >{
+            AskUserQuestionUiCancellationDisposition.alreadySettled:
+                AskUserQuestionOwnerRetirementDisposition.alreadySettled,
+            AskUserQuestionUiCancellationDisposition.rejected:
+                AskUserQuestionOwnerRetirementDisposition.rejected,
+            AskUserQuestionUiCancellationDisposition.effectUncertain:
+                AskUserQuestionOwnerRetirementDisposition.effectUncertain,
+          };
+
+      for (final entry in cases.entries) {
+        late AskUserQuestionOperationIdentity identity;
+        final completion =
+            Completer<AskUserQuestionUiCompletionAcknowledgement>();
+        final adapter = _adapter(
+          startQuestion: (value, request) {
+            identity = value;
+            return AskUserQuestionUiStartAcknowledgement.started(
+              identity: value,
+              pendingQuestionId: 'pending-a',
+              completion: completion.future,
+            );
+          },
+          cancelQuestion: (value, pendingId) =>
+              AskUserQuestionUiCancellationAcknowledgement(
+                identity: value,
+                pendingQuestionId: pendingId,
+                disposition: entry.key,
+              ),
+        );
+        final result = adapter.handle(
+          owner: _owner,
+          toolCall: _tool('question-a'),
+        );
+
+        final retirement = adapter.retireOwner(_owner);
+        completion.complete(
+          AskUserQuestionUiCompletionAcknowledgement.ownerRetired(
+            identity: identity,
+            pendingQuestionId: 'pending-a',
+          ),
+        );
+
+        expect(retirement.disposition, entry.value);
+        _expectRetired(await result);
+      }
     });
 
     test('retirement clears prior cache entries and is idempotent', () async {

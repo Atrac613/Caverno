@@ -1,6 +1,6 @@
 import '../../domain/services/ask_user_question_policy.dart';
 export '../../domain/services/ask_user_question_policy.dart'
-    show AskUserQuestionOption;
+    show AskUserQuestionAnswer, AskUserQuestionOption, AskUserQuestionSelection;
 
 import 'dart:async';
 
@@ -509,52 +509,6 @@ class PendingParticipantToolApproval extends PendingToolApproval<bool> {
 
   @override
   bool get cancellationValue => false;
-}
-
-class AskUserQuestionSelection {
-  const AskUserQuestionSelection({
-    required this.id,
-    required this.label,
-    this.description = '',
-    this.preview = '',
-  });
-
-  final String id;
-  final String label;
-  final String description;
-  final String preview;
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'label': label,
-    if (description.trim().isNotEmpty) 'description': description.trim(),
-    if (preview.trim().isNotEmpty) 'preview': preview.trim(),
-  };
-}
-
-class AskUserQuestionAnswer {
-  const AskUserQuestionAnswer({
-    required this.question,
-    required this.selectedOptions,
-    this.otherText = '',
-  });
-
-  final String question;
-  final List<AskUserQuestionSelection> selectedOptions;
-  final String otherText;
-
-  bool get hasAnswer =>
-      selectedOptions.isNotEmpty || otherText.trim().isNotEmpty;
-
-  Map<String, dynamic> toJson() => {
-    'question': question,
-    'selected': selectedOptions.map((option) => option.toJson()).toList(),
-    if (otherText.trim().isNotEmpty) 'other': otherText.trim(),
-    'answer': [
-      ...selectedOptions.map((option) => option.label),
-      if (otherText.trim().isNotEmpty) otherText.trim(),
-    ].join('; '),
-  };
 }
 
 class PendingAskUserQuestion {

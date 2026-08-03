@@ -6,14 +6,17 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('WorkflowTaskRunLifecyclePolicy', () {
     test('allows depth seven and stops at depth eight', () {
-      final conversation = _conversation(const [
-        ConversationWorkflowTask(
-          id: 'completed',
-          title: 'Completed',
-          status: ConversationWorkflowTaskStatus.completed,
-        ),
-        ConversationWorkflowTask(id: 'next', title: 'Next'),
-      ]);
+      final conversation = _conversation(
+        const [
+          ConversationWorkflowTask(
+            id: 'completed',
+            title: 'Completed',
+            status: ConversationWorkflowTaskStatus.completed,
+          ),
+          ConversationWorkflowTask(id: 'next', title: 'Next'),
+        ],
+        progress: const [_completedProgress],
+      );
 
       expect(
         WorkflowTaskRunLifecyclePolicy.selectAutoContinuation(
@@ -47,14 +50,22 @@ void main() {
         ConversationWorkflowTaskStatus.inProgress,
         ConversationWorkflowTaskStatus.blocked,
       ]) {
-        final conversation = _conversation([
-          ConversationWorkflowTask(
-            id: 'current',
-            title: 'Current',
-            status: status,
-          ),
-          const ConversationWorkflowTask(id: 'next', title: 'Next'),
-        ]);
+        final conversation = _conversation(
+          const [
+            ConversationWorkflowTask(
+              id: 'current',
+              title: 'Current',
+              status: ConversationWorkflowTaskStatus.completed,
+            ),
+            ConversationWorkflowTask(id: 'next', title: 'Next'),
+          ],
+          progress: [
+            ConversationExecutionTaskProgress(
+              taskId: 'current',
+              status: status,
+            ),
+          ],
+        );
 
         expect(
           WorkflowTaskRunLifecyclePolicy.selectAutoContinuation(
@@ -79,21 +90,75 @@ void main() {
       );
     });
 
-    test('selects an in-progress task before an earlier pending task', () {
-      final selection = WorkflowTaskRunLifecyclePolicy.selectAutoContinuation(
-        conversation: _conversation(const [
-          ConversationWorkflowTask(
-            id: 'completed',
-            title: 'Completed',
+    test('requires progress completion instead of authored completion', () {
+      final legacyCompleted = _conversation(const [
+        ConversationWorkflowTask(
+          id: 'current',
+          title: 'Current',
+          status: ConversationWorkflowTaskStatus.completed,
+        ),
+        ConversationWorkflowTask(id: 'next', title: 'Next'),
+      ]);
+
+      expect(
+        WorkflowTaskRunLifecyclePolicy.selectAutoContinuation(
+          conversation: legacyCompleted,
+          completedTaskId: 'current',
+          continuationDepth: 0,
+        ),
+        isNull,
+      );
+
+      final progressCompleted = _conversation(
+        const [
+          ConversationWorkflowTask(id: 'current', title: 'Current'),
+          ConversationWorkflowTask(id: 'next', title: 'Next'),
+        ],
+        progress: const [
+          ConversationExecutionTaskProgress(
+            taskId: 'current',
             status: ConversationWorkflowTaskStatus.completed,
           ),
-          ConversationWorkflowTask(id: 'pending', title: 'Pending'),
-          ConversationWorkflowTask(
-            id: 'active',
-            title: 'Active',
-            status: ConversationWorkflowTaskStatus.inProgress,
-          ),
-        ]),
+        ],
+      );
+      final selection = WorkflowTaskRunLifecyclePolicy.selectAutoContinuation(
+        conversation: progressCompleted,
+        completedTaskId: 'current',
+        continuationDepth: 0,
+      );
+
+      expect(selection?.completedTask.id, 'current');
+      expect(
+        selection?.completedTask.status,
+        ConversationWorkflowTaskStatus.completed,
+      );
+      expect(selection?.nextTask.id, 'next');
+    });
+
+    test('selects an in-progress task before an earlier pending task', () {
+      final selection = WorkflowTaskRunLifecyclePolicy.selectAutoContinuation(
+        conversation: _conversation(
+          const [
+            ConversationWorkflowTask(
+              id: 'completed',
+              title: 'Completed',
+              status: ConversationWorkflowTaskStatus.completed,
+            ),
+            ConversationWorkflowTask(id: 'pending', title: 'Pending'),
+            ConversationWorkflowTask(
+              id: 'active',
+              title: 'Active',
+              status: ConversationWorkflowTaskStatus.inProgress,
+            ),
+          ],
+          progress: const [
+            _completedProgress,
+            ConversationExecutionTaskProgress(
+              taskId: 'active',
+              status: ConversationWorkflowTaskStatus.inProgress,
+            ),
+          ],
+        ),
         completedTaskId: 'completed',
         continuationDepth: 0,
       );
@@ -104,15 +169,18 @@ void main() {
 
     test('selects the first pending task when no task is active', () {
       final selection = WorkflowTaskRunLifecyclePolicy.selectAutoContinuation(
-        conversation: _conversation(const [
-          ConversationWorkflowTask(
-            id: 'completed',
-            title: 'Completed',
-            status: ConversationWorkflowTaskStatus.completed,
-          ),
-          ConversationWorkflowTask(id: 'first', title: 'First'),
-          ConversationWorkflowTask(id: 'second', title: 'Second'),
-        ]),
+        conversation: _conversation(
+          const [
+            ConversationWorkflowTask(
+              id: 'completed',
+              title: 'Completed',
+              status: ConversationWorkflowTaskStatus.completed,
+            ),
+            ConversationWorkflowTask(id: 'first', title: 'First'),
+            ConversationWorkflowTask(id: 'second', title: 'Second'),
+          ],
+          progress: const [_completedProgress],
+        ),
         completedTaskId: 'completed',
         continuationDepth: 0,
       );
@@ -123,13 +191,16 @@ void main() {
     test('rejects missing and same-ID next tasks', () {
       expect(
         WorkflowTaskRunLifecyclePolicy.selectAutoContinuation(
-          conversation: _conversation(const [
-            ConversationWorkflowTask(
-              id: 'completed',
-              title: 'Completed',
-              status: ConversationWorkflowTaskStatus.completed,
-            ),
-          ]),
+          conversation: _conversation(
+            const [
+              ConversationWorkflowTask(
+                id: 'completed',
+                title: 'Completed',
+                status: ConversationWorkflowTaskStatus.completed,
+              ),
+            ],
+            progress: const [_completedProgress],
+          ),
           completedTaskId: 'completed',
           continuationDepth: 0,
         ),
@@ -137,14 +208,22 @@ void main() {
       );
       expect(
         WorkflowTaskRunLifecyclePolicy.selectAutoContinuation(
-          conversation: _conversation(const [
-            ConversationWorkflowTask(
-              id: 'duplicate',
-              title: 'Completed',
-              status: ConversationWorkflowTaskStatus.completed,
-            ),
-            ConversationWorkflowTask(id: 'duplicate', title: 'Pending'),
-          ]),
+          conversation: _conversation(
+            const [
+              ConversationWorkflowTask(
+                id: 'duplicate',
+                title: 'Completed',
+                status: ConversationWorkflowTaskStatus.completed,
+              ),
+              ConversationWorkflowTask(id: 'duplicate', title: 'Pending'),
+            ],
+            progress: const [
+              ConversationExecutionTaskProgress(
+                taskId: 'duplicate',
+                status: ConversationWorkflowTaskStatus.completed,
+              ),
+            ],
+          ),
           completedTaskId: 'duplicate',
           continuationDepth: 0,
         ),
@@ -180,7 +259,15 @@ void main() {
   });
 }
 
-Conversation _conversation(List<ConversationWorkflowTask> tasks) {
+const _completedProgress = ConversationExecutionTaskProgress(
+  taskId: 'completed',
+  status: ConversationWorkflowTaskStatus.completed,
+);
+
+Conversation _conversation(
+  List<ConversationWorkflowTask> tasks, {
+  List<ConversationExecutionTaskProgress> progress = const [],
+}) {
   final now = DateTime(2026, 7, 18);
   return Conversation(
     id: 'conversation',
@@ -189,5 +276,6 @@ Conversation _conversation(List<ConversationWorkflowTask> tasks) {
     createdAt: now,
     updatedAt: now,
     workflowSpec: ConversationWorkflowSpec(tasks: tasks),
+    executionProgress: progress,
   );
 }

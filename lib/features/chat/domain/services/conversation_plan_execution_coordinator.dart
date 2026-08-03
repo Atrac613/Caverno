@@ -993,9 +993,9 @@ class ConversationPlanExecutionCoordinator {
   }
 
   static ConversationWorkflowTask? activeTask(Conversation conversation) {
-    for (final task in conversation.projectedExecutionTasks) {
-      if (task.status == ConversationWorkflowTaskStatus.inProgress) {
-        return task;
+    for (final view in conversation.executionTaskViews) {
+      if (view.status == ConversationWorkflowTaskStatus.inProgress) {
+        return _taskSnapshot(view);
       }
     }
     return null;
@@ -1006,18 +1006,18 @@ class ConversationPlanExecutionCoordinator {
     if (active != null) {
       return active;
     }
-    for (final task in conversation.projectedExecutionTasks) {
-      if (task.status == ConversationWorkflowTaskStatus.pending) {
-        return task;
+    for (final view in conversation.executionTaskViews) {
+      if (view.status == ConversationWorkflowTaskStatus.pending) {
+        return _taskSnapshot(view);
       }
     }
     return null;
   }
 
   static ConversationWorkflowTask? blockedTask(Conversation conversation) {
-    for (final task in conversation.projectedExecutionTasks) {
-      if (task.status == ConversationWorkflowTaskStatus.blocked) {
-        return task;
+    for (final view in conversation.executionTaskViews) {
+      if (view.status == ConversationWorkflowTaskStatus.blocked) {
+        return _taskSnapshot(view);
       }
     }
     return null;
@@ -1052,6 +1052,13 @@ class ConversationPlanExecutionCoordinator {
       }
     }
     return null;
+  }
+
+  static ConversationWorkflowTask _taskSnapshot(ExecutionTaskView view) {
+    if (view.task.status == view.status) {
+      return view.task;
+    }
+    return view.task.copyWith(status: view.status);
   }
 
   static String _buildPreservedTasksBlock(

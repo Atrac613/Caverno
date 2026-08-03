@@ -411,6 +411,8 @@ void main() {
     expect(summary.signals.backgroundProcessStatusUnverifiedCount, 1);
     expect(summary.signals.goalAutoContinue.continuationCount, 2);
     expect(summary.signals.goalAutoContinue.diagnosticCounts, [3, 1, 1]);
+    expect(summary.signals.goalAutoContinue.diagnosticCountsSource, 'logText');
+    expect(summary.signals.goalAutoContinue.logTextDiagnosticCounts, [3, 1, 1]);
     expect(summary.signals.goalAutoContinue.progressExtensionCount, 1);
     expect(
       summary.signals.goalAutoContinue.finalStopReason,
@@ -726,6 +728,181 @@ void main() {
       isTrue,
     );
     expect(summary.signals.goalAutoContinue.successfulVerifierObserved, isTrue);
+  });
+
+  group('goal auto-continue diagnostic counts', () {
+    // The log-text pattern needs `evidence=<count> unresolved Error`, but the
+    // notifier emits `evidence=${evidence.summary}`, and a summary that begins
+    // with `execution verification failed; ` pushes the count out of reach. The
+    // structured record carries the same number unambiguously.
+    const summaryWithPrefix =
+        '[GoalAutoContinue] continue 2/5: verification has not caught up with '
+        'the latest change; conversation=c1; evidence=execution verification '
+        'failed; 2 unresolved Error diagnostic(s) in bin/todo_cli.dart';
+
+    File writeLog(Directory directory, String message) {
+      return File('${directory.path}/flutter_test.jsonl')..writeAsStringSync(
+        [
+          jsonEncode({
+            'testID': 1,
+            'message': message,
+            'type': 'print',
+            'time': 10,
+          }),
+          jsonEncode({
+            'testID': 1,
+            'result': 'success',
+            'skipped': false,
+            'hidden': false,
+            'type': 'testDone',
+            'time': 20,
+          }),
+          jsonEncode({'success': true, 'type': 'done', 'time': 20}),
+        ].join('\n'),
+      );
+    }
+
+    Directory writeSessionLog(Directory root, List<Object?> records) {
+      final sessionLogs = Directory('${root.path}/session_logs/coding')
+        ..createSync(recursive: true);
+      File(
+        '${sessionLogs.path}/turn.jsonl',
+      ).writeAsStringSync(records.map(jsonEncode).join('\n'));
+      return Directory('${root.path}/session_logs');
+    }
+
+    Map<String, Object?> goalAutoContinueRecord({
+      required String decision,
+      required int unresolvedErrorCount,
+    }) {
+      return {
+        'operation': 'goal_auto_continue',
+        'goalAutoContinue': {
+          'decision': decision,
+          'evidence': {'unresolvedErrorCount': unresolvedErrorCount},
+        },
+      };
+    }
+
+    Future<LiveLlmCanarySummary> build(
+      File logFile, {
+      Directory? sessionLogDirectory,
+    }) {
+      return buildLiveLlmCanarySummary(
+        logFile: logFile,
+        canaryName: 'diagnostic_counts_canary',
+        surface: 'coding_goal',
+        baseUrl: 'http://127.0.0.1:1234/v1',
+        model: 'test-model',
+        command: 'test command',
+        sessionLogDirectory: sessionLogDirectory,
+        generatedAt: DateTime.utc(2026, 8, 3),
+      );
+    }
+
+    test(
+      'prefers the structured session log over the log-text pattern',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'diagnostic_counts_session_log_test_',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final logFile = writeLog(directory, summaryWithPrefix);
+        final sessionLogDirectory = writeSessionLog(directory, [
+          goalAutoContinueRecord(decision: 'continue', unresolvedErrorCount: 2),
+        ]);
+
+        final summary = await build(
+          logFile,
+          sessionLogDirectory: sessionLogDirectory,
+        );
+
+        expect(summary.signals.goalAutoContinue.diagnosticCounts, [2]);
+        expect(
+          summary.signals.goalAutoContinue.diagnosticCountsSource,
+          'sessionLog',
+        );
+        // The shadow value records that the text pattern missed this shape.
+        expect(
+          summary.signals.goalAutoContinue.logTextDiagnosticCounts,
+          isEmpty,
+        );
+      },
+    );
+
+    test('counts only continue decisions', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'diagnostic_counts_skip_test_',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final logFile = writeLog(directory, summaryWithPrefix);
+      final sessionLogDirectory = writeSessionLog(directory, [
+        goalAutoContinueRecord(decision: 'continue', unresolvedErrorCount: 3),
+        goalAutoContinueRecord(decision: 'skip', unresolvedErrorCount: 9),
+        goalAutoContinueRecord(decision: 'continue', unresolvedErrorCount: 1),
+      ]);
+
+      final summary = await build(
+        logFile,
+        sessionLogDirectory: sessionLogDirectory,
+      );
+
+      expect(summary.signals.goalAutoContinue.diagnosticCounts, [3, 1]);
+    });
+
+    test('falls back to the log text when no session log is given', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'diagnostic_counts_fallback_test_',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final logFile = writeLog(
+        directory,
+        '[GoalAutoContinue] continue 2/5: repairing; conversation=c1; '
+        'evidence=2 unresolved Error diagnostic(s)',
+      );
+
+      final summary = await build(logFile);
+
+      expect(summary.signals.goalAutoContinue.diagnosticCounts, [2]);
+      expect(
+        summary.signals.goalAutoContinue.diagnosticCountsSource,
+        'logText',
+      );
+    });
+
+    // A run that emitted no auto-continue record at all must not be reported as
+    // a measured zero; the log-text derivation stays authoritative.
+    test(
+      'falls back when the session log holds no auto-continue record',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'diagnostic_counts_empty_session_log_test_',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final logFile = writeLog(
+          directory,
+          '[GoalAutoContinue] continue 2/5: repairing; conversation=c1; '
+          'evidence=4 unresolved Error diagnostic(s)',
+        );
+        final sessionLogDirectory = writeSessionLog(directory, [
+          {
+            'operation': 'turn_exit',
+            'turnExit': {'reason': 'text_response'},
+          },
+        ]);
+
+        final summary = await build(
+          logFile,
+          sessionLogDirectory: sessionLogDirectory,
+        );
+
+        expect(summary.signals.goalAutoContinue.diagnosticCounts, [4]);
+        expect(
+          summary.signals.goalAutoContinue.diagnosticCountsSource,
+          'logText',
+        );
+      },
+    );
   });
 
   test('marks skipped live canaries as skipped instead of passed', () async {

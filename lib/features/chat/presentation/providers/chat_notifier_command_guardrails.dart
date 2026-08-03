@@ -19,7 +19,8 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
       return null;
     }
 
-    final command = _toolCallExecutionPolicy.toolCommandArgument(toolCall.arguments) ?? '';
+    final command =
+        _toolCallExecutionPolicy.toolCommandArgument(toolCall.arguments) ?? '';
     final payload = jsonEncode({
       'ok': false,
       'code': 'production_release_explicit_approval_required',
@@ -55,7 +56,9 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
     if (_toolCallExecutionPolicy.isReadOnlyCommandExecutionToolCall(toolCall)) {
       return false;
     }
-    final command = _toolCallExecutionPolicy.toolCommandArgument(toolCall.arguments);
+    final command = _toolCallExecutionPolicy.toolCommandArgument(
+      toolCall.arguments,
+    );
     if (command == null) {
       return false;
     }
@@ -122,7 +125,9 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
         direct?.thread == thread &&
         (direct?.explicit == true || direct?.reply == true);
     final cache = _askUserQuestionTurnCache;
-    final questionApproved = cache.anyResult(generation, _answerApproves);
+    final owner = _turnOwnerForGeneration(generation);
+    final questionApproved =
+        owner != null && cache.anyResult(owner, _answerApproves);
     return (
       conversationId: thread,
       approved: thread != null && (directlyApproved || questionApproved),

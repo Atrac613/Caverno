@@ -1,6 +1,7 @@
 import '../entities/chat_turn_owner.dart';
 import '../entities/conversation_participant.dart';
 import 'participant_turn_coordinator.dart';
+export 'participant_turn_coordinator.dart';
 
 // ChatNotifier decomposition collaborator: participant-turn-planner
 enum ParticipantTurnStepKind {
@@ -82,10 +83,7 @@ final class ParticipantTurnPlan {
   final String? exitReason;
 }
 
-/// Plans one owner at a time and does not retain paused owners.
-///
-/// The notifier remains responsible for the current single-paused-turn
-/// lifecycle until an independently approved owner-keyed pause registry exists.
+/// Plans one immutable owner state at a time without retaining runtime state.
 final class ParticipantTurnPlanner {
   const ParticipantTurnPlanner();
 

@@ -45,35 +45,30 @@ import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
 import 'support/dart_cli_entrypoint_resolver.dart';
+import 'support/fixture_verification_runner.dart';
 import 'support/todo_app_behavior_verifier.dart';
 
 const _verifyCommand = 'dart run tool/verify_todo_app.dart';
 
-/// Where the verifier records each run. A dot-file, so
-/// `createVerificationRoot` leaves it out of the copy it checks.
-const _verifierInvocationLogName = '.verifier_invocations.jsonl';
-
-/// Where a scenario stages the first verifier outcomes it needs.
+/// Staging and run-log locations, both outside the model-edited project.
 ///
-/// Deliberately outside the workspace. The first version of this put the file
-/// in the project root and explained the mechanism in the generated verifier's
-/// own doc comment — which the model read, since reading its verifier is a
-/// reasonable thing to do, and the file did not survive the turn. Staging must
-/// live somewhere the model has no reason to visit and nothing to gain from
-/// editing.
-String _verifierScriptPathFor(String rootPath) {
-  final key = rootPath.hashCode.toUnsigned(32).toRadixString(16);
-  return '${Directory.systemTemp.path}/caverno_verifier_script_$key.jsonl';
-}
+/// The run log used to be a dot-file inside the workspace, on the argument that
+/// `createVerificationRoot` skipped it and a dot-file is unobtrusive. It was
+/// not: `list_directory` reports dot-files, and on `f0b830ce` the model read it
+/// while trying to work out why its verifier kept failing. Both files now sit
+/// where the model has no reason to visit, cannot reach, and has nothing to
+/// gain from editing.
+String _verifierScriptPathFor(String rootPath) =>
+    fixtureStagedOutcomesPath(Directory(rootPath));
+
+String _verifierInvocationLogPathFor(String rootPath) =>
+    fixtureVerificationLogPath(Directory(rootPath));
 
 /// Stages [outcomes] as the first verifier results, one per run.
-void _writeVerifierScript(
-  Directory root,
-  List<Map<String, dynamic>> outcomes,
-) {
-  File(_verifierScriptPathFor(root.absolute.path)).writeAsStringSync(
-    outcomes.map(jsonEncode).join('\n'),
-  );
+void _writeVerifierScript(Directory root, List<Map<String, dynamic>> outcomes) {
+  File(
+    _verifierScriptPathFor(root.absolute.path),
+  ).writeAsStringSync(outcomes.map(jsonEncode).join('\n'));
 }
 
 /// One verifier failure asking for a repair, identical every time it is used,
@@ -98,9 +93,60 @@ Map<String, dynamic> _stableRepairProbeOutcome(Directory root) {
   };
 }
 
+/// One deterministic verifier failure for the auto-continuation scenario.
+///
+/// The diagnostic count decreases from two to one across the two staged runs,
+/// giving the live gate concrete progress evidence before the real verifier is
+/// allowed to report the implementation's result.
+Map<String, dynamic> _stagedAutoContinueOutcome(Directory root, int attempt) {
+  final diagnostics = attempt == 1
+      ? [
+          {
+            'severity': 'Error',
+            'path': File('${root.path}/bin/todo_cli.dart').absolute.path,
+            'relative_path': 'bin/todo_cli.dart',
+            'line': 1,
+            'column': 1,
+            'code': 'todo_cli_persistence_unverified',
+            'message':
+                'Verifier has not yet observed task persistence across fresh '
+                'process runs.',
+          },
+          {
+            'severity': 'Error',
+            'path': File('${root.path}/bin/todo_cli.dart').absolute.path,
+            'relative_path': 'bin/todo_cli.dart',
+            'line': 1,
+            'column': 1,
+            'code': 'todo_cli_unknown_id_unverified',
+            'message':
+                'Verifier has not yet observed non-zero unknown id handling.',
+          },
+        ]
+      : [
+          {
+            'severity': 'Error',
+            'path': File('${root.path}/bin/todo_cli.dart').absolute.path,
+            'relative_path': 'bin/todo_cli.dart',
+            'line': 1,
+            'column': 1,
+            'code': 'todo_cli_unknown_id_unverified',
+            'message':
+                'Verifier still needs a non-zero unknown id behavior check.',
+          },
+        ];
+  return <String, dynamic>{
+    'stdout': '',
+    'stderr':
+        'Staged TODO verifier failure $attempt/$_stagedFailureTurns for '
+        'auto-continuation evidence.\n',
+    'diagnostics': diagnostics,
+  };
+}
+
 /// Every verifier run the model actually performed, oldest first.
 List<Map<String, dynamic>> _recordedVerifierRuns(Directory root) {
-  final log = File('${root.path}/$_verifierInvocationLogName');
+  final log = File(_verifierInvocationLogPathFor(root.absolute.path));
   if (!log.existsSync()) {
     return const [];
   }
@@ -123,27 +169,38 @@ List<Map<String, dynamic>> _recordedVerifierRuns(Directory root) {
 ///
 /// The checks themselves stay outside the model-edited project, imported by
 /// absolute path; this entrypoint only forwards to them and reports the result.
+///
+/// The forwarding is the second lesson. This file used to carry the staging
+/// mechanism inline — the scripted-outcome path, the run counter, the branch
+/// that chooses a staged result over a real one. On `f0b830ce` the model read
+/// it, correctly inferred that something outside the project was driving its
+/// verifier, and spent the rest of its tool budget looking for that support
+/// library instead of re-running verification. What the model can read, it can
+/// be derailed by, so the mechanism now lives in
+/// `support/fixture_verification_runner.dart` and this file states only what a
+/// verifier entrypoint legitimately states.
 String _verifierEntrypointSource({
   String supportLibrary = 'todo_app_behavior_verifier.dart',
   String className = 'TodoAppBehaviorVerifier',
   String entrypointPolicy = 'singleUnderBin',
 }) {
-  final verifier = File(
-    'tool/canaries/support/$supportLibrary',
-  ).absolute.uri;
+  final verifier = File('tool/canaries/support/$supportLibrary').absolute.uri;
   final resolver = File(
     'tool/canaries/support/dart_cli_entrypoint_resolver.dart',
+  ).absolute.uri;
+  final runner = File(
+    'tool/canaries/support/fixture_verification_runner.dart',
   ).absolute.uri;
   return '''
 // Generated by the TODO live canary. Do not edit.
 //
 // Runs the fixture's behavioral acceptance checks against a fresh copy of this
 // project, so completing without them is not possible by accident.
-import 'dart:convert';
 import 'dart:io';
 
 import '$verifier';
 import '$resolver';
+import '$runner';
 
 Directory _projectRoot() {
   final fromScript = File.fromUri(Platform.script).parent.parent;
@@ -153,98 +210,22 @@ Directory _projectRoot() {
   return Directory.current;
 }
 
-List<Map<String, dynamic>> _scriptedOutcomes(Directory root) {
-  final script = File(_scriptPath(root));
-  if (!script.existsSync()) {
-    return const [];
-  }
-  return script
-      .readAsLinesSync()
-      .where((line) => line.trim().isNotEmpty)
-      .map((line) => jsonDecode(line) as Map<String, dynamic>)
-      .toList(growable: false);
-}
-
-int _priorRunCount(Directory root) {
-  final log = File('\${root.path}/$_verifierInvocationLogName');
-  if (!log.existsSync()) {
-    return 0;
-  }
-  return log.readAsLinesSync().where((line) => line.trim().isNotEmpty).length;
-}
-
-String _scriptPath(Directory root) {
-  final key = root.absolute.path.hashCode.toUnsigned(32).toRadixString(16);
-  return '\${Directory.systemTemp.path}/caverno_verifier_script_\$key.jsonl';
-}
-
 Future<void> main() async {
   final root = _projectRoot();
-  final scripted = _scriptedOutcomes(root);
-  final runIndex = _priorRunCount(root);
-
-  List<Map<String, dynamic>> diagnostics;
-  String transcript;
-  String failureStderr;
-  if (runIndex < scripted.length) {
-    final outcome = scripted[runIndex];
-    diagnostics = (outcome['diagnostics'] as List)
-        .cast<Map<String, dynamic>>();
-    transcript = (outcome['stdout'] as String?) ?? '';
-    failureStderr =
-        (outcome['stderr'] as String?) ?? 'Verifier reported a problem.';
-  } else {
-    final result = await $className(
-      root: root,
-      entrypointPolicy: DartCliEntrypointPolicy.$entrypointPolicy,
-    ).verify();
-    diagnostics = result.diagnostics;
-    transcript = result.transcript;
-    failureStderr = 'Fixture acceptance criteria failed.';
-  }
-
-  // Ground truth for the canary: what this run reported, recorded where no
-  // tool-routing decision can hide it.
-  File('\${root.path}/$_verifierInvocationLogName').writeAsStringSync(
-    '\${jsonEncode({
-      'at': DateTime.now().toIso8601String(),
-      'exit_code': diagnostics.isEmpty ? 0 : 1,
-      'diagnostic_count': diagnostics.length,
-      'scripted': runIndex < scripted.length,
-      'diagnostics': diagnostics,
-    })}\\n',
-    mode: FileMode.append,
+  await runFixtureVerification(
+    root: root,
+    verify: () async {
+      final result = await $className(
+        root: root,
+        entrypointPolicy: DartCliEntrypointPolicy.$entrypointPolicy,
+      ).verify();
+      return (result.diagnostics, result.transcript);
+    },
   );
-
-  stdout.write(transcript);
-  if (diagnostics.isEmpty) {
-    stdout.writeln('All acceptance criteria passed.');
-    return;
-  }
-  // Also emit each diagnostic in `dart analyze --format=machine` syntax.
-  // Caverno reads diagnostics off a failing command by parsing that syntax out
-  // of its output, and a JSON array parses to nothing -- a verifier that only
-  // pretty-prints is legible to a human and invisible to the harness.
-  for (final diagnostic in diagnostics) {
-    stdout.writeln(
-      [
-        (diagnostic['severity'] ?? 'Error').toString().toUpperCase(),
-        'COMPILE_TIME_ERROR',
-        diagnostic['code'] ?? 'verifier_failure',
-        diagnostic['path'] ?? diagnostic['relative_path'] ?? '',
-        diagnostic['line'] ?? 1,
-        diagnostic['column'] ?? 1,
-        1,
-        (diagnostic['message'] ?? '').toString().replaceAll('|', '/'),
-      ].join('|'),
-    );
-  }
-  stdout.writeln(const JsonEncoder.withIndent('  ').convert(diagnostics));
-  stderr.writeln(failureStderr);
-  exitCode = 1;
 }
 ''';
 }
+
 const _wordFrequencyVerifyCommand =
     'dart run tool/verify_word_frequency_cli.dart';
 const _markdownTocVerifyCommand = 'dart run tool/verify_markdown_toc.dart';
@@ -395,6 +376,115 @@ void main() {
       'TodoAppBehaviorVerifier',
       'TODO',
     );
+  });
+
+  test(
+    'the seeded reference implementation passes its own verifier',
+    () async {
+      // The auto-continue gate seeds this implementation so a run cannot fail at
+      // writing the app. That only removes variance while the seed is actually
+      // good: a seed that stopped satisfying the fixture would make the gate fail
+      // for the reason it was built to exclude, and would look like a product
+      // regression. Verify the seed against the real behavioral verifier rather
+      // than trusting the label.
+      final fixture = _TodoFixture.create(
+        null,
+        seedReferenceImplementation: true,
+      );
+      addTearDown(fixture.dispose);
+
+      final result = await TodoAppBehaviorVerifier(
+        root: fixture.root,
+        entrypointPolicy: DartCliEntrypointPolicy.singleUnderBin,
+      ).verify();
+
+      expect(result.diagnostics, isEmpty, reason: result.transcript);
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test('auto-continue staging recognizes built-in verifier results', () async {
+    const env = _TodoFixtureEnv(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      model: 'test-model',
+      maxTokens: 128,
+      temperature: 0,
+      workspaceRoot: null,
+      sessionLogRoot: '/tmp/caverno_test_session_logs',
+    );
+    final dataSource = _TodoAutoContinueDataSource(env, stagedFailureTurns: 2);
+    final builtInFailure = ToolResultInfo(
+      id: 'verify-1',
+      name: 'local_execute_command',
+      arguments: const {'command': _verifyCommand},
+      result: jsonEncode({
+        'command': _verifyCommand,
+        'exit_code': 1,
+        'diagnostics': [
+          {'severity': 'Error', 'code': 'todo_cli_unverified'},
+        ],
+      }),
+    );
+
+    final forced = await dataSource.createChatCompletionWithToolResults(
+      messages: const [],
+      toolResults: [builtInFailure],
+    );
+    final finalContent = await dataSource
+        .streamChatCompletion(messages: const [])
+        .join();
+
+    expect(forced, isNotNull);
+    expect(forced.content, contains('1 unresolved Error diagnostics'));
+    expect(finalContent, forced.content);
+    expect(finalContent, contains('rerun "$_verifyCommand"'));
+    expect(finalContent, contains('Do not inspect or edit the verifier'));
+    expect(finalContent, isNot(contains('?')));
+    expect(dataSource.forcedIncompleteTurns, 1);
+  });
+
+  test('auto-continue staging ignores unrelated failed commands', () {
+    const env = _TodoFixtureEnv(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      model: 'test-model',
+      maxTokens: 128,
+      temperature: 0,
+      workspaceRoot: null,
+      sessionLogRoot: '/tmp/caverno_test_session_logs',
+    );
+    final dataSource = _TodoAutoContinueDataSource(env, stagedFailureTurns: 2);
+    final unrelatedFailure = ToolResultInfo(
+      id: 'analyze-1',
+      name: 'local_execute_command',
+      arguments: const {'command': 'dart analyze'},
+      result: jsonEncode({
+        'command': 'dart analyze',
+        'exit_code': 1,
+        'diagnostics': [
+          {'severity': 'Error', 'code': 'compile_error'},
+        ],
+      }),
+    );
+
+    expect(dataSource._forcedIncompleteResult([unrelatedFailure]), isNull);
+    expect(dataSource.forcedIncompleteTurns, 0);
+  });
+
+  test('auto-continue verifier staging decreases diagnostics', () {
+    final root = Directory.systemTemp.createTempSync(
+      'todo_auto_continue_staging_',
+    );
+    try {
+      final first = _stagedAutoContinueOutcome(root, 1);
+      final second = _stagedAutoContinueOutcome(root, 2);
+
+      expect(first['diagnostics'], hasLength(2));
+      expect(second['diagnostics'], hasLength(1));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
   });
 
   test('TODO fixture blocks mutations after verifier success', () async {
@@ -1194,7 +1284,10 @@ void main() {
     'live LLM auto-continues the todo_app.md MVP fixture from diagnostic evidence',
     () async {
       final env = _TodoFixtureEnv.fromEnvironment();
-      final fixture = _TodoFixture.create(env.workspaceRoot);
+      final fixture = _TodoFixture.create(
+        env.workspaceRoot,
+        seedReferenceImplementation: true,
+      );
       final sessionLogRoot = Directory(env.sessionLogRoot)
         ..createSync(recursive: true);
       final logStore = LlmSessionLogStore(
@@ -1208,6 +1301,14 @@ void main() {
         fixture.root,
         stagedFailureTurns: _stagedFailureTurns,
       );
+      // local_execute_command is handled by Caverno's built-in tool before the
+      // fixture MCP service can see it. Stage failures at the verifier process
+      // boundary so this scenario always exercises auto-continuation instead
+      // of accepting a valid first-turn success without testing the path.
+      _writeVerifierScript(fixture.root, [
+        for (var attempt = 1; attempt <= _stagedFailureTurns; attempt++)
+          _stagedAutoContinueOutcome(fixture.root, attempt),
+      ]);
       final container = _buildContainer(
         env: env,
         fixture: fixture,
@@ -1226,11 +1327,10 @@ void main() {
         );
         await conversations.saveCurrentGoal(
           objective:
-              'Build the TODO app from docs/coding_mvp_fixtures/todo_app.md '
-              'in this scratch project. Use a Dart command-line program at '
-              'bin/todo_cli.dart. The goal is complete only after '
-              'local_execute_command runs "$_verifyCommand" and it exits with '
-              'code 0.',
+              'This scratch project already contains a Dart command-line TODO '
+              'app at bin/todo_cli.dart. Bring it to a verified state: the '
+              'goal is complete only after local_execute_command runs '
+              '"$_verifyCommand" and it exits with code 0.',
           enabled: true,
           autoContinue: true,
           status: ConversationGoalStatus.active,
@@ -1239,17 +1339,25 @@ void main() {
         );
 
         final notifier = container.read(chatNotifierProvider.notifier);
+        // This scenario gates the auto-continuation path, so the project ships
+        // with a working implementation and the model is asked to get it
+        // verified rather than to write it. What the model still decides for
+        // itself is when to run the verifier and how to answer -- the two
+        // inputs the auto-continue policy actually reads. Narrowing past those
+        // would leave a live restatement of the focused unit test.
         await notifier.sendMessage(
           [
-            'Direct-build the TODO MVP fixture in the selected scratch '
-                'project. This is the compact builder spec derived from '
-                'docs/coding_mvp_fixtures/todo_app.md.',
+            'The selected scratch project already contains a runnable Dart '
+                'TODO CLI at bin/todo_cli.dart. Get it into a verified state.',
+            '',
+            'The behavior it has to satisfy, derived from '
+                'docs/coding_mvp_fixtures/todo_app.md:',
             '',
             _builderSpec(),
             '',
-            'Implementation constraints for this live check:',
-            '- Use write_file to create the runnable Dart CLI at '
-                'bin/todo_cli.dart.',
+            'Constraints for this live check:',
+            '- Repair bin/todo_cli.dart where the verifier reports a problem. '
+                'Do not rewrite it from scratch.',
             '- The verifier stub already exists at tool/verify_todo_app.dart; '
                 'do not inspect or edit it.',
             '- Verify by calling local_execute_command with command '
@@ -1760,7 +1868,6 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
   }
 }
 
-
 _TodoToolCall _fixtureVerifierCall({
   required String command,
   required List<Map<String, dynamic>> diagnostics,
@@ -1832,7 +1939,6 @@ bool _hasPathBackedDiagnostics(Object? rawDiagnostics) {
         (path is String && path.trim().isNotEmpty);
   });
 }
-
 
 bool _containsRepairContractRequest(Map<String, dynamic> entry) {
   final request = entry['request'];
@@ -2565,7 +2671,19 @@ class _TodoFixture {
   final CodingProject project;
   final bool deleteOnDispose;
 
-  static _TodoFixture create(String? workspaceRoot) {
+  /// Creates the fixture project.
+  ///
+  /// [seedReferenceImplementation] writes a known-good `bin/todo_cli.dart`
+  /// before the turn starts. Scenarios that gate on auto-continuation use it so
+  /// that a run cannot fail for reasons the gate does not measure: on
+  /// `b7d88fe4` the model explored the empty project with two rounds of
+  /// `list_directory`, produced no mutation at all, and the auto-continue
+  /// policy correctly found nothing to continue from. Scenarios that measure
+  /// code generation itself must leave it false.
+  static _TodoFixture create(
+    String? workspaceRoot, {
+    bool seedReferenceImplementation = false,
+  }) {
     final deleteOnDispose = workspaceRoot == null || workspaceRoot.isEmpty;
     final root = deleteOnDispose
         ? Directory.systemTemp.createTempSync('todo_auto_continue_fixture_')
@@ -2593,6 +2711,20 @@ environment:
     File(
       '${root.path}/tool/verify_todo_app.dart',
     ).writeAsStringSync(_verifierEntrypointSource());
+    if (seedReferenceImplementation) {
+      final reference = File(
+        'tool/canaries/support/todo_app_reference_cli.dart',
+      );
+      if (!reference.existsSync()) {
+        throw StateError(
+          'tool/canaries/support/todo_app_reference_cli.dart is required to '
+          'seed the TODO fixture.',
+        );
+      }
+      File(
+        '${root.path}/bin/todo_cli.dart',
+      ).writeAsStringSync(reference.readAsStringSync());
+    }
     final now = DateTime.now();
     return _TodoFixture(
       root: root,
@@ -2608,6 +2740,15 @@ environment:
   }
 
   void dispose() {
+    for (final path in [
+      _verifierScriptPathFor(root.absolute.path),
+      _verifierInvocationLogPathFor(root.absolute.path),
+    ]) {
+      final file = File(path);
+      if (file.existsSync()) {
+        file.deleteSync();
+      }
+    }
     if (deleteOnDispose && root.existsSync()) {
       root.deleteSync(recursive: true);
     }
@@ -2818,6 +2959,7 @@ class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
   Set<String> preTruncationToolNames = const {};
   Set<String> pendingActionRecoveryToolNames = const {};
   bool _awaitingForcedFinalStream = false;
+  String? _forcedIncompleteFinalContent;
 
   @override
   Future<ChatCompletionResult> createChatCompletionWithToolResults({
@@ -2858,6 +3000,7 @@ class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
     }
     final forced = _forcedIncompleteResult(toolResults);
     if (forced != null) {
+      _forcedIncompleteFinalContent = forced.content;
       return Future.value(forced);
     }
     return super.createChatCompletionWithToolResults(
@@ -2878,6 +3021,15 @@ class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
     double? temperature,
     int? maxTokens,
   }) {
+    final forcedIncompleteContent = _forcedIncompleteFinalContent;
+    if (forcedIncompleteContent != null) {
+      _forcedIncompleteFinalContent = null;
+      lastFinishReason = 'stop';
+      return StreamedChatCompletion.fromStream(
+        Stream<String>.value(forcedIncompleteContent),
+        finishReason: 'stop',
+      );
+    }
     if (_awaitingForcedFinalStream) {
       _awaitingForcedFinalStream = false;
       forcedPendingActionLengthCount += 1;
@@ -2947,6 +3099,7 @@ class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
       ),
     ]);
     if (forced != null) {
+      _forcedIncompleteFinalContent = forced.content;
       return Future.value(forced);
     }
     return super.createChatCompletionWithToolResult(
@@ -3008,10 +3161,8 @@ class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
       return null;
     }
     final failedTodoResult = toolResults
+        .where(_isFailedTodoVerifierResult)
         .map((result) => _tryDecodeObject(result.result))
-        .where((decoded) => decoded['canary'] == 'todo_app')
-        .where((decoded) => decoded['exit_code'] != 0)
-        .where((decoded) => decoded['diagnostics'] is List)
         .firstOrNull;
     if (failedTodoResult == null) {
       return null;
@@ -3022,11 +3173,27 @@ class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
     return ChatCompletionResult(
       content:
           'TASK NOT COMPLETE: $diagnostics unresolved Error diagnostics remain '
-          'for the TODO app fixture. Continue from the concrete verifier '
-          'diagnostics in the next turn.',
+          'for the TODO app fixture. These are staged canary diagnostics, not '
+          'a request to repair source code. In the next turn, rerun '
+          '"$_verifyCommand" from the project root to collect the next '
+          'verification result. Do not inspect or edit the verifier.',
       finishReason: 'stop',
       usage: TokenUsage.zero,
     );
+  }
+
+  bool _isFailedTodoVerifierResult(ToolResultInfo result) {
+    final decoded = _tryDecodeObject(result.result);
+    if (decoded['exit_code'] == 0 || decoded['diagnostics'] is! List) {
+      return false;
+    }
+    if (decoded['canary'] == 'todo_app') {
+      return true;
+    }
+    final command = result.arguments['command'] ?? decoded['command'];
+    return result.name == 'local_execute_command' &&
+        command is String &&
+        command.replaceAll(RegExp(r'\s+'), ' ').trim() == _verifyCommand;
   }
 }
 

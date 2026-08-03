@@ -10,15 +10,30 @@ Conversation _conversation({
   String id = 'conversation-a',
   List<ConversationWorkflowTask> tasks = const [],
   List<ConversationExecutionTaskProgress> progress = const [],
-}) => Conversation(
-  id: id,
-  title: id,
-  messages: const [],
-  createdAt: _timestamp,
-  updatedAt: _timestamp,
-  workflowSpec: ConversationWorkflowSpec(tasks: tasks),
-  executionProgress: progress,
-);
+}) {
+  final effectiveProgress = progress.isNotEmpty
+      ? progress
+      : tasks
+            .where(
+              (task) => task.status != ConversationWorkflowTaskStatus.pending,
+            )
+            .map(
+              (task) => ConversationExecutionTaskProgress(
+                taskId: task.id,
+                status: task.status,
+              ),
+            )
+            .toList(growable: false);
+  return Conversation(
+    id: id,
+    title: id,
+    messages: const [],
+    createdAt: _timestamp,
+    updatedAt: _timestamp,
+    workflowSpec: ConversationWorkflowSpec(tasks: tasks),
+    executionProgress: effectiveProgress,
+  );
+}
 
 ConversationWorkflowTask _task(
   String id,

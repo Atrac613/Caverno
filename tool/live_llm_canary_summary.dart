@@ -17,7 +17,8 @@ Future<void> main(List<String> args) async {
     stderr.writeln(
       'Usage: dart run tool/live_llm_canary_summary.dart '
       '--log PATH --out-dir PATH --canary-name NAME --surface NAME '
-      '--base-url URL --model MODEL --command COMMAND',
+      '--base-url URL --model MODEL --command COMMAND '
+      '[--session-log-dir PATH]',
     );
     exitCode = 64;
     return;
@@ -32,6 +33,7 @@ Future<void> main(List<String> args) async {
 
   final outputDirectory = Directory(options.outDir);
   outputDirectory.createSync(recursive: true);
+  final sessionLogDir = options.sessionLogDir;
   final summary = await buildLiveLlmCanarySummary(
     logFile: logFile,
     canaryName: options.canaryName,
@@ -39,6 +41,9 @@ Future<void> main(List<String> args) async {
     baseUrl: options.baseUrl,
     model: options.model,
     command: options.command,
+    sessionLogDirectory: sessionLogDir == null
+        ? null
+        : Directory(sessionLogDir),
   );
 
   final jsonFile = File('${outputDirectory.path}/canary_summary.json');
@@ -63,6 +68,7 @@ Future<LiveLlmCanarySummary> buildLiveLlmCanarySummary({
   required String baseUrl,
   required String model,
   required String command,
+  Directory? sessionLogDirectory,
   DateTime? generatedAt,
 }) async {
   final rawLog = await logFile.readAsString();
@@ -80,7 +86,12 @@ Future<LiveLlmCanarySummary> buildLiveLlmCanarySummary({
     failedCount: failedCount,
     skippedCount: skippedCount,
   );
-  final signals = LiveLlmCanarySignals.fromLog(rawLog);
+  final signals = LiveLlmCanarySignals.fromLog(
+    rawLog,
+    sessionLogDiagnosticCounts: sessionLogDirectory == null
+        ? null
+        : readSessionLogDiagnosticCounts(sessionLogDirectory),
+  );
   return LiveLlmCanarySummary(
     schemaName: 'live_llm_canary_summary',
     schemaVersion: 3,
@@ -319,7 +330,8 @@ class LiveLlmCanarySummary {
       )
       ..writeln(
         '- Diagnostic progression: '
-        '`${signals.goalAutoContinue.diagnosticCounts.isEmpty ? '(none)' : signals.goalAutoContinue.diagnosticCounts.join(' -> ')}`',
+        '`${signals.goalAutoContinue.diagnosticCounts.isEmpty ? '(none)' : signals.goalAutoContinue.diagnosticCounts.join(' -> ')}` '
+        '(source: `${signals.goalAutoContinue.diagnosticCountsSource}`)',
       )
       ..writeln(
         '- Progress-based extension count: '
@@ -678,12 +690,18 @@ class LiveLlmCanarySignals {
   final LiveLlmCanaryCodingOutputFeedbackSignals codingOutputFeedback;
   final LiveLlmCanaryRequestTemperatureSignals requestTemperatures;
 
-  static LiveLlmCanarySignals fromLog(String rawLog) {
+  static LiveLlmCanarySignals fromLog(
+    String rawLog, {
+    List<int>? sessionLogDiagnosticCounts,
+  }) {
     final dartAnalyzeFeedback = _extractDartAnalyzeFeedbackSignals(rawLog);
     final dartTestFeedback = _extractDartTestFeedbackSignals(rawLog);
     final codingOutputFeedback = _extractCodingOutputFeedbackSignals(rawLog);
     final requestTemperatures = _extractRequestTemperatureSignals(rawLog);
-    final goalAutoContinue = _extractGoalAutoContinueSignals(rawLog);
+    final goalAutoContinue = _extractGoalAutoContinueSignals(
+      rawLog,
+      sessionLogDiagnosticCounts: sessionLogDiagnosticCounts,
+    );
     return LiveLlmCanarySignals(
       recoveredStreamFallbackCount: _countMatches(
         rawLog,
@@ -831,6 +849,8 @@ class LiveLlmCanaryGoalAutoContinueSignals {
   const LiveLlmCanaryGoalAutoContinueSignals({
     required this.continuationCount,
     required this.diagnosticCounts,
+    required this.diagnosticCountsSource,
+    required this.logTextDiagnosticCounts,
     required this.progressExtensionCount,
     required this.finalStopReason,
     required this.firstVerifierTurn,
@@ -847,7 +867,18 @@ class LiveLlmCanaryGoalAutoContinueSignals {
   });
 
   final int continuationCount;
+
+  /// Unresolved-error count per continuation. Sourced from the structured
+  /// session log when one is available, because the log-text pattern only
+  /// matches evidence summaries that begin with the count.
   final List<int> diagnosticCounts;
+
+  /// Either `sessionLog` or `logText`.
+  final String diagnosticCountsSource;
+
+  /// The log-text derivation, kept alongside the authoritative value so the
+  /// two can be compared before the text pattern is retired.
+  final List<int> logTextDiagnosticCounts;
   final int progressExtensionCount;
   final String? finalStopReason;
   final int? firstVerifierTurn;
@@ -866,6 +897,8 @@ class LiveLlmCanaryGoalAutoContinueSignals {
     return {
       'continuationCount': continuationCount,
       'diagnosticCounts': diagnosticCounts,
+      'diagnosticCountsSource': diagnosticCountsSource,
+      'logTextDiagnosticCounts': logTextDiagnosticCounts,
       'progressExtensionCount': progressExtensionCount,
       'finalStopReason': finalStopReason,
       'firstVerifierTurn': firstVerifierTurn,
@@ -1229,6 +1262,7 @@ class _LiveLlmCanarySummaryOptions {
     required this.baseUrl,
     required this.model,
     required this.command,
+    this.sessionLogDir,
   });
 
   final String logPath;
@@ -1238,6 +1272,10 @@ class _LiveLlmCanarySummaryOptions {
   final String baseUrl;
   final String model;
   final String command;
+
+  /// Structured session-log root for this run. Optional so canaries that do not
+  /// pin `CAVERNO_SESSION_LOG_DIR` keep working on the log-text signals alone.
+  final String? sessionLogDir;
 
   static _LiveLlmCanarySummaryOptions? parse(List<String> args) {
     final values = <String, String>{};
@@ -1276,8 +1314,58 @@ class _LiveLlmCanarySummaryOptions {
       baseUrl: baseUrl,
       model: model,
       command: command,
+      sessionLogDir: values['session-log-dir'],
     );
   }
+}
+
+/// Unresolved-error counts carried by the structured `goal_auto_continue`
+/// records under [directory], in file and line order, one per `continue`
+/// decision.
+///
+/// Returns null when the directory holds no such record, which keeps the
+/// log-text fallback authoritative instead of reporting a real zero.
+List<int>? readSessionLogDiagnosticCounts(Directory directory) {
+  if (!directory.existsSync()) {
+    return null;
+  }
+  final files =
+      directory
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.jsonl'))
+          .toList()
+        ..sort((left, right) => left.path.compareTo(right.path));
+  final counts = <int>[];
+  var sawRecord = false;
+  for (final file in files) {
+    for (final line in const LineSplitter().convert(file.readAsStringSync())) {
+      if (line.trim().isEmpty) {
+        continue;
+      }
+      final record = _tryDecodeObject(line);
+      if (record['operation'] != 'goal_auto_continue') {
+        continue;
+      }
+      final goalAutoContinue = record['goalAutoContinue'];
+      if (goalAutoContinue is! Map) {
+        continue;
+      }
+      sawRecord = true;
+      if (goalAutoContinue['decision'] != 'continue') {
+        continue;
+      }
+      final evidence = goalAutoContinue['evidence'];
+      if (evidence is! Map) {
+        continue;
+      }
+      final unresolvedErrorCount = evidence['unresolvedErrorCount'];
+      if (unresolvedErrorCount is int) {
+        counts.add(unresolvedErrorCount);
+      }
+    }
+  }
+  return sawRecord ? List<int>.unmodifiable(counts) : null;
 }
 
 int _countMatches(String input, RegExp pattern) {
@@ -1621,8 +1709,9 @@ Iterable<String> _messagesFromLogLine(String line) sync* {
 }
 
 LiveLlmCanaryGoalAutoContinueSignals _extractGoalAutoContinueSignals(
-  String rawLog,
-) {
+  String rawLog, {
+  List<int>? sessionLogDiagnosticCounts,
+}) {
   final continuePattern = RegExp(
     r'\[GoalAutoContinue\] continue (\d+)/(\d+): ([^;]+);',
   );
@@ -1764,9 +1853,16 @@ LiveLlmCanaryGoalAutoContinueSignals _extractGoalAutoContinueSignals(
         (total, streak) => total + (streak > 1 ? streak - 1 : 0),
       );
 
+  final logTextDiagnosticCounts = List<int>.unmodifiable(diagnosticCounts);
   return LiveLlmCanaryGoalAutoContinueSignals(
     continuationCount: continuationCount,
-    diagnosticCounts: List<int>.unmodifiable(diagnosticCounts),
+    diagnosticCounts: sessionLogDiagnosticCounts == null
+        ? logTextDiagnosticCounts
+        : List<int>.unmodifiable(sessionLogDiagnosticCounts),
+    diagnosticCountsSource: sessionLogDiagnosticCounts == null
+        ? 'logText'
+        : 'sessionLog',
+    logTextDiagnosticCounts: logTextDiagnosticCounts,
     progressExtensionCount: progressExtensionCount,
     finalStopReason: finalStopReason,
     firstVerifierTurn: firstVerifierTurn,

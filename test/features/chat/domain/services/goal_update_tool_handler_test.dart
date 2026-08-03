@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
 import 'package:caverno/features/chat/domain/services/goal_update_tool_handler.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:test/test.dart';
@@ -287,6 +286,28 @@ void main() {
         ),
         isFalse,
       );
+    });
+
+    test('captures a raw call and exact owner snapshot before evaluation', () {
+      final owner = _owner('owner-a', 12);
+      final arguments = <String, dynamic>{'completed': true};
+      final outcome = _handler.handleCall(
+        owner: owner,
+        toolCall: ToolCallInfo(
+          id: 'update-goal-a',
+          name: 'update_goal',
+          arguments: arguments,
+        ),
+        goal: _goal(),
+        toolResults: const [],
+        completionEvidence: const ToolResultCompletionEvidence(),
+      );
+      arguments['completed'] = false;
+
+      expect(outcome.owner, owner);
+      expect(outcome.identity.toolCallId, 'update-goal-a');
+      expect(outcome.ackOutcome, GoalUpdateAckOutcome.completionRecorded);
+      expect(outcome.completionAccepted, isTrue);
     });
 
     test('rejects another owner snapshot before evaluating its goal', () {

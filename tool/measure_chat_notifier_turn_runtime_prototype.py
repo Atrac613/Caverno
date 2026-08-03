@@ -30,6 +30,9 @@ VALIDATED_SELECTION_SCHEMA_NAME = (
 VALIDATED_SELECTION_SCHEMA_VERSION = 1
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+EXPLICIT_TURN_IDENTITY_PATTERN = re.compile(
+    r"\bChatTurnOwner\??\b|\b(?:interactionGeneration|generation)\b"
+)
 PROVIDER_ROOT = pathlib.PurePosixPath(
     "lib/features/chat/presentation/providers"
 )
@@ -43,7 +46,7 @@ def repository_root() -> pathlib.Path:
     return pathlib.Path(__file__).resolve().parents[1]
 
 
-def _git(root: pathlib.Path, *arguments: str) -> str:
+def _git(root: pathlib.Path, *arguments: str, strip: bool = True) -> str:
     result = subprocess.run(
         ["git", *arguments],
         cwd=root,
@@ -54,7 +57,11 @@ def _git(root: pathlib.Path, *arguments: str) -> str:
     if result.returncode != 0:
         message = result.stderr.strip() or result.stdout.strip()
         raise SelectionError(f"git {' '.join(arguments)} failed: {message}")
-    return result.stdout.strip()
+    # Porcelain status encodes the index state in column 1 and the worktree
+    # state in column 2, so a worktree-only change begins with a space that
+    # stripping would eat along with the newline, shifting the fixed-width
+    # path offset by one for the first entry only.
+    return result.stdout.strip() if strip else result.stdout
 
 
 def resolve_source_revision(root: pathlib.Path, revision: str) -> str:
@@ -68,12 +75,15 @@ def resolve_source_revision(root: pathlib.Path, revision: str) -> str:
 
 
 def require_clean_worktree(root: pathlib.Path) -> None:
-    changed = _git(root, "status", "--porcelain", "--untracked-files=all")
-    if changed:
-        paths = [line[3:] if len(line) > 3 else line for line in changed.splitlines()]
+    changed = _git(
+        root, "status", "--porcelain", "--untracked-files=all", strip=False
+    )
+    lines = [line for line in changed.splitlines() if line.strip()]
+    if lines:
+        paths = [line[3:] if len(line) > 3 else line for line in lines]
         raise SelectionError(
             "Prototype selection requires a clean worktree: "
-            + ", ".join(paths)
+            + ", ".join(sorted(paths))
         )
 
 
@@ -169,6 +179,10 @@ def _production_line_count(path: pathlib.Path) -> int:
         raise SelectionError(
             f"Could not read current part source {path}: {error}"
         ) from error
+
+
+def _is_explicit_turn_identity_parameter(parameter: str) -> bool:
+    return EXPLICIT_TURN_IDENTITY_PATTERN.search(parameter) is not None
 
 
 def _candidate_rows(
@@ -287,7 +301,10 @@ def _candidate_rows(
                     f"{part_path}::{declaration}.turnIdentityParameters"
                     f"[{parameter_index}]",
                 )
-            if method["turnReachable"] and parameters:
+            if method["turnReachable"] and any(
+                _is_explicit_turn_identity_parameter(parameter)
+                for parameter in parameters
+            ):
                 identity_entrypoints.append(declaration)
 
         ambient_reads = [

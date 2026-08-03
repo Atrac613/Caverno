@@ -2216,7 +2216,6 @@ void registerChatNotifierGoalAutoContinueTests() {
           ],
         ),
       );
-
       expect(
         chatNotifier.hasVerifierReplayCandidateForOwnerForTest(owner),
         isFalse,

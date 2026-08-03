@@ -4,136 +4,122 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierAskUserQuestion on ChatNotifier {
+  AskUserQuestionToolRuntimeAdapter _buildAskUserQuestionRuntime() =>
+      AskUserQuestionToolRuntimeAdapter(
+        cache: _askUserQuestionTurnCache,
+        terminalResponsePolicy: _terminalToolResponsePolicy,
+        ownerIsCurrent: _isAskUserQuestionOwnerCurrent,
+        startQuestion: _startAskUserQuestionUi,
+        cancelQuestion: _cancelAskUserQuestionUi,
+      );
+
   Future<McpToolResult> _handleAskUserQuestion(
     ToolCallInfo toolCall, {
     int? interactionGeneration,
   }) async {
-    final question = trimStringArgument(toolCall.arguments, 'question');
-    if (question.isEmpty) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'question is required',
-      );
-    }
-
-    final options = askUserQuestionOptionParser.parse(toolCall.arguments['options']);
-    // An untracked dispatcher has no owner and must not inherit visible policy.
-    final savedTask = interactionGeneration == null
+    final owner = interactionGeneration == null
         ? null
-        : _savedTaskForGeneration(interactionGeneration);
-    if (savedTask != null &&
-        _terminalToolResponsePolicy.isSavedWorkflowContinuationQuestion(
-          question,
-        )) {
-      appLog(
-        '[AskUserQuestion] Resolving saved workflow continuation question '
-        'from the execution policy',
-      );
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: jsonEncode({
-          'status': 'policy_resolved',
-          'question': question,
-          'answer':
-              'Continue autonomously with the current saved task. Run its '
-              'saved validation before moving to the next task.',
-          'saved_task_id': savedTask.id,
-          if (savedTask.validationCommand.trim().isNotEmpty)
-            'saved_validation_command': savedTask.validationCommand.trim(),
-        }),
-        isSuccess: true,
-      );
+        : _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) {
+      return _turnOwnerSnapshotUnavailableResult(toolCall.name);
     }
-    final existingResult = interactionGeneration == null
-        ? null
-        : _askUserQuestionTurnCache.findReusable(
-            generation: interactionGeneration,
-            question: question,
-            options: options,
-          );
-    if (existingResult != null) {
-      appLog(
-        '[AskUserQuestion] Reusing completed answer for repeated '
-        'ask_user_question in the same turn',
-      );
-      return _buildRepeatedAskUserQuestionResult(existingResult);
-    }
-
-    final allowOther = toolCall.arguments['allow_other'] as bool? ?? true;
-    if (options.isEmpty && !allowOther) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'at least one option or allow_other is required',
-      );
-    }
-
-    final answer = await requestAskUserQuestion(
-      question: question,
-      help: trimStringArgument(toolCall.arguments, 'help'),
-      options: options,
-      allowMultiple: toolCall.arguments['allow_multiple'] as bool? ?? false,
-      allowOther: allowOther,
-      otherPlaceholder: trimStringArgument(
-        toolCall.arguments,
-        'other_placeholder',
-      ),
-      targetConversationId: interactionGeneration == null
-          ? null
-          : _activeResponseConversationIdForGeneration(interactionGeneration),
+    final savedTask = _savedTaskForGeneration(owner.interactionGeneration);
+    return _askUserQuestionRuntime.handle(
+      owner: owner,
+      toolCall: toolCall,
+      savedTask: savedTask,
     );
-    if (answer == null || !answer.hasAnswer) {
-      final result = McpToolResult(
-        toolName: toolCall.name,
-        result: jsonEncode({'question': question, 'status': 'cancelled'}),
-        isSuccess: false,
-        errorMessage: 'User dismissed the question',
-      );
-      if (interactionGeneration != null) {
-        _askUserQuestionTurnCache.store(
-          generation: interactionGeneration,
-          question: question,
-          options: options,
-          result: result,
-        );
-      }
-      return result;
-    }
-
-    final result = McpToolResult(
-      toolName: toolCall.name,
-      result: jsonEncode({'status': 'answered', ...answer.toJson()}),
-      isSuccess: true,
-    );
-    if (interactionGeneration != null) {
-      _askUserQuestionTurnCache.store(
-        generation: interactionGeneration,
-        question: question,
-        options: options,
-        result: result,
-      );
-    }
-    return result;
   }
 
-  McpToolResult _buildRepeatedAskUserQuestionResult(McpToolResult previous) {
-    final decoded = decodeJsonObject(previous.result);
-    final result = decoded == null
-        ? previous.result
-        : jsonEncode({
-            ...decoded,
-            'reused': true,
-            'note':
-                'The user already answered ask_user_question during this turn. Continue using the existing answer and do not ask again.',
-          });
-    return McpToolResult(
-      toolName: previous.toolName,
-      result: result,
-      isSuccess: previous.isSuccess,
-      errorMessage: previous.errorMessage,
+  bool _isAskUserQuestionOwnerCurrent(
+    AskUserQuestionOperationIdentity identity,
+  ) {
+    return _activeResponseRegistry.containsOwner(identity.owner);
+  }
+
+  AskUserQuestionUiStartAcknowledgement _startAskUserQuestionUi(
+    AskUserQuestionOperationIdentity identity,
+    AskUserQuestionRequest request,
+  ) {
+    if (!_isAskUserQuestionOwnerCurrent(identity)) {
+      return AskUserQuestionUiStartAcknowledgement.ownerRetired(
+        identity: identity,
+      );
+    }
+    if (_pendingAskUserQuestionsByThread.containsKey(
+      identity.owner.conversationId,
+    )) {
+      return AskUserQuestionUiStartAcknowledgement.alreadyPending(
+        identity: identity,
+      );
+    }
+
+    final answer = requestAskUserQuestion(
+      question: request.question,
+      help: request.help,
+      options: request.options,
+      allowMultiple: request.allowMultiple,
+      allowOther: request.allowOther,
+      otherPlaceholder: request.otherPlaceholder,
+      targetConversationId: identity.owner.conversationId,
+    );
+    final pending =
+        _pendingAskUserQuestionsByThread[identity.owner.conversationId];
+    if (pending == null) {
+      return AskUserQuestionUiStartAcknowledgement.alreadyPending(
+        identity: identity,
+      );
+    }
+    return AskUserQuestionUiStartAcknowledgement.started(
+      identity: identity,
+      pendingQuestionId: pending.id,
+      completion: answer.then((value) {
+        if (!_isAskUserQuestionOwnerCurrent(identity)) {
+          return AskUserQuestionUiCompletionAcknowledgement.ownerRetired(
+            identity: identity,
+            pendingQuestionId: pending.id,
+          );
+        }
+        if (value == null) {
+          return AskUserQuestionUiCompletionAcknowledgement.cancelled(
+            identity: identity,
+            pendingQuestionId: pending.id,
+          );
+        }
+        return AskUserQuestionUiCompletionAcknowledgement.answered(
+          identity: identity,
+          pendingQuestionId: pending.id,
+          answer: value,
+        );
+      }),
+    );
+  }
+
+  AskUserQuestionUiCancellationAcknowledgement _cancelAskUserQuestionUi(
+    AskUserQuestionOperationIdentity identity,
+    String pendingQuestionId,
+  ) {
+    final pending =
+        _pendingAskUserQuestionsByThread[identity.owner.conversationId];
+    if (pending == null) {
+      return AskUserQuestionUiCancellationAcknowledgement(
+        identity: identity,
+        pendingQuestionId: pendingQuestionId,
+        disposition: AskUserQuestionUiCancellationDisposition.alreadySettled,
+      );
+    }
+    if (pending.id != pendingQuestionId) {
+      return AskUserQuestionUiCancellationAcknowledgement(
+        identity: identity,
+        pendingQuestionId: pendingQuestionId,
+        disposition: AskUserQuestionUiCancellationDisposition.rejected,
+      );
+    }
+    resolveAskUserQuestion(id: pendingQuestionId);
+    return AskUserQuestionUiCancellationAcknowledgement(
+      identity: identity,
+      pendingQuestionId: pendingQuestionId,
+      disposition: AskUserQuestionUiCancellationDisposition.cancelled,
     );
   }
 
@@ -234,104 +220,4 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
     if (visiblePending == null) return;
     state = state.copyWith(pendingAskUserQuestion: null);
   }
-
-}
-
-class _AskUserQuestionTurnCache {
-  final Map<int, List<_CachedAskUserQuestionResult>> _entriesByGeneration =
-      <int, List<_CachedAskUserQuestionResult>>{};
-
-  McpToolResult? findReusable({
-    required int generation,
-    required String question,
-    required List<AskUserQuestionOption> options,
-  }) {
-    final entries = _entriesByGeneration[generation];
-    if (entries == null || entries.isEmpty) {
-      return null;
-    }
-
-    final normalizedQuestion = _normalizeText(question);
-    for (final entry in entries.reversed) {
-      if (entry.normalizedQuestion == normalizedQuestion) {
-        return entry.result;
-      }
-    }
-
-    final optionLabels = _normalizedOptionLabels(options);
-    if (optionLabels.isEmpty) {
-      return null;
-    }
-    for (final entry in entries.reversed) {
-      final canReuseAcrossWording =
-          entry.result.isSuccess &&
-          (entry.optionLabels.length > 1 || optionLabels.length > 1) &&
-          entry.optionLabels.intersection(optionLabels).isNotEmpty;
-      if (canReuseAcrossWording) {
-        return entry.result;
-      }
-    }
-    return null;
-  }
-
-  void store({
-    required int generation,
-    required String question,
-    required List<AskUserQuestionOption> options,
-    required McpToolResult result,
-  }) {
-    final entries = _entriesByGeneration[generation] ??=
-        <_CachedAskUserQuestionResult>[];
-    entries.add(
-      _CachedAskUserQuestionResult(
-        normalizedQuestion: _normalizeText(question),
-        optionLabels: _normalizedOptionLabels(options),
-        result: result,
-      ),
-    );
-  }
-
-  bool anyResult(
-    int generation,
-    bool Function(McpToolResult result) predicate,
-  ) {
-    final entries = _entriesByGeneration[generation];
-    if (entries == null || entries.isEmpty) {
-      return false;
-    }
-    return entries.map((entry) => entry.result).any(predicate);
-  }
-
-  void removeGeneration(int generation) {
-    _entriesByGeneration.remove(generation);
-  }
-
-  void clear() {
-    _entriesByGeneration.clear();
-  }
-
-  static Set<String> _normalizedOptionLabels(
-    List<AskUserQuestionOption> options,
-  ) {
-    return options
-        .map((option) => _normalizeText(option.label))
-        .where((label) => label.isNotEmpty)
-        .toSet();
-  }
-
-  static String _normalizeText(String value) {
-    return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-  }
-}
-
-class _CachedAskUserQuestionResult {
-  const _CachedAskUserQuestionResult({
-    required this.normalizedQuestion,
-    required this.optionLabels,
-    required this.result,
-  });
-
-  final String normalizedQuestion;
-  final Set<String> optionLabels;
-  final McpToolResult result;
 }

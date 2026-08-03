@@ -598,6 +598,19 @@ const Map<String, int> _libraryLineBudgets = {
         'library.dart',
       });
     });
+
+    test('participant turn progression delegates to its planner', () {
+      final source = File(
+        'lib/features/chat/presentation/providers/'
+        'chat_notifier_participant_turns.dart',
+      ).readAsStringSync();
+
+      expect(source, contains('ParticipantTurnPlanner().start'));
+      expect(source, contains('planner.advance('));
+      expect(source, contains('ParticipantTurnRuntimeProjection'));
+      expect(source, isNot(contains('nextSpeaker(')));
+      expect(source, isNot(contains('normalizeParticipants(')));
+    });
   });
 }
 

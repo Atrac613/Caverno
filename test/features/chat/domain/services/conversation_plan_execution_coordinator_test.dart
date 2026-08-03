@@ -1057,7 +1057,7 @@ void main() {
           ConversationWorkflowTask(
             id: 'task-1',
             title: 'Keep implementing',
-            status: ConversationWorkflowTaskStatus.inProgress,
+            status: ConversationWorkflowTaskStatus.completed,
             validationCommand: 'flutter test',
           ),
           ConversationWorkflowTask(
@@ -1067,6 +1067,12 @@ void main() {
           ),
         ],
       ),
+      executionProgress: const [
+        ConversationExecutionTaskProgress(
+          taskId: 'task-1',
+          status: ConversationWorkflowTaskStatus.inProgress,
+        ),
+      ],
     );
 
     final validationTask = ConversationPlanExecutionCoordinator.validationTask(
@@ -1074,6 +1080,99 @@ void main() {
     );
 
     expect(validationTask?.id, 'task-1');
+    expect(validationTask?.status, ConversationWorkflowTaskStatus.inProgress);
+  });
+
+  test('task selectors use progress over contradictory authored status', () {
+    final conversation = Conversation(
+      id: 'conversation-1',
+      title: 'Plan thread',
+      messages: const <Message>[],
+      createdAt: DateTime(2026, 4, 18, 16),
+      updatedAt: DateTime(2026, 4, 18, 16, 5),
+      workflowSpec: const ConversationWorkflowSpec(
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'legacy-active',
+            title: 'Legacy active task',
+            status: ConversationWorkflowTaskStatus.inProgress,
+          ),
+          ConversationWorkflowTask(
+            id: 'legacy-blocked',
+            title: 'Legacy blocked task',
+            status: ConversationWorkflowTaskStatus.blocked,
+          ),
+          ConversationWorkflowTask(
+            id: 'progress-active',
+            title: 'Progress active task',
+            status: ConversationWorkflowTaskStatus.completed,
+          ),
+          ConversationWorkflowTask(
+            id: 'progress-blocked',
+            title: 'Progress blocked task',
+          ),
+        ],
+      ),
+      executionProgress: const [
+        ConversationExecutionTaskProgress(
+          taskId: 'progress-active',
+          status: ConversationWorkflowTaskStatus.inProgress,
+        ),
+        ConversationExecutionTaskProgress(
+          taskId: 'progress-blocked',
+          status: ConversationWorkflowTaskStatus.blocked,
+        ),
+      ],
+    );
+
+    final active = ConversationPlanExecutionCoordinator.activeTask(
+      conversation,
+    );
+    final blocked = ConversationPlanExecutionCoordinator.blockedTask(
+      conversation,
+    );
+    final next = ConversationPlanExecutionCoordinator.nextTask(conversation);
+
+    expect(active?.id, 'progress-active');
+    expect(active?.status, ConversationWorkflowTaskStatus.inProgress);
+    expect(blocked?.id, 'progress-blocked');
+    expect(blocked?.status, ConversationWorkflowTaskStatus.blocked);
+    expect(next, active);
+  });
+
+  test('nextTask treats missing progress as pending', () {
+    final conversation = Conversation(
+      id: 'conversation-1',
+      title: 'Plan thread',
+      messages: const <Message>[],
+      createdAt: DateTime(2026, 4, 18, 17),
+      updatedAt: DateTime(2026, 4, 18, 17, 5),
+      workflowSpec: const ConversationWorkflowSpec(
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'legacy-completed',
+            title: 'Legacy completed task',
+            status: ConversationWorkflowTaskStatus.completed,
+          ),
+          ConversationWorkflowTask(
+            id: 'progress-completed',
+            title: 'Progress completed task',
+          ),
+          ConversationWorkflowTask(id: 'later-pending', title: 'Later task'),
+        ],
+      ),
+      executionProgress: const [
+        ConversationExecutionTaskProgress(
+          taskId: 'progress-completed',
+          status: ConversationWorkflowTaskStatus.completed,
+        ),
+      ],
+    );
+
+    final next = ConversationPlanExecutionCoordinator.nextTask(conversation);
+
+    expect(next?.id, 'legacy-completed');
+    expect(next?.status, ConversationWorkflowTaskStatus.pending);
   });
 
   test('executionFocusTask prefers blocked tasks over pending tasks', () {
@@ -1109,5 +1208,6 @@ void main() {
     );
 
     expect(focusTask?.id, 'task-1');
+    expect(focusTask?.status, ConversationWorkflowTaskStatus.blocked);
   });
 }

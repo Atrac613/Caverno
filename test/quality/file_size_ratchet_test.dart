@@ -20,7 +20,7 @@ const Map<String, int> _lineBudgets = {
   // on the part's behalf: parts share the library's import scope, so a
   // collaborator used only by a part is still paid for here. The library
   // aggregate below records the offsetting removal.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8908,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8907,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -45,6 +45,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/goal_update_tool_handler.dart': 64,
   'lib/features/chat/domain/services/participant_message_finalizer.dart': 364,
   'lib/features/chat/domain/services/participant_tool_executor.dart': 349,
+  'lib/features/chat/data/datasources/participant_tool_production_ports.dart':
+      259,
   'lib/features/chat/domain/services/participant_turn_planner.dart': 304,
   'lib/features/chat/domain/services/production_release_approval_policy.dart': 388,
   'lib/features/chat/domain/services/project_scoped_read_tool_handler.dart': 102,
@@ -200,7 +202,9 @@ const Map<String, int> _lineBudgets = {
       129,
   'lib/features/chat/presentation/providers/response_metadata_registry.dart':
       107,
-  'lib/features/chat/presentation/providers/chat_state.dart': 815,
+  'lib/features/chat/presentation/providers/chat_state.dart': 759,
+  'lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart':
+      361,
   'lib/features/chat/presentation/providers/thread_scoped_chat_state.dart': 238,
   'lib/features/chat/domain/services/tool_approval_auto_review_service.dart':
       339,
@@ -386,7 +390,7 @@ const Map<String, int> _libraryLineBudgets = {
   // command that exits non-zero is normalized to a successful tool result,
   // which used to reset the diagnostic streak on exactly the runs it counts.
   // The comment explaining that is most of the addition and is load-bearing.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19683,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19276,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

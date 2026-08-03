@@ -167,11 +167,13 @@ void main() {
 
     test('compares owner, tool call, and canonical tool name', () {
       final identity = _identity();
+      final input = _input();
 
       expect(identity, _identity());
       expect(identity.hashCode, _identity().hashCode);
       expect(identity, isNot(_identity(owner: _ownerB)));
       expect(identity, isNot(_identity(toolCallId: 'question-call-b')));
+      expect(input.toolCallId, 'question-call-a');
     });
   });
 

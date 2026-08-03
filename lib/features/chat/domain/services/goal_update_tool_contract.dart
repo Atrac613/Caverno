@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 
 import '../entities/chat_turn_owner.dart';
 import '../entities/conversation_goal.dart';
+import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'goal_update_ack.dart';
 import 'immutable_json_snapshot.dart';
@@ -45,6 +46,16 @@ final class GoalUpdateOperationIdentity {
 
 /// Recursively immutable input captured before goal acknowledgement evaluation.
 final class GoalUpdateToolRequest {
+  factory GoalUpdateToolRequest.fromToolCall(
+    ChatTurnOwner owner,
+    ToolCallInfo toolCall,
+  ) => GoalUpdateToolRequest(
+    owner: owner,
+    toolCallId: toolCall.id,
+    toolName: toolCall.name,
+    arguments: toolCall.arguments,
+  );
+
   factory GoalUpdateToolRequest({
     required ChatTurnOwner owner,
     required String toolCallId,
@@ -120,6 +131,27 @@ final class GoalUpdateCompletionAcknowledgement {
 
   bool belongsTo(GoalUpdateOperationIdentity expected) =>
       identity.belongsTo(expected);
+}
+
+final class GoalUpdateToolHandlerOutcome {
+  const GoalUpdateToolHandlerOutcome({
+    required this.identity,
+    required this.toolResult,
+    required this.completionEvidence,
+    required this.acknowledgement,
+    required this.shadowOutcome,
+  });
+
+  final GoalUpdateOperationIdentity identity;
+  final McpToolResult toolResult;
+  final ToolResultCompletionEvidence completionEvidence;
+  final GoalUpdateCompletionAcknowledgement acknowledgement;
+  final GoalUpdateAckOutcome? shadowOutcome;
+
+  ChatTurnOwner get owner => identity.owner;
+  GoalUpdateAckOutcome get ackOutcome => acknowledgement.outcome;
+  bool get isCompletionClaim => acknowledgement.isCompletionClaim;
+  bool get completionAccepted => acknowledgement.completionAccepted;
 }
 
 ToolResultCompletionEvidence freezeGoalUpdateCompletionEvidence(

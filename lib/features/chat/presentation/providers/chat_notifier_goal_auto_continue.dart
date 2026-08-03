@@ -4,68 +4,28 @@
 
 part of 'chat_notifier.dart';
 
-const _goalAutoContinuePolicy = ConversationGoalAutoContinuePolicy();
-const _goalValidationToolNames = <String>{'local_execute_command', 'run_tests'};
-const _goalRepairToolNames = <String>{
-  'read_file',
-  'write_file',
-  'edit_file',
-  'delete_file',
-};
-
-final class _GoalAutoContinueTracker {
-  _GoalAutoContinueTracker({
-    this.consecutiveAutoContinuations = 0,
-    this.diagnosticRepairContinuations = 0,
-    this.diagnosticRepairExtensionUsed = false,
-    this.noProgressStreak = 0,
-    this.consecutiveValidationMisses = 0,
-    this.failedVerificationObserved = false,
-    this.previousEvidence,
-    this.verifierReplayCandidate,
-    this.verifierReplayCandidateTaskId,
-    this.previousDiagnosticSignature = '',
-    this.identicalDiagnosticSignatureStreak = 0,
-    this.pendingPostRepairReplayOutcome = false,
-    this.pendingRepairContractOutcome = false,
-    this.repairNoMutationRetryUsed = false,
-    this.completionElicitationMutationGeneration,
-  });
-
-  int consecutiveAutoContinuations;
-  int diagnosticRepairContinuations;
-  bool diagnosticRepairExtensionUsed;
-  int noProgressStreak;
-  int consecutiveValidationMisses;
-  bool failedVerificationObserved;
-  ToolResultCompletionEvidence? previousEvidence;
-  ToolCallInfo? verifierReplayCandidate;
-  String? verifierReplayCandidateTaskId;
-  int verifierReplayCandidatePriority = 0;
-  String previousDiagnosticSignature;
-  int identicalDiagnosticSignatureStreak;
-  bool pendingPostRepairReplayOutcome;
-  bool pendingRepairContractOutcome;
-  bool repairNoMutationRetryUsed;
-
-  /// The mutation generation at which a completion elicitation was last spent,
-  /// or null when none has been. The goal may be asked again only once work has
-  /// actually advanced past it.
-  ///
-  /// Resetting on any continuation was not enough: in session 76864d26 the
-  /// elicitation turn's own answer produced the incomplete evidence that
-  /// triggered the continuation, which cleared the flag and let the same
-  /// elicitation fire again — six turns, no completion, ending in
-  /// no_progress_stop.
-  int? completionElicitationMutationGeneration;
-  final Set<int> replayedMutationGenerations = <int>{};
-  final Set<int> replayedInteractionGenerations = <int>{};
-  final CommandDiagnosticStreakTracker commandDiagnosticStreakTracker =
-      CommandDiagnosticStreakTracker();
-  CommandDiagnosticRepairFocus? activeCommandDiagnosticRepairFocus;
-}
-
 extension ChatNotifierGoalAutoContinue on ChatNotifier {
+  GoalAutoContinueConversationTaskSnapshot? _goalTrackerContext({
+    required ChatTurnOwner owner,
+    Conversation? conversation,
+  }) {
+    final ownerConversation =
+        conversation ?? _conversationForId(owner.conversationId);
+    if (ownerConversation == null ||
+        ownerConversation.id != owner.conversationId) {
+      return null;
+    }
+    return (
+      owner: owner,
+      workspaceMode: ownerConversation.workspaceMode,
+      activeTaskId: ConversationPlanExecutionCoordinator.executionFocusTask(
+        ownerConversation,
+      )?.id.trim(),
+      mutationGeneration: ownerConversation.mutationGeneration,
+      verificationGeneration: ownerConversation.verificationGeneration,
+    );
+  }
+
   void _recordCommandDiagnosticStreak({
     required ChatTurnOwner owner,
     required String commandKey,
@@ -76,26 +36,26 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         conversation.workspaceMode != WorkspaceMode.coding) {
       return;
     }
-    final tracker = _goalAutoContinueTrackers.putIfAbsent(
-      conversation.id,
-      _GoalAutoContinueTracker.new,
+    final context = _goalTrackerContext(
+      owner: owner,
+      conversation: conversation,
     );
-    final observation = tracker.commandDiagnosticStreakTracker.observe(
-      commandKey: commandKey,
-      toolResult: toolResult,
-    );
+    if (context == null) return;
+    final observation = _goalAutoContinueTrackerRegistry
+        .recordCommandDiagnostic(
+          context: context,
+          commandKey: commandKey,
+          toolResult: toolResult,
+        );
     if (observation == null) {
       return;
     }
-    final activeFocus = tracker.activeCommandDiagnosticRepairFocus;
-    final activatesFocus = activeFocus?.commandKey != commandKey;
-    tracker.activeCommandDiagnosticRepairFocus = observation.repairFocus;
     appLog(
       '[CommandDiagnostic] observed; '
       'signatureStreak=${observation.streak}; '
       'signatureChanged=${observation.signatureChanged}',
     );
-    if (activatesFocus) {
+    if (observation.focusActivated) {
       appLog(
         '[CommandDiagnosticRepairFocus] activated; '
         'signatureStreak=${observation.streak}',
@@ -104,11 +64,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   }
 
   void _resetCommandDiagnosticStreak(ChatTurnOwner owner, String commandKey) {
-    final tracker = _goalAutoContinueTrackers[owner.conversationId];
-    tracker?.commandDiagnosticStreakTracker.reset(commandKey);
-    if (tracker?.activeCommandDiagnosticRepairFocus?.commandKey == commandKey) {
-      tracker?.activeCommandDiagnosticRepairFocus = null;
-    }
+    _goalAutoContinueTrackerRegistry.resetCommandDiagnostic(owner, commandKey);
   }
 
   CommandDiagnosticRepairFocus? _commandDiagnosticRepairFocusFor(
@@ -118,58 +74,38 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         conversation.workspaceMode != WorkspaceMode.coding) {
       return null;
     }
-    return _goalAutoContinueTrackers[conversation.id]
-        ?.activeCommandDiagnosticRepairFocus;
+    final context = _goalTrackerContext(
+      owner: ChatTurnOwner(
+        conversationId: conversation.id,
+        interactionGeneration: _interactionGeneration,
+      ),
+      conversation: conversation,
+    );
+    return context == null
+        ? null
+        : _goalAutoContinueTrackerRegistry.commandDiagnosticRepairFocusFor(
+            context,
+          );
   }
 
   void _clearCommandDiagnosticRepairFocus(ChatTurnOwner owner) {
-    _goalAutoContinueTrackers[owner.conversationId]
-            ?.activeCommandDiagnosticRepairFocus =
-        null;
+    _goalAutoContinueTrackerRegistry.clearCommandDiagnosticRepairFocus(owner);
   }
 
   void _recordExecutedVerifierReplayCandidate(
     ChatTurnOwner owner,
     ToolCallInfo toolCall,
   ) {
-    if (!verifierReplayCandidatePolicy.isEligible(toolCall)) {
-      return;
-    }
-    final capability = const ToolCapabilityClassifier().classify(
-      toolCall.name,
-      arguments: toolCall.arguments,
-    );
-    if (capability.commandEffect != ToolCommandEffect.verification) {
-      return;
-    }
     final conversation = _conversationForId(owner.conversationId);
-    if (conversation == null ||
-        conversation.workspaceMode != WorkspaceMode.coding) {
-      return;
-    }
-    final tracker = _goalAutoContinueTrackers.putIfAbsent(
-      conversation.id,
-      _GoalAutoContinueTracker.new,
+    final context = _goalTrackerContext(
+      owner: owner,
+      conversation: conversation,
     );
-    final activeTaskId =
-        ConversationPlanExecutionCoordinator.executionFocusTask(
-          conversation,
-        )?.id.trim();
-    if (tracker.verifierReplayCandidateTaskId != activeTaskId) {
-      tracker.verifierReplayCandidate = null;
-      tracker.verifierReplayCandidatePriority = 0;
-    }
-    final priority = verifierReplayCandidatePolicy.priority(toolCall);
-    if (priority < tracker.verifierReplayCandidatePriority) {
-      return;
-    }
-    tracker.verifierReplayCandidate = ToolCallInfo(
-      id: toolCall.id,
-      name: toolCall.name,
-      arguments: Map<String, dynamic>.unmodifiable(toolCall.arguments),
+    if (context == null) return;
+    _goalAutoContinueTrackerRegistry.recordExecutedVerifierReplayCandidate(
+      context: context,
+      toolCall: toolCall,
     );
-    tracker.verifierReplayCandidateTaskId = activeTaskId;
-    tracker.verifierReplayCandidatePriority = priority;
   }
 
   @visibleForTesting
@@ -182,11 +118,10 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   /// assert the harness observed a plateau without depending on how many
   /// continuations the model happened to need.
   @visibleForTesting
-  int commandDiagnosticStreakForTest(String conversationId) =>
-      _goalAutoContinueTrackers[conversationId]
-          ?.activeCommandDiagnosticRepairFocus
-          ?.streak ??
-      0;
+  int commandDiagnosticStreakForTest(String conversationId) {
+    final conversation = _conversationForId(conversationId);
+    return _commandDiagnosticRepairFocusFor(conversation)?.streak ?? 0;
+  }
 
   @visibleForTesting
   bool hasVerifierReplayCandidateForOwnerForTest(ChatTurnOwner owner) {
@@ -194,23 +129,23 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     if (conversation == null) {
       return false;
     }
-    final tracker = _goalAutoContinueTrackers[conversation.id];
-    final activeTaskId =
-        ConversationPlanExecutionCoordinator.executionFocusTask(
-          conversation,
-        )?.id.trim();
-    return tracker?.verifierReplayCandidate != null &&
-        tracker?.verifierReplayCandidateTaskId == activeTaskId;
+    final context = _goalTrackerContext(
+      owner: owner,
+      conversation: conversation,
+    );
+    return context != null &&
+        _goalAutoContinueTrackerRegistry.hasVerifierReplayCandidate(context);
   }
 
   @visibleForTesting
-  bool isVerifierReplayEligibleForTest(ToolCallInfo toolCall) {
-    return verifierReplayCandidatePolicy.isEligible(toolCall) &&
-        const ToolCapabilityClassifier()
-                .classify(toolCall.name, arguments: toolCall.arguments)
-                .commandEffect ==
-            ToolCommandEffect.verification;
-  }
+  bool isVerifierReplayEligibleForTest(ToolCallInfo toolCall) =>
+      _goalAutoContinueTrackerRegistry.isReplayEligibleVerifierToolCall(
+        toolCall,
+      ) &&
+      const ToolCapabilityClassifier()
+              .classify(toolCall.name, arguments: toolCall.arguments)
+              .commandEffect ==
+          ToolCommandEffect.verification;
 
   ToolCallInfo? _takePostMutationVerifierReplay({
     required ToolResultCompletionEvidence evidence,
@@ -219,39 +154,17 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     if (!evidence.mutatedWithoutExecutionVerification) {
       return null;
     }
+    final owner = _turnOwnerForGeneration(interactionGeneration);
     final conversation = _conversationForGeneration(interactionGeneration);
-    if (conversation == null ||
-        conversation.workspaceMode != WorkspaceMode.coding ||
-        conversation.verificationGeneration >=
-            conversation.mutationGeneration) {
-      return null;
-    }
-    final tracker = _goalAutoContinueTrackers[conversation.id];
-    final candidate = tracker?.verifierReplayCandidate;
-    final activeTaskId =
-        ConversationPlanExecutionCoordinator.executionFocusTask(
-          conversation,
-        )?.id.trim();
-    if (tracker == null ||
-        candidate == null ||
-        tracker.verifierReplayCandidateTaskId != activeTaskId ||
-        tracker.replayedMutationGenerations.contains(
-          conversation.mutationGeneration,
-        ) ||
-        tracker.replayedInteractionGenerations.contains(
-          interactionGeneration,
-        )) {
-      return null;
-    }
-    tracker.replayedMutationGenerations.add(conversation.mutationGeneration);
-    tracker.replayedInteractionGenerations.add(interactionGeneration);
-    return ToolCallInfo(
-      id:
-          'post_mutation_verifier_${conversation.mutationGeneration}_'
-          '${DateTime.now().microsecondsSinceEpoch}',
-      name: candidate.name,
-      arguments: candidate.arguments,
+    if (owner == null || conversation == null) return null;
+    final context = _goalTrackerContext(
+      owner: owner,
+      conversation: conversation,
     );
+    if (context == null) return null;
+    return _goalAutoContinueTrackerRegistry
+        .takePostMutationVerifierReplay(context: context, evidence: evidence)
+        ?.toolCall;
   }
 
   Future<bool> _replayVerifierAfterRepairMutation({
@@ -272,11 +185,13 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     if (replay == null) return false;
 
     final conversation = _conversationForGeneration(interactionGeneration);
-    final tracker = conversation == null
-        ? null
-        : _goalAutoContinueTrackers[conversation.id];
-    tracker?.pendingRepairContractOutcome = false;
-    tracker?.pendingPostRepairReplayOutcome = true;
+    if (conversation != null) {
+      _goalAutoContinueTrackerRegistry.update(
+        owner,
+        pendingRepairContractOutcome: false,
+        pendingPostRepairReplayOutcome: true,
+      );
+    }
     appLog(
       '[CodingVerification] Replaying the last executed verifier '
       'immediately after a repair mutation',
@@ -405,13 +320,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   );
 
   void _resetGoalAutoContinueTrackerForConversation(String? conversationId) {
-    if (conversationId == null) {
-      _goalAutoContinueTrackers.clear();
-      _goalAutoContinueBudgetNotifiedConversations.clear();
-    } else {
-      _goalAutoContinueTrackers.remove(conversationId);
-      _goalAutoContinueBudgetNotifiedConversations.remove(conversationId);
-    }
+    _goalAutoContinueTrackerRegistry.resetConversation(conversationId);
     _clearGoalAutoContinueIndicator();
   }
 
@@ -428,12 +337,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   bool _isGoalAutoContinueOwnerCurrent(ChatTurnOwner owner) =>
       ref.mounted && _queueOwnerIsVisible(owner.conversationId);
 
-  _GoalAutoContinueTracker? _goalAutoContinueTrackerFor(
-    String conversationId,
-  ) => _goalAutoContinueTrackers.putIfAbsent(
-    conversationId,
-    _GoalAutoContinueTracker.new,
-  );
+  GoalAutoContinueTrackerSnapshot _goalAutoContinueTrackerFor(
+    ChatTurnOwner owner,
+  ) => _goalAutoContinueTrackerRegistry.create(owner);
 
   /// The harness's verification-cadence verdict for the target conversation.
   ///
@@ -464,113 +370,37 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     }
 
     final currentConversation = _conversationForId(owner.conversationId);
-    final goal = currentConversation?.goal;
-    final currentConversationId = owner.conversationId;
-    final tracker = _goalAutoContinueTrackerFor(currentConversationId);
-
-    if (currentConversation?.workspaceMode != WorkspaceMode.coding) {
-      _logGoalAutoContinueSkip('conversation is not in coding workspace');
-      _clearGoalAutoContinueIndicator();
-      return;
-    }
-    if (_isVoiceMode) {
-      _logGoalAutoContinueSkip('voice mode is active');
-      _clearGoalAutoContinueIndicator();
-      return;
-    }
     if (currentConversation == null) {
       _logGoalAutoContinueSkip('conversation id is unavailable');
       _clearGoalAutoContinueIndicator();
       return;
     }
-    final savedTasks = currentConversation.projectedExecutionTasks;
-    if (savedTasks.isNotEmpty &&
-        !ShortPromptContractBuilder.isSyntheticRequestContract(
-          currentConversation.effectiveWorkflowSpec,
-        ) &&
-        savedTasks.any(
-          (task) => task.status != ConversationWorkflowTaskStatus.completed,
-        )) {
-      _logGoalAutoContinueSkip(
-        'saved workflow execution owns pending task continuation',
-      );
+    final goal = currentConversation.goal;
+    final currentConversationId = owner.conversationId;
+    final initialTracker = _goalAutoContinueTrackerFor(owner);
+    final safeBoundary = _goalAutoContinueSafeBoundaryFor(owner);
+    final plan = const GoalAutoContinueDecisionCoordinator().coordinate(
+      GoalAutoContinueDecisionInput(
+        owner: owner,
+        ownerConversation: currentConversation,
+        tracker: initialTracker,
+        completionEvidence: evidence,
+        finalizedAssistantResponse: finalizedAssistantResponse,
+        safeBoundary: safeBoundary,
+        isVoiceMode: _isVoiceMode,
+      ),
+    );
+    if (plan.policyInput == null) {
+      _logGoalAutoContinueSkip(plan.reason.detail);
       _clearGoalAutoContinueIndicator();
       return;
     }
-
-    final candidateNoProgressStreak = _candidateGoalAutoContinueProgressStreak(
-      tracker: tracker,
-      evidence: evidence,
-    );
-    final previousEvidence = tracker?.previousEvidence;
-    final diagnosticSignatureChanged =
-        tracker != null &&
-        evidence.diagnosticSignature.isNotEmpty &&
-        tracker.previousDiagnosticSignature.isNotEmpty &&
-        evidence.diagnosticSignature != tracker.previousDiagnosticSignature;
-    final postRepairVerifierAdvanced =
-        (tracker?.pendingPostRepairReplayOutcome ?? false) &&
-        diagnosticSignatureChanged;
-    final repairContractProducedNoMutation =
-        tracker?.pendingRepairContractOutcome ?? false;
-    if (tracker != null) {
-      tracker.pendingPostRepairReplayOutcome = false;
-      tracker.pendingRepairContractOutcome = false;
-    }
-    final candidateDiagnosticSignatureStreak = tracker == null
-        ? 0
-        : const StalledDiagnosticRepairContract().nextSignatureStreak(
-            previousSignature: tracker.previousDiagnosticSignature,
-            currentSignature: evidence.diagnosticSignature,
-            currentStreak: tracker.identicalDiagnosticSignatureStreak,
-          );
-    if (diagnosticSignatureChanged) {
-      appLog('[DiagnosticRepairContract] diagnostic signature changed');
-    }
-    if (evidence.hasExecutionVerification) {
-      tracker?.consecutiveValidationMisses = 0;
-      tracker?.failedVerificationObserved =
-          !evidence.hasSuccessfulExecutionVerification;
-    }
-    final diagnosticEvidenceImproved =
-        previousEvidence != null &&
-        evidence.hasDiagnosticEvidence &&
-        evidence.compareProgress(previousEvidence) ==
-            GoalEvidenceProgress.improved;
-    final safeBoundary = _goalAutoContinueSafeBoundaryFromState();
-    // The harness's own verification-cadence verdict, from the generation
-    // counters. Without it the policy sees only tool-result evidence, which a
-    // static check satisfies — the gap that let a turn end with mutations 3,
-    // verification generation -1 and cadence `required` while auto-continue
-    // reported "no incomplete evidence".
-    final policyInput = GoalAutoContinuePolicyInput(
-      goal: goal,
-      safeBoundary: safeBoundary,
-      evidence: evidence,
-      consecutiveAutoContinuations: tracker?.consecutiveAutoContinuations ?? 0,
-      diagnosticRepairContinuations:
-          tracker?.diagnosticRepairContinuations ?? 0,
-      diagnosticRepairExtensionUsed:
-          tracker?.diagnosticRepairExtensionUsed ?? false,
-      diagnosticEvidenceImproved: diagnosticEvidenceImproved,
-      postRepairVerifierAdvanced: postRepairVerifierAdvanced,
-      repairContractProducedNoMutation: repairContractProducedNoMutation,
-      repairNoMutationRetryUsed: tracker?.repairNoMutationRetryUsed ?? false,
-      consecutiveValidationMisses: tracker?.consecutiveValidationMisses ?? 0,
-      failedVerificationObserved: tracker?.failedVerificationObserved ?? false,
-      noProgressStreak: candidateNoProgressStreak,
-      identicalDiagnosticSignatureStreak: candidateDiagnosticSignatureStreak,
-      finalAnswerEndsWithQuestion: _endsWithQuestionMark(
-        finalizedAssistantResponse,
-      ),
-      verificationCadence: _verificationCadenceFor(currentConversation),
-    );
-    final decision = _goalAutoContinuePolicy.decide(policyInput);
+    final decision = plan.policyDecision;
+    final delta = plan.trackerDelta;
+    var tracker = initialTracker;
 
     if (decision.shouldBlock) {
-      if (tracker != null) {
-        tracker.noProgressStreak = candidateNoProgressStreak;
-      }
+      tracker = _applyGoalAutoContinueTrackerDelta(owner, delta);
       final blockedReason =
           decision.blockedReason ??
           'Goal auto-continue stopped because the task made no progress.';
@@ -580,7 +410,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         reason: decision.reason,
         goal: goal,
         nextTurnNumber: goal?.turnsUsed,
-        effectiveTurnBudget: _effectiveGoalAutoContinueBudget(goal),
+        effectiveTurnBudget: plan.effectiveTurnBudget,
         tracker: tracker,
         evidence: evidence,
         safeBoundary: safeBoundary,
@@ -596,7 +426,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             status: ConversationGoalStatus.blocked,
             blockedReason: blockedReason,
           );
-      _goalAutoContinueTrackers.remove(currentConversationId);
+      if (delta.removeTracker) {
+        _goalAutoContinueTrackerRegistry.removeTracker(owner);
+      }
       if (_isGoalAutoContinueOwnerCurrent(owner)) {
         _clearGoalAutoContinueIndicator();
       }
@@ -604,20 +436,16 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     }
 
     if (!decision.shouldContinue) {
+      tracker = _applyGoalAutoContinueTrackerDelta(owner, delta);
+      final budgetNoticePresented =
+          delta.markBudgetNoticePresented &&
+          _goalAutoContinueTrackerRegistry.markBudgetNoticePresented(owner);
       _logGoalAutoContinueSkip(
         '${decision.reason}; conversation=$currentConversationId',
       );
-      if (decision.stopCause == GoalAutoContinueStopCause.noProgress &&
-          tracker != null) {
-        tracker.noProgressStreak = candidateNoProgressStreak;
-      }
-      final noticeKey = GoalAutoContinueStopPresentation.noticeKeyFor(
-        decision.stopCause,
-      );
+      final noticeKey = plan.stopNotice;
       if (noticeKey != null) {
-        if (_goalAutoContinueBudgetNotifiedConversations.add(
-          currentConversationId,
-        )) {
+        if (budgetNoticePresented) {
           await _recordGoalAutoContinueSessionLog(
             owner: owner,
             decision: GoalAutoContinueStopPresentation.sessionDecisionFor(
@@ -626,7 +454,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             reason: decision.reason,
             goal: goal,
             nextTurnNumber: goal?.turnsUsed,
-            effectiveTurnBudget: _effectiveGoalAutoContinueBudget(goal),
+            effectiveTurnBudget: plan.effectiveTurnBudget,
             tracker: tracker,
             evidence: evidence,
             safeBoundary: safeBoundary,
@@ -645,7 +473,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
           reason: decision.reason,
           goal: goal,
           nextTurnNumber: goal.turnsUsed,
-          effectiveTurnBudget: _effectiveGoalAutoContinueBudget(goal),
+          effectiveTurnBudget: plan.effectiveTurnBudget,
           tracker: tracker,
           evidence: evidence,
           safeBoundary: safeBoundary,
@@ -658,30 +486,17 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       // rationale and the measurement behind it); if that does not settle the
       // goal, fall through to `awaitingConfirmation` so a stranded goal stops
       // reading as one still working.
-      if (decision.noRemainingWork &&
-          goal?.status == ConversationGoalStatus.active) {
-        // Only ask about a goal that produced work: a run that mutated
-        // nothing has nothing to confirm, and asking would tax every
-        // conversation that merely carries a goal.
-        final producedWork = currentConversation.mutationGeneration > 0;
-        final mutationGeneration = currentConversation.mutationGeneration;
-        final alreadyAsked =
-            tracker?.completionElicitationMutationGeneration != null &&
-            tracker!.completionElicitationMutationGeneration! >=
-                mutationGeneration;
-        if (producedWork &&
-            goal!.autoContinue &&
-            tracker != null &&
-            !alreadyAsked) {
-          tracker.completionElicitationMutationGeneration = mutationGeneration;
-          _clearGoalAutoContinueIndicator();
-          await _elicitGoalCompletionReport(
-            owner: owner,
-            languageCode: languageCode,
-            evidence: evidence,
-          );
-          return;
-        }
+      if (plan.elicitationEligibility ==
+          GoalCompletionElicitationEligibility.eligible) {
+        _clearGoalAutoContinueIndicator();
+        await _elicitGoalCompletionReport(
+          owner: owner,
+          languageCode: languageCode,
+          evidence: evidence,
+        );
+        return;
+      }
+      if (plan.shouldMarkAwaitingConfirmation) {
         await ref
             .read(conversationsNotifierProvider.notifier)
             .markCurrentGoalStatus(
@@ -696,7 +511,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
 
     if (!_isGoalAutoContinueOwnerCurrent(owner) ||
         state.isLoading ||
-        _queuedChatMessages.pendingFor(conversationId) > 0) {
+        _queuedChatMessages.pendingFor(owner.conversationId) > 0) {
       _logGoalAutoContinueSkip(
         'state changed before continuation dispatch; '
         'conversation=$currentConversationId',
@@ -705,26 +520,17 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       return;
     }
 
-    final executionSnapshot = const ExecutionSnapshotProjector().project(
-      currentConversation,
-    );
-    final repairContract = const StalledDiagnosticRepairContract().build(
-      evidence: evidence,
-      executionSnapshot: executionSnapshot,
-      noProgressStreak: tracker?.verifierReplayCandidate == null
-          ? 0
-          : candidateDiagnosticSignatureStreak,
-    );
+    tracker = _applyGoalAutoContinueTrackerDelta(owner, delta);
+    final executionSnapshot = plan.executionSnapshot!;
+    final repairContract = plan.repairContract;
     if (repairContract != null) {
       appLog(
         '[DiagnosticRepairContract] activated; '
-        'signatureStreak=$candidateDiagnosticSignatureStreak',
+        'signatureStreak=${tracker.identicalDiagnosticSignatureStreak}',
       );
     }
-    final capabilityProfile = _goalAutoContinuePolicy.selectCapabilityProfile(
-      evidence: evidence,
-      hasRepairContract: repairContract != null,
-    );
+    final capabilityProfile = plan.capabilityProfile!;
+    final limits = plan.continuationLimits!;
     final continuationPrompt = GoalAutoContinuePromptBuilder.build(
       goal: goal!,
       evidence: evidence,
@@ -732,27 +538,18 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       repairContract: repairContract,
       repairNoMutationRetry: decision.usesRepairNoMutationRetry,
       capabilityProfile: capabilityProfile,
-      nextTurnNumber: decision.nextTurnNumber,
-      effectiveTurnBudget: decision.effectiveTurnBudget,
+      nextTurnNumber: limits.nextTurnNumber,
+      effectiveTurnBudget: limits.effectiveTurnBudget,
       languageCode: languageCode,
     );
 
-    if (tracker != null) {
-      tracker.noProgressStreak = candidateNoProgressStreak;
-      if (decision.usesDiagnosticRepairExtension) {
-        tracker.diagnosticRepairExtensionUsed = true;
-      }
-      if (decision.usesRepairNoMutationRetry) {
-        tracker.repairNoMutationRetryUsed = true;
-      }
-    }
     await _recordGoalAutoContinueSessionLog(
       owner: owner,
       decision: 'continue',
       reason: decision.reason,
       goal: goal,
-      nextTurnNumber: decision.nextTurnNumber,
-      effectiveTurnBudget: decision.effectiveTurnBudget,
+      nextTurnNumber: limits.nextTurnNumber,
+      effectiveTurnBudget: limits.effectiveTurnBudget,
       tracker: tracker,
       evidence: evidence,
       safeBoundary: safeBoundary,
@@ -760,32 +557,18 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     if (!_isGoalAutoContinueOwnerCurrent(owner)) return;
 
     appLog(
-      '[GoalAutoContinue] continue ${decision.nextTurnNumber}/'
-      '${decision.effectiveTurnBudget}: ${decision.reason}; '
+      '[GoalAutoContinue] continue ${limits.nextTurnNumber}/'
+      '${limits.effectiveTurnBudget}: ${decision.reason}; '
       'conversation=$currentConversationId; evidence=${evidence.summary}',
     );
 
     _isSchedulingGoalAutoContinue = true;
     state = state.copyWith(
-      goalAutoContinueCount: decision.nextTurnNumber,
-      goalAutoContinueBudget: decision.effectiveTurnBudget,
+      goalAutoContinueCount: limits.nextTurnNumber,
+      goalAutoContinueBudget: limits.effectiveTurnBudget,
       goalAutoContinueNotice: null,
     );
     try {
-      tracker?.consecutiveAutoContinuations += 1;
-      if (evidence.hasDiagnosticEvidence) {
-        tracker?.diagnosticRepairContinuations += 1;
-      }
-      if (policyInput.validationOutstanding) {
-        tracker?.consecutiveValidationMisses += 1;
-      }
-      tracker?.previousEvidence = evidence;
-      if (tracker != null) {
-        tracker.previousDiagnosticSignature = evidence.diagnosticSignature;
-        tracker.identicalDiagnosticSignatureStreak =
-            candidateDiagnosticSignatureStreak;
-        tracker.pendingRepairContractOutcome = repairContract != null;
-      }
       if (!_isGoalAutoContinueOwnerCurrent(owner)) return;
       final continuationFuture = sendHiddenPrompt(
         continuationPrompt,
@@ -793,20 +576,18 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         languageCode: languageCode,
         persistAssistantResponse: true,
         initialGoalCompletionEvidence: evidence,
-        replayVerifierImmediatelyAfterMutation: repairContract != null,
-        verifierOnlyContinuation:
-            capabilityProfile == GoalAutoContinueCapabilityProfile.validation,
-        allowedToolNames: switch (capabilityProfile) {
-          GoalAutoContinueCapabilityProfile.repair => _goalRepairToolNames,
-          GoalAutoContinueCapabilityProfile.validation =>
-            _goalValidationToolNames,
-          GoalAutoContinueCapabilityProfile.unrestricted => null,
-        },
+        replayVerifierImmediatelyAfterMutation:
+            limits.replayVerifierImmediatelyAfterMutation,
+        verifierOnlyContinuation: limits.verifierOnlyContinuation,
+        allowedToolNames: limits.allowedToolNames,
       );
       _isSchedulingGoalAutoContinue = false;
       await continuationFuture;
     } on Object catch (error, stackTrace) {
-      tracker?.pendingRepairContractOutcome = false;
+      _goalAutoContinueTrackerRegistry.update(
+        owner,
+        pendingRepairContractOutcome: false,
+      );
       appLog(
         '[GoalAutoContinue] hidden continuation failed: '
         '${error.runtimeType}: $error',
@@ -820,50 +601,65 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     }
   }
 
-  int _candidateGoalAutoContinueProgressStreak({
-    required _GoalAutoContinueTracker? tracker,
-    required ToolResultCompletionEvidence evidence,
-  }) {
-    if (tracker == null) {
-      return 0;
-    }
-    final previousEvidence = tracker.previousEvidence;
-    if (previousEvidence == null || !evidence.hasIncompleteEvidence) {
-      return tracker.noProgressStreak;
-    }
-    final progress = evidence.compareProgress(previousEvidence);
-    return progress == GoalEvidenceProgress.improved
-        ? 0
-        : tracker.noProgressStreak + 1;
-  }
+  GoalAutoContinueTrackerSnapshot _applyGoalAutoContinueTrackerDelta(
+    ChatTurnOwner owner,
+    GoalAutoContinueTrackerDelta delta,
+  ) => _goalAutoContinueTrackerRegistry.update(
+    owner,
+    consecutiveAutoContinuationsDelta: delta.consecutiveAutoContinuationsDelta,
+    diagnosticRepairContinuationsDelta:
+        delta.diagnosticRepairContinuationsDelta,
+    diagnosticRepairExtensionUsed: delta.diagnosticRepairExtensionUsed,
+    noProgressStreak: delta.noProgressStreak,
+    consecutiveValidationMisses: delta.consecutiveValidationMisses,
+    failedVerificationObserved: delta.failedVerificationObserved,
+    previousEvidence: delta.previousEvidence,
+    previousDiagnosticSignature: delta.previousDiagnosticSignature,
+    identicalDiagnosticSignatureStreak:
+        delta.identicalDiagnosticSignatureStreak,
+    pendingPostRepairReplayOutcome: delta.pendingPostRepairReplayOutcome,
+    pendingRepairContractOutcome: delta.pendingRepairContractOutcome,
+    repairNoMutationRetryUsed: delta.repairNoMutationRetryUsed,
+    completionElicitationMutationGeneration:
+        delta.completionElicitationMutationGeneration,
+  );
 
-  GoalAutoContinueSafeBoundary _goalAutoContinueSafeBoundaryFromState() {
-    return GoalAutoContinueSafeBoundary(
-      isLoading: state.isLoading,
-      hasQueuedUserInput:
-          _queuedChatMessages.pendingFor(conversationId) > 0 ||
-          state.queuedMessages.isNotEmpty,
-      hasPendingSshConnect: state.pendingSshConnect != null,
-      hasPendingSshCommand: state.pendingSshCommand != null,
-      hasPendingGitCommand: state.pendingGitCommand != null,
-      hasPendingLocalCommand: state.pendingLocalCommand != null,
-      hasPendingComputerUseAction: state.pendingComputerUseAction != null,
-      hasPendingBrowserAction: state.pendingBrowserAction != null,
-      hasPendingFileOperation: state.pendingFileOperation != null,
-      hasPendingBleConnect: state.pendingBleConnect != null,
-      hasPendingSerialOpen: state.pendingSerialOpen != null,
-      hasPendingParticipantToolApproval:
-          state.pendingParticipantToolApproval != null,
-      hasPendingAskUserQuestion: state.pendingAskUserQuestion != null,
-      hasPendingWorkflowDecision: state.pendingWorkflowDecision != null,
-      hasParticipantTurnRuntime: state.participantTurnRuntime != null,
-      hasError: state.error?.trim().isNotEmpty ?? false,
+  GoalAutoContinueSafeBoundary _goalAutoContinueSafeBoundaryFor(
+    ChatTurnOwner owner,
+  ) {
+    final ownerIsVisible = _queueOwnerIsVisible(owner.conversationId);
+    final threadState = ownerIsVisible
+        ? ThreadScopedChatState.from(state)
+        : _threadStates[owner.conversationId] ?? ThreadScopedChatState.empty;
+    bool owns(PendingToolApproval<dynamic>? approval) =>
+        approval?.owner == owner;
+    return const GoalAutoContinueSafeBoundaryBuilder().build(
+      GoalAutoContinuePendingState(
+        owner: owner,
+        isLoading: ownerIsVisible && state.isLoading,
+        queuedUserInputCount: _queuedChatMessages.pendingFor(
+          owner.conversationId,
+        ),
+        hasPendingSshConnect: owns(threadState.pendingSshConnect),
+        hasPendingSshCommand: owns(threadState.pendingSshCommand),
+        hasPendingGitCommand: owns(threadState.pendingGitCommand),
+        hasPendingLocalCommand: owns(threadState.pendingLocalCommand),
+        hasPendingComputerUseAction: owns(threadState.pendingComputerUseAction),
+        hasPendingBrowserAction: owns(threadState.pendingBrowserAction),
+        hasPendingFileOperation: owns(threadState.pendingFileOperation),
+        hasPendingBleConnect: owns(threadState.pendingBleConnect),
+        hasPendingSerialOpen: owns(threadState.pendingSerialOpen),
+        hasPendingParticipantToolApproval: owns(
+          threadState.pendingParticipantToolApproval,
+        ),
+        hasPendingAskUserQuestion: _pendingAskUserQuestionsByThread.containsKey(
+          owner.conversationId,
+        ),
+        hasPendingWorkflowDecision: threadState.pendingWorkflowDecision != null,
+        hasParticipantTurnRuntime: threadState.participantTurnRuntime != null,
+        error: ownerIsVisible ? state.error : null,
+      ),
     );
-  }
-
-  bool _endsWithQuestionMark(String content) {
-    final trimmed = content.trimRight();
-    return trimmed.endsWith('?') || trimmed.endsWith('？');
   }
 
   /// Spend one hidden turn asking the model to settle a goal that has run dry.
@@ -898,15 +694,6 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     appLog('[GoalAutoContinue] skip: $reason');
   }
 
-  int? _effectiveGoalAutoContinueBudget(ConversationGoal? goal) {
-    if (goal == null) {
-      return null;
-    }
-    return goal.hasTurnBudget
-        ? goal.turnBudget
-        : kGoalAutoContinueDefaultTurnBudget;
-  }
-
   Future<void> _recordGoalAutoContinueSessionLog({
     required ChatTurnOwner owner,
     required String decision,
@@ -914,7 +701,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     required ConversationGoal? goal,
     required int? nextTurnNumber,
     required int? effectiveTurnBudget,
-    required _GoalAutoContinueTracker? tracker,
+    required GoalAutoContinueTrackerSnapshot tracker,
     required ToolResultCompletionEvidence evidence,
     required GoalAutoContinueSafeBoundary safeBoundary,
   }) async {
@@ -924,44 +711,38 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       return;
     }
     final conversation = _conversationForId(owner.conversationId);
+    final record = const GoalContinuationLogRecordBuilder().buildAutoContinue(
+      owner: owner,
+      decision: decision,
+      reason: reason,
+      goal: goal,
+      nextTurnNumber: nextTurnNumber,
+      effectiveTurnBudget: effectiveTurnBudget,
+      tracker: tracker,
+      evidence: evidence,
+      verificationCadence: _verificationCadenceFor(conversation),
+      mutationGeneration: conversation?.mutationGeneration,
+      verificationGeneration: conversation?.verificationGeneration,
+      safeBoundary: safeBoundary,
+    );
     await ref
         .read(llmSessionLogStoreProvider)
         .recordGoalAutoContinue(
           context: _buildLlmSessionLogContext(
-            targetConversationId: owner.conversationId,
+            targetConversationId: record.owner.conversationId,
           ),
-          decision: decision,
-          reason: reason,
+          decision: record.decision,
+          reason: record.reason,
           at: DateTime.now(),
-          goalId: goal?.id,
-          nextTurnNumber: nextTurnNumber,
-          effectiveTurnBudget: effectiveTurnBudget,
-          consecutiveAutoContinuations: tracker?.consecutiveAutoContinuations,
-          evidence: GoalAutoContinueEvidenceMarker.build(
-            evidence: evidence,
-            verificationCadence: _verificationCadenceFor(conversation),
-            mutationGeneration: conversation?.mutationGeneration,
-            verificationGeneration: conversation?.verificationGeneration,
-            safeBoundaryVeto: safeBoundary.firstVetoReason,
-            noProgressStreak: tracker?.noProgressStreak ?? 0,
-            hasVerifierReplayCandidate: tracker?.verifierReplayCandidate != null,
-            diagnosticRepairContinuations:
-                tracker?.diagnosticRepairContinuations ?? 0,
-            consecutiveValidationMisses:
-                tracker?.consecutiveValidationMisses ?? 0,
-            diagnosticRepairExtensionUsed:
-                tracker?.diagnosticRepairExtensionUsed ?? false,
-            previousUnresolvedErrorCount:
-                tracker?.previousEvidence?.unresolvedErrorCount,
-            identicalDiagnosticSignatureStreak:
-                tracker?.identicalDiagnosticSignatureStreak ?? 0,
-          ),
+          goalId: record.goalId,
+          nextTurnNumber: record.nextTurnNumber,
+          effectiveTurnBudget: record.effectiveTurnBudget,
+          consecutiveAutoContinuations: record.consecutiveAutoContinuations,
+          evidence: record.evidence,
         );
   }
 
   /// Handles `update_goal` against the exact owner's current-turn results.
-  ///
-  /// Accepted claims remain one-shot and are re-checked at turn finalization.
   Future<McpToolResult> handleUpdateGoal(
     ToolCallInfo toolCall, {
     int? interactionGeneration,
@@ -973,22 +754,23 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     if (owner == null) {
       return _turnOwnerSnapshotUnavailableResult(toolCall.name);
     }
-    final ack = const GoalUpdateAckResolver().resolveCall(
+    final outcome = const GoalUpdateToolHandler().handleCall(
+      owner: owner,
       toolCall: toolCall,
       goal: _conversationForId(owner.conversationId)?.goal,
-      evidence: _goalCompletionEvidence.combinedToolResultsFor(
-        owner,
-        _turnToolResults.completed(owner),
-      ),
+      toolResults: _turnToolResults.completed(owner),
+      completionEvidence:
+          _goalCompletionEvidence.evidenceFor(owner) ??
+          const ToolResultCompletionEvidence(),
     );
-    if (ack.isCompletionClaim) {
-      _turnEnd.setGoalOutcome(owner, ack.outcome);
+    final shadowOutcome = outcome.shadowOutcome;
+    if (shadowOutcome != null) {
+      _turnEnd.setGoalOutcome(owner, shadowOutcome);
     }
-    // Only accepted claims reach finalization; rejected claims must be repaired.
-    if (ack.completionAccepted) {
+    if (outcome.completionAccepted) {
       _turnEnd.markGoalClaimed(owner);
     }
-    return ack.toToolResult(toolCall.name);
+    return outcome.toolResult;
   }
 
   Future<void> _recordGoalCompletionShadow({
@@ -997,11 +779,13 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     required LlmSessionLogContext context,
     required GoalUpdateAckOutcome? toolCompletionOutcome,
   }) async {
-    final disagreement = GoalCompletionShadow.compare(
-      toolCompletionOutcome: toolCompletionOutcome,
-      lexicalCompleted: lexicalCompleted,
-    );
-    if (disagreement == null) return;
+    final record = const GoalContinuationLogRecordBuilder()
+        .buildCompletionShadow(
+          owner: owner,
+          lexicalCompleted: lexicalCompleted,
+          toolCompletionOutcome: toolCompletionOutcome,
+        );
+    if (record == null) return;
     final loggingEnabled = LlmSessionLogStore.isEnabled(
       settingsEnabled: _settings.enableLlmSessionLogs,
     );
@@ -1011,10 +795,10 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         .recordGoalCompletionShadow(
           context: context,
           at: DateTime.now(),
-          label: GoalCompletionShadow.labelFor(disagreement),
-          toolOutcome: toolCompletionOutcome?.name,
-          lexicalCompleted: lexicalCompleted,
-          turnId: 'gen-${owner.interactionGeneration}',
+          label: record.label,
+          toolOutcome: record.toolOutcome,
+          lexicalCompleted: record.lexicalCompleted,
+          turnId: record.turnId,
         );
   }
 }

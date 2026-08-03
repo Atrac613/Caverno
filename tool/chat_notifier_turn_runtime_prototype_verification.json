@@ -56,6 +56,17 @@
         ]
       },
       {
+        "id": "deterministic-live-diagnostics",
+        "description": "The verifier process stages decreasing failures and the response harness recognizes the built-in verifier result, so a valid first-turn implementation cannot bypass the migrated auto-continue path.",
+        "sourcePath": "tool/canaries/coding_goal_auto_continue_todo_fixture_live_canary_test.dart",
+        "requiredText": [
+          "_writeVerifierScript(fixture.root, [",
+          "_stagedAutoContinueOutcome(fixture.root, attempt)",
+          ".where(_isFailedTodoVerifierResult)",
+          "Stream<String>.value(forcedIncompleteContent)"
+        ]
+      },
+      {
         "id": "ordered-live-continuation",
         "description": "The canary observes turn exit, auto-continue decision, and continuation request in order.",
         "sourcePath": "tool/canaries/coding_goal_auto_continue_todo_fixture_live_canary_test.dart",

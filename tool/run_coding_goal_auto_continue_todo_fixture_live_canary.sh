@@ -66,6 +66,7 @@ set +e
 "${DART_CMD[@]}" run "${ROOT_DIR}/tool/live_llm_canary_summary.dart" \
   --log "${LOG_PATH}" \
   --out-dir "${RUN_DIR}" \
+  --session-log-dir "${SESSION_LOG_ROOT}" \
   --canary-name coding_goal_auto_continue_todo_fixture \
   --surface coding_goal \
   --base-url "${CAVERNO_LLM_BASE_URL}" \

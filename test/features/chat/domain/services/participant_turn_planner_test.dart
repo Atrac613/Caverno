@@ -1,6 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_participant.dart';
-import 'package:caverno/features/chat/domain/services/participant_turn_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/participant_turn_planner.dart';
 import 'package:test/test.dart';
 
