@@ -380,7 +380,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     required String languageCode,
     required ToolResultCompletionEvidence evidence,
   }) async {
-    if (_isSchedulingGoalAutoContinue ||
+    if (_turnRuntimeComposition.isGoalContinuationScheduling ||
         !_isGoalAutoContinueOwnerCurrent(owner)) {
       return;
     }
@@ -592,8 +592,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       verifierOnlyContinuation: limits.verifierOnlyContinuation,
       allowedToolNames: limits.allowedToolNames,
     );
-    if (dispatch == null) return;
-    _isSchedulingGoalAutoContinue = true;
+    if (dispatch == null || !runtimeScope.claimGoalContinuationScheduling()) {
+      return;
+    }
     try {
       if (!ownerIsCurrent()) return;
       _applyTurnRuntimeGoalUiEffect(dispatch.uiEffect);
@@ -601,8 +602,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       final continuationFuture = _dispatchTurnRuntimeHiddenTurn(
         dispatch.hiddenTurn,
       );
-      _isSchedulingGoalAutoContinue = false;
-      runtime.endGoalContinuationScheduling();
+      runtimeScope.releaseGoalContinuationScheduling();
       await continuationFuture;
     } on Object catch (error, stackTrace) {
       runtime.finalizeFailedGoalContinuationDispatch();
@@ -615,8 +615,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       }
     } finally {
-      _isSchedulingGoalAutoContinue = false;
-      runtime.endGoalContinuationScheduling();
+      runtimeScope.releaseGoalContinuationScheduling();
     }
   }
 

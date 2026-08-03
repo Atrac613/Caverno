@@ -95,7 +95,6 @@ import '../../domain/services/fenced_tool_name_blocks.dart';
 import '../../domain/services/goal_auto_continue_decision_coordinator.dart';
 import '../../domain/services/goal_auto_continue_prompt_builder.dart';
 import '../../domain/services/goal_auto_continue_tracker_registry.dart';
-import '../../domain/services/goal_completion_elicitation_prompt.dart';
 import '../../domain/services/goal_continuation_log_record_builder.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../../../core/security/conversation_taint_state.dart';
@@ -2332,7 +2331,6 @@ class ChatNotifier extends Notifier<ChatState> {
     currentConversationId: () =>
         ref.read(conversationsNotifierProvider).currentConversationId,
   );
-  bool _isSchedulingGoalAutoContinue = false;
   late final _goalAutoContinueTrackerRegistry = GoalAutoContinueTrackerRegistry(
     replayIdFactory: (mutationGeneration) =>
         'post_mutation_verifier_${mutationGeneration}_'
@@ -8895,7 +8893,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _queuedChatMessages.clear();
     _turnToolResults.clear();
     _goalAutoContinueTrackerRegistry.resetConversation(null);
-    _isSchedulingGoalAutoContinue = false;
+    _turnRuntimeComposition.clearGoalContinuationScheduling();
     _dismissAllPendingAskUserQuestions();
     _clearAllActiveResponses();
     _sessionMemoryContext = null;

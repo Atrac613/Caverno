@@ -24,6 +24,14 @@ final class TurnRuntimeProductionComposition {
   final TurnRuntimeConversationGoalPort _conversationGoal;
   final TurnRuntimeGoalTrackerPort _tracker;
   final TurnRuntimeGoalSafeBoundaryPort _safeBoundary;
+  final _goalContinuationLifecycle = TurnRuntimeGoalContinuationLifecycle();
+
+  bool get isGoalContinuationScheduling =>
+      _goalContinuationLifecycle.isScheduling;
+
+  void clearGoalContinuationScheduling() {
+    _goalContinuationLifecycle.clear();
+  }
 
   TurnRuntimeProductionScope create({
     required ChatTurnOwner owner,
@@ -46,7 +54,11 @@ final class TurnRuntimeProductionComposition {
         log: log,
       ),
     );
-    return TurnRuntimeProductionScope._(runtime: runtime, log: log);
+    return TurnRuntimeProductionScope._(
+      runtime: runtime,
+      log: log,
+      goalContinuationLifecycle: _goalContinuationLifecycle,
+    );
   }
 }
 
@@ -55,12 +67,25 @@ final class TurnRuntimeProductionScope {
   const TurnRuntimeProductionScope._({
     required this.runtime,
     required TurnRuntimeGoalContinuationLogAdapter log,
-  }) : _log = log;
+    required TurnRuntimeGoalContinuationLifecycle goalContinuationLifecycle,
+  }) : _log = log,
+       _goalContinuationLifecycle = goalContinuationLifecycle;
 
   final TurnRuntime runtime;
   final TurnRuntimeGoalContinuationLogAdapter _log;
+  final TurnRuntimeGoalContinuationLifecycle _goalContinuationLifecycle;
 
   bool get loggingEnabled => _log.isEnabled;
+
+  bool claimGoalContinuationScheduling() {
+    if (_goalContinuationLifecycle.claim(runtime)) return true;
+    runtime.endGoalContinuationScheduling();
+    return false;
+  }
+
+  void releaseGoalContinuationScheduling() {
+    _goalContinuationLifecycle.release(runtime);
+  }
 
   void configureLogging({
     required LlmSessionLogStore logStore,

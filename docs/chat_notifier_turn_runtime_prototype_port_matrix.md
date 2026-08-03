@@ -256,9 +256,18 @@ provider capture, or ambient read. The reported production-line consequence is
 +46; `chat_notifier.dart` remains at 8,906 lines and its goal-auto-continue
 part falls from 795 to 793 lines.
 
-The next bounded task is to define an owner-scoped active continuation-runtime
-lifecycle and retire the duplicate `_isSchedulingGoalAutoContinue` notifier
-flag. It must preserve cross-invocation recursion blocking, release before the
-hidden continuation begins its own finalization path, and cancellation/reset
-behavior. Awaited persistence, logging, and effect application remain wrapper
-concerns until a separate boundary has evidence to move them.
+The production composition now shares an owner-scoped active continuation
+runtime across recursive entries. Each runtime owns its scheduling state, the
+shared lifecycle serializes only the synchronous hidden-dispatch handoff, and
+release occurs before awaiting the continuation. Cancellation and message
+reset clear the exact active runtime. The duplicate notifier flag is absent
+from production. This adds no port, callback, provider capture, or ambient
+read. The reported production-line consequence is +49;
+`chat_notifier.dart` falls from 8,906 to 8,904 lines and its
+goal-auto-continue part falls from 793 to 792 lines.
+
+The next bounded task is to implement the prototype measurement tool's
+`compare` mode, pin the pre-production revision, and report every structural
+gate and cost field from the completed isolated diff. Full coverage, the exact
+focused gate, and the post-prototype live canary remain required before the
+Phase 1.5 closure decision.

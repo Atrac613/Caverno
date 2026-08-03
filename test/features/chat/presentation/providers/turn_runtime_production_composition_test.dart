@@ -52,7 +52,7 @@ void main() {
       expect(scope.loggingEnabled, isFalse);
     });
 
-    test('shares tracker history but not turn-local scheduling state', () {
+    test('shares tracker history and serializes active runtime scheduling', () {
       final composition = _composition(
         ownerLease: _OwnerLease(_owner('conversation-a', 3)),
         conversationGoalStore: _GoalStore(const {}),
@@ -81,8 +81,22 @@ void main() {
       );
 
       expect(first.runtime.beginGoalContinuationScheduling(), isTrue);
+      expect(first.claimGoalContinuationScheduling(), isTrue);
+      expect(composition.isGoalContinuationScheduling, isTrue);
       expect(next.runtime.isSchedulingGoalContinuation, isFalse);
       expect(next.runtime.beginGoalContinuationScheduling(), isTrue);
+      expect(next.claimGoalContinuationScheduling(), isFalse);
+      expect(next.runtime.isSchedulingGoalContinuation, isFalse);
+
+      first.releaseGoalContinuationScheduling();
+      expect(composition.isGoalContinuationScheduling, isFalse);
+      expect(first.runtime.isSchedulingGoalContinuation, isFalse);
+
+      expect(next.runtime.beginGoalContinuationScheduling(), isTrue);
+      expect(next.claimGoalContinuationScheduling(), isTrue);
+      composition.clearGoalContinuationScheduling();
+      expect(composition.isGoalContinuationScheduling, isFalse);
+      expect(next.runtime.isSchedulingGoalContinuation, isFalse);
     });
   });
 
@@ -127,6 +141,10 @@ void main() {
       continuationSource,
       contains('_createGoalContinuationRuntimeScope(owner)'),
     );
+    expect(
+      reservedPath,
+      contains('_turnRuntimeComposition.isGoalContinuationScheduling'),
+    );
     expect(reservedPath, contains('runtime.coordinateGoalContinuation('));
     expect(reservedPath, contains('runtime.applyGoalTrackerTransition('));
     expect(reservedPath, contains('runtime.finalizePersistedGoalBlock('));
@@ -136,6 +154,14 @@ void main() {
     );
     expect(reservedPath, isNot(contains('goalContinuation.tracker')));
     expect(reservedPath, contains('runtime.beginGoalContinuationDispatch('));
+    expect(
+      reservedPath,
+      contains('runtimeScope.claimGoalContinuationScheduling()'),
+    );
+    expect(
+      reservedPath,
+      contains('runtimeScope.releaseGoalContinuationScheduling()'),
+    );
     expect(reservedPath, contains('_applyTurnRuntimeGoalUiEffect('));
     expect(reservedPath, contains('_dispatchTurnRuntimeHiddenTurn('));
     expect(
@@ -165,6 +191,21 @@ void main() {
       reservedPath,
       isNot(contains('state.copyWith(goalAutoContinueNotice: noticeKey)')),
     );
+    expect(reservedPath, isNot(contains('_isSchedulingGoalAutoContinue')));
+  });
+
+  test('legacy notifier reentrancy flag is absent from production', () {
+    for (final path in [
+      'lib/features/chat/presentation/providers/chat_notifier.dart',
+      'lib/features/chat/presentation/providers/chat_notifier_cancellation.dart',
+      'lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart',
+    ]) {
+      expect(
+        File(path).readAsStringSync(),
+        isNot(contains('_isSchedulingGoalAutoContinue')),
+        reason: path,
+      );
+    }
   });
 }
 

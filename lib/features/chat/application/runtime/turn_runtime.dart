@@ -238,6 +238,33 @@ final class TurnRuntimeGoalCompletionElicitationDispatch {
   final TurnRuntimeHiddenTurnRequest hiddenTurn;
 }
 
+/// Shares one active continuation runtime across recursive wrapper entries.
+final class TurnRuntimeGoalContinuationLifecycle {
+  TurnRuntime? _activeRuntime;
+
+  bool get isScheduling => _activeRuntime != null;
+
+  bool claim(TurnRuntime runtime) {
+    if (_activeRuntime != null || !runtime.isSchedulingGoalContinuation) {
+      return false;
+    }
+    _activeRuntime = runtime;
+    return true;
+  }
+
+  void release(TurnRuntime runtime) {
+    if (!identical(_activeRuntime, runtime)) return;
+    _activeRuntime = null;
+    runtime.endGoalContinuationScheduling();
+  }
+
+  void clear() {
+    final activeRuntime = _activeRuntime;
+    _activeRuntime = null;
+    activeRuntime?.endGoalContinuationScheduling();
+  }
+}
+
 /// Turn-lifetime owner and state for the bounded production prototype.
 final class TurnRuntime {
   TurnRuntime({required this.owner, required this.goalContinuation});

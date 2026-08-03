@@ -38,6 +38,37 @@ void main() {
       expect(runtime.beginGoalContinuationScheduling(), isTrue);
     });
 
+    test('shares one active continuation runtime across recursive entries', () {
+      final lifecycle = TurnRuntimeGoalContinuationLifecycle();
+      final first = TurnRuntime(owner: _owner(), goalContinuation: _ports());
+      final next = TurnRuntime(
+        owner: ChatTurnOwner(
+          conversationId: 'other-conversation',
+          interactionGeneration: 2,
+        ),
+        goalContinuation: _ports(),
+      );
+
+      expect(first.beginGoalContinuationScheduling(), isTrue);
+      expect(lifecycle.claim(first), isTrue);
+      expect(lifecycle.isScheduling, isTrue);
+      expect(next.beginGoalContinuationScheduling(), isTrue);
+      expect(lifecycle.claim(next), isFalse);
+
+      lifecycle.release(next);
+      expect(lifecycle.isScheduling, isTrue);
+      expect(first.isSchedulingGoalContinuation, isTrue);
+
+      lifecycle.release(first);
+      expect(lifecycle.isScheduling, isFalse);
+      expect(first.isSchedulingGoalContinuation, isFalse);
+
+      expect(lifecycle.claim(next), isTrue);
+      lifecycle.clear();
+      expect(lifecycle.isScheduling, isFalse);
+      expect(next.isSchedulingGoalContinuation, isFalse);
+    });
+
     test('returns owner-bound UI and hidden-turn dispatch effects', () {
       final owner = _owner();
       final runtime = TurnRuntime(owner: owner, goalContinuation: _ports());
