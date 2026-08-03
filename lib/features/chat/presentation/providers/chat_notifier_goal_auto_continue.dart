@@ -389,28 +389,27 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     final runtime = runtimeScope.runtime;
     final goalContinuation = runtime.goalContinuation;
     bool ownerIsCurrent() => goalContinuation.ownerLease.isCurrent(owner);
-    final currentConversation = goalContinuation.conversationGoal
-        .conversationFor(owner);
-    if (currentConversation == null) {
+    _synchronizeGoalAutoContinueSafeBoundary();
+    final coordination = runtime.coordinateGoalContinuation(
+      TurnRuntimeGoalContinuationInput(
+        finalizedAssistantResponse: finalizedAssistantResponse,
+        languageCode: languageCode,
+        evidence: evidence,
+        isVoiceMode: _isVoiceMode,
+      ),
+    );
+    if (coordination is TurnRuntimeGoalCoordinationUnavailable) {
       _logGoalAutoContinueSkip('conversation id is unavailable');
       _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       return;
     }
+    final ready = coordination as TurnRuntimeGoalCoordinationReady;
+    final currentConversation = ready.conversation;
     final goal = currentConversation.goal;
     final currentConversationId = owner.conversationId;
-    final initialTracker = goalContinuation.tracker.snapshotFor(owner);
-    final safeBoundary = _goalAutoContinueSafeBoundaryFor(runtime);
-    final plan = const GoalAutoContinueDecisionCoordinator().coordinate(
-      GoalAutoContinueDecisionInput(
-        owner: owner,
-        ownerConversation: currentConversation,
-        tracker: initialTracker,
-        completionEvidence: evidence,
-        finalizedAssistantResponse: finalizedAssistantResponse,
-        safeBoundary: safeBoundary,
-        isVoiceMode: _isVoiceMode,
-      ),
-    );
+    final initialTracker = ready.tracker;
+    final safeBoundary = ready.safeBoundary;
+    final plan = ready.plan;
     if (plan.policyInput == null) {
       _logGoalAutoContinueSkip(plan.reason.detail);
       _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
@@ -661,15 +660,12 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     GoalAutoContinueTrackerDelta delta,
   ) => runtime.goalContinuation.tracker.applyDelta(runtime.owner, delta);
 
-  GoalAutoContinueSafeBoundary _goalAutoContinueSafeBoundaryFor(
-    TurnRuntime runtime,
-  ) {
+  void _synchronizeGoalAutoContinueSafeBoundary() {
     _turnRuntimeGoalSafeBoundary.synchronizeVisibleState(
       ThreadScopedChatState.from(state),
       isLoading: state.isLoading,
       error: state.error,
     );
-    return runtime.goalContinuation.safeBoundary.capture(runtime.owner);
   }
 
   /// Spend one hidden turn asking the model to settle a goal that has run dry.

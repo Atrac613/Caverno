@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/application/runtime/turn_runtime.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
@@ -123,6 +124,42 @@ void main() {
       expect(notice.owner, same(owner));
       expect(notice.noticeKey, 'goal-stopped');
     });
+
+    test('returns unavailable coordination without an owner conversation', () {
+      final tracker = _GoalTrackerPort();
+      final safeBoundary = _SafeBoundaryPort();
+      final runtime = TurnRuntime(
+        owner: _owner(),
+        goalContinuation: _ports(tracker: tracker, safeBoundary: safeBoundary),
+      );
+
+      final result = runtime.coordinateGoalContinuation(_input());
+
+      expect(result, isA<TurnRuntimeGoalCoordinationUnavailable>());
+      expect(result.owner, same(runtime.owner));
+      expect(tracker.snapshotCalls, 0);
+      expect(safeBoundary.captureCalls, 0);
+    });
+
+    test('coordinates owner conversation, tracker, and safe boundary', () {
+      final owner = _owner();
+      final conversation = _conversation(owner.conversationId);
+      final runtime = TurnRuntime(
+        owner: owner,
+        goalContinuation: _ports(conversation: conversation),
+      );
+
+      final result = runtime.coordinateGoalContinuation(_input());
+
+      expect(result, isA<TurnRuntimeGoalCoordinationReady>());
+      final ready = result as TurnRuntimeGoalCoordinationReady;
+      expect(ready.owner, same(owner));
+      expect(ready.conversation, same(conversation));
+      expect(ready.tracker.noProgressStreak, 0);
+      expect(ready.safeBoundary.isLoading, isFalse);
+      expect(ready.plan.policyInput, isNotNull);
+      expect(ready.plan.policyDecision.shouldContinue, isFalse);
+    });
   });
 
   group('TurnRuntime goal continuation values', () {
@@ -229,11 +266,42 @@ void main() {
 ChatTurnOwner _owner() =>
     ChatTurnOwner(conversationId: 'conversation-a', interactionGeneration: 7);
 
-TurnRuntimeGoalContinuationPorts _ports() => TurnRuntimeGoalContinuationPorts(
+TurnRuntimeGoalContinuationInput _input() => TurnRuntimeGoalContinuationInput(
+  finalizedAssistantResponse: 'Finished the current step.',
+  languageCode: 'en',
+  evidence: const ToolResultCompletionEvidence(),
+  isVoiceMode: false,
+);
+
+Conversation _conversation(String id) => Conversation(
+  id: id,
+  title: id,
+  messages: const [],
+  createdAt: DateTime(2026),
+  updatedAt: DateTime(2026),
+  workspaceMode: WorkspaceMode.coding,
+  goal: ConversationGoal(
+    id: 'goal-1',
+    objective: 'Finish the task',
+    enabled: true,
+    autoContinue: true,
+    status: ConversationGoalStatus.active,
+    turnBudget: 5,
+    turnsUsed: 1,
+    createdAt: DateTime(2026),
+    updatedAt: DateTime(2026),
+  ),
+);
+
+TurnRuntimeGoalContinuationPorts _ports({
+  Conversation? conversation,
+  _GoalTrackerPort? tracker,
+  _SafeBoundaryPort? safeBoundary,
+}) => TurnRuntimeGoalContinuationPorts(
   ownerLease: _OwnerLeasePort(),
-  conversationGoal: _ConversationGoalPort(),
-  tracker: _GoalTrackerPort(),
-  safeBoundary: _SafeBoundaryPort(),
+  conversationGoal: _ConversationGoalPort(conversation),
+  tracker: tracker ?? _GoalTrackerPort(),
+  safeBoundary: safeBoundary ?? _SafeBoundaryPort(),
   log: _ContinuationLogPort(),
 );
 
@@ -243,14 +311,20 @@ final class _OwnerLeasePort implements TurnRuntimeOwnerLeasePort {
 }
 
 final class _ConversationGoalPort implements TurnRuntimeConversationGoalPort {
+  const _ConversationGoalPort(this.conversation);
+
+  final Conversation? conversation;
+
   @override
-  Conversation? conversationFor(ChatTurnOwner owner) => null;
+  Conversation? conversationFor(ChatTurnOwner owner) => conversation;
 
   @override
   Future<void> markGoalStatus(TurnRuntimeGoalStatusUpdate update) async {}
 }
 
 final class _GoalTrackerPort implements TurnRuntimeGoalTrackerPort {
+  int snapshotCalls = 0;
+
   @override
   GoalAutoContinueTrackerSnapshot applyDelta(
     ChatTurnOwner owner,
@@ -269,49 +343,56 @@ final class _GoalTrackerPort implements TurnRuntimeGoalTrackerPort {
   void removeTracker(ChatTurnOwner owner) {}
 
   @override
-  GoalAutoContinueTrackerSnapshot snapshotFor(ChatTurnOwner owner) => (
-    consecutiveAutoContinuations: 0,
-    diagnosticRepairContinuations: 0,
-    diagnosticRepairExtensionUsed: false,
-    noProgressStreak: 0,
-    consecutiveValidationMisses: 0,
-    failedVerificationObserved: false,
-    previousEvidence: null,
-    previousDiagnosticSignature: '',
-    identicalDiagnosticSignatureStreak: 0,
-    pendingPostRepairReplayOutcome: false,
-    pendingRepairContractOutcome: false,
-    repairNoMutationRetryUsed: false,
-    completionElicitationMutationGeneration: null,
-    activeCommandDiagnosticRepairFocus: null,
-    verifierReplayCandidate: null,
-    replayedMutationGenerations: const <int>{},
-    replayedInteractionGenerations: const <int>{},
-    budgetNoticePresented: false,
-  );
+  GoalAutoContinueTrackerSnapshot snapshotFor(ChatTurnOwner owner) {
+    snapshotCalls += 1;
+    return (
+      consecutiveAutoContinuations: 0,
+      diagnosticRepairContinuations: 0,
+      diagnosticRepairExtensionUsed: false,
+      noProgressStreak: 0,
+      consecutiveValidationMisses: 0,
+      failedVerificationObserved: false,
+      previousEvidence: null,
+      previousDiagnosticSignature: '',
+      identicalDiagnosticSignatureStreak: 0,
+      pendingPostRepairReplayOutcome: false,
+      pendingRepairContractOutcome: false,
+      repairNoMutationRetryUsed: false,
+      completionElicitationMutationGeneration: null,
+      activeCommandDiagnosticRepairFocus: null,
+      verifierReplayCandidate: null,
+      replayedMutationGenerations: const <int>{},
+      replayedInteractionGenerations: const <int>{},
+      budgetNoticePresented: false,
+    );
+  }
 }
 
 final class _SafeBoundaryPort implements TurnRuntimeGoalSafeBoundaryPort {
+  int captureCalls = 0;
+
   @override
-  GoalAutoContinueSafeBoundary capture(ChatTurnOwner owner) =>
-      const GoalAutoContinueSafeBoundary(
-        isLoading: false,
-        hasQueuedUserInput: false,
-        hasPendingSshConnect: false,
-        hasPendingSshCommand: false,
-        hasPendingGitCommand: false,
-        hasPendingLocalCommand: false,
-        hasPendingComputerUseAction: false,
-        hasPendingBrowserAction: false,
-        hasPendingFileOperation: false,
-        hasPendingBleConnect: false,
-        hasPendingSerialOpen: false,
-        hasPendingParticipantToolApproval: false,
-        hasPendingAskUserQuestion: false,
-        hasPendingWorkflowDecision: false,
-        hasParticipantTurnRuntime: false,
-        hasError: false,
-      );
+  GoalAutoContinueSafeBoundary capture(ChatTurnOwner owner) {
+    captureCalls += 1;
+    return const GoalAutoContinueSafeBoundary(
+      isLoading: false,
+      hasQueuedUserInput: false,
+      hasPendingSshConnect: false,
+      hasPendingSshCommand: false,
+      hasPendingGitCommand: false,
+      hasPendingLocalCommand: false,
+      hasPendingComputerUseAction: false,
+      hasPendingBrowserAction: false,
+      hasPendingFileOperation: false,
+      hasPendingBleConnect: false,
+      hasPendingSerialOpen: false,
+      hasPendingParticipantToolApproval: false,
+      hasPendingAskUserQuestion: false,
+      hasPendingWorkflowDecision: false,
+      hasParticipantTurnRuntime: false,
+      hasError: false,
+    );
+  }
 }
 
 final class _ContinuationLogPort implements TurnRuntimeGoalContinuationLogPort {

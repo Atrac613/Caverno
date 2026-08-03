@@ -229,10 +229,17 @@ kinds and all reserved-path UI projections are typed effects. The reported
 production-line consequence is +32; `chat_notifier.dart` remains at 8,906 lines
 and its goal-auto-continue part falls from 806 to 804 lines.
 
-The next bounded task is to move owner conversation lookup, tracker snapshot,
-safe-boundary capture, and `GoalAutoContinueDecisionCoordinator` invocation
-behind one runtime operation returning a typed coordination result. Awaited
-logging, status persistence, and effect application remain wrapper concerns for
-that slice. The legacy cross-invocation reentrancy flag must remain until a
-later task defines how an active continuation runtime is shared or registered
-across recursive entry.
+`TurnRuntime.coordinateGoalContinuation` now owns the exact conversation
+lookup, tracker snapshot, safe-boundary capture, and existing decision
+coordinator invocation. A sealed unavailable/ready result returns the captured
+values and plan to the wrapper. Missing conversations exit before tracker or
+safe-boundary reads. The reported production-line consequence is +54;
+`chat_notifier.dart` remains at 8,906 lines and its goal-auto-continue part
+falls from 804 to 800 lines.
+
+The next bounded task is to turn tracker-delta application and budget-notice
+reservation into one typed runtime transition while preserving their current
+branch-specific timing. Awaited logging, status persistence, tracker removal,
+and effect application remain wrapper concerns for that slice. The legacy
+cross-invocation reentrancy flag must remain until a later task defines how an
+active continuation runtime is shared or registered across recursive entry.

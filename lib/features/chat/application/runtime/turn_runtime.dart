@@ -80,6 +80,33 @@ final class TurnRuntimeGoalContinuationInput {
   final bool isVoiceMode;
 }
 
+sealed class TurnRuntimeGoalCoordinationResult {
+  const TurnRuntimeGoalCoordinationResult({required this.owner});
+
+  final ChatTurnOwner owner;
+}
+
+final class TurnRuntimeGoalCoordinationUnavailable
+    extends TurnRuntimeGoalCoordinationResult {
+  const TurnRuntimeGoalCoordinationUnavailable({required super.owner});
+}
+
+final class TurnRuntimeGoalCoordinationReady
+    extends TurnRuntimeGoalCoordinationResult {
+  const TurnRuntimeGoalCoordinationReady({
+    required super.owner,
+    required this.conversation,
+    required this.tracker,
+    required this.safeBoundary,
+    required this.plan,
+  });
+
+  final Conversation conversation;
+  final GoalAutoContinueTrackerSnapshot tracker;
+  final GoalAutoContinueSafeBoundary safeBoundary;
+  final GoalAutoContinueDecisionPlan plan;
+}
+
 /// Exact goal status mutation requested by a runtime owner.
 final class TurnRuntimeGoalStatusUpdate {
   const TurnRuntimeGoalStatusUpdate({
@@ -190,6 +217,37 @@ final class TurnRuntime {
     }
     _isSchedulingGoalContinuation = true;
     return true;
+  }
+
+  TurnRuntimeGoalCoordinationResult coordinateGoalContinuation(
+    TurnRuntimeGoalContinuationInput input,
+  ) {
+    final conversation = goalContinuation.conversationGoal.conversationFor(
+      owner,
+    );
+    if (conversation == null) {
+      return TurnRuntimeGoalCoordinationUnavailable(owner: owner);
+    }
+    final tracker = goalContinuation.tracker.snapshotFor(owner);
+    final safeBoundary = goalContinuation.safeBoundary.capture(owner);
+    final plan = const GoalAutoContinueDecisionCoordinator().coordinate(
+      GoalAutoContinueDecisionInput(
+        owner: owner,
+        ownerConversation: conversation,
+        tracker: tracker,
+        completionEvidence: input.evidence,
+        finalizedAssistantResponse: input.finalizedAssistantResponse,
+        safeBoundary: safeBoundary,
+        isVoiceMode: input.isVoiceMode,
+      ),
+    );
+    return TurnRuntimeGoalCoordinationReady(
+      owner: owner,
+      conversation: conversation,
+      tracker: tracker,
+      safeBoundary: safeBoundary,
+      plan: plan,
+    );
   }
 
   TurnRuntimeClearGoalIndicator clearGoalIndicator() =>
