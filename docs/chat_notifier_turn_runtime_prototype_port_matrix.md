@@ -275,7 +275,10 @@ removed, a -1 turn-reachable ambient-read delta, one introduced port method,
 two clock callback surfaces, 19 public declarations, and zero new callbacks
 capturing `ChatNotifier`. All three automated structural gates pass.
 
-The remaining closure task is to run the exact focused gate, full coverage,
-the structural suites, and the post-prototype live canary, then record the
-Phase 1.5 Go or No-Go decision. The positive line delta requires explicit cost
-review but is not itself a structural failure.
+Phase 1.5 is closed with a Go to Phase 2 design. The exact focused gate passed;
+analysis and all 6,638 repository tests passed with 79.39% line coverage; and
+the clean `fc12a1f2` live canary passed 1/1 with readiness `ready`, two ordered
+continuations, and diagnostic progression `2 -> 1`. The `+708` production-line
+delta and 19 public declarations require a Phase 2 reuse and public-surface
+budget before Phase 3. Production catalogue wiring remains No-Go pending I2
+and WS6-19. See `docs/chat_notifier_turn_runtime_phase_1_5_decision.md`.
