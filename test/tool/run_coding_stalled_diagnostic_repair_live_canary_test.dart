@@ -37,13 +37,19 @@ void main() {
     expect(canary, contains('repairToolRequests.every(_usesOnlyRepairTools)'));
     expect(canary, contains('.where(_advertisesTools)'));
     expect(canary, contains("!names.contains('local_execute_command')"));
-    expect(canary, contains('.where(_isTodoVerifierCall)'));
-    expect(canary, contains('bool _isTodoVerifierCall(_TodoToolCall call)'));
-    expect(canary, contains('return command == _verifyCommand;'));
+    expect(canary, contains('_orderedToolResults(entries)'));
+    expect(canary, contains('_isVerifierToolResult(entry.value)'));
+    expect(canary, contains('_recordedVerifierRuns(fixture.root)'));
+    expect(
+      canary,
+      contains("(arguments['command'] as String? ?? '').trim() == _verifyCommand"),
+    );
     expect(canary, contains('stableDiagnosticFailureTurns'));
     expect(canary, contains('disableCodingDiagnosticFeedback: true'));
     expect(canary, contains('_NoopCodingDiagnosticFeedbackProvider'));
-    expect(canary, contains('orderedEquals(const [1, 1])'));
+    expect(canary, contains("verifierRuns[0]['diagnostics']"));
+    expect(canary, contains("verifierRuns[1]['diagnostics']"));
+    expect(canary, contains('_isMutationToolResult(entry.value)'));
     expect(canary, contains('_requestContainsToolResult'));
     expect(canary, contains('ConversationGoalStatus.completed'));
     expect(canary, contains('completedGoal?.completionSummary'));
