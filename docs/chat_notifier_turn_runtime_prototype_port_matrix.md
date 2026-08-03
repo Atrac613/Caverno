@@ -180,3 +180,8 @@ reentrancy state are now defined in
 tests. They remain unwired in production. The next bounded task is to implement
 the narrow production boundary objects without storing `ChatNotifier` or `Ref`,
 then move only the two reserved symbols.
+
+The first boundary object is now implemented by
+`TurnRuntimeGoalTrackerAdapter`. It holds only the existing
+conversation-spanning tracker registry and remains unwired until the reserved
+symbol migration. The other four collaborators remain pending.

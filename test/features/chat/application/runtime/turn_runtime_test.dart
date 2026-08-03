@@ -174,6 +174,11 @@ final class _GoalTrackerPort implements TurnRuntimeGoalTrackerPort {
   bool markBudgetNoticePresented(ChatTurnOwner owner) => true;
 
   @override
+  GoalAutoContinueTrackerSnapshot clearPendingRepairContract(
+    ChatTurnOwner owner,
+  ) => snapshotFor(owner);
+
+  @override
   void removeTracker(ChatTurnOwner owner) {}
 
   @override

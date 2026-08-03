@@ -30,6 +30,10 @@ abstract interface class TurnRuntimeGoalTrackerPort {
 
   bool markBudgetNoticePresented(ChatTurnOwner owner);
 
+  GoalAutoContinueTrackerSnapshot clearPendingRepairContract(
+    ChatTurnOwner owner,
+  );
+
   void removeTracker(ChatTurnOwner owner);
 }
 
