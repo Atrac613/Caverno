@@ -85,11 +85,16 @@ git diff --check
 - Summary: Added an owner-addressable application adapter and a narrow
   `ConversationsNotifier` store, then generalized goal status persistence to an
   explicit conversation ID while preserving the current-conversation wrapper.
+  Follow-up ratchet verification moved status projection into
+  `ConversationGoalStatusTransition`, returning `ConversationsNotifier` below
+  its prior line budget without raising the ratchet.
 - Tests run:
   - Conversation adapter and notifier goal tests: passed, 21 tests.
   - Reserved goal auto-continue focused test: passed.
   - Focused Flutter analysis for five affected Dart files: passed with no
     issues.
+  - File-size ratchet for `ConversationsNotifier`: passed at 1,823 of 1,838
+    lines.
   - `git diff --check`: passed.
 - Coverage or low-coverage notes: Boundary remains unwired in production.
 - Risks or follow-ups: Owner lease must still reject expired generations before
