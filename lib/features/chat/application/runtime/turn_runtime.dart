@@ -4,6 +4,7 @@ import '../../domain/entities/conversation_goal.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../../domain/services/goal_auto_continue_decision_coordinator.dart';
 import '../../domain/services/goal_auto_continue_tracker_registry.dart';
+import '../../domain/services/goal_completion_elicitation_prompt.dart';
 import '../../domain/services/goal_continuation_log_record_builder.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 
@@ -162,6 +163,17 @@ final class TurnRuntimeGoalContinuationDispatch {
   final TurnRuntimeHiddenTurnRequest hiddenTurn;
 }
 
+/// Owner-bound effects required to elicit one goal completion report.
+final class TurnRuntimeGoalCompletionElicitationDispatch {
+  const TurnRuntimeGoalCompletionElicitationDispatch({
+    required this.uiEffect,
+    required this.hiddenTurn,
+  });
+
+  final TurnRuntimeClearGoalIndicator uiEffect;
+  final TurnRuntimeHiddenTurnRequest hiddenTurn;
+}
+
 /// Turn-lifetime owner and state for the bounded production prototype.
 final class TurnRuntime {
   TurnRuntime({required this.owner, required this.goalContinuation});
@@ -179,6 +191,28 @@ final class TurnRuntime {
     _isSchedulingGoalContinuation = true;
     return true;
   }
+
+  TurnRuntimeClearGoalIndicator clearGoalIndicator() =>
+      TurnRuntimeClearGoalIndicator(owner: owner);
+
+  TurnRuntimeShowGoalNotice showGoalNotice(String noticeKey) =>
+      TurnRuntimeShowGoalNotice(owner: owner, noticeKey: noticeKey);
+
+  TurnRuntimeGoalCompletionElicitationDispatch
+  goalCompletionElicitationDispatch({
+    required String languageCode,
+    required ToolResultCompletionEvidence evidence,
+  }) => TurnRuntimeGoalCompletionElicitationDispatch(
+    uiEffect: clearGoalIndicator(),
+    hiddenTurn: TurnRuntimeHiddenTurnRequest(
+      owner: owner,
+      kind: TurnRuntimeHiddenTurnKind.completionElicitation,
+      prompt: GoalCompletionElicitationPrompt.build(languageCode: languageCode),
+      languageCode: languageCode,
+      evidence: evidence,
+      allowedToolNames: const {'update_goal'},
+    ),
+  );
 
   TurnRuntimeGoalContinuationDispatch? beginGoalContinuationDispatch({
     required String prompt,

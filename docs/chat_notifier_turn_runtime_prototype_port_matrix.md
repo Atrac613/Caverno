@@ -221,9 +221,18 @@ scheduling at the synchronous handoff. This adds no port, callback, provider
 capture, or ambient read; the reported production-line consequence is +80 and
 the 8,906-line parent file is unchanged.
 
-The next bounded task is to route completion elicitation and the remaining
-stop/clear UI projections through the same typed effect boundary. After both
-hidden-turn kinds are returned effects, the policy result can move behind one
-runtime operation. The legacy cross-invocation reentrancy flag must remain until
-that later slice defines how an active continuation runtime is shared or
-registered across recursive entry.
+Completion elicitation now returns a clear UI effect and an `update_goal`-only
+hidden-turn request from the runtime. Every clear and stop-notice projection in
+the reserved orchestration method also uses an owner-bound runtime effect, so a
+stale owner cannot clear or replace the current owner's UI. Both hidden-turn
+kinds and all reserved-path UI projections are typed effects. The reported
+production-line consequence is +32; `chat_notifier.dart` remains at 8,906 lines
+and its goal-auto-continue part falls from 806 to 804 lines.
+
+The next bounded task is to move owner conversation lookup, tracker snapshot,
+safe-boundary capture, and `GoalAutoContinueDecisionCoordinator` invocation
+behind one runtime operation returning a typed coordination result. Awaited
+logging, status persistence, and effect application remain wrapper concerns for
+that slice. The legacy cross-invocation reentrancy flag must remain until a
+later task defines how an active continuation runtime is shared or registered
+across recursive entry.

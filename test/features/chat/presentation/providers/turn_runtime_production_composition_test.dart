@@ -111,7 +111,7 @@ void main() {
       'Future<void> _maybeAutoContinueCurrentGoal(',
     );
     final reservedEnd = continuationSource.indexOf(
-      'GoalAutoContinueTrackerSnapshot _applyGoalAutoContinueTrackerDelta(',
+      'void _applyTurnRuntimeGoalUiEffect(',
       reservedStart,
     );
     final reservedPath = continuationSource.substring(
@@ -133,11 +133,22 @@ void main() {
     expect(reservedPath, contains('_applyTurnRuntimeGoalUiEffect('));
     expect(reservedPath, contains('_dispatchTurnRuntimeHiddenTurn('));
     expect(
+      continuationSource,
+      contains('runtime.goalCompletionElicitationDispatch('),
+    );
+    expect(reservedPath, contains('runtime.clearGoalIndicator()'));
+    expect(reservedPath, contains('runtime.showGoalNotice(noticeKey)'));
+    expect(
       reservedPath,
       isNot(contains('sendHiddenPrompt(\n        continuationPrompt,')),
     );
     expect(reservedPath, isNot(contains('_goalAutoContinueTrackerRegistry')));
     expect(reservedPath, isNot(contains('markCurrentGoalStatus(')));
+    expect(reservedPath, isNot(contains('_clearGoalAutoContinueIndicator();')));
+    expect(
+      reservedPath,
+      isNot(contains('state.copyWith(goalAutoContinueNotice: noticeKey)')),
+    );
   });
 }
 

@@ -393,7 +393,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         .conversationFor(owner);
     if (currentConversation == null) {
       _logGoalAutoContinueSkip('conversation id is unavailable');
-      _clearGoalAutoContinueIndicator();
+      _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       return;
     }
     final goal = currentConversation.goal;
@@ -413,7 +413,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     );
     if (plan.policyInput == null) {
       _logGoalAutoContinueSkip(plan.reason.detail);
-      _clearGoalAutoContinueIndicator();
+      _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       return;
     }
     final decision = plan.policyDecision;
@@ -452,7 +452,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         goalContinuation.tracker.removeTracker(owner);
       }
       if (ownerIsCurrent()) {
-        _clearGoalAutoContinueIndicator();
+        _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       }
       return;
     }
@@ -486,7 +486,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             '[GoalAutoContinue] stopped; goal remains active for '
             'manual continuation. conversation=$currentConversationId',
           );
-          state = state.copyWith(goalAutoContinueNotice: noticeKey);
+          _applyTurnRuntimeGoalUiEffect(runtime.showGoalNotice(noticeKey));
         }
       } else if (goal?.isActive == true && goal!.autoContinue) {
         await _recordGoalAutoContinueSessionLog(
@@ -510,9 +510,8 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       // reading as one still working.
       if (plan.elicitationEligibility ==
           GoalCompletionElicitationEligibility.eligible) {
-        _clearGoalAutoContinueIndicator();
         await _elicitGoalCompletionReport(
-          owner: owner,
+          runtime: runtime,
           languageCode: languageCode,
           evidence: evidence,
         );
@@ -527,7 +526,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         );
       }
       if (ownerIsCurrent()) {
-        _clearGoalAutoContinueIndicator();
+        _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       }
       return;
     }
@@ -539,7 +538,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         'state changed before continuation dispatch; '
         'conversation=$currentConversationId',
       );
-      _clearGoalAutoContinueIndicator();
+      _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       return;
     }
 
@@ -616,7 +615,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       );
       appLog('[GoalAutoContinue] stackTrace: $stackTrace');
       if (ownerIsCurrent()) {
-        _clearGoalAutoContinueIndicator();
+        _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       }
     } finally {
       _isSchedulingGoalAutoContinue = false;
@@ -680,22 +679,21 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   /// assistant response before the goal turn is recorded, which is where the
   /// tool's completion claim is read.
   Future<void> _elicitGoalCompletionReport({
-    required ChatTurnOwner owner,
+    required TurnRuntime runtime,
     required String languageCode,
     required ToolResultCompletionEvidence evidence,
   }) async {
+    final owner = runtime.owner;
     if (!_isGoalAutoContinueOwnerCurrent(owner)) return;
+    final dispatch = runtime.goalCompletionElicitationDispatch(
+      languageCode: languageCode,
+      evidence: evidence,
+    );
     appLog('[GoalAutoContinue] eliciting a goal completion report');
     try {
       if (!_isGoalAutoContinueOwnerCurrent(owner)) return;
-      await sendHiddenPrompt(
-        GoalCompletionElicitationPrompt.build(languageCode: languageCode),
-        isVoiceMode: false,
-        languageCode: languageCode,
-        persistAssistantResponse: true,
-        initialGoalCompletionEvidence: evidence,
-        allowedToolNames: const {'update_goal'},
-      );
+      _applyTurnRuntimeGoalUiEffect(dispatch.uiEffect);
+      await _dispatchTurnRuntimeHiddenTurn(dispatch.hiddenTurn);
     } on Object catch (error) {
       appLog('[GoalAutoContinue] completion elicitation failed: $error');
     }

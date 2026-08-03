@@ -85,6 +85,44 @@ void main() {
         isNull,
       );
     });
+
+    test('returns owner-bound completion elicitation effects', () {
+      final owner = _owner();
+      final runtime = TurnRuntime(owner: owner, goalContinuation: _ports());
+      final paths = <String>['lib/main.dart'];
+
+      final dispatch = runtime.goalCompletionElicitationDispatch(
+        languageCode: 'ja',
+        evidence: ToolResultCompletionEvidence(unresolvedErrorPaths: paths),
+      );
+      paths.add('lib/other.dart');
+
+      expect(dispatch.uiEffect.owner, same(owner));
+      expect(dispatch.hiddenTurn.owner, same(owner));
+      expect(
+        dispatch.hiddenTurn.kind,
+        TurnRuntimeHiddenTurnKind.completionElicitation,
+      );
+      expect(dispatch.hiddenTurn.prompt, contains('update_goal'));
+      expect(dispatch.hiddenTurn.prompt, contains('"ja"'));
+      expect(dispatch.hiddenTurn.languageCode, 'ja');
+      expect(dispatch.hiddenTurn.allowedToolNames, {'update_goal'});
+      expect(dispatch.hiddenTurn.evidence.unresolvedErrorPaths, [
+        'lib/main.dart',
+      ]);
+    });
+
+    test('returns owner-bound clear and notice effects', () {
+      final owner = _owner();
+      final runtime = TurnRuntime(owner: owner, goalContinuation: _ports());
+
+      final clear = runtime.clearGoalIndicator();
+      final notice = runtime.showGoalNotice('goal-stopped');
+
+      expect(clear.owner, same(owner));
+      expect(notice.owner, same(owner));
+      expect(notice.noticeKey, 'goal-stopped');
+    });
   });
 
   group('TurnRuntime goal continuation values', () {
