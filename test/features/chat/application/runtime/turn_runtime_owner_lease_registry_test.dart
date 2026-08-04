@@ -70,10 +70,10 @@ void main() {
   });
 
   test('registry has no presentation or callback dependency', () {
-    final source = File(
+    final source = _codeWithoutComments(
       'lib/features/chat/application/runtime/'
       'turn_runtime_owner_lease_registry.dart',
-    ).readAsStringSync();
+    );
 
     expect(source, isNot(contains('ChatNotifier')));
     expect(source, isNot(contains('ChatState')));
@@ -129,3 +129,20 @@ ChatTurnOwner _owner(String conversationId, {int generation = 3}) =>
       conversationId: conversationId,
       interactionGeneration: generation,
     );
+
+/// The decomposition audit requires a
+/// `// ChatNotifier decomposition collaborator` marker in every
+/// registered collaborator, so a bare substring search would read that
+/// marker as the dependency it forbids. Strip comments first: the rule
+/// is about code, not about what a comment names.
+String _codeWithoutComments(String path) {
+  final source = File(path).readAsStringSync();
+  return source
+      .replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '')
+      .split('\n')
+      .map((line) {
+        final index = line.indexOf('//');
+        return index == -1 ? line : line.substring(0, index);
+      })
+      .join('\n');
+}
