@@ -248,6 +248,52 @@ _pollingOwners   _clearedOwners   _observedOwners   _terminatedOwners
 _replayedOwners  _forcedCompactionOwners   _ownerTombstones   _retired
 ```
 
+#### Sized: 17 of the 25 are in code that runs
+
+Each set's owning class was checked for a construction site anywhere in `lib/`
+(direct call or `.new` tear-off, provider registrations included). **Eight are
+never constructed outside tests:**
+
+```
+BrowserSessionOwnershipCoordinator   _knownOwners, _terminalOwners
+ComputerUseRuntimeCoordinator        _terminatedOwners
+GitProcessExecutionCoordinator       _retiredOwners
+PythonExecutionAuthority             _knownOwners, _terminalOwners
+SerialConnectionAttemptCoordinator   _knownOwners, _retiredOwners
+```
+
+These belong to the handler set documented in
+`docs/chat_tool_handler_catalog_unwired_findings.md` — built against the
+catalogue boundary, never wired into the notifier. They carry the pattern
+without paying for it, and they should not be counted when sizing the work.
+
+The measurement took three passes to get right. Excluding the declaring file
+missed provider construction (`sshServiceProvider` builds `SshService` in its
+own file), and matching only `ClassName(` missed Riverpod's `.new` tear-off
+(`SubagentTaskNotifier`). Both were flagged unwired until the rule was fixed.
+
+#### A bounded alternative already exists, in the other layer
+
+Six registries under `presentation/providers/` solve the same problem with
+`Map<String, int>` generation watermarks keyed by conversation id —
+`HiddenAssistantEvidenceRegistry`, `TurnGoalCompletionEvidenceRegistry`,
+`ParticipantTurnControlRegistry`, `TurnFinalizationStateRegistry`,
+`ResponseMetadataRegistry`, `ContentToolTurnStateRegistry`. That is **O(threads)
+instead of O(turns)**, and it is already in production.
+
+The two layers therefore disagree on more than size. A watermark closes
+*everything at or below* a generation (`owner.interactionGeneration <=
+disposedThrough`); an owner set closes *exactly one* owner. Retire generation 5
+and the watermark treats 1–4 as closed while the set still treats them as live.
+Whether that difference is reachable is unknown: turns normally retire in order,
+but `_cancelStreaming` notes that "a restored participant turn can be older than
+the latest completed generation," which is precisely the out-of-order case.
+
+**No defect is claimed here.** Nothing was reproduced, and the growth is small —
+one `ChatTurnOwner` per turn per set, in an app-lifetime notifier. Recorded
+because it sizes pattern E honestly: 17 live sets, a proven bounded alternative
+one directory away, and one untested semantic difference between them.
+
 **Every one of these exists to answer a question an object identity would answer
 for free**: "is this owner still the live one?" Because a turn has no object
 whose disposal is observable, each collaborator keeps its own monotonic record
@@ -411,9 +457,17 @@ read-modify-write cycle — produces a defect the gate cannot see.
 
 Pattern **C** has since been examined: the `goalAutoContinue*` trio and the
 usage counters both turned out correct, for different reasons (see *Open
-questions*). What remains unexamined is pattern **E** — 25 tombstone sets across
-20 files, the largest category in the inventory and the one whose defects are
-already on record.
+questions*). Pattern **E** has been sized rather than fixed: 17 of its 25 sets
+are in code that runs, a bounded alternative already exists one directory away,
+and no defect was reproduced.
+
+**The renewal is at a natural stop.** Every question the inventory opened is
+closed, one real defect was found and fixed along the way, and the two remaining
+proposals — the per-thread object and the tombstone conversion — now rest on the
+same argument: a shape is inconsistent, not that anything is broken. That
+argument was rejected for P2 on evidence; applying it consistently, it does not
+carry pattern E either. Resume when something fires: the draft-write gate, a
+reproduced out-of-order retirement, or a defect in the eight stashed fields.
 
 ### What P1 cost, measured
 
