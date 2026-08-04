@@ -270,10 +270,13 @@ final _runtimeTurns = <int, CavernoRuntimeTurnHandle>{};
 late final _runtimeEvents = RuntimeTurnEventPublisher(_runtimeTurns);
 ```
 
-Two objects hold the same mutable map with no stated ownership rule. Nothing is
-currently broken by it — the publisher only reads — but it is the one place in
-the inventory where the authority question has no answer at all, and it should
-be resolved (publisher takes a read-only view) independently of any pilot.
+Two objects held the same mutable map with no stated ownership rule. Nothing was
+broken by it — the publisher only reads — but it was the one place in the
+inventory where the authority question had no answer at all.
+
+**Resolved.** `RuntimeTurnEventPublisher` now wraps what it is given in an
+`UnmodifiableMapView`, so the notifier keeps ownership and a write added to the
+publisher fails to compile rather than racing the turn lifecycle.
 
 ## What this means for the pilot
 
@@ -406,9 +409,11 @@ member, it is fixed, and it is fenced. Revisit if the gate starts firing, if the
 eight grow, or if `participantTurnRuntime` — the one field with a genuine
 read-modify-write cycle — produces a defect the gate cannot see.
 
-The renewal's remaining unexamined ground is pattern **C** (11 fields reset on
-every switch, including the `goalAutoContinue*` trio and the usage counters) and
-pattern **E** (25 tombstone sets). Both are listed under *Open questions*.
+Pattern **C** has since been examined: the `goalAutoContinue*` trio and the
+usage counters both turned out correct, for different reasons (see *Open
+questions*). What remains unexamined is pattern **E** — 25 tombstone sets across
+20 files, the largest category in the inventory and the one whose defects are
+already on record.
 
 ### What P1 cost, measured
 
@@ -437,26 +442,51 @@ the behavioural teardown report.
 
 ## Open questions, with the test that settles each
 
-1. **Do the `goalAutoContinue*` fields belong to the thread or the app?**
-   Three fields reset on switch, while the goal coordinator is explicitly
-   conversation-spanning. A budget that resets when the user looks at another
-   thread is either a bug or an intended per-view display; the code does not say
-   which.
-   *Test:* start goals on two threads, switch between them, assert budget
-   accounting neither cross-contaminates nor silently refills.
+*(None outstanding.)* The three questions this section opened are all closed
+below and under *Alias*.
 
-2. **Should the usage counters survive a switch?** `promptTokens`,
-   `completionTokens`, `totalTokens`, `estimatedPromptTokens` reset to zero on
-   arrival, so a thread with a completed turn displays no usage after a
-   round trip.
-   *Test:* run a turn on thread A, switch to B and back, assert A's displayed
-   usage is what A actually consumed.
+### Closed: the `goalAutoContinue*` fields are correctly visible-scoped
 
-3. **Who owns `_runtimeTurns`?** See *Alias* — resolvable without a pilot.
+They reset on switch because **the feature itself does not run for a
+non-visible thread**. `_applyTurnRuntimeGoalUiEffect` is gated by
+`_isGoalAutoContinueOwnerCurrent`, which is
+`TurnRuntimeOwnerLeaseRegistry.isConversationCurrent` — true only when the
+conversation is *both* the visible and the selected one — and the dispatch that
+produces the effect is guarded by the same predicate twice more
+(`chat_notifier_goal_auto_continue.dart:598`, `:600`). There is no background
+progress to preserve, so there is nothing for a switch to lose.
 
-Neither 1 nor 2 is claimed here as a defect; both are places where the inventory
-found singular state serving a multi-thread product, which is the condition
-under which the previously confirmed contamination class arose.
+The tracker behind it *is* per-thread
+(`GoalAutoContinueTrackerRegistry._trackers`, keyed by conversation id), which
+is what made this look like a missing restore. It is not: the projection is
+absent because the source never fires.
+
+> **A larger product question falls out of this, and it is not mine to
+> answer.** Goal auto-continue **halts when the user opens another thread**, and
+> resumes only on return. That is a deliberate gate, not an oversight — it is
+> checked in three places — but it sits against the standing thread-independence
+> direction, and no test in
+> `chat_notifier_goal_auto_continue_part.dart` switches threads at all, so the
+> behaviour is unpinned either way. Every existing assertion there reads
+> `goalAutoContinueCount == 0`; nothing ever observes a running indicator.
+
+### Closed: the usage counters are correct, and degrade rather than blank
+
+`_updateTokenUsage` already guards `owner.conversationId == conversationId`
+(`chat_notifier_response_finalization.dart:18`), so a background turn never
+writes them — no contamination. They hold the **last response's** usage, not a
+running total.
+
+Losing them on switch is covered by a fallback the inventory had not read:
+`TokenUsageIndicator._contextUsageTokenCount()` falls through
+`promptTokens` → `estimatedPromptTokens` → `estimatePromptTokens(messages)`,
+and the messages *are* restored. Per-message metrics are persisted too
+(`MessageResponseMetrics` on `Message`), so the authority survives the switch
+even though the summary is recomputed rather than restored.
+
+Both questions were drafted as suspected defects and both were disproved by
+reading the code that consumes the fields, not just the code that writes them —
+the same mistake that made pattern B look like 18 fields.
 
 **Closed by this inventory:** whether `ChatState.pendingAskUserQuestion` is
 lossy on switch. It is not — `_pendingAskUserQuestionsByThread`

@@ -255,8 +255,12 @@ const Map<String, int> _lineBudgets = {
       76,
   'lib/features/chat/presentation/providers/runtime_turn_evidence_publisher.dart':
       16,
+  // +10 to take a read-only view of the notifier's turn-handle map instead of
+  // the map itself. Two objects held one mutable map with no ownership rule;
+  // the import, the wrapping constructor and the comment saying why are the
+  // whole of the growth. Nothing was extractable -- the class got stricter.
   'lib/features/chat/presentation/providers/runtime_turn_event_publisher.dart':
-      110,
+      120,
   'lib/features/chat/domain/services/content_tool_continuation_prompt_builder.dart':
       61,
   'lib/features/chat/presentation/providers/tool_dedupe_keys.dart': 62,

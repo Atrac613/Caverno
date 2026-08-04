@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 
@@ -6,7 +8,14 @@ import '../../domain/services/tool_execution_scheduler.dart';
 
 /// Publishes non-terminal runtime events for notifier-owned turn handles.
 final class RuntimeTurnEventPublisher {
-  RuntimeTurnEventPublisher(this._handlesByGeneration);
+  /// Takes a read-only view, not the notifier's map.
+  ///
+  /// It used to take `ChatNotifier._runtimeTurns` itself, so two objects held
+  /// one mutable map with no stated ownership rule. Nothing was broken by it --
+  /// this class only reads -- but the type is now what says so, and a write
+  /// added here would fail to compile instead of racing the turn lifecycle.
+  RuntimeTurnEventPublisher(Map<int, CavernoRuntimeTurnHandle> handles)
+    : _handlesByGeneration = UnmodifiableMapView(handles);
 
   final Map<int, CavernoRuntimeTurnHandle> _handlesByGeneration;
   final Map<int, String> _visibleAssistantContentByGeneration = {};
