@@ -9,7 +9,7 @@ void main() {
     test('rejects every owner before mount', () {
       final registry = TurnRuntimeOwnerLeaseRegistry();
 
-      expect(registry.isCurrent(_owner('conversation-a')), isFalse);
+      expect(registry.leaseFor(_owner('conversation-a')).isCurrent, isFalse);
     });
 
     test('accepts an owner when visible and selected conversations match', () {
@@ -19,13 +19,13 @@ void main() {
           selectedConversationId: 'conversation-a',
         );
 
-      expect(registry.isCurrent(_owner('conversation-a')), isTrue);
+      expect(registry.leaseFor(_owner('conversation-a')).isCurrent, isTrue);
       expect(
-        registry.isCurrent(_owner('conversation-a', generation: 4)),
+        registry.leaseFor(_owner('conversation-a', generation: 4)).isCurrent,
         isTrue,
         reason: 'active-response registration ends before continuation',
       );
-      expect(registry.isCurrent(_owner('conversation-b')), isFalse);
+      expect(registry.leaseFor(_owner('conversation-b')).isCurrent, isFalse);
     });
 
     test('rejects an owner when the visible conversation diverges', () {
@@ -33,7 +33,7 @@ void main() {
 
       registry.updateVisibleConversation('conversation-b');
 
-      expect(registry.isCurrent(_owner('conversation-a')), isFalse);
+      expect(registry.leaseFor(_owner('conversation-a')).isCurrent, isFalse);
     });
 
     test('rejects an owner when the selected conversation diverges', () {
@@ -41,31 +41,31 @@ void main() {
 
       registry.updateSelectedConversation('conversation-b');
 
-      expect(registry.isCurrent(_owner('conversation-a')), isFalse);
+      expect(registry.leaseFor(_owner('conversation-a')).isCurrent, isFalse);
     });
 
     test('rejects an owner when either conversation becomes null', () {
       final registry = _mountedRegistry();
       registry.updateSelectedConversation(null);
-      expect(registry.isCurrent(_owner('conversation-a')), isFalse);
+      expect(registry.leaseFor(_owner('conversation-a')).isCurrent, isFalse);
 
       registry
         ..updateSelectedConversation('conversation-a')
         ..updateVisibleConversation(null);
-      expect(registry.isCurrent(_owner('conversation-a')), isFalse);
+      expect(registry.leaseFor(_owner('conversation-a')).isCurrent, isFalse);
     });
 
     test('retires owners and supports a later rebuild mount', () {
       final registry = _mountedRegistry();
 
       registry.retire();
-      expect(registry.isCurrent(_owner('conversation-a')), isFalse);
+      expect(registry.leaseFor(_owner('conversation-a')).isCurrent, isFalse);
 
       registry.mount(
         visibleConversationId: 'conversation-b',
         selectedConversationId: 'conversation-b',
       );
-      expect(registry.isCurrent(_owner('conversation-b')), isTrue);
+      expect(registry.leaseFor(_owner('conversation-b')).isCurrent, isTrue);
     });
   });
 
@@ -109,10 +109,12 @@ void main() {
       source,
       contains('_turnRuntimeOwnerLease.isConversationCurrent(effectiveOwner)'),
     );
-    expect(source, contains('_turnRuntimeOwnerLease.isCurrent(turnOwner)'));
+    expect(source, contains('_turnRuntimeOwnerLease.isConversationCurrent('));
     expect(
       goalAutoContinueSource,
-      contains('_turnRuntimeOwnerLease.isCurrent(owner)'),
+      contains(
+        '_turnRuntimeOwnerLease.isConversationCurrent(owner.conversationId)',
+      ),
     );
     expect(goalAutoContinueSource, isNot(contains('ref.mounted &&')));
   });

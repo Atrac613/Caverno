@@ -1,9 +1,11 @@
 import '../../domain/entities/chat_turn_owner.dart';
 import 'turn_runtime.dart';
+import 'turn_runtime_goal_continuation_ports_factory.dart';
 
 // ChatNotifier decomposition collaborator: turn-runtime-owner-lease-registry
 /// Tracks the minimal live conversation state required by an owner lease.
-final class TurnRuntimeOwnerLeaseRegistry implements TurnRuntimeOwnerLeasePort {
+final class TurnRuntimeOwnerLeaseRegistry
+    implements TurnRuntimeOwnerLeaseBinder {
   bool _mounted = false;
   String? _visibleConversationId;
   String? _selectedConversationId;
@@ -31,12 +33,27 @@ final class TurnRuntimeOwnerLeaseRegistry implements TurnRuntimeOwnerLeasePort {
     _selectedConversationId = null;
   }
 
+  /// Binds this long-lived registry to one owner for a single turn runtime.
   @override
-  bool isCurrent(ChatTurnOwner owner) =>
-      isConversationCurrent(owner.conversationId);
+  TurnRuntimeOwnerLeasePort leaseFor(ChatTurnOwner owner) =>
+      _TurnRuntimeOwnerLease(registry: this, owner: owner);
 
   bool isConversationCurrent(String conversationId) =>
       _mounted &&
       _visibleConversationId == conversationId &&
       _selectedConversationId == conversationId;
+}
+
+final class _TurnRuntimeOwnerLease implements TurnRuntimeOwnerLeasePort {
+  const _TurnRuntimeOwnerLease({
+    required TurnRuntimeOwnerLeaseRegistry registry,
+    required ChatTurnOwner owner,
+  }) : _registry = registry,
+       _owner = owner;
+
+  final TurnRuntimeOwnerLeaseRegistry _registry;
+  final ChatTurnOwner _owner;
+
+  @override
+  bool get isCurrent => _registry.isConversationCurrent(_owner.conversationId);
 }

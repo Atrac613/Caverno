@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/application/runtime/turn_runtime.dart';
+import 'package:caverno/features/chat/application/runtime/turn_runtime_goal_continuation_ports_factory.dart';
 import 'package:caverno/features/chat/application/runtime/turn_runtime_conversation_goal_adapter.dart';
 import 'package:caverno/features/chat/application/runtime/turn_runtime_goal_tracker_adapter.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
@@ -34,20 +35,25 @@ void main() {
       final runtime = scope.runtime;
 
       expect(runtime.owner, same(owner));
-      expect(runtime.goalContinuation.ownerLease, same(lease));
+      // The composition binds the lease to this owner instead of passing the
+      // long-lived binder through, so identity cannot vary per call.
+      expect(runtime.goalContinuation.ownerLease.isCurrent, isTrue);
       expect(
         runtime.goalContinuation.conversationGoal,
         isA<TurnRuntimeConversationGoalAdapter>(),
       );
       expect(
-        runtime.goalContinuation.conversationGoal.conversationFor(owner),
+        runtime.goalContinuation.conversationGoal.conversation,
         same(conversation),
       );
       expect(
         runtime.goalContinuation.tracker,
         isA<TurnRuntimeGoalTrackerAdapter>(),
       );
-      expect(runtime.goalContinuation.safeBoundary, same(safeBoundary));
+      expect(
+        runtime.goalContinuation.safeBoundary,
+        same(safeBoundary.boundaryFor(owner)),
+      );
       expect(runtime.goalContinuation.log, isNotNull);
       expect(scope.loggingEnabled, isFalse);
     });
@@ -72,13 +78,10 @@ void main() {
       );
 
       first.runtime.goalContinuation.tracker.applyDelta(
-        first.runtime.owner,
         _delta(noProgressStreak: 2),
       );
       expect(
-        next.runtime.goalContinuation.tracker
-            .snapshotFor(next.runtime.owner)
-            .noProgressStreak,
+        next.runtime.goalContinuation.tracker.snapshot.noProgressStreak,
         2,
       );
 
@@ -177,8 +180,8 @@ void main() {
       isNot(contains('sendHiddenPrompt(\n        continuationPrompt,')),
     );
     expect(reservedPath, isNot(contains('_goalAutoContinueTrackerRegistry')));
-    expect(reservedPath, isNot(contains('.conversationFor(owner)')));
-    expect(reservedPath, isNot(contains('.snapshotFor(owner)')));
+    expect(reservedPath, isNot(contains('conversationGoal.conversation;')));
+    expect(reservedPath, isNot(contains('tracker.snapshot')));
     expect(reservedPath, isNot(contains('.applyDelta(')));
     expect(reservedPath, isNot(contains('.markBudgetNoticePresented(')));
     expect(reservedPath, isNot(contains('.removeTracker(')));
@@ -212,9 +215,9 @@ void main() {
 }
 
 TurnRuntimeProductionComposition _composition({
-  required TurnRuntimeOwnerLeasePort ownerLease,
+  required TurnRuntimeOwnerLeaseBinder ownerLease,
   required TurnRuntimeConversationGoalStore conversationGoalStore,
-  required TurnRuntimeGoalSafeBoundaryPort safeBoundary,
+  required TurnRuntimeGoalSafeBoundaryBinder safeBoundary,
   TurnRuntimeGoalContinuationLifecycle? goalContinuationLifecycle,
 }) => TurnRuntimeProductionComposition(
   ownerLease: ownerLease,
@@ -227,13 +230,21 @@ TurnRuntimeProductionComposition _composition({
       goalContinuationLifecycle ?? TurnRuntimeGoalContinuationLifecycle(),
 );
 
-final class _OwnerLease implements TurnRuntimeOwnerLeasePort {
+final class _OwnerLease implements TurnRuntimeOwnerLeaseBinder {
   const _OwnerLease(this.currentOwner);
 
   final ChatTurnOwner currentOwner;
 
   @override
-  bool isCurrent(ChatTurnOwner owner) => owner == currentOwner;
+  TurnRuntimeOwnerLeasePort leaseFor(ChatTurnOwner owner) =>
+      _BoundOwnerLease(isCurrent: owner == currentOwner);
+}
+
+final class _BoundOwnerLease implements TurnRuntimeOwnerLeasePort {
+  const _BoundOwnerLease({required this.isCurrent});
+
+  @override
+  final bool isCurrent;
 }
 
 final class _GoalStore implements TurnRuntimeConversationGoalStore {
@@ -253,27 +264,32 @@ final class _GoalStore implements TurnRuntimeConversationGoalStore {
   }) async {}
 }
 
-final class _SafeBoundary implements TurnRuntimeGoalSafeBoundaryPort {
+final class _SafeBoundary
+    implements
+        TurnRuntimeGoalSafeBoundaryBinder,
+        TurnRuntimeGoalSafeBoundaryPort {
   @override
-  GoalAutoContinueSafeBoundary capture(ChatTurnOwner owner) =>
-      const GoalAutoContinueSafeBoundary(
-        isLoading: false,
-        hasQueuedUserInput: false,
-        hasPendingSshConnect: false,
-        hasPendingSshCommand: false,
-        hasPendingGitCommand: false,
-        hasPendingLocalCommand: false,
-        hasPendingComputerUseAction: false,
-        hasPendingBrowserAction: false,
-        hasPendingFileOperation: false,
-        hasPendingBleConnect: false,
-        hasPendingSerialOpen: false,
-        hasPendingParticipantToolApproval: false,
-        hasPendingAskUserQuestion: false,
-        hasPendingWorkflowDecision: false,
-        hasParticipantTurnRuntime: false,
-        hasError: false,
-      );
+  TurnRuntimeGoalSafeBoundaryPort boundaryFor(ChatTurnOwner owner) => this;
+
+  @override
+  GoalAutoContinueSafeBoundary capture() => const GoalAutoContinueSafeBoundary(
+    isLoading: false,
+    hasQueuedUserInput: false,
+    hasPendingSshConnect: false,
+    hasPendingSshCommand: false,
+    hasPendingGitCommand: false,
+    hasPendingLocalCommand: false,
+    hasPendingComputerUseAction: false,
+    hasPendingBrowserAction: false,
+    hasPendingFileOperation: false,
+    hasPendingBleConnect: false,
+    hasPendingSerialOpen: false,
+    hasPendingParticipantToolApproval: false,
+    hasPendingAskUserQuestion: false,
+    hasPendingWorkflowDecision: false,
+    hasParticipantTurnRuntime: false,
+    hasError: false,
+  );
 }
 
 ChatTurnOwner _owner(String conversationId, int generation) => ChatTurnOwner(

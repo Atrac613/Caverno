@@ -26,6 +26,7 @@ import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
+import '../../application/runtime/turn_release_scope.dart';
 import '../../application/runtime/turn_runtime.dart';
 import '../../application/runtime/turn_runtime_owner_lease_registry.dart';
 import '../../domain/services/ask_user_question_turn_cache.dart';
@@ -351,6 +352,11 @@ class ChatNotifier extends Notifier<ChatState> {
   final _planningToolPolicy = const PlanningToolPolicy();
   final _toolLoopContextDigest = const ToolLoopContextDigest();
   final _runtimeTurns = <int, CavernoRuntimeTurnHandle>{};
+  // What each live turn owes its teardown. Registered at start, discharged by
+  // dropping the scope; see TurnReleaseScope for why the state itself stays
+  // notifier-wide.
+  final _turnReleases = <ChatTurnOwner, TurnReleaseScope>{};
+  (List<String>, List<String>)? _lastTurnRelease;
   late final _runtimeEvents = RuntimeTurnEventPublisher(_runtimeTurns);
   final _runtimeFailureClassifier = const CavernoRuntimeFailureClassifier();
   late final _pythonScriptRuntime = _buildPythonScriptRuntimeAdapter();
@@ -8493,7 +8499,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_isCurrentInteractionGeneration(generation)) return;
     await _drainQueuedChatMessagesForThreadIfIdle(turnThreadId ?? '');
     if (!_isCurrentInteractionGeneration(generation)) return;
-    if (!_turnRuntimeOwnerLease.isCurrent(turnOwner)) return;
+    if (!_isGoalAutoContinueOwnerCurrent(turnOwner)) return;
     await _maybeAutoContinueCurrentGoal(
       owner: turnOwner,
       finalizedAssistantResponse: finalizedLastMessage.content,

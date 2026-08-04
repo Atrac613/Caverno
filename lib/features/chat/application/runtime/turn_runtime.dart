@@ -9,39 +9,42 @@ import '../../domain/services/goal_continuation_log_record_builder.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 
 // ChatNotifier decomposition collaborator: turn-runtime
-/// Owner-aware access to the current turn lifecycle.
+// Every port below is bound to one owner when the composition root creates it,
+// so none of them re-takes the owner per call. The prototype's first shape
+// passed `ChatTurnOwner` into all eight port methods, which measured as
+// identity plumbing relocated across the boundary rather than removed; binding
+// the owner once is what makes the runtime own its identity.
+
+/// Access to the current turn lifecycle for this runtime's owner.
 abstract interface class TurnRuntimeOwnerLeasePort {
-  bool isCurrent(ChatTurnOwner owner);
+  bool get isCurrent;
 }
 
-/// Owner-aware access to conversation goal state and persistence.
+/// Access to conversation goal state and persistence for this runtime's owner.
 abstract interface class TurnRuntimeConversationGoalPort {
-  Conversation? conversationFor(ChatTurnOwner owner);
+  Conversation? get conversation;
 
   Future<void> markGoalStatus(TurnRuntimeGoalStatusUpdate update);
 }
 
 /// Conversation-spanning continuation history used by one turn runtime.
 abstract interface class TurnRuntimeGoalTrackerPort {
-  GoalAutoContinueTrackerSnapshot snapshotFor(ChatTurnOwner owner);
+  GoalAutoContinueTrackerSnapshot get snapshot;
 
   GoalAutoContinueTrackerSnapshot applyDelta(
-    ChatTurnOwner owner,
     GoalAutoContinueTrackerDelta delta,
   );
 
-  bool markBudgetNoticePresented(ChatTurnOwner owner);
+  bool markBudgetNoticePresented();
 
-  GoalAutoContinueTrackerSnapshot clearPendingRepairContract(
-    ChatTurnOwner owner,
-  );
+  GoalAutoContinueTrackerSnapshot clearPendingRepairContract();
 
-  void removeTracker(ChatTurnOwner owner);
+  void removeTracker();
 }
 
 /// Captures pending thread state as one immutable continuation boundary.
 abstract interface class TurnRuntimeGoalSafeBoundaryPort {
-  GoalAutoContinueSafeBoundary capture(ChatTurnOwner owner);
+  GoalAutoContinueSafeBoundary capture();
 }
 
 /// Persists a fully projected continuation record outside the runtime.
@@ -147,13 +150,8 @@ final class TurnRuntimeFailedGoalDispatchFinalization {
 
 /// Exact goal status mutation requested by a runtime owner.
 final class TurnRuntimeGoalStatusUpdate {
-  const TurnRuntimeGoalStatusUpdate({
-    required this.owner,
-    required this.status,
-    this.blockedReason,
-  });
+  const TurnRuntimeGoalStatusUpdate({required this.status, this.blockedReason});
 
-  final ChatTurnOwner owner;
   final ConversationGoalStatus status;
   final String? blockedReason;
 }
@@ -287,14 +285,12 @@ final class TurnRuntime {
   TurnRuntimeGoalCoordinationResult coordinateGoalContinuation(
     TurnRuntimeGoalContinuationInput input,
   ) {
-    final conversation = goalContinuation.conversationGoal.conversationFor(
-      owner,
-    );
+    final conversation = goalContinuation.conversationGoal.conversation;
     if (conversation == null) {
       return TurnRuntimeGoalCoordinationUnavailable(owner: owner);
     }
-    final tracker = goalContinuation.tracker.snapshotFor(owner);
-    final safeBoundary = goalContinuation.safeBoundary.capture(owner);
+    final tracker = goalContinuation.tracker.snapshot;
+    final safeBoundary = goalContinuation.safeBoundary.capture();
     final plan = const GoalAutoContinueDecisionCoordinator().coordinate(
       GoalAutoContinueDecisionInput(
         owner: owner,
@@ -318,10 +314,10 @@ final class TurnRuntime {
   TurnRuntimeGoalTrackerTransition applyGoalTrackerTransition(
     GoalAutoContinueTrackerDelta delta,
   ) {
-    final snapshot = goalContinuation.tracker.applyDelta(owner, delta);
+    final snapshot = goalContinuation.tracker.applyDelta(delta);
     final budgetNoticePresented =
         delta.markBudgetNoticePresented &&
-        goalContinuation.tracker.markBudgetNoticePresented(owner);
+        goalContinuation.tracker.markBudgetNoticePresented();
     return TurnRuntimeGoalTrackerTransition(
       owner: owner,
       snapshot: snapshot,
@@ -341,7 +337,7 @@ final class TurnRuntime {
       );
     }
     if (transition.removeTrackerAfterPersistence) {
-      goalContinuation.tracker.removeTracker(owner);
+      goalContinuation.tracker.removeTracker();
     }
     return TurnRuntimePersistedGoalBlockFinalization(
       owner: owner,
@@ -353,7 +349,7 @@ final class TurnRuntime {
   finalizeFailedGoalContinuationDispatch() =>
       TurnRuntimeFailedGoalDispatchFinalization(
         owner: owner,
-        snapshot: goalContinuation.tracker.clearPendingRepairContract(owner),
+        snapshot: goalContinuation.tracker.clearPendingRepairContract(),
       );
 
   TurnRuntimeClearGoalIndicator clearGoalIndicator() =>

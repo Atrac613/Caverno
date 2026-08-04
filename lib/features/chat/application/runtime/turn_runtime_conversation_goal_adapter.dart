@@ -20,23 +20,26 @@ final class TurnRuntimeConversationGoalAdapter
     implements TurnRuntimeConversationGoalPort {
   const TurnRuntimeConversationGoalAdapter({
     required TurnRuntimeConversationGoalStore store,
-  }) : _store = store;
+    required ChatTurnOwner owner,
+  }) : _store = store,
+       _owner = owner;
 
   final TurnRuntimeConversationGoalStore _store;
+  final ChatTurnOwner _owner;
 
   @override
-  Conversation? conversationFor(ChatTurnOwner owner) {
-    final conversation = _store.conversationForId(owner.conversationId);
-    return conversation?.id == owner.conversationId ? conversation : null;
+  Conversation? get conversation {
+    final conversation = _store.conversationForId(_owner.conversationId);
+    return conversation?.id == _owner.conversationId ? conversation : null;
   }
 
   @override
   Future<void> markGoalStatus(TurnRuntimeGoalStatusUpdate update) async {
-    if (conversationFor(update.owner) == null) {
+    if (conversation == null) {
       return;
     }
     await _store.markGoalStatus(
-      conversationId: update.owner.conversationId,
+      conversationId: _owner.conversationId,
       status: update.status,
       blockedReason: update.blockedReason,
     );

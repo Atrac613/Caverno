@@ -84,6 +84,7 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
         return null;
       }
       _runtimeTurns[generation] = handle;
+      _registerTurnReleases(owner);
       return owner;
     } on CavernoRuntimeTurnStartException catch (error) {
       _routeRuntimeStartFailure(ownerConversationId, error.terminal.message);
@@ -95,6 +96,59 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
       );
       return null;
     }
+  }
+
+  /// What this turn owes, declared once where the turn begins.
+  ///
+  /// Every release is a no-op when the resource was never acquired, so
+  /// registering the full set at start is safe and keeps the list in one place
+  /// that is adjacent to acquisition rather than distant from it.
+  void _registerTurnReleases(ChatTurnOwner owner) {
+    final scope = TurnReleaseScope(owner: owner);
+    _turnReleases[owner] = scope;
+    scope
+      ..register(
+        'pythonScriptRuntime',
+        () => unawaited(_pythonScriptRuntime.retireOwner(owner)),
+      )
+      ..register(
+        'fileMutationRuntime',
+        () => _fileMutationRuntime.retireOwner(owner),
+      )
+      ..register(
+        'backgroundProcesses',
+        () => unawaited(
+          _mcpToolService?.clearBackgroundProcessOwner(owner) ??
+              Future<void>.sync(
+                () => _backgroundProcessMonitorService.clearOwner(owner),
+              ),
+        ),
+      )
+      // Through the runtime, not the service: it also retires the owner's
+      // connection record and settles any outstanding disconnect receipts,
+      // which clearing the service alone leaves behind.
+      ..register('sshOwner', () => unawaited(_clearSshOwner(owner)))
+      ..register(
+        'conversationTaintState',
+        () => _conversationTaintState.clearOwner(owner: owner),
+      )
+      ..register(
+        'pendingToolApprovals',
+        () => _cancelPendingToolApprovalsForOwner(owner),
+      )
+      ..register('toolApprovalCache', () => _toolApprovalCache.clear(owner))
+      // Published, not disposed: this closes writes and opens a retention
+      // window, because the evidence is read after the turn ends.
+      ..register(
+        'hiddenAssistantEvidence',
+        () => _hiddenAssistantEvidence.publish(owner),
+      )
+      ..register('contentToolTurns', () => _contentToolTurns.dispose(owner))
+      ..register('turnEnd', () => _turnEnd.dispose(owner))
+      ..register(
+        'goalCompletionEvidence',
+        () => _goalCompletionEvidence.dispose(owner),
+      );
   }
 
   void _routeRuntimeStartFailure(String ownerConversationId, String message) {
@@ -137,6 +191,39 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
     );
   }
 
+  /// Every turn-local store this part's teardown is responsible for emptying.
+  ///
+  /// The destructor runs 21 manual steps across `_terminalizeRuntimeTurn` and
+  /// `_clearActiveResponseForGeneration`, and until now nothing asserted that
+  /// any of them happened.
+  ///
+  /// Two stores are deliberately excluded because they outlive the turn by
+  /// design, and both share the owner-keyed shape of the ones that do not:
+  /// `_turnToolResults` retains for ten minutes and no destructor touches it,
+  /// and `_hiddenAssistantEvidence` is `publish`ed rather than disposed, which
+  /// stops writes and starts a retention window instead of removing the entry.
+  @visibleForTesting
+  Map<String, bool> turnStateReportForTest() => {
+    'activeResponseRegistry':
+        _activeResponseRegistry.openRegistrationCount == 0,
+    'contentToolTurns': _contentToolTurns.isEmpty,
+    'goalCompletionEvidence': _goalCompletionEvidence.isEmpty,
+    'responseMetadata': _responseMetadata.isEmpty,
+    'toolApprovalCache': _toolApprovalCache.isEmpty,
+    'runtimeTurns': _runtimeTurns.isEmpty,
+    'turnEnd': _turnEnd.isEmpty,
+  };
+
+  @visibleForTesting
+  bool turnStateIsClearedForTest() =>
+      _activeResponseRegistry.openRegistrationCount == 0 &&
+      _contentToolTurns.isEmpty &&
+      _goalCompletionEvidence.isEmpty &&
+      _responseMetadata.isEmpty &&
+      _toolApprovalCache.isEmpty &&
+      _runtimeTurns.isEmpty &&
+      _turnEnd.isEmpty;
+
   void _terminalizeRuntimeTurn(
     int generation,
     void Function(CavernoRuntimeTurnHandle handle) terminalize,
@@ -154,28 +241,34 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
       publishTurnEvidence(_turnToolResults, generation, handle.conversationId);
     }
     if (owner != null) {
-      unawaited(_pythonScriptRuntime.retireOwner(owner));
-      _fileMutationRuntime.retireOwner(owner);
-      unawaited(
-        _mcpToolService?.clearBackgroundProcessOwner(owner) ??
-            Future<void>.sync(
-              () => _backgroundProcessMonitorService.clearOwner(owner),
-            ),
-      );
-      // Through the runtime, not the service: it also retires the owner's
-      // connection record and settles any outstanding disconnect receipts,
-      // which clearing the service alone leaves behind.
-      unawaited(_clearSshOwner(owner));
-      _conversationTaintState.clearOwner(owner: owner);
-      _cancelPendingToolApprovalsForOwner(owner);
-      _toolApprovalCache.clear(owner);
-      _hiddenAssistantEvidence.publish(owner);
-      _contentToolTurns.dispose(owner);
-      _turnEnd.dispose(owner);
-      _goalCompletionEvidence.dispose(owner);
+      _releaseTurnScope(owner);
     }
     if (handle != null) terminalize(handle);
     _clearActiveResponseForGeneration(generation);
+  }
+
+  /// Registered and discharged names from the most recent turn teardown.
+  ///
+  /// The store report says released state ended up empty; this says the scope
+  /// was actually asked for every release and ran every one. A release dropped
+  /// from the registration list would pass the first check and fail this one.
+  @visibleForTesting
+  (List<String>, List<String>)? lastTurnReleaseReportForTest() =>
+      _lastTurnRelease;
+
+  /// Drops the turn's scope, discharging everything it registered.
+  ///
+  /// A turn with no scope was never started through `_startRuntimeTurn`, which
+  /// happens on the start-failure paths; there is nothing owed.
+  void _releaseTurnScope(ChatTurnOwner owner) {
+    final scope = _turnReleases.remove(owner);
+    if (scope == null) return;
+    try {
+      scope.dispose();
+      _lastTurnRelease = (scope.registeredNames, scope.dischargedNames);
+    } on TurnReleaseFailure catch (failure) {
+      appLog('[ChatNotifier] Turn teardown reported failures: $failure');
+    }
   }
 
   void _failAllRuntimeTurns({

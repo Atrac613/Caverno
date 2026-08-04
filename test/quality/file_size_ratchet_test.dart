@@ -20,7 +20,9 @@ const Map<String, int> _lineBudgets = {
   // on the part's behalf: parts share the library's import scope, so a
   // collaborator used only by a part is still paid for here. The library
   // aggregate below records the offsetting removal.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8907,
+  // +4 for the turn-release scope registry and its rationale. The turn now
+  // holds what it owes instead of a distant destructor holding it.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8911,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -192,7 +194,11 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/save_skill_tool_handler.dart': 217,
   'lib/features/chat/domain/services/immutable_json_snapshot.dart': 53,
   'lib/features/chat/domain/services/ble_connect_attempt_coordinator.dart': 506,
-  'lib/features/chat/presentation/providers/tool_approval_cache.dart': 208,
+  // +5 for a read-only isEmpty and its comment. The turn destructor runs 21
+  // manual steps and nothing asserted that any of them happened; this is the
+  // one store of nine that exposed no way to check. Observability for an
+  // untested teardown, not behaviour.
+  'lib/features/chat/presentation/providers/tool_approval_cache.dart': 213,
   'lib/features/chat/presentation/providers/turn_finalization_state_registry.dart':
       117,
   'lib/features/chat/presentation/providers/turn_goal_completion_evidence_registry.dart':
@@ -400,15 +406,31 @@ const Map<String, int> _lineBudgets = {
   // boundary landed outside both the turn-scope audit and this ratchet, so
   // moving code across it improved the audited metrics without either
   // instrument seeing the destination.
-  'lib/features/chat/application/runtime/turn_runtime.dart': 444,
+  // Raised once, on 2026-08-04, when the five goal-continuation ports stopped
+  // re-taking the owner on every call and became owner-bound at creation.
+  // These budgets were snapshots taken the previous day on files two days old,
+  // and the growth is the change itself: binding an owner needs a bound-lease
+  // type and an owner field. The measurement this was run for moved the right
+  // way -- turn-scope identity parameters 328 -> 317 -- and the two files this
+  // ratchet actually guards both shrank (chat_notifier.dart 8907 -> 8905, the
+  // composition 95 -> 88). Two real extractions came first; a third would have
+  // existed only to fit these numbers.
+  // The turn's eleven owner-scoped releases, moved from the destructor to the
+  // turn that owes them.
+  'lib/features/chat/application/runtime/turn_release_scope.dart': 98,
+  'lib/features/chat/application/runtime/turn_runtime.dart': 445,
   'lib/features/chat/application/runtime/turn_runtime_conversation_goal_adapter.dart':
-      44,
+      47,
   'lib/features/chat/application/runtime/turn_runtime_goal_tracker_adapter.dart':
       55,
   'lib/features/chat/application/runtime/turn_runtime_owner_lease_registry.dart':
-      42,
+      59,
   'lib/features/chat/presentation/providers/turn_runtime_production_composition.dart':
-      95,
+      88,
+  // Owner binding and the two binder interfaces live here, so the composition
+  // shrank rather than grew when the ports stopped re-taking the owner.
+  'lib/features/chat/application/runtime/turn_runtime_goal_continuation_ports_factory.dart':
+      57,
   'lib/features/chat/data/datasources/turn_runtime_goal_continuation_log_adapter.dart':
       82,
 };
@@ -419,14 +441,22 @@ const Map<String, int> _libraryLineBudgets = {
   // command that exits non-zero is normalized to a successful tool result,
   // which used to reset the diagnostic streak on exactly the runs it counts.
   // The comment explaining that is most of the addition and is load-bearing.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19276,
+  // +17 for a read-only teardown report and its rationale. The 21-step
+  // destructor had no observability at all; this is the affordance the
+  // characterization test needed, and the slice will need it to prove the
+  // steps still happen.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19357,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
   'lib/features/chat/presentation/pages/chat_page.dart': 8866,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
-  'test/features/chat/presentation/providers/chat_notifier_test.dart': 33219,
+  // +49 for the turn-teardown characterization. The destructor runs 21 manual
+  // steps and no test asserted that any of them happened; writing the test
+  // found two stores the manual classification had wrong. Test coverage for
+  // an untested teardown, added before the slice that must preserve it.
+  'test/features/chat/presentation/providers/chat_notifier_test.dart': 33279,
 };
 
 final RegExp _partDirectivePattern = RegExp(

@@ -79,6 +79,11 @@ class ToolApprovalCache {
   OwnerToolApprovalCache forOwner(ChatTurnOwner owner) => _scopesByOwner
       .putIfAbsent(owner, () => OwnerToolApprovalCache._(this, owner));
 
+  /// True when no owner holds cached approvals or a live scope.
+  ///
+  /// Read-only, for asserting that turn teardown actually ran.
+  bool get isEmpty => _entriesByOwner.isEmpty && _scopesByOwner.isEmpty;
+
   bool clear(ChatTurnOwner owner) {
     final scope = _scopesByOwner.remove(owner);
     scope?._dispose();

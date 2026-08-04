@@ -19,8 +19,10 @@ void main() {
         hasLength(43),
       );
       expect(_statusCounts(manifest), {
-        'partial': 24,
-        'keep': 5,
+        'partial': 25,
+        // execution_runtime moved keep -> partial on 2026-08-04 when the
+        // destructor slice extracted the turn's releases from it.
+        'keep': 4,
         'deferred': 6,
         'extracted': 6,
         'remaining': 2,

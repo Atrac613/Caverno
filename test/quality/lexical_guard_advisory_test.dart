@@ -56,7 +56,10 @@ const _terminalStateSymbols = <String>[
   'recordCurrentVerificationGeneration',
 ];
 
-final RegExp _relativeImport = RegExp(r"^import\s+'([^':]+)';", multiLine: true);
+final RegExp _relativeImport = RegExp(
+  r"^import\s+'([^':]+)';",
+  multiLine: true,
+);
 
 /// Absolute, **normalized** paths reachable from [entryPath] through relative
 /// imports.
@@ -106,9 +109,7 @@ void main() {
         final reachable = _transitiveImports(guardPath);
         final leaks = <String>[];
         for (final library in _terminalStateLibraries) {
-          final absolute = p.normalize(
-            p.join(Directory.current.path, library),
-          );
+          final absolute = p.normalize(p.join(Directory.current.path, library));
           expect(
             File(absolute).existsSync(),
             isTrue,

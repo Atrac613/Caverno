@@ -162,6 +162,41 @@ The immutable/mutable split in Finding 1 also corroborates the slice's
 direction: `ParticipantTurnPlan` is the immutable half of the same separation
 codex draws between `TurnContext` and `TurnState`.
 
+### Correction, 2026-08-04: the built boundary does not implement this finding
+
+Later readings of this document — including by its author — took the shipped
+`TurnRuntime` boundary to have adopted the pattern above. **It has not**, and
+the difference matters enough to record here rather than only in the review that
+caught it.
+
+Codex's `turn_state_for_sub_id` matches `task.turn_context.sub_id`: an exact
+turn. `TurnRuntimeOwnerLeasePort` resolves to
+`TurnRuntimeOwnerLeaseRegistry.isConversationCurrent`, which compares only the
+visible and selected conversation IDs:
+
+```dart
+bool isConversationCurrent(String conversationId) =>
+    _mounted &&
+    _visibleConversationId == conversationId &&
+    _selectedConversationId == conversationId;
+```
+
+A different interaction generation of the same conversation passes, and
+`turn_runtime_owner_lease_registry_test.dart` asserts that deliberately
+("active-response registration ends before continuation"). That is correct for
+what the type actually does — goal continuation runs after the active response
+retires — but it is conversation identity, not turn identity.
+
+Two mechanisms were conflated. `TurnRuntimeGoalContinuationLifecycle.release`
+does check instance identity (`identical(_activeRuntime, runtime)`) and is a
+genuine instance of the pattern. The owner lease is not. Describing the boundary
+as identity-checked on the strength of the first was an overstatement.
+
+The consequence is recorded in
+`docs/chat_notifier_renewal_state_of_play_codex_task.md`: the shipped type is a
+post-turn goal coordinator, and must not become the composition root for active
+execution.
+
 ## Finding 3: the harness gap
 
 Codex drives the real turn loop against a scripted model from one shared

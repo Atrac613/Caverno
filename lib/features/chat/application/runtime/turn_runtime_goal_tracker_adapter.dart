@@ -9,20 +9,21 @@ final class TurnRuntimeGoalTrackerAdapter
     implements TurnRuntimeGoalTrackerPort {
   const TurnRuntimeGoalTrackerAdapter({
     required GoalAutoContinueTrackerRegistry registry,
-  }) : _registry = registry;
+    required ChatTurnOwner owner,
+  }) : _registry = registry,
+       _owner = owner;
 
   final GoalAutoContinueTrackerRegistry _registry;
+  final ChatTurnOwner _owner;
 
   @override
-  GoalAutoContinueTrackerSnapshot snapshotFor(ChatTurnOwner owner) =>
-      _registry.create(owner);
+  GoalAutoContinueTrackerSnapshot get snapshot => _registry.create(_owner);
 
   @override
   GoalAutoContinueTrackerSnapshot applyDelta(
-    ChatTurnOwner owner,
     GoalAutoContinueTrackerDelta delta,
   ) => _registry.update(
-    owner,
+    _owner,
     consecutiveAutoContinuationsDelta: delta.consecutiveAutoContinuationsDelta,
     diagnosticRepairContinuationsDelta:
         delta.diagnosticRepairContinuationsDelta,
@@ -42,14 +43,13 @@ final class TurnRuntimeGoalTrackerAdapter
   );
 
   @override
-  bool markBudgetNoticePresented(ChatTurnOwner owner) =>
-      _registry.markBudgetNoticePresented(owner);
+  bool markBudgetNoticePresented() =>
+      _registry.markBudgetNoticePresented(_owner);
 
   @override
-  GoalAutoContinueTrackerSnapshot clearPendingRepairContract(
-    ChatTurnOwner owner,
-  ) => _registry.update(owner, pendingRepairContractOutcome: false);
+  GoalAutoContinueTrackerSnapshot clearPendingRepairContract() =>
+      _registry.update(_owner, pendingRepairContractOutcome: false);
 
   @override
-  void removeTracker(ChatTurnOwner owner) => _registry.removeTracker(owner);
+  void removeTracker() => _registry.removeTracker(_owner);
 }

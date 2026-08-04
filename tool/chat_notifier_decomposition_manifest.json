@@ -363,8 +363,14 @@
         "_failRuntimeTurn",
         "_runtimeToolLifecycleState"
       ],
-      "status": "keep",
-      "collaborators": []
+      "status": "partial",
+      "collaborators": [
+        {
+          "id": "turn-release-scope",
+          "path": "lib/features/chat/application/runtime/turn_release_scope.dart",
+          "sizeBudgetKey": "lib/features/chat/application/runtime/turn_release_scope.dart"
+        }
+      ]
     },
     {
       "id": "final-answer-recovery",
@@ -1079,6 +1085,11 @@
           "id": "turn-runtime-goal-continuation-log-adapter",
           "path": "lib/features/chat/data/datasources/turn_runtime_goal_continuation_log_adapter.dart",
           "sizeBudgetKey": "lib/features/chat/data/datasources/turn_runtime_goal_continuation_log_adapter.dart"
+        },
+        {
+          "id": "turn-runtime-goal-continuation-ports-factory",
+          "path": "lib/features/chat/application/runtime/turn_runtime_goal_continuation_ports_factory.dart",
+          "sizeBudgetKey": "lib/features/chat/application/runtime/turn_runtime_goal_continuation_ports_factory.dart"
         },
         {
           "id": "turn-runtime-goal-tracker-adapter",

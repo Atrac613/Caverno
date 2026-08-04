@@ -356,7 +356,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   }
 
   bool _isGoalAutoContinueOwnerCurrent(ChatTurnOwner owner) =>
-      _turnRuntimeOwnerLease.isCurrent(owner);
+      _turnRuntimeOwnerLease.isConversationCurrent(owner.conversationId);
 
   /// The harness's verification-cadence verdict for the target conversation.
   ///
@@ -389,7 +389,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     final runtimeScope = _createGoalContinuationRuntimeScope(owner);
     final runtime = runtimeScope.runtime;
     final goalContinuation = runtime.goalContinuation;
-    bool ownerIsCurrent() => goalContinuation.ownerLease.isCurrent(owner);
+    bool ownerIsCurrent() => goalContinuation.ownerLease.isCurrent;
     _synchronizeGoalAutoContinueSafeBoundary();
     final coordination = runtime.coordinateGoalContinuation(
       TurnRuntimeGoalContinuationInput(
@@ -444,7 +444,6 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       );
       await goalContinuation.conversationGoal.markGoalStatus(
         TurnRuntimeGoalStatusUpdate(
-          owner: owner,
           status: ConversationGoalStatus.blocked,
           blockedReason: blockedReason,
         ),
@@ -518,7 +517,6 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       if (plan.shouldMarkAwaitingConfirmation) {
         await goalContinuation.conversationGoal.markGoalStatus(
           TurnRuntimeGoalStatusUpdate(
-            owner: owner,
             status: ConversationGoalStatus.awaitingConfirmation,
           ),
         );
@@ -706,8 +704,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     if (!runtimeScope.loggingEnabled) return;
     final runtime = runtimeScope.runtime;
     final owner = runtime.owner;
-    final conversation = runtime.goalContinuation.conversationGoal
-        .conversationFor(owner);
+    final conversation = runtime.goalContinuation.conversationGoal.conversation;
     final record = const GoalContinuationLogRecordBuilder().buildAutoContinue(
       owner: owner,
       decision: decision,

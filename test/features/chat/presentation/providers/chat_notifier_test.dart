@@ -8,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:mocktail/mocktail.dart';
-
 import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/browser_session_service.dart';
@@ -71,6 +70,7 @@ import 'package:caverno/features/settings/domain/services/primary_model_preparat
 import 'package:caverno/features/settings/presentation/providers/local_model_lifecycle_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
+import '../../../../support/chat_notifier_turn_teardown_test_support.dart';
 import '../../../../support/chat_turn_owner_test_support.dart';
 import '../../../../support/mcp_file_tool_test_delegate.dart';
 part 'chat_notifier_persistence_part.dart';

@@ -10,14 +10,14 @@ import 'package:test/test.dart';
 void main() {
   group('TurnRuntimeGoalTrackerAdapter', () {
     test('maps every continuation delta field', () {
-      final adapter = _adapter();
+      final registry = _registry();
       final owner = _owner('conversation-a', 3);
       const evidence = ToolResultCompletionEvidence(
         unresolvedErrorCount: 2,
         diagnosticSignature: 'diagnostic-a',
       );
 
-      final snapshot = adapter.applyDelta(owner, (
+      final snapshot = adapterFor(registry, owner).applyDelta((
         consecutiveAutoContinuationsDelta: 2,
         diagnosticRepairContinuationsDelta: 1,
         diagnosticRepairExtensionUsed: true,
@@ -51,61 +51,68 @@ void main() {
     });
 
     test('shares conversation history across turn generations', () {
-      final adapter = _adapter();
+      final registry = _registry();
       final firstOwner = _owner('conversation-a', 3);
       final nextOwner = _owner('conversation-a', 4);
 
-      adapter.applyDelta(firstOwner, _delta(noProgressStreak: 2));
+      adapterFor(registry, firstOwner).applyDelta(_delta(noProgressStreak: 2));
 
-      expect(adapter.snapshotFor(nextOwner).noProgressStreak, 2);
+      expect(adapterFor(registry, nextOwner).snapshot.noProgressStreak, 2);
     });
 
     test('isolates tracker history between conversations', () {
-      final adapter = _adapter();
-
-      adapter.applyDelta(
+      final registry = _registry();
+      adapterFor(
+        registry,
         _owner('conversation-a', 3),
-        _delta(noProgressStreak: 2),
-      );
+      ).applyDelta(_delta(noProgressStreak: 2));
 
       expect(
-        adapter.snapshotFor(_owner('conversation-b', 3)).noProgressStreak,
+        adapterFor(
+          registry,
+          _owner('conversation-b', 3),
+        ).snapshot.noProgressStreak,
         0,
       );
     });
 
     test('clears only the pending repair contract outcome', () {
-      final adapter = _adapter();
+      final registry = _registry();
       final owner = _owner('conversation-a', 3);
-      adapter.applyDelta(
-        owner,
+      adapterFor(registry, owner).applyDelta(
         _delta(noProgressStreak: 2, pendingRepairContractOutcome: true),
       );
 
-      final snapshot = adapter.clearPendingRepairContract(owner);
+      final snapshot = adapterFor(registry, owner).clearPendingRepairContract();
 
       expect(snapshot.pendingRepairContractOutcome, isFalse);
       expect(snapshot.noProgressStreak, 2);
     });
 
     test('presents a budget notice once per conversation', () {
-      final adapter = _adapter();
+      final registry = _registry();
       final firstOwner = _owner('conversation-a', 3);
       final nextOwner = _owner('conversation-a', 4);
 
-      expect(adapter.markBudgetNoticePresented(firstOwner), isTrue);
-      expect(adapter.markBudgetNoticePresented(nextOwner), isFalse);
+      expect(
+        adapterFor(registry, firstOwner).markBudgetNoticePresented(),
+        isTrue,
+      );
+      expect(
+        adapterFor(registry, nextOwner).markBudgetNoticePresented(),
+        isFalse,
+      );
     });
 
     test('removes conversation tracker history', () {
-      final adapter = _adapter();
+      final registry = _registry();
       final owner = _owner('conversation-a', 3);
-      adapter.applyDelta(owner, _delta(noProgressStreak: 2));
+      adapterFor(registry, owner).applyDelta(_delta(noProgressStreak: 2));
 
-      adapter.removeTracker(owner);
+      adapterFor(registry, owner).removeTracker();
 
-      expect(adapter.snapshotFor(owner).noProgressStreak, 0);
-      expect(adapter.markBudgetNoticePresented(owner), isTrue);
+      expect(adapterFor(registry, owner).snapshot.noProgressStreak, 0);
+      expect(adapterFor(registry, owner).markBudgetNoticePresented(), isTrue);
     });
   });
 
@@ -124,10 +131,8 @@ void main() {
   });
 }
 
-TurnRuntimeGoalTrackerAdapter _adapter() => TurnRuntimeGoalTrackerAdapter(
-  registry: GoalAutoContinueTrackerRegistry(
-    replayIdFactory: (generation) => 'replay-$generation',
-  ),
+GoalAutoContinueTrackerRegistry _registry() => GoalAutoContinueTrackerRegistry(
+  replayIdFactory: (generation) => 'replay-$generation',
 );
 
 ChatTurnOwner _owner(String conversationId, int generation) => ChatTurnOwner(
@@ -172,3 +177,8 @@ String _codeWithoutComments(String path) {
       })
       .join('\n');
 }
+
+TurnRuntimeGoalTrackerAdapter adapterFor(
+  GoalAutoContinueTrackerRegistry registry,
+  ChatTurnOwner owner,
+) => TurnRuntimeGoalTrackerAdapter(registry: registry, owner: owner);

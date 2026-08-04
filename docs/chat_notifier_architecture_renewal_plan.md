@@ -368,7 +368,13 @@ ports and satisfies the existing WS6-19 gate.
 program: explicit safety contract, regression gate, live-canary gate, slice
 definitions with acceptance criteria.
 
-**Phase 3 — sliced execution.**
+**Phase 3 — sliced execution.** Narrowed on 2026-08-04 to a single measured
+slice on `chat_notifier_execution_runtime.dart`, aimed at the turn destructor
+rather than at seven capability boundaries. Review question 6 was re-asked
+against measured evidence: the diagnosis strengthened, the cost case was wrong
+twice in the optimistic direction, and forty turn-local stores each need a
+manual scope determination that does not amortize. See
+`docs/chat_notifier_renewal_question_six_review.md`.
 
 ## Honest cost and risk
 

@@ -5,6 +5,17 @@
 **Go to Phase 2 design for the TurnRuntime renewal. Do not begin broad Phase 3
 extraction yet.**
 
+**Amended 2026-08-04.** Review question 6 was re-asked with the evidence the
+prototype produced, and the renewal's goal narrowed from seven capability
+boundaries to the turn destructor. See
+`docs/chat_notifier_renewal_question_six_review.md`. The block on broad Phase 3
+extraction stands; **one measured slice** on
+`chat_notifier_execution_runtime.dart` is authorized under the terms recorded
+there, and the re-evaluation after it decides whether anything follows. The
+Phase 2 design document is not a prerequisite for that slice and is not being
+written: two of its five sections were overturned by measurement, and the slice
+produces the number the rest of it needs.
+
 The bounded production prototype passed every structural and behavior gate.
 It therefore supports the diagnosis that an owner-scoped composition root can
 replace notifier identity plumbing without increasing ambient reads or
@@ -94,10 +105,73 @@ must design. **Owner-implicit ports become the first design question**, because
 at seven capability boundaries an owner-parameterised port set multiplies the
 plumbing the renewal exists to remove.
 
-The checked-in `tool/chat_notifier_turn_scope_baseline.json` is deliberately not
-refreshed here. Regenerating it would adopt `+14` as the accepted floor, and the
-plan requires the drift to be explained and owned before a refresh. That
-decision, and the resulting source of truth, remain open.
+The checked-in `tool/chat_notifier_turn_scope_baseline.json` was deliberately
+not refreshed at the time. Regenerating it then would have adopted `+14` as the
+accepted floor. It is refreshed below, after the owner-implicit result removed
+that increase.
+
+## Addendum: the owner-implicit port answer
+
+Added 2026-08-04. The design question above was settled by experiment rather
+than argument, because the audit can only measure real signatures.
+
+The five goal-continuation ports were converted from owner-parameterised to
+owner-bound: each is created for one owner by
+`TurnRuntimeGoalContinuationPortsFactory` and none re-takes the owner per call.
+
+| Metric | Pre-prototype | Owner-parameterised | Owner-bound |
+| --- | ---: | ---: | ---: |
+| Identity parameters | 314 | 328 | **317** |
+| Turn-reachable ambient reads | 50 | 49 | **49** |
+
+The boundary's identity cost falls from `+14` to `+3`, and the ambient-read
+improvement is unchanged. The three that remain are the two binder declarations
+and `TurnRuntimeProductionComposition.create` — identity entering the boundary
+once per turn, which is the intended shape and matches the codex reference.
+
+Cost: `+36` production lines against the owner-parameterised shape. Both files
+the size ratchet actually guards shrank (`chat_notifier.dart` 8907 → 8905, the
+composition 95 → 88). Four budgets on the two-day-old boundary files were raised
+once, with the reason recorded in the budget map.
+
+**This is a Phase 2 design decision reached by experiment, not the start of
+Phase 3.** Phase 3 slicing still waits on the design document, whose reuse and
+public-surface matrix should now be written against owner-bound ports.
+
+## Turn-scope baseline refresh
+
+Refreshed 2026-08-04, after the drift was explained rather than to make the gate
+green. Every delta is accounted for:
+
+| Metric | Old baseline | Refreshed | Cause |
+| --- | ---: | ---: | --- |
+| `scannedFiles` | 112 | 119 | The seven boundary files are now declared collaborators |
+| `methods` | 1411 | 1459 | Those files' methods entered scope |
+| `reachableMethods` | 663 | 717 | Reachability through the same files |
+| `manifestEntrypoints` | 269 | 263 | The goal auto-continue part shed entrypoints as behaviour moved into `TurnRuntime` |
+| `turnReachableReads` | 50 | 49 | The measured improvement |
+| `methodsWithAmbientReads` | 40 | 39 | Same |
+| `ambientReads` | 67 | 67 | Unchanged |
+| `accessorBearingReads` | 41 | 41 | Unchanged |
+| `methodTurnIdentityReads` | 26 | 26 | Unchanged |
+| Identity parameters | 314 | 317 | The two binders and `create`, where identity enters once per turn |
+
+**Expected:** yes. Two causes only — the deliberate scope widening, and the
+improvement it was widened to measure. Nothing is unexplained.
+
+**Which open work caused it:** the Phase 1.5 prototype and the owner-implicit
+port decision recorded above. No deferred workstream contributed.
+
+**Resulting source of truth:** `tool/chat_notifier_turn_scope_baseline.json` at
+119 scanned files. Phase 2 slices measure against it, and a slice that raises
+identity parameters or turn-reachable reads above these numbers is a regression
+to explain rather than a baseline to refresh.
+
+```bash
+fvm dart run tool/audit_chat_notifier_turn_scope.dart \
+  --manifest tool/chat_notifier_decomposition_manifest.json \
+  --check-baseline tool/chat_notifier_turn_scope_baseline.json
+```
 
 ## Cost Review
 

@@ -12,12 +12,13 @@ void main() {
   group('TurnRuntimeConversationGoalAdapter', () {
     test('reads the exact owner conversation', () {
       final conversation = _conversation('conversation-a');
-      final adapter = TurnRuntimeConversationGoalAdapter(
-        store: _GoalStore({'conversation-a': conversation}),
-      );
+      final store = _GoalStore({'conversation-a': conversation});
 
-      expect(adapter.conversationFor(_owner('conversation-a')), conversation);
-      expect(adapter.conversationFor(_owner('conversation-b')), isNull);
+      expect(
+        adapterFor(store, _owner('conversation-a')).conversation,
+        conversation,
+      );
+      expect(adapterFor(store, _owner('conversation-b')).conversation, isNull);
     });
 
     test('writes status to the exact owner conversation', () async {
@@ -25,11 +26,9 @@ void main() {
         'conversation-a': _conversation('conversation-a'),
         'conversation-b': _conversation('conversation-b'),
       });
-      final adapter = TurnRuntimeConversationGoalAdapter(store: store);
 
-      await adapter.markGoalStatus(
+      await adapterFor(store, _owner('conversation-a')).markGoalStatus(
         TurnRuntimeGoalStatusUpdate(
-          owner: _owner('conversation-a'),
           status: ConversationGoalStatus.blocked,
           blockedReason: 'No progress',
         ),
@@ -46,13 +45,9 @@ void main() {
 
     test('suppresses a write for a missing conversation', () async {
       final store = _GoalStore(const {});
-      final adapter = TurnRuntimeConversationGoalAdapter(store: store);
 
-      await adapter.markGoalStatus(
-        TurnRuntimeGoalStatusUpdate(
-          owner: _owner('conversation-a'),
-          status: ConversationGoalStatus.blocked,
-        ),
+      await adapterFor(store, _owner('conversation-a')).markGoalStatus(
+        TurnRuntimeGoalStatusUpdate(status: ConversationGoalStatus.blocked),
       );
 
       expect(store.writes, isEmpty);
@@ -60,15 +55,12 @@ void main() {
 
     test('rejects a mismatched conversation snapshot', () async {
       final store = _PoisonedGoalStore(_conversation('conversation-b'));
-      final adapter = TurnRuntimeConversationGoalAdapter(store: store);
+
       final owner = _owner('conversation-a');
 
-      expect(adapter.conversationFor(owner), isNull);
-      await adapter.markGoalStatus(
-        TurnRuntimeGoalStatusUpdate(
-          owner: owner,
-          status: ConversationGoalStatus.blocked,
-        ),
+      expect(adapterFor(store, owner).conversation, isNull);
+      await adapterFor(store, owner).markGoalStatus(
+        TurnRuntimeGoalStatusUpdate(status: ConversationGoalStatus.blocked),
       );
 
       expect(store.writeCount, 0);
@@ -186,3 +178,8 @@ String _codeWithoutComments(String path) {
       })
       .join('\n');
 }
+
+TurnRuntimeConversationGoalAdapter adapterFor(
+  TurnRuntimeConversationGoalStore store,
+  ChatTurnOwner owner,
+) => TurnRuntimeConversationGoalAdapter(store: store, owner: owner);

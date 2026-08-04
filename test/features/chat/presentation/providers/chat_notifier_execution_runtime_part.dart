@@ -185,60 +185,58 @@ void registerChatNotifierExecutionRuntimeTests() {
     expect(events.map((event) => event.sequence), orderedEquals([1, 2, 3, 4]));
   });
 
-  test('stream cancellation terminalizes the shared runtime turn', () async {
-    final streamController = StreamController<String>();
-    final appLifecycleService = _MockAppLifecycleService();
-    when(() => appLifecycleService.isInBackground).thenReturn(false);
-    final runtimeContainer = ProviderContainer(
-      overrides: [
-        settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
-        conversationsNotifierProvider.overrideWith(
-          _TestConversationsNotifier.new,
-        ),
-        chatRemoteDataSourceProvider.overrideWithValue(
-          _StreamingChatDataSource(streamController),
-        ),
-        sessionMemoryServiceProvider.overrideWithValue(
-          _TestSessionMemoryService(),
-        ),
-        mcpToolServiceProvider.overrideWithValue(null),
-        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
-        backgroundTaskServiceProvider.overrideWithValue(
-          _TestBackgroundTaskService(),
-        ),
-      ],
+  test('a completed turn discharges the exact teardown contract', () async {
+    final harness = _createRuntimeTeardownHarness();
+    expect(harness.notifier.turnStateIsClearedForTest(), isTrue);
+
+    final sendFuture = harness.notifier.sendMessage('Say hello');
+    harness.streamController
+      ..add('Hello ')
+      ..add('there!');
+    await harness.streamController.close();
+    await sendFuture;
+    final terminal = await harness.terminalEvent.future.timeout(
+      const Duration(seconds: 5),
     );
-    final runtime = runtimeContainer.read(cavernoExecutionRuntimeProvider);
-    final terminalEvent = Completer<CavernoRuntimeTerminalEvent>();
-    final subscription = runtime.events.listen((event) {
-      if (event is CavernoRuntimeTerminalEvent && !terminalEvent.isCompleted) {
-        terminalEvent.complete(event);
-      }
-    });
-    addTearDown(() async {
-      await subscription.cancel();
-      runtimeContainer.dispose();
-      if (!streamController.isClosed) {
-        await streamController.close();
-      }
-    });
 
-    final chatNotifier = runtimeContainer.read(chatNotifierProvider.notifier);
-    final sendFuture = chatNotifier.sendMessage('Start a long response');
+    expect(terminal, isA<CavernoRuntimeRunCompleted>());
+    expectExactTurnTeardown(harness.notifier);
+  });
+
+  test('stream cancellation discharges the exact teardown contract', () async {
+    final harness = _createRuntimeTeardownHarness();
+    final sendFuture = harness.notifier.sendMessage('Start a long response');
     await Future<void>.delayed(Duration.zero);
-    streamController.add('Partial response');
+    harness.streamController.add('Partial response');
     await Future<void>.delayed(Duration.zero);
 
-    chatNotifier.cancelStreaming();
+    harness.notifier.cancelStreaming();
 
-    final terminal = await terminalEvent.future.timeout(
+    final terminal = await harness.terminalEvent.future.timeout(
       const Duration(seconds: 5),
     );
     expect(terminal, isA<CavernoRuntimeRunFailed>());
     expect((terminal as CavernoRuntimeRunFailed).code, 'cancelled');
     expect(terminal.exitCode, 130);
-    await streamController.close();
+    await harness.streamController.close();
     await sendFuture;
+    expectExactTurnTeardown(harness.notifier);
+  });
+
+  test('stream failure discharges the exact teardown contract', () async {
+    final harness = _createRuntimeTeardownHarness();
+    final sendFuture = harness.notifier.sendMessage('Start a failing response');
+    await Future<void>.delayed(Duration.zero);
+
+    harness.streamController.addError(StateError('stream failed'));
+    await harness.streamController.close();
+    await sendFuture;
+
+    final terminal = await harness.terminalEvent.future.timeout(
+      const Duration(seconds: 5),
+    );
+    expect(terminal, isA<CavernoRuntimeRunFailed>());
+    expectExactTurnTeardown(harness.notifier);
   });
 
   test('runtime output excludes embedded reasoning and tool markers', () async {
@@ -469,4 +467,64 @@ void registerChatNotifierExecutionRuntimeTests() {
     expect(question.request.multiple, isFalse);
     expect(events.last, isA<CavernoRuntimeRunCompleted>());
   });
+}
+
+final class _RuntimeTeardownHarness {
+  const _RuntimeTeardownHarness({
+    required this.notifier,
+    required this.streamController,
+    required this.terminalEvent,
+  });
+
+  final ChatNotifier notifier;
+  final StreamController<String> streamController;
+  final Completer<CavernoRuntimeTerminalEvent> terminalEvent;
+}
+
+_RuntimeTeardownHarness _createRuntimeTeardownHarness() {
+  final streamController = StreamController<String>();
+  final appLifecycleService = _MockAppLifecycleService();
+  when(() => appLifecycleService.isInBackground).thenReturn(false);
+  final container = ProviderContainer(
+    overrides: [
+      settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+      conversationsNotifierProvider.overrideWith(
+        _TestConversationsNotifier.new,
+      ),
+      chatRemoteDataSourceProvider.overrideWithValue(
+        _StreamingChatDataSource(streamController),
+      ),
+      sessionMemoryServiceProvider.overrideWithValue(
+        _TestSessionMemoryService(),
+      ),
+      mcpToolServiceProvider.overrideWithValue(null),
+      appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+      backgroundTaskServiceProvider.overrideWithValue(
+        _TestBackgroundTaskService(),
+      ),
+      cavernoRuntimeSurfaceProvider.overrideWithValue(
+        CavernoRuntimeSurface.headless,
+      ),
+    ],
+  );
+  final terminalEvent = Completer<CavernoRuntimeTerminalEvent>();
+  final subscription = container
+      .read(cavernoExecutionRuntimeProvider)
+      .events
+      .listen((event) {
+        if (event is CavernoRuntimeTerminalEvent &&
+            !terminalEvent.isCompleted) {
+          terminalEvent.complete(event);
+        }
+      });
+  addTearDown(() async {
+    await subscription.cancel();
+    container.dispose();
+    if (!streamController.isClosed) await streamController.close();
+  });
+  return _RuntimeTeardownHarness(
+    notifier: container.read(chatNotifierProvider.notifier),
+    streamController: streamController,
+    terminalEvent: terminalEvent,
+  );
 }

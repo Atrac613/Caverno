@@ -19,6 +19,8 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+
+import '../../../../support/chat_turn_harness.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/lsp_json_rpc_session_registry.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
@@ -777,201 +779,6 @@ class _ReleaseToolService extends McpToolService with _ProcessTools {
       }),
       isSuccess: true,
     );
-  }
-}
-
-class _SequencedToolDataSource extends ChatRemoteDataSource {
-  _SequencedToolDataSource({
-    required List<ChatCompletionResult> initialResponses,
-    List<ChatCompletionResult> toolResultResponses = const [],
-    this.beforeInitialResponse,
-    this.beforeToolResultResponse,
-  }) : _initialResponses = List<ChatCompletionResult>.from(initialResponses),
-       _toolResultResponses = List<ChatCompletionResult>.from(
-         toolResultResponses,
-       );
-
-  final List<ChatCompletionResult> _initialResponses;
-  final List<ChatCompletionResult> _toolResultResponses;
-  final Future<void> Function(int requestIndex)? beforeInitialResponse;
-  final Future<void> Function(int requestIndex)? beforeToolResultResponse;
-  final List<List<ToolResultInfo>> toolResultBatches = [];
-  final List<List<String>> toolResultToolNames = [];
-  final List<List<Message>> streamedRequestMessages = <List<Message>>[];
-  var initialRequests = 0;
-  var toolResultRequests = 0;
-  var finishReasonReads = 0;
-  var usageReads = 0;
-  TokenUsage _compatibilityUsage = TokenUsage.zero;
-
-  @override
-  String? get lastFinishReason {
-    finishReasonReads += 1;
-    throw StateError('Shared completion finish reason was read.');
-  }
-
-  @override
-  TokenUsage get lastUsage {
-    usageReads += 1;
-    throw StateError('Shared completion token usage was read.');
-  }
-
-  @override
-  set lastUsage(TokenUsage value) {
-    _compatibilityUsage = value;
-  }
-
-  Iterable<Map<String, dynamic>> get decodedToolResults sync* {
-    for (final result in toolResultBatches.expand((batch) => batch)) {
-      final decoded = jsonDecode(result.result);
-      if (decoded is Map<String, dynamic>) {
-        yield decoded;
-      }
-    }
-  }
-
-  ChatCompletionResult _nextInitialResponse() {
-    final index = initialRequests;
-    initialRequests += 1;
-    if (index >= _initialResponses.length) {
-      return ChatCompletionResult(content: 'done', finishReason: 'stop');
-    }
-    return _initialResponses[index];
-  }
-
-  ChatCompletionResult _nextToolResultResponse() {
-    final index = toolResultRequests;
-    toolResultRequests += 1;
-    if (index >= _toolResultResponses.length) {
-      return ChatCompletionResult(content: 'done', finishReason: 'stop');
-    }
-    return _toolResultResponses[index];
-  }
-
-  Future<ChatCompletionResult> _nextToolResultResponseAfterHook() async {
-    final requestIndex = toolResultRequests;
-    final response = _nextToolResultResponse();
-    lastUsage = response.usage;
-    await beforeToolResultResponse?.call(requestIndex);
-    return response;
-  }
-
-  @override
-  StreamedChatCompletion streamChatCompletion({
-    required List<Message> messages,
-    String? model,
-    double? temperature,
-    int? maxTokens,
-  }) {
-    streamedRequestMessages.add(List<Message>.unmodifiable(messages));
-    return StreamedChatCompletion.fromStream(
-      Stream<String>.value('done'),
-      finishReason: 'stop',
-      usage: _compatibilityUsage,
-    );
-  }
-
-  @override
-  Future<ChatCompletionResult> createChatCompletion({
-    required List<Message> messages,
-    List<Map<String, dynamic>>? tools,
-    String? model,
-    double? temperature,
-    int? maxTokens,
-  }) async => ChatCompletionResult(content: 'done', finishReason: 'stop');
-
-  @override
-  StreamWithToolsResult streamChatCompletionWithTools({
-    required List<Message> messages,
-    required List<Map<String, dynamic>> tools,
-    String? model,
-    double? temperature,
-    int? maxTokens,
-  }) {
-    streamedRequestMessages.add(List<Message>.unmodifiable(messages));
-    final requestIndex = initialRequests;
-    final response = _nextInitialResponse();
-    lastUsage = response.usage;
-    final hook = beforeInitialResponse;
-    return StreamWithToolsResult(
-      stream: response.finishReason == 'stop'
-          ? Stream<String>.value(response.content)
-          : const Stream<String>.empty(),
-      completion: hook == null
-          ? Future<ChatCompletionResult>.value(response)
-          : hook(requestIndex).then((_) => response),
-    );
-  }
-
-  @override
-  Stream<String> streamWithToolResult({
-    required List<Message> messages,
-    required String toolCallId,
-    required String toolName,
-    required String toolArguments,
-    required String toolResult,
-    String? assistantContent,
-    String? model,
-    double? temperature,
-    int? maxTokens,
-  }) async* {
-    toolResultBatches.add([
-      ToolResultInfo(
-        id: toolCallId,
-        name: toolName,
-        arguments: jsonDecode(toolArguments) as Map<String, dynamic>,
-        result: toolResult,
-      ),
-    ]);
-    yield 'done';
-  }
-
-  @override
-  Future<ChatCompletionResult> createChatCompletionWithToolResult({
-    required List<Message> messages,
-    required String toolCallId,
-    required String toolName,
-    required String toolArguments,
-    required String toolResult,
-    String? assistantContent,
-    List<Map<String, dynamic>>? tools,
-    String? model,
-    double? temperature,
-    int? maxTokens,
-  }) async {
-    toolResultBatches.add([
-      ToolResultInfo(
-        id: toolCallId,
-        name: toolName,
-        arguments: jsonDecode(toolArguments) as Map<String, dynamic>,
-        result: toolResult,
-      ),
-    ]);
-    toolResultToolNames.add([
-      for (final definition in tools ?? const <Map<String, dynamic>>[])
-        if (definition['function'] case final Map<String, dynamic> function)
-          if (function['name'] case final String name) name,
-    ]);
-    return _nextToolResultResponseAfterHook();
-  }
-
-  @override
-  Future<ChatCompletionResult> createChatCompletionWithToolResults({
-    required List<Message> messages,
-    required List<ToolResultInfo> toolResults,
-    String? assistantContent,
-    List<Map<String, dynamic>>? tools,
-    String? model,
-    double? temperature,
-    int? maxTokens,
-  }) async {
-    toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
-    toolResultToolNames.add([
-      for (final definition in tools ?? const <Map<String, dynamic>>[])
-        if (definition['function'] case final Map<String, dynamic> function)
-          if (function['name'] case final String name) name,
-    ]);
-    return _nextToolResultResponseAfterHook();
   }
 }
 
@@ -2287,7 +2094,7 @@ void main() {
       final sessionLogStore = LlmSessionLogStore(
         rootDirectoryProvider: () async => sessionLogRoot,
       );
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'Owner A started a verification command.',
@@ -2414,7 +2221,7 @@ void main() {
       final auditRoot = await Directory.systemTemp.createTemp(
         'caverno_detached_approval_cache_',
       );
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: '',
@@ -2564,7 +2371,7 @@ void main() {
       late String threadA;
       late String threadB;
       final toolService = _SavedWorkflowToolService();
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'Validate owner A.',
@@ -2706,7 +2513,7 @@ void main() {
       late final ProviderContainer container;
       late String threadB;
       final toolService = _SavedWorkflowToolService();
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'Run both commands.',
@@ -2818,7 +2625,7 @@ void main() {
       );
     }
 
-    final dataSource = _SequencedToolDataSource(
+    final dataSource = ScriptedChatDataSource(
       initialResponses: [
         mutationBatch('a', 'lib/a.dart', 'lib/b.dart'),
         mutationBatch('b', 'lib/b.dart', 'lib/a.dart'),
@@ -2902,7 +2709,7 @@ void main() {
       late final ProviderContainer container;
       late String threadB;
       final toolService = _SavedWorkflowToolService();
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'Ask whether to continue.',
@@ -2973,7 +2780,7 @@ void main() {
           'working_directory': _projectARoot,
         },
       );
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'Validate owner A.',
@@ -3031,7 +2838,7 @@ void main() {
       late final ProviderContainer container;
       late String threadB;
       final toolService = _SavedWorkflowToolService();
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'Validate owner A.',
@@ -4237,7 +4044,7 @@ void main() {
       late final ProviderContainer container;
       late String threadB;
       final toolService = _ReleaseToolService();
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           _productionReleaseToolCall('release-a-generation-1'),
         ],
@@ -4311,7 +4118,7 @@ void main() {
       late final ProviderContainer container;
       late String threadB;
       final toolService = _ReleaseToolService();
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           _productionReleaseToolCall('release-a-generation-1'),
         ],
@@ -4388,7 +4195,7 @@ void main() {
     'direct approval from generation N cannot authorize hidden generation N+1',
     () async {
       final toolService = _ReleaseToolService();
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'Approval recorded for this turn.',
@@ -4433,7 +4240,7 @@ void main() {
     'ask approval from generation N cannot authorize hidden generation N+1',
     () async {
       final toolService = _ReleaseToolService();
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'I need production release approval.',
@@ -4502,7 +4309,7 @@ void main() {
   );
 
   test('thread B message preserves thread A pending question', () async {
-    final dataSource = _SequencedToolDataSource(
+    final dataSource = ScriptedChatDataSource(
       initialResponses: [
         ChatCompletionResult(
           content: 'Thread B normal reply.',
@@ -4621,7 +4428,7 @@ void main() {
   });
 
   test('question resolution and fresh messages stay owner scoped', () async {
-    final dataSource = _SequencedToolDataSource(
+    final dataSource = ScriptedChatDataSource(
       initialResponses: [
         ChatCompletionResult(
           content: 'Thread A fresh-message reply.',
@@ -4817,7 +4624,7 @@ void main() {
 
   test('clearMessages dismisses pending questions in every thread', () async {
     final container = _buildContainer(
-      dataSource: _SequencedToolDataSource(initialResponses: const []),
+      dataSource: ScriptedChatDataSource(initialResponses: const []),
       toolService: _ReleaseToolService(),
     );
     addTearDown(container.dispose);
@@ -4960,7 +4767,7 @@ void main() {
     'detached completed and command evidence stays with exact owners',
     () async {
       final releaseOwnerA = Completer<void>();
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           _ownerCommandToolCall(owner: 'a', projectRoot: _projectARoot),
           _ownerCommandToolCall(owner: 'b', projectRoot: _projectBRoot),
@@ -5114,7 +4921,7 @@ void main() {
     () async {
       late final ProviderContainer container;
       late String threadB;
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'Read owner A before editing.',
@@ -5232,7 +5039,7 @@ void main() {
 
   test('detached content evidence stays with exact owners', () async {
     final releaseOwnerA = Completer<void>();
-    final dataSource = _SequencedToolDataSource(
+    final dataSource = ScriptedChatDataSource(
       initialResponses: [
         ChatCompletionResult(
           content: _ownerContentCommandCall(
@@ -5353,7 +5160,7 @@ void main() {
           await releaseExecution.future;
         },
       );
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: _ownerContentCommandCall(
@@ -5457,7 +5264,7 @@ void main() {
             await releaseExecution.future;
           },
         );
-        final dataSource = _SequencedToolDataSource(
+        final dataSource = ScriptedChatDataSource(
           initialResponses: [
             ChatCompletionResult(
               content: _ownerContentCommandCall(
@@ -5748,7 +5555,7 @@ void main() {
       final lifecyclePort = _CallbackRuntimeLifecyclePort((event) {
         startedOwnerA = event;
       });
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'Owner A remains active for dedupe inspection.',
@@ -5921,7 +5728,7 @@ void main() {
   test(
     'next same-conversation turn retains earlier evidence until exact take',
     () async {
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           _ownerCommandToolCall(owner: 'first', projectRoot: _projectARoot),
           _ownerCommandToolCall(owner: 'second', projectRoot: _projectARoot),
@@ -5979,7 +5786,7 @@ void main() {
     'queued send returns its eventual owner and exact tool evidence',
     () async {
       final releaseFirst = Completer<void>();
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'First turn complete.',
@@ -6057,7 +5864,7 @@ void main() {
     () async {
       final releaseFirst = Completer<void>();
       final conversationsNotifier = _FailingQueuedSendConversationsNotifier();
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'First turn complete.',
@@ -6115,7 +5922,7 @@ void main() {
     () async {
       final releaseFirst = Completer<void>();
       final runtimeRepository = _GatedRefreshRuntimeRepositoryPort();
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'First turn complete.',
@@ -6168,7 +5975,7 @@ void main() {
   test('post-finalization persistence failure cannot requeue a turn', () async {
     final releaseFirst = Completer<void>();
     final runtimeRepository = _GatedRefreshRuntimeRepositoryPort();
-    final dataSource = _SequencedToolDataSource(
+    final dataSource = ScriptedChatDataSource(
       initialResponses: [
         ChatCompletionResult(
           content: 'First turn complete.',
@@ -7518,7 +7325,7 @@ void main() {
   test('detached run_tests uses the owner project root', () async {
     late final ProviderContainer container;
     final toolService = _ProjectRootProbeToolService('run_tests');
-    final dataSource = _SequencedToolDataSource(
+    final dataSource = ScriptedChatDataSource(
       initialResponses: [
         ChatCompletionResult(
           content: 'Run the owner A test.',
@@ -7591,7 +7398,7 @@ void main() {
     late final ProviderContainer container;
     final lspRegistry = _RecordingLspSessionRegistry();
     final toolService = _ProjectRootProbeToolService('lsp_go_to_definition');
-    final dataSource = _SequencedToolDataSource(
+    final dataSource = ScriptedChatDataSource(
       initialResponses: [
         ChatCompletionResult(
           content: 'Find the owner A definition.',
@@ -9345,7 +9152,7 @@ void main() {
       String? ownerBConversationForGate;
       var ownerAFinalResponseReady = false;
       var ownerBFinalResponseReady = false;
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'Owner A is running a failing verification command.',
@@ -9533,7 +9340,7 @@ void main() {
   test(
     'hidden goal evidence is seeded only when explicitly supplied',
     () async {
-      final dataSource = _SequencedToolDataSource(
+      final dataSource = ScriptedChatDataSource(
         initialResponses: [
           ChatCompletionResult(
             content: 'Checking the seeded completion claim.',
@@ -9644,7 +9451,7 @@ void main() {
     final sessionLogStore = LlmSessionLogStore(
       rootDirectoryProvider: () async => sessionLogRoot,
     );
-    final dataSource = _SequencedToolDataSource(
+    final dataSource = ScriptedChatDataSource(
       initialResponses: [
         ChatCompletionResult(
           content: 'Owner A is recording its completion claim.',

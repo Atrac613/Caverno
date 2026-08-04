@@ -22,7 +22,7 @@ void main() {
         error: 'failed',
       );
 
-      final boundary = fixture.adapter.capture(owner);
+      final boundary = fixture.adapter.captureFor(owner);
 
       expect(boundary.isLoading, isTrue);
       expect(boundary.hasError, isTrue);
@@ -47,7 +47,7 @@ void main() {
           error: 'visible error',
         );
 
-        final boundary = fixture.adapter.capture(detachedOwner);
+        final boundary = fixture.adapter.captureFor(detachedOwner);
 
         expect(boundary.hasPendingLocalCommand, isTrue);
         expect(boundary.isLoading, isFalse);
@@ -61,7 +61,7 @@ void main() {
         pendingLocalCommand: _local(_owner('conversation-a', generation: 2)),
       );
 
-      final boundary = fixture.adapter.capture(_owner('conversation-a'));
+      final boundary = fixture.adapter.captureFor(_owner('conversation-a'));
 
       expect(boundary.hasPendingLocalCommand, isFalse);
     });
@@ -69,7 +69,7 @@ void main() {
     test('returns an empty boundary when detached state is missing', () {
       final fixture = _Fixture()..mountVisible('conversation-b');
 
-      final boundary = fixture.adapter.capture(_owner('conversation-a'));
+      final boundary = fixture.adapter.captureFor(_owner('conversation-a'));
 
       expect(boundary.isSafe, isTrue);
     });

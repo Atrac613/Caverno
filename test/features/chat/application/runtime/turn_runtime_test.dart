@@ -249,7 +249,8 @@ void main() {
       expect(finalization.owner, same(owner));
       expect(finalization.trackerRemoved, isTrue);
       expect(tracker.removeCalls, 1);
-      expect(tracker.lastRemoveOwner, same(owner));
+      // The port is bound to this owner when the composition creates it, so
+      // "which owner was it told about" is no longer a runtime question.
     });
 
     test('keeps a tracker when persisted block removal was not requested', () {
@@ -300,7 +301,7 @@ void main() {
       expect(finalization.owner, same(owner));
       expect(finalization.snapshot.noProgressStreak, 0);
       expect(tracker.clearRepairContractCalls, 1);
-      expect(tracker.lastClearRepairOwner, same(owner));
+      // Owner-bound port; see the note on the removal test above.
     });
   });
 
@@ -361,11 +362,12 @@ void main() {
       expect(request.allowedToolNames, isNull);
     });
 
-    test('binds status and returned effects to the exact owner', () {
+    test('binds returned effects to the exact owner', () {
       final owner = _owner();
 
+      // The status update carries no owner: the port it is handed to is bound
+      // to one, so a second copy of the identity could only disagree with it.
       final status = TurnRuntimeGoalStatusUpdate(
-        owner: owner,
         status: ConversationGoalStatus.blocked,
         blockedReason: 'No progress',
       );
@@ -380,7 +382,7 @@ void main() {
         noticeKey: 'goal-stopped',
       );
 
-      expect(status.owner, same(owner));
+      expect(status.blockedReason, 'No progress');
       expect(clear.owner, same(owner));
       expect(progress.owner, same(owner));
       expect(notice.owner, same(owner));
@@ -398,10 +400,18 @@ void main() {
     expect(source, isNot(matches(RegExp(r'\bRef\b'))));
     expect(source, isNot(contains('typedef ')));
     expect(source, isNot(contains('Function(')));
+    // Five capability ports, each bound to one owner. The binders that create
+    // them live beside the factory that calls them, so this file declares the
+    // capabilities and not how identity reaches them.
     expect(
-      RegExp(r'abstract interface class TurnRuntime').allMatches(source),
+      RegExp(
+        r'abstract interface class TurnRuntime\w*Port\b',
+      ).allMatches(source),
       hasLength(5),
     );
+    expect(source, isNot(contains('Binder')));
+    // A port that re-took the owner would put identity back on every call.
+    expect(source, isNot(contains('(ChatTurnOwner owner)')));
   });
 }
 
@@ -471,16 +481,16 @@ TurnRuntimeGoalContinuationPorts _ports({
 
 final class _OwnerLeasePort implements TurnRuntimeOwnerLeasePort {
   @override
-  bool isCurrent(ChatTurnOwner owner) => true;
+  bool get isCurrent => true;
 }
 
 final class _ConversationGoalPort implements TurnRuntimeConversationGoalPort {
-  const _ConversationGoalPort(this.conversation);
+  const _ConversationGoalPort(this._conversation);
 
-  final Conversation? conversation;
+  final Conversation? _conversation;
 
   @override
-  Conversation? conversationFor(ChatTurnOwner owner) => conversation;
+  Conversation? get conversation => _conversation;
 
   @override
   Future<void> markGoalStatus(TurnRuntimeGoalStatusUpdate update) async {}
@@ -493,42 +503,35 @@ final class _GoalTrackerPort implements TurnRuntimeGoalTrackerPort {
   int clearRepairContractCalls = 0;
   int removeCalls = 0;
   GoalAutoContinueTrackerDelta? lastDelta;
-  ChatTurnOwner? lastClearRepairOwner;
-  ChatTurnOwner? lastRemoveOwner;
 
   @override
   GoalAutoContinueTrackerSnapshot applyDelta(
-    ChatTurnOwner owner,
     GoalAutoContinueTrackerDelta delta,
   ) {
     applyDeltaCalls += 1;
     lastDelta = delta;
-    return snapshotFor(owner);
+    return snapshot;
   }
 
   @override
-  bool markBudgetNoticePresented(ChatTurnOwner owner) {
+  bool markBudgetNoticePresented() {
     budgetNoticeCalls += 1;
     return true;
   }
 
   @override
-  GoalAutoContinueTrackerSnapshot clearPendingRepairContract(
-    ChatTurnOwner owner,
-  ) {
+  GoalAutoContinueTrackerSnapshot clearPendingRepairContract() {
     clearRepairContractCalls += 1;
-    lastClearRepairOwner = owner;
-    return snapshotFor(owner);
+    return snapshot;
   }
 
   @override
-  void removeTracker(ChatTurnOwner owner) {
+  void removeTracker() {
     removeCalls += 1;
-    lastRemoveOwner = owner;
   }
 
   @override
-  GoalAutoContinueTrackerSnapshot snapshotFor(ChatTurnOwner owner) {
+  GoalAutoContinueTrackerSnapshot get snapshot {
     snapshotCalls += 1;
     return (
       consecutiveAutoContinuations: 0,
@@ -557,7 +560,7 @@ final class _SafeBoundaryPort implements TurnRuntimeGoalSafeBoundaryPort {
   int captureCalls = 0;
 
   @override
-  GoalAutoContinueSafeBoundary capture(ChatTurnOwner owner) {
+  GoalAutoContinueSafeBoundary capture() {
     captureCalls += 1;
     return const GoalAutoContinueSafeBoundary(
       isLoading: false,

@@ -1,6 +1,6 @@
 import '../../application/runtime/turn_runtime.dart';
 import '../../application/runtime/turn_runtime_conversation_goal_adapter.dart';
-import '../../application/runtime/turn_runtime_goal_tracker_adapter.dart';
+import '../../application/runtime/turn_runtime_goal_continuation_ports_factory.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/turn_runtime_goal_continuation_log_adapter.dart';
 import '../../domain/entities/chat_turn_owner.dart';
@@ -10,23 +10,22 @@ import '../../domain/services/goal_auto_continue_tracker_registry.dart';
 /// Builds owner-scoped goal-continuation runtimes from production boundaries.
 final class TurnRuntimeProductionComposition {
   TurnRuntimeProductionComposition({
-    required TurnRuntimeOwnerLeasePort ownerLease,
+    required TurnRuntimeOwnerLeaseBinder ownerLease,
     required TurnRuntimeConversationGoalStore conversationGoalStore,
     required GoalAutoContinueTrackerRegistry trackerRegistry,
-    required TurnRuntimeGoalSafeBoundaryPort safeBoundary,
+    required TurnRuntimeGoalSafeBoundaryBinder safeBoundary,
     required TurnRuntimeGoalContinuationLifecycle goalContinuationLifecycle,
-  }) : _ownerLease = ownerLease,
-       _conversationGoal = TurnRuntimeConversationGoalAdapter(
-         store: conversationGoalStore,
+  }) : _ports = TurnRuntimeGoalContinuationPortsFactory(
+         ownerLease: ownerLease,
+         conversationGoalStore: conversationGoalStore,
+         trackerRegistry: trackerRegistry,
+         safeBoundary: safeBoundary,
        ),
-       _tracker = TurnRuntimeGoalTrackerAdapter(registry: trackerRegistry),
-       _safeBoundary = safeBoundary,
        _goalContinuationLifecycle = goalContinuationLifecycle;
 
-  final TurnRuntimeOwnerLeasePort _ownerLease;
-  final TurnRuntimeConversationGoalPort _conversationGoal;
-  final TurnRuntimeGoalTrackerPort _tracker;
-  final TurnRuntimeGoalSafeBoundaryPort _safeBoundary;
+  // The collaborators stay long-lived; the factory binds ports over them per
+  // owner, so no port re-takes the owner on every call.
+  final TurnRuntimeGoalContinuationPortsFactory _ports;
   final TurnRuntimeGoalContinuationLifecycle _goalContinuationLifecycle;
 
   bool get isGoalContinuationScheduling =>
@@ -45,13 +44,7 @@ final class TurnRuntimeProductionComposition {
     );
     final runtime = TurnRuntime(
       owner: owner,
-      goalContinuation: TurnRuntimeGoalContinuationPorts(
-        ownerLease: _ownerLease,
-        conversationGoal: _conversationGoal,
-        tracker: _tracker,
-        safeBoundary: _safeBoundary,
-        log: log,
-      ),
+      goalContinuation: _ports.portsFor(owner, log: log),
     );
     return TurnRuntimeProductionScope._(
       runtime: runtime,

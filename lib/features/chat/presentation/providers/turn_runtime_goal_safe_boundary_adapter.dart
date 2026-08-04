@@ -1,4 +1,6 @@
 import '../../application/runtime/turn_runtime.dart';
+import '../../application/runtime/turn_runtime_goal_continuation_ports_factory.dart';
+import '../../application/runtime/turn_runtime_owner_lease_registry.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../../domain/services/goal_auto_continue_safe_boundary_builder.dart';
@@ -8,9 +10,9 @@ import 'thread_scoped_message_queue.dart';
 
 /// Captures the presentation-owned blockers for goal continuation.
 final class TurnRuntimeGoalSafeBoundaryAdapter
-    implements TurnRuntimeGoalSafeBoundaryPort {
+    implements TurnRuntimeGoalSafeBoundaryBinder {
   TurnRuntimeGoalSafeBoundaryAdapter({
-    required TurnRuntimeOwnerLeasePort ownerLease,
+    required TurnRuntimeOwnerLeaseRegistry ownerLease,
     required ThreadScopedMessageQueue queuedMessages,
     required Map<String, ThreadScopedChatState> threadStates,
     required Map<String, PendingAskUserQuestion> pendingQuestions,
@@ -19,7 +21,7 @@ final class TurnRuntimeGoalSafeBoundaryAdapter
        _threadStates = threadStates,
        _pendingQuestions = pendingQuestions;
 
-  final TurnRuntimeOwnerLeasePort _ownerLease;
+  final TurnRuntimeOwnerLeaseRegistry _ownerLease;
   final ThreadScopedMessageQueue _queuedMessages;
   final Map<String, ThreadScopedChatState> _threadStates;
   final Map<String, PendingAskUserQuestion> _pendingQuestions;
@@ -37,9 +39,15 @@ final class TurnRuntimeGoalSafeBoundaryAdapter
     _visibleError = error;
   }
 
+  /// Binds this long-lived adapter to one owner for a single turn runtime.
   @override
-  GoalAutoContinueSafeBoundary capture(ChatTurnOwner owner) {
-    final ownerIsVisible = _ownerLease.isCurrent(owner);
+  TurnRuntimeGoalSafeBoundaryPort boundaryFor(ChatTurnOwner owner) =>
+      _TurnRuntimeGoalSafeBoundary(adapter: this, owner: owner);
+
+  GoalAutoContinueSafeBoundary captureFor(ChatTurnOwner owner) {
+    final ownerIsVisible = _ownerLease.isConversationCurrent(
+      owner.conversationId,
+    );
     final threadState = ownerIsVisible
         ? _visibleThreadState
         : _threadStates[owner.conversationId] ?? ThreadScopedChatState.empty;
@@ -71,4 +79,19 @@ final class TurnRuntimeGoalSafeBoundaryAdapter
       ),
     );
   }
+}
+
+final class _TurnRuntimeGoalSafeBoundary
+    implements TurnRuntimeGoalSafeBoundaryPort {
+  const _TurnRuntimeGoalSafeBoundary({
+    required TurnRuntimeGoalSafeBoundaryAdapter adapter,
+    required ChatTurnOwner owner,
+  }) : _adapter = adapter,
+       _owner = owner;
+
+  final TurnRuntimeGoalSafeBoundaryAdapter _adapter;
+  final ChatTurnOwner _owner;
+
+  @override
+  GoalAutoContinueSafeBoundary capture() => _adapter.captureFor(_owner);
 }
