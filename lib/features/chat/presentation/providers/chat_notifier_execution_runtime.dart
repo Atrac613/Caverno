@@ -45,6 +45,10 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
         exitCode: 130,
       );
     }
+    // Held outside the try so a throw between registration and return still
+    // discharges the scope. A registered scope that nothing drops is the
+    // stranded-registration defect this boundary exists to prevent.
+    ChatTurnOwner? registeredOwner;
     try {
       final handle = await _executionRuntime.startTurn(
         CavernoRuntimeTurnRequest(
@@ -65,6 +69,12 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
         conversationId: ownerConversationId,
         interactionGeneration: generation,
       );
+      registeredOwner = owner;
+      // Registered before the acquisition guards, not after them, so the
+      // failure below discharges the same obligations a live turn does. It
+      // previously undid four of the eleven by hand, which is a third
+      // destructor that had to be kept in step with the other two.
+      _registerTurnReleases(owner);
       if (!_contentToolTurns.begin(owner) ||
           !_hiddenAssistantEvidence.begin(owner) ||
           !_turnEnd.begin(owner) ||
@@ -72,10 +82,10 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
             owner,
             initialEvidence: initialGoalCompletionEvidence,
           )) {
-        _contentToolTurns.dispose(owner);
-        _hiddenAssistantEvidence.dispose(owner);
-        _turnEnd.dispose(owner);
-        _goalCompletionEvidence.dispose(owner);
+        // Released before the handle fails, matching the order
+        // `_terminalizeRuntimeTurn` uses for a live turn.
+        _releaseTurnScope(owner);
+        registeredOwner = null;
         handle.fail(
           code: 'content_tool_state_unavailable',
           message: 'Turn-owned execution state could not be initialized.',
@@ -84,7 +94,7 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
         return null;
       }
       _runtimeTurns[generation] = handle;
-      _registerTurnReleases(owner);
+      registeredOwner = null;
       return owner;
     } on CavernoRuntimeTurnStartException catch (error) {
       _routeRuntimeStartFailure(ownerConversationId, error.terminal.message);
@@ -95,6 +105,19 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
         'The execution runtime could not start the turn.',
       );
       return null;
+    } finally {
+      // Non-null only when the turn registered a scope and did not go on to
+      // own it: the guard failure above already released, so this catches a
+      // throw out of registration or acquisition.
+      //
+      // Untested, and deliberately kept: no test reaches it, because every
+      // call between registration and return is a map operation that does not
+      // throw in practice. Deleting it costs nothing today and reintroduces
+      // the stranded-registration class the moment one of them grows a
+      // failure mode. Mutating it away leaves the suite green -- do not read
+      // that as coverage.
+      final stranded = registeredOwner;
+      if (stranded != null) _releaseTurnScope(stranded);
     }
   }
 
@@ -148,6 +171,35 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
       ..register(
         'goalCompletionEvidence',
         () => _goalCompletionEvidence.dispose(owner),
+      )
+      // Below: owner-scoped releases that used to sit in the generation-keyed
+      // `_clearActiveResponseForGeneration`, which had to look the owner back
+      // up to run them. All six are acquired only after the turn starts, so
+      // they are empty on the paths that never reach a scope.
+      //
+      // A paused participant turn is not over: disposing its controls here
+      // would end the turn the user paused, so the pause is checked first.
+      ..register('participantTurnControls', () {
+        if (!_participantTurnControls.contains(owner)) return;
+        if (_participantTurnControls.isPaused(owner)) return;
+        _participantTurnControls.dispose(owner);
+      })
+      ..register(
+        'askUserQuestionRuntime',
+        () => _askUserQuestionRuntime.retireOwner(owner),
+      )
+      ..register('responseMetadata', () => _responseMetadata.dispose(owner))
+      ..register(
+        'contextSurgeryObservations',
+        () => _contextSurgeryObservations.removeOwner(owner),
+      )
+      ..register(
+        'modelEditTelemetry',
+        () => _modelEditTelemetry?.retireOwner(owner),
+      )
+      ..register(
+        'modelSwitchCompaction',
+        () => _modelSwitchHandoffs.discardPromptCompaction(owner),
       );
   }
 
@@ -212,6 +264,9 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
     'toolApprovalCache': _toolApprovalCache.isEmpty,
     'runtimeTurns': _runtimeTurns.isEmpty,
     'turnEnd': _turnEnd.isEmpty,
+    // A scope nobody dropped is the stranded registration this boundary
+    // exists to prevent, and it was the one thing here nothing observed.
+    'turnReleases': _turnReleases.isEmpty,
   };
 
   @visibleForTesting
@@ -222,7 +277,8 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
       _responseMetadata.isEmpty &&
       _toolApprovalCache.isEmpty &&
       _runtimeTurns.isEmpty &&
-      _turnEnd.isEmpty;
+      _turnEnd.isEmpty &&
+      _turnReleases.isEmpty;
 
   void _terminalizeRuntimeTurn(
     int generation,

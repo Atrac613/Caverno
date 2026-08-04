@@ -6903,6 +6903,14 @@ void main() {
           .whereType<CavernoRuntimeRunFailed>()
           .singleWhere((event) => event.code == 'turn_cancelled_before_start');
       expect(failed.conversationId, threadA);
+      // A turn that failed to start must leave no release scope behind. The
+      // scope is now registered before the acquisition guards, so this is the
+      // path where a stranded registration would first appear.
+      expect(
+        notifier.turnStateIsClearedForTest(),
+        isTrue,
+        reason: notifier.turnStateReportForTest().toString(),
+      );
       var firstReceiptCompleted = false;
       unawaited(
         queuedOwner1Future.then((_) {

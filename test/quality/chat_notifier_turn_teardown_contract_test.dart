@@ -27,6 +27,20 @@ const Map<String, String> _ownerReleaseContract = {
   'contentToolTurns': '()=>_contentToolTurns.dispose(owner)',
   'turnEnd': '()=>_turnEnd.dispose(owner)',
   'goalCompletionEvidence': '()=>_goalCompletionEvidence.dispose(owner)',
+  // Moved here from the generation-keyed destructor, which reached them by
+  // looking the owner back up. The pause guard is part of the contract: a
+  // paused participant turn must survive its own teardown.
+  'participantTurnControls':
+      '(){if(!_participantTurnControls.contains(owner))return;'
+      'if(_participantTurnControls.isPaused(owner))return;'
+      '_participantTurnControls.dispose(owner);}',
+  'askUserQuestionRuntime': '()=>_askUserQuestionRuntime.retireOwner(owner)',
+  'responseMetadata': '()=>_responseMetadata.dispose(owner)',
+  'contextSurgeryObservations':
+      '()=>_contextSurgeryObservations.removeOwner(owner)',
+  'modelEditTelemetry': '()=>_modelEditTelemetry?.retireOwner(owner)',
+  'modelSwitchCompaction':
+      '()=>_modelSwitchHandoffs.discardPromptCompaction(owner)',
 };
 
 const List<String> _terminalizationContract = [
@@ -40,22 +54,15 @@ const List<String> _terminalizationContract = [
   '_clearActiveResponseForGeneration(generation)',
 ];
 
+/// Generation-keyed only. An owner-keyed call appearing here again means the
+/// turn has grown a second destructor for the second time.
 const List<String> _generationCleanupContract = [
-  '_activeResponseRegistry.ownerForGeneration(generation)',
-  '_participantTurnControls.contains(owner)',
-  '_participantTurnControls.isPaused(owner)',
-  '_participantTurnControls.dispose(owner)',
-  '_askUserQuestionRuntime.retireOwner(owner)',
   '_activeResponseRegistry.clearGeneration(generation)',
   '_lastStreamedToolResultFinalAnswersByGeneration.remove(generation)',
   '_pendingActionLengthRecoveryGenerations.remove(generation)',
   '_explicitTerminalSuccessSummariesByGeneration.remove(generation)',
   '_releaseApprovalSnapshots.remove(generation)',
-  '_responseMetadata.dispose(owner)',
-  '_contextSurgeryObservations.removeOwner(owner)',
-  '_modelEditTelemetry?.retireOwner(owner)',
   '_turnFinalizationRecoveryGenerations.remove(generation)',
-  '_modelSwitchHandoffs.discardPromptCompaction(owner)',
   '_syncBusyConversationIds()',
 ];
 
@@ -104,6 +111,19 @@ void main() {
         reason:
             'Removing or replacing one cleanup must fail this gate instead of '
             'silently leaking state into a later turn.',
+      );
+    });
+
+    // The contract above is compared against the source, so constraining it
+    // constrains the code. This is the rule the split restored: one destructor
+    // per key, and the generation one no longer looks the owner back up.
+    test('the generation cleanup names no owner', () {
+      expect(
+        _generationCleanupContract.where((call) => call.contains('owner')),
+        isEmpty,
+        reason:
+            'An owner-scoped call belongs to the turn release scope. Reaching '
+            'the owner from a generation is how the turn grew two destructors.',
       );
     });
   });

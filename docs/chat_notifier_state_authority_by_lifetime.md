@@ -5,7 +5,9 @@ Inventory required by the pilot gate in
 state-authority-by-lifetime inventory, a production pilot may be proposed").
 
 Measured 2026-08-04 against `feature/chat-turn-harness-thread-contention`
-(`262f15e9`). Enumeration is mechanical
+(`262f15e9`), and amended the same day after P1
+(`refactor/unify-turn-destructors`) corrected the destructor section — see
+*Correction*. Enumeration is mechanical
 (`tool/`-external script, retained in the session scratchpad); classification
 below is read, not inferred from names.
 
@@ -126,7 +128,7 @@ discriminator is the **removal path**, not the key:
 | --- | --- | --- |
 | `TurnFinalizationStateRegistry._states` | `TurnReleaseScope` `'turnEnd'` | turn-bounded |
 | `ContentToolTurnStateRegistry._states` | `TurnReleaseScope` `'contentToolTurns'` | turn-bounded |
-| `ResponseMetadataRegistry._states` | `_clearActiveResponseForGeneration` (**legacy path**) | turn-bounded |
+| `ResponseMetadataRegistry._states` | `TurnReleaseScope` `'responseMetadata'` (was the legacy path, see *Correction*) | turn-bounded |
 | `TurnToolResultLedger._states` | timed retention | **outlives the turn** |
 | `HiddenAssistantEvidenceRegistry._states` | `publish`, not dispose | **outlives the turn** |
 | `AskUserQuestionTurnCache._entriesByOwner` | only `_clearAllActiveResponses` (**bulk reset**) | **not turn-bounded** |
@@ -136,33 +138,64 @@ Three stores have **no removal path at all** in their library:
 `BrowserSessionOwnershipCoordinator`, and `LocalCommandExecutionAuthority`. All
 three are pattern E despite being reached through D.
 
-### The turn has two destructors, one per key dimension
+### The turn had three destructors, and only one was keyed cleanly
 
-This is the sharpest structural finding in the inventory, and it was not visible
-before the release-scope slice created the contrast:
+This was the sharpest structural finding in the inventory, and it was not
+visible before the release-scope slice created the contrast. **Resolved by P1
+(`refactor/unify-turn-destructors`); recorded here because the first version of
+this section got the count and the relationship wrong.**
+
+As inventoried:
 
 | Path | Entered with | Removal steps | Discharged by |
 | --- | --- | ---: | --- |
 | `TurnReleaseScope` | `ChatTurnOwner` | 11 | dropping the scope |
 | `_clearActiveResponseForGeneration` (`:2474`) | `int` generation | 7 | explicit call |
 
-Both run for the same turn. The slice that introduced `TurnReleaseScope`
-absorbed the owner-keyed half; the generation-keyed half is untouched and still
-manual.
+The legacy path was not cleanly generation-keyed: it was *entered* with a
+generation, then derived the owner via
+`_activeResponseRegistry.ownerForGeneration` and mixed both — six owner-scoped
+releases alongside the generation removals.
 
-Worse, the legacy path is not cleanly generation-keyed. It is *entered* with a
-generation, then derives the owner and mixes both: four
-`…ByGeneration.remove(generation)` calls alongside
-`_participantTurnControls.dispose(owner)` and `_responseMetadata.dispose(owner)`.
-So the owner/generation split the root-cause document identified is not two
-tidy halves — one destructor straddles it, which is why the two paths cannot
-simply be run independently.
+#### Correction: two destructors, then three, and not the relationship stated
 
-A third path, `_clearAllActiveResponses`, is a bulk reset reached from
-`syncConversation` (`:793`, preserving a paused participant turn) and
-`clearMessages` (`:8905`). It is **not** a turn destructor, which is why
-`AskUserQuestionTurnCache` above is misfiled by anyone reading its `clear()` as
-turn teardown — as this inventory initially did.
+Reading the callers for P1 produced two corrections to the paragraph above.
+
+**They were not competing destructors for one event.** Four of
+`_clearActiveResponseForGeneration`'s five callers are the *start-failure* path
+(`_startRuntimeTurn(...) == null`). One tears down a *started* turn's resources;
+the other clears a *registration* that exists whether or not the turn started.
+`_releaseTurnScope`'s own doc said as much and this inventory did not read it.
+
+**There was a third.** `_startRuntimeTurn`'s acquisition-guard failure undid
+four of the eleven obligations by hand, so that list had to be kept in step with
+the scope by inspection.
+
+#### What P1 changed
+
+| | before | after |
+| --- | --- | --- |
+| start failure (guard) | 4 of 11 duplicated inline | `_releaseTurnScope`, one call |
+| owner-keyed releases | 11 in the scope, 6 in the legacy path | 17 in the scope |
+| generation cleanup | 12 steps, derives the owner | 6 steps, names no owner |
+
+Safe because all six moved releases are acquired only after the turn starts
+(`_responseMetadata.start` at `:2873` follows `_startRuntimeTurn` at `:2652`;
+`_participantTurnControls.begin` sits in the success branch), so the paths that
+never reach a scope have nothing to release. The paused-participant guard
+travels with its release: disposing the controls of a turn the user paused would
+end it.
+
+The contract test now asserts the generation cleanup **names no owner**, so a
+second destructor cannot grow back by the route that produced this one.
+
+#### Not a destructor, and still there
+
+`_clearAllActiveResponses` is a bulk reset reached from `syncConversation`
+(`:793`, preserving a paused participant turn) and `clearMessages` (`:8905`). It
+is **not** a turn destructor, which is why `AskUserQuestionTurnCache` above is
+misfiled by anyone reading its `clear()` as turn teardown — as this inventory
+initially did.
 
 ### E — 25 tombstone sets
 
@@ -220,32 +253,50 @@ at a time, and the removal-path table shows why — two of six sampled outlive t
 turn deliberately. That cost is unchanged by the target shape. It is the
 property of the existing code that the root-cause document already conceded.
 
-### Two candidate pilots, and which to prefer
+### Two candidate pilots
 
-**P1 — unify the second destructor.** Fold
-`_clearActiveResponseForGeneration`'s 7 generation-keyed steps into
-`TurnReleaseScope`. Entirely inside the notifier library, no new object, no
-collaborator registrations, and it continues the one slice that measurably
-worked. It reduces the renewal's headline defect (a manual multi-step
-destructor) from two paths to one.
-*It does not test the `ThreadRuntime` hypothesis at all.*
+**P1 — unify the destructors. Done** (`refactor/unify-turn-destructors`, three
+commits). Entirely inside the notifier library, no new object, no collaborator
+registrations. Preferred first not because it was more valuable — P2 tests the
+actual hypothesis — but because it fixes the *instrument*: while a turn was torn
+down through two differently-keyed paths, any claim that a thread object
+simplified teardown could not be attributed, and the comparison this renewal has
+already got wrong twice would have run against a moving baseline.
 
 **P2 — one thread's worth of pattern B.** Give `ThreadScopedChatState`'s 18
 fields a per-thread object modelled on `ThreadScopedMessageQueue`, so authority
 stops flipping with visibility. Bounded field list, working precedent in the
-same codebase, no dependency on retiring tombstones.
+same codebase four times over (pattern A), no dependency on retiring tombstones.
 *Blast radius is every reader of those 18 fields, which is larger than any slice
 so far.*
 
-**Prefer P1 first.** Not because it is more valuable — P2 tests the actual
-hypothesis — but because P1 is the prerequisite that makes P2 measurable. While
-two destructors exist, any claim that a thread object simplified teardown cannot
-be attributed: the generation-keyed path would still be there, and the
-comparison the renewal has already got wrong twice would be run against a moving
-baseline. P1 costs little and fixes the instrument.
+**Net:** the inventory supported P1, which is now done, and supports P2 next. It
+does not support a pilot that tries to absorb D or E.
 
-**Net:** the inventory supports P1 now and P2 after it. It does not support a
-pilot that tries to absorb D or E.
+### What P1 cost, measured
+
+Recorded because the renewal's cost case has been wrong twice, both
+optimistically, and this is the first estimate made after the fact rather than
+before.
+
+| | |
+| --- | --- |
+| Production diff | one part file plus one method in `chat_notifier.dart` |
+| Governance amendments | 3 (ratchet budget, AST teardown contract, obligations list) |
+| New tests | 1 assertion on an existing start-failure scenario, 1 contract rule |
+| Ratchet | +47 lines, all comment or registration; the legacy function shrank |
+
+Three governance amendments against seven for the earlier 66-line slice. The
+difference is what the root-cause document predicted: this touched no part
+classification and registered no collaborator, because nothing moved across the
+decomposition boundary — it moved between two things already inside it.
+
+**One caveat on the evidence.** The stranded-scope `finally` added by the first
+commit is not covered: mutating it away leaves the suite green, because nothing
+between registration and return throws in practice. It is kept deliberately and
+labelled as untested in both the code and the ratchet note. The six moved
+releases *are* covered — dropping one is caught by both the contract test and
+the behavioural teardown report.
 
 ## Open questions, with the test that settles each
 

@@ -449,7 +449,22 @@ const Map<String, int> _libraryLineBudgets = {
   // destructor had no observability at all; this is the affordance the
   // characterization test needed, and the slice will need it to prove the
   // steps still happen.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19357,
+  // +20 to route the start-failure path through the release scope. The turn
+  // start had a third destructor -- four of the eleven obligations undone by
+  // hand -- which had to be kept in step with the other two by inspection. It
+  // is now one call, plus the invariant that a registered scope is always
+  // dropped: held across the throwing paths, and observed for the first time
+  // by the report. Nothing was extractable here; the function got simpler and
+  // the additions are the comments carrying the ordering and the invariant.
+  // The last 7 record that the finally is untested: mutating it away leaves
+  // the suite green, so a reader who checks coverage before deleting it would
+  // otherwise conclude it is dead code.
+  // +20 to move the six owner-keyed releases out of the generation-keyed
+  // destructor, which reached them by looking the owner back up. The turn now
+  // has one destructor per key. The generation one lost nine lines; the scope
+  // gained those six registrations plus the note explaining why the paused
+  // participant guard travels with them.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19404,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

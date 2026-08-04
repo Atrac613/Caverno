@@ -2471,28 +2471,19 @@ class ChatNotifier extends Notifier<ChatState> {
     List<Message> messages,
   ) => _activeResponseRegistry.cacheMessages(generation, messages);
 
+  /// Clears what a generation registered, and nothing owner-scoped.
+  ///
+  /// The six owner-keyed releases that used to live here now belong to the
+  /// turn's [TurnReleaseScope]. They were reached by looking the owner back up
+  /// from the generation, which meant a turn was torn down through two
+  /// destructors keyed differently, and this one straddled both.
   void _clearActiveResponseForGeneration(int generation) {
-    final owner = _activeResponseRegistry.ownerForGeneration(generation);
-    if (owner != null &&
-        _participantTurnControls.contains(owner) &&
-        !_participantTurnControls.isPaused(owner)) {
-      _participantTurnControls.dispose(owner);
-    }
-    if (owner != null) _askUserQuestionRuntime.retireOwner(owner);
     _activeResponseRegistry.clearGeneration(generation);
     _lastStreamedToolResultFinalAnswersByGeneration.remove(generation);
     _pendingActionLengthRecoveryGenerations.remove(generation);
     _explicitTerminalSuccessSummariesByGeneration.remove(generation);
     _releaseApprovalSnapshots.remove(generation);
-    if (owner != null) {
-      _responseMetadata.dispose(owner);
-      _contextSurgeryObservations.removeOwner(owner);
-      _modelEditTelemetry?.retireOwner(owner);
-    }
     _turnFinalizationRecoveryGenerations.remove(generation);
-    if (owner != null) {
-      _modelSwitchHandoffs.discardPromptCompaction(owner);
-    }
     _syncBusyConversationIds();
   }
 
