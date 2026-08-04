@@ -337,6 +337,17 @@ attribution rule. See
 production, re-run the selector and static gate validation from the clean
 decision-contract commit and record that full revision as the comparison base.
 
+Post-prototype status on 2026-08-04: **Go to Phase 2 design; Phase 3 is not yet
+authorized.** The formal comparison removed one identity parameter, reduced
+turn-reachable ambient reads by one, added no callback capturing
+`ChatNotifier`, and kept conversation and thread state outside `TurnRuntime`.
+The focused gate, all 6,638 repository tests, 79.39% line coverage, and the
+selected live canary passed. The `+708` production-line delta and 19 public
+declarations are a material cost: Phase 2 must define reusable ports, a public
+surface budget, reversible slices, and renewed stop conditions before broad
+extraction. See
+`docs/chat_notifier_turn_runtime_phase_1_5_decision.md`.
+
 **Proceed to Phase 2 only if all structural gates pass and the comparison
 shows:**
 

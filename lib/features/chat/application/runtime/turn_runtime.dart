@@ -4,9 +4,11 @@ import '../../domain/entities/conversation_goal.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../../domain/services/goal_auto_continue_decision_coordinator.dart';
 import '../../domain/services/goal_auto_continue_tracker_registry.dart';
+import '../../domain/services/goal_completion_elicitation_prompt.dart';
 import '../../domain/services/goal_continuation_log_record_builder.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 
+// ChatNotifier decomposition collaborator: turn-runtime
 /// Owner-aware access to the current turn lifecycle.
 abstract interface class TurnRuntimeOwnerLeasePort {
   bool isCurrent(ChatTurnOwner owner);
@@ -29,6 +31,10 @@ abstract interface class TurnRuntimeGoalTrackerPort {
   );
 
   bool markBudgetNoticePresented(ChatTurnOwner owner);
+
+  GoalAutoContinueTrackerSnapshot clearPendingRepairContract(
+    ChatTurnOwner owner,
+  );
 
   void removeTracker(ChatTurnOwner owner);
 }
@@ -73,6 +79,70 @@ final class TurnRuntimeGoalContinuationInput {
   final String languageCode;
   final ToolResultCompletionEvidence evidence;
   final bool isVoiceMode;
+}
+
+sealed class TurnRuntimeGoalCoordinationResult {
+  const TurnRuntimeGoalCoordinationResult({required this.owner});
+
+  final ChatTurnOwner owner;
+}
+
+final class TurnRuntimeGoalCoordinationUnavailable
+    extends TurnRuntimeGoalCoordinationResult {
+  const TurnRuntimeGoalCoordinationUnavailable({required super.owner});
+}
+
+final class TurnRuntimeGoalCoordinationReady
+    extends TurnRuntimeGoalCoordinationResult {
+  const TurnRuntimeGoalCoordinationReady({
+    required super.owner,
+    required this.conversation,
+    required this.tracker,
+    required this.safeBoundary,
+    required this.plan,
+  });
+
+  final Conversation conversation;
+  final GoalAutoContinueTrackerSnapshot tracker;
+  final GoalAutoContinueSafeBoundary safeBoundary;
+  final GoalAutoContinueDecisionPlan plan;
+}
+
+/// Synchronous tracker changes produced at one branch-specific apply point.
+final class TurnRuntimeGoalTrackerTransition {
+  const TurnRuntimeGoalTrackerTransition({
+    required this.owner,
+    required this.snapshot,
+    required this.budgetNoticePresented,
+    required this.removeTrackerAfterPersistence,
+  });
+
+  final ChatTurnOwner owner;
+  final GoalAutoContinueTrackerSnapshot snapshot;
+  final bool budgetNoticePresented;
+  final bool removeTrackerAfterPersistence;
+}
+
+/// Tracker cleanup performed only after blocked status persistence completes.
+final class TurnRuntimePersistedGoalBlockFinalization {
+  const TurnRuntimePersistedGoalBlockFinalization({
+    required this.owner,
+    required this.trackerRemoved,
+  });
+
+  final ChatTurnOwner owner;
+  final bool trackerRemoved;
+}
+
+/// Tracker cleanup performed only after hidden continuation dispatch fails.
+final class TurnRuntimeFailedGoalDispatchFinalization {
+  const TurnRuntimeFailedGoalDispatchFinalization({
+    required this.owner,
+    required this.snapshot,
+  });
+
+  final ChatTurnOwner owner;
+  final GoalAutoContinueTrackerSnapshot snapshot;
 }
 
 /// Exact goal status mutation requested by a runtime owner.
@@ -147,6 +217,55 @@ final class TurnRuntimeHiddenTurnRequest {
   final Set<String>? allowedToolNames;
 }
 
+/// Owner-bound effects required to dispatch one goal continuation.
+final class TurnRuntimeGoalContinuationDispatch {
+  const TurnRuntimeGoalContinuationDispatch({
+    required this.uiEffect,
+    required this.hiddenTurn,
+  });
+
+  final TurnRuntimeShowGoalProgress uiEffect;
+  final TurnRuntimeHiddenTurnRequest hiddenTurn;
+}
+
+/// Owner-bound effects required to elicit one goal completion report.
+final class TurnRuntimeGoalCompletionElicitationDispatch {
+  const TurnRuntimeGoalCompletionElicitationDispatch({
+    required this.uiEffect,
+    required this.hiddenTurn,
+  });
+
+  final TurnRuntimeClearGoalIndicator uiEffect;
+  final TurnRuntimeHiddenTurnRequest hiddenTurn;
+}
+
+/// Shares one active continuation runtime across recursive wrapper entries.
+final class TurnRuntimeGoalContinuationLifecycle {
+  TurnRuntime? _activeRuntime;
+
+  bool get isScheduling => _activeRuntime != null;
+
+  bool claim(TurnRuntime runtime) {
+    if (_activeRuntime != null || !runtime.isSchedulingGoalContinuation) {
+      return false;
+    }
+    _activeRuntime = runtime;
+    return true;
+  }
+
+  void release(TurnRuntime runtime) {
+    if (!identical(_activeRuntime, runtime)) return;
+    _activeRuntime = null;
+    runtime.endGoalContinuationScheduling();
+  }
+
+  void clear() {
+    final activeRuntime = _activeRuntime;
+    _activeRuntime = null;
+    activeRuntime?.endGoalContinuationScheduling();
+  }
+}
+
 /// Turn-lifetime owner and state for the bounded production prototype.
 final class TurnRuntime {
   TurnRuntime({required this.owner, required this.goalContinuation});
@@ -163,6 +282,133 @@ final class TurnRuntime {
     }
     _isSchedulingGoalContinuation = true;
     return true;
+  }
+
+  TurnRuntimeGoalCoordinationResult coordinateGoalContinuation(
+    TurnRuntimeGoalContinuationInput input,
+  ) {
+    final conversation = goalContinuation.conversationGoal.conversationFor(
+      owner,
+    );
+    if (conversation == null) {
+      return TurnRuntimeGoalCoordinationUnavailable(owner: owner);
+    }
+    final tracker = goalContinuation.tracker.snapshotFor(owner);
+    final safeBoundary = goalContinuation.safeBoundary.capture(owner);
+    final plan = const GoalAutoContinueDecisionCoordinator().coordinate(
+      GoalAutoContinueDecisionInput(
+        owner: owner,
+        ownerConversation: conversation,
+        tracker: tracker,
+        completionEvidence: input.evidence,
+        finalizedAssistantResponse: input.finalizedAssistantResponse,
+        safeBoundary: safeBoundary,
+        isVoiceMode: input.isVoiceMode,
+      ),
+    );
+    return TurnRuntimeGoalCoordinationReady(
+      owner: owner,
+      conversation: conversation,
+      tracker: tracker,
+      safeBoundary: safeBoundary,
+      plan: plan,
+    );
+  }
+
+  TurnRuntimeGoalTrackerTransition applyGoalTrackerTransition(
+    GoalAutoContinueTrackerDelta delta,
+  ) {
+    final snapshot = goalContinuation.tracker.applyDelta(owner, delta);
+    final budgetNoticePresented =
+        delta.markBudgetNoticePresented &&
+        goalContinuation.tracker.markBudgetNoticePresented(owner);
+    return TurnRuntimeGoalTrackerTransition(
+      owner: owner,
+      snapshot: snapshot,
+      budgetNoticePresented: budgetNoticePresented,
+      removeTrackerAfterPersistence: delta.removeTracker,
+    );
+  }
+
+  TurnRuntimePersistedGoalBlockFinalization finalizePersistedGoalBlock(
+    TurnRuntimeGoalTrackerTransition transition,
+  ) {
+    if (transition.owner != owner) {
+      throw ArgumentError.value(
+        transition.owner,
+        'transition',
+        'Tracker transition owner must match the runtime owner.',
+      );
+    }
+    if (transition.removeTrackerAfterPersistence) {
+      goalContinuation.tracker.removeTracker(owner);
+    }
+    return TurnRuntimePersistedGoalBlockFinalization(
+      owner: owner,
+      trackerRemoved: transition.removeTrackerAfterPersistence,
+    );
+  }
+
+  TurnRuntimeFailedGoalDispatchFinalization
+  finalizeFailedGoalContinuationDispatch() =>
+      TurnRuntimeFailedGoalDispatchFinalization(
+        owner: owner,
+        snapshot: goalContinuation.tracker.clearPendingRepairContract(owner),
+      );
+
+  TurnRuntimeClearGoalIndicator clearGoalIndicator() =>
+      TurnRuntimeClearGoalIndicator(owner: owner);
+
+  TurnRuntimeShowGoalNotice showGoalNotice(String noticeKey) =>
+      TurnRuntimeShowGoalNotice(owner: owner, noticeKey: noticeKey);
+
+  TurnRuntimeGoalCompletionElicitationDispatch
+  goalCompletionElicitationDispatch({
+    required String languageCode,
+    required ToolResultCompletionEvidence evidence,
+  }) => TurnRuntimeGoalCompletionElicitationDispatch(
+    uiEffect: clearGoalIndicator(),
+    hiddenTurn: TurnRuntimeHiddenTurnRequest(
+      owner: owner,
+      kind: TurnRuntimeHiddenTurnKind.completionElicitation,
+      prompt: GoalCompletionElicitationPrompt.build(languageCode: languageCode),
+      languageCode: languageCode,
+      evidence: evidence,
+      allowedToolNames: const {'update_goal'},
+    ),
+  );
+
+  TurnRuntimeGoalContinuationDispatch? beginGoalContinuationDispatch({
+    required String prompt,
+    required String languageCode,
+    required ToolResultCompletionEvidence evidence,
+    required int count,
+    required int budget,
+    required bool replayVerifierImmediatelyAfterMutation,
+    required bool verifierOnlyContinuation,
+    Set<String>? allowedToolNames,
+  }) {
+    if (!beginGoalContinuationScheduling()) {
+      return null;
+    }
+    return TurnRuntimeGoalContinuationDispatch(
+      uiEffect: TurnRuntimeShowGoalProgress(
+        owner: owner,
+        count: count,
+        budget: budget,
+      ),
+      hiddenTurn: TurnRuntimeHiddenTurnRequest(
+        owner: owner,
+        kind: TurnRuntimeHiddenTurnKind.continuation,
+        prompt: prompt,
+        languageCode: languageCode,
+        evidence: evidence,
+        replayVerifierImmediatelyAfterMutation:
+            replayVerifierImmediatelyAfterMutation,
+        verifierOnlyContinuation: verifierOnlyContinuation,
+        allowedToolNames: allowedToolNames,
+      ),
+    );
   }
 
   void endGoalContinuationScheduling() {

@@ -142,8 +142,21 @@ class TurnRuntimePrototypeSelectorTest(unittest.TestCase):
             "schemaVersion": selector.MANIFEST_SCHEMA_VERSION,
             "parts": manifest_parts,
         }
+        baseline = {
+            "schemaName": selector.AUDIT_SCHEMA_NAME,
+            "schemaVersion": selector.AUDIT_SCHEMA_VERSION,
+            "summary": {
+                "turnReachableReads": sum(
+                    1 for read in audit_reads if read["turnReachable"]
+                )
+            },
+            "reads": audit_reads,
+        }
         audit_path.write_text(json.dumps(audit, indent=2) + "\n")
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+        (tool_root / "chat_notifier_turn_scope_baseline.json").write_text(
+            json.dumps(baseline, indent=2) + "\n"
+        )
 
         self._git(root, "init", "-q")
         self._git(root, "config", "user.name", "Selector Test")
@@ -174,7 +187,10 @@ class TurnRuntimePrototypeSelectorTest(unittest.TestCase):
         selected_source = (
             root / selector.PROVIDER_ROOT / "chat_notifier_alpha.dart"
         )
-        selected_source.write_text("void _alphaEntry0(ChatTurnOwner owner) {}\n")
+        selected_source.write_text(
+            "void caller() => _alphaEntry0(owner);\n"
+            "void _alphaEntry0(ChatTurnOwner owner) {}\n"
+        )
         focused_executable = root / "test/focused_test.dart"
         focused_declaration = root / "test/focused_part.dart"
         live_runner = root / "tool/run_live.sh"
@@ -275,6 +291,40 @@ class TurnRuntimePrototypeSelectorTest(unittest.TestCase):
         self._git(root, "add", str(verification_path.relative_to(root)))
         self._git(root, "commit", "-qm", "change verification")
         self._refresh_selection(root, audit_path, manifest_path, selection_path)
+
+    def _comparison_fixture(self, directory):
+        fixture = self._verification_fixture(directory)
+        (
+            root,
+            _,
+            _,
+            selection_path,
+            verification_path,
+            _,
+        ) = fixture
+        validated = selector.validate_gates(
+            root=root,
+            selection_path=selection_path,
+            verification_manifest_path=verification_path,
+        )
+        validated_path = pathlib.Path(directory) / "validated.json"
+        selector.write_json_atomic(validated_path, validated)
+        before_revision = self._git(root, "rev-parse", "HEAD")
+        return root, validated_path, before_revision
+
+    def _after_audit(self, *, turn_reachable_reads=0):
+        return {
+            "schemaName": selector.AUDIT_SCHEMA_NAME,
+            "schemaVersion": selector.AUDIT_SCHEMA_VERSION,
+            "summary": {"turnReachableReads": turn_reachable_reads},
+            "reads": [
+                {
+                    "id": f"after::read#{index}",
+                    "turnReachable": True,
+                }
+                for index in range(turn_reachable_reads)
+            ],
+        }
 
     def test_ranks_all_current_parts_by_the_four_required_keys(self):
         parts = [
@@ -796,6 +846,180 @@ class TurnRuntimePrototypeSelectorTest(unittest.TestCase):
             output["schemaName"], selector.VALIDATED_SELECTION_SCHEMA_NAME
         )
         self.assertIn("live canary not executed", stdout.getvalue())
+
+    def test_compare_reports_required_structure_and_cost_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, validated_path, before_revision = self._comparison_fixture(
+                directory
+            )
+            selected_source = (
+                root / selector.PROVIDER_ROOT / "chat_notifier_alpha.dart"
+            )
+            selected_source.write_text("void _alphaEntry0() {}\n")
+            runtime_source = root / "lib/runtime.dart"
+            runtime_source.write_text(
+                "abstract interface class AddedPort {\n"
+                "  void load();\n"
+                "}\n"
+                "typedef AddedCallback = void Function();\n"
+                "final class AddedRuntime {}\n"
+            )
+
+            comparison = selector.compare_prototype(
+                root=root,
+                selection_path=validated_path,
+                before_revision=before_revision,
+                after_worktree=root,
+                after_audit=self._after_audit(),
+            )
+
+        self.assertEqual(
+            comparison["schemaName"], selector.COMPARISON_SCHEMA_NAME
+        )
+        self.assertEqual(comparison["production"]["touchedFileCount"], 2)
+        self.assertEqual(comparison["identityParameters"]["removedCount"], 1)
+        self.assertEqual(
+            comparison["ports"]["introducedMethods"],
+            ["lib/runtime.dart::AddedPort.load"],
+        )
+        self.assertEqual(
+            comparison["callbacks"]["introducedSurfaces"],
+            ["lib/runtime.dart::typedef:AddedCallback"],
+        )
+        self.assertEqual(
+            comparison["publicSurface"]["introducedDeclarations"],
+            [
+                "lib/runtime.dart::AddedCallback",
+                "lib/runtime.dart::AddedPort",
+                "lib/runtime.dart::AddedRuntime",
+            ],
+        )
+        self.assertTrue(all(comparison["structuralGates"].values()))
+
+    def test_compare_detects_a_new_notifier_callback_capture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, validated_path, before_revision = self._comparison_fixture(
+                directory
+            )
+            selected_source = (
+                root / selector.PROVIDER_ROOT / "chat_notifier_alpha.dart"
+            )
+            selected_source.write_text(
+                "void _alphaEntry0() {}\n"
+                "final unsafe = () => notifier.state;\n"
+            )
+            self._git(root, "add", ".")
+            self._git(root, "commit", "-qm", "capturing prototype")
+
+            comparison = selector.compare_prototype(
+                root=root,
+                selection_path=validated_path,
+                before_revision=before_revision,
+                after_worktree=root,
+                after_audit=self._after_audit(),
+            )
+
+        self.assertTrue(
+            comparison["callbacks"]["chatNotifierCaptureCandidates"]
+        )
+        self.assertFalse(
+            comparison["structuralGates"][
+                "noNewCallbackCapturesChatNotifier"
+            ]
+        )
+
+    def test_compare_accepts_a_squashed_base_with_identical_selected_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, validated_path, _ = self._comparison_fixture(directory)
+            self._git(root, "checkout", "--orphan", "squashed")
+            self._git(root, "commit", "-qm", "squashed base")
+            before_revision = self._git(root, "rev-parse", "HEAD")
+            selected_source = (
+                root / selector.PROVIDER_ROOT / "chat_notifier_alpha.dart"
+            )
+            selected_source.write_text("void _alphaEntry0() {}\n")
+            self._git(root, "add", ".")
+            self._git(root, "commit", "-qm", "prototype")
+
+            comparison = selector.compare_prototype(
+                root=root,
+                selection_path=validated_path,
+                before_revision=before_revision,
+                after_worktree=root,
+                after_audit=self._after_audit(),
+            )
+
+        self.assertEqual(
+            comparison["selectionBaseRelation"],
+            "equivalent-selected-source",
+        )
+
+    def test_compare_fails_the_ambient_read_growth_gate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, validated_path, before_revision = self._comparison_fixture(
+                directory
+            )
+            selected_source = (
+                root / selector.PROVIDER_ROOT / "chat_notifier_alpha.dart"
+            )
+            selected_source.write_text("void _alphaEntry0() {}\n")
+            self._git(root, "add", ".")
+            self._git(root, "commit", "-qm", "prototype")
+
+            comparison = selector.compare_prototype(
+                root=root,
+                selection_path=validated_path,
+                before_revision=before_revision,
+                after_worktree=root,
+                after_audit=self._after_audit(turn_reachable_reads=1),
+            )
+
+        self.assertEqual(comparison["turnReachableAmbientReads"]["delta"], 1)
+        self.assertFalse(
+            comparison["structuralGates"][
+                "turnReachableAmbientReadsDoNotIncrease"
+            ]
+        )
+
+    def test_compare_cli_writes_an_atomic_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, validated_path, before_revision = self._comparison_fixture(
+                directory
+            )
+            selected_source = (
+                root / selector.PROVIDER_ROOT / "chat_notifier_alpha.dart"
+            )
+            selected_source.write_text("void _alphaEntry0() {}\n")
+            self._git(root, "add", ".")
+            self._git(root, "commit", "-qm", "prototype")
+            output_path = pathlib.Path(directory) / "comparison.json"
+            stdout = io.StringIO()
+
+            with mock.patch.object(selector, "repository_root", return_value=root):
+                with mock.patch.object(
+                    selector,
+                    "_run_after_audit",
+                    return_value=self._after_audit(),
+                ):
+                    with contextlib.redirect_stdout(stdout):
+                        exit_code = selector.main(
+                            [
+                                "compare",
+                                "--selection",
+                                str(validated_path),
+                                "--before-revision",
+                                before_revision,
+                                "--after-worktree",
+                                str(root),
+                                "--output",
+                                str(output_path),
+                            ]
+                        )
+            output = json.loads(output_path.read_text())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(output["schemaName"], selector.COMPARISON_SCHEMA_NAME)
+        self.assertIn("structural gates=pass", stdout.getvalue())
 
 
 if __name__ == "__main__":

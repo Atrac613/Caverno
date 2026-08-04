@@ -21,6 +21,7 @@ import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_goal_progress_inference.dart';
+import '../../domain/services/conversation_goal_status_transition.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
@@ -132,6 +133,14 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   /// LL5: per-conversation signature of the last text we sent to the semantic
   /// index, so a turn embeds at most once even though saves fire repeatedly.
   final Map<String, String> _lastIndexedSignatures = <String, String>{};
+
+  Conversation? runtimeConversationForId(String conversationId) =>
+      state.conversationForId(conversationId);
+
+  Future<void> persistRuntimeGoal({
+    required String conversationId,
+    required ConversationGoal goal,
+  }) => _persistCurrentGoal(goal, conversationId: conversationId);
 
   @override
   ConversationsState build() {
@@ -1062,40 +1071,16 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     String? completionSummary,
   }) async {
     final conversation = state.currentConversation;
-    final goal = conversation?.goal;
-    if (conversation == null || goal == null || !goal.hasObjective) {
+    final nextGoal = const ConversationGoalStatusTransition().apply(
+      goal: conversation?.goal,
+      status: status,
+      blockedReason: blockedReason,
+      completionSummary: completionSummary,
+    );
+    if (conversation == null || nextGoal == null) {
       return;
     }
-
-    final now = DateTime.now();
-    final nextGoal = goal.copyWith(
-      enabled: true,
-      status: status,
-      completionSummary: status == ConversationGoalStatus.completed
-          ? completionSummary?.trim() ??
-                goal.normalizedCompletionSummary ??
-                'Marked complete by the user.'
-          : '',
-      blockedReason: status == ConversationGoalStatus.blocked
-          ? blockedReason?.trim() ??
-                goal.normalizedBlockedReason ??
-                'Marked blocked by the user.'
-          : '',
-      blockerSignature: status == ConversationGoalStatus.blocked
-          ? goal.blockerSignature
-          : '',
-      blockerRepeatCount: status == ConversationGoalStatus.blocked
-          ? goal.blockerRepeatCount
-          : 0,
-      completedAt: status == ConversationGoalStatus.completed ? now : null,
-      blockedAt: status == ConversationGoalStatus.blocked ? now : null,
-      lastBlockerSeenAt: status == ConversationGoalStatus.blocked
-          ? goal.lastBlockerSeenAt
-          : null,
-      updatedAt: now,
-    );
-
-    await _persistCurrentGoal(nextGoal);
+    await _persistCurrentGoal(nextGoal, conversationId: conversation.id);
   }
 
   Future<void> clearCurrentGoal() async {

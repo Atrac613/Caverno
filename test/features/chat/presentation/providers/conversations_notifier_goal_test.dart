@@ -10,6 +10,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/conversations_notifier_goal_runtime_store.dart';
 
 class _MockConversationBox extends Mock implements Box<String> {}
 
@@ -541,5 +542,95 @@ void main() {
     );
     expect(goal.isActive, isTrue);
     expect(goal.isAwaitingConfirmation, isTrue);
+  });
+
+  test('markGoalStatus updates a detached conversation by id', () async {
+    final container = createContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+
+    notifier.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+    );
+    await notifier.saveCurrentGoal(
+      objective: 'Complete conversation A',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+    );
+    final conversationA = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!;
+
+    notifier.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+    );
+    await notifier.saveCurrentGoal(
+      objective: 'Complete conversation B',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+    );
+    final conversationB = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!;
+
+    final runtimeStore = ConversationsNotifierGoalRuntimeStore(
+      notifier: notifier,
+    );
+    expect(
+      runtimeStore.conversationForId(conversationA.id)?.id,
+      conversationA.id,
+    );
+
+    await runtimeStore.markGoalStatus(
+      conversationId: conversationA.id,
+      status: ConversationGoalStatus.blocked,
+      blockedReason: 'No progress',
+    );
+
+    final state = container.read(conversationsNotifierProvider);
+    expect(state.currentConversationId, conversationB.id);
+    expect(
+      state.conversationForId(conversationA.id)?.goal?.status,
+      ConversationGoalStatus.blocked,
+    );
+    expect(
+      state.conversationForId(conversationA.id)?.goal?.blockedReason,
+      'No progress',
+    );
+    expect(
+      state.conversationForId(conversationB.id)?.goal?.status,
+      ConversationGoalStatus.active,
+    );
+  });
+
+  test('markCurrentGoalStatus preserves visible goal behavior', () async {
+    final container = createContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+
+    notifier.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+    );
+    await notifier.saveCurrentGoal(
+      objective: 'Complete the visible conversation',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+    );
+
+    await notifier.markCurrentGoalStatus(
+      status: ConversationGoalStatus.awaitingConfirmation,
+    );
+
+    expect(
+      container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.goal
+          ?.status,
+      ConversationGoalStatus.awaitingConfirmation,
+    );
   });
 }

@@ -1066,6 +1066,36 @@
           "sizeBudgetKey": "lib/features/chat/domain/services/goal_update_tool_handler.dart"
         },
         {
+          "id": "turn-runtime",
+          "path": "lib/features/chat/application/runtime/turn_runtime.dart",
+          "sizeBudgetKey": "lib/features/chat/application/runtime/turn_runtime.dart"
+        },
+        {
+          "id": "turn-runtime-conversation-goal-adapter",
+          "path": "lib/features/chat/application/runtime/turn_runtime_conversation_goal_adapter.dart",
+          "sizeBudgetKey": "lib/features/chat/application/runtime/turn_runtime_conversation_goal_adapter.dart"
+        },
+        {
+          "id": "turn-runtime-goal-continuation-log-adapter",
+          "path": "lib/features/chat/data/datasources/turn_runtime_goal_continuation_log_adapter.dart",
+          "sizeBudgetKey": "lib/features/chat/data/datasources/turn_runtime_goal_continuation_log_adapter.dart"
+        },
+        {
+          "id": "turn-runtime-goal-tracker-adapter",
+          "path": "lib/features/chat/application/runtime/turn_runtime_goal_tracker_adapter.dart",
+          "sizeBudgetKey": "lib/features/chat/application/runtime/turn_runtime_goal_tracker_adapter.dart"
+        },
+        {
+          "id": "turn-runtime-owner-lease-registry",
+          "path": "lib/features/chat/application/runtime/turn_runtime_owner_lease_registry.dart",
+          "sizeBudgetKey": "lib/features/chat/application/runtime/turn_runtime_owner_lease_registry.dart"
+        },
+        {
+          "id": "turn-runtime-production-composition",
+          "path": "lib/features/chat/presentation/providers/turn_runtime_production_composition.dart",
+          "sizeBudgetKey": "lib/features/chat/presentation/providers/turn_runtime_production_composition.dart"
+        },
+        {
           "id": "verifier-replay-candidate-policy",
           "path": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart"

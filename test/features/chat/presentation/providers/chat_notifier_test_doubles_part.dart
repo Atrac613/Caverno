@@ -231,30 +231,15 @@ class _GoalAutoContinueConversationsNotifier
   }
 
   @override
-  Future<void> markCurrentGoalStatus({
-    required ConversationGoalStatus status,
-    String? blockedReason,
-    String? completionSummary,
+  Future<void> persistRuntimeGoal({
+    required String conversationId,
+    required ConversationGoal goal,
   }) async {
-    final conversation = state.currentConversation;
-    final goal = conversation?.goal;
-    if (conversation == null || goal == null) {
+    final conversation = state.conversationForId(conversationId);
+    if (conversation == null) {
       return;
     }
-    _replaceCurrentConversation(
-      conversation.copyWith(
-        goal: goal.copyWith(
-          status: status,
-          blockedReason: status == ConversationGoalStatus.blocked
-              ? blockedReason ?? ''
-              : '',
-          completionSummary: status == ConversationGoalStatus.completed
-              ? completionSummary ?? ''
-              : '',
-          updatedAt: DateTime(2026, 5, 25, 10, goal.turnsUsed + 1),
-        ),
-      ),
-    );
+    _replaceCurrentConversation(conversation.copyWith(goal: goal));
   }
 
   void _replaceCurrentConversation(Conversation updatedConversation) {

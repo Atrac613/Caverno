@@ -175,8 +175,110 @@ Production editing may begin after a review confirms all of the following:
    rejection gate.
 
 The typed inputs, five collaborators, two effect families, and runtime-owned
-reentrancy state are now defined in
+reentrancy state are defined in
 `lib/features/chat/application/runtime/turn_runtime.dart` with focused contract
-tests. They remain unwired in production. The next bounded task is to implement
-the narrow production boundary objects without storing `ChatNotifier` or `Ref`,
-then move only the two reserved symbols.
+tests. All five collaborators are now constructed in an owner-scoped production
+composition without storing `ChatNotifier`, `Ref`, providers, or callbacks.
+
+`TurnRuntimeGoalTrackerAdapter` holds only the existing conversation-spanning
+tracker registry. `TurnRuntimeConversationGoalAdapter` and
+`ConversationsNotifierGoalRuntimeStore` provide explicit conversation-ID reads
+and writes. Both boundaries are now wired into the reserved continuation path.
+
+`TurnRuntimeOwnerLeaseRegistry` now provides the third boundary and is wired
+into the existing production wrapper. It stores only lifecycle, visible
+conversation, and selected conversation values. Queue ownership, turn
+finalization, and the reserved goal-continuation path query it without storing
+`ChatNotifier`, `Ref`, callbacks, or active-response state. This preserves the
+post-response continuation window, where active-response registration has
+already ended.
+
+`TurnRuntimeGoalSafeBoundaryAdapter` now provides the fourth boundary and is
+wired into the existing production wrapper. It owns no notifier, `Ref`, state
+setter, or callback. The wrapper supplies a narrow visible-thread projection
+immediately before capture; the adapter combines it with the existing queue,
+detached thread-state, pending-question, and owner-lease collaborators. Exact
+approval-owner matching, including interaction generation, remains unchanged.
+
+`TurnRuntimeGoalContinuationLogAdapter` provides the fifth boundary. It
+implements the typed runtime port over `LlmSessionLogStore`, preserves
+environment-aware enablement and the disabled-before-conversation-read guard,
+and accepts its store and session context only when a record is emitted. The
+goal continuation path no longer calls the concrete store method directly.
+
+`TurnRuntimeProductionComposition` now creates one short-lived owner scope for
+each reserved continuation invocation. This scope is intentionally independent
+of normal execution-turn terminalization because continuation begins after the
+active response has retired. The production slice reuses all five ports, adds
+no callbacks, and reports a +109 production-line consequence; the parent file
+is one line below its 8,907-line ratchet limit.
+
+The normal continuation branch now calls
+`TurnRuntime.beginGoalContinuationDispatch`, which returns an owner-bound
+progress UI effect and hidden-turn request. The wrapper validates ownership
+before each effect, preserves the existing dispatch arguments, and ends runtime
+scheduling at the synchronous handoff. This adds no port, callback, provider
+capture, or ambient read; the reported production-line consequence is +80 and
+the 8,906-line parent file is unchanged.
+
+Completion elicitation now returns a clear UI effect and an `update_goal`-only
+hidden-turn request from the runtime. Every clear and stop-notice projection in
+the reserved orchestration method also uses an owner-bound runtime effect, so a
+stale owner cannot clear or replace the current owner's UI. Both hidden-turn
+kinds and all reserved-path UI projections are typed effects. The reported
+production-line consequence is +32; `chat_notifier.dart` remains at 8,906 lines
+and its goal-auto-continue part falls from 806 to 804 lines.
+
+`TurnRuntime.coordinateGoalContinuation` now owns the exact conversation
+lookup, tracker snapshot, safe-boundary capture, and existing decision
+coordinator invocation. A sealed unavailable/ready result returns the captured
+values and plan to the wrapper. Missing conversations exit before tracker or
+safe-boundary reads. The reported production-line consequence is +54;
+`chat_notifier.dart` remains at 8,906 lines and its goal-auto-continue part
+falls from 804 to 800 lines.
+
+`TurnRuntime.applyGoalTrackerTransition` now applies tracker deltas and
+conditionally reserves the one-time budget notice through the owner-scoped
+tracker port. The typed result preserves the runtime owner, updated snapshot,
+notice outcome, and delayed-removal request. The wrapper invokes it at the
+original block, stop, and continue points, so tracker removal still occurs only
+after blocked-status persistence. This adds no port, callback, provider
+capture, or ambient read. The reported production-line consequence is +25;
+`chat_notifier.dart` remains at 8,906 lines and its goal-auto-continue part
+falls from 800 to 795 lines.
+
+Persisted-block and failed-dispatch finalization are now explicit runtime
+operations. Requested tracker removal occurs only after the wrapper completes
+blocked-status persistence, cross-owner transitions are rejected, and repair
+state is cleared only from the hidden-dispatch failure path. The wrapper no
+longer invokes tracker cleanup methods directly. This adds no port, callback,
+provider capture, or ambient read. The reported production-line consequence is
++46; `chat_notifier.dart` remains at 8,906 lines and its goal-auto-continue
+part falls from 795 to 793 lines.
+
+The production composition now shares an owner-scoped active continuation
+runtime across recursive entries. Each runtime owns its scheduling state, the
+shared lifecycle serializes only the synchronous hidden-dispatch handoff, and
+release occurs before awaiting the continuation. Cancellation and message
+reset clear the exact active runtime. The duplicate notifier flag is absent
+from production. This adds no port, callback, provider capture, or ambient
+read. The reported production-line consequence is +49;
+`chat_notifier.dart` falls from 8,906 to 8,904 lines and its
+goal-auto-continue part falls from 793 to 792 lines.
+
+The prototype measurement tool now implements `compare`. The validated
+selection revision predates a squash merge, so the tool proves that its
+selected source is byte identical at the `0bac2bc0` production comparison base
+and records that relation explicitly. The current comparison covers 15
+production files and reports +708 lines, one migrated identity parameter
+removed, a -1 turn-reachable ambient-read delta, one introduced port method,
+two clock callback surfaces, 19 public declarations, and zero new callbacks
+capturing `ChatNotifier`. All three automated structural gates pass.
+
+Phase 1.5 is closed with a Go to Phase 2 design. The exact focused gate passed;
+analysis and all 6,638 repository tests passed with 79.39% line coverage; and
+the clean `fc12a1f2` live canary passed 1/1 with readiness `ready`, two ordered
+continuations, and diagnostic progression `2 -> 1`. The `+708` production-line
+delta and 19 public declarations require a Phase 2 reuse and public-surface
+budget before Phase 3. Production catalogue wiring remains No-Go pending I2
+and WS6-19. See `docs/chat_notifier_turn_runtime_phase_1_5_decision.md`.

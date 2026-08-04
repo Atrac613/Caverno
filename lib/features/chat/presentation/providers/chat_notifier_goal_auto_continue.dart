@@ -5,6 +5,27 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierGoalAutoContinue on ChatNotifier {
+  TurnRuntimeProductionComposition _buildTurnRuntimeComposition(
+    ConversationsNotifier conversationsNotifier,
+  ) => TurnRuntimeProductionComposition(
+    ownerLease: _turnRuntimeOwnerLease,
+    conversationGoalStore: ConversationsNotifierGoalRuntimeStore(
+      notifier: conversationsNotifier,
+    ),
+    trackerRegistry: _goalAutoContinueTrackerRegistry,
+    safeBoundary: _turnRuntimeGoalSafeBoundary,
+    goalContinuationLifecycle: _goalContinuationLifecycle,
+  );
+
+  TurnRuntimeProductionScope _createGoalContinuationRuntimeScope(
+    ChatTurnOwner owner,
+  ) {
+    return _turnRuntimeComposition.create(
+      owner: owner,
+      loggingSettingsEnabled: _settings.enableLlmSessionLogs,
+    );
+  }
+
   GoalAutoContinueConversationTaskSnapshot? _goalTrackerContext({
     required ChatTurnOwner owner,
     Conversation? conversation,
@@ -335,11 +356,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   }
 
   bool _isGoalAutoContinueOwnerCurrent(ChatTurnOwner owner) =>
-      ref.mounted && _queueOwnerIsVisible(owner.conversationId);
-
-  GoalAutoContinueTrackerSnapshot _goalAutoContinueTrackerFor(
-    ChatTurnOwner owner,
-  ) => _goalAutoContinueTrackerRegistry.create(owner);
+      _turnRuntimeOwnerLease.isCurrent(owner);
 
   /// The harness's verification-cadence verdict for the target conversation.
   ///
@@ -364,35 +381,39 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     required String languageCode,
     required ToolResultCompletionEvidence evidence,
   }) async {
-    if (_isSchedulingGoalAutoContinue ||
+    if (_turnRuntimeComposition.isGoalContinuationScheduling ||
         !_isGoalAutoContinueOwnerCurrent(owner)) {
       return;
     }
 
-    final currentConversation = _conversationForId(owner.conversationId);
-    if (currentConversation == null) {
-      _logGoalAutoContinueSkip('conversation id is unavailable');
-      _clearGoalAutoContinueIndicator();
-      return;
-    }
-    final goal = currentConversation.goal;
-    final currentConversationId = owner.conversationId;
-    final initialTracker = _goalAutoContinueTrackerFor(owner);
-    final safeBoundary = _goalAutoContinueSafeBoundaryFor(owner);
-    final plan = const GoalAutoContinueDecisionCoordinator().coordinate(
-      GoalAutoContinueDecisionInput(
-        owner: owner,
-        ownerConversation: currentConversation,
-        tracker: initialTracker,
-        completionEvidence: evidence,
+    final runtimeScope = _createGoalContinuationRuntimeScope(owner);
+    final runtime = runtimeScope.runtime;
+    final goalContinuation = runtime.goalContinuation;
+    bool ownerIsCurrent() => goalContinuation.ownerLease.isCurrent(owner);
+    _synchronizeGoalAutoContinueSafeBoundary();
+    final coordination = runtime.coordinateGoalContinuation(
+      TurnRuntimeGoalContinuationInput(
         finalizedAssistantResponse: finalizedAssistantResponse,
-        safeBoundary: safeBoundary,
+        languageCode: languageCode,
+        evidence: evidence,
         isVoiceMode: _isVoiceMode,
       ),
     );
+    if (coordination is TurnRuntimeGoalCoordinationUnavailable) {
+      _logGoalAutoContinueSkip('conversation id is unavailable');
+      _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
+      return;
+    }
+    final ready = coordination as TurnRuntimeGoalCoordinationReady;
+    final currentConversation = ready.conversation;
+    final goal = currentConversation.goal;
+    final currentConversationId = owner.conversationId;
+    final initialTracker = ready.tracker;
+    final safeBoundary = ready.safeBoundary;
+    final plan = ready.plan;
     if (plan.policyInput == null) {
       _logGoalAutoContinueSkip(plan.reason.detail);
-      _clearGoalAutoContinueIndicator();
+      _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       return;
     }
     final decision = plan.policyDecision;
@@ -400,12 +421,13 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     var tracker = initialTracker;
 
     if (decision.shouldBlock) {
-      tracker = _applyGoalAutoContinueTrackerDelta(owner, delta);
+      final transition = runtime.applyGoalTrackerTransition(delta);
+      tracker = transition.snapshot;
       final blockedReason =
           decision.blockedReason ??
           'Goal auto-continue stopped because the task made no progress.';
       await _recordGoalAutoContinueSessionLog(
-        owner: owner,
+        runtimeScope: runtimeScope,
         decision: 'stop_and_block',
         reason: decision.reason,
         goal: goal,
@@ -415,31 +437,29 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         evidence: evidence,
         safeBoundary: safeBoundary,
       );
-      if (!_isGoalAutoContinueOwnerCurrent(owner)) return;
+      if (!ownerIsCurrent()) return;
       appLog(
         '[GoalAutoContinue] stopAndBlock: ${decision.reason}; '
         'conversation=$currentConversationId; evidence=${evidence.summary}',
       );
-      await ref
-          .read(conversationsNotifierProvider.notifier)
-          .markCurrentGoalStatus(
-            status: ConversationGoalStatus.blocked,
-            blockedReason: blockedReason,
-          );
-      if (delta.removeTracker) {
-        _goalAutoContinueTrackerRegistry.removeTracker(owner);
-      }
-      if (_isGoalAutoContinueOwnerCurrent(owner)) {
-        _clearGoalAutoContinueIndicator();
+      await goalContinuation.conversationGoal.markGoalStatus(
+        TurnRuntimeGoalStatusUpdate(
+          owner: owner,
+          status: ConversationGoalStatus.blocked,
+          blockedReason: blockedReason,
+        ),
+      );
+      runtime.finalizePersistedGoalBlock(transition);
+      if (ownerIsCurrent()) {
+        _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       }
       return;
     }
 
     if (!decision.shouldContinue) {
-      tracker = _applyGoalAutoContinueTrackerDelta(owner, delta);
-      final budgetNoticePresented =
-          delta.markBudgetNoticePresented &&
-          _goalAutoContinueTrackerRegistry.markBudgetNoticePresented(owner);
+      final transition = runtime.applyGoalTrackerTransition(delta);
+      tracker = transition.snapshot;
+      final budgetNoticePresented = transition.budgetNoticePresented;
       _logGoalAutoContinueSkip(
         '${decision.reason}; conversation=$currentConversationId',
       );
@@ -447,7 +467,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       if (noticeKey != null) {
         if (budgetNoticePresented) {
           await _recordGoalAutoContinueSessionLog(
-            owner: owner,
+            runtimeScope: runtimeScope,
             decision: GoalAutoContinueStopPresentation.sessionDecisionFor(
               decision.stopCause,
             ),
@@ -459,16 +479,16 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             evidence: evidence,
             safeBoundary: safeBoundary,
           );
-          if (!_isGoalAutoContinueOwnerCurrent(owner)) return;
+          if (!ownerIsCurrent()) return;
           appLog(
             '[GoalAutoContinue] stopped; goal remains active for '
             'manual continuation. conversation=$currentConversationId',
           );
-          state = state.copyWith(goalAutoContinueNotice: noticeKey);
+          _applyTurnRuntimeGoalUiEffect(runtime.showGoalNotice(noticeKey));
         }
       } else if (goal?.isActive == true && goal!.autoContinue) {
         await _recordGoalAutoContinueSessionLog(
-          owner: owner,
+          runtimeScope: runtimeScope,
           decision: 'skip',
           reason: decision.reason,
           goal: goal,
@@ -478,9 +498,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
           evidence: evidence,
           safeBoundary: safeBoundary,
         );
-        if (!_isGoalAutoContinueOwnerCurrent(owner)) return;
+        if (!ownerIsCurrent()) return;
       }
-      if (!_isGoalAutoContinueOwnerCurrent(owner)) return;
+      if (!ownerIsCurrent()) return;
       // Nothing left to schedule, and the harness cannot say the objective was
       // met. Ask the model once ([GoalCompletionElicitationPrompt] carries the
       // rationale and the measurement behind it); if that does not settle the
@@ -488,39 +508,39 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       // reading as one still working.
       if (plan.elicitationEligibility ==
           GoalCompletionElicitationEligibility.eligible) {
-        _clearGoalAutoContinueIndicator();
         await _elicitGoalCompletionReport(
-          owner: owner,
+          runtime: runtime,
           languageCode: languageCode,
           evidence: evidence,
         );
         return;
       }
       if (plan.shouldMarkAwaitingConfirmation) {
-        await ref
-            .read(conversationsNotifierProvider.notifier)
-            .markCurrentGoalStatus(
-              status: ConversationGoalStatus.awaitingConfirmation,
-            );
+        await goalContinuation.conversationGoal.markGoalStatus(
+          TurnRuntimeGoalStatusUpdate(
+            owner: owner,
+            status: ConversationGoalStatus.awaitingConfirmation,
+          ),
+        );
       }
-      if (_isGoalAutoContinueOwnerCurrent(owner)) {
-        _clearGoalAutoContinueIndicator();
+      if (ownerIsCurrent()) {
+        _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       }
       return;
     }
 
-    if (!_isGoalAutoContinueOwnerCurrent(owner) ||
+    if (!ownerIsCurrent() ||
         state.isLoading ||
         _queuedChatMessages.pendingFor(owner.conversationId) > 0) {
       _logGoalAutoContinueSkip(
         'state changed before continuation dispatch; '
         'conversation=$currentConversationId',
       );
-      _clearGoalAutoContinueIndicator();
+      _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       return;
     }
 
-    tracker = _applyGoalAutoContinueTrackerDelta(owner, delta);
+    tracker = runtime.applyGoalTrackerTransition(delta).snapshot;
     final executionSnapshot = plan.executionSnapshot!;
     final repairContract = plan.repairContract;
     if (repairContract != null) {
@@ -544,7 +564,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     );
 
     await _recordGoalAutoContinueSessionLog(
-      owner: owner,
+      runtimeScope: runtimeScope,
       decision: 'continue',
       reason: decision.reason,
       goal: goal,
@@ -554,7 +574,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       evidence: evidence,
       safeBoundary: safeBoundary,
     );
-    if (!_isGoalAutoContinueOwnerCurrent(owner)) return;
+    if (!ownerIsCurrent()) return;
 
     appLog(
       '[GoalAutoContinue] continue ${limits.nextTurnNumber}/'
@@ -562,103 +582,82 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       'conversation=$currentConversationId; evidence=${evidence.summary}',
     );
 
-    _isSchedulingGoalAutoContinue = true;
-    state = state.copyWith(
-      goalAutoContinueCount: limits.nextTurnNumber,
-      goalAutoContinueBudget: limits.effectiveTurnBudget,
-      goalAutoContinueNotice: null,
+    final dispatch = runtime.beginGoalContinuationDispatch(
+      prompt: continuationPrompt,
+      languageCode: languageCode,
+      evidence: evidence,
+      count: limits.nextTurnNumber,
+      budget: limits.effectiveTurnBudget,
+      replayVerifierImmediatelyAfterMutation:
+          limits.replayVerifierImmediatelyAfterMutation,
+      verifierOnlyContinuation: limits.verifierOnlyContinuation,
+      allowedToolNames: limits.allowedToolNames,
     );
+    if (dispatch == null || !runtimeScope.claimGoalContinuationScheduling()) {
+      return;
+    }
     try {
-      if (!_isGoalAutoContinueOwnerCurrent(owner)) return;
-      final continuationFuture = sendHiddenPrompt(
-        continuationPrompt,
-        isVoiceMode: false,
-        languageCode: languageCode,
-        persistAssistantResponse: true,
-        initialGoalCompletionEvidence: evidence,
-        replayVerifierImmediatelyAfterMutation:
-            limits.replayVerifierImmediatelyAfterMutation,
-        verifierOnlyContinuation: limits.verifierOnlyContinuation,
-        allowedToolNames: limits.allowedToolNames,
+      if (!ownerIsCurrent()) return;
+      _applyTurnRuntimeGoalUiEffect(dispatch.uiEffect);
+      if (!ownerIsCurrent()) return;
+      final continuationFuture = _dispatchTurnRuntimeHiddenTurn(
+        dispatch.hiddenTurn,
       );
-      _isSchedulingGoalAutoContinue = false;
+      runtimeScope.releaseGoalContinuationScheduling();
       await continuationFuture;
     } on Object catch (error, stackTrace) {
-      _goalAutoContinueTrackerRegistry.update(
-        owner,
-        pendingRepairContractOutcome: false,
-      );
+      runtime.finalizeFailedGoalContinuationDispatch();
       appLog(
         '[GoalAutoContinue] hidden continuation failed: '
         '${error.runtimeType}: $error',
       );
       appLog('[GoalAutoContinue] stackTrace: $stackTrace');
-      if (_isGoalAutoContinueOwnerCurrent(owner)) {
-        _clearGoalAutoContinueIndicator();
+      if (ownerIsCurrent()) {
+        _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       }
     } finally {
-      _isSchedulingGoalAutoContinue = false;
+      runtimeScope.releaseGoalContinuationScheduling();
     }
   }
 
-  GoalAutoContinueTrackerSnapshot _applyGoalAutoContinueTrackerDelta(
-    ChatTurnOwner owner,
-    GoalAutoContinueTrackerDelta delta,
-  ) => _goalAutoContinueTrackerRegistry.update(
-    owner,
-    consecutiveAutoContinuationsDelta: delta.consecutiveAutoContinuationsDelta,
-    diagnosticRepairContinuationsDelta:
-        delta.diagnosticRepairContinuationsDelta,
-    diagnosticRepairExtensionUsed: delta.diagnosticRepairExtensionUsed,
-    noProgressStreak: delta.noProgressStreak,
-    consecutiveValidationMisses: delta.consecutiveValidationMisses,
-    failedVerificationObserved: delta.failedVerificationObserved,
-    previousEvidence: delta.previousEvidence,
-    previousDiagnosticSignature: delta.previousDiagnosticSignature,
-    identicalDiagnosticSignatureStreak:
-        delta.identicalDiagnosticSignatureStreak,
-    pendingPostRepairReplayOutcome: delta.pendingPostRepairReplayOutcome,
-    pendingRepairContractOutcome: delta.pendingRepairContractOutcome,
-    repairNoMutationRetryUsed: delta.repairNoMutationRetryUsed,
-    completionElicitationMutationGeneration:
-        delta.completionElicitationMutationGeneration,
-  );
+  void _applyTurnRuntimeGoalUiEffect(TurnRuntimeGoalUiEffect effect) {
+    if (!_isGoalAutoContinueOwnerCurrent(effect.owner)) return;
+    switch (effect) {
+      case TurnRuntimeClearGoalIndicator():
+        _clearGoalAutoContinueIndicator();
+      case TurnRuntimeShowGoalProgress(:final count, :final budget):
+        state = state.copyWith(
+          goalAutoContinueCount: count,
+          goalAutoContinueBudget: budget,
+          goalAutoContinueNotice: null,
+        );
+      case TurnRuntimeShowGoalNotice(:final noticeKey):
+        state = state.copyWith(goalAutoContinueNotice: noticeKey);
+    }
+  }
 
-  GoalAutoContinueSafeBoundary _goalAutoContinueSafeBoundaryFor(
-    ChatTurnOwner owner,
-  ) {
-    final ownerIsVisible = _queueOwnerIsVisible(owner.conversationId);
-    final threadState = ownerIsVisible
-        ? ThreadScopedChatState.from(state)
-        : _threadStates[owner.conversationId] ?? ThreadScopedChatState.empty;
-    bool owns(PendingToolApproval<dynamic>? approval) =>
-        approval?.owner == owner;
-    return const GoalAutoContinueSafeBoundaryBuilder().build(
-      GoalAutoContinuePendingState(
-        owner: owner,
-        isLoading: ownerIsVisible && state.isLoading,
-        queuedUserInputCount: _queuedChatMessages.pendingFor(
-          owner.conversationId,
-        ),
-        hasPendingSshConnect: owns(threadState.pendingSshConnect),
-        hasPendingSshCommand: owns(threadState.pendingSshCommand),
-        hasPendingGitCommand: owns(threadState.pendingGitCommand),
-        hasPendingLocalCommand: owns(threadState.pendingLocalCommand),
-        hasPendingComputerUseAction: owns(threadState.pendingComputerUseAction),
-        hasPendingBrowserAction: owns(threadState.pendingBrowserAction),
-        hasPendingFileOperation: owns(threadState.pendingFileOperation),
-        hasPendingBleConnect: owns(threadState.pendingBleConnect),
-        hasPendingSerialOpen: owns(threadState.pendingSerialOpen),
-        hasPendingParticipantToolApproval: owns(
-          threadState.pendingParticipantToolApproval,
-        ),
-        hasPendingAskUserQuestion: _pendingAskUserQuestionsByThread.containsKey(
-          owner.conversationId,
-        ),
-        hasPendingWorkflowDecision: threadState.pendingWorkflowDecision != null,
-        hasParticipantTurnRuntime: threadState.participantTurnRuntime != null,
-        error: ownerIsVisible ? state.error : null,
-      ),
+  Future<void> _dispatchTurnRuntimeHiddenTurn(
+    TurnRuntimeHiddenTurnRequest request,
+  ) async {
+    if (!_isGoalAutoContinueOwnerCurrent(request.owner)) return;
+    await sendHiddenPrompt(
+      request.prompt,
+      isVoiceMode: false,
+      languageCode: request.languageCode,
+      persistAssistantResponse: true,
+      initialGoalCompletionEvidence: request.evidence,
+      replayVerifierImmediatelyAfterMutation:
+          request.replayVerifierImmediatelyAfterMutation,
+      verifierOnlyContinuation: request.verifierOnlyContinuation,
+      allowedToolNames: request.allowedToolNames,
+    );
+  }
+
+  void _synchronizeGoalAutoContinueSafeBoundary() {
+    _turnRuntimeGoalSafeBoundary.synchronizeVisibleState(
+      ThreadScopedChatState.from(state),
+      isLoading: state.isLoading,
+      error: state.error,
     );
   }
 
@@ -669,22 +668,21 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   /// assistant response before the goal turn is recorded, which is where the
   /// tool's completion claim is read.
   Future<void> _elicitGoalCompletionReport({
-    required ChatTurnOwner owner,
+    required TurnRuntime runtime,
     required String languageCode,
     required ToolResultCompletionEvidence evidence,
   }) async {
+    final owner = runtime.owner;
     if (!_isGoalAutoContinueOwnerCurrent(owner)) return;
+    final dispatch = runtime.goalCompletionElicitationDispatch(
+      languageCode: languageCode,
+      evidence: evidence,
+    );
     appLog('[GoalAutoContinue] eliciting a goal completion report');
     try {
       if (!_isGoalAutoContinueOwnerCurrent(owner)) return;
-      await sendHiddenPrompt(
-        GoalCompletionElicitationPrompt.build(languageCode: languageCode),
-        isVoiceMode: false,
-        languageCode: languageCode,
-        persistAssistantResponse: true,
-        initialGoalCompletionEvidence: evidence,
-        allowedToolNames: const {'update_goal'},
-      );
+      _applyTurnRuntimeGoalUiEffect(dispatch.uiEffect);
+      await _dispatchTurnRuntimeHiddenTurn(dispatch.hiddenTurn);
     } on Object catch (error) {
       appLog('[GoalAutoContinue] completion elicitation failed: $error');
     }
@@ -695,7 +693,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   }
 
   Future<void> _recordGoalAutoContinueSessionLog({
-    required ChatTurnOwner owner,
+    required TurnRuntimeProductionScope runtimeScope,
     required String decision,
     required String reason,
     required ConversationGoal? goal,
@@ -705,12 +703,11 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     required ToolResultCompletionEvidence evidence,
     required GoalAutoContinueSafeBoundary safeBoundary,
   }) async {
-    if (!LlmSessionLogStore.isEnabled(
-      settingsEnabled: _settings.enableLlmSessionLogs,
-    )) {
-      return;
-    }
-    final conversation = _conversationForId(owner.conversationId);
+    if (!runtimeScope.loggingEnabled) return;
+    final runtime = runtimeScope.runtime;
+    final owner = runtime.owner;
+    final conversation = runtime.goalContinuation.conversationGoal
+        .conversationFor(owner);
     final record = const GoalContinuationLogRecordBuilder().buildAutoContinue(
       owner: owner,
       decision: decision,
@@ -725,21 +722,13 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       verificationGeneration: conversation?.verificationGeneration,
       safeBoundary: safeBoundary,
     );
-    await ref
-        .read(llmSessionLogStoreProvider)
-        .recordGoalAutoContinue(
-          context: _buildLlmSessionLogContext(
-            targetConversationId: record.owner.conversationId,
-          ),
-          decision: record.decision,
-          reason: record.reason,
-          at: DateTime.now(),
-          goalId: record.goalId,
-          nextTurnNumber: record.nextTurnNumber,
-          effectiveTurnBudget: record.effectiveTurnBudget,
-          consecutiveAutoContinuations: record.consecutiveAutoContinuations,
-          evidence: record.evidence,
-        );
+    runtimeScope.configureLogging(
+      logStore: ref.read(llmSessionLogStoreProvider),
+      context: _buildLlmSessionLogContext(
+        targetConversationId: record.owner.conversationId,
+      ),
+    );
+    await runtime.goalContinuation.log.record(record);
   }
 
   /// Handles `update_goal` against the exact owner's current-turn results.

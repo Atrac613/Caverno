@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/application/runtime/turn_runtime.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
@@ -35,6 +36,271 @@ void main() {
 
       expect(runtime.isSchedulingGoalContinuation, isFalse);
       expect(runtime.beginGoalContinuationScheduling(), isTrue);
+    });
+
+    test('shares one active continuation runtime across recursive entries', () {
+      final lifecycle = TurnRuntimeGoalContinuationLifecycle();
+      final first = TurnRuntime(owner: _owner(), goalContinuation: _ports());
+      final next = TurnRuntime(
+        owner: ChatTurnOwner(
+          conversationId: 'other-conversation',
+          interactionGeneration: 2,
+        ),
+        goalContinuation: _ports(),
+      );
+
+      expect(first.beginGoalContinuationScheduling(), isTrue);
+      expect(lifecycle.claim(first), isTrue);
+      expect(lifecycle.isScheduling, isTrue);
+      expect(next.beginGoalContinuationScheduling(), isTrue);
+      expect(lifecycle.claim(next), isFalse);
+
+      lifecycle.release(next);
+      expect(lifecycle.isScheduling, isTrue);
+      expect(first.isSchedulingGoalContinuation, isTrue);
+
+      lifecycle.release(first);
+      expect(lifecycle.isScheduling, isFalse);
+      expect(first.isSchedulingGoalContinuation, isFalse);
+
+      expect(lifecycle.claim(next), isTrue);
+      lifecycle.clear();
+      expect(lifecycle.isScheduling, isFalse);
+      expect(next.isSchedulingGoalContinuation, isFalse);
+    });
+
+    test('returns owner-bound UI and hidden-turn dispatch effects', () {
+      final owner = _owner();
+      final runtime = TurnRuntime(owner: owner, goalContinuation: _ports());
+      final allowedTools = <String>{'run_tests'};
+
+      final dispatch = runtime.beginGoalContinuationDispatch(
+        prompt: 'Continue the task',
+        languageCode: 'en',
+        evidence: const ToolResultCompletionEvidence(
+          unresolvedErrorPaths: ['lib/main.dart'],
+        ),
+        count: 2,
+        budget: 5,
+        replayVerifierImmediatelyAfterMutation: true,
+        verifierOnlyContinuation: false,
+        allowedToolNames: allowedTools,
+      );
+      allowedTools.add('write_file');
+
+      expect(dispatch, isNotNull);
+      expect(dispatch!.uiEffect.owner, same(owner));
+      expect(dispatch.uiEffect.count, 2);
+      expect(dispatch.uiEffect.budget, 5);
+      expect(dispatch.hiddenTurn.owner, same(owner));
+      expect(dispatch.hiddenTurn.kind, TurnRuntimeHiddenTurnKind.continuation);
+      expect(dispatch.hiddenTurn.prompt, 'Continue the task');
+      expect(dispatch.hiddenTurn.evidence.unresolvedErrorPaths, [
+        'lib/main.dart',
+      ]);
+      expect(
+        dispatch.hiddenTurn.replayVerifierImmediatelyAfterMutation,
+        isTrue,
+      );
+      expect(dispatch.hiddenTurn.verifierOnlyContinuation, isFalse);
+      expect(dispatch.hiddenTurn.allowedToolNames, {'run_tests'});
+      expect(
+        runtime.beginGoalContinuationDispatch(
+          prompt: 'Recursive continuation',
+          languageCode: 'en',
+          evidence: const ToolResultCompletionEvidence(),
+          count: 3,
+          budget: 5,
+          replayVerifierImmediatelyAfterMutation: false,
+          verifierOnlyContinuation: false,
+        ),
+        isNull,
+      );
+    });
+
+    test('returns owner-bound completion elicitation effects', () {
+      final owner = _owner();
+      final runtime = TurnRuntime(owner: owner, goalContinuation: _ports());
+      final paths = <String>['lib/main.dart'];
+
+      final dispatch = runtime.goalCompletionElicitationDispatch(
+        languageCode: 'ja',
+        evidence: ToolResultCompletionEvidence(unresolvedErrorPaths: paths),
+      );
+      paths.add('lib/other.dart');
+
+      expect(dispatch.uiEffect.owner, same(owner));
+      expect(dispatch.hiddenTurn.owner, same(owner));
+      expect(
+        dispatch.hiddenTurn.kind,
+        TurnRuntimeHiddenTurnKind.completionElicitation,
+      );
+      expect(dispatch.hiddenTurn.prompt, contains('update_goal'));
+      expect(dispatch.hiddenTurn.prompt, contains('"ja"'));
+      expect(dispatch.hiddenTurn.languageCode, 'ja');
+      expect(dispatch.hiddenTurn.allowedToolNames, {'update_goal'});
+      expect(dispatch.hiddenTurn.evidence.unresolvedErrorPaths, [
+        'lib/main.dart',
+      ]);
+    });
+
+    test('returns owner-bound clear and notice effects', () {
+      final owner = _owner();
+      final runtime = TurnRuntime(owner: owner, goalContinuation: _ports());
+
+      final clear = runtime.clearGoalIndicator();
+      final notice = runtime.showGoalNotice('goal-stopped');
+
+      expect(clear.owner, same(owner));
+      expect(notice.owner, same(owner));
+      expect(notice.noticeKey, 'goal-stopped');
+    });
+
+    test('returns unavailable coordination without an owner conversation', () {
+      final tracker = _GoalTrackerPort();
+      final safeBoundary = _SafeBoundaryPort();
+      final runtime = TurnRuntime(
+        owner: _owner(),
+        goalContinuation: _ports(tracker: tracker, safeBoundary: safeBoundary),
+      );
+
+      final result = runtime.coordinateGoalContinuation(_input());
+
+      expect(result, isA<TurnRuntimeGoalCoordinationUnavailable>());
+      expect(result.owner, same(runtime.owner));
+      expect(tracker.snapshotCalls, 0);
+      expect(safeBoundary.captureCalls, 0);
+    });
+
+    test('coordinates owner conversation, tracker, and safe boundary', () {
+      final owner = _owner();
+      final conversation = _conversation(owner.conversationId);
+      final runtime = TurnRuntime(
+        owner: owner,
+        goalContinuation: _ports(conversation: conversation),
+      );
+
+      final result = runtime.coordinateGoalContinuation(_input());
+
+      expect(result, isA<TurnRuntimeGoalCoordinationReady>());
+      final ready = result as TurnRuntimeGoalCoordinationReady;
+      expect(ready.owner, same(owner));
+      expect(ready.conversation, same(conversation));
+      expect(ready.tracker.noProgressStreak, 0);
+      expect(ready.safeBoundary.isLoading, isFalse);
+      expect(ready.plan.policyInput, isNotNull);
+      expect(ready.plan.policyDecision.shouldContinue, isFalse);
+    });
+
+    test('applies tracker delta and reserves a requested notice', () {
+      final owner = _owner();
+      final tracker = _GoalTrackerPort();
+      final runtime = TurnRuntime(
+        owner: owner,
+        goalContinuation: _ports(tracker: tracker),
+      );
+      final delta = _delta(
+        noProgressStreak: 2,
+        markBudgetNoticePresented: true,
+        removeTracker: true,
+      );
+
+      final transition = runtime.applyGoalTrackerTransition(delta);
+
+      expect(transition.owner, same(owner));
+      expect(transition.snapshot.noProgressStreak, 0);
+      expect(transition.budgetNoticePresented, isTrue);
+      expect(transition.removeTrackerAfterPersistence, isTrue);
+      expect(tracker.lastDelta, equals(delta));
+      expect(tracker.applyDeltaCalls, 1);
+      expect(tracker.budgetNoticeCalls, 1);
+    });
+
+    test('does not reserve an unrequested budget notice', () {
+      final tracker = _GoalTrackerPort();
+      final runtime = TurnRuntime(
+        owner: _owner(),
+        goalContinuation: _ports(tracker: tracker),
+      );
+
+      final transition = runtime.applyGoalTrackerTransition(_delta());
+
+      expect(transition.budgetNoticePresented, isFalse);
+      expect(transition.removeTrackerAfterPersistence, isFalse);
+      expect(tracker.applyDeltaCalls, 1);
+      expect(tracker.budgetNoticeCalls, 0);
+    });
+
+    test('removes a requested tracker only after block finalization', () {
+      final owner = _owner();
+      final tracker = _GoalTrackerPort();
+      final runtime = TurnRuntime(
+        owner: owner,
+        goalContinuation: _ports(tracker: tracker),
+      );
+      final transition = runtime.applyGoalTrackerTransition(
+        _delta(removeTracker: true),
+      );
+
+      expect(tracker.removeCalls, 0);
+
+      final finalization = runtime.finalizePersistedGoalBlock(transition);
+
+      expect(finalization.owner, same(owner));
+      expect(finalization.trackerRemoved, isTrue);
+      expect(tracker.removeCalls, 1);
+      expect(tracker.lastRemoveOwner, same(owner));
+    });
+
+    test('keeps a tracker when persisted block removal was not requested', () {
+      final tracker = _GoalTrackerPort();
+      final runtime = TurnRuntime(
+        owner: _owner(),
+        goalContinuation: _ports(tracker: tracker),
+      );
+      final transition = runtime.applyGoalTrackerTransition(_delta());
+
+      final finalization = runtime.finalizePersistedGoalBlock(transition);
+
+      expect(finalization.trackerRemoved, isFalse);
+      expect(tracker.removeCalls, 0);
+    });
+
+    test('rejects persisted block finalization from another owner', () {
+      final runtime = TurnRuntime(owner: _owner(), goalContinuation: _ports());
+      final otherRuntime = TurnRuntime(
+        owner: ChatTurnOwner(
+          conversationId: 'other-conversation',
+          interactionGeneration: 2,
+        ),
+        goalContinuation: _ports(),
+      );
+      final transition = otherRuntime.applyGoalTrackerTransition(
+        _delta(removeTracker: true),
+      );
+
+      expect(
+        () => runtime.finalizePersistedGoalBlock(transition),
+        throwsArgumentError,
+      );
+    });
+
+    test('clears repair contract only on explicit dispatch failure', () {
+      final owner = _owner();
+      final tracker = _GoalTrackerPort();
+      final runtime = TurnRuntime(
+        owner: owner,
+        goalContinuation: _ports(tracker: tracker),
+      );
+
+      expect(tracker.clearRepairContractCalls, 0);
+
+      final finalization = runtime.finalizeFailedGoalContinuationDispatch();
+
+      expect(finalization.owner, same(owner));
+      expect(finalization.snapshot.noProgressStreak, 0);
+      expect(tracker.clearRepairContractCalls, 1);
+      expect(tracker.lastClearRepairOwner, same(owner));
     });
   });
 
@@ -122,9 +388,9 @@ void main() {
   });
 
   test('runtime contract has no presentation or callback dependency', () {
-    final source = File(
+    final source = _codeWithoutComments(
       'lib/features/chat/application/runtime/turn_runtime.dart',
-    ).readAsStringSync();
+    );
 
     expect(source, isNot(contains('ChatNotifier')));
     expect(source, isNot(contains('ChatState')));
@@ -142,11 +408,64 @@ void main() {
 ChatTurnOwner _owner() =>
     ChatTurnOwner(conversationId: 'conversation-a', interactionGeneration: 7);
 
-TurnRuntimeGoalContinuationPorts _ports() => TurnRuntimeGoalContinuationPorts(
+TurnRuntimeGoalContinuationInput _input() => TurnRuntimeGoalContinuationInput(
+  finalizedAssistantResponse: 'Finished the current step.',
+  languageCode: 'en',
+  evidence: const ToolResultCompletionEvidence(),
+  isVoiceMode: false,
+);
+
+GoalAutoContinueTrackerDelta _delta({
+  int? noProgressStreak,
+  bool markBudgetNoticePresented = false,
+  bool removeTracker = false,
+}) => (
+  consecutiveAutoContinuationsDelta: 0,
+  diagnosticRepairContinuationsDelta: 0,
+  diagnosticRepairExtensionUsed: null,
+  noProgressStreak: noProgressStreak,
+  consecutiveValidationMisses: null,
+  failedVerificationObserved: null,
+  previousEvidence: null,
+  previousDiagnosticSignature: null,
+  identicalDiagnosticSignatureStreak: null,
+  pendingPostRepairReplayOutcome: null,
+  pendingRepairContractOutcome: null,
+  repairNoMutationRetryUsed: null,
+  completionElicitationMutationGeneration: null,
+  markBudgetNoticePresented: markBudgetNoticePresented,
+  removeTracker: removeTracker,
+);
+
+Conversation _conversation(String id) => Conversation(
+  id: id,
+  title: id,
+  messages: const [],
+  createdAt: DateTime(2026),
+  updatedAt: DateTime(2026),
+  workspaceMode: WorkspaceMode.coding,
+  goal: ConversationGoal(
+    id: 'goal-1',
+    objective: 'Finish the task',
+    enabled: true,
+    autoContinue: true,
+    status: ConversationGoalStatus.active,
+    turnBudget: 5,
+    turnsUsed: 1,
+    createdAt: DateTime(2026),
+    updatedAt: DateTime(2026),
+  ),
+);
+
+TurnRuntimeGoalContinuationPorts _ports({
+  Conversation? conversation,
+  _GoalTrackerPort? tracker,
+  _SafeBoundaryPort? safeBoundary,
+}) => TurnRuntimeGoalContinuationPorts(
   ownerLease: _OwnerLeasePort(),
-  conversationGoal: _ConversationGoalPort(),
-  tracker: _GoalTrackerPort(),
-  safeBoundary: _SafeBoundaryPort(),
+  conversationGoal: _ConversationGoalPort(conversation),
+  tracker: tracker ?? _GoalTrackerPort(),
+  safeBoundary: safeBoundary ?? _SafeBoundaryPort(),
   log: _ContinuationLogPort(),
 );
 
@@ -156,73 +475,129 @@ final class _OwnerLeasePort implements TurnRuntimeOwnerLeasePort {
 }
 
 final class _ConversationGoalPort implements TurnRuntimeConversationGoalPort {
+  const _ConversationGoalPort(this.conversation);
+
+  final Conversation? conversation;
+
   @override
-  Conversation? conversationFor(ChatTurnOwner owner) => null;
+  Conversation? conversationFor(ChatTurnOwner owner) => conversation;
 
   @override
   Future<void> markGoalStatus(TurnRuntimeGoalStatusUpdate update) async {}
 }
 
 final class _GoalTrackerPort implements TurnRuntimeGoalTrackerPort {
+  int snapshotCalls = 0;
+  int applyDeltaCalls = 0;
+  int budgetNoticeCalls = 0;
+  int clearRepairContractCalls = 0;
+  int removeCalls = 0;
+  GoalAutoContinueTrackerDelta? lastDelta;
+  ChatTurnOwner? lastClearRepairOwner;
+  ChatTurnOwner? lastRemoveOwner;
+
   @override
   GoalAutoContinueTrackerSnapshot applyDelta(
     ChatTurnOwner owner,
     GoalAutoContinueTrackerDelta delta,
-  ) => snapshotFor(owner);
+  ) {
+    applyDeltaCalls += 1;
+    lastDelta = delta;
+    return snapshotFor(owner);
+  }
 
   @override
-  bool markBudgetNoticePresented(ChatTurnOwner owner) => true;
+  bool markBudgetNoticePresented(ChatTurnOwner owner) {
+    budgetNoticeCalls += 1;
+    return true;
+  }
 
   @override
-  void removeTracker(ChatTurnOwner owner) {}
+  GoalAutoContinueTrackerSnapshot clearPendingRepairContract(
+    ChatTurnOwner owner,
+  ) {
+    clearRepairContractCalls += 1;
+    lastClearRepairOwner = owner;
+    return snapshotFor(owner);
+  }
 
   @override
-  GoalAutoContinueTrackerSnapshot snapshotFor(ChatTurnOwner owner) => (
-    consecutiveAutoContinuations: 0,
-    diagnosticRepairContinuations: 0,
-    diagnosticRepairExtensionUsed: false,
-    noProgressStreak: 0,
-    consecutiveValidationMisses: 0,
-    failedVerificationObserved: false,
-    previousEvidence: null,
-    previousDiagnosticSignature: '',
-    identicalDiagnosticSignatureStreak: 0,
-    pendingPostRepairReplayOutcome: false,
-    pendingRepairContractOutcome: false,
-    repairNoMutationRetryUsed: false,
-    completionElicitationMutationGeneration: null,
-    activeCommandDiagnosticRepairFocus: null,
-    verifierReplayCandidate: null,
-    replayedMutationGenerations: const <int>{},
-    replayedInteractionGenerations: const <int>{},
-    budgetNoticePresented: false,
-  );
+  void removeTracker(ChatTurnOwner owner) {
+    removeCalls += 1;
+    lastRemoveOwner = owner;
+  }
+
+  @override
+  GoalAutoContinueTrackerSnapshot snapshotFor(ChatTurnOwner owner) {
+    snapshotCalls += 1;
+    return (
+      consecutiveAutoContinuations: 0,
+      diagnosticRepairContinuations: 0,
+      diagnosticRepairExtensionUsed: false,
+      noProgressStreak: 0,
+      consecutiveValidationMisses: 0,
+      failedVerificationObserved: false,
+      previousEvidence: null,
+      previousDiagnosticSignature: '',
+      identicalDiagnosticSignatureStreak: 0,
+      pendingPostRepairReplayOutcome: false,
+      pendingRepairContractOutcome: false,
+      repairNoMutationRetryUsed: false,
+      completionElicitationMutationGeneration: null,
+      activeCommandDiagnosticRepairFocus: null,
+      verifierReplayCandidate: null,
+      replayedMutationGenerations: const <int>{},
+      replayedInteractionGenerations: const <int>{},
+      budgetNoticePresented: false,
+    );
+  }
 }
 
 final class _SafeBoundaryPort implements TurnRuntimeGoalSafeBoundaryPort {
+  int captureCalls = 0;
+
   @override
-  GoalAutoContinueSafeBoundary capture(ChatTurnOwner owner) =>
-      const GoalAutoContinueSafeBoundary(
-        isLoading: false,
-        hasQueuedUserInput: false,
-        hasPendingSshConnect: false,
-        hasPendingSshCommand: false,
-        hasPendingGitCommand: false,
-        hasPendingLocalCommand: false,
-        hasPendingComputerUseAction: false,
-        hasPendingBrowserAction: false,
-        hasPendingFileOperation: false,
-        hasPendingBleConnect: false,
-        hasPendingSerialOpen: false,
-        hasPendingParticipantToolApproval: false,
-        hasPendingAskUserQuestion: false,
-        hasPendingWorkflowDecision: false,
-        hasParticipantTurnRuntime: false,
-        hasError: false,
-      );
+  GoalAutoContinueSafeBoundary capture(ChatTurnOwner owner) {
+    captureCalls += 1;
+    return const GoalAutoContinueSafeBoundary(
+      isLoading: false,
+      hasQueuedUserInput: false,
+      hasPendingSshConnect: false,
+      hasPendingSshCommand: false,
+      hasPendingGitCommand: false,
+      hasPendingLocalCommand: false,
+      hasPendingComputerUseAction: false,
+      hasPendingBrowserAction: false,
+      hasPendingFileOperation: false,
+      hasPendingBleConnect: false,
+      hasPendingSerialOpen: false,
+      hasPendingParticipantToolApproval: false,
+      hasPendingAskUserQuestion: false,
+      hasPendingWorkflowDecision: false,
+      hasParticipantTurnRuntime: false,
+      hasError: false,
+    );
+  }
 }
 
 final class _ContinuationLogPort implements TurnRuntimeGoalContinuationLogPort {
   @override
   Future<void> record(GoalAutoContinueLogRecord record) async {}
+}
+
+/// The decomposition audit requires a
+/// `// ChatNotifier decomposition collaborator` marker in every
+/// registered collaborator, so a bare substring search would read that
+/// marker as the dependency it forbids. Strip comments first: the rule
+/// is about code, not about what a comment names.
+String _codeWithoutComments(String path) {
+  final source = File(path).readAsStringSync();
+  return source
+      .replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '')
+      .split('\n')
+      .map((line) {
+        final index = line.indexOf('//');
+        return index == -1 ? line : line.substring(0, index);
+      })
+      .join('\n');
 }

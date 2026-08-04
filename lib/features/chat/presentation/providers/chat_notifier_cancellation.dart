@@ -13,7 +13,7 @@ extension ChatNotifierCancellation on ChatNotifier {
         cancelledOwner.conversationId,
       );
     }
-    _isSchedulingGoalAutoContinue = false;
+    _goalContinuationLifecycle.clear();
 
     // Advance the global generation so recursive loops stop. The visible owner
     // is captured above because a restored participant turn can be older than
@@ -30,7 +30,7 @@ extension ChatNotifierCancellation on ChatNotifier {
       final lastMessage = updatedMessages[lastIndex];
       var changedMessages = false;
       if (lastMessage.role == MessageRole.assistant &&
-          !_assistantMessageHasVisibleContent(lastMessage.content)) {
+          !TurnFinalMessage.hasVisibleContent(lastMessage.content)) {
         updatedMessages.removeAt(lastIndex);
         changedMessages = true;
       } else if (lastMessage.isStreaming) {

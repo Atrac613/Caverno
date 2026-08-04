@@ -26,6 +26,8 @@ import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
+import '../../application/runtime/turn_runtime.dart';
+import '../../application/runtime/turn_runtime_owner_lease_registry.dart';
 import '../../domain/services/ask_user_question_turn_cache.dart';
 import '../../domain/services/conversation_goal_suggestion_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
@@ -92,9 +94,7 @@ import '../../domain/services/duplicate_tool_result_recovery.dart';
 import '../../domain/services/fenced_tool_name_blocks.dart';
 import '../../domain/services/goal_auto_continue_decision_coordinator.dart';
 import '../../domain/services/goal_auto_continue_prompt_builder.dart';
-import '../../domain/services/goal_auto_continue_safe_boundary_builder.dart';
 import '../../domain/services/goal_auto_continue_tracker_registry.dart';
-import '../../domain/services/goal_completion_elicitation_prompt.dart';
 import '../../domain/services/goal_continuation_log_record_builder.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../../../core/security/conversation_taint_state.dart';
@@ -180,6 +180,7 @@ import 'chat_state.dart';
 import 'chat_tool_execution_log_formatter.dart';
 import 'coding_projects_notifier.dart';
 import 'content_tool_turn_state_registry.dart';
+import 'conversations_notifier_goal_runtime_store.dart';
 import 'caverno_execution_runtime_provider.dart';
 import 'conversations_notifier.dart';
 import 'create_routine_notifier_runtime_store.dart';
@@ -201,6 +202,8 @@ import 'tool_approval_cache.dart';
 import 'tool_dedupe_keys.dart';
 import 'turn_coding_project_resolver.dart';
 import 'turn_context_retry_coordinator.dart';
+import 'turn_runtime_goal_safe_boundary_adapter.dart';
+import 'turn_runtime_production_composition.dart';
 import 'turn_message_persistence_coordinator.dart';
 import 'turn_finalization_state_registry.dart';
 import 'turn_goal_completion_evidence_registry.dart';
@@ -354,7 +357,23 @@ class ChatNotifier extends Notifier<ChatState> {
   late final _fileMutationRuntime = _buildFileMutationRuntimeAdapter();
   late final _askUserQuestionRuntime = _buildAskUserQuestionRuntime();
   final _conversationTaintState = ConversationTaintState();
-  String? conversationId, _activeTurnUserPrompt;
+  final _turnRuntimeOwnerLease = TurnRuntimeOwnerLeaseRegistry();
+  final _goalContinuationLifecycle = TurnRuntimeGoalContinuationLifecycle();
+  late final TurnRuntimeProductionComposition _turnRuntimeComposition;
+  late final _turnRuntimeGoalSafeBoundary =
+      TurnRuntimeGoalSafeBoundaryAdapter(
+        ownerLease: _turnRuntimeOwnerLease,
+        queuedMessages: _queuedChatMessages,
+        threadStates: _threadStates,
+        pendingQuestions: _pendingAskUserQuestionsByThread,
+      );
+  String? _conversationId, _activeTurnUserPrompt;
+  String? get conversationId => _conversationId;
+  set conversationId(String? value) {
+    _conversationId = value;
+    _turnRuntimeOwnerLease.updateVisibleConversation(value);
+  }
+
   String _languageCode = 'en';
   String? _sessionMemoryContext, _temporalReferenceContext;
   Message? _hiddenPrompt;
@@ -430,6 +449,13 @@ class ChatNotifier extends Notifier<ChatState> {
     final initialMessages =
         conversationsState.currentConversation?.messages ?? const <Message>[];
     conversationId = conversationsState.currentConversation?.id;
+    _turnRuntimeOwnerLease.mount(
+      visibleConversationId: conversationId,
+      selectedConversationId: conversationsState.currentConversation?.id,
+    );
+    _turnRuntimeComposition = _buildTurnRuntimeComposition(
+      ref.read(conversationsNotifierProvider.notifier),
+    );
     ref.listen<AppSettings>(settingsNotifierProvider, (previous, next) {
       _updateConnectionSettings(next);
     });
@@ -475,6 +501,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     ref.onDispose(() {
+      _turnRuntimeOwnerLease.retire();
       _streamSubscription?.cancel();
       _streamSubscription = null;
       _cancelAllPendingToolApprovals();
@@ -731,6 +758,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required String? conversationId,
     required List<Message> messages,
   }) {
+    _turnRuntimeOwnerLease.updateSelectedConversation(conversationId);
     final sameConversation = this.conversationId == conversationId;
     final sameMessages = listEquals(state.messages, messages);
     if (sameConversation && sameMessages) {
@@ -2068,7 +2096,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   @visibleForTesting
   bool assistantMessageHasVisibleContentForTest(String content) =>
-      _assistantMessageHasVisibleContent(content);
+      TurnFinalMessage.hasVisibleContent(content);
 
   @visibleForTesting
   WorkflowProposalDraft? buildWorkflowProposalFallbackForTest({
@@ -2304,7 +2332,6 @@ class ChatNotifier extends Notifier<ChatState> {
     currentConversationId: () =>
         ref.read(conversationsNotifierProvider).currentConversationId,
   );
-  bool _isSchedulingGoalAutoContinue = false;
   late final _goalAutoContinueTrackerRegistry = GoalAutoContinueTrackerRegistry(
     replayIdFactory: (mutationGeneration) =>
         'post_mutation_verifier_${mutationGeneration}_'
@@ -2588,7 +2615,7 @@ class ChatNotifier extends Notifier<ChatState> {
           effectiveOwner,
           draftMessages,
         );
-        if (!_queueOwnerIsVisible(effectiveOwner)) {
+        if (!_turnRuntimeOwnerLease.isConversationCurrent(effectiveOwner)) {
           return _restoreQueuedMessageForRetry(
             queuedMessage,
             effectiveOwner,
@@ -2623,7 +2650,7 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       if (startedRuntime == null) {
         _clearActiveResponseForGeneration(interactionGeneration);
-        if (!_queueOwnerIsVisible(effectiveOwner)) {
+        if (!_turnRuntimeOwnerLease.isConversationCurrent(effectiveOwner)) {
           return _restoreQueuedMessageForRetry(
             queuedMessage,
             effectiveOwner,
@@ -2635,7 +2662,7 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       turnOwner = startedRuntime;
       runtimeStarted = true;
-      if (!_queueOwnerIsVisible(effectiveOwner)) {
+      if (!_turnRuntimeOwnerLease.isConversationCurrent(effectiveOwner)) {
         _failRuntimeTurn(
           interactionGeneration,
           code: 'queue_owner_changed',
@@ -2917,10 +2944,6 @@ class ChatNotifier extends Notifier<ChatState> {
       ownerConversationId == conversationId &&
       !state.isLoading &&
       _activeResponseGenerationForConversation(ownerConversationId) == null;
-
-  bool _queueOwnerIsVisible(String owner) =>
-      conversationId == owner &&
-      ref.read(conversationsNotifierProvider).currentConversation?.id == owner;
 
   Future<void> _drainQueuedChatMessagesForThreadIfIdle(String owner) async {
     if (!_canDrainQueuedMessagesForThread(owner) ||
@@ -8470,7 +8493,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_isCurrentInteractionGeneration(generation)) return;
     await _drainQueuedChatMessagesForThreadIfIdle(turnThreadId ?? '');
     if (!_isCurrentInteractionGeneration(generation)) return;
-    if (!_queueOwnerIsVisible(turnOwner.conversationId)) return;
+    if (!_turnRuntimeOwnerLease.isCurrent(turnOwner)) return;
     await _maybeAutoContinueCurrentGoal(
       owner: turnOwner,
       finalizedAssistantResponse: finalizedLastMessage.content,
@@ -8485,32 +8508,7 @@ class ChatNotifier extends Notifier<ChatState> {
   ) => TurnFinalMessage.resolve(
     lastMessage: lastMessage,
     contentToolFallback: _contentToolTurns.continuationFallback(owner),
-    hasVisibleContent: _assistantMessageHasVisibleContent,
   );
-
-  bool _assistantMessageHasVisibleContent(String content) {
-    if (content.trim().isEmpty) return false;
-
-    final result = ContentParser.parse(content);
-    for (final segment in result.segments) {
-      switch (segment.type) {
-        case ContentType.text:
-        case ContentType.thinking:
-          if (segment.content.trim().isNotEmpty) {
-            return true;
-          }
-        case ContentType.toolCall:
-          final toolName = segment.toolCall?.name.toLowerCase();
-          if (toolName != 'memory_update') {
-            return true;
-          }
-        case ContentType.toolResult:
-          continue;
-      }
-    }
-
-    return false;
-  }
 
   Future<McpToolResult?> _ensureActiveProjectAccess(String toolName) async {
     final scopedRoot = TurnProjectRoot.current?.rootPath.trim();
@@ -8896,7 +8894,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _queuedChatMessages.clear();
     _turnToolResults.clear();
     _goalAutoContinueTrackerRegistry.resetConversation(null);
-    _isSchedulingGoalAutoContinue = false;
+    _goalContinuationLifecycle.clear();
     _dismissAllPendingAskUserQuestions();
     _clearAllActiveResponses();
     _sessionMemoryContext = null;
