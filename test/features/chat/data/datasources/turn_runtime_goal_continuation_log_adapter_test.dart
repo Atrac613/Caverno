@@ -110,10 +110,10 @@ void main() {
   });
 
   test('adapter has no notifier, Riverpod, or provider dependency', () {
-    final source = File(
+    final source = _codeWithoutComments(
       'lib/features/chat/data/datasources/'
       'turn_runtime_goal_continuation_log_adapter.dart',
-    ).readAsStringSync();
+    );
 
     expect(source, isNot(contains('ChatNotifier')));
     expect(source, isNot(matches(RegExp(r'\bRef\b'))));
@@ -190,3 +190,20 @@ GoalAutoContinueSafeBoundary _safeBoundary() =>
       hasParticipantTurnRuntime: false,
       hasError: false,
     );
+
+/// The decomposition audit requires a
+/// `// ChatNotifier decomposition collaborator` marker in every
+/// registered collaborator, so a bare substring search would read that
+/// marker as the dependency it forbids. Strip comments first: the rule
+/// is about code, not about what a comment names.
+String _codeWithoutComments(String path) {
+  final source = File(path).readAsStringSync();
+  return source
+      .replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '')
+      .split('\n')
+      .map((line) {
+        final index = line.indexOf('//');
+        return index == -1 ? line : line.substring(0, index);
+      })
+      .join('\n');
+}
