@@ -31,32 +31,44 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/ask_user_question_turn_cache.dart': 99,
   'lib/features/chat/domain/services/background_process_tool_handler.dart': 450,
   'lib/features/chat/domain/services/ble_connection_tool_handler.dart': 252,
-  'lib/features/chat/domain/services/browser_session_ownership_coordinator.dart': 461,
+  'lib/features/chat/domain/services/browser_session_ownership_coordinator.dart':
+      461,
   'lib/features/chat/domain/services/browser_tool_handler.dart': 415,
   'lib/features/chat/domain/services/computer_use_action_policy.dart': 474,
-  'lib/features/chat/domain/services/computer_use_runtime_coordinator.dart': 469,
+  'lib/features/chat/domain/services/computer_use_runtime_coordinator.dart':
+      469,
   'lib/features/chat/domain/services/computer_use_tool_handler.dart': 473,
-  'lib/features/chat/domain/services/git_process_execution_coordinator.dart': 480,
+  'lib/features/chat/domain/services/git_process_execution_coordinator.dart':
+      480,
   'lib/features/chat/domain/services/git_tool_handler.dart': 315,
-  'lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart': 494,
-  'lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart': 72,
-  'lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart': 486,
-  'lib/features/chat/domain/services/goal_continuation_log_record_builder.dart': 137,
+  'lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart':
+      494,
+  'lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart':
+      72,
+  'lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart':
+      486,
+  'lib/features/chat/domain/services/goal_continuation_log_record_builder.dart':
+      137,
   'lib/features/chat/domain/services/goal_update_tool_handler.dart': 64,
   'lib/features/chat/domain/services/participant_message_finalizer.dart': 364,
   'lib/features/chat/domain/services/participant_tool_executor.dart': 349,
   'lib/features/chat/data/datasources/participant_tool_production_ports.dart':
       259,
   'lib/features/chat/domain/services/participant_turn_planner.dart': 304,
-  'lib/features/chat/domain/services/production_release_approval_policy.dart': 388,
-  'lib/features/chat/domain/services/project_scoped_read_tool_handler.dart': 102,
+  'lib/features/chat/domain/services/production_release_approval_policy.dart':
+      388,
+  'lib/features/chat/domain/services/project_scoped_read_tool_handler.dart':
+      102,
   'lib/features/chat/domain/services/run_tests_tool_handler.dart': 465,
-  'lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart': 463,
+  'lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart':
+      463,
   'lib/features/chat/domain/services/serial_connection_tool_handler.dart': 462,
-  'lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart': 493,
+  'lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart':
+      493,
   'lib/features/chat/domain/services/ssh_tool_handler.dart': 348,
   'lib/features/chat/domain/services/subagent_tool_handler.dart': 419,
-  'lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart': 69,
+  'lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart':
+      69,
   'lib/features/chat/domain/services/turn_tool_approval_coordinator.dart': 489,
   'lib/features/chat/domain/services/lsp_go_to_definition_tool_contract.dart':
       252,
@@ -117,7 +129,8 @@ const Map<String, int> _lineBudgets = {
       115,
   'lib/features/chat/data/datasources/execution_snapshot_log_runtime_adapter.dart':
       32,
-  'lib/features/chat/data/datasources/turn_tool_approval_runtime_ports.dart': 70,
+  'lib/features/chat/data/datasources/turn_tool_approval_runtime_ports.dart':
+      70,
   'lib/features/chat/data/datasources/lsp_go_to_definition_runtime_adapter.dart':
       296,
   'lib/features/chat/data/datasources/local_command_tool_runtime_adapter.dart':
@@ -208,7 +221,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/thread_scoped_chat_state.dart': 238,
   'lib/features/chat/domain/services/tool_approval_auto_review_service.dart':
       339,
-  'lib/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart': 290,
+  'lib/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart':
+      290,
   'lib/features/chat/presentation/providers/turn_tool_result_ledger.dart': 151,
   'lib/features/chat/presentation/providers/content_tool_turn_state_registry.dart':
       187,
@@ -262,8 +276,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart':
       2380,
   'lib/features/chat/domain/services/content_tool_result_formatter.dart': 132,
-  'lib/features/chat/domain/services/verifier_replay_candidate_policy.dart':
-      56,
+  'lib/features/chat/domain/services/verifier_replay_candidate_policy.dart': 56,
   'lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart':
       56,
   'lib/features/chat/domain/services/workflow_task_turn_route_policy.dart': 43,
@@ -382,6 +395,22 @@ const Map<String, int> _lineBudgets = {
   'test/features/chat/presentation/providers/mcp_tool_provider_rollback_store_test.dart':
       152,
   'test/support/mcp_file_tool_test_delegate.dart': 16,
+  // The TurnRuntime prototype boundary. Registering these as decomposition
+  // collaborators requires a declared budget, which is the point: the
+  // boundary landed outside both the turn-scope audit and this ratchet, so
+  // moving code across it improved the audited metrics without either
+  // instrument seeing the destination.
+  'lib/features/chat/application/runtime/turn_runtime.dart': 444,
+  'lib/features/chat/application/runtime/turn_runtime_conversation_goal_adapter.dart':
+      44,
+  'lib/features/chat/application/runtime/turn_runtime_goal_tracker_adapter.dart':
+      55,
+  'lib/features/chat/application/runtime/turn_runtime_owner_lease_registry.dart':
+      42,
+  'lib/features/chat/presentation/providers/turn_runtime_production_composition.dart':
+      95,
+  'lib/features/chat/data/datasources/turn_runtime_goal_continuation_log_adapter.dart':
+      82,
 };
 
 const Map<String, int> _libraryLineBudgets = {

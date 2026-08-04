@@ -6,6 +6,7 @@ import '../../data/datasources/turn_runtime_goal_continuation_log_adapter.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/services/goal_auto_continue_tracker_registry.dart';
 
+// ChatNotifier decomposition collaborator: turn-runtime-production-composition
 /// Builds owner-scoped goal-continuation runtimes from production boundaries.
 final class TurnRuntimeProductionComposition {
   TurnRuntimeProductionComposition({

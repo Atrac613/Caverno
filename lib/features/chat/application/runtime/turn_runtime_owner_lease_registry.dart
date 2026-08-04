@@ -1,6 +1,7 @@
 import '../../domain/entities/chat_turn_owner.dart';
 import 'turn_runtime.dart';
 
+// ChatNotifier decomposition collaborator: turn-runtime-owner-lease-registry
 /// Tracks the minimal live conversation state required by an owner lease.
 final class TurnRuntimeOwnerLeaseRegistry implements TurnRuntimeOwnerLeasePort {
   bool _mounted = false;

@@ -3,6 +3,7 @@ import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
 import 'turn_runtime.dart';
 
+// ChatNotifier decomposition collaborator: turn-runtime-conversation-goal-adapter
 /// Minimal owner-addressable goal storage required by the runtime adapter.
 abstract interface class TurnRuntimeConversationGoalStore {
   Conversation? conversationForId(String conversationId);

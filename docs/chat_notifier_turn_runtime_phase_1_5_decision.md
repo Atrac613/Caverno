@@ -19,8 +19,8 @@ existing WS6-19 no-capture, binding, fallback, and poison gates pass.
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Identity parameter removal | Pass | One explicit owner or generation parameter removed |
-| Ambient reads | Pass | Turn-reachable delta `-1` |
+| Identity parameter removal | Pass locally; see addendum | One explicit owner or generation parameter removed. Across the boundary the count rises by 14 once the runtime is in audit scope |
+| Ambient reads | Pass | Turn-reachable delta `-1`, confirmed with the boundary in scope |
 | Notifier capture | Pass | Zero new callbacks capture `ChatNotifier` |
 | State ownership | Pass | Conversation and thread state remain outside `TurnRuntime` |
 | Focused behavior | Pass | Selected goal auto-continue dispatch test passed |
@@ -31,6 +31,73 @@ The formal comparison covers 15 production files and reports `+708` lines,
 one introduced port method, two clock callback surfaces, and 19 public
 declarations. The selected source at comparison base `0bac2bc0` is
 byte-identical to the validated pre-squash selector source.
+
+## Addendum: re-measurement after widening the audit scope
+
+Added 2026-08-04. The gates above were measured while the prototype boundary sat
+outside both governance instruments. The turn-scope audit reads the notifier
+library, its parts, and manifest-declared collaborators;
+`lib/features/chat/application/runtime/` held no collaborator marker and no
+manifest entry, and the file-size ratchet is an allow-list that new files do not
+join by default. `scannedFiles` stayed at 112 across the prototype.
+
+Six boundary files are now registered as collaborators of the
+`goal-auto-continue` part, which the boundary test also requires to carry
+declared size budgets. Two files are deliberately not registered —
+`turn_runtime_goal_safe_boundary_adapter.dart` and
+`conversations_notifier_goal_runtime_store.dart` import provider libraries, so
+they fail the collaborator import rules. That is the correct answer: they are
+the notifier-side glue, not the boundary.
+
+Re-measured against the pre-prototype baseline:
+
+| Metric | Pre | Post, original scope | Post, boundary in scope |
+| --- | ---: | ---: | ---: |
+| `scannedFiles` | 112 | 112 | 118 |
+| Turn-reachable ambient reads | 50 | 49 | **49** |
+| Identity parameters | 314 | 312 | **328** |
+| `reachableMethods` | 663 | 686 | 717 |
+
+**The ambient-read gate holds.** `-1` survives the wider scope: the new layer
+introduced no ambient reads. That result is now measured over the whole
+boundary rather than one side of it.
+
+**The identity-parameter gate inverts.** The recorded "one parameter removed" is
+true locally, but across the boundary the count rises by 14. Attribution:
+
+```
++8  application/runtime/turn_runtime.dart
++5  application/runtime/turn_runtime_goal_tracker_adapter.dart
++1  application/runtime/turn_runtime_conversation_goal_adapter.dart
++1  application/runtime/turn_runtime_owner_lease_registry.dart
++1  presentation/providers/turn_runtime_production_composition.dart
++1  presentation/providers/chat_notifier_goal_auto_continue.dart
++1  domain/services/goal_update_tool_handler.dart
+-4  presentation/providers/chat_notifier_ask_user_question.dart  (unrelated slice)
+```
+
+The boundary itself accounts for `+16`. The selected part gained one rather than
+shedding any.
+
+The cause is structural, not incidental: every port takes the owner as an
+argument — `isCurrent(owner)`, `conversationFor(owner)`, `snapshotFor(owner)`,
+`applyDelta(owner, …)`, `markBudgetNoticePresented(owner)`,
+`clearPendingRepairContract(owner)`, `removeTracker(owner)`, `capture(owner)`.
+`TurnRuntime` holds `owner` as a field and re-supplies it on every call, so
+identity plumbing was re-typed and relocated rather than removed. The codex
+reference binds the owner into the turn's state and its ports do not re-take it
+(`docs/turn_runtime_codex_reference_findings.md`).
+
+This does not overturn the Go decision — the boundary is achievable, behaviour
+is preserved, and no callback captures `ChatNotifier`. It changes what Phase 2
+must design. **Owner-implicit ports become the first design question**, because
+at seven capability boundaries an owner-parameterised port set multiplies the
+plumbing the renewal exists to remove.
+
+The checked-in `tool/chat_notifier_turn_scope_baseline.json` is deliberately not
+refreshed here. Regenerating it would adopt `+14` as the accepted floor, and the
+plan requires the drift to be explained and owned before a refresh. That
+decision, and the resulting source of truth, remain open.
 
 ## Cost Review
 

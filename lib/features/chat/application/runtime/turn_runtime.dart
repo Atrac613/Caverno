@@ -8,6 +8,7 @@ import '../../domain/services/goal_completion_elicitation_prompt.dart';
 import '../../domain/services/goal_continuation_log_record_builder.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 
+// ChatNotifier decomposition collaborator: turn-runtime
 /// Owner-aware access to the current turn lifecycle.
 abstract interface class TurnRuntimeOwnerLeasePort {
   bool isCurrent(ChatTurnOwner owner);

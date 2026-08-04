@@ -2,6 +2,7 @@ import '../../application/runtime/turn_runtime.dart';
 import '../../domain/services/goal_continuation_log_record_builder.dart';
 import 'llm_session_log_store.dart';
 
+// ChatNotifier decomposition collaborator: turn-runtime-goal-continuation-log-adapter
 /// Persists typed goal-continuation decisions in the existing session log.
 final class TurnRuntimeGoalContinuationLogAdapter
     implements TurnRuntimeGoalContinuationLogPort {

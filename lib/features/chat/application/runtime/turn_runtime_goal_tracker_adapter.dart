@@ -3,6 +3,7 @@ import '../../domain/services/goal_auto_continue_decision_coordinator.dart';
 import '../../domain/services/goal_auto_continue_tracker_registry.dart';
 import 'turn_runtime.dart';
 
+// ChatNotifier decomposition collaborator: turn-runtime-goal-tracker-adapter
 /// Adapts conversation-spanning tracker storage to one turn runtime boundary.
 final class TurnRuntimeGoalTrackerAdapter
     implements TurnRuntimeGoalTrackerPort {
