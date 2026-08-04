@@ -132,15 +132,19 @@ final class ScriptedChatDataSource extends ChatRemoteDataSource {
     List<ChatCompletionResult> initialResponses = const [],
     List<ChatCompletionResult> toolResultResponses = const [],
     List<ChatCompletionResult> streamedResponses = const [],
+    List<ChatCompletionResult> completionResponses = const [],
     List<ScriptedStep>? initialSteps,
     List<ScriptedStep>? toolResultSteps,
     List<ScriptedStep>? streamedSteps,
+    List<ScriptedStep>? completionSteps,
     this.beforeInitialResponse,
     this.beforeToolResultResponse,
   }) : _initialSteps = initialSteps ?? ScriptedStep.of(initialResponses),
        _toolResultSteps =
            toolResultSteps ?? ScriptedStep.of(toolResultResponses),
-       _streamedSteps = streamedSteps ?? ScriptedStep.of(streamedResponses);
+       _streamedSteps = streamedSteps ?? ScriptedStep.of(streamedResponses),
+       _completionSteps =
+           completionSteps ?? ScriptedStep.of(completionResponses);
 
   final List<ScriptedStep> _initialSteps;
   final List<ScriptedStep> _toolResultSteps;
@@ -157,6 +161,15 @@ final class ScriptedChatDataSource extends ChatRemoteDataSource {
   /// Empty by default, preserving the `done` fallback the private doubles had.
   final List<ScriptedStep> _streamedSteps;
 
+  /// Responses for `createChatCompletion`, the non-streamed secondary call.
+  ///
+  /// Plan drafting and the other secondary completions run through here rather
+  /// than the turn loop. Keeping them on their own counter is what lets a test
+  /// send a real message first and still hold the *drafting* request open: the
+  /// private doubles counted every completion together, so a prior turn
+  /// consumed the hook the drafting request needed.
+  final List<ScriptedStep> _completionSteps;
+
   /// Legacy index hooks, retained so the private doubles could move without
   /// rewriting their scenarios. New tests should prefer [ScriptedStep.barrier].
   final Future<void> Function(int requestIndex)? beforeInitialResponse;
@@ -172,6 +185,7 @@ final class ScriptedChatDataSource extends ChatRemoteDataSource {
   var initialRequests = 0;
   var toolResultRequests = 0;
   var streamedRequests = 0;
+  var completionRequests = 0;
 
   /// Ambient compatibility reads stay poisoned: an owner-scoped turn must not
   /// consult shared completion state.
@@ -237,6 +251,12 @@ final class ScriptedChatDataSource extends ChatRemoteDataSource {
     return index >= _streamedSteps.length ? null : _streamedSteps[index];
   }
 
+  ScriptedStep? _nextCompletionStep() {
+    final index = completionRequests;
+    completionRequests += 1;
+    return index >= _completionSteps.length ? null : _completionSteps[index];
+  }
+
   ToolResultInfo _toolResult({
     required String toolCallId,
     required String toolName,
@@ -296,7 +316,13 @@ final class ScriptedChatDataSource extends ChatRemoteDataSource {
         maxTokens: maxTokens,
       ),
     );
-    return ChatCompletionResult(content: 'done', finishReason: 'stop');
+    final step = _nextCompletionStep();
+    if (step == null) {
+      return ChatCompletionResult(content: 'done', finishReason: 'stop');
+    }
+    final barrier = step.barrier;
+    if (barrier != null) await barrier();
+    return step.response;
   }
 
   @override

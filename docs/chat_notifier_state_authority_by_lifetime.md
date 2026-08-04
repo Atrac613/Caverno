@@ -47,14 +47,24 @@ what ends its authority.**
 | # | Pattern | Authoritative holder | Authority ends when | Count | Unit |
 | --- | --- | --- | --- | ---: | --- |
 | **A** | Per-thread authority; `ChatState` is a derived view | the authority | thread is deleted | 4 | authority |
-| **B** | Visibility-flipping stash | **flips**: `ChatState` while visible, `ThreadScopedChatState` while not | never — it moves | 18 | `ChatState` field |
+| **A′** | Owner-keyed registry authoritative; `ChatState` is an explicit projection | the registry | the approval is taken or cancelled | 10 | `ChatState` field |
+| **B** | Visibility-flipping stash | **flips**: `ChatState` while visible, `ThreadScopedChatState` while not | never — it moves | 8 | `ChatState` field |
 | **C** | Singular `ChatState` field, no per-thread home | `ChatState` | overwritten by the next thread | 19 | `ChatState` field |
 | **D** | Owner-keyed registry; `ChatState` mirrors it | the registry | turn teardown, or a retention window | 37 | keyed store |
 | **E** | Tombstone set (negative state) | nothing — records absence | never (monotonic) | 25 | keyed store |
 
-B + C = 37 `ChatState` fields; D + E = 62 keyed stores. The two 37s are
+A′ + B + C = 37 `ChatState` fields; D + E = 62 keyed stores. The two 37s are
 unrelated — one counts fields on one class, the other counts stores across
 `lib/`.
+
+> **Corrected 2026-08-04, starting P2.** This table first read B as **18**,
+> because `ThreadScopedChatState` was inspected on its own: all 18 of its fields
+> are stashed and restored the same way, so they looked alike. Reading the
+> *writers* separates them. Ten are pending tool approvals whose authority is
+> `PendingToolApprovalRegistry`, and the stash is a rendering copy — pattern A′
+> below. Only 8 are genuinely homeless. **The inventory overstated P2's scope by
+> more than half**, and this is the first of the renewal's three estimate errors
+> that was pessimistic rather than optimistic.
 
 ### A — the places that already work
 
@@ -77,17 +87,48 @@ This is the shape the rest would take under a `ThreadRuntime`, and it is already
 in the codebase four times over, working. That materially lowers the design risk
 for a per-thread pilot: it is generalisation, not invention.
 
-### B — authority that moves with the camera
+### A′ — the ten that already have the target shape
 
-`ChatState` declares **37** fields. `ThreadScopedChatState` stashes **18**. For
-those 18, the authoritative copy is `ChatState` while the conversation is
-visible and the stash while it is not; `ThreadScopedChatState.from(state)`
-copies one into the other on switch.
+`ChatState`'s ten `pending*` tool approvals are **not** homeless.
+`PendingToolApprovalRegistry` (`chat_state.dart`) holds the
+`PendingToolApproval` objects with their completers, keyed by `ChatTurnOwner`
+and by id. `chat_notifier_approval_handlers.dart` routes every one of them
+through a single register/take pair, and the projection is explicit in the
+names:
 
-This is not a bug — it is consistent, and the switch path is covered. It is a
-*cost*: every reader of those 18 fields must know which side of the switch it is
-on, and that knowledge is not expressible in the type. A `ThreadRuntime` removes
-the flip by giving the field one home regardless of visibility.
+```dart
+_pendingToolApprovals.registerCurrent(pending, ownerIsCurrent: …, show: …)
+_pendingToolApprovals.takeCurrent<T>(id: …, clear: _clearPendingToolApprovalProjection)
+```
+
+`show` writes the field; `clear` removes it. The registry decides; `ChatState`
+and the stash render. This is pattern A with an owner key instead of a thread
+key, and it is why each of the ten has exactly one `copyWith` write site while
+the eight below have 78 between them.
+
+### B — the eight that move with the camera
+
+`ChatState` declares **37** fields. `ThreadScopedChatState` stashes 18, but ten
+of those are A′ above. For the remaining **8** — the seven plan/workflow
+drafting fields and `participantTurnRuntime` — the authoritative copy really is
+`ChatState` while the conversation is visible and the stash while it is not,
+swapped by `ThreadScopedChatState.from(state)` / `.applyTo(…)` on switch.
+
+Confirmed by their writers: the drafting fields have no registry anywhere, and
+`participantTurnRuntime` is read-modify-written on the state itself
+(`s.copyWith(participantTurnRuntime: s.participantTurnRuntime?.copyWith(…))`,
+`chat_notifier_participant_turns.dart:94`).
+
+The first draft of this section said "this is not a bug — it is consistent, and
+the switch path is covered." **That was wrong**, and it was wrong in the way
+inventories usually are: it described the mechanism and inferred the behaviour
+instead of running it. Two of the drafting entry points were writing to the
+wrong thread outright — see *The unrouted half held a real defect* below.
+
+What survives is the cost, now with a price attached: every writer of these 8
+fields must decide to route, nothing in the type says so, and a reader cannot
+tell a correct write from an incorrect one. A per-thread object removes the
+decision rather than requiring 78 of them to be made correctly.
 
 ### C — the 19 that have no per-thread home
 
@@ -236,10 +277,11 @@ be resolved (publisher takes a read-only view) independently of any pilot.
 
 ## What this means for the pilot
 
-**For a `ThreadRuntime`:** patterns B (18) and the singular half of C are the
-direct beneficiaries — roughly 25 fields gain one home instead of two or none.
-Pattern A shows the target shape already exists and works, which lowers the
-design risk from "unproven here" to "generalise the one we have."
+**For a `ThreadRuntime`:** patterns B (8) and the singular half of C are the
+direct beneficiaries — roughly 15 fields gain one home instead of two or none.
+Patterns A and A′ show the target shape already exists and works five times
+over, which lowers the design risk from "unproven here" to "generalise the ones
+we have."
 
 **For an `ActiveTurnScope`:** pattern E is the prize. 25 monotonic sets across
 20 files collapse to an identity check, and they are the category that most
@@ -263,15 +305,110 @@ down through two differently-keyed paths, any claim that a thread object
 simplified teardown could not be attributed, and the comparison this renewal has
 already got wrong twice would have run against a moving baseline.
 
-**P2 — one thread's worth of pattern B.** Give `ThreadScopedChatState`'s 18
-fields a per-thread object modelled on `ThreadScopedMessageQueue`, so authority
-stops flipping with visibility. Bounded field list, working precedent in the
-same codebase four times over (pattern A), no dependency on retiring tombstones.
-*Blast radius is every reader of those 18 fields, which is larger than any slice
-so far.*
+**P2 — one thread's worth of pattern B.** Give the **8** genuinely homeless
+stashed fields a per-thread object modelled on `ThreadScopedMessageQueue`, so
+authority stops flipping with visibility. Working precedent in the same codebase
+five times over (pattern A four times, A′ once), no dependency on retiring
+tombstones.
 
-**Net:** the inventory supported P1, which is now done, and supports P2 next. It
-does not support a pilot that tries to absorb D or E.
+Measured blast radius: **78 write sites**, 66 of them in `chat_notifier.dart` —
+7 plan/workflow drafting fields (68) plus `participantTurnRuntime` (10). The ten
+pending approvals are *not* in scope; they are already A′.
+
+#### Half of those writes bypass thread routing
+
+Of the 78, **39 were inside a thread router** (`_routeThreadState`,
+`_routeApproval`, `routeToThread`) and **38 were not** — bare
+`state = state.copyWith(…)` against whatever thread is visible. Seven of the
+unrouted have since been routed; see below.
+
+That split is the concrete form of the pattern-B cost. A routed write knows
+which thread it belongs to; an unrouted one cannot, because `ChatState` does not
+carry a thread. Under a per-thread object the distinction disappears: there is
+no visible-state shortcut to take.
+
+#### The unrouted half held a real defect
+
+`generateWorkflowProposal` and `generateTaskProposal` — both reachable from the
+plan UI (`chat_page_workflow_builders.dart:119`, `:661`), neither covered by any
+test — captured `currentConversation` for their *requests* and then wrote the
+result with a bare `state = state.copyWith(…)` after awaiting the model, guarded
+only by `ref.mounted`. **Switching threads while either drafted put the draft on
+the thread the user switched to, and left the drafting thread spinning.**
+
+Reproduced and fixed (`5434d4ee`, `ef82d062`). Every write now routes to the
+captured thread, including the retry loop inside `_requestWorkflowProposal`.
+`resolveWorkflowDecision` deliberately keeps its direct assignment: it answers
+what the user is looking at.
+
+Reproducing it took the shared harness. `_PlanProposalDataSource` fires its hook
+on the first `createChatCompletion` and counts every completion together, but
+this path needs a prior turn to satisfy a positive interaction generation — so
+the opening turn consumed the hook the drafting request needed. Splitting
+`createChatCompletion` onto its own script in `ScriptedChatDataSource` is what
+made the two separable. That is the second capability gap the harness closed
+under load, after the final-answer script.
+
+**This is the pattern-B cost, priced.** Two entry points, same feature, one
+routed and one not, and nothing in the type system distinguished them —
+`ChatState` does not carry a thread, so an unrouted write cannot be told from a
+correct one by reading it. A per-thread object removes the choice rather than
+requiring every writer to make it correctly.
+
+#### After the fix: 38 unrouted writes became 11, and all 11 are correct
+
+Re-measured on the fixed tree. The remaining eleven were read individually:
+
+| Site | Verdict |
+| --- | --- |
+| `conversation_drawer.dart` (2) | a `ref.watch(select(…))` **read**, not a write |
+| `dismissWorkflowProposal`, `dismissTaskProposal` (6) | the user dismissed the visible draft |
+| `resolveWorkflowDecision` (1) | the user answered the visible decision |
+| `_cancelStreaming` (2) | targets `_activeResponseGenerationForConversation(conversationId)`, the visible thread |
+
+The pre-fix 39/38 split was stable across 12-, 14- and 20-line lookback windows,
+so it was not a measurement artefact; the post-fix count is window-sensitive
+only because routed writes are multi-line callbacks.
+
+`test/quality/thread_scoped_draft_write_contract_test.dart` now pins this:
+every direct `state` write naming one of the eight must come from a method
+where the visible thread is the subject, and a second check fails if an allowed
+name stops writing them, so the exemption list cannot widen unnoticed.
+
+**This weakens the case for the pilot rather than strengthening it.** With the
+defect fixed and a gate holding the invariant, a per-thread object for these
+eight buys structure, not correctness. It should be justified on its own terms
+— or deferred.
+
+**Net:** the inventory supported P1, which is now done. **P2 is no longer
+recommended as the next slice** — see below. It does not support a pilot that
+tries to absorb D or E.
+
+### P2 was attempted and should now be deferred
+
+Starting P2 produced three things, none of them the pilot:
+
+1. The scope was wrong — pattern B is 8 fields, not 18 (above).
+2. The unrouted half held a **real, reproduced defect** in two UI-reachable
+   drafting entry points, now fixed.
+3. A contract gate holds the invariant the pilot would have enforced
+   structurally.
+
+That sequence inverts the argument. The pilot's case was "these fields have no
+home, so writers must each decide correctly and nothing checks them." The
+second clause is now false: something checks them, cheaply, and it caught a
+regression under mutation. What remains is that eight fields are stashed rather
+than owned — a shape complaint, not a behaviour one.
+
+**Recommendation: do not build the per-thread object for these eight now.** Its
+value was to make a class of defect unrepresentable; the class has one known
+member, it is fixed, and it is fenced. Revisit if the gate starts firing, if the
+eight grow, or if `participantTurnRuntime` — the one field with a genuine
+read-modify-write cycle — produces a defect the gate cannot see.
+
+The renewal's remaining unexamined ground is pattern **C** (11 fields reset on
+every switch, including the `goalAutoContinue*` trio and the usage counters) and
+pattern **E** (25 tombstone sets). Both are listed under *Open questions*.
 
 ### What P1 cost, measured
 

@@ -7390,6 +7390,201 @@ void main() {
     },
   );
 
+
+  test(
+    'a plan drafted while the user leaves lands on the drafting thread',
+    () async {
+      // The finished-draft case above covers a switch *after* drafting ends.
+      // This is the switch *during* it, which had no coverage: the draft has to
+      // reach the thread that asked for it even though a different thread is
+      // visible when the LLM returns.
+      //
+      // Covers generatePlanProposal, which routes its writes. The UI's other
+      // entry point, generateWorkflowProposal, does not -- it ends with a bare
+      // `state = state.copyWith(...)` (chat_notifier.dart:3118) after awaiting
+      // the model. That path is not covered here; see the P2 notes in
+      // docs/chat_notifier_state_authority_by_lifetime.md.
+      final releaseProposal = Completer<void>();
+      final proposalRequested = Completer<void>();
+      late final ProviderContainer container;
+      final dataSource = _PlanProposalDataSource(() async {
+        if (!proposalRequested.isCompleted) proposalRequested.complete();
+        await releaseProposal.future;
+      });
+
+      container = _buildContainer(
+        dataSource: dataSource,
+        toolService: _SwitchingToolService(() async {}),
+        assistantMode: AssistantMode.plan,
+      );
+      addTearDown(() {
+        if (!releaseProposal.isCompleted) releaseProposal.complete();
+        container.dispose();
+      });
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-a',
+      );
+      final draftingThread = container
+          .read(conversationsNotifierProvider)
+          .currentConversationId!;
+      final notifier = container.read(chatNotifierProvider.notifier);
+
+      final drafting = notifier.generatePlanProposal();
+      await proposalRequested.future.timeout(const Duration(seconds: 3));
+
+      // The user opens another thread while the plan is still being drafted.
+      conversations.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-b',
+      );
+      final otherThread = container
+          .read(conversationsNotifierProvider)
+          .currentConversationId!;
+      expect(otherThread, isNot(draftingThread));
+
+      releaseProposal.complete();
+      await drafting;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        container.read(chatNotifierProvider).workflowProposalDraft,
+        isNull,
+        reason: "the other thread never asked for a plan",
+      );
+      expect(
+        container.read(chatNotifierProvider).isGeneratingWorkflowProposal,
+        isFalse,
+        reason: 'the other thread is not drafting anything',
+      );
+
+      conversations.selectConversation(draftingThread);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        container.read(chatNotifierProvider).workflowProposalDraft,
+        isNotNull,
+        reason: 'the plan belongs to the thread that asked for it',
+      );
+      expect(
+        container.read(chatNotifierProvider).isGeneratingWorkflowProposal,
+        isFalse,
+        reason: 'the drafting thread must not be left spinning',
+      );
+    },
+  );
+
+
+  test(
+    'a workflow proposal drafted while the user leaves lands on its thread',
+    () async {
+      // generatePlanProposal routes its writes; generateWorkflowProposal --
+      // the entry point the UI uses (chat_page_workflow_builders.dart:119,
+      // :661) -- ends with a bare `state = state.copyWith(...)` after awaiting
+      // the model, guarded only by ref.mounted.
+      final releaseProposal = Completer<void>();
+      final proposalRequested = Completer<void>();
+      final dataSource = ScriptedChatDataSource(
+        initialResponses: [
+          ChatCompletionResult(content: 'ok', finishReason: 'stop'),
+        ],
+        completionSteps: [
+          // Plan mode routes the opening message through four secondary
+          // completions before any drafting call; the assertion below fails
+          // loudly if that changes.
+          for (var i = 0; i < 3; i++)
+            ScriptedStep(
+              ChatCompletionResult(content: 'done', finishReason: 'stop'),
+            ),
+          ScriptedStep(
+            ChatCompletionResult(
+              content:
+                  '{"kind":"proposal","workflowStage":"plan",'
+                  '"goal":"Ship the slice","constraints":["Keep it small"],'
+                  '"acceptanceCriteria":["Lands on its own thread"],'
+                  '"openQuestions":[]}',
+              finishReason: 'stop',
+            ),
+            barrier: () async {
+              if (!proposalRequested.isCompleted) proposalRequested.complete();
+              await releaseProposal.future;
+            },
+          ),
+          ScriptedStep(
+            ChatCompletionResult(
+              content:
+                  '{"tasks":[{"title":"Route the drafting write",'
+                  '"targetFiles":["lib/features/chat/presentation/providers/chat_notifier.dart"],'
+                  '"validationCommand":"flutter test","notes":"Cover it."}]}',
+              finishReason: 'stop',
+            ),
+          ),
+        ],
+      );
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: _SwitchingToolService(() async {}),
+        assistantMode: AssistantMode.plan,
+      );
+      addTearDown(() {
+        if (!releaseProposal.isCompleted) releaseProposal.complete();
+        container.dispose();
+      });
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-a',
+      );
+      final draftingThread = container
+          .read(conversationsNotifierProvider)
+          .currentConversationId!;
+      final notifier = container.read(chatNotifierProvider.notifier);
+
+      // This path asserts a positive interaction generation, so a turn has to
+      // have happened. The harness scripts the turn and the drafting request
+      // on separate counters, so the turn does not consume the barrier.
+      await notifier.sendMessage('start the drafting thread');
+      expect(
+        dataSource.completionRequests,
+        3,
+        reason: 'the barrier below is placed after the opening turn',
+      );
+
+      final drafting = notifier.generateWorkflowProposal();
+      await proposalRequested.future.timeout(const Duration(seconds: 5));
+
+      conversations.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-b',
+      );
+      final otherThread = container
+          .read(conversationsNotifierProvider)
+          .currentConversationId!;
+      expect(otherThread, isNot(draftingThread));
+
+      releaseProposal.complete();
+      await drafting;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        container.read(chatNotifierProvider).workflowProposalDraft,
+        isNull,
+        reason: 'the other thread never asked for a plan',
+      );
+      expect(
+        container.read(chatNotifierProvider).isGeneratingWorkflowProposal,
+        isFalse,
+        reason: 'the other thread is not drafting anything',
+      );
+    },
+  );
+
   test('a pending approval follows its thread and is announced', () async {
     // Leaving a thread that is waiting on the user used to drop the approval
     // outright. It has to survive, stay off the other thread, and be visible

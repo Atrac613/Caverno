@@ -1276,11 +1276,14 @@ class ChatNotifier extends Notifier<ChatState> {
 
     for (var round = 0; round < maxDecisionRounds; round++) {
       if (ref.mounted) {
-        state = state.copyWith(
-          isLoading: true,
-          isGeneratingWorkflowProposal: true,
-          workflowProposalError: null,
-          pendingWorkflowDecision: null,
+        _routeThreadState(
+          currentConversation.id,
+          (s) => s.copyWith(
+            isLoading: true,
+            isGeneratingWorkflowProposal: true,
+            workflowProposalError: null,
+            pendingWorkflowDecision: null,
+          ),
         );
       }
 
@@ -3096,11 +3099,18 @@ class ChatNotifier extends Notifier<ChatState> {
         .currentConversation;
     if (currentConversation == null) return;
 
-    state = state.copyWith(
-      isGeneratingWorkflowProposal: true,
-      workflowProposalDraft: null,
-      workflowProposalError: null,
-      pendingWorkflowDecision: null,
+    // Routed, not assigned: drafting outlives the user's attention, and a bare
+    // `state = state.copyWith(...)` after the await lands the plan on whichever
+    // thread is visible when the model returns rather than the one that asked.
+    final draftingThread = currentConversation.id;
+    _routeThreadState(
+      draftingThread,
+      (s) => s.copyWith(
+        isGeneratingWorkflowProposal: true,
+        workflowProposalDraft: null,
+        workflowProposalError: null,
+        pendingWorkflowDecision: null,
+      ),
     );
 
     try {
@@ -3114,25 +3124,34 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       if (!ref.mounted) return;
 
-      state = state.copyWith(
-        isGeneratingWorkflowProposal: false,
-        workflowProposalDraft: proposal,
-        workflowProposalError: null,
+      _routeThreadState(
+        draftingThread,
+        (s) => s.copyWith(
+          isGeneratingWorkflowProposal: false,
+          workflowProposalDraft: proposal,
+          workflowProposalError: null,
+        ),
       );
     } on _WorkflowProposalCancelled {
       if (!ref.mounted) return;
-      state = state.copyWith(
-        isGeneratingWorkflowProposal: false,
-        workflowProposalDraft: null,
-        workflowProposalError: null,
-        pendingWorkflowDecision: null,
+      _routeThreadState(
+        draftingThread,
+        (s) => s.copyWith(
+          isGeneratingWorkflowProposal: false,
+          workflowProposalDraft: null,
+          workflowProposalError: null,
+          pendingWorkflowDecision: null,
+        ),
       );
     } catch (error) {
       if (!ref.mounted) return;
-      state = state.copyWith(
-        isGeneratingWorkflowProposal: false,
-        workflowProposalDraft: null,
-        workflowProposalError: error.toString(),
+      _routeThreadState(
+        draftingThread,
+        (s) => s.copyWith(
+          isGeneratingWorkflowProposal: false,
+          workflowProposalDraft: null,
+          workflowProposalError: error.toString(),
+        ),
       );
     }
   }
@@ -3300,10 +3319,17 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
-    state = state.copyWith(
-      isGeneratingTaskProposal: true,
-      taskProposalDraft: null,
-      taskProposalError: null,
+    // Routed for the same reason as generateWorkflowProposal above: the draft
+    // belongs to the thread that asked, not to whichever one is visible when
+    // the model returns.
+    final draftingThread = currentConversation.id;
+    _routeThreadState(
+      draftingThread,
+      (s) => s.copyWith(
+        isGeneratingTaskProposal: true,
+        taskProposalDraft: null,
+        taskProposalError: null,
+      ),
     );
 
     try {
@@ -3317,17 +3343,23 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       if (!ref.mounted) return;
 
-      state = state.copyWith(
-        isGeneratingTaskProposal: false,
-        taskProposalDraft: proposal,
-        taskProposalError: null,
+      _routeThreadState(
+        draftingThread,
+        (s) => s.copyWith(
+          isGeneratingTaskProposal: false,
+          taskProposalDraft: proposal,
+          taskProposalError: null,
+        ),
       );
     } catch (error) {
       if (!ref.mounted) return;
-      state = state.copyWith(
-        isGeneratingTaskProposal: false,
-        taskProposalDraft: null,
-        taskProposalError: error.toString(),
+      _routeThreadState(
+        draftingThread,
+        (s) => s.copyWith(
+          isGeneratingTaskProposal: false,
+          taskProposalDraft: null,
+          taskProposalError: error.toString(),
+        ),
       );
     }
   }

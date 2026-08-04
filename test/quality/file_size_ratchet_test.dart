@@ -26,7 +26,13 @@ const Map<String, int> _lineBudgets = {
   // aggregate below records the offsetting removal.
   // +4 for the turn-release scope registry and its rationale. The turn now
   // holds what it owes instead of a distant destructor holding it.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8911,
+  // +23 to route plan and task drafting to the thread that asked for it.
+  // Both ended with a bare `state = state.copyWith(...)` after awaiting the
+  // model, which put the draft on whichever thread was visible when it
+  // returned -- reproduced, then fixed. Routing is structurally longer than
+  // assigning: the callback form costs three lines per write and there are
+  // seven of them. Nothing was extractable; the alternative is the bug.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8934,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -459,12 +465,13 @@ const Map<String, int> _libraryLineBudgets = {
   // The last 7 record that the finally is untested: mutating it away leaves
   // the suite green, so a reader who checks coverage before deleting it would
   // otherwise conclude it is dead code.
+  // +32 for the drafting routing above; see the primary-file note.
   // +20 to move the six owner-keyed releases out of the generation-keyed
   // destructor, which reached them by looking the owner back up. The turn now
   // has one destructor per key. The generation one lost nine lines; the scope
   // gained those six registrations plus the note explaining why the paused
   // participant guard travels with them.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19404,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19436,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
