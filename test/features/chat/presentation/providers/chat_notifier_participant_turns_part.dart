@@ -1,6 +1,133 @@
 part of 'chat_notifier_test.dart';
 
 void registerChatNotifierParticipantTurnTests() {
+  // Pilot-gate scenario: participant pause and resume. This had no coverage at
+  // all, so a per-thread runtime proposal would have had no way to show it
+  // preserved the behaviour. A manual stream holds the first participant open
+  // so the stop lands mid-turn rather than racing the end of it.
+  test(
+    'a stopped participant turn pauses and resumes on the same thread',
+    () async {
+      final primaryStream = StreamController<String>();
+      final dataSource = _ParticipantStreamingChatDataSource(
+        manualStreams: [primaryStream],
+        chunkBatches: const [
+          ['Reviewer answered after resume.'],
+        ],
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final participantContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        participantContainer.dispose();
+        if (!primaryStream.isClosed) await primaryStream.close();
+      });
+      final chatNotifier = participantContainer.read(
+        chatNotifierProvider.notifier,
+      );
+      final conversationsNotifier = participantContainer.read(
+        conversationsNotifierProvider.notifier,
+      );
+      final conversation = conversationsNotifier.ensureCurrentConversation()!;
+      await conversationsNotifier.updateConversationParticipants(
+        conversation.id,
+        participants: const [
+          ConversationParticipant(
+            id: 'primary',
+            displayName: 'Primary',
+            roleLabel: 'Coordinator',
+            roleSystemPrompt: 'Coordinate the discussion.',
+            model: 'primary-model',
+            colorValue: 0xFF6750A4,
+            order: 0,
+          ),
+          ConversationParticipant(
+            id: 'reviewer',
+            displayName: 'Reviewer',
+            roleLabel: 'Critic',
+            roleSystemPrompt: 'Critique the proposal.',
+            model: 'review-model',
+            colorValue: 0xFF006A6A,
+            order: 1,
+          ),
+        ],
+      );
+
+      final sending = chatNotifier.sendMessage('Discuss the proposal');
+      final deadline = DateTime.now().add(const Duration(seconds: 2));
+      while (chatNotifier.state.participantTurnRuntime == null) {
+        if (DateTime.now().isAfter(deadline)) {
+          fail('The participant turn runtime never started.');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(
+        chatNotifier.state.participantTurnRuntime!.paused,
+        isFalse,
+        reason: 'the turn is running before the stop request',
+      );
+
+      // Stop while the first participant is still streaming.
+      chatNotifier.requestParticipantTurnStop();
+      primaryStream
+        ..add('Primary answered before the stop.')
+        ..close();
+      await sending;
+
+      // Paused, not finished: the runtime survives with the reviewer still owed.
+      final paused = chatNotifier.state.participantTurnRuntime;
+      expect(paused, isNotNull, reason: 'a stopped turn must remain resumable');
+      expect(paused!.paused, isTrue);
+      expect(chatNotifier.state.isLoading, isFalse);
+      expect(
+        dataSource.requestedModels,
+        ['primary-model'],
+        reason: 'the reviewer must not have been asked before the resume',
+      );
+
+      // Resume completes the remaining participant on the same thread.
+      await chatNotifier.continueParticipantTurns();
+
+      expect(
+        dataSource.requestedModels,
+        ['primary-model', 'review-model'],
+        reason: 'resume continues from the cursor rather than restarting',
+      );
+      final assistantMessages = chatNotifier.state.messages
+          .where((message) => message.role == MessageRole.assistant)
+          .toList(growable: false);
+      expect(assistantMessages.map((message) => message.participantId), [
+        'primary',
+        'reviewer',
+      ]);
+      expect(
+        assistantMessages.last.content,
+        contains('Reviewer answered after resume.'),
+      );
+      expect(
+        chatNotifier.state.participantTurnRuntime,
+        isNull,
+        reason: 'a completed participant turn releases its runtime',
+      );
+    },
+  );
+
   test('sendMessage streams attributed participant turns in order', () async {
     final dataSource = _ParticipantStreamingChatDataSource(
       chunkBatches: const [

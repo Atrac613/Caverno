@@ -5251,6 +5251,313 @@ void main() {
     },
   );
 
+  // H1: the two-thread contract expressed through the shared harness, across
+  // all five surfaces at once. The neighbouring tests each assert one of them;
+  // this one exists because a per-thread runtime proposal has to preserve the
+  // combination, and a contract split across five tests can drift apart while
+  // each half stays green.
+  test(
+    'two threads pause, switch, complete and resume with attributable state',
+    () async {
+      final executionStarted = Completer<void>();
+      final releaseExecution = Completer<void>();
+      final toolService = _GatedContentToolService(
+        beforeExecute: (name, arguments) async {
+          if (arguments['command'] != 'printf content-owner-a') return;
+          if (!executionStarted.isCompleted) executionStarted.complete();
+          await releaseExecution.future;
+        },
+      );
+      final dataSource = ScriptedChatDataSource(
+        initialResponses: [
+          ChatCompletionResult(
+            content: _ownerContentCommandCall(
+              owner: 'a',
+              projectRoot: _projectARoot,
+            ),
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'Owner B answered while A was paused.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'Owner A resumed after its content tool.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final runtimeRepository = _GatedRefreshRuntimeRepositoryPort();
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        runtimeRepositoryPort: runtimeRepository,
+      );
+      addTearDown(() {
+        if (!releaseExecution.isCompleted) releaseExecution.complete();
+        container.dispose();
+      });
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-a',
+      );
+      final threadA = container
+          .read(conversationsNotifierProvider)
+          .currentConversationId!;
+      final notifier = container.read(chatNotifierProvider.notifier);
+
+      // Thread A pauses inside its content tool.
+      final ownerAFuture = notifier.sendMessage('Wait for owner A content.');
+      await executionStarted.future.timeout(const Duration(seconds: 2));
+      final requestsBeforeSwitch = dataSource.ledger.length;
+
+      // The user switches away and thread B runs to completion.
+      conversations.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-b',
+      );
+      final threadB = container
+          .read(conversationsNotifierProvider)
+          .currentConversationId!;
+      await Future<void>.delayed(Duration.zero);
+      final ownerB = await notifier
+          .sendMessage('Finish owner B while A waits.')
+          .timeout(const Duration(seconds: 2));
+      expect(ownerB?.conversationId, threadB);
+      await _waitUntil(
+        () => runtimeRepository.terminalEvents.any(
+          (event) => event.conversationId == threadB,
+        ),
+      );
+
+      // Request surface: B's traffic is attributable to B, and A issued nothing
+      // while paused.
+      expect(
+        dataSource.ledger.length,
+        greaterThan(requestsBeforeSwitch),
+        reason: 'thread B must have reached the model',
+      );
+      expect(
+        dataSource.ledger.records
+            .skip(requestsBeforeSwitch)
+            .expand((record) => record.messages)
+            .map((message) => message.content),
+        contains(contains('Finish owner B while A waits.')),
+      );
+
+      // Event surface: B terminalizes first, A has not terminalized at all.
+      expect(
+        runtimeRepository.terminalEvents.where(
+          (event) => event.conversationId == threadA,
+        ),
+        isEmpty,
+        reason: 'a paused thread must not terminalize because another finished',
+      );
+
+      // UI surface: the visible thread is B and shows B's answer, while A's
+      // pending work is not projected onto it.
+      expect(
+        notifier.state.messages.last.content,
+        contains('Owner B answered'),
+      );
+      expect(
+        notifier.state.messages.map((message) => message.content),
+        isNot(contains(contains('Owner A resumed'))),
+      );
+
+      // Teardown surface: B released its turn state; A still holds its own.
+      expect(
+        notifier.turnStateIsClearedForTest(),
+        isFalse,
+        reason:
+            'thread A is still mid-turn, so turn-local state must remain: '
+            '${notifier.turnStateReportForTest()}',
+      );
+
+      // Thread A resumes and completes.
+      releaseExecution.complete();
+      final ownerA = await ownerAFuture.timeout(const Duration(seconds: 2));
+      expect(ownerA?.conversationId, threadA);
+      await _waitUntil(
+        () => runtimeRepository.terminalEvents.any(
+          (event) => event.conversationId == threadA,
+        ),
+      );
+
+      // Event surface: ordering is B then A, and both completed.
+      expect(
+        runtimeRepository.terminalEvents.map((event) => event.conversationId),
+        [threadB, threadA],
+      );
+      expect(
+        runtimeRepository.terminalEvents,
+        everyElement(isA<CavernoRuntimeRunCompleted>()),
+      );
+
+      // Tool surface: the gated content command ran exactly once, for A's
+      // project. Content-embedded tool calls fold their output into the
+      // continuation's message history rather than the tool-result methods, so
+      // the ledger's evidence is the resumed request, not a toolResults entry.
+      expect(
+        toolService.executedArguments
+            .where(
+              (arguments) => arguments['command'] == 'printf content-owner-a',
+            )
+            .length,
+        1,
+        reason: 'ledger: ${dataSource.ledger}',
+      );
+      final resumed = dataSource.ledger.records.last;
+      expect(resumed.call, ChatDataSourceCall.streamChatCompletion);
+      expect(
+        resumed.messages.map((message) => message.content),
+        contains(contains('Wait for owner A content.')),
+        reason: "A's resumed request must carry A's own history, not B's",
+      );
+      expect(
+        resumed.messages.map((message) => message.content),
+        isNot(contains(contains('Finish owner B while A waits.'))),
+      );
+
+      // Teardown surface: with both turns finished, every turn-local store is
+      // released.
+      await _waitUntil(() => notifier.turnStateIsClearedForTest());
+      expect(
+        notifier.turnStateIsClearedForTest(),
+        isTrue,
+        reason: notifier.turnStateReportForTest().toString(),
+      );
+    },
+  );
+
+  // H2: same-conversation replacement and stale-completion fencing, which is
+  // where pilot-gate condition 3 -- reject stale completion by exact identity
+  // -- becomes observable. A second message on a busy thread queues rather than
+  // replacing, so replacement arrives through cancellation.
+  test(
+    'a cancelled turn cannot land after the same thread starts another',
+    () async {
+      final executionStarted = Completer<void>();
+      final releaseExecution = Completer<void>();
+      final toolService = _GatedContentToolService(
+        beforeExecute: (name, arguments) async {
+          if (arguments['command'] != 'printf content-owner-a') return;
+          if (!executionStarted.isCompleted) executionStarted.complete();
+          await releaseExecution.future;
+        },
+      );
+      final dataSource = ScriptedChatDataSource(
+        initialResponses: [
+          ChatCompletionResult(
+            content: _ownerContentCommandCall(
+              owner: 'a',
+              projectRoot: _projectARoot,
+            ),
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'Replacement turn answered.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'STALE: the cancelled turn resumed.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final runtimeRepository = _GatedRefreshRuntimeRepositoryPort();
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        runtimeRepositoryPort: runtimeRepository,
+      );
+      addTearDown(() {
+        if (!releaseExecution.isCompleted) releaseExecution.complete();
+        container.dispose();
+      });
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-a',
+      );
+      final thread = container
+          .read(conversationsNotifierProvider)
+          .currentConversationId!;
+      final notifier = container.read(chatNotifierProvider.notifier);
+
+      final cancelledFuture = notifier.sendMessage('First attempt.');
+      await executionStarted.future.timeout(const Duration(seconds: 2));
+
+      // The user stops the turn while its tool is still resolving, then sends
+      // again on the same conversation. That is the replacement.
+      notifier.cancelStreaming();
+      await Future<void>.delayed(Duration.zero);
+      expect(notifier.state.isLoading, isFalse);
+
+      final replacement = await notifier
+          .sendMessage('Second attempt.')
+          .timeout(const Duration(seconds: 2));
+      expect(replacement?.conversationId, thread);
+      await _waitUntil(
+        () => runtimeRepository.terminalEvents.any(
+          (event) => event.conversationId == thread,
+        ),
+      );
+      expect(
+        notifier.state.messages.last.content,
+        contains('Replacement turn answered.'),
+      );
+
+      // The cancelled turn now finishes its tool and resolves.
+      releaseExecution.complete();
+      await cancelledFuture.timeout(const Duration(seconds: 2));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // Fencing, stated so it cannot pass vacuously. An earlier draft asserted
+      // that the third scripted answer never appeared; the cancelled turn never
+      // asks the model again, so that held for the wrong reason and survived a
+      // disabled generation guard. What the cancelled turn does still do is
+      // resolve its tool and return, so the contract is about that.
+      expect(
+        dataSource.initialRequests,
+        2,
+        reason:
+            'the cancelled turn must not issue a further model request; a '
+            'third would mean it resumed. ledger:\n${dataSource.ledger}',
+      );
+      expect(
+        notifier.state.messages.map((message) => message.content),
+        isNot(contains(contains('content-owner-a'))),
+        reason: "a cancelled turn's tool output must not land afterwards",
+      );
+      expect(
+        notifier.state.messages.map((message) => message.content),
+        isNot(contains(contains('STALE:'))),
+      );
+      expect(
+        notifier.state.messages.last.content,
+        contains('Replacement turn answered.'),
+        reason: "the replacement's answer stays the last word",
+      );
+
+      // Teardown: the stale turn released its state rather than leaving it for
+      // the replacement to inherit.
+      await _waitUntil(() => notifier.turnStateIsClearedForTest());
+      expect(
+        notifier.turnStateIsClearedForTest(),
+        isTrue,
+        reason: notifier.turnStateReportForTest().toString(),
+      );
+    },
+  );
+
   test(
     'pending content result stays out of visible and hidden owner B turns',
     () async {
@@ -6051,8 +6358,32 @@ void main() {
     // the turn was cancelled *after* its tools had already run, discarding the
     // work, and its requests logged under the newly visible thread.
     late final ProviderContainer container;
-    final dataSource = _RecordingDataSource(
-      finalContent: 'ANSWER-BELONGING-TO-THREAD-A',
+    final dataSource = ScriptedChatDataSource(
+      initialResponses: [
+        ChatCompletionResult(
+          content: '',
+          finishReason: 'tool_calls',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-list',
+              name: 'list_directory',
+              arguments: const {'path': 'bin'},
+            ),
+          ],
+        ),
+      ],
+      toolResultResponses: [
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      ],
+      // The loop re-sends tool results as a user-role message and streams the
+      // answer from a third call; scripting only the first two would assert
+      // against the harness's `done` fallback.
+      streamedResponses: [
+        ChatCompletionResult(
+          content: 'ANSWER-BELONGING-TO-THREAD-A',
+          finishReason: 'stop',
+        ),
+      ],
     );
     final toolService = _SwitchingToolService(() async {
       // The user opens another thread while the hidden turn's tool runs. No
@@ -6078,9 +6409,19 @@ void main() {
           workspaceMode: WorkspaceMode.coding,
           projectId: 'project-a',
         );
+    final threadA = container
+        .read(conversationsNotifierProvider)
+        .currentConversationId!;
     final notifier = container.read(chatNotifierProvider.notifier);
 
-    await notifier.sendHiddenPrompt('keep going on thread A');
+    // The real hidden continuation is goal auto-continue
+    // (chat_notifier_goal_auto_continue.dart:645), which persists its answer.
+    // Without the flag the answer lands nowhere, and thread B is empty whether
+    // the turn survived or was discarded -- attribution is then unobservable.
+    await notifier.sendHiddenPrompt(
+      'keep going on thread A',
+      persistAssistantResponse: true,
+    );
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(
@@ -6088,12 +6429,20 @@ void main() {
       greaterThan(0),
       reason: 'the tool has to run for the thread switch to interleave',
     );
+    // Sharper than counting completions: the ledger says the tool result
+    // reached a follow-up request, and which tool it carried. A turn discarded
+    // at the switch records the first request and nothing after it.
     expect(
-      dataSource.completions,
-      greaterThanOrEqualTo(2),
+      dataSource.toolResultRequests,
+      greaterThanOrEqualTo(1),
       reason:
           'the tool ran, so its result has to reach a follow-up request '
           'instead of being discarded when the user switched threads',
+    );
+    expect(
+      dataSource.toolResultToolNames.expand((names) => names),
+      contains('list_directory'),
+      reason: 'the follow-up must carry the result of the tool that ran',
     );
     final visibleContent = container
         .read(chatNotifierProvider)
@@ -6106,6 +6455,23 @@ void main() {
       reason:
           'the background turn must not append its answer to the thread the '
           'user switched to',
+    );
+
+    // Absence alone passes just as well when the answer was discarded, because
+    // thread B is empty either way. Say positively where the answer went, or
+    // the scenario cannot tell attribution from loss.
+    container.read(conversationsNotifierProvider.notifier).selectConversation(
+      threadA,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      container
+          .read(chatNotifierProvider)
+          .messages
+          .map((message) => message.content)
+          .join('\n'),
+      contains('ANSWER-BELONGING-TO-THREAD-A'),
+      reason: 'the answer belongs to the thread whose turn produced it',
     );
   });
 

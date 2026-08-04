@@ -131,16 +131,31 @@ final class ScriptedChatDataSource extends ChatRemoteDataSource {
   ScriptedChatDataSource({
     List<ChatCompletionResult> initialResponses = const [],
     List<ChatCompletionResult> toolResultResponses = const [],
+    List<ChatCompletionResult> streamedResponses = const [],
     List<ScriptedStep>? initialSteps,
     List<ScriptedStep>? toolResultSteps,
+    List<ScriptedStep>? streamedSteps,
     this.beforeInitialResponse,
     this.beforeToolResultResponse,
   }) : _initialSteps = initialSteps ?? ScriptedStep.of(initialResponses),
        _toolResultSteps =
-           toolResultSteps ?? ScriptedStep.of(toolResultResponses);
+           toolResultSteps ?? ScriptedStep.of(toolResultResponses),
+       _streamedSteps = streamedSteps ?? ScriptedStep.of(streamedResponses);
 
   final List<ScriptedStep> _initialSteps;
   final List<ScriptedStep> _toolResultSteps;
+
+  /// Responses for `streamChatCompletion`, the loop's third decision.
+  ///
+  /// A tool-calling turn does not end at its tool-result follow-up: the loop
+  /// re-sends the results as a user-role message and streams the final answer
+  /// through `streamChatCompletion` (see CLAUDE.md, "Tool Calling Flow"). Until
+  /// this list existed that method was hard-coded to `done`, so a test could
+  /// script a turn's tools but not its answer -- which silently turned an
+  /// assertion about the answer into an assertion about the fallback.
+  ///
+  /// Empty by default, preserving the `done` fallback the private doubles had.
+  final List<ScriptedStep> _streamedSteps;
 
   /// Legacy index hooks, retained so the private doubles could move without
   /// rewriting their scenarios. New tests should prefer [ScriptedStep.barrier].
@@ -156,6 +171,7 @@ final class ScriptedChatDataSource extends ChatRemoteDataSource {
 
   var initialRequests = 0;
   var toolResultRequests = 0;
+  var streamedRequests = 0;
 
   /// Ambient compatibility reads stay poisoned: an owner-scoped turn must not
   /// consult shared completion state.
@@ -209,6 +225,18 @@ final class ScriptedChatDataSource extends ChatRemoteDataSource {
         : _toolResultSteps[index];
   }
 
+  /// Null when the script is exhausted, which the caller must keep distinct.
+  ///
+  /// `ChatCompletionResult.usage` is non-nullable and defaults to
+  /// `TokenUsage.zero`, so a terminal step cannot be told from a scripted one
+  /// by inspecting its usage: `??` would silently replace the ambient usage
+  /// with zero and drop what an earlier response reported.
+  ScriptedStep? _nextStreamedStep() {
+    final index = streamedRequests;
+    streamedRequests += 1;
+    return index >= _streamedSteps.length ? null : _streamedSteps[index];
+  }
+
   ToolResultInfo _toolResult({
     required String toolCallId,
     required String toolName,
@@ -239,10 +267,13 @@ final class ScriptedChatDataSource extends ChatRemoteDataSource {
         maxTokens: maxTokens,
       ),
     );
+    final response = _nextStreamedStep()?.response;
     return StreamedChatCompletion.fromStream(
-      Stream<String>.value('done'),
-      finishReason: 'stop',
-      usage: _compatibilityUsage,
+      Stream<String>.value(response?.content ?? 'done'),
+      finishReason: response?.finishReason ?? 'stop',
+      // Unscripted keeps the ambient usage the last response set, which is what
+      // this method did before it could be scripted.
+      usage: response?.usage ?? _compatibilityUsage,
     );
   }
 
