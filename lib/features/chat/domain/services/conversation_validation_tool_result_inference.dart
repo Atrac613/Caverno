@@ -1,16 +1,30 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
+import '../../../../core/utils/logger.dart';
 import '../entities/conversation_workflow.dart';
 import 'coding_command_output_guardrail_service.dart';
+import 'tool_outcome_shadow_comparison.dart';
 
 class ConversationValidationToolResultInput {
   const ConversationValidationToolResultInput({
     required this.toolName,
     required this.rawResult,
+    this.outcome,
   });
 
   final String toolName;
   final String rawResult;
+
+  /// What the tool reported about its own execution, when it reported
+  /// anything.
+  ///
+  /// Carried for comparison only. This service still decides from
+  /// [rawResult]; the structured value is recorded beside the parsed one so
+  /// the two can be compared on real runs before either replaces the other.
+  /// See LL34 in `docs/local_llm_agent_roadmap.md`.
+  final ToolOutcome? outcome;
 }
 
 class ConversationValidationToolResultInferenceResult {
@@ -60,11 +74,23 @@ class ConversationValidationToolResultInference {
     required ConversationWorkflowTask task,
     required Iterable<ConversationValidationToolResultInput> toolResults,
   }) {
-    final relevantResults = toolResults
+    final supported = toolResults
         .where((result) => _supportedToolNames.contains(result.toolName))
-        .map(_parseToolResult)
-        .whereType<_ParsedValidationToolResult>()
         .toList(growable: false);
+    final relevantResults = <_ParsedValidationToolResult>[];
+    for (final input in supported) {
+      final parsed = _parseToolResult(input);
+      if (parsed == null) continue;
+      relevantResults.add(parsed);
+      // Shadow only: this service still decides from the payload text. The
+      // comparison exists to find out whether it could stop doing so.
+      final record = compareToolOutcomeExitCode(
+        toolName: input.toolName,
+        outcome: input.outcome,
+        parsedExitCode: parsed.exitCode,
+      );
+      if (record.isNoteworthy) appLog(record.logLine);
+    }
     if (relevantResults.isEmpty) {
       return null;
     }

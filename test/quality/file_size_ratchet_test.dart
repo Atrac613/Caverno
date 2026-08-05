@@ -293,8 +293,10 @@ const Map<String, int> _lineBudgets = {
       88,
   'lib/features/chat/presentation/coordinators/workflow_task_action_coordinator.dart':
       258,
+  // +2 for LL34: four call sites now hand the tool's reported outcome to
+  // validation inference instead of letting it re-derive one from the payload.
   'lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart':
-      2380,
+      2382,
   'lib/features/chat/domain/services/content_tool_result_formatter.dart': 132,
   'lib/features/chat/domain/services/verifier_replay_candidate_policy.dart': 56,
   'lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart':
@@ -470,12 +472,14 @@ const Map<String, int> _libraryLineBudgets = {
   // the suite green, so a reader who checks coverage before deleting it would
   // otherwise conclude it is dead code.
   // +32 for the drafting routing above; see the primary-file note.
+  // +4 for LL34: the tool loop hands its ToolResultInfo the outcome the
+  // McpToolResult beside it already carried.
   // +20 to move the six owner-keyed releases out of the generation-keyed
   // destructor, which reached them by looking the owner back up. The turn now
   // has one destructor per key. The generation one lost nine lines; the scope
   // gained those six registrations plus the note explaining why the paused
   // participant guard travels with them.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19436,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19440,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

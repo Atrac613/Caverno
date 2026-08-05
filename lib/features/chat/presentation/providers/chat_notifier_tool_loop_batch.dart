@@ -443,6 +443,10 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           name: toolCall.name,
           arguments: toolCall.arguments,
           result: toolResult,
+          // Carried, not re-derived: the exit status is read a few lines below
+          // from `result.outcome`, and every downstream consumer had to parse
+          // it back out of the payload string because it stopped here.
+          outcome: result.outcome,
         ),
         interactionGeneration: interactionGeneration,
         taintSourceResult: result,

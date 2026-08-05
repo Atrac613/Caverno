@@ -245,6 +245,7 @@ final class WorkflowTaskRunCoordinator {
                 (result) => ConversationValidationToolResultInput(
                   toolName: result.name,
                   rawResult: result.result,
+                  outcome: result.outcome,
                 ),
               )
               .toList(growable: false),
@@ -2033,6 +2034,7 @@ final class WorkflowTaskRunCoordinator {
                 (result) => ConversationValidationToolResultInput(
                   toolName: result.name,
                   rawResult: result.result,
+                  outcome: result.outcome,
                 ),
               )
               .toList(growable: false),
@@ -2050,6 +2052,7 @@ final class WorkflowTaskRunCoordinator {
                   (result) => ConversationValidationToolResultInput(
                     toolName: result.name,
                     rawResult: result.result,
+                    outcome: result.outcome,
                   ),
                 )
                 .toList(growable: false),
@@ -2068,6 +2071,7 @@ final class WorkflowTaskRunCoordinator {
                   (result) => ConversationValidationToolResultInput(
                     toolName: result.name,
                     rawResult: result.result,
+                    outcome: result.outcome,
                   ),
                 )
                 .toList(growable: false),

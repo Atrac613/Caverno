@@ -7585,6 +7585,73 @@ void main() {
     },
   );
 
+
+  // LL34 characterization, not a target. The tool loop now attaches the tool's
+  // reported outcome to its ToolResultInfo, but a single-result turn reaches
+  // the model through `streamWithToolResult` / `createChatCompletionWithToolResult`,
+  // whose parameters are `toolCallId`, `toolName`, `toolArguments` and
+  // `toolResult` -- four strings. The structured fact is destroyed by the shape
+  // of that interface, not by an omission in the loop, so carrying it further
+  // needs the single-result API to take a ToolResultInfo. Pinned here so the
+  // obstacle is visible to whoever picks LL34 up.
+  test('a single-result turn cannot carry a reported exit status', () async {
+    final dataSource = ScriptedChatDataSource(
+      initialResponses: [
+        ChatCompletionResult(
+          content: '',
+          finishReason: 'tool_calls',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'call-exit',
+              name: 'list_directory',
+              arguments: const {'path': 'bin'},
+            ),
+          ],
+        ),
+      ],
+      toolResultResponses: [
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      ],
+      streamedResponses: [
+        ChatCompletionResult(content: 'done', finishReason: 'stop'),
+      ],
+    );
+    final container = _buildContainer(
+      dataSource: dataSource,
+      toolService: _ReportedOutcomeToolService(
+        const ToolOutcome(exitCode: 2),
+      ),
+    );
+    addTearDown(container.dispose);
+
+    container
+        .read(conversationsNotifierProvider.notifier)
+        .createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'project-a',
+        );
+
+    await container.read(chatNotifierProvider.notifier).sendMessage('go');
+
+    expect(dataSource.toolResultBatches, isNotEmpty);
+    final carried = dataSource.toolResultBatches.last.single;
+    expect(
+      carried.outcome,
+      isNull,
+      reason:
+          'the single-result datasource API takes four strings, so it '
+          'synthesizes a ToolResultInfo and the outcome cannot survive. When '
+          'that API takes a ToolResultInfo, this expectation flips to 2.',
+    );
+    expect(
+      carried.result,
+      contains('exit_code'),
+      reason:
+          'which is why consumers still parse the status back out of the '
+          'payload -- the fact is only there as text',
+    );
+  });
+
   test('a pending approval follows its thread and is announced', () async {
     // Leaving a thread that is waiting on the user used to drop the approval
     // outright. It has to survive, stay off the other thread, and be visible
@@ -10247,4 +10314,41 @@ final class _FailedVerificationGoalToolService extends McpToolService {
       isSuccess: true,
     );
   }
+}
+
+/// Returns a fixed structured outcome so the loop's carrying of it is testable.
+class _ReportedOutcomeToolService extends McpToolService {
+  _ReportedOutcomeToolService(this.outcome);
+
+  final ToolOutcome outcome;
+
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() => [
+    {
+      'type': 'function',
+      'function': {
+        'name': 'list_directory',
+        'description': 'List a directory',
+        'parameters': const <String, dynamic>{'type': 'object'},
+      },
+    },
+  ];
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async => McpToolResult(
+    toolName: name,
+    result: '{"exit_code":2}',
+    isSuccess: true,
+    outcome: outcome,
+  );
 }
