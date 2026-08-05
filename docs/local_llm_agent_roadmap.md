@@ -3067,6 +3067,56 @@ Problem:
 - Without firing records, "is this guard load-bearing or dead weight?" is
   settled by argument. With them it is settled by counting.
 
+First firing distribution, 2026-08-05 — **1,735 real session logs**
+(`~/.caverno/session_logs`). Transform records appear in **44 entries**, with
+**5 distinct labels**:
+
+| label | firings |
+| --- | ---: |
+| `unexecuted_command_action_notice` | 36 |
+| `unverified_read_only_inspection_notice` | 5 |
+| `coding_continuation_recovery_prose_only_coding_continuation` | 2 |
+| `unwritten_file_claim_notice` | 1 |
+| `goal_completion_lexical_only` | 1 |
+
+One label is 82% of all firings. The rest are single digits.
+
+**Labels that exist in code and never fired once**, including every one reachable
+from the guards this item names:
+
+```
+narrated_transcript_repair          narrated_transcript_claim_notice
+final_answer_concise_retry          pending_action_length_recovery
+truncated_tool_call_arguments_feedback
+unexecuted_tool_request_notice      verification_claim_notice
+```
+
+`narrated_transcript_repair` is the notable one: `NarratedTranscriptClaimGuard`
+was recorded as "unproven live" when it landed, and 1,735 sessions later it
+still is — zero firings.
+
+**This does not by itself authorize deletion.** A guard that never fires may be
+dead weight, or may be the reason a failure mode stopped appearing; the counts
+say which are worth investigating first, not which are safe to remove. It also
+measures only labels that reach `transforms[]` — a guard that fires without
+calling `addTransform` is invisible here, which is the gap the scope below
+closes.
+
+**The scope item asking to extend `tool/triage_session_logs.py` with a per-label
+firing distribution is already done.** The tool prints this table under
+"Post-LLM transforms applied to on-screen messages"; an independent query over
+the same logs reproduced its counts exactly. Regenerate rather than trusting
+this table:
+
+```bash
+python3 tool/triage_session_logs.py --top 3
+```
+
+What remains in this item is therefore narrower than written: labels for guards
+that fire *without* calling `addTransform` (invisible to this view), the
+structural rule that a lexical guard may not set goal status or finalize a turn,
+and the lexical-vs-grounded disagreement view, which depends on LL34/LL35.
+
 Scope:
 - Give every lexical guard a stable pattern label and emit a LL33-style
   transform record on each firing, including the extracted claim and the
