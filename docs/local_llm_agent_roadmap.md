@@ -2964,6 +2964,41 @@ Problem:
   they are the reason a truthful-sounding but unverified summary can close a
   goal.
 
+**Shadow mode is already implemented and already running.**
+`GoalUpdateAckResolver` and `GoalCompletionShadow` exist; the lexical path stays
+authoritative and disagreements are recorded under three labels. What this item
+still needs is not code but **usage**.
+
+First reading, 2026-08-05, over 1,735 session logs:
+
+| | |
+| --- | ---: |
+| turns carrying a `goalCompletionShadow` record | **11** (across 9 sessions) |
+| tool recorded a completion | 6 |
+| tool rejected a completion | 1 |
+| no completion claimed through the tool | 4 |
+| lexical path completed | 5 |
+| **recorded disagreements** | **1** |
+
+The single disagreement is `goal_completion_lexical_only` — completion inferred
+from prose while the model made no tool claim. The other two labels have **never
+fired**: the tool has not once caught a completion the lexical path missed, and
+the lexical path has not once completed something the tool would have rejected.
+
+**That last zero is the interesting one.** This item's stated motivation is that
+"any assistant sentence containing one of those can end a goal." Over 1,735
+sessions that has not been observed — `toolRejectedLexicalCompleted` is 0.
+
+**But the sample is 11 turns, so it decides nothing.** Goal completions are rare;
+1,735 sessions produced a single-digit number of them. Deleting the lexical path
+on this evidence would be the same mistake as keeping it on argument. The
+measurement is correctly instrumented and needs to run longer, which costs
+nothing and requires no further work here.
+
+Regenerate rather than trusting the table: the counts come from
+`goalCompletionShadow.toolOutcome` and `.lexicalCompleted` in the session logs,
+and the disagreement labels appear in `tool/triage_session_logs.py` output.
+
 Scope:
 - Add an `update_goal` built-in with `completed` / `blocked_reason` / `message`,
   routed through the existing tool-dispatch path.
