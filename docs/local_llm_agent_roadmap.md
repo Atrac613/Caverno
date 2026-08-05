@@ -2800,6 +2800,31 @@ Progress 2026-08-04 — the envelope reaches consumers, and shadow mode is on:
   claim was inferred from the API's shape rather than traced, which is the same
   error mode the pattern-B inventory made.
 
+**First live measurement, 2026-08-05.** The TODO MVP canary
+(`CAVERNO_CODING_TODO_APP_MVP_LIVE_CANARY=1`, `qwen3.6-27b-vision` on the LAN
+llama.cpp, 130 s, passed) produced two comparisons and **both agree**:
+
+| verdict | structured | parsed |
+| --- | ---: | ---: |
+| agree | 1 | 1 |
+| agree | 0 | 0 |
+
+Two `local_execute_command` calls, one failing and one succeeding. Small, but it
+is the first evidence that the producer attaches an exit status a consumer would
+otherwise re-derive, and that the two match on both a failing and a passing run.
+
+Getting it required two fixes that are worth writing down. No canary reaches
+`ConversationValidationToolResultInference` — zero of them reference
+`validationCommand` — so the comparison had to be placed in the tool loop, the
+one point a live run passes through. And the loopback relay the LAN endpoint
+needs (`flutter_tester` cannot reach a LAN IP under macOS Local Network Privacy)
+must clear its socket timeout after connecting: leaving it set applies to every
+later `recv`, which closes the connection mid-generation and reads exactly like
+the model hanging.
+
+Next: more live runs to see a disagreement, or a consumer migration once the
+sample is large enough to trust.
+
 Scope:
 - Add typed outcome fields to the tool-result envelope alongside the existing
   `result` string (which stays — it is what the model sees):

@@ -163,6 +163,7 @@ import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
 import '../../domain/services/tool_failure_classifier.dart';
+import '../../domain/services/tool_outcome_shadow_comparison.dart';
 import '../../domain/services/tool_loop_recovery_policy.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import '../../domain/services/tool_result_taint_recorder.dart';

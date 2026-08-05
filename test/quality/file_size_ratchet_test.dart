@@ -32,7 +32,8 @@ const Map<String, int> _lineBudgets = {
   // returned -- reproduced, then fixed. Routing is structurally longer than
   // assigning: the callback form costs three lines per write and there are
   // seven of them. Nothing was extractable; the alternative is the bug.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8934,
+    // +1 import for the shadow comparator.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8935,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -479,7 +480,10 @@ const Map<String, int> _libraryLineBudgets = {
   // has one destructor per key. The generation one lost nine lines; the scope
   // gained those six registrations plus the note explaining why the paused
   // participant guard travels with them.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19440,
+    // +13 for the tool-loop shadow point. No canary reaches the validation
+  // consumer, so this is the only place a live run can answer whether the
+  // producer attaches an exit status a consumer would otherwise re-derive.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19455,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

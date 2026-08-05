@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 /// How a tool's own reported exit status compares with the one a consumer
@@ -85,4 +87,24 @@ ToolOutcomeShadowRecord compareToolOutcomeExitCode({
     structuredExitCode: structured,
     parsedExitCode: parsedExitCode,
   );
+}
+
+/// The exit status a command payload carries as text, independent of whatever
+/// the producer chose to report.
+///
+/// Deliberately not `CommandPayloadFacts`: that is the producer, and comparing
+/// it with itself would answer nothing. The point is to find where the two
+/// diverge — notably that the producer suppresses the status entirely when the
+/// invocation reported an error, while the text still carries one.
+int? parseExitCodeFromPayload(String payload) {
+  try {
+    final decoded = jsonDecode(payload);
+    if (decoded is! Map<String, dynamic>) return null;
+    final value = decoded['exit_code'];
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value.trim());
+    return null;
+  } on FormatException {
+    return null;
+  }
 }
