@@ -310,6 +310,11 @@ class ToolResultPromptBuilder {
           name: toolResult.name,
           arguments: toolResult.arguments,
           result: result,
+          // Budgeting shortens the payload text; it does not change what the
+          // tool reported about its own execution. Dropping the outcome here
+          // is what forced downstream consumers to parse an exit status back
+          // out of a string that budgeting may since have truncated.
+          outcome: toolResult.outcome,
         ),
       );
     }
@@ -332,6 +337,7 @@ class ToolResultPromptBuilder {
             id: toolResult.id,
             name: toolResult.name,
             arguments: toolResult.arguments,
+            outcome: toolResult.outcome,
             result: _truncateTextWithMiddle(
               toolResult.result,
               maxChars: perResultTarget,

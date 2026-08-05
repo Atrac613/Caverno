@@ -2780,6 +2780,26 @@ eight. The implementation surface is small *because* usage is concentrated — t
 99-tool tail of network/BLE/computer-use surfaces has no natural outcome and
 also almost no traffic, so leaving it text-only costs nothing.
 
+Progress 2026-08-04 — the envelope reaches consumers, and shadow mode is on:
+- `ToolResultInfo` now carries `ToolOutcome`, and the tool loop attaches the
+  one `McpToolResult` already had. It was being dropped twice: once at the
+  loop's conversion, and once by `ToolResultPromptBuilder.budgetToolResults`,
+  which rebuilds every result to shorten its payload. **Budgeting is why the
+  four consumers re-parse: the structured fact never arrived.**
+- `compareToolOutcomeExitCode` records disagreement between a tool's reported
+  exit status and a consumer's text-derived one, without acting on it. Wired
+  into `ConversationValidationToolResultInference`, which still decides from
+  text. This exists because an earlier attempt to hand it the exit code was
+  reverted when stderr turned out to outrank a zero exit.
+- **The suite cannot answer the agreement question.** All 20 test constructions
+  of `ConversationValidationToolResultInput` hand-build their inputs and pass no
+  outcome, so every one of the 67 comparisons the chat suite produces reports
+  `structuredMissing`. Real agree/disagree data has to come from live runs.
+- A wrong diagnosis is recorded here on purpose: the first attempt blamed the
+  four-string single-result datasource API. The notifier never calls it. The
+  claim was inferred from the API's shape rather than traced, which is the same
+  error mode the pattern-B inventory made.
+
 Scope:
 - Add typed outcome fields to the tool-result envelope alongside the existing
   `result` string (which stays — it is what the model sees):

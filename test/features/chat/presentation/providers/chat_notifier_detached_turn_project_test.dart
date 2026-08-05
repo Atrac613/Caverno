@@ -7586,15 +7586,12 @@ void main() {
   );
 
 
-  // LL34 characterization, not a target. The tool loop now attaches the tool's
-  // reported outcome to its ToolResultInfo, but a single-result turn reaches
-  // the model through `streamWithToolResult` / `createChatCompletionWithToolResult`,
-  // whose parameters are `toolCallId`, `toolName`, `toolArguments` and
-  // `toolResult` -- four strings. The structured fact is destroyed by the shape
-  // of that interface, not by an omission in the loop, so carrying it further
-  // needs the single-result API to take a ToolResultInfo. Pinned here so the
-  // obstacle is visible to whoever picks LL34 up.
-  test('a single-result turn cannot carry a reported exit status', () async {
+  // LL34. The first version of this test asserted the outcome could not
+  // survive, blaming the four-string single-result datasource API. That was
+  // wrong: the notifier never calls it. The fact was being dropped by
+  // `ToolResultPromptBuilder.budgetToolResults`, which rebuilds every
+  // ToolResultInfo to shorten its payload and did not copy the outcome across.
+  test('a reported exit status survives prompt budgeting', () async {
     final dataSource = ScriptedChatDataSource(
       initialResponses: [
         ChatCompletionResult(
@@ -7636,19 +7633,11 @@ void main() {
     expect(dataSource.toolResultBatches, isNotEmpty);
     final carried = dataSource.toolResultBatches.last.single;
     expect(
-      carried.outcome,
-      isNull,
+      carried.outcome?.exitCode,
+      2,
       reason:
-          'the single-result datasource API takes four strings, so it '
-          'synthesizes a ToolResultInfo and the outcome cannot survive. When '
-          'that API takes a ToolResultInfo, this expectation flips to 2.',
-    );
-    expect(
-      carried.result,
-      contains('exit_code'),
-      reason:
-          'which is why consumers still parse the status back out of the '
-          'payload -- the fact is only there as text',
+          'budgeting shortens the payload text; it must not discard what the '
+          'tool reported about its own execution',
     );
   });
 
