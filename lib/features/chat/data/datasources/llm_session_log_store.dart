@@ -220,16 +220,23 @@ class LlmSessionLogStore {
   }) : _rootDirectoryProvider =
            rootDirectoryProvider ?? _defaultRootDirectoryProvider,
        _retentionPolicy =
-           retentionPolicy ?? LlmSessionLogRetentionPolicy.fromEnvironment();
+           retentionPolicy ?? LlmSessionLogRetentionPolicy.fromEnvironment(),
+       _writesEnabled = writesEnabledFor(
+         hasExplicitRoot: rootDirectoryProvider != null,
+         isFlutterTest: _isFlutterTest,
+         directoryOverride: Platform.environment[directoryEnvironmentKey],
+       );
 
   final Future<Directory> Function() _rootDirectoryProvider;
   final LlmSessionLogRetentionPolicy _retentionPolicy;
+  final bool _writesEnabled;
   Future<void> _writeTail = Future<void>.value();
 
   static const schemaName = 'caverno_llm_session_log_entry';
   // v2 adds the `build` field (git commit/dirty/builtAt provenance).
   static const schemaVersion = 2;
   static const enabledEnvironmentKey = 'CAVERNO_SESSION_LOG_ENABLED';
+  static const directoryEnvironmentKey = 'CAVERNO_SESSION_LOG_DIR';
   static const _fallbackSessionId = 'unscoped';
   static final RegExp _safeFileNamePattern = RegExp(r'[^A-Za-z0-9._-]+');
   static const _redactedStringKeys = {
@@ -263,6 +270,32 @@ class LlmSessionLogStore {
     'api_key',
     'authorization',
   };
+  static bool get _isFlutterTest =>
+      Platform.environment.containsKey('FLUTTER_TEST');
+
+  /// Whether this store may write, given how its destination was chosen.
+  ///
+  /// Under `flutter test` the default destination is the developer's
+  /// `~/.caverno/session_logs`, which is the same corpus every roadmap
+  /// measurement reads. Unrelated widget/notifier tests exercise the production
+  /// provider and were silently appending to it, so a test run and a real
+  /// session were indistinguishable to the analysis tooling.
+  ///
+  /// Writing therefore requires the destination to have been chosen
+  /// deliberately: an injected `rootDirectoryProvider` (tests that assert on
+  /// log contents) or [directoryEnvironmentKey] (the live canary scripts, which
+  /// run under `flutter test` and do need their logs). Outside `flutter test`
+  /// nothing changes.
+  static bool writesEnabledFor({
+    required bool hasExplicitRoot,
+    required bool isFlutterTest,
+    required String? directoryOverride,
+  }) {
+    if (!isFlutterTest) return true;
+    if (hasExplicitRoot) return true;
+    return (directoryOverride?.trim().isNotEmpty) ?? false;
+  }
+
   static final RegExp _privateKeyPattern = RegExp(
     r'-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----',
     caseSensitive: false,
@@ -607,6 +640,9 @@ class LlmSessionLogStore {
     required String line,
     required DateTime at,
   }) {
+    if (!_writesEnabled) {
+      return Future<void>.value();
+    }
     final write = _writeTail.then((_) async {
       final file = await fileForContext(context);
       await _prepareFileForWrite(
@@ -843,7 +879,7 @@ class LlmSessionLogStore {
   }
 
   static Future<Directory> _defaultRootDirectoryProvider() async {
-    final override = Platform.environment['CAVERNO_SESSION_LOG_DIR']?.trim();
+    final override = Platform.environment[directoryEnvironmentKey]?.trim();
     if (override != null && override.isNotEmpty) {
       return Directory(override);
     }

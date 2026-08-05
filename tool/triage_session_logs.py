@@ -28,12 +28,17 @@ predates build provenance or the binary was not built via tool/safe-flutter).
 Locations match the app: honors CAVERNO_SESSION_LOG_DIR, else
 CAVERNO_HOME (default ~/.caverno) + /session_logs.
 
+Only *grounded* logs are counted — those carrying at least one LLM
+request/response. A log with turn markers but no inference is test output, not a
+session, and mixing the two silently inflated every published figure before
+2026-08-05 (see ``docs/session_log_corpus_contamination_2026-08-05.md``).
+
 Pure python3, no Flutter/Dart/Caverno runtime, so any coding agent with shell
 access can run it.
 
 Usage:
   tool/triage_session_logs.py [--top N] [--since-days D] [--min-score S]
-                              [--dir PATH] [--full]
+                              [--dir PATH] [--full] [--include-ungrounded]
 """
 
 from __future__ import annotations
@@ -77,6 +82,21 @@ _ABNORMAL_EXIT_REASONS = frozenset({
     "empty_response",
     "partial_fragment",
     "unknown",
+})
+
+# Operations that carry a real LLM request/response. A log file with none of
+# them recorded no inference, so it is not a session — it is test output. Until
+# 2026-08-05 the app's default log root was also the destination of every
+# `flutter test` run that touched the production provider, and 1,569 of the
+# 1,740 files in the developer corpus were written that way. They contributed
+# 45.7% of all scanned turns (two appended-to fixtures alone), so every
+# aggregate below was mixing fixtures into real evidence. Grounding is required
+# by default; `--include-ungrounded` restores the old behavior.
+_COMPLETION_OPERATIONS = frozenset({
+    "createChatCompletion",
+    "createChatCompletionWithToolResults",
+    "streamChatCompletion",
+    "streamChatCompletionWithTools",
 })
 
 OVERSIZED_CONTENT_CHARS = 8000
@@ -192,10 +212,13 @@ def analyze(path: str) -> dict | None:
     commit = build.get("commit") or "—"
     dirty = bool(build.get("dirty"))
     no_answer = 0
+    completions = 0
     exit_reasons: Counter = Counter()
     transforms: Counter = Counter()
     goal_auto_continue: Counter = Counter()
     for entry in entries:
+        if entry.get("operation") in _COMPLETION_OPERATIONS:
+            completions += 1
         # LL31 turn-exit markers are separate, response-less entries.
         if entry.get("operation") == "turn_exit":
             turn_exit = entry.get("turnExit", {})
@@ -276,6 +299,7 @@ def analyze(path: str) -> dict | None:
         "score": round(score, 2),
         "commit": commit,
         "dirty": dirty,
+        "completions": completions,
     }
 
 
@@ -295,6 +319,11 @@ def main() -> int:
     parser.add_argument(
         "--full", action="store_true", help="print absolute paths, not basenames"
     )
+    parser.add_argument(
+        "--include-ungrounded",
+        action="store_true",
+        help="also count logs with no LLM request/response (test output)",
+    )
     args = parser.parse_args()
 
     root = args.dir or _session_dir()
@@ -304,11 +333,19 @@ def main() -> int:
 
     cutoff = time.time() - args.since_days * 86400 if args.since_days else None
     rows = []
+    ungrounded = 0
+    ungrounded_turns = 0
     for path in _iter_log_files(root):
         if cutoff and os.path.getmtime(path) < cutoff:
             continue
         row = analyze(path)
-        if row and row["score"] >= args.min_score:
+        if not row:
+            continue
+        if not row["completions"] and not args.include_ungrounded:
+            ungrounded += 1
+            ungrounded_turns += sum((row.get("exit_reasons") or {}).values())
+            continue
+        if row["score"] >= args.min_score:
             rows.append(row)
 
     # Aggregate the LL31 exit-reason distribution across every scanned session
@@ -336,6 +373,12 @@ def main() -> int:
     rows = rows[: args.top]
 
     print(f"== Session log triage ({root}) ==")
+    if ungrounded:
+        print(
+            f"   skipped {ungrounded} ungrounded logs "
+            f"({ungrounded_turns} turns) with no LLM request/response "
+            f"— pass --include-ungrounded to count them"
+        )
     print(
         f"{'score':>6}  {'len':>3} {'txp':>3} {'loop':>4} {'rerd':>4} {'big':>3} "
         f"{'err':>3} {'stop':>4}  {'n':>3}  {'build':>9}  session"

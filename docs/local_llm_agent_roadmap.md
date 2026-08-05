@@ -2610,6 +2610,19 @@ taxonomy, turn-completion explainer, mid-work WARNING diagnostic, and the
 Lead milestone (instrumentation): build this first — it is also the measurement
 device that produces the exit-reason evidence LL29 and LL30 are gated on.
 
+**Correction 2026-08-05 — the instrument's input was contaminated.** Every
+figure this milestone produced before today mixed test output into real
+sessions: 1,569 of the 1,740 files in `~/.caverno/session_logs` were written by
+`flutter test`, and two appended-to fixtures alone supplied 45.7% of all scanned
+turns. The exit distribution corrects from 3,258 turns (93.2% `text_response`,
+5.9% `partial_fragment`) to **190 turns, with `partial_fragment` at 4**. All
+four are canary sentinels (`CLI2_CHAT_OK` and friends) that the provider
+reported as `finishReason: "stop"` — the lexical fragment rule outranking
+mechanical ground truth, which is the LL34-LL37 pattern, though four instances
+justify no change. The leak is closed at the store and the triage tool now
+counts only grounded logs; see
+`docs/session_log_corpus_contamination_2026-08-05.md`.
+
 Next action: thread a `turnExitReason` local through the `ChatNotifier` loop
 break sites, then add the post-loop explainer + mid-work warning as a single
 finalization step. Once it is emitting, run `tool/triage_session_logs.py` over
@@ -2999,6 +3012,25 @@ Regenerate rather than trusting the table: the counts come from
 `goalCompletionShadow.toolOutcome` and `.lexicalCompleted` in the session logs,
 and the disagreement labels appear in `tool/triage_session_logs.py` output.
 
+**Correction, same day — the one disagreement was a fixture.** 1,569 of the
+1,740 files in the corpus were written by `flutter test`, not by the app
+(`docs/session_log_corpus_contamination_2026-08-05.md`). All four
+`goal_completion_lexical_only` records in it are test output. The real reading
+is **7 shadow turns across 171 real logs, with zero recorded disagreements on
+all three labels** — including the one this item's motivation predicted.
+
+The decision is unchanged and for the same reason: 7 is smaller than the 11 that
+was already judged too small to act on. What changes is the sentence the
+evidence supports. Not "one disagreement in 1,735 sessions", but "no
+disagreements in 171".
+
+**And the denominator does not grow on its own.** When this was measured the
+newest log carrying an LLM call was dated 2026-07-27 — nine days in which the
+corpus grew by hundreds of files, all of them test output. (It resumed the same
+evening.) "Collect shadow evidence before proceeding" is not a plan that
+executes passively: it needs real usage with session logging on, or canary runs
+whose logs land in the analyzed corpus.
+
 Scope:
 - Add an `update_goal` built-in with `completed` / `blocked_reason` / `message`,
   routed through the existing tool-dispatch path.
@@ -3116,6 +3148,16 @@ First firing distribution, 2026-08-05 — **1,735 real session logs**
 
 One label is 82% of all firings. The rest are single digits.
 
+**Correction, same day.** This table counted test output as sessions
+(`docs/session_log_corpus_contamination_2026-08-05.md`). Over the 171 logs that
+recorded an actual LLM call the distribution is **32 firings across 4 labels**:
+`unexecuted_command_action_notice` 26, `unverified_read_only_inspection_notice`
+3, `coding_continuation_recovery_prose_only_coding_continuation` 2,
+`unwritten_file_claim_notice` 1. `goal_completion_lexical_only` drops to **0** —
+every record of it was a fixture. The shape of the finding survives (one label
+dominates, the rest are single digits); the denominator and the fifth label do
+not.
+
 **Labels that exist in code and never fired once**, including every one reachable
 from the guards this item names:
 
@@ -3193,7 +3235,8 @@ the feedback service; the shared constants now live in
 
 Next action: **delete-by-measurement**, the only part left. Still gated on
 accumulated post-provenance logs — the current distribution (three of ten
-transform labels firing) is a baseline, not evidence. The two prose inferences
+transform labels firing) is a baseline, not evidence, and per the correction
+above the accumulation had stopped nine days before anyone checked. The two prose inferences
 are deliberately excluded from the enforcement until LL35's confirmation rung
 exists to replace them.
 

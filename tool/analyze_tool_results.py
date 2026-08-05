@@ -183,8 +183,17 @@ def main() -> int:
     )
 
     total = sum(renders.values())
+    # Only logs that actually contributed a message are a meaningful
+    # denominator. Files with turn markers and no LLM traffic are test output
+    # and contribute nothing here (no request payload to parse), but quoting
+    # the raw file count as "session logs" is how a 171-log corpus got reported
+    # as 1,735 (docs/session_log_corpus_contamination_2026-08-05.md).
     print(f"== Distinct tool results ({root}) ==")
-    print(f"{len(paths)} session logs, {total} tool results, {len(renders)} tools invoked")
+    print(
+        f"{len(per_session)} session logs with tool traffic "
+        f"({len(paths)} files scanned), {total} tool results, "
+        f"{len(renders)} tools invoked"
+    )
     inflation = slots / distinct if distinct else 1.0
     print(
         f"history replay: {slots} message slots -> {distinct} distinct "

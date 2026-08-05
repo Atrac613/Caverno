@@ -147,7 +147,11 @@ JSONL session logs for later debugging and Codex analysis.
   truncations, transport errors, longest identical tool-call loop, oversized
   turns, tool errors) so you can deep-dive the worst offenders instead of
   opening logs at random. Pure python3; honors `CAVERNO_SESSION_LOG_DIR` /
-  `CAVERNO_HOME`.
+  `CAVERNO_HOME`. Counts only *grounded* logs — those carrying at least one LLM
+  request/response — and prints how many it skipped; `--include-ungrounded`
+  restores the old behavior. Logs with turn markers but no inference are test
+  output, and mixing them in inflated every published figure before 2026-08-05
+  (`docs/session_log_corpus_contamination_2026-08-05.md`).
 
 ### Approval Audit Log
 
