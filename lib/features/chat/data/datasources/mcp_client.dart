@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -26,9 +27,16 @@ abstract class McpClientBase {
 }
 
 class McpClient implements McpClientBase {
-  McpClient({required this.baseUrl});
+  McpClient({required this.baseUrl, this.timeout = defaultTimeout});
+
+  /// `http.post` has no timeout of its own. A LAN server refuses fast when it
+  /// is down, but a server reached over the internet simply never answers
+  /// while the uplink is out, and a tool call made through it would hold the
+  /// turn open indefinitely.
+  static const Duration defaultTimeout = Duration(seconds: 60);
 
   final String baseUrl;
+  final Duration timeout;
 
   @override
   String get identifier => baseUrl;
@@ -248,11 +256,15 @@ class McpClient implements McpClientBase {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse(baseUrl),
-        headers: headers,
-        body: body,
-      );
+      final response = await http
+          .post(Uri.parse(baseUrl), headers: headers, body: body)
+          .timeout(
+            timeout,
+            onTimeout: () => throw TimeoutException(
+              'MCP server did not respond within ${timeout.inSeconds}s '
+              'at $baseUrl.',
+            ),
+          );
       final utf8Body = utf8.decode(response.bodyBytes);
       return (response, utf8Body);
     } catch (e, stackTrace) {

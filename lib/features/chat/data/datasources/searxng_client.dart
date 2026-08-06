@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -6,9 +7,16 @@ import '../../../../core/utils/logger.dart';
 
 /// SearXNG search client.
 class SearxngClient {
-  SearxngClient({required this.baseUrl});
+  SearxngClient({required this.baseUrl, this.timeout = defaultTimeout});
+
+  /// `http.get` has no timeout of its own, and the tool loop has no wall-clock
+  /// guard, so an unreachable search endpoint used to hold a turn open
+  /// indefinitely. Web search is the tool most likely to be reached for while
+  /// the uplink is down, which is exactly when it can never answer.
+  static const Duration defaultTimeout = Duration(seconds: 20);
 
   final String baseUrl;
+  final Duration timeout;
 
   /// Runs a web search.
   Future<SearxngSearchResult> search({
@@ -23,10 +31,14 @@ class SearxngClient {
 
     appLog('[SearXNG] Request URL: $uri');
 
-    final response = await http.get(
-      uri,
-      headers: {'Accept': 'application/json'},
-    );
+    final response = await http
+        .get(uri, headers: {'Accept': 'application/json'})
+        .timeout(
+          timeout,
+          onTimeout: () => throw TimeoutException(
+            'SearXNG did not respond within ${timeout.inSeconds}s at $baseUrl.',
+          ),
+        );
 
     appLog('[SearXNG] Response status: ${response.statusCode}');
 

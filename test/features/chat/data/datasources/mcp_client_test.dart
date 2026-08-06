@@ -173,5 +173,28 @@ void main() {
         'tools/call',
       ]);
     });
+
+    test('fails instead of hanging when the server never answers', () async {
+      // A LAN server refuses fast when it is down, but one reached over the
+      // internet simply never answers while the uplink is out, and the tool
+      // loop has no wall-clock guard that would end the turn.
+      serverSub = server.listen((request) {
+        // Accept the connection and never respond.
+      });
+
+      final client = McpClient(
+        baseUrl: endpoint.toString(),
+        timeout: const Duration(milliseconds: 200),
+      );
+
+      final stopwatch = Stopwatch()..start();
+      await expectLater(
+        client.listTools(),
+        throwsA(isA<TimeoutException>()),
+      );
+      stopwatch.stop();
+
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
+    });
   });
 }

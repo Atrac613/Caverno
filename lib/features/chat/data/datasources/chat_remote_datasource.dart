@@ -12,6 +12,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/chat_request_prefix_stability_service.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
+import 'chat_completion_bounds.dart';
 import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
 
@@ -115,17 +116,17 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     required Future<T> Function(bool includeReasoning) send,
   }) async {
     if (_reasoningEffort == null) {
-      return send(false);
+      return boundedCompletion(send(false), operation);
     }
 
     try {
-      return await send(true);
+      return await boundedCompletion(send(true), operation);
     } on ApiException catch (error, stackTrace) {
       if (!_shouldRetryWithoutReasoning(error)) {
         Error.throwWithStackTrace(error, stackTrace);
       }
       _logReasoningFallback(operation);
-      return send(false);
+      return boundedCompletion(send(false), operation);
     }
   }
 
@@ -134,18 +135,18 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     required Stream<T> Function(bool includeReasoning) send,
   }) async* {
     if (_reasoningEffort == null) {
-      yield* send(false);
+      yield* boundedCompletionStream(send(false), operation);
       return;
     }
 
     try {
-      yield* send(true);
+      yield* boundedCompletionStream(send(true), operation);
     } on ApiException catch (error, stackTrace) {
       if (!_shouldRetryWithoutReasoning(error)) {
         Error.throwWithStackTrace(error, stackTrace);
       }
       _logReasoningFallback(operation);
-      yield* send(false);
+      yield* boundedCompletionStream(send(false), operation);
     }
   }
 
