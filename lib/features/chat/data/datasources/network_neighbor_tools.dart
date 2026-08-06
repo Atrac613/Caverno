@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../../../../core/utils/bounded_process.dart';
 import 'network_address_utils.dart';
 
 typedef NetworkNeighborProcessRunner =
@@ -95,8 +96,11 @@ class NetworkNeighborTools {
   Future<List<_NeighborCacheEntry>> _readMacOsArpTable({
     NetworkNeighborProcessRunner? processRunner,
   }) async {
+    // `-n` keeps the neighbor table on the LAN: plain `arp -a` reverse-resolves
+    // every entry serially, which blocks for the full resolver retry chain when
+    // the configured DNS server sits behind a dead uplink.
     final result = await _runProcess('arp', const [
-      '-a',
+      '-an',
     ], processRunner: processRunner);
     if (result.exitCode != 0) return const [];
 
@@ -216,12 +220,7 @@ class NetworkNeighborTools {
     String executable,
     List<String> arguments, {
     NetworkNeighborProcessRunner? processRunner,
-  }) {
-    final runner = processRunner;
-    return runner != null
-        ? runner(executable, arguments)
-        : Process.run(executable, arguments);
-  }
+  }) => (processRunner ?? runProcessBounded)(executable, arguments);
 
   bool _matchesNeighborFilter(_NeighborCacheEntry entry, String requestedHost) {
     final normalizedFilter = requestedHost.trim().toLowerCase();

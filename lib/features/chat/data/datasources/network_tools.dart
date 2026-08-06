@@ -5,10 +5,12 @@ import 'dart:io';
 import 'package:dart_ping/dart_ping.dart';
 import 'package:multicast_dns/multicast_dns.dart';
 
+export 'network_dns_tools.dart' show NetworkReverseLookup;
 export 'network_tool_dependencies.dart'
     show NetworkAddressLookup, NetworkProcessRunner;
 
 import 'network_address_utils.dart';
+import 'network_dns_tools.dart';
 import 'network_http_tools.dart';
 import 'network_neighbor_tools.dart';
 import 'network_route_tools.dart';
@@ -24,8 +26,6 @@ typedef NetworkPingRunner =
       String? resolvedIp,
       String? requestedIpVersion,
     });
-typedef NetworkReverseLookup =
-    Future<InternetAddress> Function(InternetAddress address);
 typedef NetworkMdnsBrowseRunner =
     Future<Map<String, dynamic>> Function({
       required String serviceType,
@@ -44,12 +44,6 @@ class NetworkTools {
   static final NetworkSocketTools _socketTools = NetworkSocketTools();
 
   static const Set<String> _supportedArpVersions = {'all', 'ipv4', 'ipv6'};
-  static const Set<String> _supportedDnsRecordTypes = {
-    'A',
-    'AAAA',
-    'PTR',
-    'CNAME',
-  };
   static const String _mdnsServiceCatalog = '_services._dns-sd._udp.local';
 
   // ---------------------------------------------------------------------------
@@ -57,23 +51,8 @@ class NetworkTools {
   // ---------------------------------------------------------------------------
 
   /// Resolves [host] to IP addresses and returns a JSON-formatted result.
-  static Future<String> dnsLookup({required String host}) async {
-    final results = await InternetAddress.lookup(host);
-    if (results.isEmpty) {
-      return jsonEncode({'host': host, 'error': 'No records found'});
-    }
-
-    final records = results
-        .map(
-          (r) => {
-            'address': r.address,
-            'type': r.type == InternetAddressType.IPv4 ? 'A' : 'AAAA',
-            'host': r.host,
-          },
-        )
-        .toList();
-
-    return jsonEncode({'host': host, 'records': records});
+  static Future<String> dnsLookup({required String host}) {
+    return NetworkDnsTools.lookup(host: host);
   }
 
   // ---------------------------------------------------------------------------
@@ -92,7 +71,7 @@ class NetworkTools {
       host: host,
       ipVersion: ipVersion,
       processRunner: processRunner,
-      addressLookup: addressLookup,
+      addressLookup: addressLookup ?? boundedAddressLookup,
     );
   }
 
@@ -124,81 +103,14 @@ class NetworkTools {
     NetworkAddressLookup? addressLookup,
     NetworkReverseLookup? reverseLookup,
     NetworkProcessRunner? processRunner,
-  }) async {
-    final normalizedType = recordType.trim().toUpperCase();
-    if (!_supportedDnsRecordTypes.contains(normalizedType)) {
-      return jsonEncode({
-        'error': true,
-        'message':
-            'record_type must be one of: ${_supportedDnsRecordTypes.join(', ')}',
-      });
-    }
-
-    final records = <Map<String, dynamic>>[];
-    switch (normalizedType) {
-      case 'A':
-      case 'AAAA':
-        final lookup = addressLookup ?? InternetAddress.lookup;
-        final type = normalizedType == 'A'
-            ? InternetAddressType.IPv4
-            : InternetAddressType.IPv6;
-        final addresses = await lookup(target, type: type);
-        final seen = <String>{};
-        for (final address in addresses) {
-          if (seen.add(address.address)) {
-            records.add({
-              'type': normalizedType,
-              'value': address.address,
-              'host': address.host,
-            });
-          }
-        }
-        break;
-      case 'PTR':
-        final literal = InternetAddress.tryParse(
-          normalizeNetworkIpForComparison(target),
-        );
-        if (literal == null) {
-          return jsonEncode({
-            'error': true,
-            'message': 'PTR queries require an IPv4 or IPv6 literal address.',
-          });
-        }
-        final reverse = reverseLookup ?? ((address) => address.reverse());
-        final resolved = await reverse(literal);
-        records.add({
-          'type': normalizedType,
-          'value': resolved.host,
-          'address': literal.address,
-        });
-        break;
-      case 'CNAME':
-        final result = await _runProcess('nslookup', [
-          '-type=cname',
-          target,
-        ], processRunner: processRunner);
-        if (result.exitCode == 0) {
-          final matches = RegExp(
-            r'canonical name\s*=\s*(\S+)',
-            caseSensitive: false,
-          ).allMatches(result.stdout as String);
-          final seen = <String>{};
-          for (final match in matches) {
-            final value = match.group(1);
-            if (value != null && seen.add(value)) {
-              records.add({'type': normalizedType, 'value': value});
-            }
-          }
-        }
-        break;
-    }
-
-    return jsonEncode({
-      'target': target,
-      'record_type': normalizedType,
-      'records_found': records.length,
-      'records': records,
-    });
+  }) {
+    return NetworkDnsTools.query(
+      target: target,
+      recordType: recordType,
+      addressLookup: addressLookup,
+      reverseLookup: reverseLookup,
+      processRunner: processRunner,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -497,12 +409,12 @@ class NetworkTools {
       // Reached the destination.
       if (resp.ip != null) {
         try {
-          final resolved = await InternetAddress.lookup(host);
+          final resolved = await InternetAddress.lookup(host).dnsBounded(host);
           if (resolved.any((r) => r.address == resp.ip)) {
             break;
           }
         } catch (_) {
-          // Ignore resolution failures; continue tracing.
+          // Ignore resolution failures and timeouts; continue tracing.
         }
       }
     }
@@ -665,7 +577,8 @@ class NetworkTools {
     }
 
     final lookup = addressLookup ?? InternetAddress.lookup;
-    final addresses = await lookup(host, type: InternetAddressType.IPv6);
+    const type = InternetAddressType.IPv6;
+    final addresses = await lookup(host, type: type).dnsBounded(host);
     if (addresses.isEmpty) {
       throw SocketException('No IPv6 address found for host "$host"');
     }
@@ -678,17 +591,6 @@ class NetworkTools {
 
   static Future<String> whoisLookup({required String domain}) {
     return _socketTools.whoisLookup(domain: domain);
-  }
-
-  static Future<ProcessResult> _runProcess(
-    String executable,
-    List<String> arguments, {
-    NetworkProcessRunner? processRunner,
-  }) {
-    final runner = processRunner;
-    return runner != null
-        ? runner(executable, arguments)
-        : Process.run(executable, arguments);
   }
 
   static Future<Map<String, dynamic>> _browseMdnsPayload({

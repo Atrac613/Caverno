@@ -4,12 +4,14 @@ import 'dart:io';
 
 import 'package:dart_ping/dart_ping.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:multicast_dns/multicast_dns.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 
+import '../utils/bounded_process.dart';
 import '../utils/logger.dart';
+import 'lan_hostname_resolver.dart';
 import 'lan_ip_network.dart';
 
+export 'lan_hostname_resolver.dart';
 export 'lan_ip_network.dart';
 
 typedef LanStringProvider = Future<String?> Function();
@@ -70,11 +72,13 @@ class LanScanService {
     LanStringProvider? wifiIpv6Provider,
     LanStringProvider? wifiSubmaskProvider,
     LanProcessRunner? processRunner,
+    LanReverseDnsLookup? reverseDnsLookup,
     LanHostProbe? hostProbe,
   }) : _wifiIpv4Provider = wifiIpv4Provider,
        _wifiIpv6Provider = wifiIpv6Provider,
        _wifiSubmaskProvider = wifiSubmaskProvider,
        _processRunner = processRunner,
+       _hostnames = LanHostnameResolver(reverseDnsLookup: reverseDnsLookup),
        _hostProbe = hostProbe;
 
   final NetworkInfo _networkInfo = NetworkInfo();
@@ -82,6 +86,7 @@ class LanScanService {
   final LanStringProvider? _wifiIpv6Provider;
   final LanStringProvider? _wifiSubmaskProvider;
   final LanProcessRunner? _processRunner;
+  final LanHostnameResolver _hostnames;
   final LanHostProbe? _hostProbe;
 
   List<LanHost> _scanResults = [];
@@ -112,6 +117,7 @@ class LanScanService {
     final effectiveTimeout = timeoutMs.clamp(100, 5000);
     final effectivePorts = _clampPorts(ports ?? _defaultPorts);
     final versionPreference = _parseIpVersionPreference(ipVersion);
+    _hostnames.reset();
     final linkLayerTable = await _fetchLinkLayerTable();
     final planResult = await _buildScanPlan(
       userSubnet: subnet?.trim(),
@@ -272,21 +278,11 @@ class LanScanService {
       timeoutMs: timeoutMs,
     );
 
-    String? hostname;
-    try {
-      final reverse = await InternetAddress(lookupIp).reverse();
-      if (reverse.host != lookupIp) {
-        hostname = reverse.host;
-      }
-    } catch (_) {
-      // Reverse DNS is optional.
-    }
-
-    if (hostname == null && linkEntry?.hostname != null) {
-      hostname = linkEntry!.hostname;
-    }
-
-    hostname ??= await _mdnsReverseLookup(lookupIp, timeoutMs: timeoutMs);
+    final hostname = await _hostnames.resolve(
+      lookupIp,
+      linkLayerHostname: linkEntry?.hostname,
+      mdnsTimeoutMs: timeoutMs,
+    );
 
     return LanHost(
       ip: ip,
@@ -537,7 +533,9 @@ class LanScanService {
     }
 
     try {
-      final result = await _runProcess('arp', ['-a']);
+      // `-n` is load-bearing: without it BSD arp reverse-resolves every entry
+      // serially, so the MAC table alone costs one PTR query per neighbor.
+      final result = await _runProcess('arp', ['-an']);
       if (result.exitCode != 0) {
         return const {};
       }
@@ -663,29 +661,6 @@ class LanScanService {
     }
   }
 
-  Future<String?> _mdnsReverseLookup(String ip, {int timeoutMs = 2000}) async {
-    final ptrName = _buildReversePointerName(ip);
-    if (ptrName == null) {
-      return null;
-    }
-
-    MDnsClient? client;
-    try {
-      client = MDnsClient();
-      await client.start();
-
-      final ptr = await client
-          .lookup<PtrResourceRecord>(ResourceRecordQuery.serverPointer(ptrName))
-          .first
-          .timeout(Duration(milliseconds: timeoutMs));
-      return ptr.domainName;
-    } catch (_) {
-      return null;
-    } finally {
-      client?.stop();
-    }
-  }
-
   List<int> _clampPorts(List<int> ports) {
     return ports.where((port) => port > 0 && port <= 65535).take(20).toList();
   }
@@ -709,7 +684,7 @@ class LanScanService {
     final runner = _processRunner;
     return runner != null
         ? runner(executable, arguments)
-        : Process.run(executable, arguments);
+        : runProcessBounded(executable, arguments);
   }
 
   _LanIpVersionPreference _parseIpVersionPreference(String? value) {
@@ -791,23 +766,6 @@ class LanScanService {
     return '$ip%$interfaceName';
   }
 
-  String? _buildReversePointerName(String ip) {
-    final address = InternetAddress.tryParse(LanIpNetwork.stripScopeId(ip));
-    if (address == null) {
-      return null;
-    }
-
-    if (address.type == InternetAddressType.IPv4) {
-      final octets = address.address.split('.').reversed.join('.');
-      return '$octets.in-addr.arpa';
-    }
-
-    final hex = address.rawAddress
-        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
-        .join();
-    final reversedNibbles = hex.split('').reversed.join('.');
-    return '$reversedNibbles.ip6.arpa';
-  }
 }
 
 class _ScanPlan {

@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('macOS ARP and NDP parsing preserves filtering and ordering', () async {
     final runner = _FakeProcessRunner({
-      'arp -a': _result(
+      'arp -an': _result(
         'router (192.168.1.10) at AA:BB:CC:DD:EE:10 on en0\n'
         '? (192.168.1.2) at AA:BB:CC:DD:EE:02 on en0\n'
         'ignored (192.168.1.3) at (incomplete) on en0\n'
@@ -27,7 +27,9 @@ void main() {
     final result = _decode(await tools.arp(processRunner: runner.call));
     final entries = _entries(result);
 
-    expect(runner.calls, ['arp -a', 'ndp -an']);
+    // `-n` keeps the neighbor table numeric: plain `arp -a` reverse-resolves
+    // every entry serially and blocks on an unreachable resolver.
+    expect(runner.calls, ['arp -an', 'ndp -an']);
     expect(result['host'], isNull);
     expect(result['ip_version'], 'all');
     expect(result['entries_found'], 4);

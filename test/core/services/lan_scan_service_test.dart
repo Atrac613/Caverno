@@ -81,6 +81,38 @@ void main() {
       expect(response['scan_strategy'], 'explicit_ipv6_cidr');
     });
 
+    test('reads the neighbor table without reverse-resolving names', () async {
+      expect(Platform.isMacOS || Platform.isLinux, isTrue);
+
+      final invocations = <List<String>>[];
+      final service = LanScanService(
+        processRunner: (executable, arguments) async {
+          invocations.add([executable, ...arguments]);
+          return ProcessResult(0, 0, '', '');
+        },
+        hostProbe:
+            ({
+              required String ip,
+              required int timeoutMs,
+              required List<int> ports,
+              required Map<String, LanLinkLayerEntry> linkLayerTable,
+            }) async => null,
+      );
+
+      await service.startScan(subnet: 'fd00::/126', ipVersion: 'ipv6');
+
+      // Plain `arp -a` reverse-resolves every entry serially, so a resolver
+      // behind a dead uplink stalls the scan before it probes a single host.
+      final arpInvocations = invocations
+          .where((invocation) => invocation.first == 'arp')
+          .toList();
+      expect(arpInvocations, isNotEmpty);
+      for (final invocation in arpInvocations) {
+        expect(invocation, contains('-an'));
+        expect(invocation, isNot(contains('-a')));
+      }
+    });
+
     test('filters wide IPv6 subnets through neighbor discovery', () async {
       expect(Platform.isMacOS || Platform.isLinux, isTrue);
 

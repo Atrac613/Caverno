@@ -399,7 +399,7 @@ void main() {
 NetworkProcessRunner _processRunnerForPlatform() {
   return (executable, arguments) async {
     if (Platform.isMacOS) {
-      if (executable == 'arp' && arguments.join(' ') == '-a') {
+      if (executable == 'arp' && arguments.join(' ') == '-an') {
         return ProcessResult(
           0,
           0,

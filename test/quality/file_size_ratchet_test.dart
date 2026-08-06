@@ -405,12 +405,16 @@ const Map<String, int> _lineBudgets = {
   'lib/features/routines/presentation/pages/routine_detail_view.dart': 948,
   'lib/features/routines/presentation/widgets/routine_run_history_section.dart':
       525,
-  'lib/core/services/lan_scan_service.dart': 843,
+  // -42 after hostname resolution (unicast PTR, link-layer, mDNS) moved to
+  // lan_hostname_resolver.dart, where the DNS step could be bounded.
+  'lib/core/services/lan_scan_service.dart': 801,
   'lib/core/services/lan_ip_network.dart': 199,
-  'lib/features/chat/data/datasources/network_tools.dart': 968,
+  // -98 after dns_lookup/dns_query moved to network_dns_tools.dart, which owns
+  // the shared DNS budget the rest of the network tools now borrow.
+  'lib/features/chat/data/datasources/network_tools.dart': 870,
   'lib/features/chat/data/datasources/network_address_utils.dart': 34,
   'lib/features/chat/data/datasources/network_http_tools.dart': 287,
-  'lib/features/chat/data/datasources/network_neighbor_tools.dart': 266,
+  'lib/features/chat/data/datasources/network_neighbor_tools.dart': 265,
   'lib/features/chat/data/datasources/network_route_tools.dart': 1128,
   'lib/features/chat/data/datasources/network_socket_tools.dart': 204,
   'lib/features/chat/data/datasources/network_tool_dependencies.dart': 10,
