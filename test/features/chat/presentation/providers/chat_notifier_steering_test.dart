@@ -108,11 +108,80 @@ void main() {
     expect(notifier.state.queuedMessages, isEmpty);
   });
 
-  test('a turn that ends first hands the message back to the queue', () async {
-    final firstTurn = StreamController<String>();
-    final secondTurn = StreamController<String>();
+  test('a steer past the restart budget falls back to the queue', () async {
+    final controllers = [
+      for (var i = 0; i < 4; i += 1) StreamController<String>(),
+    ];
     final dataSource = _ControllableQueueChatDataSource(
-      Queue<StreamController<String>>.from([firstTurn, secondTurn]),
+      Queue<StreamController<String>>.from(controllers),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = _buildContainer(
+      settings: _NoToolSettingsNotifier.new,
+      dataSource: dataSource,
+      toolService: null,
+      appLifecycleService: appLifecycleService,
+    );
+    addTearDown(container.dispose);
+
+    Future<void> settle([int ticks = 30]) async {
+      for (var i = 0; i < ticks; i += 1) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+
+    final notifier = container.read(chatNotifierProvider.notifier);
+    final firstSend = notifier.sendMessage('Explain the plan');
+    await settle();
+
+    // Two restarts are the budget; the third steer has nowhere to go.
+    controllers[0].add('First attempt');
+    await settle();
+    await notifier.sendMessage('Shorter', interrupt: true);
+    await settle();
+    controllers[1].add('Second attempt');
+    await settle();
+    await notifier.sendMessage('Shorter still', interrupt: true);
+    await settle();
+    controllers[2].add('Third attempt');
+    await settle();
+    await notifier.sendMessage('One line only', interrupt: true);
+    await settle();
+
+    expect(dataSource.requests, hasLength(3));
+    // Refused, not dropped: it is still pending and owed back to the queue.
+    expect(notifier.state.steeringMessages.map((message) => message.content), [
+      'One line only',
+    ]);
+
+    await controllers[2].close();
+    await firstSend;
+    await settle();
+    controllers[3].add('Final.');
+    await controllers[3].close();
+    await settle();
+
+    // The refused steer came back as its own turn rather than being lost.
+    expect(dataSource.requests, hasLength(4));
+    expect(notifier.state.steeringMessages, isEmpty);
+    expect(notifier.state.queuedMessages, isEmpty);
+    expect(
+      notifier.state.messages
+          .where((message) => message.role == MessageRole.user)
+          .map((message) => message.content),
+      ['Explain the plan', 'Shorter', 'Shorter still', 'One line only'],
+    );
+    for (final controller in controllers) {
+      if (!controller.isClosed) unawaited(controller.close());
+    }
+  });
+
+  test('an interruption mid-stream restarts the same turn', () async {
+    final firstTurn = StreamController<String>();
+    final restarted = StreamController<String>();
+    final dataSource = _ControllableQueueChatDataSource(
+      Queue<StreamController<String>>.from([firstTurn, restarted]),
     );
     final appLifecycleService = _MockAppLifecycleService();
     when(() => appLifecycleService.isInBackground).thenReturn(false);
@@ -129,80 +198,111 @@ void main() {
     for (var i = 0; i < 10 && dataSource.requests.isEmpty; i += 1) {
       await Future<void>.delayed(Duration.zero);
     }
-    expect(dataSource.requests, hasLength(1));
 
-    // No further request is coming: this turn is one plain answer.
-    final steerOwner = await notifier.sendMessage(
-      'Keep it under 3 lines',
-      interrupt: true,
-    );
-    expect(steerOwner, isNotNull);
-    expect(notifier.state.steeringMessages, hasLength(1));
-    expect(notifier.state.queuedMessages, isEmpty);
-
-    firstTurn.add('Here is the long plan.');
-    await firstTurn.close();
-    await firstSend;
-    secondTurn.add('Short version.');
-    await secondTurn.close();
-    for (var i = 0; i < 20 && dataSource.requests.length < 2; i += 1) {
+    // Mid-stream: the reply is already being written, which is the moment a
+    // user reacts to it and the moment no further request is planned.
+    firstTurn.add('Here is the long plan, starting with');
+    await Future<void>.delayed(Duration.zero);
+    await notifier.sendMessage('Keep it under 3 lines', interrupt: true);
+    for (var i = 0; i < 40 && dataSource.requests.length < 2; i += 1) {
       await Future<void>.delayed(Duration.zero);
     }
 
-    // Never carried, so it came back as its own turn instead of being lost.
+    // The turn made its own second request rather than waiting for one.
     expect(dataSource.requests, hasLength(2));
-    expect(notifier.state.steeringMessages, isEmpty);
-    expect(notifier.state.queuedMessages, isEmpty);
+    final restartedRequest = dataSource.requests.last;
     expect(
-      notifier.state.messages
+      restartedRequest
           .where((message) => message.role == MessageRole.user)
           .map((message) => message.content),
-      ['Explain the plan', 'Keep it under 3 lines'],
+      contains('Keep it under 3 lines'),
     );
+    expect(
+      restartedRequest
+          .where((message) => message.role == MessageRole.system)
+          .map((message) => message.content)
+          .join('\n'),
+      contains(TurnSteeringPromptBuilder.marker),
+    );
+
+    restarted.add('Short version.');
+    await restarted.close();
+    unawaited(firstTurn.close());
+    await firstSend;
+    for (var i = 0; i < 20; i += 1) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    // What was streamed before the cut is kept, and the interruption sits
+    // after it rather than before the reply it interrupted.
+    final contents = notifier.state.messages
+        .map((message) => '${message.role.name}:${message.content}')
+        .toList(growable: false);
+    expect(contents, [
+      'user:Explain the plan',
+      'assistant:Here is the long plan, starting with',
+      'user:Keep it under 3 lines',
+      'assistant:Short version.',
+    ]);
+    expect(notifier.state.steeringMessages, isEmpty);
+    expect(notifier.state.queuedMessages, isEmpty);
   });
 
   test('a withdrawn interruption never reaches the model', () async {
-    final firstTurn = StreamController<String>();
-    final dataSource = _ControllableQueueChatDataSource(
-      Queue<StreamController<String>>.from([firstTurn]),
+    // Registered while a tool runs, so no stream is being consumed and the
+    // steer stays pending instead of restarting the turn -- which is the only
+    // state a withdrawal can act on.
+    final toolDataSource = _ToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'read_alpha',
+          arguments: const {'path': 'alpha.txt'},
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'read_alpha': 'alpha result'},
     );
     final appLifecycleService = _MockAppLifecycleService();
     when(() => appLifecycleService.isInBackground).thenReturn(false);
     final container = _buildContainer(
-      settings: _NoToolSettingsNotifier.new,
-      dataSource: dataSource,
-      toolService: null,
+      settings: _ToolEnabledSettingsNotifier.new,
+      dataSource: toolDataSource,
+      toolService: toolService,
       appLifecycleService: appLifecycleService,
     );
     addTearDown(container.dispose);
 
     final notifier = container.read(chatNotifierProvider.notifier);
-    final firstSend = notifier.sendMessage('Explain the plan');
-    for (var i = 0; i < 10 && dataSource.requests.isEmpty; i += 1) {
-      await Future<void>.delayed(Duration.zero);
-    }
-    await notifier.sendMessage('Never mind this one', interrupt: true);
-    final steerId = notifier.state.steeringMessages.single.id;
+    var withdrew = false;
+    toolService.onExecute = () {
+      if (withdrew) return;
+      withdrew = true;
+      unawaited(notifier.sendMessage('Never mind this one', interrupt: true));
+      final pending = notifier.state.steeringMessages.single;
+      notifier.removeQueuedMessage(pending.id);
+    };
 
-    notifier.removeQueuedMessage(steerId);
+    await notifier.sendMessage('Inspect alpha');
+
+    expect(withdrew, isTrue);
     expect(notifier.state.steeringMessages, isEmpty);
-
-    firstTurn.add('Here is the plan.');
-    await firstTurn.close();
-    await firstSend;
-    for (var i = 0; i < 10; i += 1) {
-      await Future<void>.delayed(Duration.zero);
-    }
-
-    // Withdrawn before any request carried it, so it neither joined the turn
-    // nor came back through the queue.
-    expect(dataSource.requests, hasLength(1));
     expect(notifier.state.queuedMessages, isEmpty);
+    final followUp = toolDataSource.toolResultRequestMessages.single;
+    expect(
+      followUp.map((message) => message.content).join('\n'),
+      isNot(contains('Never mind this one')),
+    );
+    expect(
+      followUp.map((message) => message.content).join('\n'),
+      isNot(contains(TurnSteeringPromptBuilder.marker)),
+    );
     expect(
       notifier.state.messages
           .where((message) => message.role == MessageRole.user)
           .map((message) => message.content),
-      ['Explain the plan'],
+      ['Inspect alpha'],
     );
   });
 }

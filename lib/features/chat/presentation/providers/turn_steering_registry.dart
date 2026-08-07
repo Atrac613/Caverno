@@ -66,6 +66,21 @@ final class TurnSteeringRegistry {
 
   int carriedCount(ChatTurnOwner owner) => _states[owner]?.carriedCount ?? 0;
 
+  int restartCount(ChatTurnOwner owner) => _states[owner]?.restartCount ?? 0;
+
+  /// Takes one restart from [owner]'s budget, or reports that it is spent.
+  ///
+  /// Bounded because a restart re-issues the turn's request: a user typing
+  /// corrections faster than the model answers, or a model that keeps drifting,
+  /// would otherwise loop. A refused restart is not a lost message -- the steer
+  /// stays pending and falls back to the queue at teardown.
+  bool tryClaimRestart(ChatTurnOwner owner, {required int budget}) {
+    final state = _states[owner];
+    if (state == null || state.restartCount >= budget) return false;
+    state.restartCount += 1;
+    return true;
+  }
+
   /// Drops [id] from [owner] before any request carried it.
   ///
   /// Returns whether anything was removed. A carried steer is already part of
@@ -114,4 +129,5 @@ final class TurnSteeringRegistry {
 final class _TurnSteeringState {
   final List<TurnSteeringEntry> pending = <TurnSteeringEntry>[];
   int carriedCount = 0;
+  int restartCount = 0;
 }

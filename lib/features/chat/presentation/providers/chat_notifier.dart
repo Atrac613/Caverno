@@ -4087,6 +4087,14 @@ class ChatNotifier extends Notifier<ChatState> {
       await for (final chunk in streamResult.stream) {
         if (!_isCurrentInteractionGeneration(generation)) return;
         if (!ref.mounted) return;
+        // Leaving the loop cancels this stream. Checked here because the loop
+        // owns it directly: when the model answers without calling a tool,
+        // this stream is the whole reply and no later request exists to carry
+        // an interruption.
+        if (_steeringRestartWanted(turnOwner)) {
+          await _restartTurnForSteeringFromToolLoop(turnOwner);
+          return;
+        }
         _appendToLastMessageForGeneration(generation, chunk);
       }
 

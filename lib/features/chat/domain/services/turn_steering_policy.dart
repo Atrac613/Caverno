@@ -9,6 +9,12 @@ import '../entities/message.dart';
 final class TurnSteeringPolicy {
   const TurnSteeringPolicy._();
 
+  /// How many times one turn may abandon a stream to take an interruption.
+  ///
+  /// A restart re-issues the turn's request, so this is what keeps a user
+  /// typing corrections faster than the model answers from looping the turn.
+  static const int restartBudgetPerTurn = 2;
+
   /// Whether a message typed against a busy thread can join its turn.
   ///
   /// Attachments and voice are excluded, not unsupported: an image would need

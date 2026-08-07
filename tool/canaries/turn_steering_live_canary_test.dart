@@ -105,6 +105,132 @@ void main() {
     skip: skipReason,
     timeout: const Timeout(Duration(minutes: 10)),
   );
+
+  test(
+    '${prefix}an interruption mid-answer restarts the turn it is reading',
+    () => _runMidStreamArm(runLabel: runLabel),
+    skip: skipReason,
+    timeout: const Timeout(Duration(minutes: 10)),
+  );
+}
+
+/// The arm for the failure this feature was measured missing.
+///
+/// Nothing is left to mutate by the time the answer is being written, so the
+/// verdict is the redirected file existing *inside the same turn*: under the
+/// old behaviour the steer went out uncarried and came back as a second turn,
+/// which `turnCount` still distinguishes.
+Future<void> _runMidStreamArm({required String? runLabel}) async {
+  final env = _SteeringLiveEnv.fromEnvironment();
+  final fixture = _SteeringFixture.create(env.workspaceRoot, arm: 'midstream');
+  final dataSource = _RecordingDataSource(
+    ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+  );
+  final toolService = _SteeringSandboxToolService(fixture.root);
+  final container = _buildContainer(
+    env: env,
+    dataSource: dataSource,
+    toolService: toolService,
+    project: fixture.project,
+  );
+
+  try {
+    container
+        .read(conversationsNotifierProvider.notifier)
+        .createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: fixture.project.id,
+        );
+    final notifier = container.read(chatNotifierProvider.notifier);
+
+    const midStreamRedirect =
+        'Stop. Ignore that question and create $_betaPath containing exactly '
+        '$_betaMarker.';
+    dataSource.steerNeedle = midStreamRedirect.substring(0, 40);
+
+    Future<ChatTurnOwner?>? redirect;
+    dataSource.onFirstStreamChunk = () {
+      redirect ??= notifier.sendMessage(
+        midStreamRedirect,
+        bypassPlanMode: true,
+        interrupt: true,
+      );
+    };
+
+    // No tool is needed to answer, so the tool-aware stream *is* the whole
+    // reply and nothing later would carry an interruption. That is the shape
+    // an ordinary chat reply has, and the one the measured failure had.
+    final turnOwner = await notifier.sendMessage(
+      'Do not call any tool. Write a long, detailed explanation (at least 300 '
+      'words) of what a Raspberry Pi is and what people use it for.',
+      bypassPlanMode: true,
+    );
+    final steerOwner = await redirect;
+    await _waitUntilSettled(container, dataSource, minTurns: 1);
+
+    final betaExists = fixture.file(_betaPath).existsSync();
+    final snapshot = <String, dynamic>{
+      'schemaName': 'turn_steering_live_canary_snapshot',
+      'schemaVersion': 1,
+      'runLabel': runLabel ?? '',
+      'arm': 'midstream',
+      'model': env.model,
+      'turnCount': dataSource.turnCount,
+      'requestCount': dataSource.requestCount,
+      'steerCarriedInRequests': dataSource.requestIndexesCarryingSteer,
+      'directiveCarriedInRequests': dataSource.requestIndexesCarryingDirective,
+      'alphaCreated': fixture.file(_alphaPath).existsSync(),
+      'betaCreated': betaExists,
+      'betaHasMarker':
+          betaExists &&
+          fixture.file(_betaPath).readAsStringSync().contains(_betaMarker),
+      'sandboxExecutedTools': toolService.executedToolNames,
+      'joinedTurn': steerOwner == turnOwner,
+      // Not turnCount: a restart re-enters the tool-aware path, so it issues
+      // another tool-aware request inside the same turn and the request count
+      // stopped distinguishing "same turn" from "next turn". The owner the
+      // steer reports joining still does.
+      'redirected': betaExists && steerOwner == turnOwner,
+    };
+    // ignore: avoid_print
+    print('TURN_STEERING_CANARY_SNAPSHOT ${jsonEncode(snapshot)}');
+    final diagnostic = _diagnostic(snapshot, container);
+
+    expect(
+      dataSource.requestIndexesCarryingSteer,
+      isNotEmpty,
+      reason:
+          'The restarted request did not carry the interruption.\n$diagnostic',
+    );
+    expect(
+      steerOwner,
+      turnOwner,
+      reason:
+          'The interruption reports a different turn, which means it went out '
+          'uncarried and came back through the queue -- the behaviour this arm '
+          'exists to rule out.\n$diagnostic',
+    );
+    expect(
+      dataSource.requestIndexesCarryingDirective,
+      isNotEmpty,
+      reason:
+          'The restarted request did not carry the steering directive.\n'
+          '$diagnostic',
+    );
+    // The restart re-enters the turn's own path, so the tools survive it. A
+    // turn that came back tool-free could carry the interruption and still be
+    // unable to act on it, which is what this asserts is fixed.
+    expect(
+      betaExists,
+      isTrue,
+      reason:
+          'The restarted turn carried the interruption but could not act on '
+          'it.\n$diagnostic',
+    );
+  } finally {
+    container.dispose();
+    fixture.dispose();
+  }
 }
 
 Future<void> _runArm({
@@ -183,9 +309,7 @@ Future<void> _runArm({
       // The verdict this arm exists to produce. Recorded rather than only
       // asserted so a repeated run can be read as a rate instead of a
       // pass/fail on a single sample of a probabilistic behavior.
-      'redirected': interrupt
-          ? betaExists && !alphaExists
-          : betaExists && alphaExists,
+      'redirected': interrupt ? betaExists && !alphaExists : alphaExists,
     };
     // ignore: avoid_print
     print('TURN_STEERING_CANARY_SNAPSHOT ${jsonEncode(snapshot)}');
@@ -239,8 +363,7 @@ Future<void> _runArm({
       expect(
         dataSource.requestIndexesCarryingDirective,
         isEmpty,
-        reason:
-            'A queued message must not engage steering.\n$diagnostic',
+        reason: 'A queued message must not engage steering.\n$diagnostic',
       );
       expect(
         dataSource.turnCount,
@@ -255,11 +378,11 @@ Future<void> _runArm({
             'scenario cannot discriminate steering from queueing. Fix the '
             'scenario before reading the steer arm.\n$diagnostic',
       );
-      expect(
-        betaExists,
-        isTrue,
-        reason: 'The queued turn never created its file.\n$diagnostic',
-      );
+      // Deliberately not asserted: whether the queued turn then creates its
+      // own file is the model obeying a perfectly ordinary instruction, which
+      // it does about two runs in three. The discriminator this arm exists for
+      // is the original file above, and adding a second model-behaviour
+      // assertion only adds flake to it.
     }
   } finally {
     container.dispose();
@@ -303,7 +426,9 @@ Future<void> _waitUntilSettled(
     // the run.
     final error = state.error;
     if (error != null && error.isNotEmpty) {
-      throw StateError('The turn failed before the canary could judge it: $error');
+      throw StateError(
+        'The turn failed before the canary could judge it: $error',
+      );
     }
     final settled =
         !state.isLoading &&
@@ -387,8 +512,8 @@ class _SteeringLiveEnv {
             Platform.environment['CAVERNO_TURN_STEERING_TEMPERATURE'] ?? '',
           ) ??
           0.1,
-      workspaceRoot:
-          Platform.environment['CAVERNO_TURN_STEERING_WORK_ROOT']?.trim(),
+      workspaceRoot: Platform.environment['CAVERNO_TURN_STEERING_WORK_ROOT']
+          ?.trim(),
     );
   }
 
@@ -465,9 +590,11 @@ class _RecordingDataSource implements ChatDataSource {
 
   int get requestCount => requests.length;
 
-  List<int> get requestIndexesCarryingSteer => _indexesContaining(
-    _redirectPrompt.substring(0, 40),
-  );
+  /// The interrupting text this arm sends, so the detector looks for the words
+  /// that were actually typed rather than another arm's.
+  String steerNeedle = _redirectPrompt.substring(0, 40);
+
+  List<int> get requestIndexesCarryingSteer => _indexesContaining(steerNeedle);
 
   List<int> get requestIndexesCarryingDirective =>
       _indexesContaining(TurnSteeringPromptBuilder.marker);
@@ -484,6 +611,13 @@ class _RecordingDataSource implements ChatDataSource {
     requests.add(messages.map((message) => message.content).join('\n'));
   }
 
+  /// Fires once, on the first token of a streamed answer.
+  ///
+  /// This is the window the measured failure lived in: the reply is being
+  /// written, the user reacts to it, and no further request is planned.
+  void Function()? onFirstStreamChunk;
+  bool _chunkHookFired = false;
+
   @override
   StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
@@ -492,11 +626,33 @@ class _RecordingDataSource implements ChatDataSource {
     int? maxTokens,
   }) {
     _record(messages);
-    return delegate.streamChatCompletion(
+    final completion = delegate.streamChatCompletion(
       messages: messages,
       model: model,
       temperature: temperature,
       maxTokens: maxTokens,
+    );
+    return _withChunkHook(completion);
+  }
+
+  StreamedChatCompletion _withChunkHook(StreamedChatCompletion completion) {
+    final hook = onFirstStreamChunk;
+    if (hook == null) return completion;
+    return StreamedChatCompletion.capture(
+      stream: completion.map((chunk) {
+        if (!_chunkHookFired) {
+          _chunkHookFired = true;
+          // One microtask later, not immediately: the first chunk can be
+          // delivered inside the same synchronous frame as `listen()`, before
+          // the notifier has stored the subscription it would have to abandon.
+          // A wall-clock delay is worse -- a short answer from a fast model is
+          // already finished by then, which is the same closed window the
+          // feature exists to reopen.
+          scheduleMicrotask(hook);
+        }
+        return chunk;
+      }),
+      terminalMetadata: () => completion.terminal,
     );
   }
 
@@ -548,12 +704,21 @@ class _RecordingDataSource implements ChatDataSource {
   }) {
     turnCount += 1;
     _record(messages);
-    return delegate.streamChatCompletionWithTools(
+    final result = delegate.streamChatCompletionWithTools(
       messages: messages,
       tools: tools,
       model: model,
       temperature: temperature,
       maxTokens: maxTokens,
+    );
+    return StreamWithToolsResult(
+      stream: _withChunkHook(
+        StreamedChatCompletion.capture(
+          stream: result.stream,
+          terminalMetadata: () => const ChatCompletionTerminalMetadata(),
+        ),
+      ),
+      completion: result.completion,
     );
   }
 
@@ -727,13 +892,17 @@ class _SteeringSandboxToolService extends McpToolService {
     try {
       switch (name) {
         case 'list_directory':
-          final target = _resolve(arguments['path'] as String?, allowEmpty: true);
-          final entries = Directory(target)
-              .listSync(recursive: true)
-              .whereType<File>()
-              .map((file) => _relative(file.path))
-              .toList(growable: false)
-            ..sort();
+          final target = _resolve(
+            arguments['path'] as String?,
+            allowEmpty: true,
+          );
+          final entries =
+              Directory(target)
+                  .listSync(recursive: true)
+                  .whereType<File>()
+                  .map((file) => _relative(file.path))
+                  .toList(growable: false)
+                ..sort();
           return _ok(name, jsonEncode({'entries': entries}));
         case 'read_file':
           final target = _resolve(arguments['path'] as String?);

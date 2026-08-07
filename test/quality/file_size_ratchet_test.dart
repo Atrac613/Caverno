@@ -33,7 +33,7 @@ const Map<String, int> _lineBudgets = {
   // assigning: the callback form costs three lines per write and there are
   // seven of them. Nothing was extractable; the alternative is the bug.
   // +1 import for the shadow comparator.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8976,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8984,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -274,7 +274,7 @@ const Map<String, int> _lineBudgets = {
   // site and the working-directory gate.
   'lib/features/chat/presentation/pages/chat_page.dart': 2071,
   // Lowered from 2332 by the same extraction (label, colour and icon).
-  'lib/features/chat/presentation/widgets/message_input.dart': 2357,
+  'lib/features/chat/presentation/widgets/message_input.dart': 2368,
   'lib/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart':
       131,
   'lib/features/chat/presentation/coordinators/chat_page_workspace_navigation_coordinator.dart':
@@ -487,7 +487,7 @@ const Map<String, int> _libraryLineBudgets = {
   // +13 for the tool-loop shadow point. No canary reaches the validation
   // consumer, so this is the only place a live run can answer whether the
   // producer attaches an exit status a consumer would otherwise re-derive.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19682,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19840,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

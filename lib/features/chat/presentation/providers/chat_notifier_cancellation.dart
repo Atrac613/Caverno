@@ -143,7 +143,135 @@ extension ChatNotifierSteering on ChatNotifier {
       '${owner.interactionGeneration} '
       '(${_turnSteering.pendingCount(owner)} waiting for the next request)',
     );
+    // A turn that is streaming has no further request planned, so waiting for
+    // one means waiting forever. Measured: users interrupt while reading the
+    // answer, which is after every between-request window has closed.
+    if (_streamSubscription != null) {
+      unawaited(_restartTurnForSteering(owner));
+    }
     return owner;
+  }
+
+  /// Abandons the stream this turn is consuming so it can take the
+  /// interruption, without ending the turn.
+  ///
+  /// The generation still does not advance. What changes is that the turn stops
+  /// waiting for a request boundary that is not coming and makes one, keeping
+  /// its owner, tool results and everything already streamed.
+  ///
+  /// Cancelling the subscription means `onDone` never fires, so the
+  /// finalization it would have triggered has to move here with it -- the
+  /// re-issued stream below owns it instead. Dropping that is how a thread ends
+  /// up stranded under a spinner.
+  Future<void> _restartTurnForSteering(ChatTurnOwner owner) async {
+    final subscription = _streamSubscription;
+    if (subscription == null) return;
+    if (!_claimSteeringRestart(owner)) return;
+
+    // Not awaited: cancellation stops delivery to this listener immediately,
+    // while the future it returns settles with the upstream teardown and can
+    // outlive the request. Awaiting it strands the restart behind the very
+    // stream it is abandoning.
+    _streamSubscription = null;
+    unawaited(subscription.cancel());
+    await _reissueTurnForSteering(owner);
+  }
+
+  /// Whether the tool-aware loop should leave the stream it is reading.
+  ///
+  /// That loop consumes its stream with `await for` and holds no subscription,
+  /// so it cannot be interrupted from outside: it has to check and break. This
+  /// is the path a turn takes when the model answers without calling a tool,
+  /// which is the ordinary chat reply and therefore the one users interrupt.
+  bool _steeringRestartWanted(ChatTurnOwner owner) =>
+      _turnSteering.pendingCount(owner) > 0 &&
+      _turnSteering.restartCount(owner) <
+          TurnSteeringPolicy.restartBudgetPerTurn &&
+      _activeResponseRegistry.containsOwner(owner) &&
+      _isCurrentInteractionGeneration(owner.interactionGeneration);
+
+  /// The tool-aware loop's entry point, called after it has already broken out
+  /// of its `await for` -- which cancels the underlying stream on its own.
+  Future<void> _restartTurnForSteeringFromToolLoop(ChatTurnOwner owner) async {
+    if (!_claimSteeringRestart(owner)) return;
+    await _reissueTurnForSteering(owner);
+  }
+
+  bool _claimSteeringRestart(ChatTurnOwner owner) {
+    if (!_activeResponseRegistry.containsOwner(owner)) return false;
+    if (!_isCurrentInteractionGeneration(owner.interactionGeneration)) {
+      return false;
+    }
+    if (_turnSteering.tryClaimRestart(
+      owner,
+      budget: TurnSteeringPolicy.restartBudgetPerTurn,
+    )) {
+      return true;
+    }
+    appLog(
+      '[Steering] Restart budget spent for generation '
+      '${owner.interactionGeneration}; the interruption waits for the queue',
+    );
+    return false;
+  }
+
+  Future<void> _reissueTurnForSteering(ChatTurnOwner owner) async {
+
+    final ownerMessages = _activeResponseRegistry.messagesForOwner(owner);
+    if (ownerMessages == null || ownerMessages.isEmpty) return;
+
+    // Keep what was streamed and stop it streaming, so the transcript shows how
+    // far the reply got before the user cut in. An empty placeholder is dropped
+    // instead, exactly as cancellation treats one.
+    final finalizedMessages = [...ownerMessages];
+    final lastIndex = finalizedMessages.length - 1;
+    final lastMessage = finalizedMessages[lastIndex];
+    if (lastMessage.role == MessageRole.assistant &&
+        !TurnFinalMessage.hasVisibleContent(lastMessage.content)) {
+      finalizedMessages.removeAt(lastIndex);
+    } else if (lastMessage.isStreaming) {
+      finalizedMessages[lastIndex] = lastMessage.copyWith(isStreaming: false);
+    }
+
+    final restartedMessage = Message(
+      id: _uuid.v4(),
+      content: '',
+      role: MessageRole.assistant,
+      timestamp: DateTime.now(),
+      isStreaming: true,
+    );
+    final restartedMessages = [...finalizedMessages, restartedMessage];
+    _activeResponseRegistry.cacheMessagesForOwner(owner, restartedMessages);
+    if (_isCancellationMounted && conversationId == owner.conversationId) {
+      _setCancellationState(
+        _cancellationState.copyWith(
+          messages: restartedMessages,
+          isLoading: true,
+          error: null,
+        ),
+      );
+    }
+
+    appLog(
+      '[Steering] Restarted generation ${owner.interactionGeneration} '
+      'mid-stream to take the interruption '
+      '(restart ${_turnSteering.restartCount(owner)} of '
+      '${TurnSteeringPolicy.restartBudgetPerTurn})',
+    );
+
+    // Re-enter the turn's own path rather than issuing a bare stream, so the
+    // restarted request keeps the tools the turn had. Issuing it directly cost
+    // a measured turn its LAN scan: the interruption arrived tool-aware and
+    // came back tool-free, and the model wrote a script about scanning instead
+    // of scanning.
+    //
+    // Safe to re-enter on the same generation. The file-turn checkpoint is
+    // keyed by generation, so beginning it again returns without touching the
+    // open one, and `_sendWithTools` falls back to the tool-free path by
+    // itself when the turn has no tools. `_prepareMessagesForLLM` commits the
+    // pending steer on the way through, and the partial answer above is
+    // already finalized, so the interruption lands after it.
+    await _sendWithTools(interactionGeneration: owner.interactionGeneration);
   }
 
   /// Moves interruptions that arrived since the last request into the turn's

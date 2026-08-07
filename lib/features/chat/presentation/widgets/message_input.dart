@@ -192,6 +192,17 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         if (HardwareKeyboard.instance.isShiftPressed) {
           return KeyEventResult.ignored;
         }
+        // Cmd/Ctrl+Enter interrupts the running reply. Plain Enter keeps
+        // meaning "send", because queueing behind the reply is still the
+        // common case and silently changing what Enter does mid-reply would
+        // be worse than the click-only affordance it replaces.
+        final wantsInterrupt =
+            HardwareKeyboard.instance.isMetaPressed ||
+            HardwareKeyboard.instance.isControlPressed;
+        if (wantsInterrupt && widget.isLoading && widget.onInterrupt != null) {
+          _handleInterrupt();
+          return KeyEventResult.handled;
+        }
         _handleSend();
         return KeyEventResult.handled;
       },
