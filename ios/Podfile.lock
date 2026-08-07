@@ -56,6 +56,8 @@ PODS:
     - OrderedSet (~> 6.0.3)
   - flutter_local_notifications (0.0.1):
     - Flutter
+  - flutter_pty (0.0.1):
+    - Flutter
   - flutter_secure_storage_darwin (10.0.0):
     - Flutter
     - FlutterMacOS
@@ -78,7 +80,7 @@ PODS:
   - SDWebImage (5.21.7):
     - SDWebImage/Core (= 5.21.7)
   - SDWebImage/Core (5.21.7)
-  - serious_python_darwin (4.1.1):
+  - serious_python_darwin (4.4.1):
     - Flutter
     - FlutterMacOS
   - shared_preferences_foundation (0.0.1):
@@ -105,6 +107,7 @@ DEPENDENCIES:
   - Flutter (from `Flutter`)
   - flutter_inappwebview_ios (from `.symlinks/plugins/flutter_inappwebview_ios/ios`)
   - flutter_local_notifications (from `.symlinks/plugins/flutter_local_notifications/ios`)
+  - flutter_pty (from `.symlinks/plugins/flutter_pty/ios`)
   - flutter_secure_storage_darwin (from `.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - flutter_tts (from `.symlinks/plugins/flutter_tts/ios`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
@@ -147,6 +150,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_inappwebview_ios/ios"
   flutter_local_notifications:
     :path: ".symlinks/plugins/flutter_local_notifications/ios"
+  flutter_pty:
+    :path: ".symlinks/plugins/flutter_pty/ios"
   flutter_secure_storage_darwin:
     :path: ".symlinks/plugins/flutter_secure_storage_darwin/darwin"
   flutter_tts:
@@ -189,6 +194,7 @@ SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_inappwebview_ios: 6f63631e2c62a7c350263b13fa5427aedefe81d4
   flutter_local_notifications: eda81afddbf18f8589f6ec069ce593c4c6378769
+  flutter_pty: 3e25fcff5505e553bbcad3b80220275997ddb9bc
   flutter_secure_storage_darwin: 557817588b80e60213cbecb573c45c76b788018d
   flutter_tts: 91ad1884033cd95ef6e9338754adad54f01f090f
   image_picker_ios: 4f2f91b01abdb52842a8e277617df877e40f905b
@@ -199,7 +205,7 @@ SPEC CHECKSUMS:
   OrderedSet: e539b66b644ff081c73a262d24ad552a69be3a94
   record_ios: 41f9412c3311401689babe6d7ba69362f10b8325
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
-  serious_python_darwin: d40e51430f28465735ec6df546723a2eb211055b
+  serious_python_darwin: 01573cf6695e814a9edbad044bbd54811cf31960
   shared_preferences_foundation: 5086985c1d43c5ba4d5e69a4e8083a389e2909e6
   speech_to_text: 87bf9298952e8d9073be1b6aade6d5758db5170c
   super_native_extensions: 4916b3c627a9c7fffdc48a23a9eca0b1ac228fa7
