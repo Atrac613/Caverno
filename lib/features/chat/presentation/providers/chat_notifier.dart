@@ -215,6 +215,7 @@ import 'turn_thread_scope.dart';
 import 'turn_tool_result_ledger.dart';
 import 'turn_owner_snapshot_registry.dart';
 import 'turn_steering_registry.dart';
+import 'turn_stream_binding_registry.dart';
 import 'subagent_task_notifier.dart';
 
 part 'chat_notifier_approval_handlers.dart';
@@ -512,8 +513,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     ref.onDispose(() {
       _turnRuntimeOwnerLease.retire();
-      _streamSubscription?.cancel();
-      _streamSubscription = null;
+      _turnStream.cancelAll();
       _cancelAllPendingToolApprovals();
       _failAllRuntimeTurns(
         code: 'notifier_disposed',
@@ -798,8 +798,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     if (!preservingActiveResponse) {
-      _streamSubscription?.cancel();
-      _streamSubscription = null;
+      _turnStream.cancelAll();
       _clearTurnDiffCapture();
       _sessionMemoryContext = null;
       _temporalReferenceContext = null;
@@ -2339,7 +2338,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   final _uuid = const Uuid();
-  StreamSubscription<String>? _streamSubscription;
+  final _turnStream = TurnStreamBindingRegistry();
   final _queuedChatMessages = ThreadScopedMessageQueue();
   final _turnSteering = TurnSteeringRegistry();
   /// Plan drafting survives leaving the thread, so returning to it presents
@@ -3709,8 +3708,10 @@ class ChatNotifier extends Notifier<ChatState> {
           maxTokens: _settings.maxTokens,
         );
 
-        _streamSubscription = stream.listen(
-          (chunk) {
+        _turnStream.listen(
+          turnOwner,
+          stream,
+          onChunk: (chunk) {
             if (!_isCurrentInteractionGeneration(generation)) return;
             _appendToLastMessageForGeneration(generation, chunk);
           },
@@ -3740,10 +3741,8 @@ class ChatNotifier extends Notifier<ChatState> {
             }
             unawaited(_handleError(error, owner: turnOwner));
           },
-          onDone: () {
-            _finishStreamedCompletionInBackground(turnOwner, stream.terminal);
-          },
-          cancelOnError: true,
+          onDone: () =>
+              _finishStreamedCompletionInBackground(turnOwner, stream.terminal),
         );
       });
     } catch (e, stackTrace) {
@@ -3792,8 +3791,10 @@ class ChatNotifier extends Notifier<ChatState> {
           maxTokens: _settings.maxTokens,
         );
 
-        _streamSubscription = stream.listen(
-          (chunk) {
+        _turnStream.listen(
+          turnOwner,
+          stream,
+          onChunk: (chunk) {
             if (!_isCurrentInteractionGeneration(interactionGeneration)) {
               return;
             }
@@ -3831,10 +3832,8 @@ class ChatNotifier extends Notifier<ChatState> {
             }
             unawaited(_handleError(error, owner: turnOwner));
           },
-          onDone: () {
-            _finishStreamedCompletionInBackground(turnOwner, stream.terminal);
-          },
-          cancelOnError: true,
+          onDone: () =>
+              _finishStreamedCompletionInBackground(turnOwner, stream.terminal),
         );
       });
     } catch (error, stackTrace) {
@@ -8707,8 +8706,10 @@ class ChatNotifier extends Notifier<ChatState> {
         terminal = _responseMetadata.terminalFor(completion.completion);
       }
 
-      _streamSubscription = stream.listen(
-        (chunk) {
+      _turnStream.listen(
+        turnOwner,
+        stream,
+        onChunk: (chunk) {
           if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
           _appendToLastMessageForGeneration(interactionGeneration, chunk);
         },
@@ -8727,10 +8728,8 @@ class ChatNotifier extends Notifier<ChatState> {
             ),
           );
         },
-        onDone: () {
-          _finishStreamedCompletionInBackground(turnOwner, terminal);
-        },
-        cancelOnError: true,
+        onDone: () =>
+            _finishStreamedCompletionInBackground(turnOwner, terminal),
       );
     });
   }
@@ -8957,8 +8956,7 @@ class ChatNotifier extends Notifier<ChatState> {
   void clearMessages() {
     if (!ref.mounted) return;
     _beginInteractionGeneration();
-    _streamSubscription?.cancel();
-    _streamSubscription = null;
+    _turnStream.cancelAll();
     _failAllRuntimeTurns(
       code: 'messages_cleared',
       message: 'The conversation was cleared before the turn completed.',

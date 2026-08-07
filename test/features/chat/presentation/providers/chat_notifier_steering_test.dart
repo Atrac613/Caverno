@@ -248,6 +248,123 @@ void main() {
     expect(notifier.state.queuedMessages, isEmpty);
   });
 
+  test('an interruption on a tools-off turn does not switch tools on', () async {
+    final firstTurn = StreamController<String>();
+    final restarted = StreamController<String>();
+    final dataSource = _ControllableQueueChatDataSource(
+      Queue<StreamController<String>>.from([firstTurn, restarted]),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = _buildContainer(
+      settings: _NoToolSettingsNotifier.new,
+      // Production always provides the service so built-in tools stay
+      // available; the mcpEnabled switch is the only thing keeping its catalog
+      // out of a request. A null service here would test the one arrangement
+      // in which this cannot go wrong.
+      toolService: _FakeMcpToolService(results: const {'read_alpha': 'alpha'}),
+      dataSource: dataSource,
+      appLifecycleService: appLifecycleService,
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(chatNotifierProvider.notifier);
+    final firstSend = notifier.sendMessage('Explain the plan');
+    for (var i = 0; i < 10 && dataSource.requests.isEmpty; i += 1) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    firstTurn.add('Here is the long plan, starting with');
+    await Future<void>.delayed(Duration.zero);
+    await notifier.sendMessage('Keep it under 3 lines', interrupt: true);
+    for (var i = 0; i < 40 && dataSource.requests.length < 2; i += 1) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    // Restarted, and still the turn the user asked for: an interruption is not
+    // consent to a setting they switched off.
+    expect(dataSource.requests, hasLength(2));
+    expect(dataSource.toolAwareRequestTools, isEmpty);
+
+    restarted.add('Short version.');
+    await restarted.close();
+    unawaited(firstTurn.close());
+    await firstSend;
+    for (var i = 0; i < 20; i += 1) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    expect(notifier.state.steeringMessages, isEmpty);
+    expect(notifier.state.queuedMessages, isEmpty);
+  });
+
+  test('a finished stream does not restart a turn that is running a tool', () async {
+    final toolDataSource = _ToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'read_alpha',
+          arguments: const {'path': 'alpha.txt'},
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'read_alpha': 'alpha result'},
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = _buildContainer(
+      settings: _MutableToolSettingsNotifier.new,
+      dataSource: toolDataSource,
+      toolService: toolService,
+      appLifecycleService: appLifecycleService,
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(chatNotifierProvider.notifier);
+    final settings =
+        container.read(settingsNotifierProvider.notifier)
+            as _MutableToolSettingsNotifier;
+
+    // A completed tool-free turn, which is what leaves a stream subscription
+    // behind: nothing cancels one that ended on its own.
+    await notifier.sendMessage('Explain the plan');
+    for (var i = 0; i < 20; i += 1) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    settings.setMcpEnabled(true);
+
+    // The next turn is tool-aware and consumes its stream through the loop, so
+    // no subscription of its own is ever stored. While its tool runs it has a
+    // request still to come, and the interruption belongs in that request.
+    Future<void>? steerResult;
+    toolService.onExecute = () {
+      steerResult ??= notifier.sendMessage(
+        'Use beta.txt instead',
+        interrupt: true,
+      );
+    };
+    await notifier.sendMessage('Inspect alpha');
+    await steerResult;
+    for (var i = 0; i < 20; i += 1) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    // One opening request, not two: the turn was never streaming, so there was
+    // nothing to abandon and restart.
+    expect(toolDataSource.initialRequestMessages, hasLength(1));
+
+    // And the steer still arrives -- through the window the turn actually had.
+    expect(
+      toolDataSource.toolResultRequestMessages.single
+          .where((message) => message.role == MessageRole.user)
+          .map((message) => message.content),
+      contains('Use beta.txt instead'),
+    );
+    expect(notifier.state.steeringMessages, isEmpty);
+    expect(notifier.state.queuedMessages, isEmpty);
+  });
+
   test('a withdrawn interruption never reaches the model', () async {
     // Registered while a tool runs, so no stream is being consumed and the
     // steer stays pending instead of restarting the turn -- which is the only
@@ -355,6 +472,20 @@ class _NoToolSettingsNotifier extends SettingsNotifier {
     mcpEnabled: false,
     demoMode: false,
   );
+}
+
+class _MutableToolSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() => AppSettings.defaults().copyWith(
+    assistantMode: AssistantMode.general,
+    mcpEnabled: false,
+    demoMode: false,
+  );
+
+  /// Flips the switch without the repository write the real setter performs.
+  void setMcpEnabled(bool enabled) {
+    state = state.copyWith(mcpEnabled: enabled);
+  }
 }
 
 class _TestConversationsNotifier extends ConversationsNotifier {
@@ -611,6 +742,13 @@ class _ControllableQueueChatDataSource implements ChatDataSource {
   final Queue<StreamController<String>> controllers;
   final List<List<Message>> requests = [];
 
+  /// Tool-aware requests this data source was asked for.
+  ///
+  /// Recorded rather than thrown: a turn that wrongly becomes tool-aware
+  /// should fail an expectation, not raise an error the notifier catches and
+  /// turns into an ordinary failed turn.
+  final List<List<Map<String, dynamic>>> toolAwareRequestTools = [];
+
   @override
   StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
@@ -646,7 +784,14 @@ class _ControllableQueueChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
-    throw UnimplementedError();
+    toolAwareRequestTools.add(List<Map<String, dynamic>>.from(tools));
+    requests.add(List<Message>.from(messages));
+    return StreamWithToolsResult(
+      stream: const Stream.empty(),
+      completion: Future<ChatCompletionResult>.value(
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      ),
+    );
   }
 
   @override

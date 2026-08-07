@@ -1,7 +1,9 @@
 # Mid-stream steering: closing the window the user actually reacts in
 
 Status: implemented and live-verified 3/3. One scoping claim below was wrong
-and is corrected in place; see "Correction".
+and is corrected in place; see "Correction". Three defects found afterwards by
+reading the path this document flagged as unverified; see "What the unverified
+plain-chat arm was hiding".
 
 ## The measurement that motivates this
 
@@ -163,6 +165,60 @@ on the same generation: `beginFileTurnCheckpoint` is keyed by generation and
 returns without touching an open checkpoint, and `_sendWithTools` falls back to
 the tool-free path by itself when a turn has no tools. Live 3/3 with the file
 created.
+
+## What the unverified plain-chat arm was hiding
+
+The verification plan below ends with a line that turned out to be the most
+useful sentence in this document: *plain chat also needs its own live arm,
+because every live evidence run used `WorkspaceMode.coding`*. Reading that path
+instead of running it found three defects, all downstream of one cause.
+
+`_streamSubscription` was a single notifier-wide field that nothing owned.
+`onDone` never cleared it, and no site checked whose stream it was. So the
+restart trigger — "is a subscription present?" — answered a question nobody had
+asked. What it actually meant was *some `.listen()` ran at some point and
+nothing has cleaned up after it*.
+
+1. **A finished stream restarted a turn that was not streaming.** A completed
+   tool-free turn leaves its subscription behind. The next tool-aware turn
+   consumes its stream through `await for` and stores no subscription, so the
+   leftover one is still what the trigger sees. Interrupting during a tool
+   execution — the LAN scan in the measurement above — therefore issued a second
+   opening request while the first tool loop was still running, on the same
+   generation. The steer was supposed to wait for the request that loop was
+   already going to build, which is the original between-requests design.
+2. **Another thread's stream could be cancelled by an interruption aimed
+   elsewhere.** With two threads running, the field belongs to whichever
+   streamed last. Cancelling it takes `onDone` with it, and the restart then
+   finalizes the *interrupting* turn — leaving the other one registered and
+   loading forever. That is the strand risk named above, applied to the wrong
+   turn.
+3. **A turn the user ran with tools off came back with tools on.** The re-issue
+   called `_sendWithTools` unconditionally. `mcpEnabled` is enforced at the send
+   call site, not in the catalog: `getOpenAiToolDefinitions()` filters only the
+   per-tool disabled list, and the service is always provided so built-ins stay
+   available. The `allTools.isEmpty` fallback therefore never fires in
+   production. This is the mirror of the tool-free regression above — an
+   interruption is not consent to a setting the user switched off.
+
+The fix binds the subscription to its turn (`TurnStreamBindingRegistry`), which
+makes the trigger ask the question it meant to ask, and re-issues through the
+turn's own mode rather than assuming tool-aware. Binding and releasing are one
+call on the registry, because the three listen sites had proved that a release
+they each have to remember is a release one of them will forget.
+
+**The unit tests were green because the harness avoided the production
+arrangement.** The mid-stream test injects `toolService: null` — the single
+configuration in which defect 3 cannot occur — and the tool-execution test runs
+as the first turn of its container, so no leftover subscription exists to expose
+defect 1. Both now have counterparts that fail on the pre-fix code.
+
+A live plain-chat arm is still not the right instrument for this, which is worth
+recording so it is not filed as remaining work. The canary reads its verdict
+from the filesystem, and a tool-free turn writes nothing. What was wrong here is
+a harness property — *which* request the restart issues — and that is decided
+before any model sees it. The deterministic tests are where it belongs; live
+runs remain for obedience, which needs tools to be observable at all.
 
 ## The canary's turn counter stopped meaning turns
 

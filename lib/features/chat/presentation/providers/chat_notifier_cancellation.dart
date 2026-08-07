@@ -13,8 +13,7 @@ extension ChatNotifierCancellation on ChatNotifier {
         _activeResponseGenerationForConversation(conversationId) ??
         _interactionGeneration;
     final cancelledOwner = _turnOwnerForGeneration(cancelledGeneration);
-    _streamSubscription?.cancel();
-    _streamSubscription = null;
+    _turnStream.cancelAll();
     if (cancelledOwner != null) {
       _dismissPendingAskUserQuestionForConversation(
         cancelledOwner.conversationId,
@@ -146,7 +145,10 @@ extension ChatNotifierSteering on ChatNotifier {
     // A turn that is streaming has no further request planned, so waiting for
     // one means waiting forever. Measured: users interrupt while reading the
     // answer, which is after every between-request window has closed.
-    if (_streamSubscription != null) {
+    //
+    // It has to be *this* turn's stream: a turn running a tool still has a
+    // request coming, and another thread's stream is not this turn's to end.
+    if (_turnStream.isStreaming(owner)) {
       unawaited(_restartTurnForSteering(owner));
     }
     return owner;
@@ -164,7 +166,7 @@ extension ChatNotifierSteering on ChatNotifier {
   /// re-issued stream below owns it instead. Dropping that is how a thread ends
   /// up stranded under a spinner.
   Future<void> _restartTurnForSteering(ChatTurnOwner owner) async {
-    final subscription = _streamSubscription;
+    final subscription = _turnStream.subscriptionFor(owner);
     if (subscription == null) return;
     if (!_claimSteeringRestart(owner)) return;
 
@@ -172,7 +174,7 @@ extension ChatNotifierSteering on ChatNotifier {
     // while the future it returns settles with the upstream teardown and can
     // outlive the request. Awaiting it strands the restart behind the very
     // stream it is abandoning.
-    _streamSubscription = null;
+    _turnStream.release(owner);
     unawaited(subscription.cancel());
     await _reissueTurnForSteering(owner);
   }
@@ -265,13 +267,35 @@ extension ChatNotifierSteering on ChatNotifier {
     // came back tool-free, and the model wrote a script about scanning instead
     // of scanning.
     //
+    // The tool-free path has to be entered deliberately to keep that argument
+    // symmetric: `_sendWithTools` reads the catalog the service holds, which is
+    // populated whether or not tools are switched on, so a turn the user ran
+    // with tools off would come back with the whole catalog attached. An
+    // interruption is not consent to a setting they turned off.
+    //
     // Safe to re-enter on the same generation. The file-turn checkpoint is
     // keyed by generation, so beginning it again returns without touching the
-    // open one, and `_sendWithTools` falls back to the tool-free path by
-    // itself when the turn has no tools. `_prepareMessagesForLLM` commits the
-    // pending steer on the way through, and the partial answer above is
-    // already finalized, so the interruption lands after it.
+    // open one. `_prepareMessagesForLLM` commits the pending steer on the way
+    // through, and the partial answer above is already finalized, so the
+    // interruption lands after it.
+    if (_turnDeniedTools(owner)) {
+      await _sendWithoutTools(
+        interactionGeneration: owner.interactionGeneration,
+      );
+      return;
+    }
     await _sendWithTools(interactionGeneration: owner.interactionGeneration);
+  }
+
+  /// Whether this turn went out with no tools at all.
+  ///
+  /// An empty allowed set is what the tool-free send path records; null means
+  /// the full catalog, which is the tool-aware turn.
+  bool _turnDeniedTools(ChatTurnOwner owner) {
+    final allowed = _activeResponseRegistry
+        .snapshotForOwner(owner)
+        ?.allowedToolNames;
+    return allowed != null && allowed.isEmpty;
   }
 
   /// Moves interruptions that arrived since the last request into the turn's
