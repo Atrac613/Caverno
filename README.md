@@ -18,19 +18,47 @@
 
 ## Features
 
+### Chat
+
 - **OpenAI-compatible API** — Works with any OpenAI-compatible endpoint (local or remote)
-- **Tool Calling (MCP + built-in tools)** — HTTP and stdio MCP servers plus
-  local tools for web search, memory, network diagnostics, files, Git, SSH,
-  Wi-Fi, BLE, and macOS Computer Use
 - **Session Memory** — Automatically extracts and persists user preferences, persona, and context across sessions
-- **Plan Mode** — Creates reviewable workflow plans, decisions, saved tasks, and validation evidence before implementation
-- **Routines** — Schedule recurring prompts with optional tool use, approved Markdown plans, run history, and Google Chat delivery
+- **History Search** — Full-text search over past conversations, ranked by embedding similarity when an `/v1/embeddings` endpoint is available
+- **Mid-turn Interruption** — Send with Cmd/Ctrl+Enter to redirect the turn that is already running instead of queueing behind it; the turn keeps its tool results and partial output
+- **Multi-thread** — Run turns in several conversations at once; each thread keeps its own state, queue, and approvals
 - **Voice I/O** — Speech-to-text input and text-to-speech output with configurable speech rate
-- **Multi-conversation** — Create, switch, and manage multiple conversations with persistent storage
 - **Content Parsing** — Renders `<think>` reasoning blocks and inline `<tool_call>` / `<tool_use>` tags
 - **Image Input** — Attach images to messages (base64 with MIME type)
 - **Assistant Modes** — Switch between `general`, `coding`, and `plan` modes with specialized system prompts
+- **Slash Commands** — `/new`, `/coding`, `/plan`, `/goal`, `/agent`, `/skill`, `/review`, `/fix`, `/test`, and more
+
+### Tools
+
+- **Tool Calling (MCP + built-in tools)** — HTTP and stdio MCP servers plus
+  built-in tools grouped by category: web search, memory, files and scripts,
+  Git, SSH, network, LAN scan, Wi-Fi, BLE, serial port, system logs, tasks,
+  skills, built-in browser, and macOS Computer Use
+- **Approvals** — High-risk tools (shell, filesystem writes, Computer Use, SSH) require explicit approval; the decision is cached per turn so a repeated identical call does not ask twice
+- **Embedded Python** — Runs `run_python_script` on a bundled interpreter, on desktop and mobile alike
+- **Built-in Browser** — An in-app webview the model can navigate and read
+- **Embedded Terminal** — A desktop-only terminal panel in the coding workspace, running a long-lived login shell that keeps going while the panel is hidden
+
+### Coding
+
+- **Coding Mode** — Project-scoped sessions with a repo map, dependency grounding, and LSP-backed post-edit diagnostics
+- **Git Worktrees** — Work in an isolated worktree per thread, with `/agent` queueing tasks across several at once
+- **Turn Checkpoints** — Whole-turn file snapshots with one-action revert
+- **Goals** — Set a coding goal with `/goal`; the agent can continue toward it across turns under a visible token and turn budget
+- **Plan Mode** — Creates reviewable workflow plans, decisions, saved tasks, and validation evidence before implementation
+- **Skills** — Save a conversation's workflow as a reusable skill and load it later
+- **Remote Coding** — Drive a desktop coding session from a paired phone on the same LAN
 - **AGENTS.md Support** — In coding and plan modes, the project root `AGENTS.md` (and the higher-priority `AGENTS.override.md`) is injected into the system prompt, following the [OpenAI Codex AGENTS.md spec](https://developers.openai.com/codex/guides/agents-md)
+
+### Models and operations
+
+- **Per-role Model Routing** — Send secondary work (memory extraction, subagents, approval auto-review) to a smaller model, optionally on another machine
+- **LAN Inference Mesh** — Discover and register OpenAI-compatible endpoints on the local network and route roles across them with fallback
+- **Local Stack Manager** — Manage model lifecycle and hardware fit for llama.cpp, LM Studio, and Ollama from `Advanced > Local Stack`
+- **Routines** — Schedule recurring prompts with optional tool use, approved Markdown plans, run history, and Google Chat delivery
 - **Settings Import/Export** — Share configuration via JSON file or QR code with validation
 - **Localization** — English and Japanese UI (easy_localization)
 - **Local Notifications** — Background response notifications
@@ -38,22 +66,29 @@
 ## Roadmap
 
 The active milestone roadmap is maintained in
-[`docs/roadmap.md`](docs/roadmap.md). Plan Mode milestones use `PM<number>`,
-while macOS Computer Use keeps the existing `M<number>` milestone series.
+[`docs/roadmap.md`](docs/roadmap.md). Plan Mode milestones use `PM<number>` and
+macOS Computer Use keeps the existing `M<number>` series; local-LLM agent work
+(`LL<number>`), foundation refactors (`F<number>`), and the platform vision
+tracks are detailed in
+[`docs/local_llm_agent_roadmap.md`](docs/local_llm_agent_roadmap.md).
 
 ## Requirements
 
-- Flutter 3.44.0 (managed via [FVM](https://fvm.app/))
+- Flutter 3.44.8 (managed via [FVM](https://fvm.app/))
 - An OpenAI-compatible LLM server (defaults to `http://localhost:1234/v1`)
+- Python 3 on the host to repackage the embedded Python worker (contributors only)
 
 ## Getting Started
 
 ```bash
 # Select the repository Flutter version
-fvm use 3.44.0
+fvm use 3.44.8
 
 # Install dependencies
 fvm flutter pub get
+
+# Stage the embedded Python interpreter (once per machine, after pub get)
+tool/prepare_serious_python.sh
 
 # Generate Freezed / JSON serializable code
 fvm dart run build_runner build --delete-conflicting-outputs
@@ -61,6 +96,30 @@ fvm dart run build_runner build --delete-conflicting-outputs
 # Run the app
 fvm flutter run
 ```
+
+`tool/prepare_serious_python.sh` stages the interpreter for iOS and macOS, which
+`pod install` also does on its own. Android reads the staged site directory from
+the environment at build time, so export it in the shell you build from:
+
+```bash
+export SERIOUS_PYTHON_SITE_PACKAGES="$(pwd)/build/serious_python_site"
+```
+
+### macOS builds
+
+Every worktree that builds the macOS app produces its own `Caverno.app` claiming
+the same bundle ID, which makes LaunchServices route XPC requests to whichever
+copy registered last and breaks the Computer Use helper. macOS builds therefore
+go through a wrapper that only proceeds in the worktree designated canonical by
+a gitignored `.macos-canonical` sentinel:
+
+```bash
+touch .macos-canonical        # once, in the worktree that owns macOS builds
+tool/safe-flutter run -d macos
+```
+
+Every other subcommand passes straight through, so any worktree can still run
+`tool/safe-flutter analyze` and `tool/safe-flutter test`.
 
 ## Development Workflow
 
@@ -79,7 +138,7 @@ tool/codex_verify.sh
 For focused tests:
 
 ```bash
-tool/codex_verify.sh --test test/core/utils/content_parser_test.dart
+tool/codex_verify.sh --test test/core/utils/markdown_render_sanitizer_test.dart
 ```
 
 For coverage-sensitive work:
@@ -95,7 +154,31 @@ is intentionally ignored by git.
 Large-file refactor guidance lives in
 [`docs/large_file_refactor_plan.md`](docs/large_file_refactor_plan.md). Use it
 before splitting `ChatNotifier`, `ChatPage`, MCP tool services, or large
-Computer Use settings/debug surfaces.
+Computer Use settings/debug surfaces. Oversized files are held to a CI-enforced
+line budget that only ever ratchets down, so a change that grows one has to make
+room by extracting something first.
+
+### Embedded Python worker
+
+The `run_python_script` tool runs against a packaged worker asset. After editing
+anything under `lib/core/services/script_runtime/worker/` (including its vendored
+`__pypackages__/`), regenerate the deterministic `assets/python/app.zip`:
+
+```bash
+python3 tool/pack_python_worker.py
+```
+
+The worker has a regression suite that needs only the system `python3`, and the
+native path is covered by an integration test that runs the real interpreter on
+a device or simulator:
+
+```bash
+python3 test/python/worker_test.py
+fvm flutter test integration_test/python_runtime_test.dart -d <device-id>
+```
+
+Mobile supports pure-Python wheels only. To vendor another package, install it
+into the worker's `__pypackages__/` with `--no-deps --no-compile` and repackage.
 
 ## Configuration
 
@@ -119,9 +202,15 @@ All settings are configurable in-app via the Settings page:
 Optional integrations:
 - **MCP Servers** — Configure trusted HTTP or desktop stdio servers for external
   tools
-- **Built-in Tools** — Enable or disable categories for datetime, memory,
-  network, coding, Git, SSH, BLE, Wi-Fi, LAN scan, system logs, and Computer Use
+- **Built-in Tools** — Enable or disable categories for date & time, memory,
+  web search, code & scripts, Git, SSH, network, LAN scan, Wi-Fi, Bluetooth LE,
+  serial port, system, tasks, interaction, skills, built-in browser, and
+  Computer Use
 - **TTS / STT** — Enable voice features and auto-read in settings
+- **Semantic Search** — Point Caverno at an `/v1/embeddings` endpoint to rank
+  history search by meaning; it degrades to lexical full-text search without one
+- **LLM Endpoints** — Register additional OpenAI-compatible endpoints and route
+  individual roles to them, with fallback to the primary
 - **Routines** — Configure scheduled prompt runs, workspace access, tool use,
   and Google Chat completion delivery
 
@@ -519,6 +608,22 @@ Both scripts write `canary_summary.json`, `canary_summary.md`, and the captured
 Flutter JSON log under `build/integration_test_reports/` so model-switch
 handoffs can compare chat recovery signals across runs.
 
+Mid-turn interruption has its own canary. It runs an interrupt arm against a
+queued control arm and reads its verdict from the sandbox filesystem rather than
+the model's prose, because both failure modes — the interruption was silently
+requeued, and it arrived and was ignored — leave the same file on disk.
+
+```bash
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+tool/run_turn_steering_live_canary.sh
+```
+
+It asserts a probabilistic model behavior, so a single run is a sample rather
+than a measurement; set `CAVERNO_TURN_STEERING_REPEAT_COUNT` and read the rate
+printed at the end.
+
 ## Routine Live LLM Canary
 
 Routine live LLM validation is documented in
@@ -546,7 +651,8 @@ Clean Architecture with feature-based modules and Riverpod state management.
 
 ```
 lib/
-├── core/              # Constants, services (TTS/STT), types, utils
+├── core/              # Constants, services (TTS/STT, Python script runtime,
+│                      # SSH/BLE/Wi-Fi, Computer Use, windowing), types, utils
 ├── features/
 │   ├── chat/          # Chat feature (data → domain → presentation)
 │   │   ├── data/      # Remote datasource (OpenAI), MCP client, repositories
@@ -564,8 +670,27 @@ lib/
 │       ├── data/      # Repository, file service, QR service
 │       ├── domain/    # AppSettings entity (Freezed)
 │       └── presentation/  # Pages, providers, widgets (QR dialogs)
-└── main.dart          # Entry point: Hive, SharedPreferences, localization, Riverpod
+└── main.dart          # Entry point: storage, SharedPreferences, localization, Riverpod
 ```
+
+Three internal packages hold the contracts the app is decomposed against:
+
+```
+packages/
+├── caverno_tool_contracts/     # Tool result envelope and outcome types
+├── caverno_execution_runtime/  # Typed execution runtime shared with the CLI work
+└── caverno_content_protocol/   # Streaming content parsing (think / tool tags)
+```
+
+### Storage
+
+Conversations and chat memory are stored in a drift (SQLite) database, which
+also backs full-text history search and the embedding vector store. Hive remains
+in the app for the one-time migration path: the database is opened and migrated
+at startup, and any failure there falls back to the original Hive-backed
+repositories rather than blocking launch. Settings, routines, coding projects,
+and window geometry live in SharedPreferences; SSH credentials live in
+`flutter_secure_storage`.
 
 ### Tech Stack
 
@@ -574,15 +699,18 @@ lib/
 | State Management | flutter_riverpod |
 | API Client | openai_dart, http |
 | Immutable Models | freezed + json_serializable |
-| Local Storage | hive / hive_flutter (conversations and memory), shared_preferences (settings, routines, coding projects, window settings) |
+| Local Storage | drift (conversations, chat memory, FTS5 history search, embeddings), hive / hive_flutter (migration source), shared_preferences (settings, routines, coding projects, window settings), flutter_secure_storage (SSH credentials) |
 | Voice (built-in) | speech_to_text, flutter_tts |
 | Voice (server) | record, audioplayers (Whisper STT + VOICEVOX TTS) |
 | Settings Transfer | file_picker, qr_flutter, mobile_scanner |
 | Localization | easy_localization |
 | Notifications | flutter_local_notifications |
 | Desktop Windowing | window_manager |
-| Built-in Tools | dart_ping, multicast_dns, dartssh2, bluetooth_low_energy, wifi_scan, network_info_plus |
-| UI | flutter_markdown_plus, url_launcher, image_picker |
+| Embedded Python | serious_python |
+| Terminal | xterm, flutter_pty |
+| Built-in Browser | flutter_inappwebview |
+| Built-in Tools | dart_ping, multicast_dns, dartssh2, bluetooth_low_energy, wifi_scan, network_info_plus, flutter_libserialport |
+| UI | flutter_markdown_plus, flutter_math_fork, url_launcher, image_picker, desktop_drop |
 
 ## License
 
