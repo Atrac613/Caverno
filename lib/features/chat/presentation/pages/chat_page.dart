@@ -774,13 +774,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final usePersistentDrawer =
         !isMobileRemoteCoding &&
         MediaQuery.sizeOf(context).width >= chatPagePersistentDrawerBreakpoint;
-    void handleComposerSend(
+    void submitComposerMessage(
       String message,
       String? imageBase64,
       String? imageMimeType,
       String? originalImagePath,
-      String? originalImageMimeType,
-    ) {
+      String? originalImageMimeType, {
+      bool interrupt = false,
+    }) {
       setState(() {
         _composerPrefillText = '';
         _composerPrefillVersion++;
@@ -795,13 +796,44 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           originalImagePath: originalImagePath,
           originalImageMimeType: originalImageMimeType,
           languageCode: languageCode,
+          interrupt: interrupt,
         ),
       );
     }
 
+    void handleComposerSend(
+      String message,
+      String? imageBase64,
+      String? imageMimeType,
+      String? originalImagePath,
+      String? originalImageMimeType,
+    ) => submitComposerMessage(
+      message,
+      imageBase64,
+      imageMimeType,
+      originalImagePath,
+      originalImageMimeType,
+    );
+
+    void handleComposerInterrupt(
+      String message,
+      String? imageBase64,
+      String? imageMimeType,
+      String? originalImagePath,
+      String? originalImageMimeType,
+    ) => submitComposerMessage(
+      message,
+      imageBase64,
+      imageMimeType,
+      originalImagePath,
+      originalImageMimeType,
+      interrupt: true,
+    );
+
     Widget buildMessageInput({bool floating = false}) {
       final input = MessageInput(
         onSend: handleComposerSend,
+        onInterrupt: handleComposerInterrupt,
         onCancel: () => chatNotifier.cancelStreaming(),
         isLoading: chatState.isLoading,
         assistantMode: effectiveAssistantMode,
@@ -1059,9 +1091,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         _buildTokenUsageBar(context, chatState, settings),
                       if (!shouldShowCodingDraftComposer &&
                           canCompose &&
-                          chatState.queuedMessages.isNotEmpty)
+                          (chatState.queuedMessages.isNotEmpty ||
+                              chatState.steeringMessages.isNotEmpty))
                         QueuedMessagesStrip(
                           messages: chatState.queuedMessages,
+                          steeringMessages: chatState.steeringMessages,
                           onRemove: chatNotifier.removeQueuedMessage,
                         ),
                       if (canCompose && !shouldShowCodingDraftComposer)

@@ -188,6 +188,7 @@ class _ValidationChatNotifier extends ChatNotifier {
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
+    bool interrupt = false,
   }) async {
     sentMessages.add(content);
     sentLanguageCodes.add(languageCode);

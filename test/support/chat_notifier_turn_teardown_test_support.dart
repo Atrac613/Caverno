@@ -11,6 +11,7 @@ const expectedTurnReleaseObligations = [
   'toolApprovalCache',
   'hiddenAssistantEvidence',
   'contentToolTurns',
+  'turnSteering',
   'turnEnd',
   'goalCompletionEvidence',
   // Moved out of the generation-keyed destructor, which reached them by

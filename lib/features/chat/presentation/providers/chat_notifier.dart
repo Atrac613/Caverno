@@ -87,6 +87,8 @@ import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/content_tool_continuation_prompt_builder.dart';
 import '../../domain/services/content_tool_formatters.dart';
+import '../../domain/services/turn_steering_policy.dart';
+import '../../domain/services/turn_steering_prompt_builder.dart';
 import '../../domain/services/context_surgery_observation_accumulator.dart';
 import '../../domain/services/create_routine_tool_handler.dart';
 import '../../domain/services/conversation_compaction_service.dart';
@@ -212,6 +214,7 @@ import 'turn_goal_completion_evidence_registry.dart';
 import 'turn_thread_scope.dart';
 import 'turn_tool_result_ledger.dart';
 import 'turn_owner_snapshot_registry.dart';
+import 'turn_steering_registry.dart';
 import 'subagent_task_notifier.dart';
 
 part 'chat_notifier_approval_handlers.dart';
@@ -827,6 +830,12 @@ class ChatNotifier extends Notifier<ChatState> {
       ChatState(
         messages: restoredMessages,
         queuedMessages: _queuedChatMessages.forThread(conversationId),
+        steeringMessages: [
+          for (final entry in _turnSteering.pendingForConversation(
+            conversationId ?? '',
+          ))
+            entry.message,
+        ],
         isLoading: restoredLoading,
         busyConversationIds: _activeResponseRegistry.activeConversationIds,
         error: null,
@@ -2171,6 +2180,9 @@ class ChatNotifier extends Notifier<ChatState> {
     required int interactionGeneration,
     String? participantRolePrompt,
   }) {
+    // Before the snapshot is read, because committing is what puts an
+    // interruption where that read finds it.
+    _commitPendingTurnSteering(interactionGeneration);
     final ownerSnapshot = _turnOwnerSnapshotForGeneration(
       interactionGeneration,
     );
@@ -2255,6 +2267,12 @@ class ChatNotifier extends Notifier<ChatState> {
     if (hiddenPrompt != null) {
       result.add(hiddenPrompt);
     }
+    // Last, so an interruption is not read as one more remark filed behind the
+    // work already in flight.
+    final steeringDirective = _turnSteeringDirectiveMessage(ownerSnapshot.owner);
+    if (steeringDirective != null) {
+      result.add(steeringDirective);
+    }
     _updateContextTokenPressureState(
       pressure: ConversationCompactionService.assessTokenPressure(
         messages: result,
@@ -2323,6 +2341,7 @@ class ChatNotifier extends Notifier<ChatState> {
   final _uuid = const Uuid();
   StreamSubscription<String>? _streamSubscription;
   final _queuedChatMessages = ThreadScopedMessageQueue();
+  final _turnSteering = TurnSteeringRegistry();
   /// Plan drafting survives leaving the thread, so returning to it presents
   /// the review sheet instead of looking idle.
   final _threadStates = <String, ThreadScopedChatState>{};
@@ -2499,6 +2518,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _responseMetadata.dispose(owner);
     }
     _activeResponseRegistry.clearAll();
+    _turnSteering.clear();
     _lastStreamedToolResultFinalAnswersByGeneration.clear();
     _pendingActionLengthRecoveryGenerations.clear();
     _explicitTerminalSuccessSummariesByGeneration.clear();
@@ -2527,6 +2547,11 @@ class ChatNotifier extends Notifier<ChatState> {
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
+    // Join the running turn instead of waiting behind it. Ignored when the
+    // thread is idle, when something is already queued for it, or when the
+    // message carries what steering cannot (see [_isSteerableMessage]); all
+    // three fall back to the queue rather than dropping the message.
+    bool interrupt = false,
   }) async {
     if (content.trim().isEmpty && imageBase64 == null) return null;
     if (!ref.mounted) return null;
@@ -2556,6 +2581,21 @@ class ChatNotifier extends Notifier<ChatState> {
       origin: origin,
       conversationId: ownerConversationId,
     );
+    // Only when the user asked to interrupt. Queueing stays the default
+    // because "run this after" is a different intent from "do this instead",
+    // and the queue is what carries the owner receipt for the former.
+    //
+    // Not for a thread with something already queued: jumping that queue would
+    // reorder what the user typed.
+    if (interrupt &&
+        wasLoading &&
+        !queue.shouldEnqueue(ownerConversationId) &&
+        _isSteerableMessage(queuedMessage)) {
+      final steerableOwner = _steerableTurnOwner(ownerConversationId);
+      if (steerableOwner != null) {
+        return _registerTurnSteering(steerableOwner, queuedMessage);
+      }
+    }
     if (wasLoading || queue.shouldEnqueue(ownerConversationId)) {
       if (ownerConversationId?.isNotEmpty != true) return null;
       final participantRuntime = state.participantTurnRuntime;
@@ -2913,6 +2953,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void removeQueuedMessage(String id) {
+    if (_removePendingTurnSteering(id)) return;
     if (!_queuedChatMessages.remove(id)) return;
     _syncQueuedChatMessagesState();
     appLog(

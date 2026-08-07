@@ -554,6 +554,7 @@
     "record_start": "Voice input",
     "voice_mode_start": "Start Voice Mode",
     "send": "Send",
+    "interrupt": "Interrupt the running reply",
     "cancel": "Cancel",
     "stt_unavailable": "Could not start voice input. Check your environment or permissions.",
     "attach_file": "Attach file",

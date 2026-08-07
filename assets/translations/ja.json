@@ -554,6 +554,7 @@
     "record_start": "音声入力",
     "voice_mode_start": "ボイスモード開始",
     "send": "送信",
+    "interrupt": "実行中の応答に割り込む",
     "cancel": "キャンセル",
     "stt_unavailable": "音声入力を開始できませんでした（実行環境または権限を確認してください）。",
     "attach_file": "ファイルを添付",

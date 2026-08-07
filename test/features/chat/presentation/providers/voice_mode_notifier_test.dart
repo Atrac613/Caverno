@@ -55,6 +55,7 @@ class _ControllableChatNotifier extends ChatNotifier {
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
+    bool interrupt = false,
   }) async {
     sentMessages.add(content);
     return null;

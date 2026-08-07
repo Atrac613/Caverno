@@ -48,6 +48,7 @@ class MessageInput extends ConsumerStatefulWidget {
   const MessageInput({
     super.key,
     required this.onSend,
+    this.onInterrupt,
     required this.onCancel,
     required this.isLoading,
     required this.assistantMode,
@@ -81,6 +82,17 @@ class MessageInput extends ConsumerStatefulWidget {
     String? originalImageMimeType,
   )
   onSend;
+
+  /// Same payload as [onSend], but asking to join the reply already running
+  /// rather than queue behind it. Null when the surface cannot interrupt.
+  final void Function(
+    String message,
+    String? imageBase64,
+    String? imageMimeType,
+    String? originalImagePath,
+    String? originalImageMimeType,
+  )?
+  onInterrupt;
   final VoidCallback onCancel;
   final bool isLoading;
   final AssistantMode assistantMode;
@@ -1031,7 +1043,11 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     unawaited(_handleSendAsync());
   }
 
-  Future<void> _handleSendAsync() async {
+  void _handleInterrupt() {
+    unawaited(_handleSendAsync(interrupt: true));
+  }
+
+  Future<void> _handleSendAsync({bool interrupt = false}) async {
     final text = _controller.text.trim();
     if (text.isEmpty &&
         _selectedImageBytes == null &&
@@ -1075,7 +1091,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       imageBase64 = base64Encode(_selectedImageBytes!);
     }
 
-    widget.onSend(
+    final send = interrupt
+        ? widget.onInterrupt ?? widget.onSend
+        : widget.onSend;
+    send(
       finalText,
       imageBase64,
       _selectedImageMimeType,
@@ -2256,6 +2275,26 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                         ),
                       ),
                       const SizedBox(width: 4),
+                      // Interrupt sits left of Send and only while a reply is
+                      // running: it is the third thing the user can do with
+                      // text in the box (queue it, interrupt with it, or stop
+                      // the reply outright).
+                      if (canSend &&
+                          widget.isLoading &&
+                          widget.onInterrupt != null) ...[
+                        IconButton(
+                          onPressed: _handleInterrupt,
+                          icon: const Icon(Icons.bolt),
+                          tooltip: 'message.interrupt'.tr(),
+                          style: IconButton.styleFrom(
+                            backgroundColor:
+                                theme.colorScheme.tertiaryContainer,
+                            foregroundColor:
+                                theme.colorScheme.onTertiaryContainer,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
                       // Rightmost slot:
                       // - when content is present: Send, even while streaming
                       // - while streaming: Cancel (stop)

@@ -7,19 +7,36 @@ class QueuedMessagesStrip extends StatelessWidget {
     super.key,
     required this.messages,
     required this.onRemove,
+    this.steeringMessages = const <QueuedChatMessage>[],
   });
 
   final List<QueuedChatMessage> messages;
+
+  /// Interruptions already handed to the running turn, waiting for its next
+  /// request to pick them up. Listed first because they act sooner than
+  /// anything queued behind the turn.
+  final List<QueuedChatMessage> steeringMessages;
+
   final ValueChanged<String> onRemove;
 
   @override
   Widget build(BuildContext context) {
-    if (messages.isEmpty) {
+    if (messages.isEmpty && steeringMessages.isEmpty) {
       return const SizedBox.shrink();
     }
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final rows = <Widget>[
+      for (final message in steeringMessages)
+        _QueuedMessageRow(
+          message: message,
+          onRemove: onRemove,
+          isSteering: true,
+        ),
+      for (final message in messages)
+        _QueuedMessageRow(message: message, onRemove: onRemove),
+    ];
 
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
@@ -32,9 +49,9 @@ class QueuedMessagesStrip extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (var index = 0; index < messages.length; index++) ...[
-            _QueuedMessageRow(message: messages[index], onRemove: onRemove),
-            if (index < messages.length - 1)
+          for (var index = 0; index < rows.length; index++) ...[
+            rows[index],
+            if (index < rows.length - 1)
               Divider(
                 height: 10,
                 thickness: 1,
@@ -48,9 +65,14 @@ class QueuedMessagesStrip extends StatelessWidget {
 }
 
 class _QueuedMessageRow extends StatelessWidget {
-  const _QueuedMessageRow({required this.message, required this.onRemove});
+  const _QueuedMessageRow({
+    required this.message,
+    required this.onRemove,
+    this.isSteering = false,
+  });
 
   final QueuedChatMessage message;
+  final bool isSteering;
   final ValueChanged<String> onRemove;
 
   @override
@@ -60,20 +82,32 @@ class _QueuedMessageRow extends StatelessWidget {
     final preview = _previewText(message);
 
     return Row(
-      key: ValueKey('queued_message_${message.id}'),
+      key: ValueKey(
+        isSteering
+            ? 'steering_message_${message.id}'
+            : 'queued_message_${message.id}',
+      ),
       children: [
-        Icon(Icons.schedule_send, size: 18, color: colorScheme.primary),
+        Icon(
+          isSteering ? Icons.bolt : Icons.schedule_send,
+          size: 18,
+          color: isSteering ? colorScheme.tertiary : colorScheme.primary,
+        ),
         const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: colorScheme.primaryContainer,
+            color: isSteering
+                ? colorScheme.tertiaryContainer
+                : colorScheme.primaryContainer,
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
-            'Queued',
+            isSteering ? 'Interrupting' : 'Queued',
             style: theme.textTheme.labelSmall?.copyWith(
-              color: colorScheme.onPrimaryContainer,
+              color: isSteering
+                  ? colorScheme.onTertiaryContainer
+                  : colorScheme.onPrimaryContainer,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -92,7 +126,9 @@ class _QueuedMessageRow extends StatelessWidget {
         const SizedBox(width: 8),
         IconButton(
           visualDensity: VisualDensity.compact,
-          tooltip: 'Remove queued message',
+          tooltip: isSteering
+              ? 'Withdraw this interruption'
+              : 'Remove queued message',
           onPressed: () => onRemove(message.id),
           icon: const Icon(Icons.delete_outline),
         ),

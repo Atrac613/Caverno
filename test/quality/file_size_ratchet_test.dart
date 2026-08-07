@@ -32,8 +32,8 @@ const Map<String, int> _lineBudgets = {
   // returned -- reproduced, then fixed. Routing is structurally longer than
   // assigning: the callback form costs three lines per write and there are
   // seven of them. Nothing was extractable; the alternative is the bug.
-    // +1 import for the shadow comparator.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8935,
+  // +1 import for the shadow comparator.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8976,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -232,7 +232,7 @@ const Map<String, int> _lineBudgets = {
       129,
   'lib/features/chat/presentation/providers/response_metadata_registry.dart':
       107,
-  'lib/features/chat/presentation/providers/chat_state.dart': 759,
+  'lib/features/chat/presentation/providers/chat_state.dart': 763,
   'lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart':
       361,
   'lib/features/chat/presentation/providers/thread_scoped_chat_state.dart': 238,
@@ -272,9 +272,9 @@ const Map<String, int> _lineBudgets = {
   // geometry and the session all live outside this library, and the inline
   // error banner moved to ChatErrorBanner, so the page kept only the dock call
   // site and the working-directory gate.
-  'lib/features/chat/presentation/pages/chat_page.dart': 2037,
+  'lib/features/chat/presentation/pages/chat_page.dart': 2071,
   // Lowered from 2332 by the same extraction (label, colour and icon).
-  'lib/features/chat/presentation/widgets/message_input.dart': 2318,
+  'lib/features/chat/presentation/widgets/message_input.dart': 2357,
   'lib/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart':
       131,
   'lib/features/chat/presentation/coordinators/chat_page_workspace_navigation_coordinator.dart':
@@ -484,14 +484,14 @@ const Map<String, int> _libraryLineBudgets = {
   // has one destructor per key. The generation one lost nine lines; the scope
   // gained those six registrations plus the note explaining why the paused
   // participant guard travels with them.
-    // +13 for the tool-loop shadow point. No canary reaches the validation
+  // +13 for the tool-loop shadow point. No canary reaches the validation
   // consumer, so this is the only place a live run can answer whether the
   // producer attaches an exit status a consumer would otherwise re-derive.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19455,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19682,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8866,
+  'lib/features/chat/presentation/pages/chat_page.dart': 8899,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };

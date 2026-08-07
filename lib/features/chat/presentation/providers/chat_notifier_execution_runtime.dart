@@ -167,6 +167,9 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
         () => _hiddenAssistantEvidence.publish(owner),
       )
       ..register('contentToolTurns', () => _contentToolTurns.dispose(owner))
+      // Returned, not just dropped: an interruption no request ever carried is
+      // still unanswered, so it goes back to the queue the turn took it from.
+      ..register('turnSteering', () => _returnUncarriedTurnSteering(owner))
       ..register('turnEnd', () => _turnEnd.dispose(owner))
       ..register(
         'goalCompletionEvidence',
@@ -263,6 +266,7 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
     'responseMetadata': _responseMetadata.isEmpty,
     'toolApprovalCache': _toolApprovalCache.isEmpty,
     'runtimeTurns': _runtimeTurns.isEmpty,
+    'turnSteering': _turnSteering.isEmpty,
     'turnEnd': _turnEnd.isEmpty,
     // A scope nobody dropped is the stranded registration this boundary
     // exists to prevent, and it was the one thing here nothing observed.
@@ -277,6 +281,7 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
       _responseMetadata.isEmpty &&
       _toolApprovalCache.isEmpty &&
       _runtimeTurns.isEmpty &&
+      _turnSteering.isEmpty &&
       _turnEnd.isEmpty &&
       _turnReleases.isEmpty;
 

@@ -354,6 +354,7 @@ final class _TerminalResumeChatNotifier extends ChatNotifier {
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
+    bool interrupt = false,
   }) async {
     final conversations = ref.read(conversationsNotifierProvider.notifier);
     final current = ref

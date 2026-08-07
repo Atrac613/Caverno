@@ -25,6 +25,9 @@ const Map<String, String> _ownerReleaseContract = {
   'toolApprovalCache': '()=>_toolApprovalCache.clear(owner)',
   'hiddenAssistantEvidence': '()=>_hiddenAssistantEvidence.publish(owner)',
   'contentToolTurns': '()=>_contentToolTurns.dispose(owner)',
+  // Returned rather than dropped: an interruption no request carried is still
+  // unanswered work, so teardown hands it back to the queue.
+  'turnSteering': '()=>_returnUncarriedTurnSteering(owner)',
   'turnEnd': '()=>_turnEnd.dispose(owner)',
   'goalCompletionEvidence': '()=>_goalCompletionEvidence.dispose(owner)',
   // Moved here from the generation-keyed destructor, which reached them by

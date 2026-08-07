@@ -699,6 +699,10 @@ abstract class ChatState with _$ChatState {
   const factory ChatState({
     required List<Message> messages,
     @Default([]) List<QueuedChatMessage> queuedMessages,
+    // Interruptions filed against the running turn but not yet carried by one
+    // of its requests. They join the transcript the moment a request takes
+    // them, so this list is what the user has typed and cannot see yet.
+    @Default([]) List<QueuedChatMessage> steeringMessages,
     required bool isLoading,
     // Conversations with a running response, including ones the user is not
     // looking at. Lives in the state (not only in ActiveResponseRegistry) so
