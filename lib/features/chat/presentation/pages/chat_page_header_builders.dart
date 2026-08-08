@@ -192,7 +192,11 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
       );
     }
 
-    if (currentConversation != null && latestUserPrompt != null) {
+    // The dashboard header has no session behind it, so the recorder only
+    // belongs to the chat/coding/routine workspaces.
+    if (!_showDashboard &&
+        currentConversation != null &&
+        latestUserPrompt != null) {
       actions.add(
         actionButton(
           key: const ValueKey('record-personal-eval-case-action'),

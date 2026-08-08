@@ -74,9 +74,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
 
-  testWidgets('opens the personal eval recorder for the current session', (
-    tester,
-  ) async {
+  Future<void> pumpChatPage(
+    WidgetTester tester, {
+    required bool showDashboardOnStartup,
+  }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1200, 900);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -160,7 +161,9 @@ void main() {
                 localizationsDelegates: context.localizationDelegates,
                 supportedLocales: context.supportedLocales,
                 locale: context.locale,
-                home: const ChatPage(showDashboardOnStartup: false),
+                home: ChatPage(
+                  showDashboardOnStartup: showDashboardOnStartup,
+                ),
               ),
             );
           },
@@ -168,6 +171,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+  }
+
+  testWidgets('opens the personal eval recorder for the current session', (
+    tester,
+  ) async {
+    await pumpChatPage(tester, showDashboardOnStartup: false);
 
     await tester.tap(
       find.byKey(const ValueKey('record-personal-eval-case-action')),
@@ -183,5 +192,16 @@ void main() {
     );
     expect(promptField.controller?.text, 'Fix the login crash');
     expect(titleField.controller?.text, 'Login crash investigation');
+  });
+
+  testWidgets('hides the personal eval recorder action on the dashboard', (
+    tester,
+  ) async {
+    await pumpChatPage(tester, showDashboardOnStartup: true);
+
+    expect(
+      find.byKey(const ValueKey('record-personal-eval-case-action')),
+      findsNothing,
+    );
   });
 }
