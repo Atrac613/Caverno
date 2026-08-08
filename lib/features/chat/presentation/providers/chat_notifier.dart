@@ -155,6 +155,7 @@ import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/planning_research_collector.dart';
 import '../../domain/services/ble_connect_attempt_coordinator.dart';
 import '../../domain/services/blocked_production_release_retry_policy.dart';
+import '../../domain/services/unexecuted_command_action_retry_policy.dart';
 import '../../domain/services/production_release_approval_policy.dart'
     show productionReleaseApprovalRequiredAction;
 import '../../domain/services/proposal_option_extraction.dart';
@@ -358,6 +359,11 @@ class ChatNotifier extends Notifier<ChatState> {
   final _pendingActions = const PendingActionLengthRecoveryPolicy();
   final _transcriptRepairs = const NarratedTranscriptRepairPlanner();
   final _blockedReleaseRetries = const BlockedProductionReleaseRetryPolicy();
+  final _unexecutedCommandRetries =
+      const UnexecutedCommandActionRetryPolicy();
+  // Turns that already spent their one unexecuted-command retry. The key
+  // carries the generation, so a finished turn cannot match a live one.
+  final _unexecutedCommandRetryOwners = <String>{};
   // Retry signatures already spent on approved-but-unissued release commands.
   // The signature carries the owner's generation, so entries from finished
   // turns can never match a live one.
@@ -2540,6 +2546,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _releaseApprovalSnapshots.clear();
     _blockedReleaseRetrySignatures.clear();
     _pendingBlockedReleases.clear();
+    _unexecutedCommandRetryOwners.clear();
     _turnFinalizationRecoveryGenerations.clear();
     _modelSwitchHandoffs.clearPromptCompactions();
     _contextSurgeryObservations.clear();
@@ -4329,6 +4336,51 @@ class ChatNotifier extends Notifier<ChatState> {
             turnOwner,
             _turnToolResults.completed(turnOwner),
           );
+          // This is the shape the corpus is full of: a turn that answers a
+          // user's reply by describing a run, with no tool call at all. Ask
+          // for the call before settling for the notice.
+          final commandRetryToolResults = <ToolResultInfo>[
+            unexecutedCommandAction,
+          ];
+          final commandRetryResult =
+              await _requestUnexecutedCommandActionRetry(
+                candidateResponse: hiddenAssistantEvidence,
+                executedToolResults: commandRetryToolResults,
+                batchToolResults: <ToolResultInfo>[],
+                allowedToolNames: turnSnapshot.allowedToolNames,
+                tools: initialToolSelection.toolDefinitions,
+                interactionGeneration: generation,
+              );
+          if (!_isCurrentInteractionGeneration(generation)) return;
+          if (!ref.mounted) return;
+          if (commandRetryResult != null && commandRetryResult.hasToolCalls) {
+            appLog('[UnexecutedCommand] No-tool answer retry issued calls');
+            _removeAssistantStreamDeltaForGeneration(
+              generation: generation,
+              messageIndex: streamedMessageIndex,
+              startingLength: streamedContentStart,
+            );
+            await _executeToolCalls(
+              commandRetryResult.toolCalls!,
+              assistantContent: commandRetryResult.content.isNotEmpty
+                  ? commandRetryResult.content
+                  : hiddenAssistantEvidence,
+              toolSearchEnabled: initialToolSelection.toolSearchEnabled,
+              selectedToolNames: {
+                ...initialToolSelection.selectedToolNames,
+                ...commandRetryResult.toolCalls!.map(
+                  (toolCall) => toolCall.name,
+                ),
+              },
+              stableToolDefinitions: stableLoopToolDefinitions,
+              interactionGeneration: generation,
+            );
+            return;
+          }
+          if (commandRetryResult != null &&
+              commandRetryResult.content.trim().isNotEmpty) {
+            _recordHiddenEvidence(turnOwner, commandRetryResult.content);
+          }
           _appendUnexecutedCommandActionNoticeIfNeeded(
             toolResults: [unexecutedCommandAction],
             owner: turnOwner,
@@ -6811,6 +6863,28 @@ class ChatNotifier extends Notifier<ChatState> {
         if (unexecutedCommandAction != null) {
           finalToolResults.add(unexecutedCommandAction);
           finalCompletionEvidenceIsCurrent = false;
+          // Ask for the command before stamping the answer unverified. The
+          // notice is what this turn falls back to, not what it settles for.
+          final handledByCommandRetry =
+              await _applyUnexecutedCommandActionRetryToStreamedFinalAnswer(
+                streamedFinalAnswer: streamedFinalAnswer,
+                executedToolResults: finalToolResults,
+                batchToolResults: streamVerificationBatchToolResults,
+                allowedToolNames: turnSnapshot.allowedToolNames,
+                tools: tools,
+                toolSearchEnabled: toolSearchEnabled,
+                activeToolNames: activeToolNames,
+                stableToolDefinitions: stableToolDefinitions,
+                verificationFailureCounts: verificationFailureCounts,
+                transcriptRepairSignatures: transcriptRepairSignatures,
+                interactionGeneration: interactionGeneration,
+                onBlockingFeedbackPrepared: () =>
+                    _removeStreamedAnswerSuffixForGeneration(
+                      interactionGeneration,
+                      preAnswerContent: preFinalAnswerContent,
+                    ),
+              );
+          if (handledByCommandRetry) return;
           _appendUnexecutedCommandActionNoticeIfNeeded(
             toolResults: finalToolResults,
             owner: turnOwner,

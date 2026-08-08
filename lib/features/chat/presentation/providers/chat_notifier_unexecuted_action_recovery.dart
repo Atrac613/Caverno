@@ -63,6 +63,146 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     );
   }
 
+  /// Revives the tool loop when the answer describes a command run that no
+  /// tool result backs, instead of only stamping the answer unverified.
+  ///
+  /// Measured before this existed: 25 of 130 turn exits in the corpus carried
+  /// the unverified notice and none of them had a recovery attempt in the same
+  /// turn, because the older recovery is gated on the user typing "continue"
+  /// or 続けて. Real replies never say that.
+  Future<ChatCompletionResult?> _requestUnexecutedCommandActionRetry({
+    required String candidateResponse,
+    required List<ToolResultInfo> executedToolResults,
+    required List<ToolResultInfo> batchToolResults,
+    required Set<String>? allowedToolNames,
+    required List<Map<String, dynamic>> tools,
+    required int interactionGeneration,
+    void Function()? onBlockingFeedbackPrepared,
+  }) async {
+    final owner = _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) return null;
+    final disposition = _unexecutedCommandRetries.evaluate(
+      UnexecutedCommandActionRetryInput(
+        owner: owner,
+        ownerToolResults: executedToolResults,
+        offersCommandExecution: _toolCallExecutionPolicy.offersCommandExecution(
+          allowedToolNames,
+        ),
+        hasSuccessfulCommandExecution: _claims
+            .hasSuccessfulCommandExecutionResult(executedToolResults),
+        attemptedOwners: _unexecutedCommandRetryOwners,
+        feedbackId:
+            'unexecuted_command_action_retry_'
+            '${DateTime.now().microsecondsSinceEpoch}',
+      ),
+    );
+    final plan = disposition.plan;
+    if (plan == null) return null;
+    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+        _turnOwnerForGeneration(interactionGeneration) != plan.owner) {
+      return null;
+    }
+    if (!_unexecutedCommandRetryOwners.add(
+      _unexecutedCommandRetries.ownerKey(plan.owner),
+    )) {
+      return null;
+    }
+
+    final promptFeedback = await _toolResultArtifactStore.persistIfLarge(
+      plan.feedback,
+      conversationId: plan.owner.conversationId,
+    );
+    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+        _turnOwnerForGeneration(interactionGeneration) != plan.owner) {
+      return null;
+    }
+    batchToolResults.add(promptFeedback);
+    executedToolResults.add(promptFeedback);
+    onBlockingFeedbackPrepared?.call();
+    _turnEnd.addTransform(plan.owner, 'unexecuted_command_action_retry');
+
+    appLog(
+      '[UnexecutedCommand] Answer described a command with no result; '
+      'asking for the call or the blocker',
+    );
+    _appendToLastMessageForGeneration(interactionGeneration, '<think>');
+    try {
+      return await _createToolResultCompletionWithContextRetry(
+        logLabel: 'unexecuted command action retry',
+        interactionGeneration: interactionGeneration,
+        buildMessages: (forceCompaction) => _prepareMessagesForLLM(
+          forceCompaction: forceCompaction,
+          toolDefinitionsOverride: tools,
+          interactionGeneration: interactionGeneration,
+        ),
+        toolResults: [promptFeedback],
+        assistantContent: candidateResponse,
+        tools: tools,
+      );
+    } finally {
+      if (_isCurrentInteractionGeneration(interactionGeneration) &&
+          _turnOwnerForGeneration(interactionGeneration) == plan.owner) {
+        _removeTrailingThinkTagForGeneration(interactionGeneration);
+      }
+    }
+  }
+
+  /// Applies the unexecuted-command retry to a streamed final answer. Returns
+  /// true when the caller must stop.
+  Future<bool> _applyUnexecutedCommandActionRetryToStreamedFinalAnswer({
+    required String streamedFinalAnswer,
+    required List<ToolResultInfo> executedToolResults,
+    required List<ToolResultInfo> batchToolResults,
+    required Set<String>? allowedToolNames,
+    required List<Map<String, dynamic>> tools,
+    required bool toolSearchEnabled,
+    required Set<String> activeToolNames,
+    required List<Map<String, dynamic>>? stableToolDefinitions,
+    required Map<String, int> verificationFailureCounts,
+    required Set<String> transcriptRepairSignatures,
+    required int interactionGeneration,
+    required void Function() onBlockingFeedbackPrepared,
+  }) async {
+    final retryResult = await _requestUnexecutedCommandActionRetry(
+      candidateResponse: streamedFinalAnswer,
+      executedToolResults: executedToolResults,
+      batchToolResults: batchToolResults,
+      allowedToolNames: allowedToolNames,
+      tools: tools,
+      interactionGeneration: interactionGeneration,
+      onBlockingFeedbackPrepared: onBlockingFeedbackPrepared,
+    );
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) return true;
+    if (!ref.mounted) return true;
+    if (retryResult == null) return false;
+    if (retryResult.hasToolCalls) {
+      appLog('[UnexecutedCommand] Retry requested tool calls');
+      await _executeToolCalls(
+        retryResult.toolCalls!,
+        assistantContent: retryResult.content.isNotEmpty
+            ? retryResult.content
+            : streamedFinalAnswer,
+        toolSearchEnabled: toolSearchEnabled,
+        selectedToolNames: activeToolNames,
+        stableToolDefinitions: stableToolDefinitions,
+        completionVerificationFailureCounts: verificationFailureCounts,
+        narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+        interactionGeneration: interactionGeneration,
+      );
+      return true;
+    }
+    // The model named a blocker instead. That answer replaces the description
+    // of a run that never happened.
+    final retryResponse = retryResult.content.trim();
+    if (retryResponse.isNotEmpty) {
+      _appendRecoveredAssistantResponse(
+        retryResponse,
+        interactionGeneration: interactionGeneration,
+      );
+    }
+    return false;
+  }
+
   /// Revives the tool loop when this turn blocked a production release for
   /// missing approval, the user granted it, and the turn is ending without the
   /// command ever being re-issued.
