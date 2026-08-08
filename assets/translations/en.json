@@ -30,7 +30,35 @@
     "activity_tooltip": "{date}: {count} messages",
     "streak_days": "{count}d",
     "fun_fact": "You've used ~{multiple}x more tokens than Harry Potter and the Philosopher's Stone.",
-    "empty": "Start chatting to see your activity stats."
+    "empty": "Start chatting to see your activity stats.",
+    "model_usage": {
+      "title": "Token usage by model",
+      "empty": "No usage recorded yet. Send a message to start tracking tokens per model.",
+      "tokens": "Tokens",
+      "share": "Share",
+      "requests": "Requests",
+      "latency": "Latency",
+      "input": "Input",
+      "output": "Output",
+      "cache_hit_rate": "Cache hits",
+      "reasoning": "Reasoning",
+      "daily": "Tokens per day",
+      "by_role": "Where tokens went",
+      "truncated": "Truncated",
+      "truncated_tooltip": "{count} responses ({percent}) stopped at the token limit.",
+      "role_unknown_hint": "These requests did not report which feature issued them.",
+      "role": {
+        "chat": "Chat",
+        "memoryExtraction": "Memory extraction",
+        "planning": "Planning",
+        "goalSuggestion": "Goal suggestions",
+        "approvalAutoReview": "Approval auto-review",
+        "subagent": "Subagents",
+        "routine": "Routines",
+        "eval": "Evaluations",
+        "unknown": "Unattributed"
+      }
+    }
   },
   "chat": {
     "empty_state": "Send a message to start chatting",

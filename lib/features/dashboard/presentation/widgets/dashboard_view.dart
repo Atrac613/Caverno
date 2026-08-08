@@ -8,6 +8,7 @@ import 'activity_heatmap_view.dart';
 import 'dashboard_fun_fact.dart';
 import 'dashboard_range_selector.dart';
 import 'dashboard_stat_grid.dart';
+import 'model_usage_section.dart';
 
 class DashboardView extends ConsumerWidget {
   const DashboardView({super.key});
@@ -35,6 +36,8 @@ class DashboardView extends ConsumerWidget {
                     DashboardStatGrid(stats: stats),
                     SizedBox(height: context.space.xl),
                     ActivityHeatmapView(heatmap: stats.heatmap),
+                    SizedBox(height: context.space.xl),
+                    const ModelUsageSection(),
                     SizedBox(height: context.space.xl),
                     DashboardFunFact(multiple: stats.funFactMultiple),
                   ],
