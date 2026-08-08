@@ -38,6 +38,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
        _client = OpenAIClient.withApiKey(
          apiKey ?? ApiConstants.defaultApiKey,
          baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
+         defaultHeaders: ApiConstants.userAgentHeaders,
          httpClient: httpClient,
          streamClientFactory: streamClientFactory,
        );
@@ -51,7 +52,6 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     'CAVERNO_LLM_LOG_TOOL_SCHEMAS',
   );
   static const int _maxLoggedToolNames = 12;
-
   static bool isNativeToolStreamFormatError(Object error) {
     final message = error.toString().toLowerCase();
     return message.contains('peg-native') ||

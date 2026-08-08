@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../../../core/constants/api_constants.dart';
+
 /// Result of an embeddings request.
 class EmbeddingsResult {
   const EmbeddingsResult({required this.vectors, required this.model});
@@ -104,7 +106,7 @@ class EmbeddingsClient {
   }
 
   Map<String, String> _headers() {
-    final headers = <String, String>{'Content-Type': 'application/json'};
+    final headers = Map<String, String>.of(ApiConstants.jsonRequestHeaders);
     final apiKey = _apiKey.trim();
     if (apiKey.isNotEmpty) {
       headers['Authorization'] = 'Bearer $apiKey';

@@ -49,11 +49,13 @@ void main() {
   group('LlamaCppSlotDiscovery', () {
     test('queries /slots at the native root (strips /v1)', () async {
       late Uri requestedUri;
+      late String? requestedUserAgent;
       final discovery = LlamaCppSlotDiscovery(
         baseUrl: 'http://localhost:1234/v1',
         apiKey: 'k',
         client: MockClient((request) async {
           requestedUri = request.url;
+          requestedUserAgent = request.headers['User-Agent'];
           return http.Response(
             jsonEncode([
               {'id': 0, 'state': 0},
@@ -67,6 +69,7 @@ void main() {
       final inventory = await discovery.discover();
 
       expect(requestedUri.toString(), 'http://localhost:1234/slots');
+      expect(requestedUserAgent, 'Caverno');
       expect(inventory.supported, isTrue);
       expect(inventory.slotCount, 2);
       expect(inventory.idleSlotIds, [0]);

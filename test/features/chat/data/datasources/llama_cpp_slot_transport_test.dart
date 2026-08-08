@@ -34,11 +34,13 @@ void main() {
       () async {
         late Map<String, dynamic> sentBody;
         late Uri sentUri;
+        late String? sentUserAgent;
         final transport = LlamaCppSlotTransport(
           baseUrl: 'http://localhost:1234/v1',
           apiKey: 'secret-key',
           client: MockClient((request) async {
             sentUri = request.url;
+            sentUserAgent = request.headers['User-Agent'];
             sentBody = jsonDecode(request.body) as Map<String, dynamic>;
             return http.Response(
               jsonEncode({
@@ -77,6 +79,7 @@ void main() {
 
         // Request preserves the extension fields the typed SDK drops.
         expect(sentUri.toString(), 'http://localhost:1234/v1/chat/completions');
+        expect(sentUserAgent, 'Caverno');
         expect(sentBody['id_slot'], 3);
         expect(sentBody['cache_prompt'], isTrue);
         expect(sentBody['max_tokens'], 16);

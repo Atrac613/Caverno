@@ -941,7 +941,7 @@ class ModelRemoteDataSource {
   }
 
   Map<String, String> _headers() {
-    final headers = <String, String>{'Accept': 'application/json'};
+    final headers = Map<String, String>.of(ApiConstants.jsonResponseHeaders);
     final apiKey = _apiKey.trim();
     if (apiKey.isNotEmpty) {
       headers['Authorization'] = 'Bearer $apiKey';

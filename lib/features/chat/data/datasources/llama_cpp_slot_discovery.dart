@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../../../core/constants/api_constants.dart';
+
 /// One server slot reported by llama.cpp `GET /slots`.
 class ServerSlot {
   const ServerSlot({required this.id, required this.isProcessing});
@@ -116,7 +118,7 @@ class LlamaCppSlotDiscovery {
   }
 
   Map<String, String> _headers() {
-    final headers = <String, String>{'Accept': 'application/json'};
+    final headers = Map<String, String>.of(ApiConstants.jsonResponseHeaders);
     final apiKey = _apiKey.trim();
     if (apiKey.isNotEmpty) {
       headers['Authorization'] = 'Bearer $apiKey';

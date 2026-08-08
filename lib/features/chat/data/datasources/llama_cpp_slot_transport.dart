@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../../../core/constants/api_constants.dart';
+
 /// llama.cpp / LM Studio response `timings` block.
 ///
 /// `openai_dart`'s typed client drops these provider extension fields, so the
@@ -223,7 +225,7 @@ class LlamaCppSlotTransport {
   }
 
   Map<String, String> _headers() {
-    final headers = <String, String>{'Content-Type': 'application/json'};
+    final headers = Map<String, String>.of(ApiConstants.jsonRequestHeaders);
     final apiKey = _apiKey.trim();
     if (apiKey.isNotEmpty) {
       headers['Authorization'] = 'Bearer $apiKey';
