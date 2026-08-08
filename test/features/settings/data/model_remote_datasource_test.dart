@@ -435,6 +435,7 @@ void main() {
     final client = MockClient((request) async {
       requests.add(request);
       expect(request.headers['Authorization'], 'Bearer no-key');
+      expect(request.headers['User-Agent'], 'Caverno');
       return http.Response(
         '{"data":[{"id":"local-model","status":{"value":"loading"}}]}',
         200,

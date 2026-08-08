@@ -327,8 +327,10 @@ void main() {
 
   test('retries without reasoning effort after HTTP 400', () async {
     final requestBodies = <Map<String, dynamic>>[];
+    final requestUserAgents = <String?>[];
     final client = MockClient((request) async {
       requestBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+      requestUserAgents.add(request.headers['User-Agent']);
       if (requestBodies.length == 1) {
         return http.Response(
           jsonEncode({
@@ -388,6 +390,7 @@ void main() {
 
     expect(result.content, 'Recovered');
     expect(requestBodies, hasLength(2));
+    expect(requestUserAgents, everyElement('Caverno'));
     expect(requestBodies.first['reasoning_effort'], 'high');
     expect(requestBodies.last.containsKey('reasoning_effort'), isFalse);
   });

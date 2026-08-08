@@ -32,11 +32,13 @@ void main() {
     test('posts {model,input} and parses vectors in input order', () async {
       late Map<String, dynamic> sentBody;
       late Uri sentUri;
+      late String? sentUserAgent;
       final client = EmbeddingsClient(
         baseUrl: 'http://localhost:1234/v1',
         apiKey: 'k',
         client: MockClient((request) async {
           sentUri = request.url;
+          sentUserAgent = request.headers['User-Agent'];
           sentBody = jsonDecode(request.body) as Map<String, dynamic>;
           // Deliberately out of order to verify index sorting.
           return http.Response(
@@ -64,6 +66,7 @@ void main() {
       );
 
       expect(sentUri.toString(), 'http://localhost:1234/v1/embeddings');
+      expect(sentUserAgent, 'Caverno');
       expect(sentBody['model'], 'text-embed');
       expect(sentBody['input'], ['first', 'second']);
       expect(result, isNotNull);
