@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../settings/domain/entities/model_catalog_entry.dart';
 import '../../domain/services/context_surgery_observation_service.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../providers/chat_state.dart';
@@ -11,12 +12,18 @@ class TokenUsageIndicator extends StatelessWidget {
     required this.model,
     required this.contextWindowTokens,
     required this.formatTokenCount,
+    this.contextWindowSource,
   });
 
   final ChatState chatState;
   final String model;
   final int? contextWindowTokens;
   final String Function(int count) formatTokenCount;
+
+  /// Provenance of [contextWindowTokens], surfaced in the popover so a budget
+  /// read from bundled vendor docs is distinguishable from a served one. Null
+  /// while the catalog has not resolved, which reads as endpoint-reported.
+  final ModelContextWindowSource? contextWindowSource;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +70,7 @@ class TokenUsageIndicator extends StatelessWidget {
                 chatState: chatState,
                 usageTokenCount: usageTokenCount,
                 contextWindowTokens: contextWindowTokens,
+                contextWindowSource: contextWindowSource,
                 progress: progress,
                 formatTokenCount: formatTokenCount,
               ),
@@ -337,11 +345,7 @@ class _ContextBreakdown {
           tokens: toolResults,
           color: _toolResultsColor,
         ),
-      _ContextSlice(
-        label: 'Messages',
-        tokens: messages,
-        color: _messagesColor,
-      ),
+      _ContextSlice(label: 'Messages', tokens: messages, color: _messagesColor),
     ];
 
     final window = contextWindowTokens != null && contextWindowTokens > 0
@@ -376,6 +380,7 @@ class _ContextWindowPopover extends StatelessWidget {
     required this.chatState,
     required this.usageTokenCount,
     required this.contextWindowTokens,
+    required this.contextWindowSource,
     required this.progress,
     required this.formatTokenCount,
   });
@@ -383,6 +388,7 @@ class _ContextWindowPopover extends StatelessWidget {
   final ChatState chatState;
   final int usageTokenCount;
   final int? contextWindowTokens;
+  final ModelContextWindowSource? contextWindowSource;
   final double? progress;
   final String Function(int count) formatTokenCount;
 
@@ -455,11 +461,16 @@ class _ContextWindowPopover extends StatelessWidget {
                 slices: breakdown.slices,
                 trackColor: colorScheme.outlineVariant.withValues(alpha: 0.45),
               ),
-              if (contextWindowTokens == null) ...[
+              if (contextWindowTokens == null ||
+                  contextWindowSource ==
+                      ModelContextWindowSource.publishedSpec) ...[
                 const SizedBox(height: 10),
                 Text(
-                  'Context window size unavailable from /models; '
-                  'showing usage only.',
+                  contextWindowTokens == null
+                      ? 'Context window size unavailable from /models; '
+                            'showing usage only.'
+                      : 'Context window size is not advertised by /models; '
+                            "using the model's published specification.",
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -476,7 +487,9 @@ class _ContextWindowPopover extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
               ],
-              if (chatState.contextSurgerySnapshot.staleToolResultCandidateCount >
+              if (chatState
+                      .contextSurgerySnapshot
+                      .staleToolResultCandidateCount >
                   0) ...[
                 const SizedBox(height: 4),
                 Text(

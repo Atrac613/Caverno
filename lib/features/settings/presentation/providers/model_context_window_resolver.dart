@@ -3,14 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/app_settings.dart';
 import 'model_list_provider.dart';
 
-/// Endpoint-reported context window for the active model, or 0 when it is not
-/// advertised.
+/// Context window for the active model, or 0 when neither the endpoint nor the
+/// bundled published specs know one.
 ///
-/// Used by both capability-probe paths so a stored profile carries a *measured*
-/// context budget instead of the hard-coded zero it used to persist. The value
-/// is what the serving stack reports (llama.cpp `n_ctx`, LM Studio loaded
-/// context, Ollama `num_ctx`, OpenAI `context_length`) — never an estimate, so
-/// a silent endpoint yields 0 and downstream consumers simply omit the budget.
+/// Used by both capability-probe paths so a stored profile carries a real
+/// context budget instead of the hard-coded zero it used to persist. Preference
+/// order is what the serving stack reports (llama.cpp `n_ctx`, LM Studio loaded
+/// context, Ollama `num_ctx`) and then the vendor's published figure for cloud
+/// models that advertise none — never an estimate, so an unknown model yields 0
+/// and downstream consumers simply omit the budget.
 ///
 /// The Apple Foundation Models provider has no model catalog to query.
 Future<int> resolveUsableContextTokens(Ref ref, AppSettings settings) async {

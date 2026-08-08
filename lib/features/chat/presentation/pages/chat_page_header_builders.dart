@@ -318,18 +318,12 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
           : settings.apiKey.trim(),
       selectedModelId: settings.model.trim(),
     );
-    final contextWindowTokens = ref
+    final selectedCatalogEntry = ref
         .watch(modelCatalogProvider(modelConfig))
         .whenOrNull(
-          data: (catalog) {
-            final selectedModel = settings.model.trim();
-            for (final model in catalog) {
-              if (model.id == selectedModel) {
-                return model.contextWindowTokens;
-              }
-            }
-            return null;
-          },
+          data: (catalog) => catalog
+              .where((model) => model.id == settings.model.trim())
+              .firstOrNull,
         );
 
     return Container(
@@ -344,7 +338,8 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
         child: TokenUsageIndicator(
           chatState: chatState,
           model: settings.model,
-          contextWindowTokens: contextWindowTokens,
+          contextWindowTokens: selectedCatalogEntry?.contextWindowTokens,
+          contextWindowSource: selectedCatalogEntry?.contextWindowSource,
           formatTokenCount: _formatTokenCount,
         ),
       ),
