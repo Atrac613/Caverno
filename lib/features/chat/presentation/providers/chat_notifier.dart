@@ -154,6 +154,9 @@ import '../../domain/services/participant_turn_planner.dart';
 import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/planning_research_collector.dart';
 import '../../domain/services/ble_connect_attempt_coordinator.dart';
+import '../../domain/services/blocked_production_release_retry_policy.dart';
+import '../../domain/services/production_release_approval_policy.dart'
+    show productionReleaseApprovalRequiredAction;
 import '../../domain/services/proposal_option_extraction.dart';
 import '../../domain/services/background_process_follow_up_policy.dart';
 import '../../domain/services/proposal_parsing_text_utils.dart';
@@ -354,6 +357,15 @@ class ChatNotifier extends Notifier<ChatState> {
   final _fileMutationEvidencePolicy = const FileMutationEvidencePolicy();
   final _pendingActions = const PendingActionLengthRecoveryPolicy();
   final _transcriptRepairs = const NarratedTranscriptRepairPlanner();
+  final _blockedReleaseRetries = const BlockedProductionReleaseRetryPolicy();
+  // Retry signatures already spent on approved-but-unissued release commands.
+  // The signature carries the owner's generation, so entries from finished
+  // turns can never match a live one.
+  final _blockedReleaseRetrySignatures = <String>{};
+  // Releases the guard blocked, kept per conversation because approval lands in
+  // the turn after the block. Cleared when the command runs or a retry is asked
+  // for, so a stale entry can never re-prompt a release the user moved on from.
+  final _pendingBlockedReleases = <String, PendingBlockedRelease>{};
   final _planningToolPolicy = const PlanningToolPolicy();
   final _toolLoopContextDigest = const ToolLoopContextDigest();
   final _runtimeTurns = <int, CavernoRuntimeTurnHandle>{};
@@ -2523,6 +2535,8 @@ class ChatNotifier extends Notifier<ChatState> {
     _explicitTerminalSuccessSummariesByGeneration.clear();
     _askUserQuestionTurnCache.clear();
     _releaseApprovalSnapshots.clear();
+    _blockedReleaseRetrySignatures.clear();
+    _pendingBlockedReleases.clear();
     _turnFinalizationRecoveryGenerations.clear();
     _modelSwitchHandoffs.clearPromptCompactions();
     _contextSurgeryObservations.clear();
@@ -4243,6 +4257,44 @@ class ChatNotifier extends Notifier<ChatState> {
           );
         }
         recordHiddenAssistantEvidenceOnce();
+        // A turn that answers without calling anything is where an approved
+        // release goes missing: the guard blocked it last turn, the user
+        // approved, and this answer just describes the run.
+        final releaseRetryResult = await _requestBlockedProductionReleaseRetry(
+          candidateResponse: hiddenAssistantEvidence,
+          executedToolResults: _turnToolResults.all(turnOwner).toList(),
+          batchToolResults: <ToolResultInfo>[],
+          tools: initialToolSelection.toolDefinitions,
+          interactionGeneration: generation,
+        );
+        if (!_isCurrentInteractionGeneration(generation)) return;
+        if (!ref.mounted) return;
+        if (releaseRetryResult != null && releaseRetryResult.hasToolCalls) {
+          appLog('[ReleaseRetry] No-tool answer retry requested tool calls');
+          _removeAssistantStreamDeltaForGeneration(
+            generation: generation,
+            messageIndex: streamedMessageIndex,
+            startingLength: streamedContentStart,
+          );
+          await _executeToolCalls(
+            releaseRetryResult.toolCalls!,
+            assistantContent: releaseRetryResult.content.isNotEmpty
+                ? releaseRetryResult.content
+                : hiddenAssistantEvidence,
+            toolSearchEnabled: initialToolSelection.toolSearchEnabled,
+            selectedToolNames: {
+              ...initialToolSelection.selectedToolNames,
+              ...releaseRetryResult.toolCalls!.map((toolCall) => toolCall.name),
+            },
+            stableToolDefinitions: stableLoopToolDefinitions,
+            interactionGeneration: generation,
+          );
+          return;
+        }
+        if (releaseRetryResult != null &&
+            releaseRetryResult.content.trim().isNotEmpty) {
+          _recordHiddenEvidence(turnOwner, releaseRetryResult.content);
+        }
         final recoveredContentToolArtifact =
             _recoverContentToolArtifactsBeforeNoToolFinalization(
               interactionGeneration: generation,
@@ -6701,6 +6753,28 @@ class ChatNotifier extends Notifier<ChatState> {
             );
           }
         }
+        // Grounded first: a release the guard blocked and the user then
+        // approved is a recorded fact, so it outranks any reading of how the
+        // answer was worded.
+        final handledByReleaseRetry =
+            await _applyBlockedProductionReleaseRetryToStreamedFinalAnswer(
+              streamedFinalAnswer: streamedFinalAnswer,
+              executedToolResults: executedToolResults,
+              batchToolResults: streamVerificationBatchToolResults,
+              tools: tools,
+              toolSearchEnabled: toolSearchEnabled,
+              activeToolNames: activeToolNames,
+              stableToolDefinitions: stableToolDefinitions,
+              verificationFailureCounts: verificationFailureCounts,
+              transcriptRepairSignatures: transcriptRepairSignatures,
+              interactionGeneration: interactionGeneration,
+              onBlockingFeedbackPrepared: () =>
+                  _removeStreamedAnswerSuffixForGeneration(
+                    interactionGeneration,
+                    preAnswerContent: preFinalAnswerContent,
+                  ),
+            );
+        if (handledByReleaseRetry) return;
         final handledByTranscriptRepair =
             await _applyNarratedTranscriptRepairToStreamedFinalAnswer(
               streamedFinalAnswer: streamedFinalAnswer,

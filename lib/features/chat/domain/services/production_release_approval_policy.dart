@@ -9,6 +9,18 @@ import 'tool_call_execution_policy.dart';
 
 // ChatNotifier decomposition collaborator: production-release-approval-policy
 
+/// What a blocked production release tells the model to do next.
+///
+/// It names ask_user_question deliberately. Offering the choice as prose costs
+/// a whole round trip: a reply like "1" carries no release wording, so neither
+/// approval path recognizes it and the same command is blocked again. An
+/// ask_user_question answer is a recorded selection the guard can read.
+const String productionReleaseApprovalRequiredAction =
+    'Call ask_user_question with an option whose label explicitly approves '
+    'running this production release command, then retry only after the user '
+    'selects it. Do not offer the choice as plain text: a bare "1" or "yes" '
+    'reply to a prose list is not recorded as release approval.';
+
 /// The immediately preceding owner message captured before a turn begins.
 final class ProductionReleasePrecedingMessage {
   const ProductionReleasePrecedingMessage({
@@ -148,9 +160,7 @@ final class ProductionReleaseApprovalPolicy {
       'command': command,
       if (assistantIntent.isNotEmpty)
         'assistant_intent': _clipForDiagnostic(assistantIntent),
-      'required_action':
-          'Ask the user to explicitly approve the production release command '
-          'after any dry run, then retry only after that user approval.',
+      'required_action': productionReleaseApprovalRequiredAction,
     });
     return McpToolResult(
       toolName: toolCall.name,
@@ -315,7 +325,7 @@ final class ProductionReleaseApprovalPolicy {
           [0x30ea, 0x30ea, 0x30fc, 0x30b9],
           [0x672c, 0x756a],
           [0x516c, 0x958b],
-          [0x30a2, 0x30c3, 0x30d7, 0x30fc, 0x30c9],
+          [0x30a2, 0x30c3, 0x30d7, 0x30ed, 0x30fc, 0x30c9],
         ]);
   }
 

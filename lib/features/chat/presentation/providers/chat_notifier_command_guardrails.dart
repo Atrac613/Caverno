@@ -15,12 +15,24 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
     if (!_isProductionReleaseCommandToolCall(toolCall)) {
       return null;
     }
+    final conversationId = approvalEvidence.conversationId;
     if (approvalEvidence.approved) {
+      // The command is about to run, so the conversation no longer owes a
+      // retry for it.
+      if (conversationId != null) {
+        _pendingBlockedReleases.remove(conversationId);
+      }
       return null;
     }
 
     final command =
         _toolCallExecutionPolicy.toolCommandArgument(toolCall.arguments) ?? '';
+    if (conversationId != null && command.trim().isNotEmpty) {
+      _pendingBlockedReleases[conversationId] = PendingBlockedRelease(
+        toolName: toolCall.name.trim(),
+        command: command.trim(),
+      );
+    }
     final payload = jsonEncode({
       'ok': false,
       'code': 'production_release_explicit_approval_required',
@@ -33,9 +45,7 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
         'assistant_intent': _claims.clipForDiagnostic(
           currentAssistantContent!.trim(),
         ),
-      'required_action':
-          'Ask the user to explicitly approve the production release command '
-          'after any dry run, then retry only after that user approval.',
+      'required_action': productionReleaseApprovalRequiredAction,
     });
     return McpToolResult(
       toolName: toolCall.name,
