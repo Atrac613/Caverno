@@ -24,6 +24,7 @@ class LlmSessionLogContext {
     this.participantRoleLabel,
     this.participantToolsEnabled,
     this.participantToolNames = const <String>[],
+    this.requestLabel,
   });
 
   final WorkspaceMode workspaceMode;
@@ -38,6 +39,12 @@ class LlmSessionLogContext {
   final String? participantRoleLabel;
   final bool? participantToolsEnabled;
   final List<String> participantToolNames;
+
+  /// Which producer inside ChatNotifier issued the request being logged (the
+  /// helper's `logLabel`). A tool catalogue that changes shape mid-loop is only
+  /// diagnosable if the record says which code path built it; without this the
+  /// reader can see 61 tools become 51 and back, and nothing else.
+  final String? requestLabel;
 
   static String routinePlanSessionId(String routineId) {
     return 'routine-plan-${routineId.trim()}';
@@ -79,6 +86,26 @@ class LlmSessionLogContext {
       participantRoleLabel: participantRoleLabel,
       participantToolsEnabled: toolsEnabled,
       participantToolNames: toolNames,
+      requestLabel: requestLabel,
+    );
+  }
+
+  LlmSessionLogContext withRequestLabel(String? label) {
+    final normalized = label?.trim();
+    return LlmSessionLogContext(
+      workspaceMode: workspaceMode,
+      sessionId: sessionId,
+      sessionTitle: sessionTitle,
+      conversationId: conversationId,
+      routineId: routineId,
+      routineRunId: routineRunId,
+      phase: phase,
+      participantId: participantId,
+      participantName: participantName,
+      participantRoleLabel: participantRoleLabel,
+      participantToolsEnabled: participantToolsEnabled,
+      participantToolNames: participantToolNames,
+      requestLabel: normalized == null || normalized.isEmpty ? null : normalized,
     );
   }
 
@@ -128,6 +155,7 @@ class LlmSessionLogRequest {
     this.model,
     this.temperature,
     this.maxTokens,
+    this.label,
   });
 
   final String operation;
@@ -142,6 +170,10 @@ class LlmSessionLogRequest {
   final String? model;
   final double? temperature;
   final int? maxTokens;
+
+  /// The producer that issued this request, taken from the ambient
+  /// [LlmSessionLogContext.requestLabel].
+  final String? label;
 }
 
 class LlmSessionLogResponse {
@@ -234,7 +266,8 @@ class LlmSessionLogStore {
 
   static const schemaName = 'caverno_llm_session_log_entry';
   // v2 adds the `build` field (git commit/dirty/builtAt provenance).
-  static const schemaVersion = 2;
+  // v3 adds `request.label`, naming the producer that issued the request.
+  static const schemaVersion = 3;
   static const enabledEnvironmentKey = 'CAVERNO_SESSION_LOG_ENABLED';
   static const directoryEnvironmentKey = 'CAVERNO_SESSION_LOG_DIR';
   static const _fallbackSessionId = 'unscoped';
@@ -661,6 +694,8 @@ class LlmSessionLogStore {
       'model': request.model,
       'temperature': request.temperature,
       'maxTokens': request.maxTokens,
+      if (request.label != null && request.label!.trim().isNotEmpty)
+        'label': request.label!.trim(),
       'messages': request.messages.map(_messageToJson).toList(growable: false),
       if (request.tools != null)
         'tools': request.tools!

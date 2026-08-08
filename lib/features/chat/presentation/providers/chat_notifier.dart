@@ -744,9 +744,12 @@ class ChatNotifier extends Notifier<ChatState> {
 
   T _runWithLlmSessionLogContextForGeneration<T>(
     int generation,
-    T Function() body,
-  ) => LlmSessionLogContext.run(
-    _llmSessionLogContextForGeneration(generation),
+    T Function() body, {
+    String? requestLabel,
+  }) => LlmSessionLogContext.run(
+    _llmSessionLogContextForGeneration(
+      generation,
+    ).withRequestLabel(requestLabel),
     body,
   );
 
@@ -3949,6 +3952,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }) async {
       final result = await _runWithLlmSessionLogContextForGeneration(
         interactionGeneration,
+        requestLabel: logLabel,
         () => _dataSource.createChatCompletionWithToolResults(
           messages: buildMessages(forceCompaction),
           toolResults: _budgetToolResultsForPrompt(
@@ -4085,6 +4089,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
       final streamResult = _runWithLlmSessionLogContextForGeneration(
         generation,
+        requestLabel: 'turn opening request',
         () => _dataSource.streamChatCompletionWithTools(
           messages: _prepareMessagesForLLM(
             toolDefinitionsOverride: initialToolSelection.toolDefinitions,
@@ -8756,56 +8761,60 @@ class ChatNotifier extends Notifier<ChatState> {
       ),
     );
 
-    _runWithLlmSessionLogContextForGeneration(interactionGeneration, () {
-      late final Stream<String> stream;
-      late final Future<ChatCompletionTerminalMetadata> terminal;
-      if (continuationToolDefinitions == null) {
-        final completion = _dataSource.streamChatCompletion(
-          messages: messagesForLLM,
-          model: _settings.model,
-          temperature: _assistantRequestTemperature,
-          maxTokens: _settings.maxTokens,
-        );
-        stream = completion;
-        terminal = completion.terminal;
-      } else {
-        final completion = _dataSource.streamChatCompletionWithTools(
-          messages: messagesForLLM,
-          tools: continuationToolDefinitions,
-          model: _settings.model,
-          temperature: _agenticRequestTemperature,
-          maxTokens: _settings.maxTokens,
-        );
-        stream = completion.stream;
-        terminal = _responseMetadata.terminalFor(completion.completion);
-      }
+    _runWithLlmSessionLogContextForGeneration(
+      interactionGeneration,
+      requestLabel: 'content tool-result continuation',
+      () {
+        late final Stream<String> stream;
+        late final Future<ChatCompletionTerminalMetadata> terminal;
+        if (continuationToolDefinitions == null) {
+          final completion = _dataSource.streamChatCompletion(
+            messages: messagesForLLM,
+            model: _settings.model,
+            temperature: _assistantRequestTemperature,
+            maxTokens: _settings.maxTokens,
+          );
+          stream = completion;
+          terminal = completion.terminal;
+        } else {
+          final completion = _dataSource.streamChatCompletionWithTools(
+            messages: messagesForLLM,
+            tools: continuationToolDefinitions,
+            model: _settings.model,
+            temperature: _agenticRequestTemperature,
+            maxTokens: _settings.maxTokens,
+          );
+          stream = completion.stream;
+          terminal = _responseMetadata.terminalFor(completion.completion);
+        }
 
-      _turnStream.listen(
-        turnOwner,
-        stream,
-        onChunk: (chunk) {
-          if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-          _appendToLastMessageForGeneration(interactionGeneration, chunk);
-        },
-        onError: (error, stackTrace) {
-          if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-          appLog(
-            '[ChatNotifier] _continueAfterContentToolResults onError: ${error.runtimeType}: $error',
-          );
-          appLog('[ChatNotifier] stackTrace: $stackTrace');
-          unawaited(
-            _recoverAfterContentToolResultsStreamError(
-              messagesForLLM,
-              error,
-              stackTrace,
-              interactionGeneration: interactionGeneration,
-            ),
-          );
-        },
-        onDone: () =>
-            _finishStreamedCompletionInBackground(turnOwner, terminal),
-      );
-    });
+        _turnStream.listen(
+          turnOwner,
+          stream,
+          onChunk: (chunk) {
+            if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+            _appendToLastMessageForGeneration(interactionGeneration, chunk);
+          },
+          onError: (error, stackTrace) {
+            if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+            appLog(
+              '[ChatNotifier] _continueAfterContentToolResults onError: ${error.runtimeType}: $error',
+            );
+            appLog('[ChatNotifier] stackTrace: $stackTrace');
+            unawaited(
+              _recoverAfterContentToolResultsStreamError(
+                messagesForLLM,
+                error,
+                stackTrace,
+                interactionGeneration: interactionGeneration,
+              ),
+            );
+          },
+          onDone: () =>
+              _finishStreamedCompletionInBackground(turnOwner, terminal),
+        );
+      },
+    );
   }
 
   List<Map<String, dynamic>>?

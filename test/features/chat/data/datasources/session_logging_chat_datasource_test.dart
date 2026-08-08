@@ -627,6 +627,96 @@ void main() {
       expect(decoded['response']['content'], 'Hello');
       expect(decoded['response']['toolCalls'][0]['name'], 'read_file');
       expect(decoded['response']['usage']['totalTokens'], 15);
+      // No producer label was set, so the record must not invent one.
+      expect(decoded['request'].containsKey('label'), isFalse);
+    });
+
+    test('records the ambient producer label on the request', () async {
+      // Without this, a tool catalogue that changes shape between two requests
+      // of the same operation cannot be attributed to a code path.
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'labelled-1',
+        conversationId: 'labelled-1',
+      );
+      final dataSource = SessionLoggingChatDataSource(
+        delegate: _FakeChatDataSource(
+          completionResult: ChatCompletionResult(
+            content: 'ok',
+            finishReason: 'stop',
+          ),
+        ),
+        logStore: store,
+      );
+
+      await LlmSessionLogContext.run(
+        context.withRequestLabel('  narrated transcript feedback  '),
+        () {
+          return dataSource.createChatCompletionWithToolResults(
+            messages: [_message('user-1', MessageRole.user, 'Hi')],
+            toolResults: const [],
+            tools: const [],
+            model: 'model-a',
+          );
+        },
+      );
+
+      final line = (await (await store.fileForContext(
+        context,
+      )).readAsLines()).single;
+      final decoded = jsonDecode(line) as Map<String, dynamic>;
+      expect(decoded['request']['label'], 'narrated transcript feedback');
+      expect(decoded['schemaVersion'], 3);
+    });
+
+    test('drops a blank producer label instead of recording it', () async {
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'labelled-2',
+        conversationId: 'labelled-2',
+      );
+      final dataSource = SessionLoggingChatDataSource(
+        delegate: _FakeChatDataSource(
+          completionResult: ChatCompletionResult(
+            content: 'ok',
+            finishReason: 'stop',
+          ),
+        ),
+        logStore: store,
+      );
+
+      await LlmSessionLogContext.run(context.withRequestLabel('   '), () {
+        return dataSource.createChatCompletionWithToolResults(
+          messages: [_message('user-1', MessageRole.user, 'Hi')],
+          toolResults: const [],
+          tools: const [],
+          model: 'model-a',
+        );
+      });
+
+      final line = (await (await store.fileForContext(
+        context,
+      )).readAsLines()).single;
+      final decoded = jsonDecode(line) as Map<String, dynamic>;
+      expect(decoded['request'].containsKey('label'), isFalse);
+    });
+
+    test('keeps the producer label across a participant context switch', () {
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'labelled-3',
+      );
+
+      final withParticipant = context
+          .withRequestLabel('coding verification feedback')
+          .withParticipant(
+            participantId: 'p1',
+            participantName: 'Reviewer',
+            participantRoleLabel: 'reviewer',
+            toolsEnabled: true,
+          );
+
+      expect(withParticipant.requestLabel, 'coding verification feedback');
     });
 
     test('prefers zone context over fallback provider', () async {
