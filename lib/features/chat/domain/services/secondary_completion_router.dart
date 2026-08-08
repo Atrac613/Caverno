@@ -1,47 +1,13 @@
-import '../../data/datasources/mesh_secondary_completion_runner.dart';
 import '../../../settings/domain/entities/app_settings.dart';
+import '../../data/datasources/mesh_secondary_completion_runner.dart';
+import 'secondary_completion_route_snapshot.dart';
+
+export 'secondary_completion_route_snapshot.dart';
 
 // ChatNotifier decomposition collaborator: secondary-completion-router
 
 typedef SecondaryCompletionOperation<D, T> =
     Future<T> Function(D dataSource, String model);
-
-/// Immutable routing facts captured before a secondary completion starts.
-final class SecondaryCompletionRouteSnapshot {
-  SecondaryCompletionRouteSnapshot({
-    required this.provider,
-    required this.primaryBaseUrl,
-    required this.primaryApiKey,
-    required this.primaryModel,
-    required List<LlmEndpoint> enabledEndpoints,
-    required this.selectedEndpointId,
-    required this.selectedModel,
-    String? fallbackModel,
-  }) : enabledEndpoints = List<LlmEndpoint>.unmodifiable(enabledEndpoints),
-       fallbackModel = fallbackModel ?? primaryModel;
-
-  final LlmProvider provider;
-  final String primaryBaseUrl;
-  final String primaryApiKey;
-  final String primaryModel;
-  final List<LlmEndpoint> enabledEndpoints;
-  final String selectedEndpointId;
-  final String selectedModel;
-  final String fallbackModel;
-}
-
-/// One planning-completion route attempt exposed for narrow logging.
-final class SecondaryCompletionRouteMetadata {
-  const SecondaryCompletionRouteMetadata({
-    required this.model,
-    required this.endpoint,
-    required this.isFallback,
-  });
-
-  final String model;
-  final String endpoint;
-  final bool isFallback;
-}
 
 abstract interface class SecondaryCompletionLogPort {
   void recordPlanningAttempt(SecondaryCompletionRouteMetadata metadata);
@@ -112,7 +78,27 @@ final class SecondaryCompletionRouter<D> {
     );
   }
 
+  /// Every secondary completion funnels through here, which makes it the one
+  /// place that can stamp the usage role. Doing it per call site would be both
+  /// repetitive and fragile: a role started with `unawaited(...)` from inside a
+  /// chat turn otherwise inherits that turn's zone.
   Future<T> _run<T>({
+    required D primaryDataSource,
+    required SecondaryCompletionRouteSnapshot route,
+    required String endpointId,
+    required SecondaryCompletionOperation<D, T> operation,
+  }) {
+    return route.usageRole.runWith(
+      () => _runRouted(
+        primaryDataSource: primaryDataSource,
+        route: route,
+        endpointId: endpointId,
+        operation: operation,
+      ),
+    );
+  }
+
+  Future<T> _runRouted<T>({
     required D primaryDataSource,
     required SecondaryCompletionRouteSnapshot route,
     required String endpointId,

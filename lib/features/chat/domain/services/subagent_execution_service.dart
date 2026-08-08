@@ -3,6 +3,7 @@ import '../../../routines/data/routine_tool_runner.dart';
 import '../entities/chat_turn_owner.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/message.dart';
+import '../entities/model_usage_role.dart';
 import '../entities/subagent_task.dart';
 import '../entities/tool_call_info.dart';
 import 'subagent_tool_policy.dart';
@@ -60,13 +61,17 @@ class SubagentExecutionService {
     ];
 
     try {
-      final result = await _toolRunner.execute(
-        messages: messages,
-        tools: tools,
-        dispatchToolCall: dispatchToolCall,
-        model: model,
-        temperature: temperature,
-        maxTokens: maxTokens,
+      // Every completion the delegated run makes, including its tool loop, is
+      // billed to the subagent rather than to the parent chat turn.
+      final result = await ModelUsageRole.subagent.runWith(
+        () => _toolRunner.execute(
+          messages: messages,
+          tools: tools,
+          dispatchToolCall: dispatchToolCall,
+          model: model,
+          temperature: temperature,
+          maxTokens: maxTokens,
+        ),
       );
       final output = _capOutput(result.output);
       return SubagentTask(

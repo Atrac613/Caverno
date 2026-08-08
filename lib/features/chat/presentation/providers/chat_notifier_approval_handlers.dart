@@ -11,6 +11,7 @@ SecondaryCompletionRouteSnapshot _secondaryCompletionRoute(
   AppSettings settings,
   String endpointId,
   String model,
+  ModelUsageRole usageRole,
 ) => SecondaryCompletionRouteSnapshot(
   provider: settings.llmProvider,
   primaryBaseUrl: settings.baseUrl,
@@ -20,6 +21,7 @@ SecondaryCompletionRouteSnapshot _secondaryCompletionRoute(
   selectedEndpointId: endpointId,
   selectedModel: model,
   fallbackModel: settings.model,
+  usageRole: usageRole,
 );
 
 extension _SecondaryCompletionRouteSettings on AppSettings {
@@ -28,6 +30,7 @@ extension _SecondaryCompletionRouteSettings on AppSettings {
         this,
         planningEndpointId,
         effectivePlanningModel,
+        ModelUsageRole.planning,
       );
 
   SecondaryCompletionRouteSnapshot get _goalSuggestionCompletionRoute =>
@@ -35,6 +38,7 @@ extension _SecondaryCompletionRouteSettings on AppSettings {
         this,
         goalSuggestionEndpointId,
         effectiveGoalSuggestionModel,
+        ModelUsageRole.goalSuggestion,
       );
 
   SecondaryCompletionRouteSnapshot get _memoryExtractionCompletionRoute =>
@@ -42,6 +46,7 @@ extension _SecondaryCompletionRouteSettings on AppSettings {
         this,
         memoryExtractionEndpointId,
         effectiveMemoryExtractionModel,
+        ModelUsageRole.memoryExtraction,
       );
 
   SecondaryCompletionRouteSnapshot get _approvalAutoReviewCompletionRoute =>
@@ -49,6 +54,7 @@ extension _SecondaryCompletionRouteSettings on AppSettings {
         this,
         approvalAutoReviewEndpointId,
         effectiveApprovalAutoReviewModel,
+        ModelUsageRole.approvalAutoReview,
       );
 }
 
