@@ -26,6 +26,22 @@ import '../providers/semantic_search_provider.dart';
 
 const _collapsedCodingProjectIdsPrefsKey =
     'conversationDrawer.collapsedCodingProjectIds';
+const _codingProjectSortOrderPrefsKey =
+    'conversationDrawer.codingProjectSortOrder';
+
+enum _CodingProjectSortOrder {
+  newestFirst,
+  oldestFirst,
+  recentlyActiveFirst,
+  leastRecentlyActiveFirst,
+}
+
+enum _CodingSortAction {
+  projectsNewestFirst,
+  projectsOldestFirst,
+  projectsRecentlyActiveFirst,
+  projectsLeastRecentlyActiveFirst,
+}
 
 typedef CodingWorkspaceDrawerBuilder =
     Widget Function(BuildContext context, VoidCallback closeDrawer);
@@ -70,11 +86,14 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
 
   final Set<String> _expandedProjectIds = <String>{};
   final Set<String> _collapsedProjectIds = <String>{};
+  _CodingProjectSortOrder _projectSortOrder =
+      _CodingProjectSortOrder.newestFirst;
 
   @override
   void initState() {
     super.initState();
     _loadCollapsedProjectIds();
+    _loadSortOrders();
   }
 
   @override
@@ -202,6 +221,8 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                                 });
                                 _persistCollapsedProjectIds();
                               },
+                              projectSortOrder: _projectSortOrder,
+                              onSortSelected: _selectSortAction,
                             ),
                       WorkspaceMode.routines => _RoutinesSection(
                         closeDrawer: () => _closeDrawerIfNeeded(context),
@@ -468,6 +489,47 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
       debugPrint('Failed to persist collapsed coding projects: $e');
     }
   }
+
+  void _loadSortOrders() {
+    try {
+      final prefs = ref.read(sharedPreferencesProvider);
+      final storedProjectOrder = prefs.getString(
+        _codingProjectSortOrderPrefsKey,
+      );
+      _projectSortOrder = _CodingProjectSortOrder.values.firstWhere(
+        (order) => order.name == storedProjectOrder,
+        orElse: () => _CodingProjectSortOrder.newestFirst,
+      );
+    } catch (e) {
+      debugPrint('Failed to load coding drawer sort order: $e');
+    }
+  }
+
+  void _selectSortAction(_CodingSortAction action) {
+    setState(() {
+      switch (action) {
+        case _CodingSortAction.projectsNewestFirst:
+          _projectSortOrder = _CodingProjectSortOrder.newestFirst;
+        case _CodingSortAction.projectsOldestFirst:
+          _projectSortOrder = _CodingProjectSortOrder.oldestFirst;
+        case _CodingSortAction.projectsRecentlyActiveFirst:
+          _projectSortOrder = _CodingProjectSortOrder.recentlyActiveFirst;
+        case _CodingSortAction.projectsLeastRecentlyActiveFirst:
+          _projectSortOrder = _CodingProjectSortOrder.leastRecentlyActiveFirst;
+      }
+    });
+    try {
+      final prefs = ref.read(sharedPreferencesProvider);
+      unawaited(
+        prefs.setString(
+          _codingProjectSortOrderPrefsKey,
+          _projectSortOrder.name,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Failed to persist coding drawer sort order: $e');
+    }
+  }
 }
 
 class _WorkspaceSwitcher extends StatelessWidget {
@@ -655,6 +717,8 @@ class _CodingProjectsSection extends StatelessWidget {
     required this.onOpenProject,
     required this.onToggleProjectExpanded,
     required this.onToggleProjectCollapsed,
+    required this.projectSortOrder,
+    required this.onSortSelected,
   });
 
   final CodingProjectsState projectsState;
@@ -674,16 +738,59 @@ class _CodingProjectsSection extends StatelessWidget {
   final ValueChanged<CodingProject> onOpenProject;
   final ValueChanged<String> onToggleProjectExpanded;
   final ValueChanged<String> onToggleProjectCollapsed;
+  final _CodingProjectSortOrder projectSortOrder;
+  final ValueChanged<_CodingSortAction> onSortSelected;
 
   @override
   Widget build(BuildContext context) {
     final activeThreads = conversationsState.visibleConversations;
+    final latestThreadUpdates = <String, DateTime>{};
+    for (final conversation in conversationsState.conversations) {
+      if (conversation.workspaceMode != WorkspaceMode.coding) continue;
+      final projectId = conversation.normalizedProjectId;
+      if (projectId == null) continue;
+      final previous = latestThreadUpdates[projectId];
+      if (previous == null || conversation.updatedAt.isAfter(previous)) {
+        latestThreadUpdates[projectId] = conversation.updatedAt;
+      }
+    }
+    final projects = projectsState.projects.toList(growable: false)
+      ..sort((left, right) {
+        final byPrimarySort = switch (projectSortOrder) {
+          _CodingProjectSortOrder.newestFirst => right.createdAt.compareTo(
+            left.createdAt,
+          ),
+          _CodingProjectSortOrder.oldestFirst => left.createdAt.compareTo(
+            right.createdAt,
+          ),
+          _CodingProjectSortOrder.recentlyActiveFirst =>
+            _compareLatestThreadUpdates(
+              latestThreadUpdates[left.id],
+              latestThreadUpdates[right.id],
+              newestFirst: true,
+            ),
+          _CodingProjectSortOrder.leastRecentlyActiveFirst =>
+            _compareLatestThreadUpdates(
+              latestThreadUpdates[left.id],
+              latestThreadUpdates[right.id],
+              newestFirst: false,
+            ),
+        };
+        if (byPrimarySort != 0) return byPrimarySort;
+        final byCreatedAt = right.createdAt.compareTo(left.createdAt);
+        if (byCreatedAt != 0) return byCreatedAt;
+        return left.id.compareTo(right.id);
+      });
 
     return Column(
       children: [
         _DrawerSectionHeader(
           title: 'drawer.projects'.tr(),
           actions: [
+            _CodingSortMenuButton(
+              projectSortOrder: projectSortOrder,
+              onSelected: onSortSelected,
+            ),
             _HeaderIconButton(
               icon: Icons.create_new_folder_outlined,
               tooltip: 'chat.add_project'.tr(),
@@ -707,9 +814,9 @@ class _CodingProjectsSection extends StatelessWidget {
                 )
               : ListView.builder(
                   padding: const EdgeInsets.only(bottom: 8),
-                  itemCount: projectsState.projects.length,
+                  itemCount: projects.length,
                   itemBuilder: (context, index) {
-                    final project = projectsState.projects[index];
+                    final project = projects[index];
                     final threads = _threadsForProject(project.id);
                     return _ProjectThreadGroup(
                       project: project,
@@ -743,13 +850,30 @@ class _CodingProjectsSection extends StatelessWidget {
   }
 
   List<Conversation> _threadsForProject(String projectId) {
-    return conversationsState.conversations
+    final threads = conversationsState.conversations
         .where(
           (conversation) =>
               conversation.workspaceMode == WorkspaceMode.coding &&
               conversation.normalizedProjectId == projectId,
         )
         .toList(growable: false);
+    threads.sort((left, right) {
+      final byUpdatedAt = right.updatedAt.compareTo(left.updatedAt);
+      if (byUpdatedAt != 0) return byUpdatedAt;
+      return left.id.compareTo(right.id);
+    });
+    return threads;
+  }
+
+  int _compareLatestThreadUpdates(
+    DateTime? left,
+    DateTime? right, {
+    required bool newestFirst,
+  }) {
+    if (left == null && right == null) return 0;
+    if (left == null) return 1;
+    if (right == null) return -1;
+    return newestFirst ? right.compareTo(left) : left.compareTo(right);
   }
 }
 
@@ -1049,6 +1173,70 @@ class _HeaderIconButton extends StatelessWidget {
       visualDensity: VisualDensity.compact,
       constraints: const BoxConstraints.tightFor(width: 36, height: 36),
       onPressed: onPressed,
+    );
+  }
+}
+
+class _CodingSortMenuButton extends StatelessWidget {
+  const _CodingSortMenuButton({
+    required this.projectSortOrder,
+    required this.onSelected,
+  });
+
+  final _CodingProjectSortOrder projectSortOrder;
+  final ValueChanged<_CodingSortAction> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_CodingSortAction>(
+      key: const ValueKey('drawer-coding-sort-menu'),
+      icon: const Icon(Icons.sort, size: 20),
+      tooltip: 'drawer.sort_tooltip'.tr(),
+      onSelected: onSelected,
+      itemBuilder: (context) => [
+        _sortMenuItem(
+          action: _CodingSortAction.projectsNewestFirst,
+          label: 'drawer.sort_projects_newest'.tr(),
+          selected: projectSortOrder == _CodingProjectSortOrder.newestFirst,
+        ),
+        _sortMenuItem(
+          action: _CodingSortAction.projectsOldestFirst,
+          label: 'drawer.sort_projects_oldest'.tr(),
+          selected: projectSortOrder == _CodingProjectSortOrder.oldestFirst,
+        ),
+        _sortMenuItem(
+          action: _CodingSortAction.projectsRecentlyActiveFirst,
+          label: 'drawer.sort_projects_recent_thread'.tr(),
+          selected:
+              projectSortOrder == _CodingProjectSortOrder.recentlyActiveFirst,
+        ),
+        _sortMenuItem(
+          action: _CodingSortAction.projectsLeastRecentlyActiveFirst,
+          label: 'drawer.sort_projects_oldest_thread'.tr(),
+          selected:
+              projectSortOrder ==
+              _CodingProjectSortOrder.leastRecentlyActiveFirst,
+        ),
+      ],
+    );
+  }
+
+  PopupMenuItem<_CodingSortAction> _sortMenuItem({
+    required _CodingSortAction action,
+    required String label,
+    required bool selected,
+  }) {
+    return PopupMenuItem<_CodingSortAction>(
+      value: action,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            child: selected ? const Icon(Icons.check, size: 18) : null,
+          ),
+          Expanded(child: Text(label)),
+        ],
+      ),
     );
   }
 }
