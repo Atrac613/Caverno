@@ -166,8 +166,8 @@ void main() {
       );
 
       expect(report.historicalPartCount, 43);
-      expect(report.declaredPartCount, 37);
-      expect(report.statusSelectedPartCount, 37);
+      expect(report.declaredPartCount, 35);
+      expect(report.statusSelectedPartCount, 35);
       expect(report.markerIds, {
         'analysis-options-lint-edit-guard',
         'ask-user-question-option-parser',
@@ -175,6 +175,7 @@ void main() {
         'ask-user-question-turn-cache',
         'background-process-tool-handler',
         'ble-connection-tool-handler',
+        'blocked-production-release-retry-policy',
         'browser-session-ownership-coordinator',
         'browser-tool-handler',
         'chat-tool-handler-catalog',
@@ -196,6 +197,7 @@ void main() {
         'file-mutation-tool-handler',
         'file-rollback-tool-handler',
         'file-turn-rollback-service',
+        'fenced-tool-arguments-detector',
         'final-answer-claim-notice-applicator',
         'git-process-execution-coordinator',
         'git-tag-format-inspection-guard',
@@ -218,6 +220,8 @@ void main() {
         'participant-tool-executor',
         'participant-turn-planner',
         'process-start-result-policy',
+        'proposal-option-extraction',
+        'proposal-parsing-text-utils',
         'production-release-approval-policy',
         'project-scoped-read-tool-handler',
         'python-attachment-repair-policy',
@@ -248,6 +252,8 @@ void main() {
         'turn-runtime-owner-lease-registry',
         'turn-runtime-production-composition',
         'turn-tool-approval-coordinator',
+        'turn-tool-catalog-cache',
+        'unexecuted-command-action-retry-policy',
         'unexecuted-file-mutation-before-command-guard',
         'unexecuted-final-answer-tool-request-policy',
         'verifier-replay-candidate-policy',

@@ -23,8 +23,10 @@ void main() {
         // execution_runtime moved keep -> partial on 2026-08-04 when the
         // destructor slice extracted the turn's releases from it.
         'keep': 4,
-        'deferred': 6,
-        'extracted': 6,
+        // proposal_option_extraction and proposal_parsing moved
+        // deferred -> extracted when their part-files became domain services.
+        'deferred': 4,
+        'extracted': 8,
         'remaining': 2,
       });
       audit.validateProgramManifest(manifest);

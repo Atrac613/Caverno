@@ -698,6 +698,21 @@
           "id": "narrated-transcript-repair-planner",
           "path": "lib/features/chat/domain/services/narrated_transcript_repair_planner.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/narrated_transcript_repair_planner.dart"
+        },
+        {
+          "id": "blocked-production-release-retry-policy",
+          "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart"
+        },
+        {
+          "id": "fenced-tool-arguments-detector",
+          "path": "lib/features/chat/domain/services/fenced_tool_arguments_detector.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/fenced_tool_arguments_detector.dart"
+        },
+        {
+          "id": "unexecuted-command-action-retry-policy",
+          "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart"
         }
       ]
     },
@@ -804,8 +819,14 @@
         "_mergeWorkflowDecisionAnswers",
         "_filterUnansweredWorkflowDecisions"
       ],
-      "status": "deferred",
-      "collaborators": []
+      "status": "extracted",
+      "collaborators": [
+        {
+          "id": "proposal-option-extraction",
+          "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/proposal_option_extraction.dart"
+        }
+      ]
     },
     {
       "id": "proposal-parsing",
@@ -841,8 +862,14 @@
         "_matchTaskTitleLine",
         "_matchTaskFieldLine"
       ],
-      "status": "deferred",
-      "collaborators": []
+      "status": "extracted",
+      "collaborators": [
+        {
+          "id": "proposal-parsing-text-utils",
+          "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart"
+        }
+      ]
     },
     {
       "id": "workflow-proposal-parser",
@@ -1183,6 +1210,11 @@
           "id": "truncated-tool-call-arguments-guard",
           "path": "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart"
+        },
+        {
+          "id": "turn-tool-catalog-cache",
+          "path": "lib/features/chat/domain/services/turn_tool_catalog_cache.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/turn_tool_catalog_cache.dart"
         }
       ]
     },

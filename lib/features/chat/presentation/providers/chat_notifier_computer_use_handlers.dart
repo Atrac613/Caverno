@@ -246,10 +246,12 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
     }
 
     final actionResult =
-        _tryDecodeMap(result.result) ??
+        ProposalParsingTextUtils.tryDecodeMap(result.result) ??
         <String, dynamic>{'rawResult': result.result};
     final observationResult =
-        _tryDecodeMap(postActionObservation.result ?? '') ??
+        ProposalParsingTextUtils.tryDecodeMap(
+          postActionObservation.result ?? '',
+        ) ??
         <String, dynamic>{
           'ok': postActionObservation.success,
           if (postActionObservation.errorCode != null)

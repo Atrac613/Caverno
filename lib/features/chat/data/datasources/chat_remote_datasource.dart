@@ -12,8 +12,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/chat_request_prefix_stability_service.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
-import 'chat_completion_bounds.dart';
-import 'chat_completion_parameter_compat.dart';
+import 'chat_completion_request_fallback.dart';
 import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
 
@@ -34,7 +33,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     String? reasoningEffort,
     http.Client? httpClient,
     http.Client Function()? streamClientFactory,
-  }) : _reasoningEffort = _normalizeReasoningEffort(reasoningEffort),
+  }) : _requestFallback = ChatCompletionRequestFallback(reasoningEffort),
        _client = OpenAIClient.withApiKey(
          apiKey ?? ApiConstants.defaultApiKey,
          baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
@@ -44,9 +43,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
        );
 
   final OpenAIClient _client;
-  final String? _reasoningEffort;
-  final ChatCompletionParameterCompat _parameterCompat =
-      ChatCompletionParameterCompat();
+  final ChatCompletionRequestFallback _requestFallback;
   static const _responseNormalizer = ChatCompletionResponseNormalizer();
   static const bool _logToolSchemas = bool.fromEnvironment(
     'CAVERNO_LLM_LOG_TOOL_SCHEMAS',
@@ -83,113 +80,10 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     lastFinishReason = metadata.finishReason;
   }
 
-  static String? _normalizeReasoningEffort(String? value) {
-    final normalized = value?.trim().toLowerCase();
-    return switch (normalized) {
-      'low' || 'medium' || 'high' => normalized,
-      _ => null,
-    };
-  }
-
-  ReasoningEffort? _reasoningEffortForRequest(bool includeReasoning) {
-    // Pinned regardless of the user's setting: this server refuses function
-    // tools unless reasoning is explicitly switched off, and omitting the
-    // parameter lets its own default apply.
-    if (_parameterCompat.forceReasoningEffortNone) {
-      return ReasoningEffort.none;
-    }
-    if (!includeReasoning) {
-      return null;
-    }
-    return switch (_reasoningEffort) {
-      'low' => ReasoningEffort.low,
-      'medium' => ReasoningEffort.medium,
-      'high' => ReasoningEffort.high,
-      _ => null,
-    };
-  }
-
-  /// `temperature` for the request, dropped once the server has rejected it.
-  double? _temperatureForRequest(double? temperature) {
-    if (_parameterCompat.omitTemperature) {
-      return null;
-    }
-    return temperature ?? ApiConstants.defaultTemperature;
-  }
-
-  /// Token budget under the `max_tokens` key (null when the server wants
-  /// `max_completion_tokens` instead).
-  int? _maxTokensForRequest(int? maxTokens) {
-    if (_parameterCompat.useMaxCompletionTokens) {
-      return null;
-    }
-    return maxTokens ?? ApiConstants.defaultMaxTokens;
-  }
-
-  /// Token budget under the `max_completion_tokens` key, used only for servers
-  /// that rejected `max_tokens` (OpenAI reasoning models).
-  int? _maxCompletionTokensForRequest(int? maxTokens) {
-    if (!_parameterCompat.useMaxCompletionTokens) {
-      return null;
-    }
-    return maxTokens ?? ApiConstants.defaultMaxTokens;
-  }
-
-  /// Absorbs an unsupported-parameter 400 so the retry is built differently.
-  bool _shouldRetryWithAdjustedParameters(
-    ApiException error,
-    String operation,
-  ) {
-    if (!_parameterCompat.absorb(error)) {
-      return false;
-    }
-    appLog(
-      '[LLM] $operation rejected a request parameter with HTTP 400 '
-      '(${error.param ?? 'unknown param'}); retrying with '
-      'useMaxCompletionTokens=${_parameterCompat.useMaxCompletionTokens}, '
-      'omitTemperature=${_parameterCompat.omitTemperature}, '
-      'forceReasoningEffortNone=${_parameterCompat.forceReasoningEffortNone}',
-    );
-    return true;
-  }
-
-  bool _shouldRetryWithoutReasoning(ApiException error) {
-    return _reasoningEffort != null && error.statusCode == 400;
-  }
-
-  void _logReasoningFallback(String operation) {
-    appLog(
-      '[LLM] $operation rejected reasoning_effort with HTTP 400; '
-      'retrying without reasoning_effort',
-    );
-  }
-
-  /// Retries a rejected request in a shape the endpoint accepts.
-  ///
-  /// Two independent 400 causes are handled: an unsupported parameter shape
-  /// (recorded in [_parameterCompat], so later requests skip the round trip)
-  /// and `reasoning_effort` on servers that do not implement it. Each cause can
-  /// only be absorbed once, so the loop always terminates.
   Future<T> _createWithReasoningFallback<T>({
     required String operation,
     required Future<T> Function(bool includeReasoning) send,
-  }) async {
-    var includeReasoning = _reasoningEffort != null;
-    while (true) {
-      try {
-        return await boundedCompletion(send(includeReasoning), operation);
-      } on ApiException catch (error, stackTrace) {
-        if (_shouldRetryWithAdjustedParameters(error, operation)) {
-          continue;
-        }
-        if (!includeReasoning || !_shouldRetryWithoutReasoning(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        _logReasoningFallback(operation);
-        includeReasoning = false;
-      }
-    }
-  }
+  }) => _requestFallback.create(operation: operation, send: send);
 
   /// Streaming counterpart of [_createWithReasoningFallback].
   ///
@@ -203,34 +97,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
   Stream<T> _streamWithReasoningFallback<T>({
     required String operation,
     required Stream<T> Function(bool includeReasoning) send,
-  }) async* {
-    var includeReasoning = _reasoningEffort != null;
-    while (true) {
-      var emittedEvent = false;
-      try {
-        await for (final event in boundedCompletionStream(
-          send(includeReasoning),
-          operation,
-        )) {
-          emittedEvent = true;
-          yield event;
-        }
-        return;
-      } on ApiException catch (error, stackTrace) {
-        if (emittedEvent) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        if (_shouldRetryWithAdjustedParameters(error, operation)) {
-          continue;
-        }
-        if (!includeReasoning || !_shouldRetryWithoutReasoning(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        _logReasoningFallback(operation);
-        includeReasoning = false;
-      }
-    }
-  }
+  }) => _requestFallback.stream(operation: operation, send: send);
 
   /// Log message list
   void _logMessages(List<Message> messages) {
@@ -390,11 +257,14 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
             ChatCompletionCreateRequest(
               model: modelId,
               messages: formattedMessages,
-              temperature: _temperatureForRequest(temperature),
-              maxTokens: _maxTokensForRequest(maxTokens),
-              maxCompletionTokens: _maxCompletionTokensForRequest(maxTokens),
+              temperature: _requestFallback.temperatureForRequest(temperature),
+              maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
+              maxCompletionTokens: _requestFallback
+                  .maxCompletionTokensForRequest(maxTokens),
               streamOptions: const StreamOptions(includeUsage: true),
-              reasoningEffort: _reasoningEffortForRequest(includeReasoning),
+              reasoningEffort: _requestFallback.reasoningEffortForRequest(
+                includeReasoning,
+              ),
             ),
           ),
         );
@@ -527,12 +397,15 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
             ChatCompletionCreateRequest(
               model: modelId,
               messages: formattedMessages,
-              temperature: _temperatureForRequest(temperature),
-              maxTokens: _maxTokensForRequest(maxTokens),
-              maxCompletionTokens: _maxCompletionTokensForRequest(maxTokens),
+              temperature: _requestFallback.temperatureForRequest(temperature),
+              maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
+              maxCompletionTokens: _requestFallback
+                  .maxCompletionTokensForRequest(maxTokens),
               tools: _buildTools(tools),
               streamOptions: const StreamOptions(includeUsage: true),
-              reasoningEffort: _reasoningEffortForRequest(includeReasoning),
+              reasoningEffort: _requestFallback.reasoningEffortForRequest(
+                includeReasoning,
+              ),
             ),
           ),
         );
@@ -688,11 +561,15 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       return ChatCompletionCreateRequest(
         model: modelId,
         messages: formattedMessages,
-        temperature: _temperatureForRequest(temperature),
-        maxTokens: _maxTokensForRequest(maxTokens),
-        maxCompletionTokens: _maxCompletionTokensForRequest(maxTokens),
+        temperature: _requestFallback.temperatureForRequest(temperature),
+        maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
+        maxCompletionTokens: _requestFallback.maxCompletionTokensForRequest(
+          maxTokens,
+        ),
         tools: _buildTools(tools),
-        reasoningEffort: _reasoningEffortForRequest(includeReasoning),
+        reasoningEffort: _requestFallback.reasoningEffortForRequest(
+          includeReasoning,
+        ),
       );
     }
 
@@ -811,11 +688,15 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
           ChatCompletionCreateRequest(
             model: modelId,
             messages: formattedMessages,
-            temperature: _temperatureForRequest(temperature),
-            maxTokens: _maxTokensForRequest(maxTokens),
-            maxCompletionTokens: _maxCompletionTokensForRequest(maxTokens),
+            temperature: _requestFallback.temperatureForRequest(temperature),
+            maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
+            maxCompletionTokens: _requestFallback.maxCompletionTokensForRequest(
+              maxTokens,
+            ),
             streamOptions: const StreamOptions(includeUsage: true),
-            reasoningEffort: _reasoningEffortForRequest(includeReasoning),
+            reasoningEffort: _requestFallback.reasoningEffortForRequest(
+              includeReasoning,
+            ),
           ),
         ),
       );
@@ -998,11 +879,15 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       return ChatCompletionCreateRequest(
         model: modelId,
         messages: formattedMessages,
-        temperature: _temperatureForRequest(temperature),
-        maxTokens: _maxTokensForRequest(maxTokens),
-        maxCompletionTokens: _maxCompletionTokensForRequest(maxTokens),
+        temperature: _requestFallback.temperatureForRequest(temperature),
+        maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
+        maxCompletionTokens: _requestFallback.maxCompletionTokensForRequest(
+          maxTokens,
+        ),
         tools: _buildTools(tools),
-        reasoningEffort: _reasoningEffortForRequest(includeReasoning),
+        reasoningEffort: _requestFallback.reasoningEffortForRequest(
+          includeReasoning,
+        ),
       );
     }
 

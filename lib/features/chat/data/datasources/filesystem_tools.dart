@@ -5,6 +5,7 @@ import 'dart:io';
 export 'filesystem_text_snapshot.dart';
 
 import 'filesystem_diff_builder.dart';
+import 'edit_anchor_failure_builder.dart';
 import 'filesystem_path_resolver.dart';
 import 'filesystem_text_snapshot.dart';
 
@@ -685,7 +686,7 @@ class FilesystemTools {
   }) {
     final oldTextOffsets = _occurrenceOffsets(content, oldText);
     if (oldTextOffsets.isEmpty) {
-      return _oldTextNotFoundError(
+      return EditAnchorFailureBuilder.build(
         path: path,
         content: content,
         newText: newText,
@@ -755,69 +756,6 @@ class FilesystemTools {
       }
     }
     return coveredOffsets;
-  }
-
-  /// Maximum file size (UTF-8 bytes) for which a failed [editFile] echoes the
-  /// full current content inline, so the model can copy `old_text` verbatim or
-  /// overwrite via `write_file` without another `read_file` round-trip.
-  static const int _editErrorInlineContentMaxBytes = 4096;
-
-  /// Build an actionable "old_text not found" error for [editFile].
-  ///
-  /// Keeps the exact `old_text was not found in the target file` phrase that
-  /// tool-loop recovery and edit telemetry match on, but adds the current file
-  /// content (for small files) plus a hint. Live canary traces showed a model
-  /// react to the bare error by retrying with a guessed block body, then with
-  /// the desired *new* value as `old_text`, then looping on `read_file` without
-  /// ever landing a fix; the inline content and hint target exactly that
-  /// failure at the point it happens.
-  static Map<String, dynamic> _oldTextNotFoundError({
-    required String path,
-    required String content,
-    required String newText,
-  }) {
-    final error = <String, dynamic>{
-      'error': 'old_text was not found in the target file',
-      'path': path,
-    };
-    // The commonest way to reach this error is editing something already
-    // edited: old_text is gone precisely because new_text replaced it. Report
-    // that as a located fact rather than making the caller hunt for it — a
-    // session log shows a model answer this question with six read_file
-    // windows and a search_files call, none of which reached the line.
-    final newTextOffset = newText.isEmpty ? -1 : content.indexOf(newText);
-    if (newTextOffset >= 0) {
-      error['new_text_present'] = true;
-      error['new_text_line'] = _lineNumberForOffset(content, newTextOffset);
-    }
-    if (utf8.encode(content).length <= _editErrorInlineContentMaxBytes) {
-      error['current_content'] = content;
-      error['hint'] =
-          'old_text must be copied verbatim from current_content; do not pass '
-          'the desired new value as old_text. If matching is hard, call '
-          'write_file with the full corrected file content instead.';
-    } else {
-      error['hint'] = newTextOffset >= 0
-          ? 'new_text is already present at line ${error['new_text_line']}, so '
-                'this edit may have been applied already. Confirm that line '
-                'before editing again; do not re-read the file in small '
-                'windows looking for it.'
-          : 'Re-read the file and copy old_text verbatim from its current '
-                'content; do not guess and do not pass the desired new value '
-                'as old_text.';
-    }
-    return error;
-  }
-
-  /// 1-based line number containing [offset].
-  static int _lineNumberForOffset(String content, int offset) {
-    var line = 1;
-    for (var index = 0; index < offset && index < content.length; index++) {
-      if (content.codeUnitAt(index) == 0x0a) {
-        line += 1;
-      }
-    }
-    return line;
   }
 
   static Future<String> findFiles({

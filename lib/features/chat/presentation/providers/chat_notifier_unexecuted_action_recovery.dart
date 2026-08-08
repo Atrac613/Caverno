@@ -4,6 +4,98 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
+  Future<ChatCompletionResult?> _requestFinalAnswerRecoveryCompletion({
+    required ChatTurnOwner owner,
+    required ToolResultInfo feedback,
+    required String transformId,
+    required String logLabel,
+    required String logMessage,
+    required String candidateResponse,
+    required List<ToolResultInfo> executedToolResults,
+    required List<ToolResultInfo> batchToolResults,
+    required List<Map<String, dynamic>> tools,
+    required int interactionGeneration,
+    void Function()? onBlockingFeedbackPrepared,
+  }) async {
+    final promptFeedback = await _toolResultArtifactStore.persistIfLarge(
+      feedback,
+      conversationId: owner.conversationId,
+    );
+    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+        _turnOwnerForGeneration(interactionGeneration) != owner) {
+      return null;
+    }
+    batchToolResults.add(promptFeedback);
+    executedToolResults.add(promptFeedback);
+    onBlockingFeedbackPrepared?.call();
+    _turnEnd.addTransform(owner, transformId);
+    appLog(logMessage);
+    _appendToLastMessageForGeneration(interactionGeneration, '<think>');
+    try {
+      return await _createToolResultCompletionWithContextRetry(
+        logLabel: logLabel,
+        interactionGeneration: interactionGeneration,
+        buildMessages: (forceCompaction) => _prepareMessagesForLLM(
+          forceCompaction: forceCompaction,
+          toolDefinitionsOverride: tools,
+          interactionGeneration: interactionGeneration,
+        ),
+        toolResults: [promptFeedback],
+        assistantContent: candidateResponse,
+        tools: tools,
+      );
+    } finally {
+      if (_isCurrentInteractionGeneration(interactionGeneration) &&
+          _turnOwnerForGeneration(interactionGeneration) == owner) {
+        _removeTrailingThinkTagForGeneration(interactionGeneration);
+      }
+    }
+  }
+
+  Future<bool> _applyFinalAnswerRecoveryResult({
+    required Future<ChatCompletionResult?> result,
+    required String streamedFinalAnswer,
+    required String toolCallLogMessage,
+    required List<Map<String, dynamic>> tools,
+    required bool toolSearchEnabled,
+    required Set<String> activeToolNames,
+    required List<Map<String, dynamic>>? stableToolDefinitions,
+    required Map<String, int> verificationFailureCounts,
+    required Set<String> transcriptRepairSignatures,
+    required int interactionGeneration,
+  }) async {
+    final recoveryResult = await result;
+    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+        !ref.mounted) {
+      return true;
+    }
+    if (recoveryResult == null) return false;
+    if (recoveryResult.hasToolCalls) {
+      appLog(toolCallLogMessage);
+      await _executeToolCalls(
+        recoveryResult.toolCalls!,
+        assistantContent: recoveryResult.content.isNotEmpty
+            ? recoveryResult.content
+            : streamedFinalAnswer,
+        toolSearchEnabled: toolSearchEnabled,
+        selectedToolNames: activeToolNames,
+        stableToolDefinitions: stableToolDefinitions,
+        completionVerificationFailureCounts: verificationFailureCounts,
+        narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+        interactionGeneration: interactionGeneration,
+      );
+      return true;
+    }
+    final response = recoveryResult.content.trim();
+    if (response.isNotEmpty) {
+      _appendRecoveredAssistantResponse(
+        response,
+        interactionGeneration: interactionGeneration,
+      );
+    }
+    return false;
+  }
+
   void _appendUnexecutedToolRequestNoticeForContentIfNeeded({
     required ChatTurnOwner owner,
     required int interactionGeneration,
@@ -111,43 +203,21 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       return null;
     }
 
-    final promptFeedback = await _toolResultArtifactStore.persistIfLarge(
-      plan.feedback,
-      conversationId: plan.owner.conversationId,
+    return _requestFinalAnswerRecoveryCompletion(
+      owner: plan.owner,
+      feedback: plan.feedback,
+      transformId: 'unexecuted_command_action_retry',
+      logLabel: 'unexecuted command action retry',
+      logMessage:
+          '[UnexecutedCommand] Answer described a command with no result; '
+          'asking for the call or the blocker',
+      candidateResponse: candidateResponse,
+      executedToolResults: executedToolResults,
+      batchToolResults: batchToolResults,
+      tools: tools,
+      interactionGeneration: interactionGeneration,
+      onBlockingFeedbackPrepared: onBlockingFeedbackPrepared,
     );
-    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
-        _turnOwnerForGeneration(interactionGeneration) != plan.owner) {
-      return null;
-    }
-    batchToolResults.add(promptFeedback);
-    executedToolResults.add(promptFeedback);
-    onBlockingFeedbackPrepared?.call();
-    _turnEnd.addTransform(plan.owner, 'unexecuted_command_action_retry');
-
-    appLog(
-      '[UnexecutedCommand] Answer described a command with no result; '
-      'asking for the call or the blocker',
-    );
-    _appendToLastMessageForGeneration(interactionGeneration, '<think>');
-    try {
-      return await _createToolResultCompletionWithContextRetry(
-        logLabel: 'unexecuted command action retry',
-        interactionGeneration: interactionGeneration,
-        buildMessages: (forceCompaction) => _prepareMessagesForLLM(
-          forceCompaction: forceCompaction,
-          toolDefinitionsOverride: tools,
-          interactionGeneration: interactionGeneration,
-        ),
-        toolResults: [promptFeedback],
-        assistantContent: candidateResponse,
-        tools: tools,
-      );
-    } finally {
-      if (_isCurrentInteractionGeneration(interactionGeneration) &&
-          _turnOwnerForGeneration(interactionGeneration) == plan.owner) {
-        _removeTrailingThinkTagForGeneration(interactionGeneration);
-      }
-    }
   }
 
   /// Applies the unexecuted-command retry to a streamed final answer. Returns
@@ -166,44 +236,26 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     required int interactionGeneration,
     required void Function() onBlockingFeedbackPrepared,
   }) async {
-    final retryResult = await _requestUnexecutedCommandActionRetry(
-      candidateResponse: streamedFinalAnswer,
-      executedToolResults: executedToolResults,
-      batchToolResults: batchToolResults,
-      allowedToolNames: allowedToolNames,
+    return _applyFinalAnswerRecoveryResult(
+      result: _requestUnexecutedCommandActionRetry(
+        candidateResponse: streamedFinalAnswer,
+        executedToolResults: executedToolResults,
+        batchToolResults: batchToolResults,
+        allowedToolNames: allowedToolNames,
+        tools: tools,
+        interactionGeneration: interactionGeneration,
+        onBlockingFeedbackPrepared: onBlockingFeedbackPrepared,
+      ),
+      streamedFinalAnswer: streamedFinalAnswer,
+      toolCallLogMessage: '[UnexecutedCommand] Retry requested tool calls',
       tools: tools,
+      toolSearchEnabled: toolSearchEnabled,
+      activeToolNames: activeToolNames,
+      stableToolDefinitions: stableToolDefinitions,
+      verificationFailureCounts: verificationFailureCounts,
+      transcriptRepairSignatures: transcriptRepairSignatures,
       interactionGeneration: interactionGeneration,
-      onBlockingFeedbackPrepared: onBlockingFeedbackPrepared,
     );
-    if (!_isCurrentInteractionGeneration(interactionGeneration)) return true;
-    if (!ref.mounted) return true;
-    if (retryResult == null) return false;
-    if (retryResult.hasToolCalls) {
-      appLog('[UnexecutedCommand] Retry requested tool calls');
-      await _executeToolCalls(
-        retryResult.toolCalls!,
-        assistantContent: retryResult.content.isNotEmpty
-            ? retryResult.content
-            : streamedFinalAnswer,
-        toolSearchEnabled: toolSearchEnabled,
-        selectedToolNames: activeToolNames,
-        stableToolDefinitions: stableToolDefinitions,
-        completionVerificationFailureCounts: verificationFailureCounts,
-        narratedTranscriptRepairSignatures: transcriptRepairSignatures,
-        interactionGeneration: interactionGeneration,
-      );
-      return true;
-    }
-    // The model named a blocker instead. That answer replaces the description
-    // of a run that never happened.
-    final retryResponse = retryResult.content.trim();
-    if (retryResponse.isNotEmpty) {
-      _appendRecoveredAssistantResponse(
-        retryResponse,
-        interactionGeneration: interactionGeneration,
-      );
-    }
-    return false;
   }
 
   /// Revives the tool loop when this turn blocked a production release for
@@ -262,43 +314,21 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     // not, the conversation stops owing a retry for it.
     _pendingBlockedReleases.remove(plan.owner.conversationId);
 
-    final promptFeedback = await _toolResultArtifactStore.persistIfLarge(
-      plan.feedback,
-      conversationId: plan.owner.conversationId,
+    return _requestFinalAnswerRecoveryCompletion(
+      owner: plan.owner,
+      feedback: plan.feedback,
+      transformId: 'blocked_production_release_retry',
+      logLabel: 'blocked production release retry',
+      logMessage:
+          '[ReleaseRetry] Approved release "${plan.command}" was never issued; '
+          'asking the model to run it',
+      candidateResponse: candidateResponse,
+      executedToolResults: executedToolResults,
+      batchToolResults: batchToolResults,
+      tools: tools,
+      interactionGeneration: interactionGeneration,
+      onBlockingFeedbackPrepared: onBlockingFeedbackPrepared,
     );
-    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
-        _turnOwnerForGeneration(interactionGeneration) != plan.owner) {
-      return null;
-    }
-    batchToolResults.add(promptFeedback);
-    executedToolResults.add(promptFeedback);
-    onBlockingFeedbackPrepared?.call();
-    _turnEnd.addTransform(plan.owner, 'blocked_production_release_retry');
-
-    appLog(
-      '[ReleaseRetry] Approved release "${plan.command}" was never issued; '
-      'asking the model to run it',
-    );
-    _appendToLastMessageForGeneration(interactionGeneration, '<think>');
-    try {
-      return await _createToolResultCompletionWithContextRetry(
-        logLabel: 'blocked production release retry',
-        interactionGeneration: interactionGeneration,
-        buildMessages: (forceCompaction) => _prepareMessagesForLLM(
-          forceCompaction: forceCompaction,
-          toolDefinitionsOverride: tools,
-          interactionGeneration: interactionGeneration,
-        ),
-        toolResults: [promptFeedback],
-        assistantContent: candidateResponse,
-        tools: tools,
-      );
-    } finally {
-      if (_isCurrentInteractionGeneration(interactionGeneration) &&
-          _turnOwnerForGeneration(interactionGeneration) == plan.owner) {
-        _removeTrailingThinkTagForGeneration(interactionGeneration);
-      }
-    }
   }
 
   /// Applies the blocked-release retry to a streamed final answer. Returns true
@@ -317,41 +347,25 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     required int interactionGeneration,
     required void Function() onBlockingFeedbackPrepared,
   }) async {
-    final retryResult = await _requestBlockedProductionReleaseRetry(
-      candidateResponse: streamedFinalAnswer,
-      executedToolResults: executedToolResults,
-      batchToolResults: batchToolResults,
+    return _applyFinalAnswerRecoveryResult(
+      result: _requestBlockedProductionReleaseRetry(
+        candidateResponse: streamedFinalAnswer,
+        executedToolResults: executedToolResults,
+        batchToolResults: batchToolResults,
+        tools: tools,
+        interactionGeneration: interactionGeneration,
+        onBlockingFeedbackPrepared: onBlockingFeedbackPrepared,
+      ),
+      streamedFinalAnswer: streamedFinalAnswer,
+      toolCallLogMessage: '[ReleaseRetry] Retry requested tool calls',
       tools: tools,
+      toolSearchEnabled: toolSearchEnabled,
+      activeToolNames: activeToolNames,
+      stableToolDefinitions: stableToolDefinitions,
+      verificationFailureCounts: verificationFailureCounts,
+      transcriptRepairSignatures: transcriptRepairSignatures,
       interactionGeneration: interactionGeneration,
-      onBlockingFeedbackPrepared: onBlockingFeedbackPrepared,
     );
-    if (!_isCurrentInteractionGeneration(interactionGeneration)) return true;
-    if (!ref.mounted) return true;
-    if (retryResult == null) return false;
-    if (retryResult.hasToolCalls) {
-      appLog('[ReleaseRetry] Retry requested tool calls');
-      await _executeToolCalls(
-        retryResult.toolCalls!,
-        assistantContent: retryResult.content.isNotEmpty
-            ? retryResult.content
-            : streamedFinalAnswer,
-        toolSearchEnabled: toolSearchEnabled,
-        selectedToolNames: activeToolNames,
-        stableToolDefinitions: stableToolDefinitions,
-        completionVerificationFailureCounts: verificationFailureCounts,
-        narratedTranscriptRepairSignatures: transcriptRepairSignatures,
-        interactionGeneration: interactionGeneration,
-      );
-      return true;
-    }
-    final retryResponse = retryResult.content.trim();
-    if (retryResponse.isNotEmpty) {
-      _appendRecoveredAssistantResponse(
-        retryResponse,
-        interactionGeneration: interactionGeneration,
-      );
-    }
-    return false;
   }
 
   /// Revives the tool loop when a completion answer presents a terminal
@@ -417,44 +431,22 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       );
       return null;
     }
-    final promptFeedback = await _toolResultArtifactStore.persistIfLarge(
-      plan.feedback,
-      conversationId: plan.owner.conversationId,
+    return _requestFinalAnswerRecoveryCompletion(
+      owner: plan.owner,
+      feedback: plan.feedback,
+      transformId: 'narrated_transcript_repair',
+      logLabel: 'narrated transcript feedback',
+      logMessage:
+          '[NarratedTranscript] Completion claim narrates '
+          '${plan.assessment.unexecutedCommands.length} unexecuted command(s); '
+          'requesting repair',
+      candidateResponse: candidateResponse,
+      executedToolResults: executedToolResults,
+      batchToolResults: batchToolResults,
+      tools: tools,
+      interactionGeneration: interactionGeneration,
+      onBlockingFeedbackPrepared: onBlockingFeedbackPrepared,
     );
-    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
-        _turnOwnerForGeneration(interactionGeneration) != plan.owner) {
-      return null;
-    }
-    batchToolResults.add(promptFeedback);
-    executedToolResults.add(promptFeedback);
-    onBlockingFeedbackPrepared?.call();
-    _turnEnd.addTransform(plan.owner, 'narrated_transcript_repair');
-
-    appLog(
-      '[NarratedTranscript] Completion claim narrates '
-      '${plan.assessment.unexecutedCommands.length} unexecuted command(s); '
-      'requesting repair',
-    );
-    _appendToLastMessageForGeneration(interactionGeneration, '<think>');
-    try {
-      return await _createToolResultCompletionWithContextRetry(
-        logLabel: 'narrated transcript feedback',
-        interactionGeneration: interactionGeneration,
-        buildMessages: (forceCompaction) => _prepareMessagesForLLM(
-          forceCompaction: forceCompaction,
-          toolDefinitionsOverride: tools,
-          interactionGeneration: interactionGeneration,
-        ),
-        toolResults: [promptFeedback],
-        assistantContent: candidateResponse,
-        tools: tools,
-      );
-    } finally {
-      if (_isCurrentInteractionGeneration(interactionGeneration) &&
-          _turnOwnerForGeneration(interactionGeneration) == plan.owner) {
-        _removeTrailingThinkTagForGeneration(interactionGeneration);
-      }
-    }
   }
 
   /// Applies the narrated-transcript repair to a streamed final answer.
@@ -473,47 +465,26 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     required int interactionGeneration,
     required void Function() onBlockingFeedbackPrepared,
   }) async {
-    final repairResult =
-        await _requestNarratedTranscriptRepairForCompletionClaim(
-          candidateResponse: streamedFinalAnswer,
-          executedToolResults: executedToolResults,
-          batchToolResults: batchToolResults,
-          attemptedSignatures: attemptedSignatures,
-          tools: tools,
-          interactionGeneration: interactionGeneration,
-          onBlockingFeedbackPrepared: onBlockingFeedbackPrepared,
-        );
-    if (!_isCurrentInteractionGeneration(interactionGeneration)) return true;
-    if (!ref.mounted) return true;
-    if (repairResult == null) {
-      return false;
-    }
-    if (repairResult.hasToolCalls) {
-      appLog(
-        '[NarratedTranscript] Streamed final answer repair requested '
-        'tool calls',
-      );
-      await _executeToolCalls(
-        repairResult.toolCalls!,
-        assistantContent: repairResult.content.isNotEmpty
-            ? repairResult.content
-            : streamedFinalAnswer,
-        toolSearchEnabled: toolSearchEnabled,
-        selectedToolNames: activeToolNames,
-        stableToolDefinitions: stableToolDefinitions,
-        completionVerificationFailureCounts: verificationFailureCounts,
-        narratedTranscriptRepairSignatures: attemptedSignatures,
+    return _applyFinalAnswerRecoveryResult(
+      result: _requestNarratedTranscriptRepairForCompletionClaim(
+        candidateResponse: streamedFinalAnswer,
+        executedToolResults: executedToolResults,
+        batchToolResults: batchToolResults,
+        attemptedSignatures: attemptedSignatures,
+        tools: tools,
         interactionGeneration: interactionGeneration,
-      );
-      return true;
-    }
-    final transcriptResponse = repairResult.content.trim();
-    if (transcriptResponse.isNotEmpty) {
-      _appendRecoveredAssistantResponse(
-        transcriptResponse,
-        interactionGeneration: interactionGeneration,
-      );
-    }
-    return false;
+        onBlockingFeedbackPrepared: onBlockingFeedbackPrepared,
+      ),
+      streamedFinalAnswer: streamedFinalAnswer,
+      toolCallLogMessage:
+          '[NarratedTranscript] Streamed final answer repair requested calls',
+      tools: tools,
+      toolSearchEnabled: toolSearchEnabled,
+      activeToolNames: activeToolNames,
+      stableToolDefinitions: stableToolDefinitions,
+      verificationFailureCounts: verificationFailureCounts,
+      transcriptRepairSignatures: attemptedSignatures,
+      interactionGeneration: interactionGeneration,
+    );
   }
 }

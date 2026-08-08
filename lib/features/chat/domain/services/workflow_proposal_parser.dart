@@ -1,7 +1,7 @@
 import '../entities/conversation.dart';
 import '../entities/conversation_workflow.dart';
 import '../entities/message.dart';
-import '../../presentation/providers/chat_state.dart';
+import '../entities/workflow_proposal_draft.dart';
 import 'proposal_option_extraction.dart';
 import 'proposal_parsing_text_utils.dart';
 import 'runtime_sampler_feedback_recorder.dart';

@@ -1,5 +1,6 @@
-import '../../presentation/providers/chat_state.dart';
+import '../entities/workflow_proposal_draft.dart';
 
+// ChatNotifier decomposition collaborator: proposal-option-extraction
 class PlanningDecisionPromotion {
   const PlanningDecisionPromotion._();
 

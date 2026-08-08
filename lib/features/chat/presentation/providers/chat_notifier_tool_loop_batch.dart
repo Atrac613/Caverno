@@ -639,7 +639,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
   Set<String> _truncationCasualties(ChatCompletionResult result) =>
       truncatedToolCallArgumentsGuard.casualtyToolCallIds(
         result,
-        truncated: _isCompletionTruncated(result.finishReason),
+        truncated: ProposalParsingTextUtils.isCompletionTruncated(
+          result.finishReason,
+        ),
       );
 
   /// Answers a tool call whose arguments were lost to an output-token-limit
@@ -759,7 +761,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     if (!_toolCallExecutionPolicy.isCommandExecutionTool(toolResult.name)) {
       return;
     }
-    final command = _toolCallExecutionPolicy.toolCommandArgument(toolResult.arguments);
+    final command = _toolCallExecutionPolicy.toolCommandArgument(
+      toolResult.arguments,
+    );
     if (command != null) {
       _turnToolResults.recordCommand(owner, command);
     }

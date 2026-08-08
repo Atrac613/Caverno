@@ -34,7 +34,8 @@ extension ChatNotifierPlanningResearch on ChatNotifier {
                 toolCall,
                 interactionGeneration: interactionGeneration,
               ),
-              extractPlainText: _extractPlainTextForProposal,
+              extractPlainText:
+                  ProposalParsingTextUtils.extractPlainTextForProposal,
             ).collect(
               currentConversation: currentConversation,
               workflowStageOverride: workflowStageOverride,

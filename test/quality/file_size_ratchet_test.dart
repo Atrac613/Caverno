@@ -97,6 +97,12 @@ const Map<String, int> _lineBudgets = {
       64,
   'lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart':
       281,
+  'lib/features/chat/domain/services/blocked_production_release_retry_policy.dart':
+      261,
+  'lib/features/chat/domain/services/fenced_tool_arguments_detector.dart': 74,
+  'lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart':
+      223,
+  'lib/features/chat/domain/services/turn_tool_catalog_cache.dart': 44,
   'lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart':
       136,
   'lib/features/chat/domain/services/narrated_transcript_repair_planner.dart':
@@ -137,6 +143,8 @@ const Map<String, int> _lineBudgets = {
       116,
   'lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart':
       245,
+  'lib/features/chat/domain/services/proposal_option_extraction.dart': 621,
+  'lib/features/chat/domain/services/proposal_parsing_text_utils.dart': 693,
   'lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart': 55,
   'lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart':
       115,
