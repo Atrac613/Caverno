@@ -45,7 +45,6 @@ import '../../../settings/domain/services/external_tool_hook_service.dart';
 import '../../../settings/domain/services/primary_model_preparation_service.dart';
 import '../../../settings/presentation/providers/local_model_lifecycle_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
-import '../../data/datasources/apple_foundation_models_datasource.dart';
 import '../../data/datasources/ask_user_question_runtime_adapter.dart';
 import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
 import '../../data/datasources/chat_datasource.dart';
@@ -71,13 +70,17 @@ import '../../data/datasources/python_script_tool_runtime_adapter.dart';
 import '../../data/datasources/save_skill_tool_runtime_adapter.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/session_logging_chat_datasource.dart';
+import 'chat_data_source_provider.dart';
 import 'python_script_approval_cache_runtime_adapter.dart';
+
+export 'chat_data_source_provider.dart' show chatRemoteDataSourceProvider;
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/conversation_participant.dart';
+import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
@@ -260,21 +263,6 @@ part 'chat_notifier_task_proposal_quality.dart';
 part 'chat_notifier_terminal_tool_response_policy.dart';
 part 'chat_notifier_tool_loop_batch.dart';
 part 'chat_notifier_task_proposal_parser.dart';
-
-final chatRemoteDataSourceProvider = Provider<ChatDataSource>((ref) {
-  final settings = ref.watch(settingsNotifierProvider);
-  if (settings.demoMode) {
-    return DemoDataSource();
-  }
-  if (settings.llmProvider == LlmProvider.appleFoundationModels) {
-    return AppleFoundationModelsDataSource(enableSafePromptRetry: true);
-  }
-  return ChatRemoteDataSource(
-    baseUrl: settings.baseUrl,
-    apiKey: settings.apiKey,
-    reasoningEffort: settings.reasoningEffort.apiValue,
-  );
-});
 
 final sessionMemoryServiceProvider = Provider<SessionMemoryService>((ref) {
   final repository = ref.watch(chatMemoryRepositoryProvider);
@@ -738,15 +726,20 @@ class ChatNotifier extends Notifier<ChatState> {
         phase: 'unassigned_turn',
       );
 
+  /// Main-loop requests bill to [ModelUsageRole.chat]; secondary roles started
+  /// from inside a turn re-stamp themselves in [SecondaryCompletionRouter],
+  /// which nests inside this zone and therefore wins.
   T _runWithLlmSessionLogContextForGeneration<T>(
     int generation,
     T Function() body, {
     String? requestLabel,
-  }) => LlmSessionLogContext.run(
-    _llmSessionLogContextForGeneration(
-      generation,
-    ).withRequestLabel(requestLabel),
-    body,
+  }) => ModelUsageRole.chat.runWith(
+    () => LlmSessionLogContext.run(
+      _llmSessionLogContextForGeneration(
+        generation,
+      ).withRequestLabel(requestLabel),
+      body,
+    ),
   );
 
   ChatDataSource _withChatSessionLogging(

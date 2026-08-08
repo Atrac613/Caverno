@@ -30,7 +30,35 @@
     "activity_tooltip": "{date}: {count}件のメッセージ",
     "streak_days": "{count}日",
     "fun_fact": "『ハリー・ポッターと賢者の石』の約{multiple}倍のトークンを使いました。",
-    "empty": "チャットを始めると活動状況が表示されます。"
+    "empty": "チャットを始めると活動状況が表示されます。",
+    "model_usage": {
+      "title": "モデル別トークン使用量",
+      "empty": "まだ記録がありません。メッセージを送るとモデルごとの集計が始まります。",
+      "tokens": "トークン",
+      "share": "割合",
+      "requests": "リクエスト",
+      "latency": "応答時間",
+      "input": "入力",
+      "output": "出力",
+      "cache_hit_rate": "キャッシュ率",
+      "reasoning": "推論",
+      "daily": "日別トークン",
+      "by_role": "用途別の内訳",
+      "truncated": "打ち切り",
+      "truncated_tooltip": "{count}件（{percent}）がトークン上限で打ち切られました。",
+      "role_unknown_hint": "どの機能から発行されたか記録されていないリクエストです。",
+      "role": {
+        "chat": "チャット",
+        "memoryExtraction": "メモリ抽出",
+        "planning": "プラン生成",
+        "goalSuggestion": "ゴール提案",
+        "approvalAutoReview": "承認の自動レビュー",
+        "subagent": "サブエージェント",
+        "routine": "ルーティン",
+        "eval": "評価",
+        "unknown": "未分類"
+      }
+    }
   },
   "chat": {
     "empty_state": "メッセージを送信してチャットを開始",

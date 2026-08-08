@@ -9,12 +9,15 @@ import 'package:openai_dart/openai_dart.dart' hide MessageRole;
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/model_usage_sink.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/chat_request_prefix_stability_service.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import 'chat_completion_request_fallback.dart';
 import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
+import 'chat_request_logger.dart';
+import 'chat_response_telemetry.dart';
 
 export '../../domain/entities/chat_completion_terminal_metadata.dart';
 export '../../domain/entities/tool_call_info.dart'
@@ -33,7 +36,15 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     String? reasoningEffort,
     http.Client? httpClient,
     http.Client Function()? streamClientFactory,
+    ModelUsageSink? usageSink,
+    String endpointId = '',
+    String? Function()? usageLabelResolver,
   }) : _requestFallback = ChatCompletionRequestFallback(reasoningEffort),
+       _telemetry = ChatResponseTelemetry(
+         usageSink: usageSink,
+         endpointId: endpointId,
+         labelResolver: usageLabelResolver,
+       ),
        _client = OpenAIClient.withApiKey(
          apiKey ?? ApiConstants.defaultApiKey,
          baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
@@ -44,41 +55,28 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
 
   final OpenAIClient _client;
   final ChatCompletionRequestFallback _requestFallback;
+  final ChatResponseTelemetry _telemetry;
+
   static const _responseNormalizer = ChatCompletionResponseNormalizer();
-  static const bool _logToolSchemas = bool.fromEnvironment(
-    'CAVERNO_LLM_LOG_TOOL_SCHEMAS',
-  );
-  static const int _maxLoggedToolNames = 12;
+  static const _logger = ChatRequestLogger();
+
   static bool isNativeToolStreamFormatError(Object error) {
     final message = error.toString().toLowerCase();
     return message.contains('peg-native') ||
         (message.contains('native tool') && message.contains('format'));
   }
 
-  /// Last token usage captured from a streaming or non-streaming response.
-  TokenUsage lastUsage = TokenUsage.zero;
+  TokenUsage get lastUsage => _telemetry.lastUsage;
+  set lastUsage(TokenUsage usage) => _telemetry.lastUsage = usage;
 
-  /// Last finish reason captured from a streaming or non-streaming response.
   @override
-  String? lastFinishReason;
+  String? get lastFinishReason => _telemetry.lastFinishReason;
+  set lastFinishReason(String? reason) => _telemetry.lastFinishReason = reason;
 
-  void _resetResponseTelemetry() {
-    lastUsage = TokenUsage.zero;
-    lastFinishReason = null;
-  }
+  void _resetResponseTelemetry() => _telemetry.reset();
 
-  String? _streamingFinishReason(dynamic choice) {
-    final Object? finishReason = choice?.finishReason?.value;
-    if (finishReason is String && finishReason.isNotEmpty) {
-      return finishReason;
-    }
-    return null;
-  }
-
-  void _publishCompatibilityTelemetry(ChatCompletionTerminalMetadata metadata) {
-    lastUsage = metadata.usage;
-    lastFinishReason = metadata.finishReason;
-  }
+  String? _streamingFinishReason(dynamic choice) =>
+      _telemetry.streamingFinishReason(choice);
 
   Future<T> _createWithReasoningFallback<T>({
     required String operation,
@@ -99,81 +97,9 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     required Stream<T> Function(bool includeReasoning) send,
   }) => _requestFallback.stream(operation: operation, send: send);
 
-  /// Log message list
-  void _logMessages(List<Message> messages) {
-    appLog('[LLM] === Request Messages ===');
-    for (var i = 0; i < messages.length; i++) {
-      final m = messages[i];
-      final contentPreview = m.content.length > 200
-          ? '${m.content.substring(0, 200)}...'
-          : m.content;
-      final hasImage = m.imageBase64 != null ? ' [has image]' : '';
-      appLog('[LLM]   [$i] ${m.role.name}$hasImage: $contentPreview');
-    }
-    appLog('[LLM] === End Messages ===');
-  }
-
-  /// Log tool definitions
-  void _logTools(List<Map<String, dynamic>>? tools) {
-    if (tools == null || tools.isEmpty) return;
-    appLog(_formatToolLogSummary(tools));
-    if (!_logToolSchemas) {
-      return;
-    }
-
-    appLog('[LLM] === Tool Schemas ===');
-    for (final tool in tools) {
-      final func = tool['function'] as Map<String, dynamic>;
-      appLog('[LLM]   ${func['name']}: ${func['description']}');
-      appLog(
-        '[LLM]     params: ${dart_convert.jsonEncode(func['parameters'])}',
-      );
-    }
-    appLog('[LLM] === End Tool Schemas ===');
-  }
-
-  void _logNativeToolCalls(List<ToolCall>? toolCalls) {
-    if (toolCalls == null || toolCalls.isEmpty) {
-      return;
-    }
-    appLog('[LLM] === Tool Calls ===');
-    for (final toolCall in toolCalls) {
-      appLog('[LLM]   id: ${toolCall.id}');
-      appLog('[LLM]   name: ${toolCall.function.name}');
-      appLog('[LLM]   arguments: ${toolCall.function.arguments}');
-    }
-    appLog('[LLM] === End Tool Calls ===');
-  }
-
-  void _logNativeToolArgumentError(Object error) {
-    appLog('[LLM]   Failed to parse arguments: $error');
-  }
-
-  String _formatToolLogSummary(List<Map<String, dynamic>> tools) {
-    final names = _toolLogNames(tools);
-    if (names.isEmpty) {
-      return '[LLM] Tools available: ${tools.length}';
-    }
-    final visibleNames = names.take(_maxLoggedToolNames).join(', ');
-    final omittedCount = names.length - _maxLoggedToolNames;
-    final omittedSuffix = omittedCount > 0 ? ', +$omittedCount more' : '';
-    return '[LLM] Tools available: ${tools.length} '
-        '($visibleNames$omittedSuffix)';
-  }
-
-  List<String> _toolLogNames(List<Map<String, dynamic>> tools) {
-    return tools
-        .map((tool) => tool['function'])
-        .whereType<Map>()
-        .map((function) => function['name'])
-        .whereType<String>()
-        .where((name) => name.trim().isNotEmpty)
-        .toList(growable: false);
-  }
-
   @visibleForTesting
   String formatToolLogSummaryForTest(List<Map<String, dynamic>> tools) {
-    return _formatToolLogSummary(tools);
+    return _logger.formatToolLogSummary(tools);
   }
 
   @visibleForTesting
@@ -223,8 +149,14 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
   }) {
     var usage = TokenUsage.zero;
     String? finishReason;
+    final modelId = model ?? ApiConstants.defaultModel;
+    final timer = Stopwatch();
+    // Captured here, not at the terminal: the stream body below runs on first
+    // listen, by which point the caller's zone is gone.
+    final attribution = _telemetry.captureAttribution();
 
     Stream<String> contentStream() async* {
+      timer.start();
       // Strip images from history if the latest user message has no image,
       // allowing conversation to continue on non-Vision servers
       final lastUserMessage = messages.lastWhere(
@@ -242,13 +174,12 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         messages,
         stripImages: stripImages,
       );
-      final modelId = model ?? ApiConstants.defaultModel;
 
       appLog('[LLM] ========== streamChatCompletion ==========');
       appLog(
         '[LLM] model: $modelId, temperature: $temperature, maxTokens: $maxTokens',
       );
-      _logMessages(messages);
+      _logger.logMessages(messages);
 
       try {
         final stream = _streamWithReasoningFallback(
@@ -277,7 +208,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
 
           // Capture usage from the final chunk (when stream_options is set)
           if (event.usage != null) {
-            usage = _extractUsage(event.usage);
+            usage = ChatResponseTelemetry.extractUsage(event.usage);
           }
 
           final delta = choice?.delta;
@@ -335,6 +266,11 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         }
         appLog('[LLM] streamChatCompletion error: ${e.runtimeType}: $e');
         appLog('[LLM] stackTrace: $stackTrace');
+        _telemetry.publishFailure(
+          modelId: modelId,
+          timer: timer,
+          attribution: attribution,
+        );
         rethrow;
       }
     }
@@ -345,7 +281,12 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         finishReason: finishReason,
         usage: usage,
       ),
-      onTerminal: _publishCompatibilityTelemetry,
+      onTerminal: (metadata) => _telemetry.publishRequest(
+        modelId: modelId,
+        attribution: attribution,
+        metadata: metadata,
+        timer: timer,
+      ),
     );
   }
 
@@ -381,15 +322,18 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     appLog(
       '[LLM] model: $modelId, temperature: $temperature, maxTokens: $maxTokens',
     );
-    _logMessages(messages);
-    _logTools(tools);
+    _logger.logMessages(messages);
+    _logger.logTools(tools);
 
     final accumulator = ChatStreamAccumulator();
     final completer = Completer<ChatCompletionResult>();
+    final timer = Stopwatch();
+    final attribution = _telemetry.captureAttribution();
 
     // Single-subscription stream that yields content/reasoning in real-time.
     // When the stream ends, the completer resolves with accumulated tool calls.
     Stream<String> contentStream() async* {
+      timer.start();
       try {
         final stream = _streamWithReasoningFallback(
           operation: 'streamChatCompletionWithTools',
@@ -417,7 +361,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
           final choice = event.choices?.firstOrNull;
 
           if (event.usage != null) {
-            usage = _extractUsage(event.usage);
+            usage = ChatResponseTelemetry.extractUsage(event.usage);
           }
 
           final delta = choice?.delta;
@@ -470,10 +414,10 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         appLog('[LLM] ==========================================');
 
         // Resolve the completer after the stream ends normally.
-        _logNativeToolCalls(accumulator.toolCalls);
+        _logger.logNativeToolCalls(accumulator.toolCalls);
         final toolCalls = _responseNormalizer.parseNativeToolCalls(
           accumulator.toolCalls,
-          onArgumentError: _logNativeToolArgumentError,
+          onArgumentError: _logger.logNativeToolArgumentError,
         );
         final finishReason = accumulator.finishReason?.value ?? 'stop';
         final completion = ChatCompletionResult(
@@ -483,11 +427,14 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
           usage: usage,
         );
         completer.complete(completion);
-        _publishCompatibilityTelemetry(
-          ChatCompletionTerminalMetadata(
+        _telemetry.publishRequest(
+          modelId: modelId,
+        attribution: attribution,
+          metadata: ChatCompletionTerminalMetadata(
             finishReason: finishReason,
             usage: usage,
           ),
+          timer: timer,
         );
       } catch (e, stackTrace) {
         final recovered = _responseNormalizer.recoverFromParseFailure(e);
@@ -503,11 +450,14 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
             usage: usage,
           );
           completer.complete(completion);
-          _publishCompatibilityTelemetry(
-            ChatCompletionTerminalMetadata(
+          _telemetry.publishRequest(
+            modelId: modelId,
+        attribution: attribution,
+            metadata: ChatCompletionTerminalMetadata(
               finishReason: recovered.finishReason,
               usage: usage,
             ),
+            timer: timer,
           );
           return;
         }
@@ -518,6 +468,11 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         if (!completer.isCompleted) {
           completer.completeError(e, stackTrace);
         }
+        _telemetry.publishFailure(
+          modelId: modelId,
+          timer: timer,
+          attribution: attribution,
+        );
         rethrow;
       }
     }
@@ -550,12 +505,15 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     );
     final modelId = model ?? ApiConstants.defaultModel;
 
+    final timer = Stopwatch()..start();
+    final attribution = _telemetry.captureAttribution();
+
     appLog('[LLM] ========== createChatCompletion ==========');
     appLog(
       '[LLM] model: $modelId, temperature: $temperature, maxTokens: $maxTokens',
     );
-    _logMessages(messages);
-    _logTools(tools);
+    _logger.logMessages(messages);
+    _logger.logTools(tools);
 
     ChatCompletionCreateRequest buildRequest(bool includeReasoning) {
       return ChatCompletionCreateRequest(
@@ -594,30 +552,46 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
           '[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}',
         );
       }
-      _logNativeToolCalls(message.toolCalls);
+      _logger.logNativeToolCalls(message.toolCalls);
       final normalized = _responseNormalizer.normalize(
         content: message.content,
         reasoning: reasoning,
         nativeToolCalls: message.toolCalls,
         finishReason: choice.finishReason?.value,
         advertisedTools: tools,
-        onNativeArgumentError: _logNativeToolArgumentError,
+        onNativeArgumentError: _logger.logNativeToolArgumentError,
       );
-      lastFinishReason = normalized.finishReason;
-
       appLog('[LLM] ==========================================');
 
+      final usage = ChatResponseTelemetry.extractUsage(response.usage);
+      _telemetry.publishRequest(
+        modelId: modelId,
+        attribution: attribution,
+        metadata: ChatCompletionTerminalMetadata(
+          finishReason: normalized.finishReason,
+          usage: usage,
+        ),
+        timer: timer,
+      );
       return ChatCompletionResult(
         content: normalized.content,
         toolCalls: normalized.toolCalls,
         finishReason: normalized.finishReason,
-        usage: lastUsage = _extractUsage(response.usage),
+        usage: usage,
       );
     } catch (e, stackTrace) {
       final recovered = _responseNormalizer.recoverFromParseFailure(e);
       if (recovered != null) {
         appLog('[LLM] Recovered raw text response after create parse failure');
-        lastFinishReason = recovered.finishReason;
+        _telemetry.publishRequest(
+          modelId: modelId,
+        attribution: attribution,
+          metadata: ChatCompletionTerminalMetadata(
+            finishReason: recovered.finishReason,
+            usage: lastUsage,
+          ),
+          timer: timer,
+        );
         return ChatCompletionResult(
           content: recovered.content,
           toolCalls: recovered.toolCalls,
@@ -627,6 +601,11 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       }
       appLog('[LLM] createChatCompletion error: ${e.runtimeType}: $e');
       appLog('[LLM] stackTrace: $stackTrace');
+      _telemetry.publishFailure(
+          modelId: modelId,
+          timer: timer,
+          attribution: attribution,
+        );
       rethrow;
     }
   }
@@ -651,7 +630,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
 
     appLog('[LLM] ========== streamWithToolResult ==========');
     appLog('[LLM] model: $modelId, toolCallId: $toolCallId');
-    _logMessages(messages);
+    _logger.logMessages(messages);
     appLog('[LLM] === Tool Call Info ===');
     appLog('[LLM] toolName: $toolName, arguments: $toolArguments');
     appLog('[LLM] assistantContent: ${assistantContent ?? "(none)"}');
@@ -681,6 +660,8 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       ChatMessage.tool(toolCallId: toolCallId, content: toolResult),
     );
 
+    final timer = Stopwatch()..start();
+    final attribution = _telemetry.captureAttribution();
     try {
       final stream = _streamWithReasoningFallback(
         operation: 'streamWithToolResult',
@@ -709,7 +690,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
 
         // Capture usage from the final chunk
         if (event.usage != null) {
-          lastUsage = _extractUsage(event.usage);
+          lastUsage = ChatResponseTelemetry.extractUsage(event.usage);
         }
 
         final delta = choice?.delta;
@@ -756,6 +737,15 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         '[LLM] ${responseText.length > 500 ? '${responseText.substring(0, 500)}...' : responseText}',
       );
       appLog('[LLM] ============================================');
+      _telemetry.publishRequest(
+        modelId: modelId,
+        attribution: attribution,
+        metadata: ChatCompletionTerminalMetadata(
+          finishReason: lastFinishReason,
+          usage: lastUsage,
+        ),
+        timer: timer,
+      );
     } catch (e, stackTrace) {
       final recoveredText = _responseNormalizer.recoverRawAssistantText(e);
       if (recoveredText != null) {
@@ -763,10 +753,24 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
           '[LLM] Recovered raw text response after tool-result stream parse failure',
         );
         yield recoveredText;
+        _telemetry.publishRequest(
+          modelId: modelId,
+        attribution: attribution,
+          metadata: ChatCompletionTerminalMetadata(
+            finishReason: lastFinishReason,
+            usage: lastUsage,
+          ),
+          timer: timer,
+        );
         return;
       }
       appLog('[LLM] streamWithToolResult error: ${e.runtimeType}: $e');
       appLog('[LLM] stackTrace: $stackTrace');
+      _telemetry.publishFailure(
+          modelId: modelId,
+          timer: timer,
+          attribution: attribution,
+        );
       rethrow;
     }
   }
@@ -827,8 +831,8 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
 
     appLog('[LLM] ========== createChatCompletionWithToolResults ==========');
     appLog('[LLM] model: $modelId, toolResults: ${toolResults.length}');
-    _logMessages(messages);
-    _logTools(tools);
+    _logger.logMessages(messages);
+    _logger.logTools(tools);
     appLog('[LLM] assistantContent: ${assistantContent ?? "(none)"}');
     for (final toolResult in toolResults) {
       final llmToolResultContent = _formatToolResultContentForLlm(toolResult);
@@ -892,6 +896,8 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     }
 
     appLog('[LLM] Sending request...');
+    final timer = Stopwatch()..start();
+    final attribution = _telemetry.captureAttribution();
     try {
       final response = await _createWithReasoningFallback(
         operation: 'createChatCompletionWithToolResults',
@@ -912,24 +918,32 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
           '[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}',
         );
       }
-      _logNativeToolCalls(message.toolCalls);
+      _logger.logNativeToolCalls(message.toolCalls);
       final normalized = _responseNormalizer.normalize(
         content: message.content,
         reasoning: reasoning,
         nativeToolCalls: message.toolCalls,
         finishReason: choice.finishReason?.value,
         advertisedTools: tools,
-        onNativeArgumentError: _logNativeToolArgumentError,
+        onNativeArgumentError: _logger.logNativeToolArgumentError,
       );
-      lastFinishReason = normalized.finishReason;
-
       appLog('[LLM] ==========================================');
 
+      final usage = ChatResponseTelemetry.extractUsage(response.usage);
+      _telemetry.publishRequest(
+        modelId: modelId,
+        attribution: attribution,
+        metadata: ChatCompletionTerminalMetadata(
+          finishReason: normalized.finishReason,
+          usage: usage,
+        ),
+        timer: timer,
+      );
       return ChatCompletionResult(
         content: normalized.content,
         toolCalls: normalized.toolCalls,
         finishReason: normalized.finishReason,
-        usage: lastUsage = _extractUsage(response.usage),
+        usage: usage,
       );
     } catch (e, stackTrace) {
       final recovered = _responseNormalizer.recoverFromParseFailure(e);
@@ -937,7 +951,15 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         appLog(
           '[LLM] Recovered raw text response after tool-result parse failure',
         );
-        lastFinishReason = recovered.finishReason;
+        _telemetry.publishRequest(
+          modelId: modelId,
+        attribution: attribution,
+          metadata: ChatCompletionTerminalMetadata(
+            finishReason: recovered.finishReason,
+            usage: lastUsage,
+          ),
+          timer: timer,
+        );
         return ChatCompletionResult(
           content: recovered.content,
           toolCalls: recovered.toolCalls,
@@ -949,18 +971,13 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         '[LLM] createChatCompletionWithToolResults error: ${e.runtimeType}: $e',
       );
       appLog('[LLM] stackTrace: $stackTrace');
+      _telemetry.publishFailure(
+          modelId: modelId,
+          timer: timer,
+          attribution: attribution,
+        );
       rethrow;
     }
-  }
-
-  /// Extract token usage from a completion response.
-  TokenUsage _extractUsage(Usage? usage) {
-    if (usage == null) return TokenUsage.zero;
-    return TokenUsage(
-      promptTokens: usage.promptTokens,
-      completionTokens: usage.completionTokens ?? 0,
-      totalTokens: usage.totalTokens,
-    );
   }
 
   List<ChatMessage> _formatMessages(

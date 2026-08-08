@@ -3,6 +3,7 @@ import '../../chat/data/datasources/chat_datasource.dart';
 import '../../chat/data/datasources/llm_session_log_store.dart';
 import '../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../chat/domain/entities/message.dart';
+import '../../chat/domain/entities/model_usage_role.dart';
 import '../../chat/domain/entities/tool_call_info.dart';
 import '../../routines/data/routine_tool_runner.dart';
 import '../domain/entities/personal_eval_case.dart';
@@ -102,7 +103,10 @@ class PersonalEvalChatReplayTurnDriver implements PersonalEvalReplayTurnDriver {
     });
   }
 
-  Future<void> _runTurn(PersonalEvalCase evalCase) async {
+  Future<void> _runTurn(PersonalEvalCase evalCase) =>
+      ModelUsageRole.eval.runWith(() => _runTurnForRole(evalCase));
+
+  Future<void> _runTurnForRole(PersonalEvalCase evalCase) async {
     final messages = _buildMessages(evalCase);
     final tools = _toolDefinitions?.call() ?? const <Map<String, dynamic>>[];
     final dispatch = _dispatchToolCall;
