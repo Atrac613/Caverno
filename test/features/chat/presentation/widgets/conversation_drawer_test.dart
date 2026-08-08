@@ -404,6 +404,135 @@ void main() {
     },
   );
 
+  testWidgets('coding sort menu orders projects by latest thread activity', (
+    tester,
+  ) async {
+    final olderProject = _project(
+      id: 'older-project',
+      name: 'older_project',
+      daysAgo: 2,
+    );
+    final newerProject = _project(id: 'newer-project', name: 'newer_project');
+    final olderThread = _conversation(
+      id: 'older-thread',
+      title: 'Older thread',
+      workspaceMode: WorkspaceMode.coding,
+      projectId: newerProject.id,
+      minutesAgo: 20,
+    );
+    final newerThread = _conversation(
+      id: 'newer-thread',
+      title: 'Newer thread',
+      workspaceMode: WorkspaceMode.coding,
+      projectId: newerProject.id,
+      minutesAgo: 5,
+    );
+    final latestActivity = _conversation(
+      id: 'latest-activity',
+      title: 'Latest activity',
+      workspaceMode: WorkspaceMode.coding,
+      projectId: olderProject.id,
+      minutesAgo: 1,
+    );
+    final container = await _pumpDrawerApp(
+      tester,
+      conversationsState: ConversationsState(
+        conversations: [olderThread, newerThread, latestActivity],
+        currentConversationId: newerThread.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: newerProject.id,
+      ),
+      projectsState: CodingProjectsState(
+        projects: [olderProject, newerProject],
+        selectedProjectId: newerProject.id,
+      ),
+    );
+
+    expect(
+      tester.getTopLeft(find.text('newer_project')).dy,
+      lessThan(tester.getTopLeft(find.text('older_project')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Newer thread')).dy,
+      lessThan(tester.getTopLeft(find.text('Older thread')).dy),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('drawer-coding-sort-menu')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Threads:'), findsNothing);
+    await tester.tap(find.text('Most recently updated first'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getTopLeft(find.text('older_project')).dy,
+      lessThan(tester.getTopLeft(find.text('newer_project')).dy),
+    );
+
+    expect(
+      tester.getTopLeft(find.text('Newer thread')).dy,
+      lessThan(tester.getTopLeft(find.text('Older thread')).dy),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('drawer-coding-sort-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Least recently updated first'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getTopLeft(find.text('newer_project')).dy,
+      lessThan(tester.getTopLeft(find.text('older_project')).dy),
+    );
+    final preferences = container.read(sharedPreferencesProvider);
+    expect(
+      preferences.getString('conversationDrawer.codingProjectSortOrder'),
+      'leastRecentlyActiveFirst',
+    );
+  });
+
+  testWidgets('coding drawer restores persisted sort choices', (tester) async {
+    final olderProject = _project(
+      id: 'older-project',
+      name: 'older_project',
+      daysAgo: 2,
+    );
+    final newerProject = _project(id: 'newer-project', name: 'newer_project');
+    final olderProjectRecentThread = _conversation(
+      id: 'older-project-recent-thread',
+      title: 'Recent thread',
+      workspaceMode: WorkspaceMode.coding,
+      projectId: olderProject.id,
+      minutesAgo: 1,
+    );
+    final newerProjectOlderThread = _conversation(
+      id: 'newer-project-older-thread',
+      title: 'Older thread',
+      workspaceMode: WorkspaceMode.coding,
+      projectId: newerProject.id,
+      minutesAgo: 10,
+    );
+    await _pumpDrawerApp(
+      tester,
+      conversationsState: ConversationsState(
+        conversations: [olderProjectRecentThread, newerProjectOlderThread],
+        currentConversationId: null,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: olderProject.id,
+      ),
+      projectsState: CodingProjectsState(
+        projects: [newerProject, olderProject],
+        selectedProjectId: olderProject.id,
+      ),
+      initialPreferences: const {
+        'conversationDrawer.codingProjectSortOrder': 'recentlyActiveFirst',
+      },
+    );
+
+    expect(
+      tester.getTopLeft(find.text('older_project')).dy,
+      lessThan(tester.getTopLeft(find.text('newer_project')).dy),
+    );
+  });
+
   testWidgets('project actions open the directory and remove the project', (
     tester,
   ) async {
@@ -856,8 +985,12 @@ Future<ProviderContainer> _pumpDrawerApp(
   return container;
 }
 
-CodingProject _project({required String id, required String name}) {
-  final now = DateTime(2026, 5, 28, 12);
+CodingProject _project({
+  required String id,
+  required String name,
+  int daysAgo = 0,
+}) {
+  final now = DateTime(2026, 5, 28, 12).subtract(Duration(days: daysAgo));
   return CodingProject(
     id: id,
     name: name,
