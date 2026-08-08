@@ -248,7 +248,7 @@ class RepoMapService {
     try {
       return directory.listSync(followLinks: false);
     } on FileSystemException {
-      return const [];
+      return <FileSystemEntity>[];
     }
   }
 
