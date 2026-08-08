@@ -392,6 +392,341 @@ void main() {
     expect(requestBodies.last.containsKey('reasoning_effort'), isFalse);
   });
 
+  test('retries with max_completion_tokens after HTTP 400', () async {
+    final requestBodies = <Map<String, dynamic>>[];
+    final client = MockClient((request) async {
+      requestBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+      if (requestBodies.length == 1) {
+        // Verbatim rejection from OpenAI's GPT-5 family.
+        return http.Response(
+          jsonEncode({
+            'error': {
+              'message':
+                  "Unsupported parameter: 'max_tokens' is not supported with "
+                  "this model. Use 'max_completion_tokens' instead.",
+              'type': 'invalid_request_error',
+              'param': 'max_tokens',
+            },
+          }),
+          400,
+          headers: const {'content-type': 'application/json'},
+        );
+      }
+
+      return http.Response(
+        jsonEncode({
+          'id': 'chatcmpl-test',
+          'object': 'chat.completion',
+          'created': 0,
+          'model': 'gpt-5.6-luna',
+          'choices': [
+            {
+              'index': 0,
+              'message': {'role': 'assistant', 'content': 'Recovered'},
+              'finish_reason': 'stop',
+            },
+          ],
+          'usage': {
+            'prompt_tokens': 1,
+            'completion_tokens': 1,
+            'total_tokens': 2,
+          },
+        }),
+        200,
+        headers: const {'content-type': 'application/json'},
+      );
+    });
+
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'no-key',
+      httpClient: client,
+    );
+
+    Future<String?> send() async {
+      final result = await dataSource.createChatCompletion(
+        messages: [_userMessage()],
+        model: 'gpt-5.6-luna',
+        maxTokens: 8192,
+      );
+      return result.content;
+    }
+
+    expect(await send(), 'Recovered');
+    expect(requestBodies, hasLength(2));
+    expect(requestBodies.first['max_tokens'], 8192);
+    expect(requestBodies.first.containsKey('max_completion_tokens'), isFalse);
+    expect(requestBodies.last.containsKey('max_tokens'), isFalse);
+    expect(requestBodies.last['max_completion_tokens'], 8192);
+
+    // The quirk is remembered, so later turns do not pay the round trip again.
+    expect(await send(), 'Recovered');
+    expect(requestBodies, hasLength(3));
+    expect(requestBodies.last['max_completion_tokens'], 8192);
+  });
+
+  test(
+    'streamChatCompletionWithTools retries with max_completion_tokens',
+    () async {
+      final requestBodies = <Map<String, dynamic>>[];
+      final client = MockClient((request) async {
+        requestBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+        if (requestBodies.length == 1) {
+          return http.Response(
+            jsonEncode({
+              'error': {
+                'message':
+                    "Unsupported parameter: 'max_tokens' is not supported with "
+                    "this model. Use 'max_completion_tokens' instead.",
+                'type': 'invalid_request_error',
+                'param': 'max_tokens',
+              },
+            }),
+            400,
+            headers: const {'content-type': 'application/json'},
+          );
+        }
+
+        return http.Response(
+          'data: ${jsonEncode({
+            'id': 'chatcmpl-test',
+            'object': 'chat.completion.chunk',
+            'created': 0,
+            'model': 'gpt-5.6-luna',
+            'choices': [
+              {
+                'index': 0,
+                'delta': {'content': 'Recovered'},
+                'finish_reason': 'stop',
+              },
+            ],
+          })}\n\ndata: [DONE]\n\n',
+          200,
+          headers: const {'content-type': 'text/event-stream'},
+        );
+      });
+
+      final dataSource = ChatRemoteDataSource(
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'no-key',
+        httpClient: client,
+        streamClientFactory: () => client,
+      );
+
+      final result = dataSource.streamChatCompletionWithTools(
+        messages: [_userMessage()],
+        tools: const [],
+        model: 'gpt-5.6-luna',
+        maxTokens: 8192,
+      );
+
+      expect(await result.stream.join(), 'Recovered');
+      expect(requestBodies, hasLength(2));
+      expect(requestBodies.first['max_tokens'], 8192);
+      expect(requestBodies.last.containsKey('max_tokens'), isFalse);
+      expect(requestBodies.last['max_completion_tokens'], 8192);
+    },
+  );
+
+  test('streaming pins reasoning_effort to none for function tools', () async {
+    final requestBodies = <Map<String, dynamic>>[];
+    final client = MockClient((request) async {
+      requestBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+      if (requestBodies.length == 1) {
+        // Verbatim rejection from OpenAI for GPT-5.x + function tools.
+        return http.Response(
+          jsonEncode({
+            'error': {
+              'message':
+                  'Function tools with reasoning_effort are not supported for '
+                  'gpt-5.6-luna in /v1/chat/completions. To use function '
+                  "tools, use /v1/responses or set reasoning_effort to 'none'.",
+              'type': 'invalid_request_error',
+            },
+          }),
+          400,
+          headers: const {'content-type': 'application/json'},
+        );
+      }
+      return _streamedChunkResponse('Recovered');
+    });
+
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'no-key',
+      reasoningEffort: 'high',
+      httpClient: client,
+      streamClientFactory: () => client,
+    );
+
+    final result = dataSource.streamChatCompletionWithTools(
+      messages: [_userMessage()],
+      tools: const [
+        {
+          'type': 'function',
+          'function': {
+            'name': 'get_current_datetime',
+            'description': 'Returns the current local date/time.',
+            'parameters': {'type': 'object', 'properties': {}},
+          },
+        },
+      ],
+      model: 'gpt-5.6-luna',
+    );
+
+    expect(await result.stream.join(), 'Recovered');
+    expect(requestBodies, hasLength(2));
+    expect(requestBodies.first['reasoning_effort'], 'high');
+    // Omitting the parameter is not enough — the server defaults it back on.
+    expect(requestBodies.last['reasoning_effort'], 'none');
+    expect(requestBodies.last['tools'], hasLength(1));
+  });
+
+  test('streaming retries without reasoning effort after HTTP 400', () async {
+    final requestBodies = <Map<String, dynamic>>[];
+    final client = MockClient((request) async {
+      requestBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+      if (requestBodies.length == 1) {
+        return http.Response(
+          jsonEncode({
+            'error': {
+              'message': 'Unrecognized request argument: reasoning_effort',
+              'type': 'invalid_request_error',
+              'param': 'reasoning_effort',
+            },
+          }),
+          400,
+          headers: const {'content-type': 'application/json'},
+        );
+      }
+      return _streamedChunkResponse('Recovered');
+    });
+
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      reasoningEffort: 'high',
+      httpClient: client,
+      streamClientFactory: () => client,
+    );
+
+    final result = dataSource.streamChatCompletionWithTools(
+      messages: [_userMessage()],
+      tools: const [],
+      model: 'test-model',
+    );
+
+    expect(await result.stream.join(), 'Recovered');
+    expect(requestBodies, hasLength(2));
+    expect(requestBodies.first['reasoning_effort'], 'high');
+    expect(requestBodies.last.containsKey('reasoning_effort'), isFalse);
+  });
+
+  test('does not replay a stream that already emitted content', () async {
+    var requests = 0;
+    final client = MockClient.streaming((request, bodyStream) async {
+      requests++;
+      // Emit one chunk, then fail: the caller has seen content already, so the
+      // turn must surface the error instead of restarting the answer.
+      final body = Stream<List<int>>.fromIterable([
+        utf8.encode(
+          'data: ${jsonEncode({
+            'id': 'chatcmpl-test',
+            'object': 'chat.completion.chunk',
+            'created': 0,
+            'model': 'test-model',
+            'choices': [
+              {
+                'index': 0,
+                'delta': {'content': 'Partial'},
+              },
+            ],
+          })}\n\n',
+        ),
+        utf8.encode('data: {"error": {"message": "boom"}}\n\n'),
+      ]);
+      return http.StreamedResponse(
+        body,
+        200,
+        headers: const {'content-type': 'text/event-stream'},
+      );
+    });
+
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      reasoningEffort: 'high',
+      httpClient: client,
+      streamClientFactory: () => client,
+    );
+
+    final result = dataSource.streamChatCompletionWithTools(
+      messages: [_userMessage()],
+      tools: const [],
+      model: 'test-model',
+    );
+
+    await expectLater(result.stream.join(), throwsA(isA<Object>()));
+    expect(requests, 1);
+  });
+
+  test('drops temperature after the server rejects the value', () async {
+    final requestBodies = <Map<String, dynamic>>[];
+    final client = MockClient((request) async {
+      requestBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+      if (requestBodies.length == 1) {
+        return http.Response(
+          jsonEncode({
+            'error': {
+              'message':
+                  "Unsupported value: 'temperature' does not support 0.2 with "
+                  'this model. Only the default (1) value is supported.',
+              'type': 'invalid_request_error',
+              'param': 'temperature',
+            },
+          }),
+          400,
+          headers: const {'content-type': 'application/json'},
+        );
+      }
+
+      return http.Response(
+        jsonEncode({
+          'id': 'chatcmpl-test',
+          'object': 'chat.completion',
+          'created': 0,
+          'model': 'gpt-5.6-luna',
+          'choices': [
+            {
+              'index': 0,
+              'message': {'role': 'assistant', 'content': 'Recovered'},
+              'finish_reason': 'stop',
+            },
+          ],
+        }),
+        200,
+        headers: const {'content-type': 'application/json'},
+      );
+    });
+
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'no-key',
+      httpClient: client,
+    );
+
+    final result = await dataSource.createChatCompletion(
+      messages: [_userMessage()],
+      model: 'gpt-5.6-luna',
+      temperature: 0.2,
+    );
+
+    expect(result.content, 'Recovered');
+    expect(requestBodies, hasLength(2));
+    expect(requestBodies.first['temperature'], 0.2);
+    expect(requestBodies.last.containsKey('temperature'), isFalse);
+  });
+
   test('promotes embedded function calls in tool-result follow-ups', () async {
     const content = '''
 <tool_call>
@@ -644,6 +979,26 @@ const List<Map<String, dynamic>> _deleteFileTools = [
     },
   },
 ];
+
+http.Response _streamedChunkResponse(String content) {
+  return http.Response(
+    'data: ${jsonEncode({
+      'id': 'chatcmpl-test',
+      'object': 'chat.completion.chunk',
+      'created': 0,
+      'model': 'test-model',
+      'choices': [
+        {
+          'index': 0,
+          'delta': {'content': content},
+          'finish_reason': 'stop',
+        },
+      ],
+    })}\n\ndata: [DONE]\n\n',
+    200,
+    headers: const {'content-type': 'text/event-stream'},
+  );
+}
 
 Message _userMessage() {
   return Message(
