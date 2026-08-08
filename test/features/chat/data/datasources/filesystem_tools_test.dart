@@ -294,6 +294,58 @@ void main() {
     expect(editResult['error'], 'old_text was not found in the target file');
     expect(editResult.containsKey('current_content'), isFalse);
     expect(editResult['hint'], contains('Re-read'));
+    expect(editResult.containsKey('new_text_present'), isFalse);
+  });
+
+  test('editFile not-found error locates new_text when the edit already landed',
+      () async {
+    // The repeated-bump shape from a session log: the version was already
+    // changed, so old_text is gone and the model has no idea why. The file is
+    // over the inline-content limit, which is where the model then burned six
+    // read_file windows without reaching the line.
+    final targetPath =
+        '${tempDir.path}${Platform.pathSeparator}pubspec_like.yaml';
+    final file = File(targetPath)..createSync(recursive: true);
+    file.writeAsStringSync(
+      '${'# padding\n' * 500}version: 1.3.15+27\n${'# tail\n' * 500}',
+    );
+
+    final editResult =
+        jsonDecode(
+              await FilesystemTools.editFile(
+                path: targetPath,
+                oldText: 'version: 1.3.14+26',
+                newText: 'version: 1.3.15+27',
+              ),
+            )
+            as Map<String, dynamic>;
+
+    expect(editResult['error'], 'old_text was not found in the target file');
+    expect(editResult['new_text_present'], isTrue);
+    expect(editResult['new_text_line'], 501);
+    expect(editResult['hint'], contains('line 501'));
+    expect(editResult['hint'], contains('already'));
+  });
+
+  test('editFile not-found error reports no new_text location for a small file '
+      'that never had it', () async {
+    final targetPath =
+        '${tempDir.path}${Platform.pathSeparator}absent.txt';
+    final file = File(targetPath)..createSync(recursive: true);
+    file.writeAsStringSync('alpha\n');
+
+    final editResult =
+        jsonDecode(
+              await FilesystemTools.editFile(
+                path: targetPath,
+                oldText: 'beta',
+                newText: 'gamma',
+              ),
+            )
+            as Map<String, dynamic>;
+
+    expect(editResult.containsKey('new_text_present'), isFalse);
+    expect(editResult['current_content'], 'alpha\n');
   });
 
   test('readFile returns requested line range metadata', () async {
