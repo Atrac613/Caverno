@@ -2082,6 +2082,42 @@ Future<void> _verifyDetachedHiddenPromptPersistence({
 }
 
 void main() {
+  // The project roots have to exist on disk: local_execute_command rejects a
+  // missing working_directory before the tool service ever sees the call, which
+  // silently replaces a fixture's scripted command result with an error and
+  // makes assertions about that result fail. These paths are compile-time
+  // constants used inside const argument maps, so they are created here rather
+  // than allocated from systemTemp.
+  final createdProjectRoots = <Directory>[];
+  setUpAll(() {
+    for (final path in const [_projectARoot, _projectBRoot]) {
+      final directory = Directory(path);
+      if (directory.existsSync()) {
+        continue;
+      }
+      // Record the highest ancestor that does not exist yet, so teardown can
+      // undo the whole chain createSync(recursive: true) is about to make.
+      var outermostMissing = directory;
+      var parent = directory.parent;
+      while (!parent.existsSync() && parent.path != parent.parent.path) {
+        outermostMissing = parent;
+        parent = parent.parent;
+      }
+      directory.createSync(recursive: true);
+      createdProjectRoots.add(outermostMissing);
+    }
+  });
+  tearDownAll(() {
+    // Only remove what this suite created, so a developer's own
+    // /tmp/caverno-test survives a test run.
+    for (final directory in createdProjectRoots) {
+      if (directory.existsSync()) {
+        directory.deleteSync(recursive: true);
+      }
+    }
+    createdProjectRoots.clear();
+  });
+
   test(
     'detached owner keeps its transform when another owner resets',
     () async {
