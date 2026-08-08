@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../entities/chat_turn_owner.dart';
 import '../entities/tool_call_info.dart';
+import 'fenced_tool_arguments_detector.dart';
 import 'immutable_json_snapshot.dart';
 
 // ChatNotifier decomposition collaborator: unexecuted-command-action-retry-policy
@@ -19,6 +20,7 @@ final class UnexecutedCommandActionRetryInput {
     required this.hasSuccessfulCommandExecution,
     required Set<String> attemptedOwners,
     required this.feedbackId,
+    this.fencedToolArguments,
   }) : ownerToolResults = List<ToolResultInfo>.unmodifiable(
          ownerToolResults.map(_freezeToolResult),
        ),
@@ -36,6 +38,12 @@ final class UnexecutedCommandActionRetryInput {
   final bool hasSuccessfulCommandExecution;
   final Set<String> attemptedOwners;
   final String feedbackId;
+
+  /// A command the answer printed in a ```json fence instead of calling. This
+  /// is structural evidence of one specific unissued call, so it outranks the
+  /// recorded claim: it fires even in a turn where other commands did run,
+  /// because the fenced one demonstrably did not.
+  final FencedToolArguments? fencedToolArguments;
 
   static ToolResultInfo _freezeToolResult(ToolResultInfo result) {
     return ToolResultInfo(
@@ -102,7 +110,8 @@ final class UnexecutedCommandActionRetryPolicy {
   UnexecutedCommandActionRetryDisposition evaluate(
     UnexecutedCommandActionRetryInput input,
   ) {
-    if (!_hasUnexecutedClaim(input.ownerToolResults)) {
+    final fenced = input.fencedToolArguments;
+    if (fenced == null && !_hasUnexecutedClaim(input.ownerToolResults)) {
       return const UnexecutedCommandActionRetryDisposition.noPlan(
         UnexecutedCommandActionRetryNoPlanReason.noUnexecutedClaim,
       );
@@ -112,7 +121,10 @@ final class UnexecutedCommandActionRetryPolicy {
         UnexecutedCommandActionRetryNoPlanReason.noCommandTools,
       );
     }
-    if (input.hasSuccessfulCommandExecution) {
+    // A turn that ran commands may well be describing those runs, so the
+    // recorded claim alone is not enough. A fenced command is different: that
+    // exact call is on the page and was never issued.
+    if (fenced == null && input.hasSuccessfulCommandExecution) {
       return const UnexecutedCommandActionRetryDisposition.noPlan(
         UnexecutedCommandActionRetryNoPlanReason.commandAlreadyExecuted,
       );
@@ -126,7 +138,7 @@ final class UnexecutedCommandActionRetryPolicy {
     return UnexecutedCommandActionRetryDisposition.plan(
       UnexecutedCommandActionRetryPlan._(
         owner: input.owner,
-        feedback: _buildFeedback(input.feedbackId),
+        feedback: _buildFeedback(input.feedbackId, fenced),
       ),
     );
   }
@@ -145,7 +157,36 @@ final class UnexecutedCommandActionRetryPolicy {
     });
   }
 
-  ToolResultInfo _buildFeedback(String feedbackId) {
+  ToolResultInfo _buildFeedback(
+    String feedbackId,
+    FencedToolArguments? fenced,
+  ) {
+    if (fenced != null) {
+      return ToolResultInfo(
+        id: feedbackId,
+        name: 'local_execute_command',
+        arguments: {
+          'reason':
+              'The answer printed tool arguments in a JSON code fence instead '
+              'of issuing a tool call.',
+        },
+        result: jsonEncode({
+          'ok': false,
+          'code': 'fenced_tool_arguments_not_a_call',
+          'error':
+              'A JSON code fence is text, not a tool call. Nothing executed '
+              'it, so the command below has not run.',
+          'command': fenced.command,
+          'fenced_arguments': fenced.rawJson,
+          'required_action':
+              'Issue this as a real tool call using the tool-calling API, '
+              'naming the tool (for example local_execute_command or '
+              'process_start) and passing the arguments above. Do not print '
+              'the arguments in a code fence again. If the call cannot be '
+              'issued, reply with the one concrete reason instead.',
+        }),
+      );
+    }
     return ToolResultInfo(
       id: feedbackId,
       name: 'local_execute_command',

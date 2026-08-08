@@ -155,6 +155,8 @@ import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/planning_research_collector.dart';
 import '../../domain/services/ble_connect_attempt_coordinator.dart';
 import '../../domain/services/blocked_production_release_retry_policy.dart';
+import '../../domain/services/fenced_tool_arguments_detector.dart';
+import '../../domain/services/turn_tool_catalog_cache.dart';
 import '../../domain/services/unexecuted_command_action_retry_policy.dart';
 import '../../domain/services/production_release_approval_policy.dart'
     show productionReleaseApprovalRequiredAction;
@@ -4321,6 +4323,53 @@ class ChatNotifier extends Notifier<ChatState> {
         _appendUnexecutedToolRequestNoticeIfNeeded(
           interactionGeneration: generation,
         );
+        // Two turns in one observed session ended on a fenced command with no
+        // notice at all, because the wording never read as a completion claim.
+        // The fence itself is the evidence, so it is asked for first.
+        if (const FencedToolArgumentsDetector().detect(
+              hiddenAssistantEvidence,
+            ) !=
+            null) {
+          final fencedRetryResult =
+              await _requestUnexecutedCommandActionRetry(
+                candidateResponse: hiddenAssistantEvidence,
+                executedToolResults: <ToolResultInfo>[],
+                batchToolResults: <ToolResultInfo>[],
+                allowedToolNames: turnSnapshot!.allowedToolNames,
+                tools: initialToolSelection.toolDefinitions,
+                interactionGeneration: generation,
+              );
+          if (!_isCurrentInteractionGeneration(generation)) return;
+          if (!ref.mounted) return;
+          if (fencedRetryResult != null && fencedRetryResult.hasToolCalls) {
+            appLog('[UnexecutedCommand] Fenced-arguments retry issued calls');
+            _removeAssistantStreamDeltaForGeneration(
+              generation: generation,
+              messageIndex: streamedMessageIndex,
+              startingLength: streamedContentStart,
+            );
+            await _executeToolCalls(
+              fencedRetryResult.toolCalls!,
+              assistantContent: fencedRetryResult.content.isNotEmpty
+                  ? fencedRetryResult.content
+                  : hiddenAssistantEvidence,
+              toolSearchEnabled: initialToolSelection.toolSearchEnabled,
+              selectedToolNames: {
+                ...initialToolSelection.selectedToolNames,
+                ...fencedRetryResult.toolCalls!.map(
+                  (toolCall) => toolCall.name,
+                ),
+              },
+              stableToolDefinitions: stableLoopToolDefinitions,
+              interactionGeneration: generation,
+            );
+            return;
+          }
+          if (fencedRetryResult != null &&
+              fencedRetryResult.content.trim().isNotEmpty) {
+            _recordHiddenEvidence(turnOwner, fencedRetryResult.content);
+          }
+        }
         final unexecutedCommandAction =
             _toolCallExecutionPolicy.offersCommandExecution(
               turnSnapshot!.allowedToolNames,
@@ -5474,6 +5523,10 @@ class ChatNotifier extends Notifier<ChatState> {
     var lastNonEmptyBatchToolResults = const <ToolResultInfo>[];
     final activeToolNames = <String>{...selectedToolNames};
 
+    // One catalogue per selection for this loop; see TurnToolCatalogCache for
+    // why rebuilding it per request let tools vanish mid-turn.
+    final toolCatalogCache = TurnToolCatalogCache();
+
     List<Map<String, dynamic>> selectedDefinitionsFor(
       McpToolService mcpToolService,
     ) {
@@ -5481,10 +5534,13 @@ class ChatNotifier extends Notifier<ChatState> {
       if (stableDefinitions != null) {
         return stableDefinitions;
       }
-      return ToolDefinitionSearchService.definitionsForSelectedTools(
-        mcpToolService.getOpenAiToolDefinitions(),
-        selectedToolNames: activeToolNames,
-        toolSearchEnabled: toolSearchEnabled,
+      return toolCatalogCache.resolve(
+        selection: activeToolNames,
+        compute: () => ToolDefinitionSearchService.definitionsForSelectedTools(
+          mcpToolService.getOpenAiToolDefinitions(),
+          selectedToolNames: activeToolNames,
+          toolSearchEnabled: toolSearchEnabled,
+        ),
       );
     }
 
@@ -6851,6 +6907,31 @@ class ChatNotifier extends Notifier<ChatState> {
                   ),
             );
         if (handledByTranscriptRepair) return;
+        // A command printed in a JSON fence is an unissued call whether or not
+        // the wording trips the claim detector, so it is asked for first.
+        if (const FencedToolArgumentsDetector().detect(streamedFinalAnswer) !=
+            null) {
+          final handledByFencedRetry =
+              await _applyUnexecutedCommandActionRetryToStreamedFinalAnswer(
+                streamedFinalAnswer: streamedFinalAnswer,
+                executedToolResults: finalToolResults,
+                batchToolResults: streamVerificationBatchToolResults,
+                allowedToolNames: turnSnapshot.allowedToolNames,
+                tools: tools,
+                toolSearchEnabled: toolSearchEnabled,
+                activeToolNames: activeToolNames,
+                stableToolDefinitions: stableToolDefinitions,
+                verificationFailureCounts: verificationFailureCounts,
+                transcriptRepairSignatures: transcriptRepairSignatures,
+                interactionGeneration: interactionGeneration,
+                onBlockingFeedbackPrepared: () =>
+                    _removeStreamedAnswerSuffixForGeneration(
+                      interactionGeneration,
+                      preAnswerContent: preFinalAnswerContent,
+                    ),
+              );
+          if (handledByFencedRetry) return;
+        }
         final unexecutedCommandAction =
             _toolCallExecutionPolicy.offersCommandExecution(
               turnSnapshot.allowedToolNames,

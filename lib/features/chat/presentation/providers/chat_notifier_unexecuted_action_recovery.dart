@@ -90,6 +90,9 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
         ),
         hasSuccessfulCommandExecution: _claims
             .hasSuccessfulCommandExecutionResult(executedToolResults),
+        fencedToolArguments: const FencedToolArgumentsDetector().detect(
+          candidateResponse,
+        ),
         attemptedOwners: _unexecutedCommandRetryOwners,
         feedbackId:
             'unexecuted_command_action_retry_'
