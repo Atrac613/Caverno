@@ -116,8 +116,18 @@ def _session_dir() -> str:
 
 
 def _iter_log_files(root: str):
-    yield from glob.glob(os.path.join(root, "*", "*.jsonl"))
-    yield from glob.glob(os.path.join(root, "*.jsonl"))
+    """Yield every `.jsonl` under `root`, at any depth.
+
+    Depth matters because the live canaries do not write into the corpus. Each
+    `tool/run_*_live_canary.sh` points `CAVERNO_SESSION_LOG_DIR` at its own run
+    directory, so their logs sit at
+    `build/integration_test_reports/<run>/session_logs/<surface>/*.jsonl` —
+    three levels down, and invisible to the fixed one/two-level globs this used
+    to do. That is the *coding* evidence three roadmap milestones are gated on
+    (see docs/canary_evidence_outside_the_corpus_2026-08-06.md), so
+    `--dir build/integration_test_reports` has to work.
+    """
+    yield from glob.glob(os.path.join(root, "**", "*.jsonl"), recursive=True)
 
 
 def _tool_names(response: dict) -> tuple:

@@ -165,7 +165,7 @@ structurally unmotivated to build:
 | Local LLM | LL26 | later | S-M | LL7, LL8, LL20 | Parallel Best-of-N candidate selection across the mesh (A0): generate candidates concurrently on resident endpoints (PC1/PC2) via LL20 slots over the LL8 mesh, then keep the verifier-passed candidate (LL7). A latency-neutral selection ensemble; concretizes the Best-of-N half of LL8's deferred fan-out. High-confidence and cheap, but sequenced after LL24. |
 | Local LLM | LL27 | later | L | LL26, LL12, LL19, LL1 | Collaborative multi-model orchestration over the mesh: layered aggregation (Mixture-of-Agents), role conductor, and debate so resident models cooperate on one turn. Guiding thesis: a Trinity-style role conductor (small coordinator → Thinker/Worker/Verifier on resident workers). Future research challenge, gated by the LL12/LL19 eval harness on "beats the best currently validated single-model path including latency". |
 | Local LLM | LL28 | done | M | LL1, LL8, LL3 | User-facing multi-participant group discussion: invite a second resident model (PC2) into the same thread as named participants with per-participant roles (facilitator / senior engineer / …), round-robin turn-taking when no facilitator is present, facilitator-managed handoff routing when one is present, and selectable single-round / multi-round depth, reusing the LL8 mesh endpoint resolver (health fallback) and the existing `ToolApprovalMode` (manual / auto / full) for read-only per-participant tools. The manually-driven, *visible* sibling of LL27 — user-judged, no eval gate; an auto-moderator turn policy is the bridge toward LL27. |
-| Local LLM | LL29 | later | S-M | F2, LL23, LL31 | Tool-loop failure recovery (degrade, don't abort). Demoted 2026-07-21: its LL31 evidence gate came back negative (`tool_failure_abort` 1.6% of 377 turns), so it waits for a triage that shows the abort path rising. Scope, unchanged: replace the whole-turn halt on a twice-failing tool call with escalating in-loop recovery — inject an action-oriented, tool-specific hint into the failing tool result and keep iterating (warn), make the hard turn-halt an opt-in circuit breaker, and distinguish exact-arg repeats, same-tool repeats, and read-only no-progress. Hardens the existing `toolFailureCounts` path in `ChatNotifier`. Inspired by the Hermes/Nous agent `tool_guardrails.py`. |
+| Local LLM | LL29 | later | S-M | F2, LL23, LL31 | Tool-loop failure recovery (degrade, don't abort). Demoted 2026-07-21: its LL31 evidence gate came back negative (`tool_failure_abort` 1.6% of 377 turns), so it waits for a triage that shows the abort path rising. **The demotion's basis is withdrawn (2026-08-06):** that 1.6% was measured on a corpus that is mostly chat, while the never-read canary tree — 452 coding turns — puts `tool_failure_abort` at **14.2%** (`docs/canary_evidence_outside_the_corpus_2026-08-06.md`). Canary fixtures are deliberately hard, so this does not re-promote the item on its own; it means the gate was answered on the population where the abort path would be rarest, and needs re-asking. Scope, unchanged: replace the whole-turn halt on a twice-failing tool call with escalating in-loop recovery — inject an action-oriented, tool-specific hint into the failing tool result and keep iterating (warn), make the hard turn-halt an opt-in circuit breaker, and distinguish exact-arg repeats, same-tool repeats, and read-only no-progress. Hardens the existing `toolFailureCounts` path in `ChatNotifier`. Inspired by the Hermes/Nous agent `tool_guardrails.py`. |
 | Local LLM | LL30 | done | M | LL14, LL6, LL31 | Compaction structural pre-pass, gated on LL31 triage evidence: before summarization, run a no-LLM tool-result prune — dedupe identical tool outputs, replace old ones with informative one-line summaries that keep *what happened* (`[run_command] \`flutter test\` → exit 0, 47 lines`), truncate oversized tool-call arguments inside parsed JSON so the payload stays valid, and strip stale image payloads; switch the protected tail from a fixed message count to a token budget and add an anti-thrashing back-off. Extends LL14 with the Hermes `context_compressor._prune_old_tool_results` / `_summarize_tool_result` pattern. |
 | Local LLM | LL31 | done | S-M | F2, LL23 | Turn-exit reason and completion explainer: tag every tool-loop exit with a structured reason (`text_response` / `max_iterations` / `guardrail_halt` / `empty` / `partial`), replace an empty or truncated final response with a single user-visible explanation derived from that reason, and log a WARNING when a turn ends on a pending tool result (the "just stops" case). Inspired by the Hermes `turn_finalizer.py`. |
 | Local LLM | LL33 | current | S-M | LL31 | Turn provenance — session-log ↔ on-screen conversation correlation: stamp each `turn_exit` record with `turnId` + the `assistantMessageId` it finalized, and record the post-LLM transforms applied to that message (guard notices), so the LLM session log and the conversation the user saw can be traced to each other and guard firings are a direct triage signal instead of being inferred from leaked notice prose. Extends the LL31 instrument; came out of the verification-guard investigation where this gap repeatedly caused mis-diagnosis. |
@@ -2856,8 +2856,19 @@ must clear its socket timeout after connecting: leaving it set applies to every
 later `recv`, which closes the connection mid-generation and reads exactly like
 the model hanging.
 
-Next: more live runs to see a disagreement, or a consumer migration once the
-sample is large enough to trust.
+**2026-08-06 — the sample cannot grow the way this assumed.** The comparison is
+sent to `appLog`, not to the session log, so it lands in `~/.caverno/app_logs`
+(three days of retention, currently zero `[ToolOutcomeShadow]` lines) or in a
+canary run's `flutter_test.jsonl`. Of every canary run on disk, exactly one
+contains any. The total live sample is **4 comparisons, all agreeing** — the two
+from 2026-08-05 plus two from a run on build `6dceec29` (TODO MVP canary,
+`qwen3.6-27b-vision`, passed in 174.7 s, `local_execute_command` exit 1 and exit
+0, both `agree`).
+
+Next: move the comparison to a session-log marker, as `goal_completion_shadow`
+already is, so it accumulates somewhere a triage can count. Waiting is not a
+plan for an instrument whose output rotates away
+(`docs/canary_evidence_outside_the_corpus_2026-08-06.md`).
 
 Scope:
 - Add typed outcome fields to the tool-result envelope alongside the existing
@@ -3052,6 +3063,36 @@ evening.) "Collect shadow evidence before proceeding" is not a plan that
 executes passively: it needs real usage with session logging on, or canary runs
 whose logs land in the analyzed corpus.
 
+**Second correction, 2026-08-06 — there is no denominator at all, and both
+readings above are wrong.** `buildCompletionShadow` returns `null` when the two
+paths agree and the notifier returns early on `null`, so **a record is written
+only on disagreement**. Agreements are never logged. Both readings counted
+records as turns and then reported how many were disagreements, which is a
+category error: every record is one.
+
+The corpus's 7 grounded records are 6 `tool_accepted_lexical_missed` plus 1
+`tool_rejected_lexical_completed`, all dated 2026-07-22 → 2026-07-24 — they
+predate both readings. And the canary logs, which no measurement had ever read
+(`docs/canary_evidence_outside_the_corpus_2026-08-06.md`), hold 26 more:
+
+| label | corpus | canary |
+| --- | ---: | ---: |
+| `goal_completion_tool_accepted_lexical_missed` | 6 | **26** |
+| `goal_completion_tool_rejected_lexical_completed` | **1** | 0 |
+| `goal_completion_lexical_only` | 0 | 0 |
+
+So "the tool has never caught a completion the lexical path missed" is **32
+observations**, and "`toolRejectedLexicalCompleted` is 0", this item's stated
+motivation, is **1**. What still cannot be computed from this log is a *rate*.
+
+The decision is unchanged, for a different reason than before: 32 of 33
+disagreements are the tool being more permissive than the lexical gate, and
+`lexical_completed_tool_silent` — the label whose absence would license removing
+the lexical path — is zero in both corpora, which is equally what a
+never-reached branch produces. Recording agreements (or at least a shadow-turn
+count) is the cheap next slice; without it this instrument can only ever produce
+counts of one kind of event.
+
 Scope:
 - Add an `update_goal` built-in with `completed` / `blocked_reason` / `message`,
   routed through the existing tool-dispatch path.
@@ -3192,6 +3233,28 @@ unexecuted_tool_request_notice      verification_claim_notice
 `narrated_transcript_repair` is the notable one: `NarratedTranscriptClaimGuard`
 was recorded as "unproven live" when it landed, and 1,735 sessions later it
 still is — zero firings.
+
+**Correction, 2026-08-06 — three of those seven have fired.** The zeros were
+measured on `~/.caverno/session_logs`, which is mostly chat; the live canaries
+write to their own run directories and had never been counted
+(`docs/canary_evidence_outside_the_corpus_2026-08-06.md`). Across 452 coding
+turns there: `final_answer_concise_retry` **24**,
+`truncated_tool_call_arguments_feedback` **13**, `verification_claim_notice`
+**2**. `final_answer_concise_retry` is the largest transform label in that
+corpus — delete-by-measurement was one unread directory away from proposing the
+removal of the guard that fires most on the surface it protects.
+
+Still zero everywhere: `narrated_transcript_repair`,
+`narrated_transcript_claim_notice`, `pending_action_length_recovery`,
+`unexecuted_tool_request_notice`. The third of those has its own canary
+(`coding_pending_action_length_recovery_live_canary`, 6 runs) and still never
+fires, which is a question about the canary before it is a question about the
+guard.
+
+The two distributions barely overlap — the corpus's dominant label
+(`unexecuted_command_action_notice`, 26) fires twice in the canary tree — so
+"which guards are load-bearing" has a different answer per surface, and a
+delete-by-measurement slice has to name which one it measured.
 
 **This does not by itself authorize deletion.** A guard that never fires may be
 dead weight, or may be the reason a failure mode stopped appearing; the counts

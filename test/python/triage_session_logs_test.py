@@ -59,6 +59,35 @@ def _analyze(entries):
         return triage.analyze(str(path))
 
 
+class TriageDiscoveryTest(unittest.TestCase):
+    def test_finds_logs_at_canary_report_depth(self):
+        """Live canaries write to
+        `<run>/session_logs/<surface>/*.jsonl` — three levels below the
+        directory a triage run would be pointed at."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            deep = root / "coding_todo_app_mvp_live_canary_1" / "session_logs" / "coding"
+            deep.mkdir(parents=True)
+            (deep / "a.jsonl").write_text("{}\n")
+            (root / "flat.jsonl").write_text("{}\n")
+            (root / "surface" / "b").mkdir(parents=True)
+            (root / "surface" / "b" / "c.jsonl").write_text("{}\n")
+
+            found = {pathlib.Path(p).name for p in triage._iter_log_files(str(root))}
+
+        self.assertEqual(found, {"a.jsonl", "flat.jsonl", "c.jsonl"})
+
+    def test_yields_each_file_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "chat").mkdir()
+            (root / "chat" / "a.jsonl").write_text("{}\n")
+
+            found = list(triage._iter_log_files(str(root)))
+
+        self.assertEqual(len(found), 1)
+
+
 class TriageMarkerScoringTest(unittest.TestCase):
     def test_shadow_markers_are_not_transport_errors(self):
         row = _analyze(
