@@ -18,6 +18,7 @@
     "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
     "lib/features/chat/domain/services/background_process_tool_handler.dart",
     "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
+    "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
     "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
     "lib/features/chat/domain/services/browser_tool_handler.dart",
     "lib/features/chat/domain/services/chat_tool_handler_catalog.dart",
@@ -36,6 +37,7 @@
     "lib/features/chat/domain/services/create_routine_tool_handler.dart",
     "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
     "lib/features/chat/domain/services/execution_snapshot_observer.dart",
+    "lib/features/chat/domain/services/fenced_tool_arguments_detector.dart",
     "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
     "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
     "lib/features/chat/domain/services/file_turn_rollback_service.dart",
@@ -63,6 +65,8 @@
     "lib/features/chat/domain/services/process_start_result_policy.dart",
     "lib/features/chat/domain/services/production_release_approval_policy.dart",
     "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart",
+    "lib/features/chat/domain/services/proposal_option_extraction.dart",
+    "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
     "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
     "lib/features/chat/domain/services/python_script_tool_handler.dart",
     "lib/features/chat/domain/services/referenced_specification_loader.dart",
@@ -83,6 +87,8 @@
     "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart",
     "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
     "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+    "lib/features/chat/domain/services/turn_tool_catalog_cache.dart",
+    "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
     "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart",
     "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
     "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart",
@@ -106,8 +112,6 @@
     "lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart",
     "lib/features/chat/presentation/providers/chat_notifier_planning_research.dart",
     "lib/features/chat/presentation/providers/chat_notifier_prompt_context.dart",
-    "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-    "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
     "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart",
     "lib/features/chat/presentation/providers/chat_notifier_response_finalization.dart",
     "lib/features/chat/presentation/providers/chat_notifier_serial_handlers.dart",
@@ -445,67 +449,6 @@
       ]
     },
     {
-      "partPath": "chat_notifier_proposal_option_extraction.dart",
-      "declarations": [
-        "_removeAnsweredOpenQuestions",
-        "_promoteChoiceLikeOpenQuestions",
-        "_promoteOpenQuestionsToPlanningPrompts",
-        "_buildOrderedChoiceDecisionFromOpenQuestion",
-        "_buildAlternativeChoiceDecisionFromOpenQuestion",
-        "_buildYesNoDecisionFromOpenQuestion",
-        "_extractEnglishOrderedOptions",
-        "_extractJapaneseOrderedOptions",
-        "_extractEnglishAlternativeOptions",
-        "_extractJapaneseAlternativeOptions",
-        "_splitEnglishChoiceList",
-        "_splitJapaneseChoiceList",
-        "_stripEnglishChoicePrefix",
-        "_stripJapaneseChoicePrefix",
-        "_stripChoiceSuffix",
-        "_cleanDecisionOptionLabel",
-        "_decisionOptionId",
-        "_looksLikeYesNoOpenQuestion",
-        "_containsJapaneseText",
-        "_normalizeWorkflowDecisionText",
-        "_mergeWorkflowDecisionAnswers",
-        "_filterUnansweredWorkflowDecisions"
-      ]
-    },
-    {
-      "partPath": "chat_notifier_proposal_parsing.dart",
-      "declarations": [
-        "_proposalJsonExtractor",
-        "_extractJsonMap",
-        "_tryDecodeMap",
-        "_extractLooseJsonScalar",
-        "_extractLooseJsonStringList",
-        "_collectProposalSections",
-        "_matchWorkflowSectionLine",
-        "_inferWorkflowStageFromSectionKeys",
-        "_inferWorkflowStageFromLooseProposalContent",
-        "_normalizeProposalContent",
-        "_extractProposalReasoningContent",
-        "_extractStructuredWorkflowProposalReasoning",
-        "_extractStructuredTaskProposalReasoning",
-        "_sanitizeReasoningProposalValue",
-        "_looksLikeStructuredReasoningListItem",
-        "_isWorkflowListSection",
-        "_workflowSectionDisplayLabel",
-        "_taskFieldDisplayLabel",
-        "_asCleanString",
-        "_asStringList",
-        "_isCompletionTruncated",
-        "_stripMarkdownListMarker",
-        "_appendTextValue",
-        "_proposalPreview",
-        "_extractPlainTextForProposal",
-        "_extractInlineTaskPlanCandidate",
-        "_sanitizeInlineReasoningTaskTitle",
-        "_matchTaskTitleLine",
-        "_matchTaskFieldLine"
-      ]
-    },
-    {
       "partPath": "chat_notifier_workflow_proposal_parser.dart",
       "declarations": [
         "_workflowProposalParser",
@@ -730,15 +673,15 @@
     "baselineComparison": "The baseline comparison ignores diagnostic line and column values but compares every stable method and read field."
   },
   "summary": {
-    "scannedFiles": 120,
-    "methods": 1471,
-    "manifestEntrypoints": 263,
+    "scannedFiles": 124,
+    "methods": 1515,
+    "manifestEntrypoints": 213,
     "reachableMethods": 720,
-    "ambientReads": 67,
-    "methodsWithAmbientReads": 39,
-    "methodTurnIdentityReads": 26,
-    "turnReachableReads": 49,
-    "accessorBearingReads": 41
+    "ambientReads": 60,
+    "methodsWithAmbientReads": 36,
+    "methodTurnIdentityReads": 19,
+    "turnReachableReads": 42,
+    "accessorBearingReads": 34
   },
   "methods": [
     {
@@ -2536,6 +2479,138 @@
       "entrypoint": false,
       "reachable": false,
       "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "declaration": "BlockedProductionReleaseRetryInput._freezeToolResult",
+      "signature": "static ToolResultInfo _freezeToolResult(ToolResultInfo result)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "ToolResultInfo",
+        "freezeMap"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "declaration": "BlockedProductionReleaseRetryPolicy._buildFeedback",
+      "signature": "ToolResultInfo _buildFeedback({\n    required String feedbackId,\n    required String toolName,\n    required String command,\n  })",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "ToolResultInfo",
+        "jsonEncode"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "declaration": "BlockedProductionReleaseRetryPolicy._decodeJsonObject",
+      "signature": "Map<String, dynamic>? _decodeJsonObject(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "jsonDecode"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "declaration": "BlockedProductionReleaseRetryPolicy._hasExecuted",
+      "signature": "bool _hasExecuted(List<String> executedCommands, String command)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "any",
+        "normalizeCommand"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "declaration": "BlockedProductionReleaseRetryPolicy._latestBlockedRelease",
+      "signature": "PendingBlockedRelease? _latestBlockedRelease(\n    List<ToolResultInfo> toolResults,\n  )",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "PendingBlockedRelease",
+        "_decodeJsonObject",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "declaration": "BlockedProductionReleaseRetryPolicy.blockedReleaseFromToolResults",
+      "signature": "/// Reads a block out of a guard payload, for the case where the assistant\n  /// was blocked and approval was already on record in the same turn.\n  PendingBlockedRelease? blockedReleaseFromToolResults(\n    List<ToolResultInfo> toolResults,\n  )",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_latestBlockedRelease"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "declaration": "BlockedProductionReleaseRetryPolicy.evaluate",
+      "signature": "BlockedProductionReleaseRetryDisposition evaluate(\n    BlockedProductionReleaseRetryInput input,\n  )",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_",
+        "_buildFeedback",
+        "_hasExecuted",
+        "_latestBlockedRelease",
+        "contains",
+        "plan",
+        "retrySignature"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "declaration": "BlockedProductionReleaseRetryPolicy.normalizeCommand",
+      "signature": "/// Commands are compared on collapsed whitespace only. Anything smarter\n  /// (argument reordering, shell parsing) would start guessing whether two\n  /// spellings mean the same release, and a wrong guess here either skips a\n  /// real retry or re-runs a publish.\n  String normalizeCommand(String command)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "replaceAll",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "declaration": "BlockedProductionReleaseRetryPolicy.retrySignature",
+      "signature": "/// One retry per owner and command. Re-prompting the same blocked release\n  /// twice would turn a dropped call into a loop.\n  String retrySignature({\n    required ChatTurnOwner owner,\n    required String toolName,\n    required String command,\n  })",
+      "turnIdentityParameters": [
+        "required ChatTurnOwner owner"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "normalizeCommand"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": true
     },
     {
       "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
@@ -5587,6 +5662,39 @@
       "entrypoint": false,
       "reachable": false,
       "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/fenced_tool_arguments_detector.dart",
+      "declaration": "FencedToolArgumentsDetector._decodeJsonObject",
+      "signature": "Map<String, dynamic>? _decodeJsonObject(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "jsonDecode"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/fenced_tool_arguments_detector.dart",
+      "declaration": "FencedToolArgumentsDetector.detect",
+      "signature": "/// The first fenced argument object in [content], or null.\n  FencedToolArguments? detect(String content)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "FencedToolArguments",
+        "_decodeJsonObject",
+        "allMatches",
+        "any",
+        "contains",
+        "group",
+        "toLowerCase",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
     },
     {
       "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
@@ -9331,6 +9439,938 @@
       "turnReachable": false
     },
     {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.buildAlternativeChoiceDecisionFromOpenQuestion",
+      "signature": "static WorkflowPlanningDecision?\n  buildAlternativeChoiceDecisionFromOpenQuestion(String question)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "WorkflowPlanningDecision",
+        "WorkflowPlanningDecisionOption",
+        "containsJapaneseText",
+        "decisionOptionId",
+        "extractEnglishAlternativeOptions",
+        "extractJapaneseAlternativeOptions",
+        "map",
+        "normalizeWorkflowDecisionText",
+        "toList",
+        "toSet",
+        "trim",
+        "where"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.buildOrderedChoiceDecisionFromOpenQuestion",
+      "signature": "static WorkflowPlanningDecision? buildOrderedChoiceDecisionFromOpenQuestion(\n    String question,\n  )",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "WorkflowPlanningDecision",
+        "WorkflowPlanningDecisionOption",
+        "containsJapaneseText",
+        "decisionOptionId",
+        "extractEnglishOrderedOptions",
+        "extractJapaneseOrderedOptions",
+        "map",
+        "normalizeWorkflowDecisionText",
+        "toList",
+        "toSet",
+        "trim",
+        "where"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.buildYesNoDecisionFromOpenQuestion",
+      "signature": "static WorkflowPlanningDecision? buildYesNoDecisionFromOpenQuestion(\n    String question,\n  )",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "WorkflowPlanningDecision",
+        "WorkflowPlanningDecisionOption",
+        "containsJapaneseText",
+        "looksLikeYesNoOpenQuestion",
+        "normalizeWorkflowDecisionText",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.cleanDecisionOptionLabel",
+      "signature": "static String cleanDecisionOptionLabel(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "replaceFirst",
+        "stripEnglishChoicePrefix",
+        "stripJapaneseChoicePrefix",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.containsJapaneseText",
+      "signature": "static bool containsJapaneseText(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "hasMatch"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.decisionOptionId",
+      "signature": "static String decisionOptionId(String label)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "normalizeWorkflowDecisionText",
+        "replaceAll"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.extractEnglishAlternativeOptions",
+      "signature": "static List<String> extractEnglishAlternativeOptions(String question)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "contains",
+        "firstMatch",
+        "group",
+        "indexOf",
+        "replaceFirst",
+        "splitEnglishChoiceList",
+        "stripEnglishChoicePrefix",
+        "substring",
+        "toLowerCase",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.extractEnglishOrderedOptions",
+      "signature": "static List<String> extractEnglishOrderedOptions(String question)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "firstMatch",
+        "group",
+        "replaceFirst",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.extractJapaneseAlternativeOptions",
+      "signature": "static List<String> extractJapaneseAlternativeOptions(String question)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "firstMatch",
+        "group",
+        "replaceAll",
+        "replaceFirst",
+        "splitJapaneseChoiceList",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.extractJapaneseOrderedOptions",
+      "signature": "static List<String> extractJapaneseOrderedOptions(String question)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "firstMatch",
+        "group",
+        "replaceFirst",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.filterUnansweredWorkflowDecisions",
+      "signature": "static List<WorkflowPlanningDecision> filterUnansweredWorkflowDecisions(\n    List<WorkflowPlanningDecision> decisions, {\n    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,\n  })",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "add",
+        "contains",
+        "map",
+        "normalizeWorkflowDecisionText",
+        "toSet",
+        "trim",
+        "where"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.looksLikeYesNoOpenQuestion",
+      "signature": "static bool looksLikeYesNoOpenQuestion(String question)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "any",
+        "contains",
+        "containsJapaneseText",
+        "hasMatch",
+        "toLowerCase",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.mergeWorkflowDecisionAnswers",
+      "signature": "static void mergeWorkflowDecisionAnswers(\n    List<WorkflowPlanningDecisionAnswer> current,\n    List<WorkflowPlanningDecisionAnswer> updates,\n  )",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "add",
+        "indexWhere"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.normalizeWorkflowDecisionText",
+      "signature": "static String normalizeWorkflowDecisionText(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "replaceAll",
+        "toLowerCase",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.promoteChoiceLikeOpenQuestions",
+      "signature": "static List<WorkflowPlanningDecision> promoteChoiceLikeOpenQuestions(\n    List<String> openQuestions, {\n    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,\n  })",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "add",
+        "buildAlternativeChoiceDecisionFromOpenQuestion",
+        "buildOrderedChoiceDecisionFromOpenQuestion",
+        "buildYesNoDecisionFromOpenQuestion",
+        "contains",
+        "map",
+        "normalizeWorkflowDecisionText",
+        "take",
+        "toSet",
+        "where"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.promoteOpenQuestionsToPlanningPrompts",
+      "signature": "static List<WorkflowPlanningDecision> promoteOpenQuestionsToPlanningPrompts(\n    List<String> openQuestions, {\n    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,\n  })",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "promoteChoiceLikeOpenQuestions"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.removeAnsweredOpenQuestions",
+      "signature": "static WorkflowProposalDraft removeAnsweredOpenQuestions(\n    WorkflowProposalDraft proposal,\n    List<WorkflowPlanningDecisionAnswer> decisionAnswers,\n  )",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "WorkflowProposalDraft",
+        "contains",
+        "copyWith",
+        "map",
+        "normalizeWorkflowDecisionText",
+        "toList",
+        "toSet",
+        "where"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.splitEnglishChoiceList",
+      "signature": "static List<String> splitEnglishChoiceList(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "contains",
+        "map",
+        "replaceAll",
+        "replaceAllMapped",
+        "split",
+        "take",
+        "toList",
+        "trim",
+        "where"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.splitJapaneseChoiceList",
+      "signature": "static List<String> splitJapaneseChoiceList(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "contains",
+        "map",
+        "replaceAll",
+        "split",
+        "take",
+        "toList",
+        "trim",
+        "where"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.stripChoiceSuffix",
+      "signature": "static String stripChoiceSuffix(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "replaceFirst",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.stripEnglishChoicePrefix",
+      "signature": "static String stripEnglishChoicePrefix(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "replaceFirst",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "declaration": "PlanningDecisionPromotion.stripJapaneseChoicePrefix",
+      "signature": "static String stripJapaneseChoicePrefix(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "replaceFirst",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalJsonExtractor._recordJsonRepairFeedback",
+      "signature": "void _recordJsonRepairFeedback()",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "record",
+        "unawaited"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalJsonExtractor.extractJsonMap",
+      "signature": "Map<String, dynamic>? extractJsonMap(String rawContent)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "_recordJsonRepairFeedback",
+        "firstMatch",
+        "group",
+        "indexOf",
+        "lastIndexOf",
+        "substring",
+        "trim",
+        "tryDecodeMap",
+        "tryRepairAndDecodeMap"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils._stripWrappingQuotes",
+      "signature": "static String _stripWrappingQuotes(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "replaceAll"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.appendTextValue",
+      "signature": "static String appendTextValue(String current, String next)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.asCleanString",
+      "signature": "static String asCleanString(Object? value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "toString",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.asStringList",
+      "signature": "static List<String> asStringList(Object? value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "map",
+        "take",
+        "toList",
+        "toString",
+        "trim",
+        "where"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.collectProposalSections",
+      "signature": "static Map<String, List<String>> collectProposalSections(String rawContent)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "add",
+        "matchWorkflowSectionLine",
+        "split",
+        "stripMarkdownListMarker",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.extractInlineTaskPlanCandidate",
+      "signature": "static String extractInlineTaskPlanCandidate(String rawContent)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "firstMatch",
+        "group",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.extractLooseJsonScalar",
+      "signature": "static String? extractLooseJsonScalar(\n    String rawContent, {\n    required List<String> keys,\n  })",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "escape",
+        "firstMatch",
+        "group",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.extractLooseJsonStringList",
+      "signature": "static List<String> extractLooseJsonStringList(\n    String rawContent, {\n    required List<String> keys,\n  })",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "allMatches",
+        "escape",
+        "firstMatch",
+        "group",
+        "map",
+        "take",
+        "toList",
+        "trim",
+        "where"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.extractPlainTextForProposal",
+      "signature": "static String extractPlainTextForProposal(String content)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "StringBuffer",
+        "parse",
+        "replaceAll",
+        "toString",
+        "trim",
+        "write"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.extractProposalReasoningContent",
+      "signature": "static String extractProposalReasoningContent(String rawContent)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "allMatches",
+        "group",
+        "join",
+        "map",
+        "trim",
+        "where"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.extractStructuredTaskProposalReasoning",
+      "signature": "static String extractStructuredTaskProposalReasoning(String rawContent)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "StringBuffer",
+        "looksLikeStructuredReasoningListItem",
+        "matchTaskFieldLine",
+        "matchTaskTitleLine",
+        "sanitizeReasoningProposalValue",
+        "split",
+        "stripMarkdownListMarker",
+        "taskFieldDisplayLabel",
+        "toString",
+        "trim",
+        "writeln"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.extractStructuredWorkflowProposalReasoning",
+      "signature": "static String extractStructuredWorkflowProposalReasoning(String rawContent)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "StringBuffer",
+        "isWorkflowListSection",
+        "looksLikeStructuredReasoningListItem",
+        "matchWorkflowSectionLine",
+        "sanitizeReasoningProposalValue",
+        "split",
+        "stripMarkdownListMarker",
+        "toString",
+        "trim",
+        "workflowSectionDisplayLabel",
+        "writeln"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.inferWorkflowStageFromLooseProposalContent",
+      "signature": "static ConversationWorkflowStage inferWorkflowStageFromLooseProposalContent(\n    String rawContent,\n  )",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "extractLooseJsonStringList"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.inferWorkflowStageFromSectionKeys",
+      "signature": "static ConversationWorkflowStage? inferWorkflowStageFromSectionKeys(\n    Map<String, List<String>> sections,\n  )",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.isCompletionTruncated",
+      "signature": "static bool isCompletionTruncated(String finishReason)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "toLowerCase",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.isWorkflowListSection",
+      "signature": "static bool isWorkflowListSection(String section)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.looksLikeStructuredReasoningListItem",
+      "signature": "static bool looksLikeStructuredReasoningListItem(String line)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "hasMatch",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.matchTaskFieldLine",
+      "signature": "static (String, String)? matchTaskFieldLine(String line)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "escape",
+        "firstMatch",
+        "group",
+        "replaceFirst",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.matchTaskTitleLine",
+      "signature": "static String? matchTaskTitleLine(String line, {String? currentField})",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "firstMatch",
+        "group",
+        "hasMatch",
+        "replaceFirst",
+        "startsWith",
+        "stripMarkdownListMarker",
+        "toLowerCase",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.matchWorkflowSectionLine",
+      "signature": "static (String, String)? matchWorkflowSectionLine(String line)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "escape",
+        "firstMatch",
+        "group",
+        "replaceFirst",
+        "toLowerCase",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.normalizeProposalContent",
+      "signature": "static String normalizeProposalContent(String rawContent)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "replaceAll",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.proposalPreview",
+      "signature": "static String proposalPreview(String rawContent)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "extractProposalReasoningContent",
+        "normalizeProposalContent",
+        "replaceAll",
+        "substring"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.repairJsonCandidate",
+      "signature": "static String? repairJsonCandidate(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "StringBuffer",
+        "add",
+        "contains",
+        "endsWith",
+        "indexOf",
+        "removeLast",
+        "replaceFirst",
+        "split",
+        "substring",
+        "toString",
+        "trim",
+        "trimRight",
+        "write"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.sanitizeInlineReasoningTaskTitle",
+      "signature": "static String sanitizeInlineReasoningTaskTitle(String rawValue)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "firstMatch",
+        "replaceFirst",
+        "sanitizeReasoningProposalValue",
+        "substring",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.sanitizeReasoningProposalValue",
+      "signature": "static String sanitizeReasoningProposalValue(\n    String value, {\n    bool preferSingleSentence = false,\n  })",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "_stripWrappingQuotes",
+        "firstMatch",
+        "indexOf",
+        "replaceAll",
+        "substring",
+        "toLowerCase",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.stripMarkdownListMarker",
+      "signature": "static String stripMarkdownListMarker(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "RegExp",
+        "replaceFirst",
+        "trim"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.taskFieldDisplayLabel",
+      "signature": "static String taskFieldDisplayLabel(String field)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.tryDecodeMap",
+      "signature": "static Map<String, dynamic>? tryDecodeMap(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "jsonDecode"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.tryRepairAndDecodeMap",
+      "signature": "static Map<String, dynamic>? tryRepairAndDecodeMap(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "repairJsonCandidate",
+        "tryDecodeMap"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "declaration": "ProposalParsingTextUtils.workflowSectionDisplayLabel",
+      "signature": "static String workflowSectionDisplayLabel(String section)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
       "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
       "declaration": "PythonAttachmentRepairPolicy._canRepair",
       "signature": "bool _canRepair(PythonAttachmentRepairInput input)",
@@ -12663,6 +13703,121 @@
       "turnReachable": false
     },
     {
+      "path": "lib/features/chat/domain/services/turn_tool_catalog_cache.dart",
+      "declaration": "TurnToolCatalogCache.keyFor",
+      "signature": "/// Order-independent, so a selection rebuilt in a different order is still\n  /// recognized as the same one.\n  String keyFor(Set<String> selection)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "join",
+        "sort",
+        "toList"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/turn_tool_catalog_cache.dart",
+      "declaration": "TurnToolCatalogCache.resolve",
+      "signature": "List<Map<String, dynamic>> resolve({\n    required Set<String> selection,\n    required List<Map<String, dynamic>> Function() compute,\n  })",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "compute",
+        "keyFor"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+      "declaration": "UnexecutedCommandActionRetryInput._freezeToolResult",
+      "signature": "static ToolResultInfo _freezeToolResult(ToolResultInfo result)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "ToolResultInfo",
+        "freezeMap"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+      "declaration": "UnexecutedCommandActionRetryPolicy._buildFeedback",
+      "signature": "ToolResultInfo _buildFeedback(\n    String feedbackId,\n    FencedToolArguments? fenced,\n  )",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "ToolResultInfo",
+        "jsonEncode"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+      "declaration": "UnexecutedCommandActionRetryPolicy._decodeJsonObject",
+      "signature": "Map<String, dynamic>? _decodeJsonObject(String value)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "jsonDecode"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+      "declaration": "UnexecutedCommandActionRetryPolicy._hasUnexecutedClaim",
+      "signature": "bool _hasUnexecutedClaim(List<ToolResultInfo> toolResults)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_decodeJsonObject",
+        "any"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+      "declaration": "UnexecutedCommandActionRetryPolicy.evaluate",
+      "signature": "UnexecutedCommandActionRetryDisposition evaluate(\n    UnexecutedCommandActionRetryInput input,\n  )",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_",
+        "_buildFeedback",
+        "_hasUnexecutedClaim",
+        "contains",
+        "ownerKey",
+        "plan"
+      ],
+      "entrypoint": false,
+      "reachable": false,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+      "declaration": "UnexecutedCommandActionRetryPolicy.ownerKey",
+      "signature": "/// One retry per turn. A second pass on the same turn would trade a wrong\n  /// answer for a loop.\n  String ownerKey(ChatTurnOwner owner)",
+      "turnIdentityParameters": [
+        "ChatTurnOwner owner"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
       "path": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart",
       "declaration": "UnexecutedFileMutationBeforeCommandGuard.evaluate",
       "signature": "McpToolResult? evaluate(UnexecutedFileMutationGuardInput input)",
@@ -13147,19 +14302,11 @@
       "turnIdentityParameters": [
         "required ChatTurnOwner owner"
       ],
-      "turnScopedAccessors": [
-        "_activeResponseMessagesForGeneration",
-        "_cacheActiveResponseMessagesForGeneration"
-      ],
+      "turnScopedAccessors": [],
       "calls": [
-        "_activeResponseMessagesForGeneration",
-        "_cacheActiveResponseMessagesForGeneration",
-        "_isActiveResponseDetachedForGeneration",
-        "_routeThreadState",
-        "addTransform",
-        "copyWith",
-        "hasUnexecutedCommandActionResult",
-        "messageContentWithUnexecutedCommandActionNotice"
+        "_applyFinalAnswerMessageMutation",
+        "_finalAnswerMessagesForGeneration",
+        "appendUnexecutedCommandAction"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -13172,18 +14319,11 @@
       "turnIdentityParameters": [
         "int? interactionGeneration"
       ],
-      "turnScopedAccessors": [
-        "_activeResponseMessagesForGeneration",
-        "_cacheActiveResponseMessagesForGeneration"
-      ],
+      "turnScopedAccessors": [],
       "calls": [
-        "_activeResponseMessagesForGeneration",
-        "_cacheActiveResponseMessagesForGeneration",
-        "_isActiveResponseDetachedForGeneration",
-        "contains",
-        "copyWith",
-        "looksLikeUnsupportedFileSideEffectClaim",
-        "trimRight"
+        "_applyFinalAnswerMessageMutation",
+        "_finalAnswerMessagesForGeneration",
+        "appendUnexecutedFileSideEffect"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -13196,18 +14336,11 @@
       "turnIdentityParameters": [
         "int? interactionGeneration"
       ],
-      "turnScopedAccessors": [
-        "_activeResponseMessagesForGeneration",
-        "_cacheActiveResponseMessagesForGeneration"
-      ],
+      "turnScopedAccessors": [],
       "calls": [
-        "_activeResponseMessagesForGeneration",
-        "_cacheActiveResponseMessagesForGeneration",
-        "_isActiveResponseDetachedForGeneration",
-        "contains",
-        "copyWith",
-        "looksLikeUnexecutedToolRequest",
-        "trimRight"
+        "_applyFinalAnswerMessageMutation",
+        "_finalAnswerMessagesForGeneration",
+        "appendUnexecutedToolRequest"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -13220,19 +14353,33 @@
       "turnIdentityParameters": [
         "required ChatTurnOwner owner"
       ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_applyFinalAnswerMessageMutation",
+        "_finalAnswerMessagesForGeneration",
+        "appendUnverifiedReadOnlyInspection"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "declaration": "_applyFinalAnswerMessageMutation",
+      "signature": "void _applyFinalAnswerMessageMutation(\n    int generation,\n    FinalAnswerMessageMutation? mutation, {\n    ChatTurnOwner? owner,\n  })",
+      "turnIdentityParameters": [
+        "int generation",
+        "ChatTurnOwner? owner"
+      ],
       "turnScopedAccessors": [
-        "_activeResponseMessagesForGeneration",
         "_cacheActiveResponseMessagesForGeneration"
       ],
       "calls": [
-        "_activeResponseMessagesForGeneration",
         "_cacheActiveResponseMessagesForGeneration",
         "_isActiveResponseDetachedForGeneration",
         "_routeThreadState",
         "addTransform",
-        "copyWith",
-        "hasUnverifiedReadOnlyInspectionClaimResult",
-        "messageContentWithUnverifiedReadOnlyInspectionNotice"
+        "copyWith"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -13278,13 +14425,13 @@
       "turnScopedAccessors": [],
       "calls": [
         "_asBool",
-        "_tryDecodeMap",
         "add",
         "toList",
         "toLowerCase",
         "toSet",
         "toString",
-        "trim"
+        "trim",
+        "tryDecodeMap"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -13609,7 +14756,6 @@
       "calls": [
         "ToolResultInfo",
         "_statusFromSubagentTaskResult",
-        "_tryDecodeMap",
         "add",
         "byId",
         "clipForDiagnostic",
@@ -13622,6 +14768,7 @@
         "toLowerCase",
         "toString",
         "trim",
+        "tryDecodeMap",
         "where",
         "whereType"
       ],
@@ -13750,12 +14897,12 @@
         "Message",
         "_budgetToolResultsForPrompt",
         "_toolDescriptionsByName",
-        "_tryDecodeMap",
         "add",
         "buildAnswerPrompt",
         "jsonEncode",
         "now",
-        "remove"
+        "remove",
+        "tryDecodeMap"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -13952,7 +15099,7 @@
     {
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_clearActiveResponseForGeneration",
-      "signature": "void _clearActiveResponseForGeneration(int generation)",
+      "signature": "/// Clears what a generation registered, and nothing owner-scoped.\n  ///\n  /// The six owner-keyed releases that used to live here now belong to the\n  /// turn's [TurnReleaseScope]. They were reached by looking the owner back up\n  /// from the generation, which meant a turn was torn down through two\n  /// destructors keyed differently, and this one straddled both.\n  void _clearActiveResponseForGeneration(int generation)",
       "turnIdentityParameters": [
         "int generation"
       ],
@@ -13960,14 +15107,7 @@
       "calls": [
         "_syncBusyConversationIds",
         "clearGeneration",
-        "contains",
-        "discardPromptCompaction",
-        "dispose",
-        "isPaused",
-        "ownerForGeneration",
-        "remove",
-        "removeOwner",
-        "retireOwner"
+        "remove"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -14535,12 +15675,15 @@
         "GitWriteConfirmationInput",
         "Message",
         "ToolLoopExhaustionDecisionInput",
+        "TurnToolCatalogCache",
         "_appendAssistantToolPreambleIfPresent",
         "_appendRecoveredAssistantResponse",
         "_appendToLastMessageForGeneration",
         "_appendUnexecutedCommandActionNoticeIfNeeded",
         "_appendUnverifiedReadOnlyInspectionClaimNoticeIfNeeded",
+        "_applyBlockedProductionReleaseRetryToStreamedFinalAnswer",
         "_applyNarratedTranscriptRepairToStreamedFinalAnswer",
+        "_applyUnexecutedCommandActionRetryToStreamedFinalAnswer",
         "_buildDuplicateFollowUpRecoveryPrompt",
         "_buildDuplicateInspectionRecoveryPrompt",
         "_buildFinalCodingDiagnosticFeedbackToolResult",
@@ -14610,6 +15753,7 @@
         "containsOnlyPreviouslySuccessfulCommandToolCalls",
         "containsOwner",
         "definitionsForSelectedTools",
+        "detect",
         "discoveredToolNamesFromResults",
         "finishReasonFor",
         "followUpToolCall",
@@ -14629,6 +15773,7 @@
         "requestBudgetExtension",
         "requestExtension",
         "reset",
+        "resolve",
         "resolveToolLoopMaxIterations",
         "selectedDefinitionsFor",
         "setCompleted",
@@ -14671,18 +15816,25 @@
       "turnIdentityParameters": [],
       "turnScopedAccessors": [],
       "calls": [
-        "Message",
-        "appLog",
-        "buildInput",
-        "createChatCompletion",
-        "loadProfile",
-        "now",
-        "parseDraft",
-        "resolve",
-        "run",
-        "toList",
-        "trim",
-        "where"
+        "extract"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "declaration": "_finalAnswerMessagesForGeneration",
+      "signature": "List<Message> _finalAnswerMessagesForGeneration(int generation)",
+      "turnIdentityParameters": [
+        "int generation"
+      ],
+      "turnScopedAccessors": [
+        "_activeResponseMessagesForGeneration"
+      ],
+      "calls": [
+        "_activeResponseMessagesForGeneration",
+        "_isActiveResponseDetachedForGeneration"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -14732,7 +15884,6 @@
         "_finishEphemeralHiddenResponse",
         "_handleTurnOwnerSnapshotUnavailable",
         "_isActiveResponseDetachedForGeneration",
-        "_isCompletionTruncated",
         "_isCurrentInteractionGeneration",
         "_isGoalAutoContinueOwnerCurrent",
         "_llmSessionLogContextForGeneration",
@@ -14760,6 +15911,7 @@
         "copyWith",
         "drainPendingExecutions",
         "finishReasonFor",
+        "isCompletionTruncated",
         "messagesForOwner",
         "offersCommandExecution",
         "pendingExecutionCount",
@@ -14767,24 +15919,6 @@
         "remove",
         "resetContinuationCount",
         "setContinuationFallback",
-        "trim"
-      ],
-      "entrypoint": false,
-      "reachable": true,
-      "turnReachable": true
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_firstFailedCommandExitCode",
-      "signature": "int? _firstFailedCommandExitCode(List<ToolResultInfo> toolResults)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "_tryDecodeMap",
-        "exitCodeValue",
-        "isCommandExecutionTool",
-        "toLowerCase",
-        "toolResultTimedOut",
         "trim"
       ],
       "entrypoint": false,
@@ -14908,13 +16042,13 @@
       "turnScopedAccessors": [],
       "calls": [
         "_backgroundProcessJobIdsFromResults",
-        "_tryDecodeMap",
         "add",
         "every",
         "toLowerCase",
         "toString",
         "toolResultHasSuccessfulExit",
-        "trim"
+        "trim",
+        "tryDecodeMap"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -14927,7 +16061,7 @@
       "turnIdentityParameters": [],
       "turnScopedAccessors": [],
       "calls": [
-        "any"
+        "hasTimedOutCommandResult"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -15110,13 +16244,13 @@
       "turnIdentityParameters": [],
       "turnScopedAccessors": [],
       "calls": [
-        "_tryDecodeMap",
         "appLog",
         "jsonEncode",
         "map",
         "toList",
         "toString",
         "trim",
+        "tryDecodeMap",
         "where",
         "whereType"
       ],
@@ -15131,9 +16265,9 @@
       "turnIdentityParameters": [],
       "turnScopedAccessors": [],
       "calls": [
-        "_tryDecodeMap",
         "appLog",
-        "jsonEncode"
+        "jsonEncode",
+        "tryDecodeMap"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -15382,12 +16516,12 @@
       "turnIdentityParameters": [],
       "turnScopedAccessors": [],
       "calls": [
-        "_tryDecodeMap",
         "classify",
         "contains",
         "toLowerCase",
         "toolResultHasSuccessfulExit",
-        "toolResultOutputText"
+        "toolResultOutputText",
+        "tryDecodeMap"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -15406,10 +16540,12 @@
       "calls": [
         "Message",
         "StateError",
+        "_commitPendingTurnSteering",
         "_conversationForId",
         "_createSystemMessage",
         "_resolvePromptCompactionArtifact",
         "_turnOwnerSnapshotForGeneration",
+        "_turnSteeringDirectiveMessage",
         "_updateContextTokenPressureState",
         "add",
         "assessTokenPressure",
@@ -15768,18 +16904,11 @@
       "turnIdentityParameters": [
         "int? interactionGeneration"
       ],
-      "turnScopedAccessors": [
-        "_activeResponseMessagesForGeneration",
-        "_cacheActiveResponseMessagesForGeneration"
-      ],
+      "turnScopedAccessors": [],
       "calls": [
-        "_activeResponseMessagesForGeneration",
-        "_cacheActiveResponseMessagesForGeneration",
-        "_firstFailedCommandExitCode",
-        "_isActiveResponseDetachedForGeneration",
-        "copyWith",
-        "looksLikeCommandSuccessClaim",
-        "messageContentWithPrependedClaimCorrectionNotice"
+        "_applyFinalAnswerMessageMutation",
+        "_finalAnswerMessagesForGeneration",
+        "replaceFailedCommandClaim"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -15813,18 +16942,11 @@
       "turnIdentityParameters": [
         "int? interactionGeneration"
       ],
-      "turnScopedAccessors": [
-        "_activeResponseMessagesForGeneration",
-        "_cacheActiveResponseMessagesForGeneration"
-      ],
+      "turnScopedAccessors": [],
       "calls": [
-        "_activeResponseMessagesForGeneration",
-        "_cacheActiveResponseMessagesForGeneration",
-        "_hasTimedOutCommandResult",
-        "_isActiveResponseDetachedForGeneration",
-        "copyWith",
-        "looksLikeCommandSuccessClaim",
-        "messageContentWithPrependedClaimCorrectionNotice"
+        "_applyFinalAnswerMessageMutation",
+        "_finalAnswerMessagesForGeneration",
+        "replaceTimedOutCommandClaim"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -15893,15 +17015,15 @@
         "_buildTaskProposalRetryContext",
         "_buildTaskProposalTruncationFallback",
         "_finalizeTaskProposalDraft",
-        "_isCompletionTruncated",
         "_preferTaskProposalRetryCandidate",
         "_projectLooksEmptyForTaskPlanning",
-        "_proposalPreview",
         "appLog",
         "createChatCompletion",
+        "isCompletionTruncated",
         "join",
         "map",
         "parseWithFallback",
+        "proposalPreview",
         "resolve",
         "runPlanning",
         "taskProposalNeedsRetryForWorkflow"
@@ -15921,13 +17043,14 @@
       "calls": [
         "_buildWorkflowProposalFallback",
         "_collectWorkflowDecisionAnswers",
-        "_filterUnansweredWorkflowDecisions",
-        "_mergeWorkflowDecisionAnswers",
-        "_promoteOpenQuestionsToPlanningPrompts",
-        "_removeAnsweredOpenQuestions",
         "_requestWorkflowProposalAttempt",
+        "_routeThreadState",
         "appLog",
-        "copyWith"
+        "copyWith",
+        "filterUnansweredWorkflowDecisions",
+        "mergeWorkflowDecisionAnswers",
+        "promoteOpenQuestionsToPlanningPrompts",
+        "removeAnsweredOpenQuestions"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -15947,12 +17070,12 @@
         "_buildWorkflowProposalMessages",
         "_buildWorkflowProposalRetryContext",
         "_buildWorkflowProposalTruncationFallback",
-        "_isCompletionTruncated",
         "_projectLooksEmptyForTaskPlanning",
-        "_proposalPreview",
         "appLog",
         "createChatCompletion",
+        "isCompletionTruncated",
         "parseWithFallback",
+        "proposalPreview",
         "resolve",
         "runPlanning"
       ],
@@ -16149,14 +17272,15 @@
     {
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_runWithLlmSessionLogContextForGeneration",
-      "signature": "T _runWithLlmSessionLogContextForGeneration<T>(\n    int generation,\n    T Function() body,\n  )",
+      "signature": "T _runWithLlmSessionLogContextForGeneration<T>(\n    int generation,\n    T Function() body, {\n    String? requestLabel,\n  })",
       "turnIdentityParameters": [
         "int generation"
       ],
       "turnScopedAccessors": [],
       "calls": [
         "_llmSessionLogContextForGeneration",
-        "run"
+        "run",
+        "withRequestLabel"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -16311,18 +17435,23 @@
         "_recordHiddenEvidence",
         "_recoverContentToolArtifactsBeforeNoToolFinalization",
         "_removeAssistantStreamDeltaForGeneration",
+        "_requestBlockedProductionReleaseRetry",
         "_requestCodingContinuationRecovery",
+        "_requestUnexecutedCommandActionRetry",
         "_resetStreamingAssistantForRetry",
+        "_restartTurnForSteeringFromToolLoop",
         "_retryAfterContextLengthError",
         "_runWithLlmSessionLogContextForGeneration",
         "_sendWithEmbeddedToolTagFallback",
         "_sendWithTools",
         "_sendWithoutTools",
         "_shouldFallbackFoundationModelsToolBridgeAfterContextError",
+        "_steeringRestartWanted",
         "_stripToolArtifactsFromLastAssistantMessage",
         "_toolDefinitionsAllowedBy",
         "_truncationCasualties",
         "_turnOwnerSnapshotForGeneration",
+        "all",
         "appLog",
         "beginChatFileTurnCheckpoint",
         "browserToolNamesFromDefinitions",
@@ -16332,6 +17461,7 @@
         "captureResult",
         "completed",
         "contains",
+        "detect",
         "endFileTurnCheckpoint",
         "isNativeToolStreamFormatError",
         "map",
@@ -16345,7 +17475,8 @@
         "toLowerCase",
         "toSet",
         "toString",
-        "toolNamesFromDefinitions"
+        "toolNamesFromDefinitions",
+        "trim"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -16389,7 +17520,7 @@
       "calls": [],
       "entrypoint": false,
       "reachable": true,
-      "turnReachable": false
+      "turnReachable": true
     },
     {
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
@@ -16897,7 +18028,7 @@
         "_prewarmProjectAccess",
         "_updateConnectionSettings",
         "_withChatSessionLogging",
-        "cancel",
+        "cancelAll",
         "clear",
         "clearAll",
         "connect",
@@ -17060,7 +18191,7 @@
       "turnScopedAccessors": [],
       "calls": [
         "_buildWorkflowProposalFallback",
-        "_filterUnansweredWorkflowDecisions"
+        "filterUnansweredWorkflowDecisions"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -17107,23 +18238,12 @@
         "_clearTurnDiffCapture",
         "_dismissAllPendingAskUserQuestions",
         "_failAllRuntimeTurns",
-        "cancel",
+        "cancelAll",
         "clear",
         "clearAll",
         "initial",
         "resetConversation"
       ],
-      "entrypoint": false,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "conversationId",
-      "signature": "String? get conversationId",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [],
       "entrypoint": false,
       "reachable": true,
       "turnReachable": false
@@ -17137,6 +18257,17 @@
       "calls": [
         "updateVisibleConversation"
       ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "declaration": "conversationId",
+      "signature": "String? get conversationId",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [],
       "entrypoint": false,
       "reachable": true,
       "turnReachable": false
@@ -17254,6 +18385,7 @@
       "calls": [
         "_buildPlanningResearchContext",
         "_requestTaskProposal",
+        "_routeThreadState",
         "copyWith",
         "read",
         "toString"
@@ -17271,6 +18403,7 @@
       "calls": [
         "_buildPlanningResearchContext",
         "_requestWorkflowProposal",
+        "_routeThreadState",
         "copyWith",
         "read",
         "toString"
@@ -17364,7 +18497,7 @@
       "turnIdentityParameters": [],
       "turnScopedAccessors": [],
       "calls": [
-        "_promoteOpenQuestionsToPlanningPrompts"
+        "promoteOpenQuestionsToPlanningPrompts"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -17377,6 +18510,7 @@
       "turnIdentityParameters": [],
       "turnScopedAccessors": [],
       "calls": [
+        "_removePendingTurnSteering",
         "_syncQueuedChatMessagesState",
         "appLog",
         "remove"
@@ -17474,14 +18608,17 @@
     {
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "sendMessage",
-      "signature": "Future<ChatTurnOwner?> sendMessage(\n    String content, {\n    String? imageBase64,\n    String? imageMimeType,\n    String? originalImagePath,\n    String? originalImageMimeType,\n    String languageCode = 'en',\n    bool isVoiceMode = false,\n    bool bypassPlanMode = false,\n    ChatInteractionOrigin origin = ChatInteractionOrigin.local,\n  })",
+      "signature": "Future<ChatTurnOwner?> sendMessage(\n    String content, {\n    String? imageBase64,\n    String? imageMimeType,\n    String? originalImagePath,\n    String? originalImageMimeType,\n    String languageCode = 'en',\n    bool isVoiceMode = false,\n    bool bypassPlanMode = false,\n    ChatInteractionOrigin origin = ChatInteractionOrigin.local,\n    // Join the running turn instead of waiting behind it. Ignored when the\n    // thread is idle, when something is already queued for it, or when the\n    // message carries what steering cannot (see [_isSteerableMessage]); all\n    // three fall back to the queue rather than dropping the message.\n    bool interrupt = false,\n  })",
       "turnIdentityParameters": [],
       "turnScopedAccessors": [],
       "calls": [
         "QueuedChatMessage",
         "_dismissPendingAskUserQuestionForConversation",
         "_drainQueuedChatMessagesForThreadIfIdle",
+        "_isSteerableMessage",
+        "_registerTurnSteering",
         "_sendMessageNow",
+        "_steerableTurnOwner",
         "_syncQueuedChatMessagesState",
         "add",
         "appLog",
@@ -17542,9 +18679,10 @@
         "_refreshContextTokenPressureFromState",
         "applyTo",
         "awaitingApproval",
-        "cancel",
+        "cancelAll",
         "forThread",
         "listEquals",
+        "pendingForConversation",
         "remember",
         "take",
         "unawaited",
@@ -18435,7 +19573,7 @@
         "_failRuntimeTurn",
         "_setCancellationState",
         "_turnOwnerForGeneration",
-        "cancel",
+        "cancelAll",
         "clear",
         "copyWith",
         "enqueueCancelledTurn",
@@ -18446,6 +19584,268 @@
       "entrypoint": true,
       "reachable": true,
       "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_claimSteeringRestart",
+      "signature": "bool _claimSteeringRestart(ChatTurnOwner owner)",
+      "turnIdentityParameters": [
+        "ChatTurnOwner owner"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_isCurrentInteractionGeneration",
+        "appLog",
+        "containsOwner",
+        "tryClaimRestart"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_commitPendingTurnSteering",
+      "signature": "/// Moves interruptions that arrived since the last request into the turn's\n  /// history, so the request now being built carries them as ordinary user\n  /// turns.\n  ///\n  /// Called at the top of [_prepareMessagesForLLM], before the owner snapshot\n  /// is read, because committing is what puts the message where that read will\n  /// find it. Retries rebuild from a history that already contains the\n  /// message, so they carry it without claiming anything twice.\n  void _commitPendingTurnSteering(int interactionGeneration)",
+      "turnIdentityParameters": [
+        "int interactionGeneration"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_setCancellationState",
+        "_syncTurnSteeringState",
+        "_turnOwnerForGeneration",
+        "appLog",
+        "cacheMessagesForOwner",
+        "claimPending",
+        "copyWith",
+        "insertAll",
+        "insertIndex",
+        "messagesForOwner",
+        "pendingCount",
+        "steeringMessage"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_isSteerableMessage",
+      "signature": "bool _isSteerableMessage(QueuedChatMessage message)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "canSteer"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_registerTurnSteering",
+      "signature": "/// Files [message] against the running [owner] and reports the turn it\n  /// joined.\n  ChatTurnOwner _registerTurnSteering(\n    ChatTurnOwner owner,\n    QueuedChatMessage message,\n  )",
+      "turnIdentityParameters": [
+        "ChatTurnOwner owner"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "TurnSteeringEntry",
+        "_restartTurnForSteering",
+        "_syncTurnSteeringState",
+        "add",
+        "appLog",
+        "isStreaming",
+        "now",
+        "pendingCount",
+        "unawaited"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_reissueTurnForSteering",
+      "signature": "Future<void> _reissueTurnForSteering(ChatTurnOwner owner)",
+      "turnIdentityParameters": [
+        "ChatTurnOwner owner"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "Message",
+        "_sendWithTools",
+        "_sendWithoutTools",
+        "_setCancellationState",
+        "_turnDeniedTools",
+        "appLog",
+        "cacheMessagesForOwner",
+        "copyWith",
+        "hasVisibleContent",
+        "messagesForOwner",
+        "now",
+        "removeAt",
+        "restartCount",
+        "v4"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_removePendingTurnSteering",
+      "signature": "/// Withdraws a pending interruption the user removed from the strip.\n  ///\n  /// Only pending ones: once a request carried it, it is a user turn in the\n  /// transcript and the model has seen it, so there is nothing to take back.\n  bool _removePendingTurnSteering(String id)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_syncTurnSteeringState",
+        "appLog",
+        "removePendingAnywhere"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_restartTurnForSteering",
+      "signature": "/// Abandons the stream this turn is consuming so it can take the\n  /// interruption, without ending the turn.\n  ///\n  /// The generation still does not advance. What changes is that the turn stops\n  /// waiting for a request boundary that is not coming and makes one, keeping\n  /// its owner, tool results and everything already streamed.\n  ///\n  /// Cancelling the subscription means `onDone` never fires, so the\n  /// finalization it would have triggered has to move here with it -- the\n  /// re-issued stream below owns it instead. Dropping that is how a thread ends\n  /// up stranded under a spinner.\n  Future<void> _restartTurnForSteering(ChatTurnOwner owner)",
+      "turnIdentityParameters": [
+        "ChatTurnOwner owner"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_claimSteeringRestart",
+        "_reissueTurnForSteering",
+        "cancel",
+        "release",
+        "subscriptionFor",
+        "unawaited"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_restartTurnForSteeringFromToolLoop",
+      "signature": "/// The tool-aware loop's entry point, called after it has already broken out\n  /// of its `await for` -- which cancels the underlying stream on its own.\n  Future<void> _restartTurnForSteeringFromToolLoop(ChatTurnOwner owner)",
+      "turnIdentityParameters": [
+        "ChatTurnOwner owner"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_claimSteeringRestart",
+        "_reissueTurnForSteering"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_returnUncarriedTurnSteering",
+      "signature": "/// Retires [owner] and hands back whatever never reached the model.\n  ///\n  /// Registered as a turn release, so it runs on every way out of a turn --\n  /// completion, failure and cancellation alike -- ahead of the queue drain\n  /// that follows finalization.\n  void _returnUncarriedTurnSteering(ChatTurnOwner owner)",
+      "turnIdentityParameters": [
+        "ChatTurnOwner owner"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_syncQueuedChatMessagesState",
+        "_syncTurnSteeringState",
+        "appLog",
+        "dispose",
+        "restoreFirstForThread",
+        "unawaited"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_steerableTurnOwner",
+      "signature": "/// The turn a message typed in [targetConversationId] would join, if any.\n  ChatTurnOwner? _steerableTurnOwner(String? targetConversationId)",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_activeResponseGenerationForConversation",
+        "_turnOwnerForGeneration",
+        "contains",
+        "containsOwner"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": false
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_steeringRestartWanted",
+      "signature": "/// Whether the tool-aware loop should leave the stream it is reading.\n  ///\n  /// That loop consumes its stream with `await for` and holds no subscription,\n  /// so it cannot be interrupted from outside: it has to check and break. This\n  /// is the path a turn takes when the model answers without calling a tool,\n  /// which is the ordinary chat reply and therefore the one users interrupt.\n  bool _steeringRestartWanted(ChatTurnOwner owner)",
+      "turnIdentityParameters": [
+        "ChatTurnOwner owner"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_isCurrentInteractionGeneration",
+        "containsOwner",
+        "pendingCount",
+        "restartCount"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_syncTurnSteeringState",
+      "signature": "void _syncTurnSteeringState()",
+      "turnIdentityParameters": [],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_setCancellationState",
+        "copyWith",
+        "listEquals",
+        "pendingForConversation"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_turnDeniedTools",
+      "signature": "/// Whether this turn went out with no tools at all.\n  ///\n  /// An empty allowed set is what the tool-free send path records; null means\n  /// the full catalog, which is the tool-aware turn.\n  bool _turnDeniedTools(ChatTurnOwner owner)",
+      "turnIdentityParameters": [
+        "ChatTurnOwner owner"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "snapshotForOwner"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_cancellation.dart",
+      "declaration": "_turnSteeringDirectiveMessage",
+      "signature": "/// The directive that tells the model those user turns are an interruption.\n  ///\n  /// Derived from the carried count rather than consumed, so it stays in place\n  /// for the rest of the turn instead of only for the request that first\n  /// carried the message.\n  Message? _turnSteeringDirectiveMessage(ChatTurnOwner owner)",
+      "turnIdentityParameters": [
+        "ChatTurnOwner owner"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "Message",
+        "carriedCount",
+        "directive",
+        "now"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
     },
     {
       "path": "lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart",
@@ -18697,9 +20097,11 @@
       "turnScopedAccessors": [],
       "calls": [
         "McpToolResult",
+        "PendingBlockedRelease",
         "_isProductionReleaseCommandToolCall",
         "clipForDiagnostic",
         "jsonEncode",
+        "remove",
         "toolCommandArgument",
         "trim"
       ],
@@ -18994,10 +20396,10 @@
       "calls": [
         "McpToolResult",
         "_redactComputerUseActionResult",
-        "_tryDecodeMap",
         "jsonEncode",
         "remove",
-        "toJson"
+        "toJson",
+        "tryDecodeMap"
       ],
       "entrypoint": true,
       "reachable": true,
@@ -19392,12 +20794,17 @@
         "TurnReleaseScope",
         "_cancelPendingToolApprovalsForOwner",
         "_clearSshOwner",
+        "_returnUncarriedTurnSteering",
         "clear",
         "clearBackgroundProcessOwner",
         "clearOwner",
+        "contains",
+        "discardPromptCompaction",
         "dispose",
+        "isPaused",
         "publish",
         "register",
+        "removeOwner",
         "retireOwner",
         "unawaited"
       ],
@@ -19463,10 +20870,10 @@
         "_failRuntimeTurn",
         "_isCurrentInteractionGeneration",
         "_registerTurnReleases",
+        "_releaseTurnScope",
         "_routeRuntimeStartFailure",
         "begin",
         "clearAssistantContent",
-        "dispose",
         "fail",
         "startTurn"
       ],
@@ -19642,11 +21049,11 @@
       "turnIdentityParameters": [],
       "turnScopedAccessors": [],
       "calls": [
-        "_tryDecodeMap",
         "contains",
         "toLowerCase",
         "toString",
-        "trim"
+        "trim",
+        "tryDecodeMap"
       ],
       "entrypoint": true,
       "reachable": true,
@@ -19714,11 +21121,11 @@
       "turnScopedAccessors": [],
       "calls": [
         "_normalizeToolCommandForComparison",
-        "_tryDecodeMap",
         "startsWith",
         "substring",
         "toolCommandArgument",
-        "trim"
+        "trim",
+        "tryDecodeMap"
       ],
       "entrypoint": true,
       "reachable": true,
@@ -21452,657 +22859,6 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_buildAlternativeChoiceDecisionFromOpenQuestion",
-      "signature": "WorkflowPlanningDecision? _buildAlternativeChoiceDecisionFromOpenQuestion(\n    String question,\n  )",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "buildAlternativeChoiceDecisionFromOpenQuestion"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_buildOrderedChoiceDecisionFromOpenQuestion",
-      "signature": "WorkflowPlanningDecision? _buildOrderedChoiceDecisionFromOpenQuestion(\n    String question,\n  )",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "buildOrderedChoiceDecisionFromOpenQuestion"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_buildYesNoDecisionFromOpenQuestion",
-      "signature": "WorkflowPlanningDecision? _buildYesNoDecisionFromOpenQuestion(\n    String question,\n  )",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "buildYesNoDecisionFromOpenQuestion"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_cleanDecisionOptionLabel",
-      "signature": "String _cleanDecisionOptionLabel(String value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "cleanDecisionOptionLabel"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_containsJapaneseText",
-      "signature": "bool _containsJapaneseText(String value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "containsJapaneseText"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_decisionOptionId",
-      "signature": "String _decisionOptionId(String label)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "decisionOptionId"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_extractEnglishAlternativeOptions",
-      "signature": "List<String> _extractEnglishAlternativeOptions(String question)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "extractEnglishAlternativeOptions"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_extractEnglishOrderedOptions",
-      "signature": "List<String> _extractEnglishOrderedOptions(String question)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "extractEnglishOrderedOptions"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_extractJapaneseAlternativeOptions",
-      "signature": "List<String> _extractJapaneseAlternativeOptions(String question)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "extractJapaneseAlternativeOptions"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_extractJapaneseOrderedOptions",
-      "signature": "List<String> _extractJapaneseOrderedOptions(String question)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "extractJapaneseOrderedOptions"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_filterUnansweredWorkflowDecisions",
-      "signature": "List<WorkflowPlanningDecision> _filterUnansweredWorkflowDecisions(\n    List<WorkflowPlanningDecision> decisions, {\n    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,\n  })",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "filterUnansweredWorkflowDecisions"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": true
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_looksLikeYesNoOpenQuestion",
-      "signature": "bool _looksLikeYesNoOpenQuestion(String question)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "looksLikeYesNoOpenQuestion"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_mergeWorkflowDecisionAnswers",
-      "signature": "void _mergeWorkflowDecisionAnswers(\n    List<WorkflowPlanningDecisionAnswer> current,\n    List<WorkflowPlanningDecisionAnswer> updates,\n  )",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "mergeWorkflowDecisionAnswers"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": true
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_normalizeWorkflowDecisionText",
-      "signature": "String _normalizeWorkflowDecisionText(String value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "normalizeWorkflowDecisionText"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_promoteChoiceLikeOpenQuestions",
-      "signature": "List<WorkflowPlanningDecision> _promoteChoiceLikeOpenQuestions(\n    List<String> openQuestions, {\n    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,\n  })",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "promoteChoiceLikeOpenQuestions"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_promoteOpenQuestionsToPlanningPrompts",
-      "signature": "List<WorkflowPlanningDecision> _promoteOpenQuestionsToPlanningPrompts(\n    List<String> openQuestions, {\n    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,\n  })",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "promoteOpenQuestionsToPlanningPrompts"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": true
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_removeAnsweredOpenQuestions",
-      "signature": "WorkflowProposalDraft _removeAnsweredOpenQuestions(\n    WorkflowProposalDraft proposal,\n    List<WorkflowPlanningDecisionAnswer> decisionAnswers,\n  )",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "removeAnsweredOpenQuestions"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": true
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_splitEnglishChoiceList",
-      "signature": "List<String> _splitEnglishChoiceList(String value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "splitEnglishChoiceList"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_splitJapaneseChoiceList",
-      "signature": "List<String> _splitJapaneseChoiceList(String value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "splitJapaneseChoiceList"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_stripChoiceSuffix",
-      "signature": "String _stripChoiceSuffix(String value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "stripChoiceSuffix"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_stripEnglishChoicePrefix",
-      "signature": "String _stripEnglishChoicePrefix(String value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "stripEnglishChoicePrefix"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_option_extraction.dart",
-      "declaration": "_stripJapaneseChoicePrefix",
-      "signature": "String _stripJapaneseChoicePrefix(String value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "stripJapaneseChoicePrefix"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_appendTextValue",
-      "signature": "String _appendTextValue(String current, String next)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "appendTextValue"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_asCleanString",
-      "signature": "String _asCleanString(Object? value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "asCleanString"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_asStringList",
-      "signature": "List<String> _asStringList(Object? value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "asStringList"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_collectProposalSections",
-      "signature": "Map<String, List<String>> _collectProposalSections(String rawContent)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "collectProposalSections"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_extractInlineTaskPlanCandidate",
-      "signature": "String _extractInlineTaskPlanCandidate(String rawContent)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "extractInlineTaskPlanCandidate"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_extractLooseJsonScalar",
-      "signature": "String? _extractLooseJsonScalar(\n    String rawContent, {\n    required List<String> keys,\n  })",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "extractLooseJsonScalar"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_extractLooseJsonStringList",
-      "signature": "List<String> _extractLooseJsonStringList(\n    String rawContent, {\n    required List<String> keys,\n  })",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "extractLooseJsonStringList"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_extractPlainTextForProposal",
-      "signature": "String _extractPlainTextForProposal(String content)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "extractPlainTextForProposal"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_extractProposalReasoningContent",
-      "signature": "String _extractProposalReasoningContent(String rawContent)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "extractProposalReasoningContent"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_extractStructuredTaskProposalReasoning",
-      "signature": "String _extractStructuredTaskProposalReasoning(String rawContent)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "extractStructuredTaskProposalReasoning"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_extractStructuredWorkflowProposalReasoning",
-      "signature": "String _extractStructuredWorkflowProposalReasoning(String rawContent)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "extractStructuredWorkflowProposalReasoning"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_inferWorkflowStageFromLooseProposalContent",
-      "signature": "ConversationWorkflowStage _inferWorkflowStageFromLooseProposalContent(\n    String rawContent,\n  )",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "inferWorkflowStageFromLooseProposalContent"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_inferWorkflowStageFromSectionKeys",
-      "signature": "ConversationWorkflowStage? _inferWorkflowStageFromSectionKeys(\n    Map<String, List<String>> sections,\n  )",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "inferWorkflowStageFromSectionKeys"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_isCompletionTruncated",
-      "signature": "bool _isCompletionTruncated(String finishReason)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "isCompletionTruncated"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": true
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_isWorkflowListSection",
-      "signature": "bool _isWorkflowListSection(String section)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "isWorkflowListSection"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_looksLikeStructuredReasoningListItem",
-      "signature": "bool _looksLikeStructuredReasoningListItem(String line)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "looksLikeStructuredReasoningListItem"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_matchTaskFieldLine",
-      "signature": "(String, String)? _matchTaskFieldLine(String line)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "matchTaskFieldLine"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_matchTaskTitleLine",
-      "signature": "String? _matchTaskTitleLine(String line, {String? currentField})",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "matchTaskTitleLine"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_matchWorkflowSectionLine",
-      "signature": "(String, String)? _matchWorkflowSectionLine(String line)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "matchWorkflowSectionLine"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_normalizeProposalContent",
-      "signature": "String _normalizeProposalContent(String rawContent)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "normalizeProposalContent"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_proposalJsonExtractor",
-      "signature": "ProposalJsonExtractor get _proposalJsonExtractor",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "ProposalJsonExtractor",
-        "_planningJsonRepairFeedbackBinding"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_proposalPreview",
-      "signature": "String _proposalPreview(String rawContent)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "proposalPreview"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": true
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_sanitizeInlineReasoningTaskTitle",
-      "signature": "String _sanitizeInlineReasoningTaskTitle(String rawValue)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "sanitizeInlineReasoningTaskTitle"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_sanitizeReasoningProposalValue",
-      "signature": "String _sanitizeReasoningProposalValue(\n    String value, {\n    bool preferSingleSentence = false,\n  })",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "sanitizeReasoningProposalValue"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_stripMarkdownListMarker",
-      "signature": "String _stripMarkdownListMarker(String value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "stripMarkdownListMarker"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_taskFieldDisplayLabel",
-      "signature": "String _taskFieldDisplayLabel(String field)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "taskFieldDisplayLabel"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_tryDecodeMap",
-      "signature": "Map<String, dynamic>? _tryDecodeMap(String value)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "tryDecodeMap"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
-      "path": "lib/features/chat/presentation/providers/chat_notifier_proposal_parsing.dart",
-      "declaration": "_workflowSectionDisplayLabel",
-      "signature": "String _workflowSectionDisplayLabel(String section)",
-      "turnIdentityParameters": [],
-      "turnScopedAccessors": [],
-      "calls": [
-        "workflowSectionDisplayLabel"
-      ],
-      "entrypoint": true,
-      "reachable": true,
-      "turnReachable": false
-    },
-    {
       "path": "lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart",
       "declaration": "_pythonAttachmentRepairInput",
       "signature": "PythonAttachmentRepairInput? _pythonAttachmentRepairInput({\n    required String candidateResponse,\n    required List<ToolResultInfo> toolResults,\n    required List<Map<String, dynamic>> tools,\n    required int interactionGeneration,\n  })",
@@ -22231,7 +22987,6 @@
         "_finalizeGoalTurn",
         "_finishEphemeralHiddenResponse",
         "_handleTurnOwnerSnapshotUnavailable",
-        "_isCompletionTruncated",
         "_isCurrentInteractionGeneration",
         "_llmSessionLogContextForGeneration",
         "_logTurnExitReason",
@@ -22245,6 +23000,7 @@
         "containsOwner",
         "copyWith",
         "finishReasonFor",
+        "isCompletionTruncated",
         "persistMessages",
         "remove",
         "resetContinuationCount",
@@ -23558,6 +24314,7 @@
         "buildStaleGuardResult",
         "cancelled",
         "classify",
+        "compareToolOutcomeExitCode",
         "completed",
         "contains",
         "evaluate",
@@ -23572,6 +24329,7 @@
         "now",
         "observeSuccessfulResult",
         "ownerMutationGeneration",
+        "parseExitCodeFromPayload",
         "read",
         "record",
         "recordEvent",
@@ -23655,8 +24413,8 @@
       "turnIdentityParameters": [],
       "turnScopedAccessors": [],
       "calls": [
-        "_isCompletionTruncated",
-        "casualtyToolCallIds"
+        "casualtyToolCallIds",
+        "isCompletionTruncated"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -24025,8 +24783,24 @@
     },
     {
       "path": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart",
-      "declaration": "_applyNarratedTranscriptRepairToStreamedFinalAnswer",
-      "signature": "/// Applies the narrated-transcript repair to a streamed final answer.\n  /// Returns true when the caller must stop: the repair re-entered the tool\n  /// loop with follow-up calls, or the generation was cancelled mid-repair.\n  Future<bool> _applyNarratedTranscriptRepairToStreamedFinalAnswer({\n    required String streamedFinalAnswer,\n    required List<ToolResultInfo> executedToolResults,\n    required List<ToolResultInfo> batchToolResults,\n    required Set<String> attemptedSignatures,\n    required List<Map<String, dynamic>> tools,\n    required bool toolSearchEnabled,\n    required Set<String> activeToolNames,\n    required List<Map<String, dynamic>>? stableToolDefinitions,\n    required Map<String, int> verificationFailureCounts,\n    required int interactionGeneration,\n    required void Function() onBlockingFeedbackPrepared,\n  })",
+      "declaration": "_applyBlockedProductionReleaseRetryToStreamedFinalAnswer",
+      "signature": "/// Applies the blocked-release retry to a streamed final answer. Returns true\n  /// when the caller must stop: the retry re-entered the tool loop, or the\n  /// generation was cancelled mid-retry.\n  Future<bool> _applyBlockedProductionReleaseRetryToStreamedFinalAnswer({\n    required String streamedFinalAnswer,\n    required List<ToolResultInfo> executedToolResults,\n    required List<ToolResultInfo> batchToolResults,\n    required List<Map<String, dynamic>> tools,\n    required bool toolSearchEnabled,\n    required Set<String> activeToolNames,\n    required List<Map<String, dynamic>>? stableToolDefinitions,\n    required Map<String, int> verificationFailureCounts,\n    required Set<String> transcriptRepairSignatures,\n    required int interactionGeneration,\n    required void Function() onBlockingFeedbackPrepared,\n  })",
+      "turnIdentityParameters": [
+        "required int interactionGeneration"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_applyFinalAnswerRecoveryResult",
+        "_requestBlockedProductionReleaseRetry"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart",
+      "declaration": "_applyFinalAnswerRecoveryResult",
+      "signature": "Future<bool> _applyFinalAnswerRecoveryResult({\n    required Future<ChatCompletionResult?> result,\n    required String streamedFinalAnswer,\n    required String toolCallLogMessage,\n    required List<Map<String, dynamic>> tools,\n    required bool toolSearchEnabled,\n    required Set<String> activeToolNames,\n    required List<Map<String, dynamic>>? stableToolDefinitions,\n    required Map<String, int> verificationFailureCounts,\n    required Set<String> transcriptRepairSignatures,\n    required int interactionGeneration,\n  })",
       "turnIdentityParameters": [
         "required int interactionGeneration"
       ],
@@ -24035,11 +24809,94 @@
         "_appendRecoveredAssistantResponse",
         "_executeToolCalls",
         "_isCurrentInteractionGeneration",
-        "_requestNarratedTranscriptRepairForCompletionClaim",
         "appLog",
         "trim"
       ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart",
+      "declaration": "_applyNarratedTranscriptRepairToStreamedFinalAnswer",
+      "signature": "/// Applies the narrated-transcript repair to a streamed final answer.\n  /// Returns true when the caller must stop: the repair re-entered the tool\n  /// loop with follow-up calls, or the generation was cancelled mid-repair.\n  Future<bool> _applyNarratedTranscriptRepairToStreamedFinalAnswer({\n    required String streamedFinalAnswer,\n    required List<ToolResultInfo> executedToolResults,\n    required List<ToolResultInfo> batchToolResults,\n    required Set<String> attemptedSignatures,\n    required List<Map<String, dynamic>> tools,\n    required bool toolSearchEnabled,\n    required Set<String> activeToolNames,\n    required List<Map<String, dynamic>>? stableToolDefinitions,\n    required Map<String, int> verificationFailureCounts,\n    required int interactionGeneration,\n    required void Function() onBlockingFeedbackPrepared,\n  })",
+      "turnIdentityParameters": [
+        "required int interactionGeneration"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_applyFinalAnswerRecoveryResult",
+        "_requestNarratedTranscriptRepairForCompletionClaim"
+      ],
       "entrypoint": true,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart",
+      "declaration": "_applyUnexecutedCommandActionRetryToStreamedFinalAnswer",
+      "signature": "/// Applies the unexecuted-command retry to a streamed final answer. Returns\n  /// true when the caller must stop.\n  Future<bool> _applyUnexecutedCommandActionRetryToStreamedFinalAnswer({\n    required String streamedFinalAnswer,\n    required List<ToolResultInfo> executedToolResults,\n    required List<ToolResultInfo> batchToolResults,\n    required Set<String>? allowedToolNames,\n    required List<Map<String, dynamic>> tools,\n    required bool toolSearchEnabled,\n    required Set<String> activeToolNames,\n    required List<Map<String, dynamic>>? stableToolDefinitions,\n    required Map<String, int> verificationFailureCounts,\n    required Set<String> transcriptRepairSignatures,\n    required int interactionGeneration,\n    required void Function() onBlockingFeedbackPrepared,\n  })",
+      "turnIdentityParameters": [
+        "required int interactionGeneration"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_applyFinalAnswerRecoveryResult",
+        "_requestUnexecutedCommandActionRetry"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart",
+      "declaration": "_requestBlockedProductionReleaseRetry",
+      "signature": "/// Revives the tool loop when this turn blocked a production release for\n  /// missing approval, the user granted it, and the turn is ending without the\n  /// command ever being re-issued.\n  ///\n  /// Unlike the transcript repair below, nothing here reads the answer text:\n  /// the trigger is the guard's own structured block payload, the ledger of\n  /// commands this owner executed, and the release-approval evidence. An\n  /// assistant that says nothing and one that says \"release started\" are\n  /// treated identically, because neither ran anything.\n  Future<ChatCompletionResult?> _requestBlockedProductionReleaseRetry({\n    required String candidateResponse,\n    required List<ToolResultInfo> executedToolResults,\n    required List<ToolResultInfo> batchToolResults,\n    required List<Map<String, dynamic>> tools,\n    required int interactionGeneration,\n    void Function()? onBlockingFeedbackPrepared,\n  })",
+      "turnIdentityParameters": [
+        "required int interactionGeneration"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "BlockedProductionReleaseRetryInput",
+        "_isCurrentInteractionGeneration",
+        "_releaseEvidenceFor",
+        "_requestFinalAnswerRecoveryCompletion",
+        "_turnOwnerForGeneration",
+        "add",
+        "appLog",
+        "blockedReleaseFromToolResults",
+        "commands",
+        "evaluate",
+        "now",
+        "remove"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart",
+      "declaration": "_requestFinalAnswerRecoveryCompletion",
+      "signature": "Future<ChatCompletionResult?> _requestFinalAnswerRecoveryCompletion({\n    required ChatTurnOwner owner,\n    required ToolResultInfo feedback,\n    required String transformId,\n    required String logLabel,\n    required String logMessage,\n    required String candidateResponse,\n    required List<ToolResultInfo> executedToolResults,\n    required List<ToolResultInfo> batchToolResults,\n    required List<Map<String, dynamic>> tools,\n    required int interactionGeneration,\n    void Function()? onBlockingFeedbackPrepared,\n  })",
+      "turnIdentityParameters": [
+        "required ChatTurnOwner owner",
+        "required int interactionGeneration"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_appendToLastMessageForGeneration",
+        "_createToolResultCompletionWithContextRetry",
+        "_isCurrentInteractionGeneration",
+        "_prepareMessagesForLLM",
+        "_removeTrailingThinkTagForGeneration",
+        "_turnOwnerForGeneration",
+        "add",
+        "addTransform",
+        "appLog",
+        "call",
+        "persistIfLarge"
+      ],
+      "entrypoint": false,
       "reachable": true,
       "turnReachable": true
     },
@@ -24053,24 +24910,43 @@
       "turnScopedAccessors": [],
       "calls": [
         "NarratedTranscriptRepairInput",
-        "_appendToLastMessageForGeneration",
         "_codingVerificationEnabledFor",
-        "_createToolResultCompletionWithContextRetry",
         "_isCurrentInteractionGeneration",
-        "_prepareMessagesForLLM",
-        "_removeTrailingThinkTagForGeneration",
+        "_requestFinalAnswerRecoveryCompletion",
         "_turnOwnerForGeneration",
         "_turnOwnerSnapshotForGeneration",
         "add",
-        "addTransform",
         "appLog",
-        "call",
         "commands",
         "evaluate",
-        "now",
-        "persistIfLarge"
+        "now"
       ],
       "entrypoint": true,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart",
+      "declaration": "_requestUnexecutedCommandActionRetry",
+      "signature": "/// Revives the tool loop when the answer describes a command run that no\n  /// tool result backs, instead of only stamping the answer unverified.\n  ///\n  /// Measured before this existed: 25 of 130 turn exits in the corpus carried\n  /// the unverified notice and none of them had a recovery attempt in the same\n  /// turn, because the older recovery is gated on the user typing \"continue\"\n  /// or 続けて. Real replies never say that.\n  Future<ChatCompletionResult?> _requestUnexecutedCommandActionRetry({\n    required String candidateResponse,\n    required List<ToolResultInfo> executedToolResults,\n    required List<ToolResultInfo> batchToolResults,\n    required Set<String>? allowedToolNames,\n    required List<Map<String, dynamic>> tools,\n    required int interactionGeneration,\n    void Function()? onBlockingFeedbackPrepared,\n  })",
+      "turnIdentityParameters": [
+        "required int interactionGeneration"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "UnexecutedCommandActionRetryInput",
+        "_isCurrentInteractionGeneration",
+        "_requestFinalAnswerRecoveryCompletion",
+        "_turnOwnerForGeneration",
+        "add",
+        "detect",
+        "evaluate",
+        "hasSuccessfulCommandExecutionResult",
+        "now",
+        "offersCommandExecution",
+        "ownerKey"
+      ],
+      "entrypoint": false,
       "reachable": true,
       "turnReachable": true
     },
@@ -24268,7 +25144,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_appendRecoveredAssistantResponse",
       "kind": "state.messages",
-      "line": 3235,
+      "line": 3327,
       "column": 61,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24279,7 +25155,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_appendToLastMessageForGeneration",
       "kind": "state.messages",
-      "line": 6791,
+      "line": 7111,
       "column": 25,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24290,51 +25166,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_appendToLastMessageForGeneration",
       "kind": "state.messages",
-      "line": 6793,
-      "column": 33,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_appendUnexecutedFileSideEffectNoticeIfNeeded::state.messages#1",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_appendUnexecutedFileSideEffectNoticeIfNeeded",
-      "kind": "state.messages",
-      "line": 7992,
-      "column": 25,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_appendUnexecutedFileSideEffectNoticeIfNeeded::state.messages#2",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_appendUnexecutedFileSideEffectNoticeIfNeeded",
-      "kind": "state.messages",
-      "line": 7994,
-      "column": 33,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_appendUnexecutedToolRequestNoticeIfNeeded::state.messages#1",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_appendUnexecutedToolRequestNoticeIfNeeded",
-      "kind": "state.messages",
-      "line": 7933,
-      "column": 25,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_appendUnexecutedToolRequestNoticeIfNeeded::state.messages#2",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_appendUnexecutedToolRequestNoticeIfNeeded",
-      "kind": "state.messages",
-      "line": 7935,
+      "line": 7113,
       "column": 33,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24345,7 +25177,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_assistantRequestTemperature",
       "kind": "currentConversation",
-      "line": 406,
+      "line": 419,
       "column": 32,
       "methodHasTurnIdentity": false,
       "turnReachable": false,
@@ -24356,7 +25188,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_buildLlmSessionLogContext",
       "kind": "currentConversation",
-      "line": 699,
+      "line": 711,
       "column": 11,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24367,7 +25199,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_changedFileMutationCallPaths",
       "kind": "activeProjectRootPath",
-      "line": 5013,
+      "line": 5253,
       "column": 22,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24378,7 +25210,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_changedFileMutationPaths",
       "kind": "activeProjectRootPath",
-      "line": 5042,
+      "line": 5282,
       "column": 22,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24389,7 +25221,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_dispatchExternalToolHook",
       "kind": "activeProjectRootPath",
-      "line": 1166,
+      "line": 1186,
       "column": 25,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24400,7 +25232,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_dispatchExternalToolHook",
       "kind": "currentConversation",
-      "line": 1165,
+      "line": 1185,
       "column": 33,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24411,7 +25243,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_executeToolCalls",
       "kind": "state.messages",
-      "line": 6685,
+      "line": 7005,
       "column": 11,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24422,7 +25254,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_extractAssistantStreamDelta",
       "kind": "state.messages",
-      "line": 7336,
+      "line": 7665,
       "column": 45,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24433,18 +25265,29 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_extractAssistantStreamDelta",
       "kind": "state.messages",
-      "line": 7339,
+      "line": 7668,
       "column": 21,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
       "accessorBearing": false
     },
     {
+      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_finalAnswerMessagesForGeneration::state.messages#1",
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "declaration": "_finalAnswerMessagesForGeneration",
+      "kind": "state.messages",
+      "line": 8325,
+      "column": 26,
+      "methodHasTurnIdentity": true,
+      "turnReachable": true,
+      "accessorBearing": true
+    },
+    {
       "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_lastMessageForGeneration::state.messages#1",
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_lastMessageForGeneration",
       "kind": "state.messages",
-      "line": 6819,
+      "line": 7139,
       "column": 25,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24455,7 +25298,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_lastMessageForGeneration",
       "kind": "state.messages",
-      "line": 6820,
+      "line": 7140,
       "column": 12,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24466,7 +25309,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_persistCurrentNonStreamingMessages",
       "kind": "state.messages",
-      "line": 539,
+      "line": 551,
       "column": 28,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24477,7 +25320,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_refreshContextTokenPressureFromState",
       "kind": "state.messages",
-      "line": 2313,
+      "line": 2371,
       "column": 19,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24488,7 +25331,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_removeAssistantStreamDeltaForGeneration",
       "kind": "state.messages",
-      "line": 7352,
+      "line": 7681,
       "column": 61,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24499,7 +25342,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_removeTrailingThinkTagForGeneration",
       "kind": "state.messages",
-      "line": 6868,
+      "line": 7188,
       "column": 25,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24510,30 +25353,8 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_removeTrailingThinkTagForGeneration",
       "kind": "state.messages",
-      "line": 6870,
+      "line": 7190,
       "column": 25,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_replaceFailedCommandSuccessClaimIfNeeded::state.messages#1",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_replaceFailedCommandSuccessClaimIfNeeded",
-      "kind": "state.messages",
-      "line": 8180,
-      "column": 25,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_replaceFailedCommandSuccessClaimIfNeeded::state.messages#2",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_replaceFailedCommandSuccessClaimIfNeeded",
-      "kind": "state.messages",
-      "line": 8182,
-      "column": 33,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
       "accessorBearing": true
@@ -24543,7 +25364,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_replaceLastMessageContentForGeneration",
       "kind": "state.messages",
-      "line": 6842,
+      "line": 7162,
       "column": 25,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24554,29 +25375,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_replaceLastMessageContentForGeneration",
       "kind": "state.messages",
-      "line": 6844,
-      "column": 33,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_replaceTimedOutCommandSuccessClaimIfNeeded::state.messages#1",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_replaceTimedOutCommandSuccessClaimIfNeeded",
-      "kind": "state.messages",
-      "line": 8126,
-      "column": 25,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_replaceTimedOutCommandSuccessClaimIfNeeded::state.messages#2",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_replaceTimedOutCommandSuccessClaimIfNeeded",
-      "kind": "state.messages",
-      "line": 8128,
+      "line": 7164,
       "column": 33,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24587,7 +25386,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_sendMessageNow",
       "kind": "currentConversation",
-      "line": 2604,
+      "line": 2679,
       "column": 33,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24598,7 +25397,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_sendMessageNow",
       "kind": "currentConversation",
-      "line": 2650,
+      "line": 2725,
       "column": 29,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24609,7 +25408,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_sendMessageNow",
       "kind": "currentConversation",
-      "line": 2809,
+      "line": 2884,
       "column": 31,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24620,7 +25419,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_sendMessageNow",
       "kind": "state.messages",
-      "line": 2607,
+      "line": 2682,
       "column": 25,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24631,7 +25430,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_sendMessageNow",
       "kind": "state.messages",
-      "line": 2705,
+      "line": 2780,
       "column": 13,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24642,7 +25441,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_sendMessageNow",
       "kind": "state.messages",
-      "line": 2708,
+      "line": 2783,
       "column": 27,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24653,7 +25452,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_sendMessageNow",
       "kind": "state.messages",
-      "line": 2732,
+      "line": 2807,
       "column": 23,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24664,7 +25463,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_sendMessageNow",
       "kind": "state.messages",
-      "line": 2798,
+      "line": 2873,
       "column": 11,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24675,7 +25474,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_sendMessageNow",
       "kind": "state.messages",
-      "line": 2866,
+      "line": 2941,
       "column": 46,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24686,7 +25485,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_sendMessageNow",
       "kind": "state.messages",
-      "line": 2869,
+      "line": 2944,
       "column": 11,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24697,7 +25496,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_sendWithTools",
       "kind": "state.messages",
-      "line": 4000,
+      "line": 4106,
       "column": 63,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24708,7 +25507,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_stripToolArtifactsFromLastAssistantMessage",
       "kind": "state.messages",
-      "line": 7834,
+      "line": 8163,
       "column": 25,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24719,7 +25518,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_stripToolArtifactsFromLastAssistantMessage",
       "kind": "state.messages",
-      "line": 7836,
+      "line": 8165,
       "column": 33,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24730,7 +25529,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_trackActiveResponse",
       "kind": "state.messages",
-      "line": 2441,
+      "line": 2501,
       "column": 34,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -24741,7 +25540,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_updateSessionMemory",
       "kind": "state.messages",
-      "line": 8756,
+      "line": 8890,
       "column": 33,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24752,7 +25551,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "build",
       "kind": "currentConversation",
-      "line": 456,
+      "line": 469,
       "column": 9,
       "methodHasTurnIdentity": false,
       "turnReachable": false,
@@ -24763,7 +25562,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "build",
       "kind": "currentConversation",
-      "line": 457,
+      "line": 470,
       "column": 22,
       "methodHasTurnIdentity": false,
       "turnReachable": false,
@@ -24774,7 +25573,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "build",
       "kind": "currentConversation",
-      "line": 460,
+      "line": 473,
       "column": 31,
       "methodHasTurnIdentity": false,
       "turnReachable": false,
@@ -24785,7 +25584,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "build",
       "kind": "currentConversation",
-      "line": 492,
+      "line": 505,
       "column": 25,
       "methodHasTurnIdentity": false,
       "turnReachable": false,
@@ -24796,7 +25595,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "build",
       "kind": "currentConversation",
-      "line": 493,
+      "line": 506,
       "column": 19,
       "methodHasTurnIdentity": false,
       "turnReachable": false,
@@ -24807,7 +25606,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "generatePlanProposalWithContext",
       "kind": "currentConversation",
-      "line": 3264,
+      "line": 3356,
       "column": 31,
       "methodHasTurnIdentity": false,
       "turnReachable": false,
@@ -24818,7 +25617,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "generateTaskProposal",
       "kind": "currentConversation",
-      "line": 3304,
+      "line": 3396,
       "column": 33,
       "methodHasTurnIdentity": false,
       "turnReachable": false,
@@ -24829,7 +25628,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "generateWorkflowProposal",
       "kind": "currentConversation",
-      "line": 3103,
+      "line": 3179,
       "column": 33,
       "methodHasTurnIdentity": false,
       "turnReachable": false,
@@ -24840,7 +25639,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "sendHiddenPrompt",
       "kind": "state.messages",
-      "line": 3041,
+      "line": 3117,
       "column": 13,
       "methodHasTurnIdentity": false,
       "turnReachable": true,
@@ -24851,7 +25650,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "suggestCurrentGoal",
       "kind": "currentConversation",
-      "line": 3155,
+      "line": 3247,
       "column": 33,
       "methodHasTurnIdentity": false,
       "turnReachable": false,
@@ -24862,7 +25661,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "syncConversation",
       "kind": "state.messages",
-      "line": 769,
+      "line": 784,
       "column": 37,
       "methodHasTurnIdentity": false,
       "turnReachable": false,
@@ -24873,7 +25672,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "syncConversation",
       "kind": "state.messages",
-      "line": 787,
+      "line": 802,
       "column": 9,
       "methodHasTurnIdentity": false,
       "turnReachable": false,

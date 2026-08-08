@@ -6,6 +6,7 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import '../entities/conversation_workflow.dart';
 import 'runtime_sampler_feedback_recorder.dart';
 
+// ChatNotifier decomposition collaborator: proposal-parsing-text-utils
 class ProposalJsonExtractor {
   const ProposalJsonExtractor({
     RuntimeSamplerFeedbackEventBinding? jsonRepairFeedback,

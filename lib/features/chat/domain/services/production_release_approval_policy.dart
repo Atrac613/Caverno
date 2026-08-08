@@ -6,22 +6,14 @@ import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'ask_user_question_turn_cache.dart';
 import 'tool_call_execution_policy.dart';
-
 // ChatNotifier decomposition collaborator: production-release-approval-policy
-
-/// What a blocked production release tells the model to do next.
-///
-/// It names ask_user_question deliberately. Offering the choice as prose costs
-/// a whole round trip: a reply like "1" carries no release wording, so neither
-/// approval path recognizes it and the same command is blocked again. An
-/// ask_user_question answer is a recorded selection the guard can read.
+/// Directs a blocked release through recorded approval UI.
 const String productionReleaseApprovalRequiredAction =
     'Call ask_user_question with an option whose label explicitly approves '
     'running this production release command, then retry only after the user '
     'selects it. Do not offer the choice as plain text: a bare "1" or "yes" '
     'reply to a prose list is not recorded as release approval.';
 
-/// The immediately preceding owner message captured before a turn begins.
 final class ProductionReleasePrecedingMessage {
   const ProductionReleasePrecedingMessage({
     required this.isAssistant,
@@ -32,7 +24,6 @@ final class ProductionReleasePrecedingMessage {
   final String content;
 }
 
-/// Immutable release-approval proof captured for one exact turn owner.
 final class ProductionReleaseApprovalProof {
   const ProductionReleaseApprovalProof({
     required this.owner,
@@ -47,7 +38,6 @@ final class ProductionReleaseApprovalProof {
   bool get approved => explicitApproval || affirmativePromptReply;
 }
 
-/// Owner-scoped approval evidence used by the command guard.
 final class ProductionReleaseApprovalEvidence {
   const ProductionReleaseApprovalEvidence({
     required this.owner,

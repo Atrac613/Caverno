@@ -539,8 +539,6 @@ void validateProgramManifest(ChatNotifierDecompositionManifest manifest) {
     'chat_notifier_cancellation.dart',
   };
   const expectedDeferredParts = {
-    'chat_notifier_proposal_parsing.dart',
-    'chat_notifier_proposal_option_extraction.dart',
     'chat_notifier_workflow_proposal_parser.dart',
     'chat_notifier_task_proposal_quality.dart',
     'chat_notifier_terminal_tool_response_policy.dart',

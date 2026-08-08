@@ -324,8 +324,10 @@ extension ChatNotifierGitHandlers on ChatNotifier {
   }
 
   String? _normalizedGitSubcommand(ToolResultInfo result) {
-    var command = _toolCallExecutionPolicy.toolCommandArgument(result.arguments);
-    final decoded = _tryDecodeMap(result.result);
+    var command = _toolCallExecutionPolicy.toolCommandArgument(
+      result.arguments,
+    );
+    final decoded = ProposalParsingTextUtils.tryDecodeMap(result.result);
     final decodedCommand = decoded?['command'];
     if ((command == null || command.trim().isEmpty) &&
         decodedCommand is String) {
@@ -342,7 +344,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
   }
 
   bool _gitStatusResultIsClean(ToolResultInfo result) {
-    final decoded = _tryDecodeMap(result.result);
+    final decoded = ProposalParsingTextUtils.tryDecodeMap(result.result);
     final stdout = decoded?['stdout']?.toString().trim().toLowerCase() ?? '';
     final stderr = decoded?['stderr']?.toString().trim().toLowerCase() ?? '';
     return stderr.isEmpty &&

@@ -104,7 +104,7 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
     final updatedMessages = finalMessage.apply(
       activeMessages,
       metrics: _turnResponseMetrics(owner, finalMessage),
-      truncated: _isCompletionTruncated(finishReason),
+      truncated: ProposalParsingTextUtils.isCompletionTruncated(finishReason),
     );
     _contentToolTurns.setContinuationFallback(owner, null);
     if (await _finishEphemeralHiddenResponse(
