@@ -1,0 +1,44 @@
+// ChatNotifier decomposition collaborator: turn-tool-catalog-cache
+
+/// Holds one tool catalogue per selection for the life of a tool loop.
+///
+/// When the prefix-stable loop is off — the default — the loop rebuilds the
+/// catalogue from the live MCP catalogue before every request. Session
+/// 6035277f shows what that costs: within a single turn, four requests dropped
+/// the same ten MCP-provided tools and got them back on the next call, each of
+/// those requests running 4-7x slower than its neighbours because a changed
+/// tool prefix discards the model's cached context.
+///
+/// The selection is what decides which tools a turn may use. While it is
+/// unchanged, the catalogue must not change either, so a server that blinks
+/// cannot rewrite the request prefix underneath the loop. A selection that
+/// genuinely grows — `tool_search` discovering a tool — is a different key and
+/// recomputes, which is the one case where a new catalogue is wanted.
+final class TurnToolCatalogCache {
+  TurnToolCatalogCache();
+
+  final Map<String, List<Map<String, dynamic>>> _bySelection = {};
+
+  /// How many times a catalogue was actually built. Test-facing.
+  int computeCount = 0;
+
+  List<Map<String, dynamic>> resolve({
+    required Set<String> selection,
+    required List<Map<String, dynamic>> Function() compute,
+  }) {
+    final key = keyFor(selection);
+    final cached = _bySelection[key];
+    if (cached != null) {
+      return cached;
+    }
+    computeCount += 1;
+    final definitions = compute();
+    _bySelection[key] = definitions;
+    return definitions;
+  }
+
+  /// Order-independent, so a selection rebuilt in a different order is still
+  /// recognized as the same one.
+  String keyFor(Set<String> selection) =>
+      (selection.toList()..sort()).join(' ');
+}

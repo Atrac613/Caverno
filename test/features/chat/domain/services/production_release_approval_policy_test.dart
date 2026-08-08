@@ -447,9 +447,7 @@ void main() {
         'command': './release_ios_macos.sh',
         'assistant_intent':
             '${longIntent.replaceAll(RegExp(r'\s+'), ' ').trim().substring(0, 240)}...',
-        'required_action':
-            'Ask the user to explicitly approve the production release command '
-            'after any dry run, then retry only after that user approval.',
+        'required_action': productionReleaseApprovalRequiredAction,
       };
 
       expect(result.toolName, ' process_start ');
@@ -721,6 +719,26 @@ void main() {
       );
       expect(
         policy.looksLikeAffirmativeReleaseApprovalAnswer(affirmative),
+        isTrue,
+      );
+    });
+
+    test('recognizes the upload katakana form used by both approval paths', () {
+      // This constant had drifted from the notifier's copy by one character,
+      // so the word every release prompt uses never matched here.
+      final upload = String.fromCharCodes([
+        0x30a2,
+        0x30c3,
+        0x30d7,
+        0x30ed,
+        0x30fc,
+        0x30c9,
+      ]);
+      final execute = String.fromCharCodes([0x5b9f, 0x884c]);
+
+      expect(policy.mentionsProductionRelease(upload), isTrue);
+      expect(
+        policy.looksLikeExplicitProductionReleaseApproval('$upload$execute'),
         isTrue,
       );
     });

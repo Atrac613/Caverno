@@ -40,6 +40,17 @@ void main() {
       },
     );
 
+    test('still flags a promised run when nothing ran', () {
+      // Session dd8a8909 gen-8: the whole answer was 「本番リリースを実行します。」
+      // with no tool call. This is the case the retry depends on.
+      final result = detector.buildUnexecutedCommandActionToolResult(
+        candidateResponse: 'I will run the release script now.',
+        toolResults: const [],
+      );
+
+      expect(result, isNotNull);
+    });
+
     test(
       'does not flag read-only claims backed by successful git commands',
       () {

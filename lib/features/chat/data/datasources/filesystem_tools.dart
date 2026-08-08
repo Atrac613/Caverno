@@ -685,7 +685,11 @@ class FilesystemTools {
   }) {
     final oldTextOffsets = _occurrenceOffsets(content, oldText);
     if (oldTextOffsets.isEmpty) {
-      return _oldTextNotFoundError(path: path, content: content);
+      return _oldTextNotFoundError(
+        path: path,
+        content: content,
+        newText: newText,
+      );
     }
     if (oldText == newText) {
       return {
@@ -770,11 +774,22 @@ class FilesystemTools {
   static Map<String, dynamic> _oldTextNotFoundError({
     required String path,
     required String content,
+    required String newText,
   }) {
     final error = <String, dynamic>{
       'error': 'old_text was not found in the target file',
       'path': path,
     };
+    // The commonest way to reach this error is editing something already
+    // edited: old_text is gone precisely because new_text replaced it. Report
+    // that as a located fact rather than making the caller hunt for it — a
+    // session log shows a model answer this question with six read_file
+    // windows and a search_files call, none of which reached the line.
+    final newTextOffset = newText.isEmpty ? -1 : content.indexOf(newText);
+    if (newTextOffset >= 0) {
+      error['new_text_present'] = true;
+      error['new_text_line'] = _lineNumberForOffset(content, newTextOffset);
+    }
     if (utf8.encode(content).length <= _editErrorInlineContentMaxBytes) {
       error['current_content'] = content;
       error['hint'] =
@@ -782,12 +797,27 @@ class FilesystemTools {
           'the desired new value as old_text. If matching is hard, call '
           'write_file with the full corrected file content instead.';
     } else {
-      error['hint'] =
-          'Re-read the file and copy old_text verbatim from its current '
-          'content; do not guess and do not pass the desired new value as '
-          'old_text.';
+      error['hint'] = newTextOffset >= 0
+          ? 'new_text is already present at line ${error['new_text_line']}, so '
+                'this edit may have been applied already. Confirm that line '
+                'before editing again; do not re-read the file in small '
+                'windows looking for it.'
+          : 'Re-read the file and copy old_text verbatim from its current '
+                'content; do not guess and do not pass the desired new value '
+                'as old_text.';
     }
     return error;
+  }
+
+  /// 1-based line number containing [offset].
+  static int _lineNumberForOffset(String content, int offset) {
+    var line = 1;
+    for (var index = 0; index < offset && index < content.length; index++) {
+      if (content.codeUnitAt(index) == 0x0a) {
+        line += 1;
+      }
+    }
+    return line;
   }
 
   static Future<String> findFiles({

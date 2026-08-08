@@ -93,6 +93,7 @@ class SessionLoggingChatDataSource
     final startedAt = DateTime.now();
     final response = StringBuffer();
     final request = LlmSessionLogRequest(
+      label: context?.requestLabel,
       operation: 'streamChatCompletion',
       messages: messages,
       toolResults: toolResults,
@@ -154,6 +155,7 @@ class SessionLoggingChatDataSource
     final context = _resolveContext();
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
+      label: context?.requestLabel,
       operation: 'createChatCompletion',
       messages: messages,
       tools: tools,
@@ -198,6 +200,7 @@ class SessionLoggingChatDataSource
     final context = _resolveContext();
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
+      label: context?.requestLabel,
       operation: 'streamChatCompletionWithTools',
       messages: messages,
       tools: tools,
@@ -271,6 +274,7 @@ class SessionLoggingChatDataSource
     final context = _resolveContext();
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
+      label: context?.requestLabel,
       operation: 'streamWithToolResult',
       messages: messages,
       toolCallId: toolCallId,
@@ -336,6 +340,7 @@ class SessionLoggingChatDataSource
     final context = _resolveContext();
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
+      label: context?.requestLabel,
       operation: 'createChatCompletionWithToolResult',
       messages: messages,
       tools: tools,
@@ -392,6 +397,7 @@ class SessionLoggingChatDataSource
     final context = _resolveContext();
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
+      label: context?.requestLabel,
       operation: 'createChatCompletionWithToolResults',
       messages: messages,
       tools: tools,

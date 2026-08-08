@@ -154,6 +154,12 @@ import '../../domain/services/participant_turn_planner.dart';
 import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/planning_research_collector.dart';
 import '../../domain/services/ble_connect_attempt_coordinator.dart';
+import '../../domain/services/blocked_production_release_retry_policy.dart';
+import '../../domain/services/fenced_tool_arguments_detector.dart';
+import '../../domain/services/turn_tool_catalog_cache.dart';
+import '../../domain/services/unexecuted_command_action_retry_policy.dart';
+import '../../domain/services/production_release_approval_policy.dart'
+    show productionReleaseApprovalRequiredAction;
 import '../../domain/services/proposal_option_extraction.dart';
 import '../../domain/services/background_process_follow_up_policy.dart';
 import '../../domain/services/proposal_parsing_text_utils.dart';
@@ -354,6 +360,20 @@ class ChatNotifier extends Notifier<ChatState> {
   final _fileMutationEvidencePolicy = const FileMutationEvidencePolicy();
   final _pendingActions = const PendingActionLengthRecoveryPolicy();
   final _transcriptRepairs = const NarratedTranscriptRepairPlanner();
+  final _blockedReleaseRetries = const BlockedProductionReleaseRetryPolicy();
+  final _unexecutedCommandRetries =
+      const UnexecutedCommandActionRetryPolicy();
+  // Turns that already spent their one unexecuted-command retry. The key
+  // carries the generation, so a finished turn cannot match a live one.
+  final _unexecutedCommandRetryOwners = <String>{};
+  // Retry signatures already spent on approved-but-unissued release commands.
+  // The signature carries the owner's generation, so entries from finished
+  // turns can never match a live one.
+  final _blockedReleaseRetrySignatures = <String>{};
+  // Releases the guard blocked, kept per conversation because approval lands in
+  // the turn after the block. Cleared when the command runs or a retry is asked
+  // for, so a stale entry can never re-prompt a release the user moved on from.
+  final _pendingBlockedReleases = <String, PendingBlockedRelease>{};
   final _planningToolPolicy = const PlanningToolPolicy();
   final _toolLoopContextDigest = const ToolLoopContextDigest();
   final _runtimeTurns = <int, CavernoRuntimeTurnHandle>{};
@@ -732,9 +752,12 @@ class ChatNotifier extends Notifier<ChatState> {
 
   T _runWithLlmSessionLogContextForGeneration<T>(
     int generation,
-    T Function() body,
-  ) => LlmSessionLogContext.run(
-    _llmSessionLogContextForGeneration(generation),
+    T Function() body, {
+    String? requestLabel,
+  }) => LlmSessionLogContext.run(
+    _llmSessionLogContextForGeneration(
+      generation,
+    ).withRequestLabel(requestLabel),
     body,
   );
 
@@ -2523,6 +2546,9 @@ class ChatNotifier extends Notifier<ChatState> {
     _explicitTerminalSuccessSummariesByGeneration.clear();
     _askUserQuestionTurnCache.clear();
     _releaseApprovalSnapshots.clear();
+    _blockedReleaseRetrySignatures.clear();
+    _pendingBlockedReleases.clear();
+    _unexecutedCommandRetryOwners.clear();
     _turnFinalizationRecoveryGenerations.clear();
     _modelSwitchHandoffs.clearPromptCompactions();
     _contextSurgeryObservations.clear();
@@ -3935,6 +3961,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }) async {
       final result = await _runWithLlmSessionLogContextForGeneration(
         interactionGeneration,
+        requestLabel: logLabel,
         () => _dataSource.createChatCompletionWithToolResults(
           messages: buildMessages(forceCompaction),
           toolResults: _budgetToolResultsForPrompt(
@@ -4071,6 +4098,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
       final streamResult = _runWithLlmSessionLogContextForGeneration(
         generation,
+        requestLabel: 'turn opening request',
         () => _dataSource.streamChatCompletionWithTools(
           messages: _prepareMessagesForLLM(
             toolDefinitionsOverride: initialToolSelection.toolDefinitions,
@@ -4243,6 +4271,44 @@ class ChatNotifier extends Notifier<ChatState> {
           );
         }
         recordHiddenAssistantEvidenceOnce();
+        // A turn that answers without calling anything is where an approved
+        // release goes missing: the guard blocked it last turn, the user
+        // approved, and this answer just describes the run.
+        final releaseRetryResult = await _requestBlockedProductionReleaseRetry(
+          candidateResponse: hiddenAssistantEvidence,
+          executedToolResults: _turnToolResults.all(turnOwner).toList(),
+          batchToolResults: <ToolResultInfo>[],
+          tools: initialToolSelection.toolDefinitions,
+          interactionGeneration: generation,
+        );
+        if (!_isCurrentInteractionGeneration(generation)) return;
+        if (!ref.mounted) return;
+        if (releaseRetryResult != null && releaseRetryResult.hasToolCalls) {
+          appLog('[ReleaseRetry] No-tool answer retry requested tool calls');
+          _removeAssistantStreamDeltaForGeneration(
+            generation: generation,
+            messageIndex: streamedMessageIndex,
+            startingLength: streamedContentStart,
+          );
+          await _executeToolCalls(
+            releaseRetryResult.toolCalls!,
+            assistantContent: releaseRetryResult.content.isNotEmpty
+                ? releaseRetryResult.content
+                : hiddenAssistantEvidence,
+            toolSearchEnabled: initialToolSelection.toolSearchEnabled,
+            selectedToolNames: {
+              ...initialToolSelection.selectedToolNames,
+              ...releaseRetryResult.toolCalls!.map((toolCall) => toolCall.name),
+            },
+            stableToolDefinitions: stableLoopToolDefinitions,
+            interactionGeneration: generation,
+          );
+          return;
+        }
+        if (releaseRetryResult != null &&
+            releaseRetryResult.content.trim().isNotEmpty) {
+          _recordHiddenEvidence(turnOwner, releaseRetryResult.content);
+        }
         final recoveredContentToolArtifact =
             _recoverContentToolArtifactsBeforeNoToolFinalization(
               interactionGeneration: generation,
@@ -4257,6 +4323,53 @@ class ChatNotifier extends Notifier<ChatState> {
         _appendUnexecutedToolRequestNoticeIfNeeded(
           interactionGeneration: generation,
         );
+        // Two turns in one observed session ended on a fenced command with no
+        // notice at all, because the wording never read as a completion claim.
+        // The fence itself is the evidence, so it is asked for first.
+        if (const FencedToolArgumentsDetector().detect(
+              hiddenAssistantEvidence,
+            ) !=
+            null) {
+          final fencedRetryResult =
+              await _requestUnexecutedCommandActionRetry(
+                candidateResponse: hiddenAssistantEvidence,
+                executedToolResults: <ToolResultInfo>[],
+                batchToolResults: <ToolResultInfo>[],
+                allowedToolNames: turnSnapshot!.allowedToolNames,
+                tools: initialToolSelection.toolDefinitions,
+                interactionGeneration: generation,
+              );
+          if (!_isCurrentInteractionGeneration(generation)) return;
+          if (!ref.mounted) return;
+          if (fencedRetryResult != null && fencedRetryResult.hasToolCalls) {
+            appLog('[UnexecutedCommand] Fenced-arguments retry issued calls');
+            _removeAssistantStreamDeltaForGeneration(
+              generation: generation,
+              messageIndex: streamedMessageIndex,
+              startingLength: streamedContentStart,
+            );
+            await _executeToolCalls(
+              fencedRetryResult.toolCalls!,
+              assistantContent: fencedRetryResult.content.isNotEmpty
+                  ? fencedRetryResult.content
+                  : hiddenAssistantEvidence,
+              toolSearchEnabled: initialToolSelection.toolSearchEnabled,
+              selectedToolNames: {
+                ...initialToolSelection.selectedToolNames,
+                ...fencedRetryResult.toolCalls!.map(
+                  (toolCall) => toolCall.name,
+                ),
+              },
+              stableToolDefinitions: stableLoopToolDefinitions,
+              interactionGeneration: generation,
+            );
+            return;
+          }
+          if (fencedRetryResult != null &&
+              fencedRetryResult.content.trim().isNotEmpty) {
+            _recordHiddenEvidence(turnOwner, fencedRetryResult.content);
+          }
+        }
         final unexecutedCommandAction =
             _toolCallExecutionPolicy.offersCommandExecution(
               turnSnapshot!.allowedToolNames,
@@ -4272,6 +4385,51 @@ class ChatNotifier extends Notifier<ChatState> {
             turnOwner,
             _turnToolResults.completed(turnOwner),
           );
+          // This is the shape the corpus is full of: a turn that answers a
+          // user's reply by describing a run, with no tool call at all. Ask
+          // for the call before settling for the notice.
+          final commandRetryToolResults = <ToolResultInfo>[
+            unexecutedCommandAction,
+          ];
+          final commandRetryResult =
+              await _requestUnexecutedCommandActionRetry(
+                candidateResponse: hiddenAssistantEvidence,
+                executedToolResults: commandRetryToolResults,
+                batchToolResults: <ToolResultInfo>[],
+                allowedToolNames: turnSnapshot.allowedToolNames,
+                tools: initialToolSelection.toolDefinitions,
+                interactionGeneration: generation,
+              );
+          if (!_isCurrentInteractionGeneration(generation)) return;
+          if (!ref.mounted) return;
+          if (commandRetryResult != null && commandRetryResult.hasToolCalls) {
+            appLog('[UnexecutedCommand] No-tool answer retry issued calls');
+            _removeAssistantStreamDeltaForGeneration(
+              generation: generation,
+              messageIndex: streamedMessageIndex,
+              startingLength: streamedContentStart,
+            );
+            await _executeToolCalls(
+              commandRetryResult.toolCalls!,
+              assistantContent: commandRetryResult.content.isNotEmpty
+                  ? commandRetryResult.content
+                  : hiddenAssistantEvidence,
+              toolSearchEnabled: initialToolSelection.toolSearchEnabled,
+              selectedToolNames: {
+                ...initialToolSelection.selectedToolNames,
+                ...commandRetryResult.toolCalls!.map(
+                  (toolCall) => toolCall.name,
+                ),
+              },
+              stableToolDefinitions: stableLoopToolDefinitions,
+              interactionGeneration: generation,
+            );
+            return;
+          }
+          if (commandRetryResult != null &&
+              commandRetryResult.content.trim().isNotEmpty) {
+            _recordHiddenEvidence(turnOwner, commandRetryResult.content);
+          }
           _appendUnexecutedCommandActionNoticeIfNeeded(
             toolResults: [unexecutedCommandAction],
             owner: turnOwner,
@@ -5365,6 +5523,10 @@ class ChatNotifier extends Notifier<ChatState> {
     var lastNonEmptyBatchToolResults = const <ToolResultInfo>[];
     final activeToolNames = <String>{...selectedToolNames};
 
+    // One catalogue per selection for this loop; see TurnToolCatalogCache for
+    // why rebuilding it per request let tools vanish mid-turn.
+    final toolCatalogCache = TurnToolCatalogCache();
+
     List<Map<String, dynamic>> selectedDefinitionsFor(
       McpToolService mcpToolService,
     ) {
@@ -5372,10 +5534,13 @@ class ChatNotifier extends Notifier<ChatState> {
       if (stableDefinitions != null) {
         return stableDefinitions;
       }
-      return ToolDefinitionSearchService.definitionsForSelectedTools(
-        mcpToolService.getOpenAiToolDefinitions(),
-        selectedToolNames: activeToolNames,
-        toolSearchEnabled: toolSearchEnabled,
+      return toolCatalogCache.resolve(
+        selection: activeToolNames,
+        compute: () => ToolDefinitionSearchService.definitionsForSelectedTools(
+          mcpToolService.getOpenAiToolDefinitions(),
+          selectedToolNames: activeToolNames,
+          toolSearchEnabled: toolSearchEnabled,
+        ),
       );
     }
 
@@ -6701,6 +6866,28 @@ class ChatNotifier extends Notifier<ChatState> {
             );
           }
         }
+        // Grounded first: a release the guard blocked and the user then
+        // approved is a recorded fact, so it outranks any reading of how the
+        // answer was worded.
+        final handledByReleaseRetry =
+            await _applyBlockedProductionReleaseRetryToStreamedFinalAnswer(
+              streamedFinalAnswer: streamedFinalAnswer,
+              executedToolResults: executedToolResults,
+              batchToolResults: streamVerificationBatchToolResults,
+              tools: tools,
+              toolSearchEnabled: toolSearchEnabled,
+              activeToolNames: activeToolNames,
+              stableToolDefinitions: stableToolDefinitions,
+              verificationFailureCounts: verificationFailureCounts,
+              transcriptRepairSignatures: transcriptRepairSignatures,
+              interactionGeneration: interactionGeneration,
+              onBlockingFeedbackPrepared: () =>
+                  _removeStreamedAnswerSuffixForGeneration(
+                    interactionGeneration,
+                    preAnswerContent: preFinalAnswerContent,
+                  ),
+            );
+        if (handledByReleaseRetry) return;
         final handledByTranscriptRepair =
             await _applyNarratedTranscriptRepairToStreamedFinalAnswer(
               streamedFinalAnswer: streamedFinalAnswer,
@@ -6720,6 +6907,31 @@ class ChatNotifier extends Notifier<ChatState> {
                   ),
             );
         if (handledByTranscriptRepair) return;
+        // A command printed in a JSON fence is an unissued call whether or not
+        // the wording trips the claim detector, so it is asked for first.
+        if (const FencedToolArgumentsDetector().detect(streamedFinalAnswer) !=
+            null) {
+          final handledByFencedRetry =
+              await _applyUnexecutedCommandActionRetryToStreamedFinalAnswer(
+                streamedFinalAnswer: streamedFinalAnswer,
+                executedToolResults: finalToolResults,
+                batchToolResults: streamVerificationBatchToolResults,
+                allowedToolNames: turnSnapshot.allowedToolNames,
+                tools: tools,
+                toolSearchEnabled: toolSearchEnabled,
+                activeToolNames: activeToolNames,
+                stableToolDefinitions: stableToolDefinitions,
+                verificationFailureCounts: verificationFailureCounts,
+                transcriptRepairSignatures: transcriptRepairSignatures,
+                interactionGeneration: interactionGeneration,
+                onBlockingFeedbackPrepared: () =>
+                    _removeStreamedAnswerSuffixForGeneration(
+                      interactionGeneration,
+                      preAnswerContent: preFinalAnswerContent,
+                    ),
+              );
+          if (handledByFencedRetry) return;
+        }
         final unexecutedCommandAction =
             _toolCallExecutionPolicy.offersCommandExecution(
               turnSnapshot.allowedToolNames,
@@ -6732,6 +6944,28 @@ class ChatNotifier extends Notifier<ChatState> {
         if (unexecutedCommandAction != null) {
           finalToolResults.add(unexecutedCommandAction);
           finalCompletionEvidenceIsCurrent = false;
+          // Ask for the command before stamping the answer unverified. The
+          // notice is what this turn falls back to, not what it settles for.
+          final handledByCommandRetry =
+              await _applyUnexecutedCommandActionRetryToStreamedFinalAnswer(
+                streamedFinalAnswer: streamedFinalAnswer,
+                executedToolResults: finalToolResults,
+                batchToolResults: streamVerificationBatchToolResults,
+                allowedToolNames: turnSnapshot.allowedToolNames,
+                tools: tools,
+                toolSearchEnabled: toolSearchEnabled,
+                activeToolNames: activeToolNames,
+                stableToolDefinitions: stableToolDefinitions,
+                verificationFailureCounts: verificationFailureCounts,
+                transcriptRepairSignatures: transcriptRepairSignatures,
+                interactionGeneration: interactionGeneration,
+                onBlockingFeedbackPrepared: () =>
+                    _removeStreamedAnswerSuffixForGeneration(
+                      interactionGeneration,
+                      preAnswerContent: preFinalAnswerContent,
+                    ),
+              );
+          if (handledByCommandRetry) return;
           _appendUnexecutedCommandActionNoticeIfNeeded(
             toolResults: finalToolResults,
             owner: turnOwner,
@@ -8091,13 +8325,24 @@ class ChatNotifier extends Notifier<ChatState> {
     required ChatTurnOwner owner,
   }) {
     final generation = owner.interactionGeneration;
-    const notice =
-        'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action. '
-        'Treat any run, dry-run, test, validation, or command execution claim above as unverified.';
     if (!_claims.hasUnexecutedCommandActionResult(toolResults)) {
       return;
     }
-    _turnEnd.addTransform(owner, 'unexecuted_command_action_notice');
+    // Which of the two things is true decides what the reader is told: that
+    // nothing ran at all, or that the results above are real and only the
+    // proposed next step has not happened.
+    final ranSomething = _claims.hasSuccessfulCommandExecutionResult(
+      toolResults,
+    );
+    final notice = ranSomething
+        ? FinalAnswerClaimDetector.unexecutedNextStepNotice
+        : FinalAnswerClaimDetector.unexecutedCommandActionNotice;
+    _turnEnd.addTransform(
+      owner,
+      ranSomething
+          ? 'unexecuted_next_step_notice'
+          : 'unexecuted_command_action_notice',
+    );
 
     final activeMessages = _activeResponseMessagesForGeneration(generation);
     if (activeMessages == null || activeMessages.isEmpty) return;
@@ -8682,56 +8927,60 @@ class ChatNotifier extends Notifier<ChatState> {
       ),
     );
 
-    _runWithLlmSessionLogContextForGeneration(interactionGeneration, () {
-      late final Stream<String> stream;
-      late final Future<ChatCompletionTerminalMetadata> terminal;
-      if (continuationToolDefinitions == null) {
-        final completion = _dataSource.streamChatCompletion(
-          messages: messagesForLLM,
-          model: _settings.model,
-          temperature: _assistantRequestTemperature,
-          maxTokens: _settings.maxTokens,
-        );
-        stream = completion;
-        terminal = completion.terminal;
-      } else {
-        final completion = _dataSource.streamChatCompletionWithTools(
-          messages: messagesForLLM,
-          tools: continuationToolDefinitions,
-          model: _settings.model,
-          temperature: _agenticRequestTemperature,
-          maxTokens: _settings.maxTokens,
-        );
-        stream = completion.stream;
-        terminal = _responseMetadata.terminalFor(completion.completion);
-      }
+    _runWithLlmSessionLogContextForGeneration(
+      interactionGeneration,
+      requestLabel: 'content tool-result continuation',
+      () {
+        late final Stream<String> stream;
+        late final Future<ChatCompletionTerminalMetadata> terminal;
+        if (continuationToolDefinitions == null) {
+          final completion = _dataSource.streamChatCompletion(
+            messages: messagesForLLM,
+            model: _settings.model,
+            temperature: _assistantRequestTemperature,
+            maxTokens: _settings.maxTokens,
+          );
+          stream = completion;
+          terminal = completion.terminal;
+        } else {
+          final completion = _dataSource.streamChatCompletionWithTools(
+            messages: messagesForLLM,
+            tools: continuationToolDefinitions,
+            model: _settings.model,
+            temperature: _agenticRequestTemperature,
+            maxTokens: _settings.maxTokens,
+          );
+          stream = completion.stream;
+          terminal = _responseMetadata.terminalFor(completion.completion);
+        }
 
-      _turnStream.listen(
-        turnOwner,
-        stream,
-        onChunk: (chunk) {
-          if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-          _appendToLastMessageForGeneration(interactionGeneration, chunk);
-        },
-        onError: (error, stackTrace) {
-          if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
-          appLog(
-            '[ChatNotifier] _continueAfterContentToolResults onError: ${error.runtimeType}: $error',
-          );
-          appLog('[ChatNotifier] stackTrace: $stackTrace');
-          unawaited(
-            _recoverAfterContentToolResultsStreamError(
-              messagesForLLM,
-              error,
-              stackTrace,
-              interactionGeneration: interactionGeneration,
-            ),
-          );
-        },
-        onDone: () =>
-            _finishStreamedCompletionInBackground(turnOwner, terminal),
-      );
-    });
+        _turnStream.listen(
+          turnOwner,
+          stream,
+          onChunk: (chunk) {
+            if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+            _appendToLastMessageForGeneration(interactionGeneration, chunk);
+          },
+          onError: (error, stackTrace) {
+            if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+            appLog(
+              '[ChatNotifier] _continueAfterContentToolResults onError: ${error.runtimeType}: $error',
+            );
+            appLog('[ChatNotifier] stackTrace: $stackTrace');
+            unawaited(
+              _recoverAfterContentToolResultsStreamError(
+                messagesForLLM,
+                error,
+                stackTrace,
+                interactionGeneration: interactionGeneration,
+              ),
+            );
+          },
+          onDone: () =>
+              _finishStreamedCompletionInBackground(turnOwner, terminal),
+        );
+      },
+    );
   }
 
   List<Map<String, dynamic>>?

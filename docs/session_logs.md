@@ -45,6 +45,14 @@ Each line is one JSON object with schema name
   `createChatCompletionWithToolResults`
 - Request messages, model, temperature, max token budget, tools, and tool
   result payloads when available
+- `request.label` (schema v3), naming the producer that issued the call —
+  `turn opening request`, `tool-result follow-up`, `coding verification
+  feedback`, `narrated transcript feedback`, `blocked production release
+  retry`, and so on. Several producers share one operation name, so without
+  the label a request cannot be attributed to a code path. This is what makes
+  a tool catalogue that changes shape mid-loop diagnosable: compare the tool
+  list of two adjacent requests and read which producer built the odd one out.
+  The field is absent when no producer set a label.
 - Response content, finish reason, tool calls, token usage, or error details
 - Turn-level markers such as `turn_exit`, `goal_auto_continue`, and
   `execution_shadow`, which make non-request decisions visible in the same

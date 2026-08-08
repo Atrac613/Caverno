@@ -2484,10 +2484,19 @@ class _NoToolStreamingWithToolsDataSource implements ChatDataSource {
   _NoToolStreamingWithToolsDataSource({
     required this.streamChunks,
     required this.completionContent,
+    this.toolResultResponse,
   });
 
   final List<String> streamChunks;
   final String completionContent;
+
+  /// What the model answers when the loop asks again for the command it only
+  /// described. Defaults to prose with no tool call, which is the case the
+  /// unverified notice still has to cover.
+  final ChatCompletionResult? toolResultResponse;
+
+  /// How many times the loop came back asking for the missing command.
+  int toolResultRequestCount = 0;
 
   @override
   StreamedChatCompletion streamChatCompletion({
@@ -2564,8 +2573,13 @@ class _NoToolStreamingWithToolsDataSource implements ChatDataSource {
     String? model,
     double? temperature,
     int? maxTokens,
-  }) {
-    throw UnimplementedError();
+  }) async {
+    toolResultRequestCount += 1;
+    return toolResultResponse ??
+        ChatCompletionResult(
+          content: completionContent,
+          finishReason: 'stop',
+        );
   }
 }
 
