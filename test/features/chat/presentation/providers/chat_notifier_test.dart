@@ -2280,7 +2280,7 @@ void main() {
   );
 
   test(
-    'sendMessage marks future command execution after earlier command success as unexecuted',
+    'sendMessage flags a promised run as pending after an earlier command success',
     () async {
       const inspectionCommand = 'pwd';
       const finalContent =
@@ -2348,11 +2348,13 @@ void main() {
       await chatNotifier.sendMessage('continue');
 
       expect(toolService.executedToolNames, ['local_execute_command']);
+      // `pwd` really did run, so the reader is told what is actually true:
+      // the promised dry-run has not happened, and the inspection result it
+      // reported still stands. The blanket "treat any run as unverified"
+      // wording used to contradict the verified half of the answer.
       expect(
         chatNotifier.state.messages.last.content,
-        contains(
-          'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action.',
-        ),
+        contains('The next step described above has not been run yet.'),
       );
       expect(
         chatNotifier.state.messages.last.content,

@@ -8325,13 +8325,24 @@ class ChatNotifier extends Notifier<ChatState> {
     required ChatTurnOwner owner,
   }) {
     final generation = owner.interactionGeneration;
-    const notice =
-        'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action. '
-        'Treat any run, dry-run, test, validation, or command execution claim above as unverified.';
     if (!_claims.hasUnexecutedCommandActionResult(toolResults)) {
       return;
     }
-    _turnEnd.addTransform(owner, 'unexecuted_command_action_notice');
+    // Which of the two things is true decides what the reader is told: that
+    // nothing ran at all, or that the results above are real and only the
+    // proposed next step has not happened.
+    final ranSomething = _claims.hasSuccessfulCommandExecutionResult(
+      toolResults,
+    );
+    final notice = ranSomething
+        ? FinalAnswerClaimDetector.unexecutedNextStepNotice
+        : FinalAnswerClaimDetector.unexecutedCommandActionNotice;
+    _turnEnd.addTransform(
+      owner,
+      ranSomething
+          ? 'unexecuted_next_step_notice'
+          : 'unexecuted_command_action_notice',
+    );
 
     final activeMessages = _activeResponseMessagesForGeneration(generation);
     if (activeMessages == null || activeMessages.isEmpty) return;

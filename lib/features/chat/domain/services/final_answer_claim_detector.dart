@@ -22,6 +22,20 @@ class FinalAnswerClaimDetector {
       'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action. '
       'Treat any run, dry-run, test, validation, or command execution claim above as unverified.';
 
+  /// Used instead of [unexecutedCommandActionNotice] when a command really did
+  /// succeed in the turn.
+  ///
+  /// The blanket wording tells the reader to distrust every run mentioned
+  /// above, which is wrong for the commonest shape it lands on: an answer that
+  /// reports real, tool-backed results and then offers a next step. Session
+  /// dd8a8909 ended exactly there — a genuine macOS publish and iOS failure,
+  /// followed by "shall I proceed?" — and 8 of 28 notice-carrying turns in the
+  /// corpus had a successful command in the same turn. What has not happened
+  /// is the next step, so that is what the notice says.
+  static const unexecutedNextStepNotice =
+      'The next step described above has not been run yet. '
+      'Results already reported from tool output are unaffected.';
+
   static const unverifiedReadOnlyInspectionNotice =
       'The local file or project state claim above is unverified because no successful read-only inspection tool result is available for that claim. '
       'Treat any file existence, file content, directory listing, or path verification claim above as unverified.';
