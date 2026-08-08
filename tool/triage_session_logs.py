@@ -9,7 +9,9 @@ worst offenders instead of opening logs at random.
 
 Signals (per session):
   - fr_length        : responses cut off by the token limit (finishReason=length)
-  - transport_error  : entries with a transport error / no finishReason
+  - transport_error  : completion entries with a transport error / no finishReason
+                       (marker entries are response-less by design and are NOT
+                       transport errors — see _is_completion_entry)
   - tool_loop        : longest run of identical consecutive tool-call signatures
   - reread           : byte-identical repeat read_file requests (same file AND
                        same paging window) across the turn — non-consecutive, so
@@ -169,6 +171,22 @@ def _read_paths(response: dict):
         yield (norm, args.get("offset"), args.get("limit"), args.get("max_chars"))
 
 
+def _is_completion_entry(entry: dict) -> bool:
+    """True when the entry records an actual LLM call rather than a marker.
+
+    `LlmSessionLogStore.record` always writes a `request` block (and a
+    `response` unless the call errored), while every marker writer — `turn_exit`,
+    `goal_auto_continue`, `goal_completion_shadow`, `execution_shadow` — writes
+    neither. The test is structural on purpose: an allowlist of marker
+    *operations* is what broke here, because two markers were added to the app
+    after this tool learned the two it skips, and every one of their entries was
+    then scored as an aborted request (89% of the reported transport errors —
+    see docs/triage_marker_transport_inflation_2026-08-06.md). A new marker type
+    cannot leak into scoring through this predicate.
+    """
+    return bool(entry.get("request")) or bool(entry.get("response"))
+
+
 def _is_transport_error(entry: dict, response: dict) -> bool:
     if entry.get("error") or response.get("errorMessage"):
         return True
@@ -192,7 +210,8 @@ def _count_error_markers(entry: dict) -> int:
 
 def analyze(path: str) -> dict | None:
     try:
-        entries = [json.loads(line) for line in open(path) if line.strip()]
+        with open(path) as handle:
+            entries = [json.loads(line) for line in handle if line.strip()]
     except (OSError, ValueError):
         return None
     if not entries:
@@ -219,6 +238,9 @@ def analyze(path: str) -> dict | None:
     for entry in entries:
         if entry.get("operation") in _COMPLETION_OPERATIONS:
             completions += 1
+        # Markers carry the session context too, so read the title from any
+        # entry — a session whose only titled entries are markers keeps its name.
+        title = title or entry.get("context", {}).get("sessionTitle", "")
         # LL31 turn-exit markers are separate, response-less entries.
         if entry.get("operation") == "turn_exit":
             turn_exit = entry.get("turnExit", {})
@@ -238,8 +260,11 @@ def analyze(path: str) -> dict | None:
             reason = marker.get("reason") or "unknown"
             goal_auto_continue[f"{decision}: {reason}"] += 1
             continue
+        # Any other marker (execution_shadow, goal_completion_shadow, or one
+        # added later) contributes no anomaly signal and must not be scored.
+        if not _is_completion_entry(entry):
+            continue
         response = entry.get("response", {})
-        title = title or entry.get("context", {}).get("sessionTitle", "")
         if response.get("finishReason") == "length":
             fr_length += 1
         if _is_transport_error(entry, response):

@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+"""Regression tests for ``tool/triage_session_logs.py``.
+
+The case that motivated these: `execution_shadow` and `goal_completion_shadow`
+markers were scored as aborted requests because the tool skipped markers by an
+operation allowlist that predated them, inflating the reported transport-error
+count 9x and reordering the ranking the triage exists to produce.
+"""
+
+import importlib.util
+import json
+import pathlib
+import tempfile
+import unittest
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+SPEC = importlib.util.spec_from_file_location(
+    "triage_session_logs",
+    ROOT / "tool" / "triage_session_logs.py",
+)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError("Could not load triage tool")
+triage = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(triage)
+
+
+def _completion(*, response=None, error=None, title="t"):
+    entry = {
+        "operation": "createChatCompletion",
+        "context": {"sessionTitle": title},
+        "request": {"messages": [{"role": "user", "content": "hi"}]},
+    }
+    if response is not None:
+        entry["response"] = response
+    if error is not None:
+        entry["error"] = error
+    return entry
+
+
+def _marker(operation, payload=None, title="t"):
+    """A marker entry, shaped exactly as LlmSessionLogStore writes one.
+
+    The defining property is the absence of both `request` and `response`.
+    """
+    entry = {
+        "operation": operation,
+        "context": {"sessionTitle": title},
+    }
+    if payload:
+        entry.update(payload)
+    return entry
+
+
+def _analyze(entries):
+    with tempfile.TemporaryDirectory() as directory:
+        path = pathlib.Path(directory) / "session.jsonl"
+        path.write_text("".join(json.dumps(e) + "\n" for e in entries))
+        return triage.analyze(str(path))
+
+
+class TriageMarkerScoringTest(unittest.TestCase):
+    def test_shadow_markers_are_not_transport_errors(self):
+        row = _analyze(
+            [
+                _completion(response={"finishReason": "stop", "content": "ok"}),
+                _marker("execution_shadow", {"executionShadow": {"action": "a"}}),
+                _marker("execution_shadow", {"executionShadow": {"action": "b"}}),
+                _marker(
+                    "goal_completion_shadow",
+                    {"goalCompletionShadow": {"label": "x", "lexicalCompleted": True}},
+                ),
+            ]
+        )
+
+        self.assertEqual(row["transport"], 0)
+        self.assertEqual(row["score"], 0)
+        self.assertEqual(row["completions"], 1)
+
+    def test_unknown_future_marker_is_not_scored(self):
+        """The predicate is structural, so a marker this tool has never heard
+        of is still excluded — the failure mode being fixed."""
+        row = _analyze(
+            [
+                _completion(response={"finishReason": "stop", "content": "ok"}),
+                _marker("some_marker_invented_later", {"payload": {"a": 1}}),
+            ]
+        )
+
+        self.assertEqual(row["transport"], 0)
+
+    def test_real_transport_errors_still_count(self):
+        row = _analyze(
+            [
+                _completion(
+                    error={"type": "RequestTimeoutException", "message": "timed out"}
+                ),
+                # An aborted stream: request logged, response never terminated.
+                _completion(response={"content": "", "toolCalls": []}),
+                _completion(response={"finishReason": "stop", "content": "ok"}),
+            ]
+        )
+
+        self.assertEqual(row["transport"], 2)
+        self.assertEqual(row["score"], 2 * triage.WEIGHT_TRANSPORT)
+
+    def test_marker_only_log_stays_ungrounded_and_unscored(self):
+        """Test output writes markers without inference; it must score zero so
+        the grounding filter (2026-08-05) keeps rejecting it."""
+        row = _analyze(
+            [
+                _marker("turn_exit", {"turnExit": {"reason": "text_response"}}),
+                _marker("execution_shadow", {"executionShadow": {"action": "a"}}),
+            ]
+        )
+
+        self.assertEqual(row["completions"], 0)
+        self.assertEqual(row["transport"], 0)
+        self.assertEqual(row["score"], 0)
+
+    def test_marker_only_session_keeps_its_title(self):
+        row = _analyze(
+            [
+                _marker("execution_shadow", {"executionShadow": {}}, title="shadowed"),
+                _completion(response={"finishReason": "stop", "content": "ok"}, title=""),
+            ]
+        )
+
+        self.assertEqual(row["title"], "shadowed")
+
+    def test_markers_still_feed_their_own_distributions(self):
+        row = _analyze(
+            [
+                _completion(response={"finishReason": "stop", "content": "ok"}),
+                _marker(
+                    "turn_exit",
+                    {
+                        "turnExit": {
+                            "reason": "empty_response",
+                            "noVisibleAnswer": True,
+                            "transforms": ["unwritten_file_claim_notice"],
+                        }
+                    },
+                ),
+                _marker(
+                    "goal_auto_continue",
+                    {"goalAutoContinue": {"decision": "continue", "reason": "gaps"}},
+                ),
+            ]
+        )
+
+        self.assertEqual(row["exit_reasons"], {"empty_response": 1})
+        self.assertEqual(row["no_answer"], 1)
+        self.assertEqual(row["transforms"], {"unwritten_file_claim_notice": 1})
+        self.assertEqual(row["goal_auto_continue"], {"continue: gaps": 1})
+
+
+if __name__ == "__main__":
+    unittest.main()

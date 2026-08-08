@@ -2624,6 +2624,26 @@ justify no change. The leak is closed at the store and the triage tool now
 counts only grounded logs; see
 `docs/session_log_corpus_contamination_2026-08-05.md`.
 
+**Second instrument correction, 2026-08-06** — the triage tool's transport-error
+signal was **89.2% its own instrumentation**: 282 of 316 reported errors were
+`execution_shadow` / `goal_completion_shadow` marker records, which carry no
+`finishReason` by design and were skipped by an allowlist of only two marker
+operations. Four of the top five ranked sessions change once it is corrected,
+and the old first place (score 99.25, a canary the LL34 note records as passing
+in 130 s) falls to rank 29 at 6.75 — the tool was ranking coding runs by how
+much shadow data they emitted, so the better instrumented a run, the more broken
+it looked. The skip is now structural (an entry is scored only if it carries a
+`request` or `response`), so a marker added later cannot leak in;
+`test/python/triage_session_logs_test.py` covers it, including an invented
+future marker. No other signal moved (`max_tool_run`, `fr_length`, `oversized`,
+`tool_errors` are identical across the corpus before and after). Full record:
+`docs/triage_marker_transport_inflation_2026-08-06.md`.
+
+The two corrections share a shape worth naming: **a filter written against the
+corpus as it was, silently outgrown by the corpus.** Both were found by reading
+a distribution that looked wrong rather than by any test failing, and in both
+cases the inflated figure had already been quoted in this document.
+
 Next action: thread a `turnExitReason` local through the `ChatNotifier` loop
 break sites, then add the post-loop explainer + mid-work warning as a single
 finalization step. Once it is emitting, run `tool/triage_session_logs.py` over
