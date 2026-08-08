@@ -341,7 +341,11 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/filesystem_diff_builder.dart': 213,
   'lib/features/chat/data/datasources/project_scoped_tool_argument_resolver.dart':
       152,
-  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1164,
+  // -72 after moving parameter negotiation (the learned compat state, the
+  // request's negotiable values, and the 400 retry loop) into
+  // ChatCompletionParameterNegotiator. The datasource now asks what to put in a
+  // request instead of owning how each endpoint's quirks are discovered.
+  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1092,
   'lib/features/chat/data/datasources/chat_completion_response_normalizer.dart':
       183,
   'lib/features/chat/data/datasources/built_in_network_tool_handler.dart': 978,
