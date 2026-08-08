@@ -78,7 +78,80 @@ class Embeddings extends Table {
   IntColumn get createdAtMs => integer().withDefault(const Constant(0))();
 }
 
-@DriftDatabase(tables: [Conversations, ChatMemoryEntries, Embeddings])
+/// Per-model token usage, aggregated to one row per local day and dimension
+/// tuple. Storing daily sums rather than per-request rows keeps the table tiny
+/// (labels are ~20 static constants and roles are 6, so a heavy day is a few
+/// hundred rows) and makes every read a plain GROUP BY.
+///
+/// `endpointId` is part of the key because the model name alone is ambiguous:
+/// the same name can be served by the primary endpoint, a LAN mesh host, or a
+/// cloud provider, and which one it was decides whether the tokens cost money.
+///
+/// Detail columns are 0 when the provider omits `prompt_tokens_details` /
+/// `completion_tokens_details` (local llama.cpp does), so readers must treat 0
+/// as "not reported" rather than "measured as zero".
+@DataClassName('ModelUsageDailyRow')
+class ModelUsageDaily extends Table {
+  /// Local epoch-day, matching `modelUsageDayNumber`.
+  IntColumn get dayNumber => integer()();
+  TextColumn get model => text()();
+  TextColumn get endpointId => text().withDefault(const Constant(''))();
+
+  /// `ModelUsageRole.name`; `'unknown'` marks a call site that never set one.
+  TextColumn get role => text().withDefault(const Constant('unknown'))();
+
+  /// The session-log request label, which names a main-loop recovery path
+  /// (`'tool-loop exhaustion recovery'`, ...) — not a role.
+  TextColumn get label => text().withDefault(const Constant(''))();
+
+  IntColumn get requestCount => integer().withDefault(const Constant(0))();
+  IntColumn get errorCount => integer().withDefault(const Constant(0))();
+
+  /// Completions that stopped on `finish_reason == 'length'`.
+  IntColumn get truncatedCount => integer().withDefault(const Constant(0))();
+
+  /// Running sum; average latency is `durationMs / requestCount`.
+  IntColumn get durationMs => integer().withDefault(const Constant(0))();
+
+  IntColumn get promptTokens => integer().withDefault(const Constant(0))();
+  IntColumn get completionTokens => integer().withDefault(const Constant(0))();
+  IntColumn get totalTokens => integer().withDefault(const Constant(0))();
+  IntColumn get cachedPromptTokens =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get audioPromptTokens => integer().withDefault(const Constant(0))();
+  IntColumn get reasoningTokens => integer().withDefault(const Constant(0))();
+  IntColumn get audioCompletionTokens =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get acceptedPredictionTokens =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get rejectedPredictionTokens =>
+      integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {
+    dayNumber,
+    model,
+    endpointId,
+    role,
+    label,
+  };
+}
+
+/// Local epoch-day for [timestamp], matching the convention used by the
+/// dashboard's activity heatmap so both features bucket a day identically.
+int modelUsageDayNumber(DateTime timestamp) {
+  final local = timestamp.toLocal();
+  return DateTime.utc(
+        local.year,
+        local.month,
+        local.day,
+      ).millisecondsSinceEpoch ~/
+      Duration.millisecondsPerDay;
+}
+
+@DriftDatabase(
+  tables: [Conversations, ChatMemoryEntries, Embeddings, ModelUsageDaily],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
@@ -90,7 +163,7 @@ class AppDatabase extends _$AppDatabase {
   static const _conversationSearchTable = 'conversation_search';
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -105,6 +178,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 3) {
         await m.createTable(embeddings);
+      }
+      if (from < 4) {
+        await m.createTable(modelUsageDaily);
       }
     },
   );

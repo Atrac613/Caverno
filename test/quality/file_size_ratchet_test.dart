@@ -115,7 +115,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/file_turn_rollback_service.dart': 111,
   'lib/features/chat/domain/services/process_start_result_policy.dart': 73,
   'lib/features/chat/domain/services/referenced_specification_loader.dart': 75,
-  'lib/features/chat/domain/services/secondary_completion_router.dart': 135,
+  // Route value types moved to secondary_completion_route_snapshot.dart when
+  // the usage role joined them.
+  'lib/features/chat/domain/services/secondary_completion_router.dart': 124,
   'lib/features/chat/domain/services/execution_snapshot_observer.dart': 179,
   'lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart':
       380,
@@ -231,8 +233,10 @@ const Map<String, int> _lineBudgets = {
   'lib/core/services/ssh_service.dart': 317,
   'lib/features/chat/presentation/providers/subagent_task_notifier.dart': 210,
   'lib/features/chat/domain/entities/chat_turn_owner.dart': 43,
+  // TokenUsage moved to token_usage.dart when it grew the full provider
+  // breakdown; this file is now just the terminal metadata wrapper.
   'lib/features/chat/domain/entities/chat_completion_terminal_metadata.dart':
-      27,
+      20,
   'lib/features/chat/presentation/providers/turn_owner_snapshot_registry.dart':
       273,
   'lib/features/chat/presentation/providers/active_response_registry.dart': 329,
@@ -349,7 +353,12 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/filesystem_diff_builder.dart': 213,
   'lib/features/chat/data/datasources/project_scoped_tool_argument_resolver.dart':
       152,
-  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1164,
+  // Response telemetry (chat_response_telemetry.dart) and request logging
+  // (chat_request_logger.dart) extracted alongside per-model usage accounting,
+  // which is a concern of the response, not of sending. Net -23 against the
+  // previous 1164 ceiling: the extractions paid for the usage attribution each
+  // request method now captures at issue time.
+  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1141,
   'lib/features/chat/data/datasources/chat_completion_response_normalizer.dart':
       183,
   'lib/features/chat/data/datasources/built_in_network_tool_handler.dart': 978,

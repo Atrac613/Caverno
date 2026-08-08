@@ -1,17 +1,6 @@
-/// Token usage reported when a chat completion reaches a terminal state.
-final class TokenUsage {
-  const TokenUsage({
-    this.promptTokens = 0,
-    this.completionTokens = 0,
-    this.totalTokens = 0,
-  });
+import 'token_usage.dart';
 
-  final int promptTokens;
-  final int completionTokens;
-  final int totalTokens;
-
-  static const zero = TokenUsage();
-}
+export 'token_usage.dart';
 
 /// Request-local metadata captured when a plain content stream terminates.
 final class ChatCompletionTerminalMetadata {

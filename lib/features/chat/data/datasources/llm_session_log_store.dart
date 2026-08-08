@@ -105,7 +105,9 @@ class LlmSessionLogContext {
       participantRoleLabel: participantRoleLabel,
       participantToolsEnabled: participantToolsEnabled,
       participantToolNames: participantToolNames,
-      requestLabel: normalized == null || normalized.isEmpty ? null : normalized,
+      requestLabel: normalized == null || normalized.isEmpty
+          ? null
+          : normalized,
     );
   }
 
@@ -730,10 +732,26 @@ class LlmSessionLogStore {
               },
             )
             .toList(growable: false),
+      // Detail fields are additive within `usage`; readers that only know the
+      // original three keys keep parsing entries unchanged. Omitted when the
+      // provider did not report a breakdown, so 0 is never mistaken for a
+      // measured zero.
       'usage': {
         'promptTokens': response.usage.promptTokens,
         'completionTokens': response.usage.completionTokens,
         'totalTokens': response.usage.totalTokens,
+        if (response.usage.cachedPromptTokens > 0)
+          'cachedPromptTokens': response.usage.cachedPromptTokens,
+        if (response.usage.audioPromptTokens > 0)
+          'audioPromptTokens': response.usage.audioPromptTokens,
+        if (response.usage.reasoningTokens > 0)
+          'reasoningTokens': response.usage.reasoningTokens,
+        if (response.usage.audioCompletionTokens > 0)
+          'audioCompletionTokens': response.usage.audioCompletionTokens,
+        if (response.usage.acceptedPredictionTokens > 0)
+          'acceptedPredictionTokens': response.usage.acceptedPredictionTokens,
+        if (response.usage.rejectedPredictionTokens > 0)
+          'rejectedPredictionTokens': response.usage.rejectedPredictionTokens,
       },
     };
   }
