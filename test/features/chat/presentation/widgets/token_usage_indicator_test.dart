@@ -5,6 +5,7 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/context_surgery_observation_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/widgets/token_usage_indicator.dart';
+import 'package:caverno/features/settings/domain/entities/model_catalog_entry.dart';
 
 void main() {
   String formatTokenCount(int count) {
@@ -292,6 +293,48 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('0 / 65.5k'), findsNothing);
+  });
+
+  testWidgets('labels a window taken from the published specification', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TokenUsageIndicator(
+            chatState: const ChatState(
+              messages: [],
+              isLoading: false,
+              promptTokens: 9002,
+              completionTokens: 18,
+              totalTokens: 9020,
+              estimatedPromptTokens: 9002,
+            ),
+            model: 'gpt-5.6-luna',
+            contextWindowTokens: 1050000,
+            contextWindowSource: ModelContextWindowSource.publishedSpec,
+            formatTokenCount: formatTokenCount,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(CircularProgressIndicator));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Context window'), findsOneWidget);
+    expect(find.text('Unknown'), findsNothing);
+    expect(find.text('9.0k / 1.1M (1%)'), findsOneWidget);
+    expect(
+      find.text(
+        'Context window size is not advertised by /models; '
+        "using the model's published specification.",
+      ),
+      findsOneWidget,
+    );
+    // A real budget means the breakdown is measured against it, not the used
+    // total, so free space appears.
+    expect(find.text('Free space'), findsOneWidget);
   });
 
   testWidgets('shows unknown state when context metadata is unavailable', (

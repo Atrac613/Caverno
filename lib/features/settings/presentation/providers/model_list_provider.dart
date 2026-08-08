@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/model_remote_datasource.dart';
+import '../../data/published_model_context_windows.dart';
 import '../../domain/entities/model_catalog_entry.dart';
 
 class ModelListConfig {
@@ -27,25 +28,34 @@ class ModelListConfig {
   int get hashCode => Object.hash(baseUrl, apiKey, selectedModelId);
 }
 
+/// Model catalog for [ModelListConfig], with published context windows filled in
+/// for entries the endpoint left silent.
+///
+/// The datasource reports only what the endpoint said; composing that with
+/// bundled vendor specs happens here so the two sources stay distinguishable.
 final modelCatalogProvider = FutureProvider.autoDispose
     .family<List<ModelCatalogEntry>, ModelListConfig>((ref, config) async {
       final dataSource = ModelRemoteDataSource(
         baseUrl: config.baseUrl,
         apiKey: config.apiKey,
       );
-      return dataSource.listModelCatalog(
+      final catalog = await dataSource.listModelCatalog(
         selectedModelId: config.selectedModelId,
       );
+      return PublishedModelContextWindows.fill(catalog);
     });
 
-/// Server-reported context window for [ModelListConfig.selectedModelId], or
-/// null when the endpoint advertises none.
+/// Context window for [ModelListConfig.selectedModelId], or null when neither
+/// the endpoint nor the bundled published specs know one.
 ///
-/// The catalog already resolves this per server family (llama.cpp `/props` +
-/// `/slots`, LM Studio loaded instances, Ollama `num_ctx`, OpenAI
-/// `context_length`), so capability probing reads ground truth here instead of
-/// estimating a context budget. Never throws: an unreachable or silent endpoint
-/// is reported as "unmeasured" (null), never as a guessed number.
+/// The catalog resolves this per server family first (llama.cpp `/props` +
+/// `/slots`, LM Studio loaded instances, Ollama `num_ctx`, a gateway's
+/// `context_length`), then falls back to the vendor's published figure for
+/// models whose endpoint advertises nothing — OpenAI's `/v1/models` never does.
+/// Either way the number is documented rather than estimated; check
+/// `ModelCatalogEntry.contextWindowSource` when the distinction matters. Never
+/// throws: an unreachable endpoint with an unlisted model is reported as
+/// "unmeasured" (null), never as a guess.
 final modelContextWindowProvider = FutureProvider.autoDispose
     .family<int?, ModelListConfig>((ref, config) async {
       final selectedModelId = config.selectedModelId?.trim();
