@@ -466,7 +466,7 @@ final class BuiltInFilesystemMutationEffectBoundary {
       result: payload,
       isSuccess: resultSuccess,
       errorMessage: resultSuccess ? null : 'Failed to delete file',
-      outcome: succeeded ? CommandPayloadFacts.mutationOutcome(payload) : null,
+      outcome: CommandPayloadFacts.mutationOutcome(payload),
     );
   }
 

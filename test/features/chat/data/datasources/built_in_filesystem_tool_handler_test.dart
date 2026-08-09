@@ -336,13 +336,17 @@ void main() {
         isNull,
       );
 
-      final alreadyApplied = handlerReturning('{"already_applied":true}');
+      final alreadyApplied = handlerReturning(
+        '{"already_applied":true,"changed":false}',
+      );
       final alreadyAppliedResult = await alreadyApplied.execute(
         name: 'edit_file',
         arguments: {'path': targetPath, 'old_text': 'old', 'new_text': 'new'},
         owner: owner,
       );
       expect(alreadyAppliedResult.isSuccess, isTrue);
+      expect(alreadyAppliedResult.outcome?.fileChanged, isFalse);
+      expect(alreadyAppliedResult.outcome?.isNoOpMutation, isTrue);
       expect(
         await alreadyApplied.checkpointStore.previewLastFileRollbackChange(
           owner,

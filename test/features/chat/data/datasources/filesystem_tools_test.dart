@@ -82,6 +82,7 @@ void main() {
             )
             as Map<String, dynamic>;
     expect(editResult['replacements'], 1);
+    expect(editResult['changed'], isTrue);
 
     final updated = await File(targetPath).readAsString();
     expect(updated, 'hello agent');
@@ -210,6 +211,7 @@ void main() {
 
       expect(editResult['already_applied'], isTrue);
       expect(editResult['replacements'], 0);
+      expect(editResult['changed'], isFalse);
       expect(await File(targetPath).readAsString(), 'name: todo_app\n');
     },
   );

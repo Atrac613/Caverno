@@ -637,6 +637,7 @@ class FilesystemTools {
         'path': file.absolute.path,
         'replacements': replaceAll ? occurrences : 1,
         'replace_all': replaceAll,
+        'changed': true,
       });
     } on FileSystemException catch (error) {
       return _buildFilesystemError(
@@ -718,6 +719,7 @@ class FilesystemTools {
         'replacements': 0,
         'replace_all': replaceAll,
         'already_applied': true,
+        'changed': false,
         'message':
             'new_text is already present at every old_text match; the file was left unchanged.',
       };

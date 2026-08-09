@@ -2999,10 +2999,14 @@ guessing — none of it touches the filesystem) out of `FilesystemTools`, and
 sites passed so that its own assert could check it restated the tool name; the
 real decision has always been inside the mutation effect boundary.
 
-Still open: an equivalent `changed` fact for `edit_file`'s own payload, and a
-second-tier pass over `process_*` and `dart_analyze_feedback` — though the
-coding re-measurement above puts `dart_analyze_feedback` at 7.9%, sixth overall,
-so "second-tier" understates it.
+The equivalent `edit_file` fact is now shipped too: applied replacements report
+`changed: true`, while the idempotent `already_applied` response reports
+`changed: false`. The mutation boundary lifts that known no-op fact even though
+it correctly skips rollback capture for a file that did not change.
+
+Still open: a second-tier pass over `process_*` and
+`dart_analyze_feedback` — though the coding re-measurement above puts
+`dart_analyze_feedback` at 7.9%, sixth overall, so "second-tier" understates it.
 
 Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
 traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.
