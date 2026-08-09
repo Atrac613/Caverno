@@ -5513,7 +5513,6 @@ class ChatNotifier extends Notifier<ChatState> {
     var hasTextResponse = false;
     final executedToolCallKeys = <String>{};
     final toolFailureCounts = <String, int>{};
-    _turnEnd.reset(turnOwner);
     final executedToolResults = <ToolResultInfo>[];
     var commandRetryGeneration = 0;
     var attemptedDuplicateInspectionRecovery = false;

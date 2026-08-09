@@ -28,12 +28,6 @@ final class TurnFinalizationStateRegistry {
     return true;
   }
 
-  bool reset(ChatTurnOwner owner) {
-    if (!_states.containsKey(owner)) return false;
-    _states[owner] = TurnFinalizationState();
-    return true;
-  }
-
   bool setHint(ChatTurnOwner owner, ToolLoopExitReason hint) {
     final state = _states[owner];
     if (state == null) return false;

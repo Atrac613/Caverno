@@ -16,7 +16,6 @@ void main() {
     expect(registry.isEmpty, isTrue);
     expect(registry.length, 0);
     expect(registry.contains(owner), isFalse);
-    expect(registry.reset(owner), isFalse);
     expect(registry.setHint(owner, ToolLoopExitReason.guardrailBlock), isFalse);
     expect(
       registry.setHintIfAbsent(owner, ToolLoopExitReason.pendingBatchExecuted),
@@ -175,7 +174,7 @@ void main() {
     expect(registry.takeHint(owner), ToolLoopExitReason.maxIterations);
   });
 
-  test('reset and disposal are owner-local and reject late writes', () {
+  test('duplicate begin preserves state and disposal rejects late writes', () {
     final peer = ChatTurnOwner(
       conversationId: 'thread-b',
       interactionGeneration: 7,
@@ -197,23 +196,21 @@ void main() {
     expect(registry.setHint(owner, ToolLoopExitReason.emptyResponse), isTrue);
     expect(registry.markGoalClaimed(owner), isTrue);
 
-    expect(registry.reset(owner), isTrue);
-    expect(registry.reset(owner), isTrue);
-    expect(registry.transforms(owner), isEmpty);
-    expect(registry.takeHint(owner), isNull);
-    expect(registry.takeGoalClaim(owner), isFalse);
+    expect(registry.begin(owner), isFalse);
+    expect(registry.transforms(owner), ['a']);
+    expect(registry.takeHint(owner), ToolLoopExitReason.emptyResponse);
+    expect(registry.takeGoalClaim(owner), isTrue);
     expect(
       registry.finalAnswerRecoveryDecisionLogValue(owner),
       'not_evaluated',
     );
     expect(registry.transforms(peer), ['b']);
-    expect(registry.addTransform(owner, 'a-after-reset'), isTrue);
+    expect(registry.addTransform(owner, 'a-after-reentry'), isTrue);
 
     expect(registry.dispose(owner), isTrue);
     expect(registry.dispose(owner), isFalse);
     expect(registry.contains(owner), isFalse);
     expect(registry.begin(owner), isFalse);
-    expect(registry.reset(owner), isFalse);
     expect(registry.addTransform(owner, 'late'), isFalse);
     expect(registry.setHint(owner, ToolLoopExitReason.unknown), isFalse);
     expect(
