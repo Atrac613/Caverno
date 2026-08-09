@@ -28,12 +28,14 @@ triage = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(triage)
 
 
-def _completion(*, response=None, error=None, title="t"):
+def _completion(*, response=None, error=None, title="t", tool_results=None):
     entry = {
         "operation": "createChatCompletion",
         "context": {"sessionTitle": title},
         "request": {"messages": [{"role": "user", "content": "hi"}]},
     }
+    if tool_results is not None:
+        entry["request"]["toolResults"] = tool_results
     if response is not None:
         entry["response"] = response
     if error is not None:
@@ -301,6 +303,125 @@ class TriageGoalCompletionOutputTest(unittest.TestCase):
             rendered,
         )
         self.assertIn("goal_completion_tool_accepted_lexical_missed", rendered)
+
+
+class TriageWorkflowFailureEvidenceTest(unittest.TestCase):
+    def test_deduplicates_resent_results_and_classifies_evidence_sources(self):
+        results = [
+            {
+                "id": "typed",
+                "name": "local_execute_command",
+                "result": {"exit_code": 0, "stdout": "legacy contradiction"},
+                "outcome": {"exit_code": 2},
+            },
+            {
+                "id": "parsed",
+                "name": "local_execute_command",
+                "result": {"exit_code": 3},
+                "outcome": None,
+            },
+            {
+                "id": "structured",
+                "name": "edit_file",
+                "result": {"success": False, "error": "edit failed"},
+                "outcome": None,
+            },
+            {
+                "id": "output",
+                "name": "local_execute_command",
+                "result": {"exit_code": 0, "stdout": "No data found."},
+                "outcome": {"exit_code": 0},
+            },
+            {
+                "id": "lexical",
+                "name": "third_party_tool",
+                "result": "FAILED TO reach the remote service",
+                "outcome": None,
+            },
+            {
+                "id": "success",
+                "name": "read_file",
+                "result": {"content": "ok"},
+                "outcome": None,
+            },
+        ]
+        row = _analyze(
+            [
+                _completion(
+                    response={"finishReason": "stop", "content": "ok"},
+                    tool_results=results,
+                ),
+                _completion(
+                    response={"finishReason": "stop", "content": "ok"},
+                    tool_results=results,
+                ),
+            ]
+        )
+
+        self.assertEqual(
+            row["workflow_failure_evidence"],
+            {
+                "typed_exit": 1,
+                "parsed_exit": 1,
+                "structured_payload": 1,
+                "zero_exit_output_issue": 1,
+                "lexical_only": 1,
+                "no_failure": 1,
+            },
+        )
+
+    def test_typed_success_overrides_conflicting_parsed_exit(self):
+        row = _analyze(
+            [
+                _completion(
+                    response={"finishReason": "stop", "content": "ok"},
+                    tool_results=[
+                        {
+                            "id": "result",
+                            "name": "local_execute_command",
+                            "result": {"exit_code": 9, "stdout": "all good"},
+                            "outcome": {"exit_code": 0},
+                        }
+                    ],
+                )
+            ]
+        )
+
+        self.assertEqual(row["workflow_failure_evidence"], {"no_failure": 1})
+
+    def test_prints_deduplicated_workflow_failure_distribution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "coding" / "session.jsonl"
+            path.parent.mkdir()
+            entries = [
+                _completion(
+                    response={"finishReason": "stop", "content": "ok"},
+                    tool_results=[
+                        {
+                            "id": "legacy",
+                            "name": "third_party_tool",
+                            "result": "Error: unavailable",
+                            "outcome": None,
+                        }
+                    ],
+                )
+            ]
+            path.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+            output = io.StringIO()
+            with mock.patch(
+                "sys.argv",
+                ["triage_session_logs.py", "--dir", directory, "--top", "5"],
+            ), redirect_stdout(output):
+                status = triage.main()
+
+        self.assertEqual(status, 0)
+        rendered = output.getvalue()
+        self.assertIn(
+            "Workflow tool-result failure evidence "
+            "(LL36, 1 deduplicated results)",
+            rendered,
+        )
+        self.assertIn("lexical_only", rendered)
 
 
 if __name__ == "__main__":

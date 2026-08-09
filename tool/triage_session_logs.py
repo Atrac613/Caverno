@@ -49,6 +49,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import time
 from collections import Counter
 
@@ -105,6 +106,117 @@ OVERSIZED_CONTENT_CHARS = 8000
 TOOL_LOOP_MIN_RUN = 3  # a run shorter than this is normal exploration
 
 _ERROR_MARKERS = ('"error"', "is required", "old_text was not found", "not found")
+
+_WORKFLOW_FAILURE_LEXICAL_MARKERS = (
+    'error:',
+    'failed to',
+    'no matching tool available',
+    '"error":',
+    '"issuccess":false',
+    '"success":false',
+    '"errormessage"',
+)
+
+
+def _canonical_json(value) -> str:
+    """Return a stable representation for request tool-result deduplication."""
+    try:
+        return json.dumps(value, sort_keys=True, separators=(",", ":"))
+    except (TypeError, ValueError):
+        return repr(value)
+
+
+def _integer(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return int(value)
+
+
+def _decoded_tool_result(result):
+    if isinstance(result, dict):
+        return result, _canonical_json(result).lower()
+    if isinstance(result, str):
+        normalized = result.strip().lower()
+        if normalized.startswith("{"):
+            try:
+                decoded = json.loads(result)
+            except ValueError:
+                decoded = None
+            if isinstance(decoded, dict):
+                return decoded, normalized
+        return None, normalized
+    return None, str(result or "").strip().lower()
+
+
+def _reports_zero_exit_output_issue(decoded: dict, resolved_exit_code) -> bool:
+    """Mirror the stable output signals used by the command output guardrail.
+
+    Command-shape preflight checks are not included here because they do not
+    overlap the raw lexical compatibility markers. The purpose of this
+    distribution is to identify results whose failure verdict uniquely depends
+    on the lexical fallback, not to duplicate every command preflight rule.
+    """
+    if resolved_exit_code != 0:
+        return False
+    for field in ("stdout", "stderr"):
+        value = decoded.get(field)
+        if not isinstance(value, str):
+            continue
+        for line in value.splitlines():
+            stripped = line.strip()
+            lowered = stripped.lower()
+            if (
+                re.match(r"^\s*#{1,6}\s+error\b", stripped, re.IGNORECASE)
+                or lowered == "エラー"
+                or "no data found" in lowered
+                or "data not found" in lowered
+                or "could not find data" in lowered
+                or "required data was not found" in lowered
+                or "データが見つかりません" in stripped
+                or "traceback (most recent call last)" in lowered
+                or re.search(
+                    r"\b(?:uncaught exception|unhandled exception|fatal exception|assertionerror:)\b",
+                    lowered,
+                )
+            ):
+                return True
+    return False
+
+
+def _workflow_failure_evidence_source(tool_result: dict) -> str:
+    """Classify the first evidence source that makes a result a failure."""
+    result = tool_result.get("result")
+    decoded, normalized = _decoded_tool_result(result)
+    outcome = tool_result.get("outcome")
+    typed_exit_code = _integer(outcome.get("exit_code")) if isinstance(outcome, dict) else None
+    parsed_exit_code = (
+        _integer(decoded.get("exit_code")) if isinstance(decoded, dict) else None
+    )
+    resolved_exit_code = (
+        typed_exit_code if typed_exit_code is not None else parsed_exit_code
+    )
+
+    if typed_exit_code is not None and typed_exit_code != 0:
+        return "typed_exit"
+    if typed_exit_code is None and parsed_exit_code not in (None, 0):
+        return "parsed_exit"
+    if isinstance(decoded, dict):
+        error_text = decoded.get("error")
+        error_message = decoded.get("errorMessage")
+        if (
+            decoded.get("success") is False
+            or decoded.get("isSuccess") is False
+            or (isinstance(error_text, str) and error_text.strip())
+            or (isinstance(error_message, str) and error_message.strip())
+        ):
+            return "structured_payload"
+        if _reports_zero_exit_output_issue(decoded, resolved_exit_code):
+            return "zero_exit_output_issue"
+    if normalized.startswith("error:") or any(
+        marker in normalized for marker in _WORKFLOW_FAILURE_LEXICAL_MARKERS[1:]
+    ):
+        return "lexical_only"
+    return "no_failure"
 
 
 def _session_dir() -> str:
@@ -250,6 +362,8 @@ def analyze(path: str) -> dict | None:
     goal_completion_shadow_disagreement: Counter = Counter()
     tool_outcome_shadow: Counter = Counter()
     tool_outcome_verdict_source: Counter = Counter()
+    workflow_failure_evidence: Counter = Counter()
+    seen_tool_results = set()
     for entry in entries:
         if entry.get("operation") in _COMPLETION_OPERATIONS:
             completions += 1
@@ -299,6 +413,21 @@ def analyze(path: str) -> dict | None:
         # anomaly signal and must not be scored.
         if not _is_completion_entry(entry):
             continue
+        for tool_result in entry.get("request", {}).get("toolResults") or []:
+            if not isinstance(tool_result, dict):
+                continue
+            signature = (
+                tool_result.get("id"),
+                tool_result.get("name"),
+                _canonical_json(tool_result.get("result")),
+                _canonical_json(tool_result.get("outcome")),
+            )
+            if signature in seen_tool_results:
+                continue
+            seen_tool_results.add(signature)
+            workflow_failure_evidence[
+                _workflow_failure_evidence_source(tool_result)
+            ] += 1
         response = entry.get("response", {})
         if response.get("finishReason") == "length":
             fr_length += 1
@@ -363,6 +492,7 @@ def analyze(path: str) -> dict | None:
         ),
         "tool_outcome_shadow": dict(tool_outcome_shadow),
         "tool_outcome_verdict_source": dict(tool_outcome_verdict_source),
+        "workflow_failure_evidence": dict(workflow_failure_evidence),
         "mtime": os.path.getmtime(path),
         "score": round(score, 2),
         "commit": commit,
@@ -427,6 +557,7 @@ def main() -> int:
     goal_completion_shadow_disagreement_totals: Counter = Counter()
     tool_outcome_shadow_totals: Counter = Counter()
     tool_outcome_verdict_source_totals: Counter = Counter()
+    workflow_failure_evidence_totals: Counter = Counter()
     for r in rows:
         exit_totals.update(r.get("exit_reasons") or {})
         transform_totals.update(r.get("transforms") or {})
@@ -440,6 +571,9 @@ def main() -> int:
         tool_outcome_shadow_totals.update(r.get("tool_outcome_shadow") or {})
         tool_outcome_verdict_source_totals.update(
             r.get("tool_outcome_verdict_source") or {}
+        )
+        workflow_failure_evidence_totals.update(
+            r.get("workflow_failure_evidence") or {}
         )
 
     # Worst byte-identical repeat-read offenders (reread_max), across all
@@ -544,6 +678,14 @@ def main() -> int:
             f"(LL34, {total} comparisons) =="
         )
         for source, count in tool_outcome_verdict_source_totals.most_common():
+            print(f"  {count:>5} ({count / total:>5.1%})  {source}")
+    if workflow_failure_evidence_totals:
+        total = sum(workflow_failure_evidence_totals.values())
+        print(
+            f"\n== Workflow tool-result failure evidence "
+            f"(LL36, {total} deduplicated results) =="
+        )
+        for source, count in workflow_failure_evidence_totals.most_common():
             print(f"  {count:>5} ({count / total:>5.1%})  {source}")
     return 0
 
