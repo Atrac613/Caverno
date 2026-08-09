@@ -77,6 +77,7 @@ void main() {
         isNot(contains('CAVERNO_CODING_GOAL_TODO_MAX_TOKENS')),
       );
       expect(runner, contains('Language: Dart'));
+      expect(runner, contains('Summary-first tool results:'));
       expect(runner, contains('docs/coding_mvp_fixtures/todo_app.md'));
       expect(runner, contains('--canary-name coding_todo_app_mvp_live_canary'));
       expect(runner, contains('--surface coding_mvp'));
@@ -92,6 +93,7 @@ void main() {
           '--plain-name "live LLM auto-continues the todo_app.md MVP fixture from diagnostic evidence"',
         ),
       );
+      expect(autoContinueRunner, contains('Summary-first tool results:'));
       expect(
         canary,
         contains('Implement a Dart command-line program at bin/todo_cli.dart.'),
@@ -129,6 +131,7 @@ void main() {
       );
       expect(canary, contains(r"'${root.path}/todo_app.md'"));
       expect(canary, contains("name: 'read_file'"));
+      expect(canary, contains('CAVERNO_CODING_GOAL_TODO_SUMMARY_FIRST'));
       expect(canary, contains("name: 'edit_file'"));
       expect(canary, contains("name: 'list_directory'"));
       expect(canary, isNot(contains("name: 'run_tests'")));

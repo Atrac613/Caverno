@@ -487,6 +487,26 @@ void main() {
     }
   });
 
+  test('live settings opt only the declared model into summary-first', () {
+    const env = _TodoFixtureEnv(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      model: 'measured-model',
+      maxTokens: 128,
+      temperature: 0,
+      workspaceRoot: null,
+      sessionLogRoot: '/tmp/caverno_test_session_logs',
+      summaryFirstToolResultsEnabled: true,
+    );
+
+    final configs = _liveModelHarnessConfigs(env);
+
+    expect(configs, hasLength(1));
+    expect(configs.single.baseUrl, env.baseUrl);
+    expect(configs.single.model, env.model);
+    expect(configs.single.summaryFirstToolResultsEnabled, isTrue);
+  });
+
   test(
     'TODO fixture preserves whole-file identity across read windows',
     () async {
@@ -2801,6 +2821,7 @@ class _TodoFixtureEnv {
     required this.temperature,
     required this.workspaceRoot,
     required this.sessionLogRoot,
+    this.summaryFirstToolResultsEnabled = false,
   });
 
   final String baseUrl;
@@ -2810,6 +2831,7 @@ class _TodoFixtureEnv {
   final double temperature;
   final String? workspaceRoot;
   final String sessionLogRoot;
+  final bool summaryFirstToolResultsEnabled;
 
   static _TodoFixtureEnv fromEnvironment() {
     return _TodoFixtureEnv(
@@ -2828,8 +2850,24 @@ class _TodoFixtureEnv {
           0.1,
       workspaceRoot: Platform.environment['CAVERNO_CODING_GOAL_TODO_WORK_ROOT'],
       sessionLogRoot: _requiredEnv('CAVERNO_CODING_GOAL_TODO_SESSION_LOG_ROOT'),
+      summaryFirstToolResultsEnabled:
+          Platform.environment['CAVERNO_CODING_GOAL_TODO_SUMMARY_FIRST'] == '1',
     );
   }
+}
+
+List<ModelHarnessConfig> _liveModelHarnessConfigs(_TodoFixtureEnv env) {
+  if (!env.summaryFirstToolResultsEnabled) {
+    return const [];
+  }
+  return [
+    ModelHarnessConfig(
+      id: '',
+      baseUrl: env.baseUrl,
+      model: env.model,
+      summaryFirstToolResultsEnabled: true,
+    ).normalizedForPersistence(),
+  ];
 }
 
 String _requiredEnv(String name) {
@@ -2861,6 +2899,7 @@ class _LiveSettingsNotifier extends SettingsNotifier {
       confirmGitWrites: false,
       enableLlmSessionLogs: true,
       demoMode: false,
+      modelHarnessConfigs: _liveModelHarnessConfigs(env),
     );
   }
 }
