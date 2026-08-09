@@ -3226,6 +3226,33 @@ passed with two auto-continuations, 31 grounded request/response pairs, and no
 transport failure. This proves the denominator is emitted and aggregatable; it
 does **not** provide enough independent runs to remove the lexical authority.
 
+**Expanded three-run reading, 2026-08-09.** Two more clean, independent runs of
+the same grounded fixture increased the pooled sample to 13 comparisons:
+
+| agreement | count | rate |
+| --- | ---: | ---: |
+| `agree` | 10 | 76.9% |
+| `disagree` | 3 | 23.1% |
+| `unknown` | 0 | 0% |
+
+All three disagreements are
+`goal_completion_tool_accepted_lexical_missed`, one in each run. The pooled
+tool outcomes are seven silent, three `completionRejected`, and three
+`completionRecorded`; all markers carry owner-scoped turn ids. Every run
+reached verifier exit 0 and recorded goal completion. The second wrapper
+initially reported a false failure because its terminal-success helper
+recognized only the fixture-shaped marker, not Caverno's actual built-in typed
+command result, while the intermediate diagnostic sequence increased from 2
+to 11. Commit `89c6cb85` adds that exact typed-result path and a regression
+test; the third clean run passed after the fix.
+
+Decision: the **LL3 fidelity probe and confirmation rung remain No-Go** for this
+model because `goal_completion_lexical_only` is still zero. **Lexical removal
+also remains No-Go** because three sessions of one fixture are not broad enough
+to establish coverage. The plan-checklist next-step miner is independent of
+completion authority and is the next additive implementation slice while
+broader goal shapes accumulate evidence.
+
 Scope:
 - Add an `update_goal` built-in with `completed` / `blocked_reason` / `message`,
   routed through the existing tool-dispatch path.
@@ -3312,12 +3339,16 @@ Progress (branch `feature/ll35-explicit-goal-state`):
   grounded corpus or anomaly score. Focused tests and the full 6,889-test
   repository gate passed. The first live canary recorded 3 agreements and 1
   known disagreement, with no unknown verdicts.
+- **Observation follow-up (`89c6cb85`)** — the live canary recognizes an exact
+  built-in verifier command whose rendered result and typed outcome both report
+  exit 0. This closed a false-negative gate found by the second run. Three
+  independent sessions now contribute 13 comparisons: 10 agreements, 3 known
+  tool-accepted/lexical-missed disagreements, and no unknown verdicts.
 
-Next action: **collect several independent grounded goal runs before changing
-authority.** The denominator now grows correctly, but the first live run is one
-correlated four-turn sequence. Keep the lexical path authoritative while
-triage accumulates agreement rates across fresh coding sessions and explain
-every disagreement or unknown verdict. The remaining slices are gated on that
+Next action: **implement the bounded plan-checklist next-step miner while
+broadening shadow evidence to another grounded goal shape.** Keep the lexical
+path authoritative and continue to explain every disagreement or unknown
+verdict. The authority-changing slices remain gated on that broader
 distribution:
 - The **LL3 fidelity probe** and the **user-confirmation rung** are needed only
   if the shadow data shows models failing to call the tool (a high
@@ -3326,9 +3357,10 @@ distribution:
 - **Removing the lexical path** waits until `goal_completion_tool_accepted_lexical_missed`
   and `goal_completion_lexical_only` together show the tool covers what lexical
   catches. That is the measurement the shadow slice exists to produce.
-- The **plan-checklist next-step miner** remains a separate additive slice and
-  does not change goal-completion authority; it can proceed while evidence
-  accumulates if another implementation slice is required.
+- The **plan-checklist next-step miner** is the next code slice: read a bounded
+  plan window, return its first unchecked `- [ ]` item, ignore numbered
+  acceptance criteria, drop a trailing partial line, and preserve the generic
+  continuation fallback when no item is available.
 
 ### LL36: Heuristic Demotion And Firing Audit
 
