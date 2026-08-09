@@ -144,6 +144,35 @@ Map<String, dynamic> _stagedAutoContinueOutcome(Directory root, int attempt) {
   };
 }
 
+const _pendingActionRecoveryMarker = '// Pending-action recovery marker.';
+
+/// One path-backed failure with an exact, behavior-neutral repair.
+///
+/// A fictional functional defect made the model speculate about otherwise
+/// correct code instead of exercising the recovery boundary. This marker gives
+/// the mutation-before-reverification guard real progress to observe while the
+/// subsequent verifier run still executes the complete behavioral suite.
+Map<String, dynamic> _pendingActionLengthRecoveryOutcome(Directory root) {
+  return <String, dynamic>{
+    'stdout': '',
+    'stderr': 'Pending-action recovery marker is missing.\n',
+    'diagnostics': [
+      {
+        'severity': 'Error',
+        'path': File('${root.path}/bin/todo_cli.dart').absolute.path,
+        'relative_path': 'bin/todo_cli.dart',
+        'line': 1,
+        'column': 1,
+        'code': 'todo_cli_pending_action_recovery_marker_missing',
+        'message':
+            'The only required repair is to insert the exact first line '
+            '`$_pendingActionRecoveryMarker` in bin/todo_cli.dart, then rerun '
+            'the verifier.',
+      },
+    ],
+  };
+}
+
 /// Every verifier run the model actually performed, oldest first.
 List<Map<String, dynamic>> _recordedVerifierRuns(Directory root) {
   final log = File(_verifierInvocationLogPathFor(root.absolute.path));
@@ -560,6 +589,28 @@ void main() {
 
       expect(first['diagnostics'], hasLength(2));
       expect(second['diagnostics'], hasLength(1));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('pending-action staging names one exact behavior-neutral repair', () {
+    final root = Directory.systemTemp.createTempSync(
+      'todo_pending_action_staging_',
+    );
+    try {
+      final outcome = _pendingActionLengthRecoveryOutcome(root);
+      final diagnostics = outcome['diagnostics']! as List;
+
+      expect(diagnostics, hasLength(1));
+      expect(
+        (diagnostics.single as Map)['code'],
+        'todo_cli_pending_action_recovery_marker_missing',
+      );
+      expect(
+        (diagnostics.single as Map)['message'],
+        contains(_pendingActionRecoveryMarker),
+      );
     } finally {
       root.deleteSync(recursive: true);
     }
@@ -2412,7 +2463,7 @@ Future<void> _runPendingActionLengthRecoveryLiveScenario() async {
   );
   final toolService = _TodoToolService(fixture.root, stagedFailureTurns: 0);
   _writeVerifierScript(fixture.root, [
-    _stagedAutoContinueOutcome(fixture.root, 1),
+    _pendingActionLengthRecoveryOutcome(fixture.root),
   ]);
   final logStore = LlmSessionLogStore(
     rootDirectoryProvider: () async => sessionLogRoot,
@@ -2452,7 +2503,8 @@ Future<void> _runPendingActionLengthRecoveryLiveScenario() async {
         .sendMessage(
           '$prompt\n\nRun "$_verifyCommand" from the project root now. Use its '
           'diagnostics to continue until it exits with code 0. Do not inspect or '
-          'edit the verifier.',
+          'edit the verifier. If the diagnostic names an exact pending-action '
+          'recovery marker, make only that requested source edit before rerunning.',
           bypassPlanMode: true,
         );
     await _waitForGoalTerminalOrIdle(container);
