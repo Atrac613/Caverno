@@ -487,6 +487,43 @@ void main() {
     }
   });
 
+  test(
+    'TODO fixture preserves whole-file identity across read windows',
+    () async {
+      final root = Directory.systemTemp.createTempSync('todo_read_outcome_');
+      try {
+        final target = File('${root.path}/todo.txt')
+          ..writeAsStringSync('first\nsecond\nthird\n');
+        final service = _TodoToolService(root, stagedFailureTurns: 0);
+
+        final firstWindow = await service.executeTool(
+          name: 'read_file',
+          arguments: {'path': target.path, 'offset': 1, 'limit': 1},
+        );
+        final secondWindow = await service.executeTool(
+          name: 'read_file',
+          arguments: {'path': target.path, 'offset': 2, 'limit': 1},
+        );
+
+        expect(firstWindow.isSuccess, isTrue);
+        expect(secondWindow.isSuccess, isTrue);
+        expect(firstWindow.outcome?.readOutcome?.path, target.absolute.path);
+        expect(
+          firstWindow.outcome?.readOutcome?.contentHash,
+          secondWindow.outcome?.readOutcome?.contentHash,
+        );
+        expect(firstWindow.outcome?.readOutcome?.byteSize, target.lengthSync());
+        expect(firstWindow.outcome?.readOutcome?.lineCount, 3);
+        expect(
+          _tryDecodeObject(firstWindow.result)['content'],
+          isNot(_tryDecodeObject(secondWindow.result)['content']),
+        );
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('TODO fixture blocks mutations after verifier success', () async {
     final root = Directory.systemTemp.createTempSync(
       'todo_post_success_mutation_',
@@ -3446,7 +3483,7 @@ class _TodoToolService extends McpToolService {
         if (path.error != null) {
           return _toolError(name, path.error!);
         }
-        final result = await FilesystemTools.readFile(
+        final execution = await FilesystemTools.readFileResult(
           path: path.value!,
           offset: ((arguments['offset'] as num?)?.toInt() ?? 1).clamp(
             1,
@@ -3454,7 +3491,7 @@ class _TodoToolService extends McpToolService {
           ),
           limit: (arguments['limit'] as num?)?.toInt(),
         );
-        return _toolResult(name, result);
+        return _toolResult(name, execution.result, outcome: execution.outcome);
       case 'write_file':
         final path = _resolveInsideRoot(arguments['path'] as String?);
         if (path.error != null) {
@@ -3850,7 +3887,11 @@ class _TodoToolService extends McpToolService {
         .replaceAll(Platform.pathSeparator, '/');
   }
 
-  McpToolResult _toolResult(String name, String result) {
+  McpToolResult _toolResult(
+    String name,
+    String result, {
+    ToolOutcome? outcome,
+  }) {
     final decoded = _tryDecodeObject(result);
     final error = decoded['error'] as String?;
     return McpToolResult(
@@ -3858,6 +3899,7 @@ class _TodoToolService extends McpToolService {
       result: result,
       isSuccess: error == null || error.isEmpty,
       errorMessage: error,
+      outcome: outcome,
     );
   }
 
