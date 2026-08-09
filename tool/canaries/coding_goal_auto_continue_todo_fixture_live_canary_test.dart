@@ -444,6 +444,29 @@ void main() {
     expect(dataSource.forcedIncompleteTurns, 1);
   });
 
+  test('terminal verifier success recognizes built-in typed results', () {
+    final success = <String, dynamic>{
+      'name': 'local_execute_command',
+      'arguments': const {'command': _verifyCommand},
+      'result': const {'command': _verifyCommand, 'exit_code': 0},
+      'outcome': const {'exit_code': 0},
+    };
+    final failure = <String, dynamic>{
+      ...success,
+      'result': const {'command': _verifyCommand, 'exit_code': 1},
+      'outcome': const {'exit_code': 1},
+    };
+    final unrelated = <String, dynamic>{
+      ...success,
+      'arguments': const {'command': 'dart analyze'},
+      'result': const {'command': 'dart analyze', 'exit_code': 0},
+    };
+
+    expect(_containsTerminalVerifierSuccess(success), isTrue);
+    expect(_containsTerminalVerifierSuccess(failure), isFalse);
+    expect(_containsTerminalVerifierSuccess(unrelated), isFalse);
+  });
+
   test('auto-continue staging ignores unrelated failed commands', () {
     const env = _TodoFixtureEnv(
       baseUrl: 'http://localhost:1234/v1',
@@ -2660,6 +2683,18 @@ bool _hasTerminalVerifierSuccess(List<Map<String, dynamic>> entries) {
 
 bool _containsTerminalVerifierSuccess(Object? value) {
   if (value is Map) {
+    final arguments = value['arguments'];
+    final result = value['result'];
+    final outcome = value['outcome'];
+    if (value['name'] == 'local_execute_command' &&
+        arguments is Map &&
+        arguments['command'] == _verifyCommand &&
+        result is Map &&
+        result['command'] == _verifyCommand &&
+        result['exit_code'] == 0 &&
+        (outcome is! Map || outcome['exit_code'] == 0)) {
+      return true;
+    }
     if (value['canary'] == 'todo_app' &&
         value['command'] == _verifyCommand &&
         value['exit_code'] == 0) {
