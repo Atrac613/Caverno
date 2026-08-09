@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/successful_read_result_replay_cache.dart';
@@ -35,6 +36,14 @@ void main() {
       isSuccess: true,
       interactionGeneration: 4,
       mutationGeneration: 2,
+      outcome: const ToolOutcome(
+        readOutcome: ToolReadOutcome(
+          path: '/workspace/lib/main.dart',
+          contentHash: 'sha256:main',
+          byteSize: 14,
+          lineCount: 1,
+        ),
+      ),
       resolveProjectPath: resolvePath,
     );
 
@@ -49,7 +58,8 @@ void main() {
       resolveProjectPath: resolvePath,
     );
 
-    expect(replay, '{"content":"void main() {}"}');
+    expect(replay?.result, '{"content":"void main() {}"}');
+    expect(replay?.outcome?.readOutcome?.contentHash, 'sha256:main');
   });
 
   test('suppresses a second replay until the file mutation changes', () {
@@ -72,11 +82,13 @@ void main() {
       isFalse,
     );
     expect(
-      cache.lookup(
-        toolCall: read('second', 'lib/main.dart'),
-        interactionGeneration: 4,
-        mutationGeneration: 2,
-      ),
+      cache
+          .lookup(
+            toolCall: read('second', 'lib/main.dart'),
+            interactionGeneration: 4,
+            mutationGeneration: 2,
+          )
+          ?.result,
       'old',
     );
     expect(

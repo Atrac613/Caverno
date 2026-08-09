@@ -40,6 +40,7 @@ final class DuplicateToolResultRecoveryInput {
         name: result.name,
         arguments: _freezeArguments(result.arguments),
         result: result.result,
+        outcome: result.outcome,
       );
 
   static Map<String, dynamic> _freezeArguments(
@@ -69,13 +70,11 @@ final class DuplicateToolResultRecoveryInput {
 
 final class DuplicateToolResultRecovery {
   const DuplicateToolResultRecovery();
-
   static const _executionPolicy = ToolCallExecutionPolicy();
 
   List<ToolResultInfo> recover(DuplicateToolResultRecoveryInput input) {
     final resolveProjectPath = _projectPathResolver(input.projectRoot);
     final recoveryToolResults = <ToolResultInfo>[];
-
     for (final toolCall in input.currentToolCalls) {
       final matchingResult = _latestMatchingResult(
         toolCall: toolCall,
@@ -94,6 +93,7 @@ final class DuplicateToolResultRecovery {
             matchingResult,
             currentToolCallId: toolCall.id,
           ),
+          outcome: matchingResult.outcome,
         ),
       );
     }

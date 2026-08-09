@@ -344,8 +344,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
             );
             return McpToolResult(
               toolName: toolCall.name,
-              result: replayedResult,
+              result: replayedResult.result,
               isSuccess: true,
+              outcome: replayedResult.outcome,
             );
           }
         }
@@ -371,6 +372,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
             isSuccess: effectiveResult.isSuccess,
             interactionGeneration: interactionGeneration,
             mutationGeneration: mutationGeneration,
+            outcome: effectiveResult.outcome,
             resolveProjectPath: resolveProjectPath,
           );
         }

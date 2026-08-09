@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/duplicate_tool_result_recovery.dart';
 import 'package:test/test.dart';
@@ -26,12 +27,14 @@ ToolResultInfo _result({
   required String path,
   required String result,
   String? reason,
+  ToolOutcome? outcome,
 }) {
   return ToolResultInfo(
     id: id,
     name: name,
     arguments: {'path': path, 'reason': ?reason},
     result: result,
+    outcome: outcome,
   );
 }
 
@@ -214,6 +217,34 @@ void main() {
   group('recover', () {
     test('returns no results for empty inputs', () {
       expect(_recovery.recover(_input()), isEmpty);
+    });
+
+    test('preserves a typed outcome when reusing a duplicate command', () {
+      final recovered = _recovery.recover(
+        _input(
+          currentToolCalls: [
+            ToolCallInfo(
+              id: 'current-command',
+              name: 'local_execute_command',
+              arguments: const {'command': 'dart test'},
+            ),
+          ],
+          executedToolResults: [
+            ToolResultInfo(
+              id: 'previous-command',
+              name: 'local_execute_command',
+              arguments: const {'command': 'dart test'},
+              result: '{"exit_code":1}',
+              outcome: const ToolOutcome(exitCode: 1),
+            ),
+          ],
+        ),
+      );
+
+      expect(recovered, hasLength(1));
+      expect(recovered.single.id, 'current-command');
+      expect(recovered.single.outcome?.exitCode, 1);
+      expect(_payload(recovered.single)['execution_reused'], isTrue);
     });
 
     test(

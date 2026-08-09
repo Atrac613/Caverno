@@ -1,5 +1,14 @@
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../entities/tool_call_info.dart';
 import 'tool_call_execution_policy.dart';
+
+final class SuccessfulReadResultReplay {
+  const SuccessfulReadResultReplay({required this.result, this.outcome});
+
+  final String result;
+  final ToolOutcome? outcome;
+}
 
 class SuccessfulReadResultReplayCache {
   SuccessfulReadResultReplayCache({
@@ -7,7 +16,8 @@ class SuccessfulReadResultReplayCache {
   }) : _executionPolicy = executionPolicy;
 
   final ToolCallExecutionPolicy _executionPolicy;
-  final Map<String, String> _resultsByKey = <String, String>{};
+  final Map<String, SuccessfulReadResultReplay> _resultsByKey =
+      <String, SuccessfulReadResultReplay>{};
   final Map<String, int> _replayCountsByKey = <String, int>{};
   int? _interactionGeneration;
 
@@ -29,7 +39,7 @@ class SuccessfulReadResultReplayCache {
     return (_replayCountsByKey[key] ?? 0) >= 1;
   }
 
-  String? lookup({
+  SuccessfulReadResultReplay? lookup({
     required ToolCallInfo toolCall,
     required int interactionGeneration,
     required int mutationGeneration,
@@ -57,6 +67,7 @@ class SuccessfulReadResultReplayCache {
     required bool isSuccess,
     required int interactionGeneration,
     required int mutationGeneration,
+    ToolOutcome? outcome,
     ProjectPathResolver? resolveProjectPath,
   }) {
     _resetForInteraction(interactionGeneration);
@@ -69,7 +80,10 @@ class SuccessfulReadResultReplayCache {
       resolveProjectPath: resolveProjectPath,
     );
     if (key != null) {
-      _resultsByKey[key] = result;
+      _resultsByKey[key] = SuccessfulReadResultReplay(
+        result: result,
+        outcome: outcome,
+      );
       _replayCountsByKey.putIfAbsent(key, () => 0);
     }
   }
