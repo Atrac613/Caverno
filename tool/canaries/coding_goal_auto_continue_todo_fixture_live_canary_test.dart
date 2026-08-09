@@ -2344,7 +2344,10 @@ Future<void> _runTodoMvpLiveScenario(
 
 Future<void> _runPendingActionLengthRecoveryLiveScenario() async {
   final env = _TodoFixtureEnv.fromEnvironment();
-  final fixture = _TodoFixture.create(env.workspaceRoot);
+  final fixture = _TodoFixture.create(
+    env.workspaceRoot,
+    seedReferenceImplementation: true,
+  );
   final sessionLogRoot = Directory(env.sessionLogRoot)
     ..createSync(recursive: true);
   final dataSource = _TodoAutoContinueDataSource(
@@ -2352,17 +2355,25 @@ Future<void> _runPendingActionLengthRecoveryLiveScenario() async {
     stagedFailureTurns: 0,
     forcePendingActionLengthRecovery: true,
   );
-  final toolService = _TodoToolService(fixture.root, stagedFailureTurns: 1);
+  final toolService = _TodoToolService(fixture.root, stagedFailureTurns: 0);
+  _writeVerifierScript(fixture.root, [
+    _stagedAutoContinueOutcome(fixture.root, 1),
+  ]);
+  final logStore = LlmSessionLogStore(
+    rootDirectoryProvider: () async => sessionLogRoot,
+  );
   final container = _buildContainer(
     env: env,
     fixture: fixture,
     dataSource: dataSource,
     toolService: toolService,
-    logStore: LlmSessionLogStore(
-      rootDirectoryProvider: () async => sessionLogRoot,
-    ),
+    logStore: logStore,
   );
-  final prompt = _exactShortMvpPrompt('todo_app.md');
+  const prompt =
+      'This scratch project already contains a Dart command-line TODO app at '
+      'bin/todo_cli.dart. Bring it to a verified state: the goal is complete '
+      'only after local_execute_command runs "$_verifyCommand" and it exits '
+      'with code 0.';
 
   try {
     final conversations = container.read(
@@ -2383,12 +2394,38 @@ Future<void> _runPendingActionLengthRecoveryLiveScenario() async {
 
     await container
         .read(chatNotifierProvider.notifier)
-        .sendMessage(prompt, bypassPlanMode: true);
+        .sendMessage(
+          '$prompt\n\nRun "$_verifyCommand" from the project root now. Use its '
+          'diagnostics to continue until it exits with code 0. Do not inspect or '
+          'edit the verifier.',
+          bypassPlanMode: true,
+        );
     await _waitForGoalTerminalOrIdle(container);
 
     final verification = await toolService.verifyTodoApp();
     final diagnostic = _diagnostic(container, dataSource, toolService, fixture);
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!;
+    final logFile = await logStore.fileForContext(
+      LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: conversation.id,
+        conversationId: conversation.id,
+      ),
+      create: false,
+    );
+    final entries = await _readSessionLogEntries(logFile);
+    final pendingActionTransformCount = entries.where((entry) {
+      if (entry['operation'] != 'turn_exit') return false;
+      final turnExit = entry['turnExit'];
+      if (turnExit is! Map) return false;
+      final transforms = turnExit['transforms'];
+      return transforms is List &&
+          transforms.contains('pending_action_length_recovery');
+    }).length;
     expect(dataSource.forcedPendingActionLengthCount, 1, reason: diagnostic);
+    expect(pendingActionTransformCount, 1, reason: diagnostic);
     expect(dataSource.pendingActionRecoveryRequestCount, 1, reason: diagnostic);
     expect(
       dataSource.pendingActionRecoveryToolCallCount,
@@ -2400,12 +2437,14 @@ Future<void> _runPendingActionLengthRecoveryLiveScenario() async {
       dataSource.preTruncationToolNames,
       reason: diagnostic,
     );
+    final verifierRuns = _recordedVerifierRuns(fixture.root);
     expect(
-      toolService.verificationAttempts,
-      greaterThanOrEqualTo(2),
+      verifierRuns,
+      hasLength(greaterThanOrEqualTo(2)),
       reason: diagnostic,
     );
-    expect(toolService.hasSuccessfulVerifierCall, isTrue, reason: diagnostic);
+    expect(verifierRuns.first['exit_code'], 1, reason: diagnostic);
+    expect(verifierRuns.last['exit_code'], 0, reason: diagnostic);
     _expectVerifiedGoalNotBlocked(container, diagnostic);
     expect(
       toolService.postSuccessMutationAttempts,

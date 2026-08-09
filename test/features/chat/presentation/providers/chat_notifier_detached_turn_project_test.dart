@@ -37,6 +37,7 @@ import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
+import 'package:caverno/features/chat/domain/services/final_answer_message_notice_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/truncation_notice.dart';
@@ -1011,10 +1012,14 @@ class _SavedWorkflowToolService extends McpToolService
     with _ProcessTools, OwnerAwareMcpToolTestDelegate {
   _SavedWorkflowToolService({
     this.commandStdout = 'All tests passed.\n',
+    this.commandStderr = '',
+    this.commandExitCode = 0,
     this.includeReadFile = false,
   });
 
   final String commandStdout;
+  final String commandStderr;
+  final int commandExitCode;
   final bool includeReadFile;
   final List<String> executedNames = [];
   final List<Map<String, dynamic>> executedArguments = [];
@@ -1057,11 +1062,12 @@ class _SavedWorkflowToolService extends McpToolService
         result: jsonEncode({
           'command': arguments['command'],
           'working_directory': arguments['working_directory'],
-          'exit_code': 0,
+          'exit_code': commandExitCode,
           'stdout': commandStdout,
-          'stderr': '',
+          'stderr': commandStderr,
         }),
-        isSuccess: true,
+        isSuccess: commandExitCode == 0,
+        errorMessage: commandExitCode == 0 ? null : commandStderr,
       ),
       'write_file' => McpToolResult(
         toolName: name,
@@ -2249,6 +2255,116 @@ void main() {
           const <dynamic>[];
       expect(ownerATransforms, contains(transform));
       expect(ownerBTransforms, isNot(contains(transform)));
+    },
+  );
+
+  test(
+    'generation-derived final-answer transform stays with its detached owner',
+    () async {
+      const transform =
+          FinalAnswerMessageNoticeService.failedCommandClaimTransformId;
+      final ownerAFinalReady = Completer<void>();
+      final releaseOwnerA = Completer<void>();
+      final sessionLogRoot = await Directory.systemTemp.createTemp(
+        'caverno_detached_final_answer_transform_',
+      );
+      final sessionLogStore = LlmSessionLogStore(
+        rootDirectoryProvider: () async => sessionLogRoot,
+      );
+      final dataSource = ScriptedChatDataSource(
+        initialResponses: [
+          _ownerCommandToolCall(owner: 'a', projectRoot: _projectARoot),
+          ChatCompletionResult(
+            content: 'Owner B completed without a command claim correction.',
+            finishReason: 'stop',
+          ),
+        ],
+        toolResultResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        streamedResponses: [
+          ChatCompletionResult(
+            content: 'Owner A command completed successfully.',
+            finishReason: 'stop',
+          ),
+        ],
+        beforeToolResultResponse: (requestIndex) async {
+          if (requestIndex != 0) return;
+          if (!ownerAFinalReady.isCompleted) ownerAFinalReady.complete();
+          await releaseOwnerA.future;
+        },
+      );
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: _SavedWorkflowToolService(
+          commandExitCode: 1,
+          commandStderr: 'Owner A command failed.',
+        ),
+        sessionLogStore: sessionLogStore,
+      );
+      addTearDown(() async {
+        if (!releaseOwnerA.isCompleted) releaseOwnerA.complete();
+        container.dispose();
+        if (sessionLogRoot.existsSync()) {
+          await sessionLogRoot.delete(recursive: true);
+        }
+      });
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-a',
+      );
+      final threadA = container
+          .read(conversationsNotifierProvider)
+          .currentConversationId!;
+      final notifier = container.read(chatNotifierProvider.notifier);
+      final ownerAFuture = notifier.sendMessage(
+        'Run owner A command.',
+        bypassPlanMode: true,
+      );
+      await ownerAFinalReady.future.timeout(const Duration(seconds: 2));
+
+      conversations.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-b',
+      );
+      final threadB = container
+          .read(conversationsNotifierProvider)
+          .currentConversationId!;
+      final ownerB = await notifier
+          .sendMessage('Complete owner B without tools.', bypassPlanMode: true)
+          .timeout(const Duration(seconds: 5));
+      expect(ownerB?.conversationId, threadB);
+
+      releaseOwnerA.complete();
+      final ownerA = await ownerAFuture.timeout(const Duration(seconds: 5));
+      expect(ownerA?.conversationId, threadA);
+
+      Future<List<dynamic>> transformsFor(String conversationId) async {
+        final file = await sessionLogStore.fileForContext(
+          LlmSessionLogContext(
+            workspaceMode: WorkspaceMode.coding,
+            sessionId: conversationId,
+            conversationId: conversationId,
+          ),
+          create: false,
+        );
+        final entries = (await file.readAsLines())
+            .map((line) => jsonDecode(line) as Map<String, dynamic>)
+            .toList(growable: false);
+        final turnExit = entries.lastWhere(
+          (entry) => entry['operation'] == 'turn_exit',
+        );
+        return (turnExit['turnExit'] as Map<String, dynamic>)['transforms']
+                as List<dynamic>? ??
+            const <dynamic>[];
+      }
+
+      expect(await transformsFor(threadA), contains(transform));
+      expect(await transformsFor(threadB), isNot(contains(transform)));
     },
   );
 

@@ -2,6 +2,94 @@ part of 'chat_notifier_test.dart';
 
 void registerChatNotifierFinalAnswerRecoveryTests() {
   test(
+    'unexecuted no-tool request records its generation-owned transform',
+    () async {
+      const finalContent =
+          'I will update the file lib/main.dart without issuing a tool call.';
+      final sessionLogRoot = await Directory.systemTemp.createTemp(
+        'caverno_unexecuted_tool_request_transform_',
+      );
+      final sessionLogStore = LlmSessionLogStore(
+        rootDirectoryProvider: () async => sessionLogRoot,
+      );
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: finalContent,
+        initialStreamChunks: const [finalContent],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'write_file': 'Write a file to the selected project.',
+        },
+        results: const {'write_file': '{"ok":true}'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final container = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledLoggingSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          llmSessionLogStoreProvider.overrideWithValue(sessionLogStore),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        if (sessionLogRoot.existsSync()) {
+          await sessionLogRoot.delete(recursive: true);
+        }
+      });
+
+      final notifier = container.read(chatNotifierProvider.notifier);
+      await notifier.sendMessage('Update lib/main.dart.');
+
+      expect(
+        notifier.state.messages.last.content,
+        contains(
+          'I could not execute the additional tool request above in this final-answer step.',
+        ),
+      );
+      final conversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!;
+      final sessionLogFile = await sessionLogStore.fileForContext(
+        LlmSessionLogContext(
+          workspaceMode: conversation.workspaceMode,
+          sessionId: conversation.id,
+          conversationId: conversation.id,
+        ),
+        create: false,
+      );
+      final entries = (await sessionLogFile.readAsLines())
+          .map((line) => jsonDecode(line) as Map<String, dynamic>)
+          .toList(growable: false);
+      final turnExit = entries.lastWhere(
+        (entry) => entry['operation'] == 'turn_exit',
+      );
+      expect(
+        (turnExit['turnExit'] as Map<String, dynamic>)['transforms'],
+        contains('unexecuted_tool_request_notice'),
+      );
+    },
+  );
+
+  test(
     'length-truncated tool final answer gets one bounded concise replacement',
     () async {
       const firstAnswer =

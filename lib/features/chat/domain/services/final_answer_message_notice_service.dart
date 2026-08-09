@@ -15,6 +15,12 @@ final class FinalAnswerMessageMutation {
 final class FinalAnswerMessageNoticeService {
   const FinalAnswerMessageNoticeService();
 
+  static const unexecutedFileSideEffectTransformId =
+      'unexecuted_file_side_effect_notice';
+  static const timedOutCommandClaimTransformId =
+      'timed_out_command_claim_notice';
+  static const failedCommandClaimTransformId = 'failed_command_claim_notice';
+
   static const _claims = FinalAnswerClaimDetector();
   static const _executionPolicy = ToolCallExecutionPolicy();
 
@@ -27,7 +33,7 @@ final class FinalAnswerMessageNoticeService {
       return content;
     }
     return _append(content, UnexecutedFinalAnswerToolRequestPolicy.notice);
-  });
+  }, transformId: UnexecutedFinalAnswerToolRequestPolicy.transformId);
 
   FinalAnswerMessageMutation? appendUnexecutedFileSideEffect(
     List<Message> messages,
@@ -44,7 +50,7 @@ final class FinalAnswerMessageNoticeService {
       return content;
     }
     return _append(content, notice);
-  });
+  }, transformId: unexecutedFileSideEffectTransformId);
 
   FinalAnswerMessageMutation? appendUnexecutedCommandAction(
     List<Message> messages,
@@ -108,7 +114,11 @@ final class FinalAnswerMessageNoticeService {
     const notice =
         'A command timed out, so any success, pass, or completion claim is unverified. '
         'Treat the command result as incomplete until a successful command-execution tool result is available.';
-    return _prependClaimCorrection(messages, notice);
+    return _prependClaimCorrection(
+      messages,
+      notice,
+      transformId: timedOutCommandClaimTransformId,
+    );
   }
 
   FinalAnswerMessageMutation? replaceFailedCommandClaim(
@@ -122,7 +132,11 @@ final class FinalAnswerMessageNoticeService {
         'success, upload, release, pass, or completion claim is unverified. '
         'Treat the command as failed until a later command-execution tool '
         'result exits successfully.';
-    return _prependClaimCorrection(messages, notice);
+    return _prependClaimCorrection(
+      messages,
+      notice,
+      transformId: failedCommandClaimTransformId,
+    );
   }
 
   bool hasTimedOutCommandResult(List<ToolResultInfo> toolResults) =>
@@ -153,14 +167,15 @@ final class FinalAnswerMessageNoticeService {
 
   FinalAnswerMessageMutation? _prependClaimCorrection(
     List<Message> messages,
-    String notice,
-  ) => _mutate(messages, (content) {
+    String notice, {
+    required String transformId,
+  }) => _mutate(messages, (content) {
     if (!_claims.looksLikeCommandSuccessClaim(content)) return content;
     return _claims.messageContentWithPrependedClaimCorrectionNotice(
       content,
       notice,
     );
-  });
+  }, transformId: transformId);
 
   FinalAnswerMessageMutation? _mutate(
     List<Message> messages,

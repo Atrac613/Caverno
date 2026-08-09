@@ -144,7 +144,8 @@ void main() {
       expect(todoVerifier, isNot(contains('noArguments.exitCode != 0 ||')));
       expect(todoVerifier, contains('todo_cli_help_failed'));
       expect(todoVerifier, contains('todo_cli_unknown_delete_failed'));
-      expect(canary, contains('toolService.hasSuccessfulVerifierCall'));
+      expect(canary, contains('_recordedVerifierRuns(fixture.root)'));
+      expect(canary, contains('pendingActionTransformCount'));
     });
 
     test('requires an explicit environment gate for the live scenario', () {

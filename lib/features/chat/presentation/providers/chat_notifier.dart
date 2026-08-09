@@ -8331,8 +8331,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }) {
     if (mutation == null) return;
     final transformId = mutation.transformId;
-    if (owner != null && transformId != null) {
-      _turnEnd.addTransform(owner, transformId);
+    final transformOwner = owner ?? _turnOwnerForGeneration(generation);
+    if (transformOwner != null && transformId != null) {
+      _turnEnd.addTransform(transformOwner, transformId);
     }
     final messages = mutation.messages;
     if (messages.isEmpty) return;
