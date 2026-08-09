@@ -444,6 +444,61 @@ void main() {
     expect(dataSource.forcedIncompleteTurns, 1);
   });
 
+  test(
+    'pending-action staging recognizes the built-in verifier boundary',
+    () async {
+      const env = _TodoFixtureEnv(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'no-key',
+        model: 'test-model',
+        maxTokens: 128,
+        temperature: 0,
+        workspaceRoot: null,
+        sessionLogRoot: '/tmp/caverno_test_session_logs',
+      );
+      final dataSource = _TodoAutoContinueDataSource(
+        env,
+        stagedFailureTurns: 0,
+        forcePendingActionLengthRecovery: true,
+      );
+      final builtInFailure = ToolResultInfo(
+        id: 'verify-1',
+        name: 'local_execute_command',
+        arguments: const {'command': _verifyCommand},
+        result: jsonEncode({
+          'command': _verifyCommand,
+          'exit_code': 1,
+          'diagnostics': [
+            {
+              'severity': 'Error',
+              'relative_path': 'bin/todo_cli.dart',
+              'code': 'todo_cli_unverified',
+            },
+          ],
+        }),
+        outcome: const ToolOutcome(exitCode: 1),
+      );
+
+      final staged = await dataSource.createChatCompletionWithToolResults(
+        messages: const [],
+        toolResults: [builtInFailure],
+        tools: const [
+          {
+            'function': {'name': 'local_execute_command'},
+          },
+        ],
+      );
+      final finalContent = await dataSource
+          .streamChatCompletion(messages: const [])
+          .join();
+
+      expect(staged.content, isEmpty);
+      expect(finalContent, contains('unresolved diagnostics'));
+      expect(dataSource.forcedPendingActionLengthCount, 1);
+      expect(dataSource.preTruncationToolNames, {'local_execute_command'});
+    },
+  );
+
   test('terminal verifier success recognizes built-in typed results', () {
     final success = <String, dynamic>{
       'name': 'local_execute_command',
@@ -3206,9 +3261,16 @@ class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
       return false;
     }
     return toolResults.any((result) {
+      final command = result.arguments['command'];
+      if (result.name != 'local_execute_command' ||
+          command is! String ||
+          command.replaceAll(RegExp(r'\s+'), ' ').trim() != _verifyCommand) {
+        return false;
+      }
       final decoded = _tryDecodeObject(result.result);
-      return decoded['canary'] == 'todo_app' &&
-          decoded['exit_code'] != 0 &&
+      final exitCode = result.outcome?.exitCode ?? decoded['exit_code'];
+      return exitCode is num &&
+          exitCode.toInt() != 0 &&
           _hasPathBackedDiagnostics(decoded['diagnostics']);
     });
   }
