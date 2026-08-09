@@ -170,7 +170,7 @@ structurally unmotivated to build:
 | Local LLM | LL31 | done | S-M | F2, LL23 | Turn-exit reason and completion explainer: tag every tool-loop exit with a structured reason (`text_response` / `max_iterations` / `guardrail_halt` / `empty` / `partial`), replace an empty or truncated final response with a single user-visible explanation derived from that reason, and log a WARNING when a turn ends on a pending tool result (the "just stops" case). Inspired by the Hermes `turn_finalizer.py`. |
 | Local LLM | LL33 | current | S-M | LL31 | Turn provenance — session-log ↔ on-screen conversation correlation: stamp each `turn_exit` record with `turnId` + the `assistantMessageId` it finalized, and record the post-LLM transforms applied to that message (guard notices), so the LLM session log and the conversation the user saw can be traced to each other and guard firings are a direct triage signal instead of being inferred from leaked notice prose. Extends the LL31 instrument; came out of the verification-guard investigation where this gap repeatedly caused mis-diagnosis. |
 | Local LLM | LL32 | later | S-M | LL4, F6 | Deferred subdirectory instruction and skill discovery: when a tool touches a path outside the startup discovery chain, walk up to the repo root for `CLAUDE.md` / `AGENTS.md` / rules and skill directories, and surface newly found files as **paths only**, once per session (or once per compaction cycle), leaving the read decision to the model. Parked pending corroboration; corroborated 2026-07-21 by Grok Build's `agents_md_tracker.rs` / `skill_discovery.rs` shipping the same design. |
-| Local LLM | LL34 | next | M | F2, F6, LL23, SEC2 | Structured tool-result envelope: `McpToolResult` now carries producer-owned exit status, file mutation/read identity, diagnostics, process lifecycle, and verification counts. First-party local command, Git, filesystem, verification, and background-process functions return typed results directly; third-party MCP results remain opaque text on a measured lexical fallback. Consumers are typed-first, current-turn mutation evidence backs file claims, and LL23 can enable deterministic summary-first rendering. The coding-corpus census puts the scoped set at 81.7% before diagnostic coverage; the implemented set has about 89.5% potential coverage. Implementation is shipped, but rollout remains `next` until a fresh grounded post-change coding sample validates the session-log shadow distribution. |
+| Local LLM | LL34 | done | M | F2, F6, LL23, SEC2 | Structured tool-result envelope: `McpToolResult` carries producer-owned command, filesystem, diagnostic, process, and verification facts from direct first-party producers; typed-first consumers retain a measured lexical fallback for outcome-free third-party MCP results. Current-turn mutations back file claims, replay paths preserve outcomes, and LL23 supplies deterministic summary-first rendering. Fresh grounded coding canaries on the configured LAN model produced five typed shadow comparisons across raw-first and summary-first runs: three exit 1 and two exit 0, all `agree`, with no missing or disagreeing verdicts. The measured model completed the summary-first MVP canary while the application default remains off. |
 | Local LLM | LL35 | current | M | LL34, LL3, LL23 | Explicit goal-state tool with a real acknowledgement: replace the lexical `_looksComplete` / `_looksBlocked` goal transitions with an `update_goal(completed:/blocked_reason:/message:)` built-in whose tool reply carries the harness's actual verdict (accepted / still-open gaps / paused at cap), so the model cannot mistake an unverified claim for a received completion. Also mines the plan's first unchecked `## Task checklist` item as the continuation next-step. Local-first addition: `update_goal` call fidelity is an LL3 probe and the completion policy is LL23-declared (`tool` / `tool_or_ask` / `ask`), because removing the lexical path without a fallback turns "false completion" into "goal never closes" on weak models — **user confirmation at budget exhaustion is a first-class completion mechanism**, not an error path. |
 | Local LLM | LL36 | current | S-M | LL33, LL34 | **Instrument for LL37, as LL31 was for LL29/LL30** — Heuristic demotion and firing audit: every remaining lexical guard gets a stable pattern label, emits a LL33-style transform record on each firing, and is barred from setting terminal state; new grounded verdicts run in shadow beside the lexical ones with disagreements logged, so guards are deleted on measurement rather than on argument. Adopted from Grok Build's labeled `GoalPrematureStopDetected` panel. |
 | Local LLM | LL37 | later | L | LL34, LL35, LL36 evidence, LL3, LL18, LL19 | Objective verification for **unattended runs only**: the N-way panel runs at idle via LL18 against goals completed by routines / overnight retry-until-green / LL13 agents, with the convergence controls that make it terminate — anti-ratchet, stall exit on repeated identical gaps, a run cap, and `none`/`contradiction`/`unverifiable` blocking classification. There is deliberately **no inline stage**: while a user is present, LL35's confirmation rung is both cheaper and more accurate than a local verifier, so nothing is added to the interactive turn. Local-first inversions vs Grok Build: uncertainty defaults to *not* refuted for weak verifiers (a weak skeptic that refutes correct work is worse than none) and an LL3 fidelity gate disables the panel entirely below threshold. The convergence controls (anti-ratchet, stall exit, blocking classification) are worth harvesting into the LL7 retry loop independently, and survive even if this milestone is dropped. Whether a local verifier is good enough at all is an LL19-measured open question. |
@@ -2745,10 +2745,10 @@ Local-first consequences that shaped these milestones:
   prefill latency to the user's turn (Thesis §3).
 - **A weak verifier's default must be the opposite of Grok's.** See LL37.
 
-Execution state — **LL34 observation gate alongside LL35/LL36 → LL37**.
+Execution state — **LL34 complete alongside LL35/LL36 → LL37**.
 
-LL34 implementation has shipped while its live observation gate remains open;
-LL35 and LL36 are already active. LL37 remains downstream of their evidence.
+LL34 implementation and its live observation gate are complete; LL35 and LL36
+are already active. LL37 remains downstream of their evidence.
 
 The track splits by how well-founded each milestone is, and the ordering has to
 respect that split rather than the narrative order:
@@ -2792,9 +2792,9 @@ that failure mode.
 
 ### LL34: Structured Tool-Result Envelope
 
-Status: `next`
+Status: `done`
 
-Historical problem (implementation now shipped; observation remains):
+Historical problem (implementation and observation now complete):
 - `McpToolResult` (`lib/features/chat/domain/entities/mcp_tool_entity.dart:43`)
   carries `String result` and `bool isSuccess` and nothing else. The real exit
   code exists — `lib/features/chat/data/datasources/local_shell_tools.dart:585`
@@ -3047,18 +3047,37 @@ summary and budgets the raw payload behind it. The reproducible measurement in
 `tool/ll34_summary_first_measurement.dart` reduces the tool-heavy fixture from
 13,844 to 5,152 estimated tokens, a 62.8% reduction.
 
-**Remaining observation gate, 2026-08-09.** No persisted session log yet
-contains a `tool_outcome_shadow` marker produced by the current implementation;
-the newest available grounded coding logs predate it. The historical rotating
-app-log sample has 84 comparisons: 71 `agree`, 13 explained
-`structuredMissing`, 0 `disagree`, and 0 `parsedMissing`. That sample validates
-the earlier producer shape but cannot close the current rollout gate. Run a
-fresh grounded coding canary in a new `CAVERNO_SESSION_LOG_DIR`, exercise both
-zero and non-zero command exits, and require a non-empty distribution with zero
-disagreements, zero unexplained parsed-missing cases, and every
-structured-missing case classified. Sending prompts and tool data to the
-configured LAN endpoint requires explicit data-perimeter approval. Keep
-summary-first disabled by default until this gate is closed.
+**Observation gate closed, 2026-08-09.** After explicit data-perimeter
+approval, fresh grounded coding canaries sent only the controlled TODO fixture
+to the configured LAN endpoint with `qwen3.6-27b-vision`. All final runs used a
+new session-log root and a clean build:
+
+- The raw-first MVP run on build `5205002e` passed 1/1 in 158.4 seconds. Its
+  single session recorded exit 1 and exit 0 as two typed
+  `tool_outcome_shadow` comparisons; both were `agree`.
+- The auto-continue run on the same build passed 1/1 in 513.5 seconds. It added
+  two typed exit-1 comparisons, both `agree`, and attached whole-file read
+  outcomes. Repeated reads of the unchanged TODO source retained the same
+  content hash. Outcome-free command results were all classified as
+  `unchanged_verifier_replay_before_repair_blocked`: the guard prevented an
+  execution, so no exit status existed to report.
+- Fresh observation exposed two replay gaps before the final run: duplicate
+  result recovery and successful read replay copied rendered payloads without
+  their typed outcomes. Build `c6c0f872` preserves those outcomes, with focused
+  regression tests for command exits and read identity. The TODO fixture also
+  moved from the legacy string-only read API to the production rich-result
+  producer, with a paging-window hash test.
+- A model-scoped summary-first run on clean build `6554c36b` passed 1/1 in
+  122.0 seconds. It recorded one typed exit-0 comparison as `agree` and retained
+  read, mutation, diagnostic, and command outcomes. The canary opt-in is
+  explicit and defaults off, matching the application policy.
+
+Across those final LAN runs the persisted distribution is five comparisons:
+three exit 1 and two exit 0, all `agree`, with zero `disagree`, zero
+`parsedMissing`, and zero `structuredMissing`. The safety gate is closed and
+`qwen3.6-27b-vision` is the first measured model exercised with summary-first;
+the global default remains off. The deterministic measurement still reduces
+the tool-heavy fixture from 13,844 to 5,152 estimated tokens, a 62.8% reduction.
 
 Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
 traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.
@@ -3079,9 +3098,9 @@ the distribution shifts in this milestone's favour:
 - The 18.3% left uncovered is mostly `list_directory` (9.6%, no natural outcome,
   correctly text-only) and that `dart_analyze_feedback` share.
 
-Next action: collect the fresh grounded post-change coding sample described
-above, classify every typed-versus-lexical mismatch, and enable summary-first
-only for a measured model after the distribution passes the gate.
+Completion state: keep summary-first as an explicit per-model LL23 policy and
+monitor residual lexical verdicts through LL36; LL34 needs no further rollout
+work.
 
 ### LL35: Explicit Goal-State Tool With A Real Acknowledgement
 
