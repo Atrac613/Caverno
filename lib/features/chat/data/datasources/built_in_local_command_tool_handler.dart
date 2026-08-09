@@ -4,12 +4,18 @@ import 'background_process_monitor_service.dart';
 import 'background_process_tool_executor.dart';
 import 'background_process_tools.dart';
 import 'built_in_local_command_tool_definitions.dart';
-import 'command_payload_facts.dart';
+import 'first_party_tool_execution_result.dart';
 import 'local_shell_tools.dart';
 import 'mcp_tool_result_normalizer.dart';
 
 typedef BuiltInLocalCommandRunner =
     Future<String> Function({
+      required String command,
+      required String workingDirectory,
+    });
+
+typedef BuiltInLocalCommandResultRunner =
+    Future<FirstPartyToolExecutionResult> Function({
       required String command,
       required String workingDirectory,
     });
@@ -20,14 +26,24 @@ class BuiltInLocalCommandToolHandler {
     BackgroundProcessTools? backgroundProcessTools,
     BackgroundProcessMonitorService? backgroundProcessMonitorService,
     BuiltInLocalCommandRunner? foregroundCommandRunner,
+    BuiltInLocalCommandResultRunner? foregroundCommandResultRunner,
     DateTime Function()? clock,
   }) : _backgroundProcessExecutor = BackgroundProcessToolExecutor(
          tools: backgroundProcessTools,
          monitor: backgroundProcessMonitorService,
          clock: clock,
        ),
-       _foregroundCommandRunner =
-           foregroundCommandRunner ?? LocalShellTools.execute;
+       _foregroundCommandResultRunner =
+           foregroundCommandResultRunner ??
+           (foregroundCommandRunner == null
+               ? LocalShellTools.executeResult
+               : ({required command, required workingDirectory}) async =>
+                     FirstPartyToolExecutionResult.payloadOnly(
+                       await foregroundCommandRunner(
+                         command: command,
+                         workingDirectory: workingDirectory,
+                       ),
+                     ));
 
   static const List<String> toolNames = <String>[
     'local_execute_command',
@@ -43,7 +59,7 @@ class BuiltInLocalCommandToolHandler {
   static const Set<String> _toolNameSet = <String>{...toolNames};
 
   final BackgroundProcessToolExecutor _backgroundProcessExecutor;
-  final BuiltInLocalCommandRunner _foregroundCommandRunner;
+  final BuiltInLocalCommandResultRunner _foregroundCommandResultRunner;
 
   Map<String, dynamic> get localExecuteCommandDefinition =>
       BuiltInLocalCommandToolDefinitions.localExecuteCommandTool;
@@ -119,7 +135,7 @@ class BuiltInLocalCommandToolHandler {
             structuredUnavailable: true,
           );
         }
-        final result = await _foregroundCommandRunner(
+        final execution = await _foregroundCommandResultRunner(
           command: command,
           workingDirectory: workingDirectory,
         );
@@ -127,8 +143,8 @@ class BuiltInLocalCommandToolHandler {
         // result stays successful and only carries the reported exit status.
         return McpToolResultNormalizer.success(
           toolName: name,
-          result: result,
-          outcome: CommandPayloadFacts.tryParse(result)?.toOutcome(),
+          result: execution.result,
+          outcome: execution.outcome,
         );
       case 'process_start':
       case 'process_status':

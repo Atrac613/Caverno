@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../../../../core/services/login_shell_environment.dart';
 import '../../domain/services/dart_diagnostic_line_parser.dart';
 import 'filesystem_tools.dart';
+import 'first_party_tool_execution_result.dart';
 import 'git_tools.dart';
 
 class LocalShellTools {
@@ -92,24 +95,38 @@ class LocalShellTools {
     required String command,
     required String workingDirectory,
     Duration timeout = _timeout,
+  }) async => (await executeResult(
+    command: command,
+    workingDirectory: workingDirectory,
+    timeout: timeout,
+  )).result;
+
+  static Future<FirstPartyToolExecutionResult> executeResult({
+    required String command,
+    required String workingDirectory,
+    Duration timeout = _timeout,
   }) async {
     final directory = Directory(workingDirectory);
     if (!directory.existsSync()) {
-      return jsonEncode({
-        'error': 'Working directory does not exist: $workingDirectory',
-      });
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({
+          'error': 'Working directory does not exist: $workingDirectory',
+        }),
+      );
     }
 
     final normalizedCommand = normalizeCommand(command);
     if (normalizedCommand.isEmpty) {
-      return jsonEncode({'error': 'Command is required'});
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({'error': 'Command is required'}),
+      );
     }
     final gitWriteBlockedResult = gitWriteCommandBlockedResult(
       command: normalizedCommand,
       workingDirectory: directory.absolute.path,
     );
     if (gitWriteBlockedResult != null) {
-      return gitWriteBlockedResult;
+      return FirstPartyToolExecutionResult.payloadOnly(gitWriteBlockedResult);
     }
 
     if (_canExecuteInternally(normalizedCommand)) {
@@ -137,15 +154,17 @@ class LocalShellTools {
         timeout: timeout,
       );
     } catch (e) {
-      return jsonEncode({
-        'command': normalizedCommand,
-        'working_directory': directory.absolute.path,
-        'error': e.toString(),
-      });
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({
+          'command': normalizedCommand,
+          'working_directory': directory.absolute.path,
+          'error': e.toString(),
+        }),
+      );
     }
   }
 
-  static Future<String> _executeWithProcessHandle({
+  static Future<FirstPartyToolExecutionResult> _executeWithProcessHandle({
     required String command,
     required String workingDirectory,
     required String shellExecutable,
@@ -222,7 +241,7 @@ class LocalShellTools {
     }
   }
 
-  static String _encodeProcessResult({
+  static FirstPartyToolExecutionResult _encodeProcessResult({
     required String command,
     required String workingDirectory,
     required _BoundedOutputBuffer stdout,
@@ -239,7 +258,7 @@ class LocalShellTools {
             workingDirectory: workingDirectory,
             output: '${stdout.text}\n${stderr.text}',
           );
-    return jsonEncode({
+    final result = jsonEncode({
       'command': command,
       'working_directory': workingDirectory,
       'exit_code': ?exitCode,
@@ -255,6 +274,12 @@ class LocalShellTools {
         'process_terminated': processTerminated ?? false,
       },
     });
+    return FirstPartyToolExecutionResult(
+      result: result,
+      outcome: timedOut || exitCode == null
+          ? null
+          : ToolOutcome(exitCode: exitCode),
+    );
   }
 
   /// Diagnostics a failed Dart or Flutter command reported in its own output.
@@ -303,7 +328,8 @@ class LocalShellTools {
   /// prefix, which this repository uses everywhere.
   static bool _isDartToolingCommand(String command) {
     final tokens = command.trim().split(RegExp(r'\s+'));
-    final executable = tokens.isNotEmpty && tokens.first == 'fvm' && tokens.length > 1
+    final executable =
+        tokens.isNotEmpty && tokens.first == 'fvm' && tokens.length > 1
         ? tokens[1]
         : (tokens.isEmpty ? '' : tokens.first);
     return executable == 'dart' || executable == 'flutter';
@@ -632,7 +658,7 @@ class LocalShellTools {
     return path.split(RegExp(r'[\\/]')).last;
   }
 
-  static Future<String> _executeInternally({
+  static Future<FirstPartyToolExecutionResult> _executeInternally({
     required String command,
     required String workingDirectory,
   }) async {
@@ -664,16 +690,23 @@ class LocalShellTools {
     final stdoutTruncated = stdout.length > _maxOutputChars;
     final stderrTruncated = stderr.length > _maxOutputChars;
 
-    return jsonEncode({
-      'command': command,
-      'working_directory': workingDirectory,
-      'exit_code': exitCode,
-      'stdout': stdoutTruncated ? stdout.substring(0, _maxOutputChars) : stdout,
-      'stderr': stderrTruncated ? stderr.substring(0, _maxOutputChars) : stderr,
-      'executed_internally': true,
-      if (stdoutTruncated) 'stdout_truncated': true,
-      if (stderrTruncated) 'stderr_truncated': true,
-    });
+    return FirstPartyToolExecutionResult(
+      result: jsonEncode({
+        'command': command,
+        'working_directory': workingDirectory,
+        'exit_code': exitCode,
+        'stdout': stdoutTruncated
+            ? stdout.substring(0, _maxOutputChars)
+            : stdout,
+        'stderr': stderrTruncated
+            ? stderr.substring(0, _maxOutputChars)
+            : stderr,
+        'executed_internally': true,
+        if (stdoutTruncated) 'stdout_truncated': true,
+        if (stderrTruncated) 'stderr_truncated': true,
+      }),
+      outcome: ToolOutcome(exitCode: exitCode),
+    );
   }
 
   static Future<_LocalCommandResult> _executeInternalSegment(

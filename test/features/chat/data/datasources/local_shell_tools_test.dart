@@ -6,6 +6,36 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   _diagnosticsTests();
+  group('typed execution result', () {
+    test('returns the exit status without decoding its payload', () async {
+      final tempDir = Directory.systemTemp.createTempSync('caverno_shell_');
+      addTearDown(() {
+        if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+      });
+
+      final result = await LocalShellTools.executeResult(
+        command: 'echo ok',
+        workingDirectory: tempDir.path,
+      );
+
+      expect(result.outcome?.exitCode, 0);
+      expect(jsonDecode(result.result), containsPair('exit_code', 0));
+    });
+
+    test(
+      'does not invent an exit status when execution never starts',
+      () async {
+        final result = await LocalShellTools.executeResult(
+          command: 'echo ok',
+          workingDirectory: '/path/that/does/not/exist',
+        );
+
+        expect(result.outcome, isNull);
+        expect(jsonDecode(result.result), contains('error'));
+      },
+    );
+  });
+
   group('implicit errexit', () {
     late Directory tempDir;
 
@@ -560,19 +590,22 @@ void _diagnosticsTests() {
       expect(result['diagnostics'], isNull);
     });
 
-    test('stays absent for a failing command that is not dart or flutter', () async {
-      // The parsers only know Dart and Flutter syntax, and every diagnostic
-      // raises the unresolved-error count that goal completion gaps are built
-      // from. A command that happens to print an analyzer-shaped line must not
-      // become evidence of unresolved Dart errors.
-      const analyzerLine =
-          'ERROR|COMPILE_TIME_ERROR|UNDEFINED_METHOD|'
-          'lib/main.dart|12|7|9|The method is not defined.';
+    test(
+      'stays absent for a failing command that is not dart or flutter',
+      () async {
+        // The parsers only know Dart and Flutter syntax, and every diagnostic
+        // raises the unresolved-error count that goal completion gaps are built
+        // from. A command that happens to print an analyzer-shaped line must not
+        // become evidence of unresolved Dart errors.
+        const analyzerLine =
+            'ERROR|COMPILE_TIME_ERROR|UNDEFINED_METHOD|'
+            'lib/main.dart|12|7|9|The method is not defined.';
 
-      final result = await run("printf '%s\\n' '$analyzerLine'; exit 1");
-      expect(result['exit_code'], 1);
-      expect(result['stdout'], contains('UNDEFINED_METHOD'));
-      expect(result['diagnostics'], isNull);
-    });
+        final result = await run("printf '%s\\n' '$analyzerLine'; exit 1");
+        expect(result['exit_code'], 1);
+        expect(result['stdout'], contains('UNDEFINED_METHOD'));
+        expect(result['diagnostics'], isNull);
+      },
+    );
   });
 }

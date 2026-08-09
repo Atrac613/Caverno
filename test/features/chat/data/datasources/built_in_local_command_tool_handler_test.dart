@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:caverno/features/chat/data/datasources/background_process_monitor_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
 import 'package:caverno/features/chat/data/datasources/built_in_local_command_tool_handler.dart';
+import 'package:caverno/features/chat/data/datasources/first_party_tool_execution_result.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -220,9 +221,12 @@ void main() {
       // failure: the result stays successful and the status rides along as a
       // fact, so downstream consumers stop parsing stdout to find it.
       final handler = BuiltInLocalCommandToolHandler(
-        foregroundCommandRunner:
+        foregroundCommandResultRunner:
             ({required command, required workingDirectory}) async =>
-                '{"exit_code":2,"stdout":"","stderr":"tests failed"}',
+                const FirstPartyToolExecutionResult(
+                  result: '{"exit_code":2,"stdout":"","stderr":"tests failed"}',
+                  outcome: ToolOutcome(exitCode: 2),
+                ),
       );
 
       final result = await handler.execute(
