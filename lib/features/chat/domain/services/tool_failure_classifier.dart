@@ -3,12 +3,23 @@ import 'dart:convert';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'tool_call_execution_policy.dart';
+import 'tool_outcome_shadow_comparison.dart';
 
 enum ToolResultDisposition {
   success,
   actionableCommandFailure,
   approvalDenied,
   executionFailure,
+}
+
+class ToolFailureClassification {
+  const ToolFailureClassification({
+    required this.disposition,
+    required this.exitCodeSource,
+  });
+
+  final ToolResultDisposition disposition;
+  final ToolOutcomeVerdictSource exitCodeSource;
 }
 
 class ToolFailureClassifier {
@@ -19,18 +30,38 @@ class ToolFailureClassifier {
 
   final ToolCallExecutionPolicy _toolCallExecutionPolicy;
 
-  ToolResultDisposition classify(ToolCallInfo toolCall, McpToolResult result) {
+  ToolResultDisposition classify(ToolCallInfo toolCall, McpToolResult result) =>
+      inspect(toolCall, result).disposition;
+
+  ToolFailureClassification inspect(
+    ToolCallInfo toolCall,
+    McpToolResult result,
+  ) {
     if (result.isSuccess) {
-      return ToolResultDisposition.success;
+      return const ToolFailureClassification(
+        disposition: ToolResultDisposition.success,
+        exitCodeSource: ToolOutcomeVerdictSource.unavailable,
+      );
     }
     if (isApprovalDenial(result)) {
-      return ToolResultDisposition.approvalDenied;
+      return const ToolFailureClassification(
+        disposition: ToolResultDisposition.approvalDenied,
+        exitCodeSource: ToolOutcomeVerdictSource.unavailable,
+      );
     }
-    if (_toolCallExecutionPolicy.isCommandExecutionTool(toolCall.name) &&
-        _isActionableCommandFailure(result)) {
-      return ToolResultDisposition.actionableCommandFailure;
+    if (_toolCallExecutionPolicy.isCommandExecutionTool(toolCall.name)) {
+      final commandFailure = _inspectActionableCommandFailure(result);
+      return ToolFailureClassification(
+        disposition: commandFailure.actionable
+            ? ToolResultDisposition.actionableCommandFailure
+            : ToolResultDisposition.executionFailure,
+        exitCodeSource: commandFailure.exitCodeSource,
+      );
     }
-    return ToolResultDisposition.executionFailure;
+    return const ToolFailureClassification(
+      disposition: ToolResultDisposition.executionFailure,
+      exitCodeSource: ToolOutcomeVerdictSource.unavailable,
+    );
   }
 
   bool isApprovalDenial(McpToolResult result) {
@@ -58,14 +89,19 @@ class ToolFailureClassifier {
   /// Prefers the structured outcome when the tool reported one. Falls back to
   /// decoding the result payload for third-party MCP results and for
   /// first-party tools that have not been migrated to report an outcome yet.
-  bool _isActionableCommandFailure(McpToolResult result) {
+  _ActionableCommandFailureInspection _inspectActionableCommandFailure(
+    McpToolResult result,
+  ) {
     final outcome = result.outcome;
     if (outcome != null && outcome.exitCode != null) {
       // A reported exit status already proves the process ran to completion,
       // which is the only thing the payload inspection below was ever
       // establishing. Timeouts, denials, and spawn failures never carry an
       // exit code (see `ToolOutcome.exitCode`), so they cannot reach here.
-      return outcome.hasFailingExitCode;
+      return _ActionableCommandFailureInspection(
+        actionable: outcome.hasFailingExitCode,
+        exitCodeSource: ToolOutcomeVerdictSource.typed,
+      );
     }
     return _isActionableCommandFailureFromPayload(result.result);
   }
@@ -76,24 +112,33 @@ class ToolFailureClassifier {
   /// Infers "a command ran and failed" from the payload's shape — a non-zero
   /// `exit_code` accompanied by output keys, with timeouts and explicit errors
   /// excluded. The outcome path above needs none of this because it is told.
-  bool _isActionableCommandFailureFromPayload(String rawResult) {
+  _ActionableCommandFailureInspection _isActionableCommandFailureFromPayload(
+    String rawResult,
+  ) {
     try {
       final decoded = jsonDecode(rawResult);
       if (decoded is! Map<String, dynamic>) {
-        return false;
+        return const _ActionableCommandFailureInspection();
       }
       final exitCode = decoded['exit_code'];
-      if (exitCode is! num || exitCode.toInt() == 0) {
-        return false;
+      if (exitCode is! num) {
+        return const _ActionableCommandFailureInspection();
       }
-      if (decoded['timed_out'] == true || _hasExplicitError(decoded['error'])) {
-        return false;
+      final source = ToolOutcomeVerdictSource.lexicalFallback;
+      if (exitCode.toInt() == 0 ||
+          decoded['timed_out'] == true ||
+          _hasExplicitError(decoded['error'])) {
+        return _ActionableCommandFailureInspection(exitCodeSource: source);
       }
-      return decoded.containsKey('stdout') ||
-          decoded.containsKey('stderr') ||
-          decoded['diagnostics'] is List;
+      return _ActionableCommandFailureInspection(
+        actionable:
+            decoded.containsKey('stdout') ||
+            decoded.containsKey('stderr') ||
+            decoded['diagnostics'] is List,
+        exitCodeSource: source,
+      );
     } on FormatException {
-      return false;
+      return const _ActionableCommandFailureInspection();
     }
   }
 
@@ -103,4 +148,14 @@ class ToolFailureClassifier {
     }
     return value is! String || value.trim().isNotEmpty;
   }
+}
+
+class _ActionableCommandFailureInspection {
+  const _ActionableCommandFailureInspection({
+    this.actionable = false,
+    this.exitCodeSource = ToolOutcomeVerdictSource.unavailable,
+  });
+
+  final bool actionable;
+  final ToolOutcomeVerdictSource exitCodeSource;
 }

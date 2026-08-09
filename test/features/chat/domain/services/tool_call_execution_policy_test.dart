@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/tool_call_execution_policy.dart';
+import 'package:caverno/features/chat/domain/services/tool_outcome_shadow_comparison.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 void main() {
@@ -254,6 +255,23 @@ void main() {
         isFalse,
       );
     });
+
+    test(
+      'prefers typed command exit status over contradictory payload text',
+      () {
+        final result = _result(
+          'local_execute_command',
+          '{"exit_code":9,"stderr":"legacy contradiction"}',
+          outcome: const ToolOutcome(exitCode: 0),
+        );
+
+        expect(policy.toolResultHasSuccessfulExit(result), isTrue);
+        expect(
+          policy.toolResultExitCode(result).source,
+          ToolOutcomeVerdictSource.typed,
+        );
+      },
+    );
 
     test('detects timed out command results and error text', () {
       final result = _result(

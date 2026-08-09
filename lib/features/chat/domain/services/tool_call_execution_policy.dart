@@ -4,6 +4,7 @@ import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/local_shell_tools.dart';
 import '../entities/tool_call_info.dart';
 import 'file_mutation_evidence_policy.dart';
+import 'tool_outcome_shadow_comparison.dart';
 
 typedef ProjectPathResolver = String? Function(String path);
 
@@ -203,6 +204,9 @@ class ToolCallExecutionPolicy {
     if (outcome?.processState != null) {
       return outcome!.isProcessTerminal && outcome.hasSucceedingExitCode;
     }
+    if (outcome?.exitCode != null) {
+      return outcome!.hasSucceedingExitCode;
+    }
     final name = result.name.trim().toLowerCase();
     if (name == 'process_start' ||
         name == 'process_status' ||
@@ -215,18 +219,24 @@ class ToolCallExecutionPolicy {
     if (toolResultTimedOut(result)) {
       return false;
     }
-    final decoded = tryDecodeMap(result.result);
-    final exitCode = decoded?['exit_code'];
-    if (exitCode is num) {
-      return exitCode == 0;
-    }
-    if (exitCode is String) {
-      return int.tryParse(exitCode.trim()) == 0;
-    }
+    final exitCode = toolResultExitCode(result).exitCode;
+    if (exitCode != null) return exitCode == 0;
     return RegExp(
       r'^exit_code:\s*0\s*$',
       multiLine: true,
     ).hasMatch(result.result);
+  }
+
+  ToolOutcomeExitCodeResolution toolResultExitCode(ToolResultInfo result) {
+    final outcome = result.outcome;
+    if (outcome?.exitCode != null) {
+      return resolveToolOutcomeExitCode(outcome: outcome, parsedExitCode: null);
+    }
+    final decoded = tryDecodeMap(result.result);
+    return resolveToolOutcomeExitCode(
+      outcome: outcome,
+      parsedExitCode: exitCodeValue(decoded?['exit_code']),
+    );
   }
 
   int? exitCodeValue(Object? value) {

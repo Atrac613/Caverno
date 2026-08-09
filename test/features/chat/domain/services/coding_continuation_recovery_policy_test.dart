@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/coding_continuation_recovery_policy.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 
 const _policy = CodingContinuationRecoveryPolicy();
@@ -42,12 +43,14 @@ ToolResultInfo _result({
   String id = 'result',
   String name = 'local_execute_command',
   String result = '{"exit_code":0}',
+  ToolOutcome? outcome,
 }) {
   return ToolResultInfo(
     id: id,
     name: name,
     arguments: const {},
     result: result,
+    outcome: outcome,
   );
 }
 
@@ -583,6 +586,27 @@ void main() {
           _result(result: 'exit_code: 3'),
         ]),
         'In this turn, a command exited with a non-zero status.',
+      );
+    });
+
+    test('prefers typed exit status over contradictory payload text', () {
+      expect(
+        _policy.recoveryPartialProgressNotice([
+          _result(
+            result: '{"exit_code":0}',
+            outcome: const ToolOutcome(exitCode: 3),
+          ),
+        ]),
+        'In this turn, a command exited with a non-zero status.',
+      );
+      expect(
+        _policy.recoveryPartialProgressNotice([
+          _result(
+            result: '{"exit_code":3}',
+            outcome: const ToolOutcome(exitCode: 0),
+          ),
+        ]),
+        isNull,
       );
     });
 

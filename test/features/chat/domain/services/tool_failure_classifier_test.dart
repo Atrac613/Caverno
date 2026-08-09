@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/tool_failure_classifier.dart';
+import 'package:caverno/features/chat/domain/services/tool_outcome_shadow_comparison.dart';
 
 void main() {
   const classifier = ToolFailureClassifier();
@@ -150,6 +151,10 @@ void main() {
         classifier.classify(_commandCall(), result),
         ToolResultDisposition.actionableCommandFailure,
       );
+      expect(
+        classifier.inspect(_commandCall(), result).exitCodeSource,
+        ToolOutcomeVerdictSource.typed,
+      );
     });
 
     test('keeps a zero exit code off the actionable path', () {
@@ -198,6 +203,10 @@ void main() {
       expect(
         classifier.classify(_commandCall(), result),
         ToolResultDisposition.actionableCommandFailure,
+      );
+      expect(
+        classifier.inspect(_commandCall(), result).exitCodeSource,
+        ToolOutcomeVerdictSource.lexicalFallback,
       );
     });
 

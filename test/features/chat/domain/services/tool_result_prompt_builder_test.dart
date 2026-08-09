@@ -895,6 +895,32 @@ void main() {
       expect(failed.hasFailedExecutionVerification, isTrue);
     });
 
+    test('uses typed command exit status for verification outcome', () {
+      final succeeded = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'typed-command-success',
+          name: 'local_execute_command',
+          arguments: const {'command': 'dart test'},
+          result: jsonEncode({'exit_code': 9}),
+          outcome: const ToolOutcome(exitCode: 0),
+        ),
+      ]);
+      final failed = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'typed-command-failure',
+          name: 'local_execute_command',
+          arguments: const {'command': 'dart test'},
+          result: jsonEncode({'exit_code': 0}),
+          outcome: const ToolOutcome(exitCode: 9),
+        ),
+      ]);
+
+      expect(succeeded.hasSuccessfulExecutionVerification, isTrue);
+      expect(succeeded.hasFailedExecutionVerification, isFalse);
+      expect(failed.hasSuccessfulExecutionVerification, isFalse);
+      expect(failed.hasFailedExecutionVerification, isTrue);
+    });
+
     test('does not promote legacy running process payloads to success', () {
       final evidence = ToolResultPromptBuilder.completionEvidence([
         ToolResultInfo(

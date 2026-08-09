@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_execution_guardrails.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 void main() {
   group('savedValidationCommandSucceeded', () {
@@ -157,6 +158,29 @@ void main() {
       assessment.failedValidationCommands,
       contains(task.validationCommand),
     );
+  });
+
+  test('assessTaskCompletion prefers typed validation exit status', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-verify',
+      title: 'Verify the project',
+      validationCommand: 'dart test',
+    );
+    final assessment = ConversationPlanExecutionGuardrails.assessTaskCompletion(
+      task: task,
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-typed-validation',
+          name: 'local_execute_command',
+          arguments: {'command': 'dart test'},
+          result: '{"exit_code":9,"stderr":"legacy contradiction"}',
+          outcome: ToolOutcome(exitCode: 0),
+        ),
+      ],
+    );
+
+    expect(assessment.hasFailure, isFalse);
+    expect(assessment.successfulValidationCommands, ['dart test']);
   });
 
   test('assessTaskCompletion accepts success after an earlier failure', () {

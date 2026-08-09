@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import '../entities/message.dart';
 import '../entities/tool_call_info.dart';
 import 'final_answer_claim_detector.dart';
@@ -143,8 +141,7 @@ final class FinalAnswerMessageNoticeService {
           _executionPolicy.toolResultTimedOut(result)) {
         continue;
       }
-      final decoded = _tryDecodeMap(result.result);
-      final exitCode = _executionPolicy.exitCodeValue(decoded?['exit_code']);
+      final exitCode = _executionPolicy.toolResultExitCode(result).exitCode;
       if (exitCode != null && exitCode != 0) {
         unrecoveredExitCode ??= exitCode;
       } else if (exitCode == 0) {
@@ -182,13 +179,4 @@ final class FinalAnswerMessageNoticeService {
 
   static String _append(String content, String notice) =>
       '${content.trimRight()}\n\n$notice';
-
-  static Map<String, dynamic>? _tryDecodeMap(String value) {
-    try {
-      final decoded = jsonDecode(value);
-      return decoded is Map<String, dynamic> ? decoded : null;
-    } catch (_) {
-      return null;
-    }
-  }
 }

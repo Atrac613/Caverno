@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../entities/conversation_workflow.dart';
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_guardrail_service.dart';
+import 'tool_outcome_shadow_comparison.dart';
 
 class ConversationPlanExecutionDriftAssessment {
   const ConversationPlanExecutionDriftAssessment({
@@ -292,7 +293,7 @@ class ConversationPlanExecutionGuardrails {
 
     for (var index = 0; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
-      final resultLooksLikeFailure = _looksLikeFailureResult(toolResult.result);
+      final resultLooksLikeFailure = _looksLikeFailureResult(toolResult);
 
       if (toolResult.name == 'write_file' ||
           toolResult.name == 'edit_file' ||
@@ -332,8 +333,8 @@ class ConversationPlanExecutionGuardrails {
                   command: command,
                   targets: normalizedTargets,
                 ))) {
-          final exitCode = _extractExitCode(toolResult.result);
-          final looksLikeFailure = _looksLikeFailureResult(toolResult.result);
+          final exitCode = _extractExitCode(toolResult);
+          final looksLikeFailure = _looksLikeFailureResult(toolResult);
           final succeeded = exitCode == null
               ? !looksLikeFailure
               : exitCode == 0 && !looksLikeFailure;
@@ -396,8 +397,8 @@ class ConversationPlanExecutionGuardrails {
         final resultSummary = testPath == null
             ? 'run_tests'
             : 'run_tests $testPath';
-        final exitCode = _extractExitCode(toolResult.result);
-        final looksLikeFailure = _looksLikeFailureResult(toolResult.result);
+        final exitCode = _extractExitCode(toolResult);
+        final looksLikeFailure = _looksLikeFailureResult(toolResult);
         final succeeded = exitCode == null
             ? !looksLikeFailure
             : exitCode == 0 && !looksLikeFailure;
@@ -536,7 +537,7 @@ class ConversationPlanExecutionGuardrails {
   ) {
     var sawFailure = false;
     for (final toolResult in toolResults) {
-      if (!_looksLikeFailureResult(toolResult.result)) {
+      if (!_looksLikeFailureResult(toolResult)) {
         continue;
       }
       sawFailure = true;
@@ -939,7 +940,7 @@ class ConversationPlanExecutionGuardrails {
   static bool hasOnlyUnavailableToolFailures(List<ToolResultInfo> toolResults) {
     var sawFailure = false;
     for (final toolResult in toolResults) {
-      if (!_looksLikeFailureResult(toolResult.result)) {
+      if (!_looksLikeFailureResult(toolResult)) {
         continue;
       }
       sawFailure = true;
@@ -1383,27 +1384,28 @@ class ConversationPlanExecutionGuardrails {
     return _normalizeText(decoded?['command']) ?? '';
   }
 
-  static int? _extractExitCode(String rawResult) {
-    final decoded = _tryDecodeMap(rawResult);
+  static int? _extractExitCode(ToolResultInfo toolResult) {
+    final decoded = _tryDecodeMap(toolResult.result);
     final exitCode = decoded == null ? null : decoded['exit_code'];
-    if (exitCode is int) {
-      return exitCode;
-    }
-    if (exitCode is num) {
-      return exitCode.toInt();
-    }
-    if (exitCode is String) {
-      return int.tryParse(exitCode.trim());
-    }
-    return null;
+    final parsedExitCode = switch (exitCode) {
+      int value => value,
+      num value => value.toInt(),
+      String value => int.tryParse(value.trim()),
+      _ => null,
+    };
+    return resolveToolOutcomeExitCode(
+      outcome: toolResult.outcome,
+      parsedExitCode: parsedExitCode,
+    ).exitCode;
   }
 
-  static bool _looksLikeFailureResult(String rawResult) {
+  static bool _looksLikeFailureResult(ToolResultInfo toolResult) {
+    final rawResult = toolResult.result;
     final normalized = rawResult.trim().toLowerCase();
-    if (normalized.isEmpty) {
+    if (normalized.isEmpty && toolResult.outcome?.exitCode == null) {
       return false;
     }
-    final exitCode = _extractExitCode(rawResult);
+    final exitCode = _extractExitCode(toolResult);
     if (exitCode != null && exitCode != 0) {
       return true;
     }

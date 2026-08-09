@@ -376,6 +376,10 @@ final class CodingContinuationRecoveryPolicy {
       if (!_executionPolicy.isCommandExecutionTool(toolResult.name)) {
         return false;
       }
+      final outcome = toolResult.outcome;
+      if (outcome?.exitCode != null) {
+        return outcome!.hasFailingExitCode;
+      }
       final normalizedResult = toolResult.result.toLowerCase();
       return RegExp(
             r'"exit_code"\s*:\s*(?!0\b)-?\d+',

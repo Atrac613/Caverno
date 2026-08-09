@@ -836,6 +836,12 @@ class ToolResultPromptBuilder {
         }
         continue;
       }
+      if (outcome?.exitCode != null) {
+        if (outcome!.hasSucceedingExitCode) {
+          return true;
+        }
+        continue;
+      }
       final decoded = _tryDecodeJsonMap(toolResult.result);
       if (decoded == null) continue;
       final exitCode = decoded['exit_code'];
@@ -877,6 +883,12 @@ class ToolResultPromptBuilder {
       final outcome = toolResult.outcome;
       if (outcome?.processState != null) {
         if (outcome!.isProcessTerminal && outcome.hasFailingExitCode) {
+          return true;
+        }
+        continue;
+      }
+      if (outcome?.exitCode != null) {
+        if (outcome!.hasFailingExitCode) {
           return true;
         }
         continue;
@@ -933,6 +945,9 @@ class ToolResultPromptBuilder {
         continue;
       }
       if (toolResult.outcome?.processState != null) {
+        return true;
+      }
+      if (toolResult.outcome?.exitCode != null) {
         return true;
       }
       final decoded = _tryDecodeJsonMap(toolResult.result);
