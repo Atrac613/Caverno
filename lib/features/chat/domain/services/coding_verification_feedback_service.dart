@@ -307,6 +307,7 @@ class CodingVerificationFeedbackService {
     if (snapshot == null) {
       return null;
     }
+    final selectedAttempt = snapshot.selectedAttempt;
 
     return ToolResultInfo(
       id: '${evidenceToolName}_${(now ?? DateTime.now()).microsecondsSinceEpoch}',
@@ -320,11 +321,19 @@ class CodingVerificationFeedbackService {
         'schema': evidenceSchemaName,
         ..._snapshotEvidencePayload(snapshot),
       }),
-      outcome: ToolOutcome(
-        testPassedCount: snapshot.passedCount,
-        testFailedCount: snapshot.failedCount,
-        testSkippedCount: snapshot.skippedCount,
-      ),
+      outcome: selectedAttempt == null
+          ? null
+          : ToolOutcome(
+              testOutcome: ToolTestOutcome(
+                passedCount: snapshot.passedCount,
+                failedCount: snapshot.failedCount,
+                skippedCount: snapshot.skippedCount,
+                command: [
+                  selectedAttempt.command.executable,
+                  ...selectedAttempt.command.arguments,
+                ].join(' '),
+              ),
+            ),
     );
   }
 

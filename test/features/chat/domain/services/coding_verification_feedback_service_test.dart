@@ -68,9 +68,12 @@ void main() {
       expect(
         evidence.outcome,
         const ToolOutcome(
-          testPassedCount: 1,
-          testFailedCount: 0,
-          testSkippedCount: 0,
+          testOutcome: ToolTestOutcome(
+            passedCount: 1,
+            failedCount: 0,
+            skippedCount: 0,
+            command: 'flutter test --machine test/main_test.dart',
+          ),
         ),
       );
       final payload = jsonDecode(evidence.result) as Map<String, dynamic>;
