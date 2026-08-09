@@ -1098,21 +1098,12 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     await _persistUpdatedConversation(updatedConversation);
   }
 
-  /// Records the goal's turn and returns whether the lexical inference
-  /// completed the goal this turn — the signal LL35 shadow-compares against
-  /// the explicit `update_goal` tool.
-  /// Records one goal turn and returns whether the **lexical** inference
-  /// completed it — the shadow comparison needs that answer specifically, so it
-  /// stays the return value even though [toolCompletionClaimed] can complete
-  /// the goal too.
+  /// Records one goal turn and applies only structured terminal evidence.
   ///
   /// [toolCompletionClaimed] is an `update_goal(completed: true)` call made
-  /// this turn (LL35). It completes the goal on the same terms as the lexical
-  /// path — both are gated on the turn's blocking evidence — so a claim made
-  /// while errors are unresolved does not land. Before this, the tool only
-  /// produced an ack and the transition was lexical-only, which meant a model
-  /// that followed the tool's own instruction ("prose is not how the goal is
-  /// finished") could finish the work and leave the goal running forever.
+  /// this turn (LL35), or another harness-owned structured completion such as
+  /// the exact Git lifecycle contract. It completes the goal only when the
+  /// reconciled current-turn evidence has no incomplete work.
   ///
   /// [conversationId] targets a detached owner explicitly. Omitting it keeps
   /// the current-conversation behavior used by UI actions and existing callers.

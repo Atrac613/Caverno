@@ -5947,6 +5947,7 @@ class ChatNotifier extends Notifier<ChatState> {
         executedToolResults,
       );
       if (gitLifecycleSucceeded) {
+        _turnEnd.markGoalClaimed(turnOwner);
         appLog('[Tool] Current git lifecycle goal already succeeded');
       }
 

@@ -20,7 +20,8 @@ class ConversationGoalProgressInferenceResult {
 /// grounded comparison found no lexical-only completion rescue across three
 /// models and two coding surfaces, while accepted `update_goal` calls were
 /// missed lexically in every model/surface cell. Goal lifecycle authority now
-/// stays with saved tasks and the explicit goal-update tool.
+/// stays with saved tasks, the explicit goal-update tool, and exact
+/// harness-owned completion contracts.
 abstract final class ConversationGoalProgressInference {
   static ConversationGoalProgressInferenceResult infer({
     required String assistantResponse,

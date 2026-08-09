@@ -51,7 +51,7 @@ final class TurnGoalCompletionFinalizer {
       verificationGeneration: conversation?.verificationGeneration,
     );
     final acknowledgement = finalizationState.takeGoalAcknowledgement(owner);
-    final legacyCompletionClaimed = finalizationState.takeGoalClaim(owner);
+    final groundedCompletionClaimed = finalizationState.takeGoalClaim(owner);
     finalizationState.takeGoalOutcome(owner);
     final finalAck = acknowledgement?.isCompletionClaim == true
         ? const GoalUpdateAckResolver().resolve(
@@ -62,7 +62,7 @@ final class TurnGoalCompletionFinalizer {
           )
         : null;
     final toolCompletionClaimed =
-        finalAck?.completionAccepted ?? legacyCompletionClaimed;
+        finalAck?.completionAccepted ?? groundedCompletionClaimed;
     await _recordGoalTurn(
       assistantResponse: assistantResponse,
       tokenUsageDelta: tokenUsageDelta,
