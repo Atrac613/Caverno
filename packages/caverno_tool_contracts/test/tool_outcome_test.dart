@@ -27,6 +27,17 @@ void main() {
       expect(const ToolOutcome(diagnosticCount: 0).isNotEmpty, isTrue);
       expect(const ToolOutcome(testPassedCount: 0).isNotEmpty, isTrue);
       expect(
+        const ToolOutcome(
+          readOutcome: ToolReadOutcome(
+            path: '/tmp/file.dart',
+            contentHash: 'sha256:file',
+            byteSize: 12,
+            lineCount: 2,
+          ),
+        ).isNotEmpty,
+        isTrue,
+      );
+      expect(
         const ToolOutcome(processState: ToolProcessState.running).isNotEmpty,
         isTrue,
       );
@@ -38,6 +49,26 @@ void main() {
       const outcome = ToolOutcome(
         exitCode: 2,
         processState: ToolProcessState.exited,
+        fileMutations: [
+          ToolFileMutation(
+            path: '/tmp/file.dart',
+            contentHash: 'sha256:after',
+            byteSize: 12,
+            changed: true,
+          ),
+        ],
+        readOutcome: ToolReadOutcome(
+          path: '/tmp/input.dart',
+          contentHash: 'sha256:input',
+          byteSize: 24,
+          lineCount: 3,
+        ),
+        testOutcome: ToolTestOutcome(
+          passedCount: 12,
+          failedCount: 1,
+          skippedCount: 2,
+          command: 'flutter test',
+        ),
         fileChanged: false,
         contentHash: 'sha256:file',
         diagnosticCount: 5,
@@ -129,6 +160,66 @@ void main() {
         const ToolOutcome(testPassedCount: 3).hasCompleteTestCounts,
         isFalse,
       );
+    });
+
+    test('prefers the rich test contract over legacy scalar counts', () {
+      const outcome = ToolOutcome(
+        testOutcome: ToolTestOutcome(
+          passedCount: 7,
+          failedCount: 1,
+          skippedCount: 2,
+          command: 'dart test',
+        ),
+        testPassedCount: 99,
+        testFailedCount: 99,
+        testSkippedCount: 99,
+      );
+
+      expect(outcome.effectiveTestPassedCount, 7);
+      expect(outcome.effectiveTestFailedCount, 1);
+      expect(outcome.effectiveTestSkippedCount, 2);
+      expect(outcome.hasCompleteTestCounts, isTrue);
+    });
+  });
+
+  group('rich file outcomes', () {
+    test('derives mutation state and read hash from rich outcomes', () {
+      const outcome = ToolOutcome(
+        fileMutations: [
+          ToolFileMutation(path: '/tmp/file.dart', changed: false),
+        ],
+        readOutcome: ToolReadOutcome(
+          path: '/tmp/file.dart',
+          contentHash: 'sha256:whole-file',
+          byteSize: 18,
+          lineCount: 2,
+        ),
+      );
+
+      expect(outcome.isNoOpMutation, isTrue);
+      expect(outcome.effectiveContentHash, 'sha256:whole-file');
+    });
+
+    test('drops malformed nested records without losing valid ones', () {
+      final outcome = ToolOutcome.fromJson(const {
+        'file_mutations': [
+          {'path': '', 'changed': true},
+          {'path': '/tmp/file.dart', 'byte_size': 5, 'changed': true},
+        ],
+        'read_outcome': {'path': '/tmp/file.dart'},
+        'test_outcome': {
+          'passed_count': 1,
+          'failed_count': 0,
+          'skipped_count': 0,
+          'command': '',
+        },
+      });
+
+      expect(outcome?.fileMutations, const [
+        ToolFileMutation(path: '/tmp/file.dart', byteSize: 5, changed: true),
+      ]);
+      expect(outcome?.readOutcome, isNull);
+      expect(outcome?.testOutcome, isNull);
     });
   });
 
