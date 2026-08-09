@@ -54,6 +54,21 @@ def log_dir() -> pathlib.Path:
     return pathlib.Path(home).expanduser() / "session_logs"
 
 
+def iter_log_paths(root: pathlib.Path) -> list[pathlib.Path]:
+    """Every `.jsonl` under `root`, at any depth, sorted and deduplicated.
+
+    Shared by every `tool/analyze_*.py` so they all see the same population.
+    Depth matters: the live canaries write to
+    `build/integration_test_reports/<run>/session_logs/<surface>/*.jsonl`, three
+    levels down, so the fixed one/two-level globs these tools used to do found
+    nothing there. That tree is the *coding* corpus — 452 turns against the
+    chat-dominated 190 in `~/.caverno/session_logs` — and the edit-anchor
+    decision, the traffic census, and the re-read analysis were all computed
+    without it (docs/canary_evidence_outside_the_corpus_2026-08-06.md).
+    """
+    return sorted(set(root.glob("**/*.jsonl")))
+
+
 def iter_records(path: pathlib.Path):
     with path.open(errors="replace") as handle:
         for line in handle:
@@ -173,7 +188,7 @@ def main() -> int:
     if not root.is_dir():
         print(f"No session log directory at {root}", file=sys.stderr)
         return 1
-    paths = sorted(root.glob("*/*.jsonl")) + sorted(root.glob("*.jsonl"))
+    paths = iter_log_paths(root)
     if not paths:
         print(f"No session logs under {root}", file=sys.stderr)
         return 1

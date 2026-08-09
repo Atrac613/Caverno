@@ -36,7 +36,7 @@ samples = collections.defaultdict(list)
 def norm_ws(s):      return re.sub(r"\s+", " ", s).strip()
 def strip_indent(s): return "\n".join(l.strip() for l in s.splitlines())
 
-for path in sorted(root.glob("*/*.jsonl")):
+for path in air.iter_log_paths(root):
     seen = set()
     for rec in air.iter_records(path):
         for msg in (rec.get("request") or {}).get("messages") or []:

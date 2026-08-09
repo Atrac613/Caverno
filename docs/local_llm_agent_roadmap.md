@@ -2986,10 +2986,26 @@ own payload, and a second-tier pass over `process_*` and
 Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
 traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.
 
+**Re-sized on coding data, 2026-08-07** (`docs/coding_corpus_measurement_2026-08-07.md`).
+The census above was computed on the chat-dominated corpus. On the 3,773 tool
+results in the canary tree only **10 tools are ever invoked** (against 35), and
+the distribution shifts in this milestone's favour:
+
+- The scoped envelope set covers **81.7%** of coding tool traffic, not 67.6%.
+- `read_file` is **39.5%**, 2.1x the next tool — the content hash is an even
+  clearer first field than the census argued.
+- `local_execute_command` exits **non-zero 59.6%** of the time in coding runs
+  against 20.4% in chat. The `exitCode` field is load-bearing, and the
+  summary-first rendering would be describing a failure most of the time.
+- `dart_analyze_feedback` is **7.9%**, the 6th-largest tool — it does not belong
+  in the "second-tier pass" this item files it under.
+- The 18.3% left uncovered is mostly `list_directory` (9.6%, no natural outcome,
+  correctly text-only) and that `dart_analyze_feedback` share.
+
 Next action: define the envelope type beside `McpToolResult` and populate it for
 **two tools first** — `local_execute_command` (exit code) and `read_file`
-(content hash). That is 43% of tool traffic for two implementations, and the
-read hash feeds the known dominant failure. Rewire `ToolFailureClassifier` as
+(content hash). That is 58% of coding tool traffic for two implementations, and
+the read hash feeds the known dominant failure. Rewire `ToolFailureClassifier` as
 the first consumer, then `ToolLoopContextDigest` as the second.
 
 ### LL35: Explicit Goal-State Tool With A Real Acknowledgement

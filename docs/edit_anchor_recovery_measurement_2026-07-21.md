@@ -134,6 +134,21 @@ This does not make the original 37% anchor-failure rate acceptable. It narrows
 the opportunity: the remaining structural population is 12 failed next edits,
 including eight after `current_content`, rather than all 57 failures.
 
+## Confirmed on the coding corpus (2026-08-07)
+
+This measurement ran on `~/.caverno/session_logs`, which is mostly chat; the
+live-canary logs — the population where `edit_file` actually lives — were in
+`build/integration_test_reports` and unreachable by these tools until the shared
+discovery fix. Re-run there, the decision holds on every number it rested on:
+anchor failure 34.6% (vs 37.6%), next-edit recovery **76.7%** (vs 70.0%),
+streaks stopping at one **87.4%** (vs 80.5%), whitespace/indentation 1 of 128.
+The coding figures are better, so "do not build hashline anchoring" is now
+confirmed on both populations rather than assumed from one.
+
+The one number that moved against us: `switched_to_write` is 22.7% of coding
+anchor failures against 16.0% here. Full record:
+`docs/coding_corpus_measurement_2026-08-07.md`.
+
 ## Proposed next task
 
 Close this edit-anchor recovery thread without an app fix and return to

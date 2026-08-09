@@ -361,7 +361,7 @@ def main() -> int:
     if not root.is_dir():
         print(f"No session log directory at {root}", file=sys.stderr)
         return 1
-    paths = sorted(root.glob("*/*.jsonl")) + sorted(root.glob("*.jsonl"))
+    paths = air.iter_log_paths(root)
     if not paths:
         print(f"No session logs under {root}", file=sys.stderr)
         return 1
