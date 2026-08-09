@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import '../entities/tool_call_info.dart';
@@ -58,6 +57,11 @@ class UnwrittenFileClaimGuard {
   static final RegExp _planningEnglishMutation = RegExp(
     r'\b(?:plan|planning|intend|intending|going)\s+to\s+'
     r'(?:create|add|update|write)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _priorTurnMutation = RegExp(
+    r'\b(?:previous|prior|earlier|last)\s+(?:assistant\s+)?turn\b|'
+    r'\b(?:before|previously|earlier)\b.*\b(?:created|added|updated|written)\b',
     caseSensitive: false,
   );
   static final RegExp _completedJapaneseMutation = RegExp(
@@ -236,9 +240,6 @@ class UnwrittenFileClaimGuard {
         continue;
       }
       final pathExistsNow = exists(entry.key);
-      if (pathExistsNow) {
-        continue;
-      }
       claims.add(
         UnwrittenFileClaim(
           displayPath: entry.value,
@@ -255,7 +256,8 @@ class UnwrittenFileClaimGuard {
   bool _looksLikeCompletedMutationClaim(String line) {
     if (_futureOrNegativeEnglishMutation.hasMatch(line) ||
         _planningEnglishMutation.hasMatch(line) ||
-        _futureOrNegativeJapaneseMutation.hasMatch(line)) {
+        _futureOrNegativeJapaneseMutation.hasMatch(line) ||
+        _priorTurnMutation.hasMatch(line)) {
       return false;
     }
     return _completedEnglishMutation.hasMatch(line) ||
@@ -312,51 +314,20 @@ class UnwrittenFileClaimGuard {
     final paths = <String>{};
     for (final toolResult in toolResults) {
       if (!_fileMutationEvidencePolicy.isMutationToolName(toolResult.name) ||
-          !_isSuccessfulResult(toolResult.result)) {
+          !_fileMutationEvidencePolicy.isSuccessfulResult(toolResult) ||
+          toolResult.outcome?.isNoOpMutation == true) {
         continue;
       }
-      try {
-        final decoded = jsonDecode(toolResult.result);
-        if (decoded is! Map<Object?, Object?>) {
-          continue;
-        }
-        final rawPath = decoded['path']?.toString().trim();
-        if (rawPath == null || rawPath.isEmpty) {
-          continue;
-        }
-        final path = _resolveInsideRoot(rawPath, normalizedRoot);
-        if (path != null) {
-          paths.add(path);
-        }
-      } catch (_) {
+      final rawPath = _fileMutationEvidencePolicy.pathForResult(toolResult);
+      if (rawPath == null || rawPath.isEmpty) {
         continue;
+      }
+      final path = _resolveInsideRoot(rawPath, normalizedRoot);
+      if (path != null) {
+        paths.add(path);
       }
     }
     return paths;
-  }
-
-  bool _isSuccessfulResult(String result) {
-    final normalized = result.trim().toLowerCase();
-    if (normalized.isEmpty ||
-        normalized.startsWith('error:') ||
-        normalized.startsWith('auto-review denied')) {
-      return false;
-    }
-    try {
-      final decoded = jsonDecode(result);
-      if (decoded is! Map<Object?, Object?>) {
-        return true;
-      }
-      if (decoded['error'] != null || decoded['ok'] == false) {
-        return false;
-      }
-      final code = decoded['code']?.toString().trim().toLowerCase();
-      return code != 'permission_denied' &&
-          code != 'bookmark_restore_failed' &&
-          code != 'tool_execution_failed';
-    } catch (_) {
-      return true;
-    }
   }
 
   String? _resolveInsideRoot(String path, String normalizedRoot) {
