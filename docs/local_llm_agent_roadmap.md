@@ -3385,7 +3385,7 @@ the Grounded Verification track; LL35 correctly left that goal blocked.
 
 ### LL36: Heuristic Demotion And Firing Audit
 
-Status: `next`
+Status: `current`
 
 Problem:
 - The guards that must stay lexical — extracting a *claim* from prose has no
@@ -3451,6 +3451,26 @@ Still zero everywhere: `narrated_transcript_repair`,
 fires, which is a question about the canary before it is a question about the
 guard.
 
+**Correction, 2026-08-09 — `pending_action_length_recovery` now has clean live
+evidence, and the final-answer surface is closed.** The old canary staged its
+failure in an MCP fixture service, but production `local_execute_command`
+bypassed that service, so the intended truncation never occurred. Moving the
+staged outcome to the real verifier process boundary exposed a second product
+defect: a recovery tool loop reset the owner-scoped finalization registry and
+erased transforms recorded earlier in the same turn. Finalization state is now
+initialized only at turn start and accumulated through nested tool loops.
+
+The final-answer notice service also had four unlabeled or unrecorded paths:
+unexecuted tool requests, unexecuted file side effects, timed-out command
+claims, and failed command claims. All four now carry stable transform IDs,
+and the normal no-explicit-owner path resolves the active generation owner
+before recording. A clean `qwen3.6-27b-vision` run on build `4c0efc96` passed
+1/1 in 55,881 ms and recorded exactly one
+`pending_action_length_recovery` plus the bounded continuation-recovery label.
+The verifier transitioned from typed exit 1 to typed exit 0; both LL34 shadow
+comparisons agreed. See
+`docs/ll36_final_answer_transform_coverage_2026-08-09.md`.
+
 The two distributions barely overlap — the corpus's dominant label
 (`unexecuted_command_action_notice`, 26) fires twice in the canary tree — so
 "which guards are load-bearing" has a different answer per surface, and a
@@ -3473,10 +3493,9 @@ this table:
 python3 tool/triage_session_logs.py --top 3
 ```
 
-What remains in this item is therefore narrower than written: labels for guards
-that fire *without* calling `addTransform` (invisible to this view), the
-structural rule that a lexical guard may not set goal status or finalize a turn,
-and the lexical-vs-grounded disagreement view, which depends on LL34/LL35.
+After the 2026-08-09 correction, the additive surface, structural rule, and
+LL34/LL35 disagreement view are implemented. The remaining item is the
+evidence-gated deletion below.
 
 Scope:
 - Give every lexical guard a stable pattern label and emit a LL33-style
@@ -3517,12 +3536,23 @@ controls. One real leak was found and broken
 the feedback service; the shared constants now live in
 `coding_verification_evidence_contract.dart`).
 
+Progress (2026-08-09): the last discovered instrumentation gaps are done.
+Every `FinalAnswerMessageNoticeService` mutation path now emits a stable label,
+generation-derived ownership covers the normal call path, and nested recovery
+loops can no longer reset earlier turn transforms. Focused service, notifier,
+detached-owner, registry, wrapper, analyzer, and structural quality tests pass.
+The repaired pending-action canary supplies clean live proof that the label
+survives through recovery into `turn_exit.transforms`.
+
 Next action: **delete-by-measurement**, the only part left. Still gated on
-accumulated post-provenance logs — the current distribution (three of ten
-transform labels firing) is a baseline, not evidence, and per the correction
-above the accumulation had stopped nine days before anyone checked. The two prose inferences
-are deliberately excluded from the enforcement until LL35's confirmation rung
-exists to replace them.
+accumulated post-provenance logs — the historical three-of-ten distribution is
+a baseline, not evidence, and per the correction above the accumulation had
+stopped nine days before anyone checked. LL35's confirmation rung and lexical
+terminal demotion now exist; the two prose inferences remain advisory and
+become deletion candidates only after a model-varied, post-`4c0efc96` corpus
+shows the grounded path covers their useful firings. One deterministic canary
+is evidence that instrumentation works, not evidence that any guard is safe to
+delete.
 
 ### LL37: Objective Verification (Idle Panel Only)
 

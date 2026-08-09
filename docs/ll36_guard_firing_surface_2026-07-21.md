@@ -4,6 +4,24 @@ Question this answers: **LL36 wants every lexical guard's firing to be
 countable, so "delete-by-measurement" can run. How much of that surface exists
 already, and what is actually missing?**
 
+## 2026-08-09 correction
+
+The 2026-07-21 inventory was incomplete in two ways. Four final-answer mutation
+paths did not carry a transform ID through the shared mutation service, and a
+nested recovery tool loop reset the turn-finalization registry after an earlier
+transform had fired. Both gaps are closed: unexecuted tool requests,
+unexecuted file side effects, timed-out command claims, and failed command
+claims have stable IDs; the normal path derives the generation owner; and turn
+state accumulates until finalization rather than resetting per tool loop.
+
+The formerly zero `pending_action_length_recovery` label now has clean live
+evidence. Build `4c0efc96` recorded it in `turn_exit.transforms` during a 1/1
+passing `qwen3.6-27b-vision` canary, followed by a bounded
+`coding_continuation_recovery_length_truncated_pending_action`. The staged
+verifier exited 1, the real verifier later exited 0, and both LL34 comparisons
+agreed. The implementation and evidence are detailed in
+`docs/ll36_final_answer_transform_coverage_2026-08-09.md`.
+
 The roadmap's framing — "every remaining lexical guard gets a stable label" —
 implied a large gap. Measuring first (the discipline that repeatedly paid off
 this session) shows the gap is small: most guard firings are already countable
@@ -77,14 +95,13 @@ apply, learned the hard way earlier today and recorded in memory:
 
 ## What remains for LL36
 
-1. **Structural enforcement** — bar a lexical guard from setting terminal state
-   (goal status, task completion, turn finalization) at the type/API level, not
-   by convention. This is the "may trigger, not judge" rule made mechanical. It
-   is the larger, unstarted half.
-2. **Delete-by-measurement** — once the surface is complete (it now is, for
-   final-message transforms) and enough post-provenance logs have accumulated,
-   remove a silent guard with its firing record attached as the justification.
-   Gated on accumulated evidence, not on this snapshot.
+Structural enforcement completed on 2026-07-22 through
+`test/quality/lexical_guard_advisory_test.dart`; the final instrumentation gaps
+completed on 2026-08-09. The only remaining milestone acceptance item is
+**delete-by-measurement**: accumulate enough model-varied logs produced after
+`4c0efc96`, then remove a lexical path only when its firing and grounded
+disagreement records show the grounded path covers its useful verdicts. The
+single deterministic canary proves observability, not deletion safety.
 
 The instrument (labels + the two counting tools) is now complete enough that
 part 2 becomes a measurement rather than an argument — which was the point.

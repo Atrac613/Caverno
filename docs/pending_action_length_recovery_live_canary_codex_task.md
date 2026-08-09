@@ -45,17 +45,31 @@ endpoint after deterministic verification passes.
 
 ## Results
 
-- Deterministic verification: `tool/codex_verify.sh --coverage` passed with no
-  analyzer issues and no generated-file drift.
+- Current implementation: `4c0efc96` (clean build provenance).
+- Deterministic verification: the complete non-live TODO canary suite passed
+  26 tests with 9 live-only skips; focused notifier, detached-owner, registry,
+  wrapper, analyzer, file-size, and lexical-guard checks also passed. The full
+  `tool/codex_verify.sh` gate completed successfully, including all 6,919 root
+  Flutter tests.
 - Live endpoint: `http://192.168.100.241:1234/v1`
 - Model: `qwen3.6-27b-vision`
 - Successful report:
-  `build/integration_test_reports/coding_pending_action_length_recovery_live_canary_1783996423`
-- Outcome: 1/1 test passed in 398,559 ms with readiness `ready`.
+  `build/integration_test_reports/coding_pending_action_length_recovery_live_canary_1786276525`
+- Outcome: 1/1 test passed in 55,881 ms with readiness `ready`.
 - Recovery evidence: one pending-action deferral, one bounded recovery request,
-  one recovery tool-call response, and a later successful verifier result.
-- Goal evidence: the goal was not blocked, no unchanged verifier replay was
-  dispatched before repair, and no post-success mutation was attempted.
+  one recovery tool-call response, one owner-scoped
+  `pending_action_length_recovery` transform, and one bounded continuation
+  recovery transform.
+- Verifier evidence: the exact behavior-neutral source-marker diagnostic exited
+  1, the model performed its one requested mutation, and the complete real
+  verifier then exited 0. Both typed-vs-parsed tool outcomes agreed.
+- Goal evidence: the goal completed without becoming blocked, no unchanged
+  verifier replay was dispatched before repair, and no post-success mutation
+  was attempted.
 
-An earlier run started before the model server restarted and was interrupted
-after the in-flight request stopped progressing. It is not promotion evidence.
+Three earlier 2026-08-09 runs are diagnostic evidence, not promotion evidence:
+the first proved the staged failure was attached to the wrong tool boundary;
+the second proved nested `_executeToolCalls` reset and erased the transform;
+the third preserved the transform but exposed a fictional diagnostic that did
+not deterministically lead to re-verification. Each failure produced the next
+bounded repair used by the passing run.
