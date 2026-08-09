@@ -1,387 +1,135 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_execution_progress_inference.dart';
 import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  ConversationWorkflowTask loadFixtureTask(String fixtureName) {
-    final fixture =
-        jsonDecode(File('test/fixtures/$fixtureName').readAsStringSync())
-            as Map<String, dynamic>;
-    return ConversationWorkflowTask.fromJson(
-      fixture['task'] as Map<String, dynamic>,
-    );
-  }
+  const taskTitle = 'Ship the execution handoff';
 
-  String loadFixtureAssistantResponse(String fixtureName) {
-    final fixture =
-        jsonDecode(File('test/fixtures/$fixtureName').readAsStringSync())
-            as Map<String, dynamic>;
-    return fixture['assistantResponse'] as String;
-  }
-
-  const task = ConversationWorkflowTask(
-    id: 'task-1',
-    title: 'Ship the execution handoff',
-    status: ConversationWorkflowTaskStatus.inProgress,
-    validationCommand: 'flutter test',
-  );
-
-  test('infers a completed task from assistant execution output', () {
+  test('extracts completion as an advisory claim', () {
     final result = ConversationExecutionProgressInference.infer(
       assistantResponse:
           'Implemented the execution handoff and updated the validation flow.',
-      task: task,
+      taskTitle: taskTitle,
       isValidationRun: false,
     );
 
-    expect(result.status, ConversationWorkflowTaskStatus.completed);
+    expect(result.reportsCompletion, isTrue);
+    expect(result.reportsBlocker, isFalse);
     expect(
       result.summary,
       'Implemented the execution handoff and updated the validation flow.',
     );
-    expect(result.blockedReason, isNull);
   });
 
-  test('treats plain complete phrasing as a completed task', () {
-    final result = ConversationExecutionProgressInference.infer(
-      assistantResponse:
-          'Task 1 is complete because the saved validation command passed.',
-      task: task,
-      isValidationRun: false,
-    );
-
-    expect(result.status, ConversationWorkflowTaskStatus.completed);
-    expect(
-      result.summary,
-      'Task 1 is complete because the saved validation command passed.',
-    );
-  });
-
-  test('does not infer completion from command names inside code spans', () {
+  test('ignores completion words inside code spans', () {
     final result = ConversationExecutionProgressInference.infer(
       assistantResponse:
           'Supported commands are `add <text>`, `list`, `done <id>`, and '
           '`delete <id>`.',
-      task: task,
+      taskTitle: taskTitle,
       isValidationRun: false,
     );
 
-    expect(result.status, ConversationWorkflowTaskStatus.inProgress);
+    expect(result.reportsCompletion, isFalse);
+    expect(result.reportsBlocker, isFalse);
   });
 
-  test('keeps corrected unexecuted completion claims in progress', () {
+  test('suppresses corrected unexecuted completion claims', () {
     final result = ConversationExecutionProgressInference.infer(
       assistantResponse:
           'The TODO MVP is complete and all checks passed.\n\n'
-          'Use `dart run todo done <id>` to complete a task.\n\n'
           '${FinalAnswerClaimDetector.unexecutedCommandActionNotice}',
       fallbackAssistantResponse:
           'The TODO MVP is complete and all checks passed.',
-      task: task,
+      taskTitle: taskTitle,
       isValidationRun: false,
     );
 
-    expect(result.status, ConversationWorkflowTaskStatus.inProgress);
-    expect(result.blockedReason, isNull);
+    expect(result.hasUnexecutedEvidence, isTrue);
+    expect(result.reportsCompletion, isFalse);
+    expect(result.reportsValidationSuccess, isFalse);
   });
 
-  test('infers blocked validation output from the assistant response', () {
+  test('extracts blocker narration without producing a status', () {
     final result = ConversationExecutionProgressInference.infer(
       assistantResponse:
           'Validation failed because flutter test found one failing smoke test.',
-      task: task,
+      taskTitle: taskTitle,
       isValidationRun: true,
     );
 
-    expect(result.status, ConversationWorkflowTaskStatus.blocked);
-    expect(
-      result.validationStatus,
-      ConversationExecutionValidationStatus.failed,
-    );
-    expect(
-      result.validationSummary,
-      'Validation failed because flutter test found one failing smoke test.',
-    );
-    expect(
-      result.blockedReason,
-      'Validation failed because flutter test found one failing smoke test.',
-    );
+    expect(result.reportsBlocker, isTrue);
+    expect(result.reportsCompletion, isFalse);
+    expect(result.reportsValidationSuccess, isFalse);
   });
 
-  test(
-    'keeps validation runs in progress when the assistant response is neutral',
-    () {
-      final result = ConversationExecutionProgressInference.infer(
-        assistantResponse:
-            'Checked the current validation context and outlined the next step.',
-        task: task,
-        isValidationRun: true,
-      );
-
-      expect(result.status, ConversationWorkflowTaskStatus.inProgress);
-      expect(
-        result.validationStatus,
-        ConversationExecutionValidationStatus.unknown,
-      );
-      expect(
-        result.validationSummary,
-        'Checked the current validation context and outlined the next step.',
-      );
-    },
-  );
-
-  test(
-    'keeps auto-continue transition narration in progress for the next task',
-    () {
-      final task = loadFixtureTask(
-        'plan_mode_ping_cli_auto_continue_transition_replay.json',
-      );
-      final assistantResponse = loadFixtureAssistantResponse(
-        'plan_mode_ping_cli_auto_continue_transition_replay.json',
-      );
-
-      final result = ConversationExecutionProgressInference.infer(
-        assistantResponse: assistantResponse,
-        task: task,
-        isValidationRun: false,
-      );
-
-      expect(result.status, ConversationWorkflowTaskStatus.inProgress);
-      expect(
-        result.summary,
-        startsWith(
-          'The previous saved task is complete. Continue immediately with the next pending saved task without asking for confirmation.',
-        ),
-      );
-    },
-  );
-
-  test(
-    'treats explicit current-task completion inside transition narration as completed',
-    () {
-      const task = ConversationWorkflowTask(
-        id: 'task-ping-cli',
-        title:
-            'Implement the ping logic in ping_cli.py using the subprocess module',
-        status: ConversationWorkflowTaskStatus.inProgress,
-        validationCommand: 'python3 ping_cli.py 127.0.0.1',
-      );
-
-      final result = ConversationExecutionProgressInference.infer(
-        assistantResponse:
-            'The previous task `task-ping-cli` ("Implement the ping logic in ping_cli.py using the subprocess module") is complete. '
-            'The next task is "Create a README.md file with installation and usage instructions".',
-        task: task,
-        isValidationRun: false,
-      );
-
-      expect(result.status, ConversationWorkflowTaskStatus.completed);
-      expect(
-        result.summary,
-        startsWith(
-          'The previous task `task-ping-cli` ("Implement the ping logic in ping_cli.py using the subprocess module") is complete.',
-        ),
-      );
-    },
-  );
-
-  test('treats explicit current-task was-completed narration as completed', () {
-    const task = ConversationWorkflowTask(
-      id: 'task-init',
-      title: 'Initialize project structure',
-      status: ConversationWorkflowTaskStatus.blocked,
-      validationCommand: 'ls -a',
-    );
-
+  test('extracts validation success without producing a verdict', () {
     final result = ConversationExecutionProgressInference.infer(
       assistantResponse:
-          'Task 1 (Initialize project structure) was completed and all target files are present. The next task is "Implement ping CLI script with argparse".',
-      task: task,
+          'The validation command ran successfully and tests passed.',
+      taskTitle: taskTitle,
+      isValidationRun: true,
+    );
+
+    expect(result.reportsValidationSuccess, isTrue);
+    expect(result.reportsCompletion, isTrue);
+    expect(result.reportsBlocker, isFalse);
+  });
+
+  test('keeps generic task-transition narration claim-free', () {
+    final result = ConversationExecutionProgressInference.infer(
+      assistantResponse:
+          'The previous saved task is complete. Continue immediately with '
+          'the next pending saved task without asking for confirmation.',
+      taskTitle: taskTitle,
       isValidationRun: false,
     );
 
-    expect(result.status, ConversationWorkflowTaskStatus.completed);
-    expect(
-      result.summary,
-      startsWith(
-        'Task 1 (Initialize project structure) was completed and all target files are present.',
-      ),
-    );
+    expect(result.reportsCompletion, isFalse);
+    expect(result.reportsBlocker, isFalse);
   });
 
-  test(
-    'prefers fallback completion evidence over a generic follow-up summary',
-    () {
-      final result = ConversationExecutionProgressInference.infer(
-        assistantResponse:
-            'I reviewed the tool results and outlined the next step.',
-        fallbackAssistantResponse:
-            'The saved task is complete because the validation passed.',
-        task: task,
-        isValidationRun: false,
-      );
-
-      expect(result.status, ConversationWorkflowTaskStatus.completed);
-      expect(
-        result.summary,
-        'The saved task is complete because the validation passed.',
-      );
-    },
-  );
-
-  test('treats validation command success narratives as completion evidence', () {
+  test('recognizes explicit current-task completion during handoff', () {
+    const explicitTitle =
+        'Implement the ping logic in ping_cli.py using the subprocess module';
     final result = ConversationExecutionProgressInference.infer(
       assistantResponse:
-          'The validation command `python3 ping_lib.py --help` was successful. The CLI interface is working as expected and correctly displays the help message.',
-      task: task,
+          'The previous task "$explicitTitle" is complete. The next task is '
+          'to write the README.',
+      taskTitle: explicitTitle,
       isValidationRun: false,
     );
 
-    expect(result.status, ConversationWorkflowTaskStatus.completed);
-    expect(
-      result.summary,
-      'The validation command `python3 ping_lib.py --help` was successful. The CLI interface is working as expected and correctly displays the help message.',
-    );
+    expect(result.reportsCompletion, isTrue);
   });
 
-  test(
-    'prefers completion when the response recaps an earlier failure but confirms success',
-    () {
-      const task = ConversationWorkflowTask(
-        id: 'task-cli',
-        title: 'Implement subprocess ping logic',
-        status: ConversationWorkflowTaskStatus.inProgress,
-        validationCommand: 'python3 main.py 8.8.8.8',
-      );
-
-      final result = ConversationExecutionProgressInference.infer(
-        assistantResponse:
-            'The task "Implement subprocess ping logic" has been completed. I fixed the earlier failed validation attempt, and the validation command was successful after updating main.py.',
-        task: task,
-        isValidationRun: false,
-      );
-
-      expect(result.status, ConversationWorkflowTaskStatus.completed);
-      expect(
-        result.summary,
-        'The task "Implement subprocess ping logic" has been completed. I fixed the earlier failed validation attempt, and the validation command was successful after updating main.py.',
-      );
-    },
-  );
-
-  test(
-    'treats successful validation result before next-task prompt as completed',
-    () {
-      const task = ConversationWorkflowTask(
-        id: 'task-main-py',
-        title: 'Create main.py with subprocess-based ping implementation',
-        status: ConversationWorkflowTaskStatus.inProgress,
-        validationCommand: 'python3 main.py --help',
-      );
-
-      final result = ConversationExecutionProgressInference.infer(
-        assistantResponse:
-            'I have completed the first task: **Create `main.py` with subprocess-based ping implementation**.\n\n'
-            '### Validation Result\n'
-            '- Command: `python3 main.py --help`\n'
-            '- Result: **Success** (Exit code 0)\n\n'
-            'The `main.py` file is now created and ready for the next task.\n\n'
-            'Would you like me to proceed to the next task?',
-        task: task,
-        isValidationRun: false,
-      );
-
-      expect(result.status, ConversationWorkflowTaskStatus.completed);
-      expect(
-        result.summary,
-        'I have completed the first task: **Create `main.py` with subprocess-based ping implementation**.',
-      );
-    },
-  );
-
-  test('treats recoverable missing-target narratives as in-progress recovery', () {
-    const task = ConversationWorkflowTask(
-      id: 'task-ping-cli',
-      title: 'Implement core ping logic in ping_cli.py using subprocess',
-      status: ConversationWorkflowTaskStatus.blocked,
-      validationCommand: 'python3 ping_cli.py 127.0.0.1',
-    );
-
+  test('treats a recoverable missing target as neither terminal claim', () {
     final result = ConversationExecutionProgressInference.infer(
       assistantResponse:
-          'The validation command was attempted before the target file existed. '
-          'The goal now is to implement the task "Implement core ping logic in ping_cli.py using subprocess". '
-          'Plan: 1. Create `ping_cli.py` with the core ping logic using subprocess.',
-      task: task,
+          'The validation command was attempted before the target file '
+          'existed. The goal now is to implement the task. Plan: create '
+          '`ping_cli.py`.',
+      taskTitle: 'Implement ping_cli.py',
       isValidationRun: false,
     );
 
-    expect(result.status, ConversationWorkflowTaskStatus.inProgress);
+    expect(result.reportsCompletion, isFalse);
+    expect(result.reportsBlocker, isFalse);
+  });
+
+  test('prefers a fallback that carries a completion claim', () {
+    final result = ConversationExecutionProgressInference.infer(
+      assistantResponse: 'I reviewed the tool results and outlined next steps.',
+      fallbackAssistantResponse:
+          'The saved task is complete because validation passed.',
+      taskTitle: taskTitle,
+      isValidationRun: false,
+    );
+
+    expect(result.reportsCompletion, isTrue);
     expect(
       result.summary,
-      startsWith(
-        'The validation command was attempted before the target file existed. The goal now is to implement the task "Implement core ping logic in ping_cli.py using subprocess".',
-      ),
+      'The saved task is complete because validation passed.',
     );
-    expect(result.blockedReason, isNull);
   });
-
-  group('prose-only validation verdict', () {
-    const validationTask = ConversationWorkflowTask(
-      id: 'task-1',
-      title: 'Ship the execution handoff',
-      status: ConversationWorkflowTaskStatus.inProgress,
-      validationCommand: 'flutter test',
-    );
-
-    // This class is the no-mechanical-evidence fallback and deliberately takes
-    // no exit code: ConversationValidationToolResultInference and
-    // CodingVerificationFeedbackService ground validationStatus in one and run
-    // ahead of it. These tests pin the prose behaviour that remains its job.
-    test('reads a success signal as passed', () {
-      final result = ConversationExecutionProgressInference.infer(
-        assistantResponse:
-            'The validation command ran successfully and tests passed.',
-        task: validationTask,
-        isValidationRun: true,
-      );
-
-      expect(
-        result.validationStatus,
-        ConversationExecutionValidationStatus.passed,
-      );
-    });
-
-    test('reads prose with no success signal as unknown', () {
-      final result = ConversationExecutionProgressInference.infer(
-        assistantResponse: 'Ran the validation command.',
-        task: validationTask,
-        isValidationRun: true,
-      );
-
-      expect(
-        result.validationStatus,
-        ConversationExecutionValidationStatus.unknown,
-      );
-    });
-
-    test('reads blocked prose as failed', () {
-      final result = ConversationExecutionProgressInference.infer(
-        assistantResponse: 'The task is blocked and cannot proceed.',
-        task: validationTask,
-        isValidationRun: true,
-      );
-
-      expect(
-        result.validationStatus,
-        ConversationExecutionValidationStatus.failed,
-      );
-    });
-  });
-
 }

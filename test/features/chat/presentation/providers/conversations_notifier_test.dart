@@ -1322,7 +1322,7 @@ void main() {
   );
 
   test(
-    'updateCurrentExecutionTaskProgressFromAssistantTurn infers blocked validation state',
+    'updateCurrentExecutionTaskProgressFromAssistantTurn keeps prose validation advisory',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);
 
@@ -1370,12 +1370,12 @@ void main() {
           ?.executionProgress
           .single;
       expect(progress, isNotNull);
-      expect(progress!.status, ConversationWorkflowTaskStatus.blocked);
+      expect(progress!.status, ConversationWorkflowTaskStatus.inProgress);
       expect(
         progress.validationStatus,
-        ConversationExecutionValidationStatus.failed,
+        ConversationExecutionValidationStatus.unknown,
       );
-      expect(progress.blockedReason, contains('Validation failed'));
+      expect(progress.blockedReason, isEmpty);
       expect(progress.lastValidationCommand, 'flutter test');
       expect(
         progress.lastValidationSummary,
@@ -1749,7 +1749,7 @@ void main() {
   );
 
   test(
-    'updateCurrentExecutionTaskProgressFromAssistantTurn prefers fallback completion evidence',
+    'updateCurrentExecutionTaskProgressFromAssistantTurn keeps fallback completion advisory',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);
 
@@ -1798,14 +1798,14 @@ void main() {
           .currentConversation;
       final progress = refreshedConversation?.executionProgressForTask(task.id);
       expect(progress, isNotNull);
-      expect(progress!.status, ConversationWorkflowTaskStatus.completed);
+      expect(progress!.status, ConversationWorkflowTaskStatus.inProgress);
       expect(
         progress.summary,
         'The saved task is complete because the validation passed.',
       );
       expect(
         refreshedConversation?.workflowStage,
-        ConversationWorkflowStage.review,
+        ConversationWorkflowStage.implement,
       );
     },
   );

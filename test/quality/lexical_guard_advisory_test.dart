@@ -19,17 +19,15 @@ import 'package:path/path.dart' as p;
 /// meant to catch, and is why the shared tool name now lives in
 /// `coding_verification_evidence_contract.dart`.
 ///
-/// **This list is deliberately not exhaustive over the codebase.** The two
-/// prose inferences (`ConversationExecutionProgressInference`,
-/// `ConversationGoalProgressInference`) legitimately produce terminal verdicts
-/// as the documented fallback for when no mechanical evidence exists, and are
-/// therefore not listed here. Their removal is gated on LL35's confirmation
-/// rung existing to replace them — see
-/// `docs/validation_status_three_paths_2026-07-22.md`.
+/// **This list is deliberately not exhaustive over the codebase.** It contains
+/// domain services that inspect prose and are reachable from guarded runtime
+/// paths. Structured goal/task producers are outside this list because they do
+/// not inspect prose.
 const _advisoryOnlyGuards = <String>[
   'lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart',
   'lib/features/chat/domain/services/coding_command_output_guardrail_service.dart',
   'lib/features/chat/domain/services/coding_verification_claim_guard.dart',
+  'lib/features/chat/domain/services/conversation_execution_progress_inference.dart',
   'lib/features/chat/domain/services/final_answer_claim_detector.dart',
   'lib/features/chat/domain/services/narrated_transcript_claim_guard.dart',
   'lib/features/chat/domain/services/structured_coding_execution_deferral_detector.dart',

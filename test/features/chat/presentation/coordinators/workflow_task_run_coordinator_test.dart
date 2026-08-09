@@ -770,7 +770,7 @@ void main() {
     },
   );
 
-  test('assistant completion evidence preempts tool-less recovery', () async {
+  test('assistant completion claim remains advisory during recovery', () async {
     const task = ConversationWorkflowTask(
       id: 'implement-configuration',
       title: 'Implement configuration',
@@ -796,11 +796,15 @@ void main() {
 
     expect(
       harness.conversation.projectedExecutionTasks.single.status,
-      ConversationWorkflowTaskStatus.completed,
+      ConversationWorkflowTaskStatus.inProgress,
     );
     expect(harness.conversationsNotifier.assistantEvidenceTaskIds, [task.id]);
-    expect(harness.chatNotifier.hiddenPrompts, isEmpty);
-    expect(harness.chatNotifier.remainingHiddenTurnCount, 1);
+    expect(harness.chatNotifier.hiddenPrompts, hasLength(1));
+    expect(
+      harness.chatNotifier.hiddenPrompts.single,
+      contains('stalled without any concrete tool call'),
+    );
+    expect(harness.chatNotifier.remainingHiddenTurnCount, 0);
   });
 
   test('edit mismatch recovery retries once without target metadata', () async {

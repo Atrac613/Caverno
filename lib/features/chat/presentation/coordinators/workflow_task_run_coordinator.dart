@@ -779,16 +779,40 @@ final class WorkflowTaskRunCoordinator {
             !recoveredFromMissingTarget &&
             !recoveredFromPythonTestDependency &&
             !recoveredFromPythonImport)) {
+      final recoveryAssistantResponse =
+          _chatNotifier.takeLatestHiddenAssistantResponse(
+            assistantEvidenceOwner,
+          ) ??
+          '';
       final assistantResult =
           await _captureExecutionProgressFromLatestAssistantEvidence(
             task: latestTask,
             previousAssistantMessageId: previousAssistantMessageId,
             isValidationRun: false,
-            fallbackAssistantResponse: _chatNotifier
-                .takeLatestHiddenAssistantResponse(assistantEvidenceOwner),
+            fallbackAssistantResponse: recoveryAssistantResponse,
           );
       if (!assistantResult && recoveryToolResults.isEmpty) {
         return false;
+      }
+      if (assistantResult &&
+          recoveryToolResults.isEmpty &&
+          recoveryAssistantResponse.trim().isNotEmpty) {
+        final narration = ConversationExecutionProgressInference.infer(
+          assistantResponse: recoveryAssistantResponse,
+          taskTitle: latestTask.title,
+          isValidationRun: false,
+        );
+        const blockedReason =
+            'A grounded tool failure remained unresolved after the bounded recovery turn.';
+        await _conversationsNotifier.updateCurrentExecutionTaskProgress(
+          taskId: latestTask.id,
+          status: ConversationWorkflowTaskStatus.blocked,
+          summary: narration.summary,
+          blockedReason: blockedReason,
+          eventType: ConversationExecutionTaskEventType.blocked,
+          eventSummary: blockedReason,
+        );
+        return true;
       }
     }
 
@@ -1276,7 +1300,7 @@ final class WorkflowTaskRunCoordinator {
         _latestAssistantMessage(currentConversation)?.content.trim() ?? '';
     final assistantInference = ConversationExecutionProgressInference.infer(
       assistantResponse: latestAssistantResponse,
-      task: latestTask,
+      taskTitle: latestTask.title,
       isValidationRun: false,
       fallbackAssistantResponse: fallbackAssistantEvidence,
     );
@@ -1463,7 +1487,7 @@ final class WorkflowTaskRunCoordinator {
           refreshedTask.status == ConversationWorkflowTaskStatus.blocked;
     }
 
-    if (assistantInference.status == ConversationWorkflowTaskStatus.completed &&
+    if (assistantInference.reportsCompletion &&
         ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceTargets(
           task: latestTask,
           existingTargetPaths: existingTargetFiles,
@@ -1500,10 +1524,6 @@ final class WorkflowTaskRunCoordinator {
     }
     if (latestTask.status == ConversationWorkflowTaskStatus.blocked &&
         missingTargetFiles.isNotEmpty) {
-      return false;
-    }
-    if (assistantInference.status == ConversationWorkflowTaskStatus.completed ||
-        assistantInference.status == ConversationWorkflowTaskStatus.blocked) {
       return false;
     }
     if (assistantEvidenceApplied &&
@@ -1809,7 +1829,7 @@ final class WorkflowTaskRunCoordinator {
 
     final assistantInference = ConversationExecutionProgressInference.infer(
       assistantResponse: latestAssistantResponse,
-      task: task,
+      taskTitle: task.title,
       isValidationRun: isValidationRun,
       fallbackAssistantResponse: fallback,
     );
@@ -1845,8 +1865,7 @@ final class WorkflowTaskRunCoordinator {
       final currentProgress = currentConversation.executionProgressForTask(
         task.id,
       );
-      final summary =
-          assistantInference.status == ConversationWorkflowTaskStatus.completed
+      final summary = assistantInference.reportsCompletion
           ? assistantInference.summary
           : 'Marked complete after the assistant confirmed the saved task and every current target file already existed in the workspace.';
       await _conversationsNotifier.updateCurrentExecutionTaskProgress(
@@ -1880,7 +1899,7 @@ final class WorkflowTaskRunCoordinator {
     }
     if (!isValidationRun &&
         handoffEvidence &&
-        assistantInference.status == ConversationWorkflowTaskStatus.completed &&
+        assistantInference.reportsCompletion &&
         ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceTargets(
           task: task,
           existingTargetPaths: _existingWorkspaceTargetFiles(task),
@@ -1955,7 +1974,7 @@ final class WorkflowTaskRunCoordinator {
     final fallbackAssistantEvidence = fallbackAssistantResponse?.trim() ?? '';
     final assistantInference = ConversationExecutionProgressInference.infer(
       assistantResponse: latestAssistantResponse,
-      task: task,
+      taskTitle: task.title,
       isValidationRun: false,
       fallbackAssistantResponse: fallbackAssistantEvidence,
     );
@@ -2026,6 +2045,26 @@ final class WorkflowTaskRunCoordinator {
           task: task,
           toolResults: toolResults,
         );
+    final hasRecoverableFailureRoute =
+        onlyRecoverableMalformedFailures ||
+        recoverableMissingTargetFile != null ||
+        ConversationPlanExecutionGuardrails.unavailableToolNames(
+          toolResults,
+        ).isNotEmpty ||
+        ConversationPlanExecutionGuardrails.missingPythonTestDependency(
+              task: task,
+              toolResults: toolResults,
+            ) !=
+            null ||
+        ConversationPlanExecutionGuardrails.missingPythonRuntimeDependency(
+              task: task,
+              toolResults: toolResults,
+            ) !=
+            null ||
+        ConversationPlanExecutionGuardrails.blockedPythonImportModule(
+              toolResults,
+            ) !=
+            null;
     final validationToolInference =
         ConversationValidationToolResultInference.infer(
           task: task,
@@ -2044,6 +2083,28 @@ final class WorkflowTaskRunCoordinator {
                 ConversationWorkflowTaskStatus.completed ||
             validationToolInference.validationStatus ==
                 ConversationExecutionValidationStatus.passed)) {
+      final validationProgressUpdated = await _conversationsNotifier
+          .updateCurrentValidationProgressFromToolResults(
+            task: task,
+            toolResults: toolResults
+                .map(
+                  (result) => ConversationValidationToolResultInput(
+                    toolName: result.name,
+                    rawResult: result.result,
+                    outcome: result.outcome,
+                  ),
+                )
+                .toList(growable: false),
+          );
+      if (validationProgressUpdated && _taskReachedTerminalStatus(task.id)) {
+        return true;
+      }
+    }
+    if (validationToolInference != null &&
+        task.validationCommand.trim().isNotEmpty &&
+        validationToolInference.validationStatus ==
+            ConversationExecutionValidationStatus.failed &&
+        !hasRecoverableFailureRoute) {
       final validationProgressUpdated = await _conversationsNotifier
           .updateCurrentValidationProgressFromToolResults(
             task: task,
@@ -2082,8 +2143,7 @@ final class WorkflowTaskRunCoordinator {
     }
     if (completionAssessment.hasCompletionEvidenceIgnoringFailures &&
         onlyRecoverableMalformedFailures) {
-      final summary =
-          assistantInference.status == ConversationWorkflowTaskStatus.completed
+      final summary = assistantInference.reportsCompletion
           ? assistantInference.summary
           : 'Ignored recoverable malformed tool failures after the saved task had already met its completion evidence.';
       await _markTaskCompletedFromToolEvidence(
@@ -2150,8 +2210,7 @@ final class WorkflowTaskRunCoordinator {
           task: task,
           existingTargetPaths: existingWorkspaceTargets,
         )) {
-      final summary =
-          assistantInference.status == ConversationWorkflowTaskStatus.completed
+      final summary = assistantInference.reportsCompletion
           ? assistantInference.summary
           : currentProgress?.normalizedValidationSummary ??
                 'Marked complete after the saved verification command succeeded.';
@@ -2202,8 +2261,7 @@ final class WorkflowTaskRunCoordinator {
       assistantResponse: handoffAssistantResponse,
       futureTaskTitles: futureTaskTitles,
     )) {
-      final summary =
-          assistantInference.status == ConversationWorkflowTaskStatus.completed
+      final summary = assistantInference.reportsCompletion
           ? assistantInference.summary
           : 'Marked complete after the assistant finished the current saved task and moved on to a later task in the same turn.';
       await _markTaskCompletedFromToolEvidence(
@@ -2221,8 +2279,7 @@ final class WorkflowTaskRunCoordinator {
         ) &&
         (!WorkflowToolResultFailureDetector.containsFailure(toolResults) ||
             onlyUnavailableToolFailures)) {
-      final summary =
-          assistantInference.status == ConversationWorkflowTaskStatus.completed
+      final summary = assistantInference.reportsCompletion
           ? assistantInference.summary
           : 'Marked complete after the assistant moved on to a later saved task and every current target file already existed in the workspace.';
       await _conversationsNotifier.updateCurrentExecutionTaskProgress(
@@ -2260,16 +2317,6 @@ final class WorkflowTaskRunCoordinator {
       );
       return true;
     }
-    if (assistantInference.status == ConversationWorkflowTaskStatus.completed &&
-        completionAssessment.hasCompletionEvidenceIgnoringFailures) {
-      await _markTaskCompletedFromToolEvidence(
-        task: task,
-        conversationsNotifier: _conversationsNotifier,
-        completionAssessment: completionAssessment,
-        summary: assistantInference.summary,
-      );
-      return true;
-    }
     if (!WorkflowToolResultFailureDetector.containsFailure(toolResults) &&
         completionAssessment.shouldMarkCompleted) {
       final summary = completionAssessment.completedFromSuccessfulValidation
@@ -2286,19 +2333,8 @@ final class WorkflowTaskRunCoordinator {
       );
       return true;
     }
-    if (assistantInference.status == ConversationWorkflowTaskStatus.blocked &&
-        recoverableMissingTargetFile == null) {
-      await _conversationsNotifier
-          .updateCurrentExecutionTaskProgressFromAssistantTurn(
-            task: task,
-            assistantResponse: latestAssistantResponse,
-            isValidationRun: false,
-            fallbackAssistantResponse: fallbackAssistantEvidence,
-          );
-      return true;
-    }
     final shouldLockCompletedTaskBeforeNextToolWork =
-        assistantInference.status == ConversationWorkflowTaskStatus.completed &&
+        assistantInference.reportsCompletion &&
         !WorkflowToolResultFailureDetector.containsFailure(toolResults) &&
         completionAssessment.touchedTargetFiles.isNotEmpty &&
         completionAssessment.unrelatedTouchedPaths.isNotEmpty;

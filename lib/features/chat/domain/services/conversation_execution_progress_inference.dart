@@ -1,37 +1,29 @@
-import '../entities/conversation_workflow.dart';
 import 'final_answer_claim_detector.dart';
 
 class ConversationExecutionProgressInferenceResult {
   const ConversationExecutionProgressInferenceResult({
-    required this.status,
     required this.summary,
-    this.blockedReason,
-    this.validationStatus = ConversationExecutionValidationStatus.unknown,
-    this.validationSummary,
+    required this.reportsCompletion,
+    required this.reportsBlocker,
+    required this.reportsValidationSuccess,
+    required this.hasUnexecutedEvidence,
   });
 
-  final ConversationWorkflowTaskStatus status;
   final String summary;
-  final String? blockedReason;
-  final ConversationExecutionValidationStatus validationStatus;
-  final String? validationSummary;
+  final bool reportsCompletion;
+  final bool reportsBlocker;
+  final bool reportsValidationSuccess;
+  final bool hasUnexecutedEvidence;
 }
 
-/// Derives task progress from what the assistant *said*, for the case where no
-/// mechanical evidence exists.
+/// Extracts advisory claims from assistant task narration.
 ///
-/// Deliberately has no exit code to consult. Two other paths already ground
-/// `validationStatus` in one and run ahead of this class:
-/// `ConversationValidationToolResultInference` reads typed exit status, with a
-/// lexical fallback for outcome-free results matching the task's
-/// `validationCommand`, and
-/// `CodingVerificationFeedbackService` reads the exit code of the test commands
-/// it runs itself. Adding a `validationExitCode` parameter here — as
-/// `04a71756` did, and `52926cc3` reverted — makes this a fourth derivation of
-/// a fact the earlier paths already own, on the very path that exists as their
-/// fallback. Ground the verdict where the command runs instead.
-/// See `docs/validation_status_three_paths_2026-07-22.md`.
-class ConversationExecutionProgressInference {
+/// This service intentionally cannot import workflow entities or return task
+/// and validation status. Saved target state, typed command outcomes, and tool
+/// result completion assessments own those verdicts. Callers may use these
+/// claims to select a summary or trigger a grounded check, never as terminal
+/// evidence by themselves.
+abstract final class ConversationExecutionProgressInference {
   static const _blockedSignals = <String>[
     'blocked',
     'cannot ',
@@ -80,64 +72,61 @@ class ConversationExecutionProgressInference {
 
   static ConversationExecutionProgressInferenceResult infer({
     required String assistantResponse,
-    required ConversationWorkflowTask task,
+    required String taskTitle,
     required bool isValidationRun,
     String? fallbackAssistantResponse,
   }) {
-    final primaryHasUnexecutedEvidence = _hasUnexecutedEvidence(
-      assistantResponse,
-    );
     final primary = _inferSingle(
       assistantResponse: assistantResponse,
-      task: task,
+      taskTitle: taskTitle,
       isValidationRun: isValidationRun,
     );
     final fallback = fallbackAssistantResponse?.trim();
-    if (fallback == null || fallback.isEmpty || primaryHasUnexecutedEvidence) {
+    if (fallback == null || fallback.isEmpty || primary.hasUnexecutedEvidence) {
       return primary;
     }
 
     final fallbackResult = _inferSingle(
       assistantResponse: fallback,
-      task: task,
+      taskTitle: taskTitle,
       isValidationRun: isValidationRun,
     );
-    if (_shouldPreferFallback(primary: primary, fallback: fallbackResult)) {
-      return fallbackResult;
-    }
-    return primary;
+    return _shouldPreferFallback(primary: primary, fallback: fallbackResult)
+        ? fallbackResult
+        : primary;
   }
 
   static ConversationExecutionProgressInferenceResult _inferSingle({
     required String assistantResponse,
-    required ConversationWorkflowTask task,
+    required String taskTitle,
     required bool isValidationRun,
   }) {
     final normalizedResponse = assistantResponse.trim();
     if (normalizedResponse.isEmpty) {
       return ConversationExecutionProgressInferenceResult(
-        status: task.status == ConversationWorkflowTaskStatus.pending
-            ? ConversationWorkflowTaskStatus.inProgress
-            : task.status,
         summary: isValidationRun
             ? 'Validation ran without a structured assistant summary.'
             : 'Task execution continued without a structured assistant summary.',
-        validationStatus: ConversationExecutionValidationStatus.unknown,
+        reportsCompletion: false,
+        reportsBlocker: false,
+        reportsValidationSuccess: false,
+        hasUnexecutedEvidence: false,
       );
     }
 
     final summary = _extractSummary(normalizedResponse);
-    final lowercaseResponse = normalizedResponse.toLowerCase();
-    if (_hasUnexecutedEvidence(normalizedResponse)) {
+    final hasUnexecutedEvidence = _hasUnexecutedEvidence(normalizedResponse);
+    if (hasUnexecutedEvidence) {
       return ConversationExecutionProgressInferenceResult(
-        status: task.status == ConversationWorkflowTaskStatus.completed
-            ? ConversationWorkflowTaskStatus.completed
-            : ConversationWorkflowTaskStatus.inProgress,
         summary: summary,
-        validationStatus: ConversationExecutionValidationStatus.unknown,
-        validationSummary: isValidationRun ? summary : null,
+        reportsCompletion: false,
+        reportsBlocker: false,
+        reportsValidationSuccess: false,
+        hasUnexecutedEvidence: true,
       );
     }
+
+    final lowercaseResponse = normalizedResponse.toLowerCase();
     final completionEvidenceText = _withoutMarkdownCode(lowercaseResponse);
     final hasBlockedSignal = _containsAny(lowercaseResponse, _blockedSignals);
     final hasCompletionSignal = _containsAny(
@@ -153,7 +142,7 @@ class ConversationExecutionProgressInference {
     );
     final looksLikeRecoverableMissingTargetNarrative =
         _looksLikeRecoverableMissingTargetNarrative(lowercaseResponse);
-    final normalizedTaskTitle = task.title.trim().toLowerCase();
+    final normalizedTaskTitle = taskTitle.trim().toLowerCase();
     final taskTitleIndex = normalizedTaskTitle.isEmpty
         ? -1
         : lowercaseResponse.indexOf(normalizedTaskTitle);
@@ -165,89 +154,33 @@ class ConversationExecutionProgressInference {
           'is completed',
           'was completed',
         ]);
-
-    if (isValidationRun) {
-      if (hasBlockedSignal) {
-        return ConversationExecutionProgressInferenceResult(
-          status: ConversationWorkflowTaskStatus.blocked,
-          summary: summary,
-          blockedReason: summary,
-          validationStatus: ConversationExecutionValidationStatus.failed,
-          validationSummary: summary,
-        );
-      }
-      if (hasCompletionSignal) {
-        return ConversationExecutionProgressInferenceResult(
-          status: ConversationWorkflowTaskStatus.completed,
-          summary: summary,
-          validationStatus: (hasValidationPassedSignal
-              ? ConversationExecutionValidationStatus.passed
-              : ConversationExecutionValidationStatus.unknown),
-          validationSummary: summary,
-        );
-      }
-      return ConversationExecutionProgressInferenceResult(
-        status: task.status == ConversationWorkflowTaskStatus.completed
-            ? ConversationWorkflowTaskStatus.completed
-            : ConversationWorkflowTaskStatus.inProgress,
-        summary: summary,
-        validationStatus: (hasValidationPassedSignal
-            ? ConversationExecutionValidationStatus.passed
-            : ConversationExecutionValidationStatus.unknown),
-        validationSummary: summary,
-      );
-    }
-
-    if (looksLikeTaskTransitionNarration &&
-        mentionsExplicitTaskCompletion &&
-        !hasBlockedSignal) {
-      return ConversationExecutionProgressInferenceResult(
-        status: ConversationWorkflowTaskStatus.completed,
-        summary: summary,
-      );
-    }
-
-    if (looksLikeTaskTransitionNarration && !hasValidationPassedSignal) {
-      return ConversationExecutionProgressInferenceResult(
-        status: task.status == ConversationWorkflowTaskStatus.completed
-            ? ConversationWorkflowTaskStatus.completed
-            : ConversationWorkflowTaskStatus.inProgress,
-        summary: summary,
-      );
-    }
-
-    if (hasBlockedSignal &&
+    final recoverableBlocker =
+        hasBlockedSignal &&
         looksLikeRecoverableMissingTargetNarrative &&
-        !hasValidationPassedSignal) {
-      return ConversationExecutionProgressInferenceResult(
-        status: ConversationWorkflowTaskStatus.inProgress,
-        summary: summary,
-      );
-    }
+        !hasValidationPassedSignal;
+    final completionOverridesBlocker =
+        hasBlockedSignal &&
+        (hasValidationPassedSignal || mentionsExplicitTaskCompletion);
+    final transitionWithoutTaskCompletion =
+        looksLikeTaskTransitionNarration &&
+        !mentionsExplicitTaskCompletion &&
+        !hasValidationPassedSignal;
 
-    if (hasBlockedSignal &&
-        (hasValidationPassedSignal || mentionsExplicitTaskCompletion)) {
-      return ConversationExecutionProgressInferenceResult(
-        status: ConversationWorkflowTaskStatus.completed,
-        summary: summary,
-      );
-    }
-    if (hasBlockedSignal) {
-      return ConversationExecutionProgressInferenceResult(
-        status: ConversationWorkflowTaskStatus.blocked,
-        summary: summary,
-        blockedReason: summary,
-      );
-    }
-    if (hasCompletionSignal || hasValidationPassedSignal) {
-      return ConversationExecutionProgressInferenceResult(
-        status: ConversationWorkflowTaskStatus.completed,
-        summary: summary,
-      );
-    }
     return ConversationExecutionProgressInferenceResult(
-      status: ConversationWorkflowTaskStatus.inProgress,
       summary: summary,
+      reportsCompletion:
+          !recoverableBlocker &&
+          !transitionWithoutTaskCompletion &&
+          (!hasBlockedSignal || completionOverridesBlocker) &&
+          (hasCompletionSignal ||
+              hasValidationPassedSignal ||
+              mentionsExplicitTaskCompletion),
+      reportsBlocker:
+          hasBlockedSignal &&
+          !recoverableBlocker &&
+          !completionOverridesBlocker,
+      reportsValidationSuccess: hasValidationPassedSignal,
+      hasUnexecutedEvidence: false,
     );
   }
 
@@ -255,18 +188,18 @@ class ConversationExecutionProgressInference {
     required ConversationExecutionProgressInferenceResult primary,
     required ConversationExecutionProgressInferenceResult fallback,
   }) {
-    if (fallback.status == primary.status) {
-      return false;
-    }
-    if (primary.status == ConversationWorkflowTaskStatus.inProgress &&
-        fallback.status != ConversationWorkflowTaskStatus.inProgress) {
+    final primaryHasClaim =
+        primary.reportsCompletion ||
+        primary.reportsBlocker ||
+        primary.reportsValidationSuccess;
+    final fallbackHasClaim =
+        fallback.reportsCompletion ||
+        fallback.reportsBlocker ||
+        fallback.reportsValidationSuccess;
+    if (!primaryHasClaim && fallbackHasClaim) {
       return true;
     }
-    if (primary.status == ConversationWorkflowTaskStatus.blocked &&
-        fallback.status == ConversationWorkflowTaskStatus.completed) {
-      return true;
-    }
-    return false;
+    return primary.reportsBlocker && fallback.reportsCompletion;
   }
 
   static String _extractSummary(String response) {

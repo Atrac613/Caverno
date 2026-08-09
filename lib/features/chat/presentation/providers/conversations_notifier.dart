@@ -1364,40 +1364,52 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
     final inference = ConversationExecutionProgressInference.infer(
       assistantResponse: assistantResponse,
-      task: task,
+      taskTitle: task.title,
       isValidationRun: isValidationRun,
       fallbackAssistantResponse: fallbackAssistantResponse,
     );
 
+    final previousProgress = conversation.executionProgressForTask(task.id);
+    final previousStatus = previousProgress?.status ?? task.status;
+    final nextStatus = previousStatus == ConversationWorkflowTaskStatus.pending
+        ? ConversationWorkflowTaskStatus.inProgress
+        : previousStatus;
+    final preservesTerminalSummary =
+        previousStatus == ConversationWorkflowTaskStatus.completed ||
+        previousStatus == ConversationWorkflowTaskStatus.blocked;
+    final nextSummary = preservesTerminalSummary
+        ? previousProgress?.normalizedSummary ?? inference.summary
+        : inference.summary;
+
     await updateCurrentExecutionTaskProgress(
       taskId: task.id,
-      status: inference.status,
-      summary: inference.summary,
-      blockedReason: inference.status == ConversationWorkflowTaskStatus.blocked
-          ? inference.blockedReason
+      status: nextStatus,
+      summary: nextSummary,
+      blockedReason: previousStatus == ConversationWorkflowTaskStatus.blocked
+          ? previousProgress?.normalizedBlockedReason
           : '',
-      validationStatus: isValidationRun ? inference.validationStatus : null,
-      lastValidationAt: isValidationRun ? DateTime.now() : null,
-      lastValidationCommand: isValidationRun ? task.validationCommand : null,
-      lastValidationSummary: isValidationRun
-          ? inference.validationSummary ?? inference.summary
+      validationStatus: isValidationRun
+          ? previousProgress?.validationStatus ??
+                ConversationExecutionValidationStatus.unknown
           : null,
-      eventType: isValidationRun
-          ? ConversationExecutionTaskEventType.validated
-          : switch (inference.status) {
-              ConversationWorkflowTaskStatus.completed =>
-                ConversationExecutionTaskEventType.completed,
-              ConversationWorkflowTaskStatus.blocked =>
-                ConversationExecutionTaskEventType.blocked,
-              _ => null,
-            },
-      eventSummary: inference.summary,
+      lastValidationAt: isValidationRun
+          ? previousProgress?.lastValidationAt
+          : null,
+      lastValidationCommand: isValidationRun
+          ? previousProgress?.normalizedValidationCommand ??
+                task.validationCommand
+          : null,
+      lastValidationSummary: isValidationRun
+          ? previousProgress?.normalizedValidationSummary ?? inference.summary
+          : null,
+      eventType: null,
+      eventSummary: nextSummary,
     );
 
     final refreshedConversation = state.currentConversation;
     final storedStatus =
         refreshedConversation?.executionProgressForTask(task.id)?.status ??
-        inference.status;
+        nextStatus;
 
     if (!conversation.shouldPreferPlanDocument) {
       return;

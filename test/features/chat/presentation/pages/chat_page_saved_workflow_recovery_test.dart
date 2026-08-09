@@ -822,7 +822,7 @@ void main() {
     );
   });
 
-  testWidgets('hidden assistant fallback is consumed exactly once', (
+  testWidgets('hidden assistant fallback remains advisory during recovery', (
     tester,
   ) async {
     const task = ConversationWorkflowTask(
@@ -838,16 +838,21 @@ void main() {
               'The saved task is blocked because the required input is unavailable.',
         ),
       ],
+      hiddenTurns: const [_ScriptedWorkflowTurn()],
     );
 
     await _tapWorkflowAction(tester, 'Approve and start');
 
-    expect(harness.chatNotifier.hiddenPrompts, isEmpty);
-    expect(harness.chatNotifier.hiddenAssistantResponseReadCount, 1);
+    expect(harness.chatNotifier.hiddenPrompts, hasLength(1));
+    expect(
+      harness.chatNotifier.hiddenPrompts.single,
+      contains('stalled without any concrete tool call'),
+    );
+    expect(harness.chatNotifier.hiddenAssistantResponseReadCount, 2);
     expect(harness.conversationsNotifier.assistantEvidenceTaskIds, [task.id]);
     expect(
       harness.conversation.projectedExecutionTasks.single.status,
-      ConversationWorkflowTaskStatus.blocked,
+      ConversationWorkflowTaskStatus.inProgress,
     );
     expect(harness.chatNotifier.hasPendingTurns, isFalse);
   });
@@ -964,7 +969,7 @@ void main() {
       harness.conversation
           .executionProgressForTask('verify-current')
           ?.blockedReason,
-      contains('Validation failed'),
+      contains('AssertionError: expected current behavior.'),
     );
     expect(projectedTasks.last.status, ConversationWorkflowTaskStatus.pending);
     expect(harness.chatNotifier.hasPendingTurns, isFalse);
