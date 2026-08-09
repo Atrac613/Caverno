@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/tool_call_execution_policy.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 void main() {
   const policy = ToolCallExecutionPolicy();
@@ -218,6 +219,42 @@ void main() {
       );
     });
 
+    test('prefers typed process state over contradictory payload text', () {
+      expect(
+        policy.toolResultHasSuccessfulExit(
+          _result(
+            'process_wait',
+            '{"ok":true,"status":"exited","exit_code":0}',
+            outcome: const ToolOutcome(processState: ToolProcessState.running),
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        policy.toolResultHasSuccessfulExit(
+          _result(
+            'process_wait',
+            '{"ok":true,"status":"running"}',
+            outcome: const ToolOutcome(
+              processState: ToolProcessState.exited,
+              exitCode: 0,
+            ),
+          ),
+        ),
+        isTrue,
+      );
+      expect(
+        policy.toolResultHasSuccessfulExit(
+          _result(
+            'local_execute_command',
+            '{"ok":true,"status":"exited","exit_code":0}',
+            outcome: const ToolOutcome(processState: ToolProcessState.running),
+          ),
+        ),
+        isFalse,
+      );
+    });
+
     test('detects timed out command results and error text', () {
       final result = _result(
         'local_execute_command',
@@ -260,7 +297,6 @@ void main() {
       );
     });
   });
-
 
   group('offersCommandExecution', () {
     const policy = ToolCallExecutionPolicy();
@@ -308,11 +344,12 @@ ToolCallInfo _toolCall(
   return ToolCallInfo(id: 'tool-$name', name: name, arguments: arguments);
 }
 
-ToolResultInfo _result(String name, String result) {
+ToolResultInfo _result(String name, String result, {ToolOutcome? outcome}) {
   return ToolResultInfo(
     id: 'result-$name',
     name: name,
     arguments: const {},
     result: result,
+    outcome: outcome,
   );
 }

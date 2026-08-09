@@ -803,12 +803,22 @@ class ToolResultPromptBuilder {
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
       if (!_isVerificationRunToolResult(toolResult)) continue;
+      final normalizedName = toolResult.name.trim().toLowerCase();
+      final outcome = toolResult.outcome;
+      if (outcome?.processState != null) {
+        if (outcome!.isProcessTerminal && outcome.hasSucceedingExitCode) {
+          return true;
+        }
+        continue;
+      }
       final decoded = _tryDecodeJsonMap(toolResult.result);
       if (decoded == null) continue;
       final exitCode = decoded['exit_code'];
       if (exitCode == 0 || exitCode == '0') return true;
+      if (_isBackgroundProcessVerificationTool(normalizedName)) {
+        continue;
+      }
       if (decoded['ok'] == true) return true;
-      final normalizedName = toolResult.name.trim().toLowerCase();
       if (normalizedName == 'dart_analyze_feedback') {
         final diagnostics = decoded['diagnostics'];
         if (diagnostics is List &&
@@ -837,6 +847,13 @@ class ToolResultPromptBuilder {
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
       if (!_isVerificationRunToolResult(toolResult)) {
+        continue;
+      }
+      final outcome = toolResult.outcome;
+      if (outcome?.processState != null) {
+        if (outcome!.isProcessTerminal && outcome.hasFailingExitCode) {
+          return true;
+        }
         continue;
       }
       final decoded = _tryDecodeJsonMap(toolResult.result);
@@ -890,6 +907,9 @@ class ToolResultPromptBuilder {
       if (!_isVerificationRunToolResult(toolResult)) {
         continue;
       }
+      if (toolResult.outcome?.processState != null) {
+        return true;
+      }
       final decoded = _tryDecodeJsonMap(toolResult.result);
       if (decoded == null) {
         continue;
@@ -928,6 +948,9 @@ class ToolResultPromptBuilder {
     }
     return false;
   }
+
+  static bool _isBackgroundProcessVerificationTool(String normalizedName) =>
+      normalizedName == 'process_start' || normalizedName == 'process_wait';
 
   static bool _hasFailedCommandOutputFeedback(
     List<ToolResultInfo> toolResults, {

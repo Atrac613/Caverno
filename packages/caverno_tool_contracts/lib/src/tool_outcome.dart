@@ -1,3 +1,6 @@
+/// Lifecycle state reported by a single background-process tool result.
+enum ToolProcessState { running, exited }
+
 /// Structured outcome a first-party tool reports about its own execution.
 ///
 /// Tool results travel as an opaque `result` string plus a coarse success
@@ -21,6 +24,7 @@
 class ToolOutcome {
   const ToolOutcome({
     this.exitCode,
+    this.processState,
     this.fileChanged,
     this.contentHash,
     this.diagnosticCount,
@@ -38,6 +42,13 @@ class ToolOutcome {
   /// those are distinct from a failing exit status and must not be flattened
   /// into one.
   final int? exitCode;
+
+  /// Whether a background process is still running or has reached an exit.
+  ///
+  /// This is independent of [exitCode]: a running process has no exit status,
+  /// while an exited process carries one when the process backend reports it.
+  /// Null means the tool did not report a single-process lifecycle state.
+  final ToolProcessState? processState;
 
   /// Whether a write actually altered the file's content.
   ///
@@ -79,6 +90,7 @@ class ToolOutcome {
   /// consumers should fall back to their existing text handling.
   bool get isEmpty =>
       exitCode == null &&
+      processState == null &&
       fileChanged == null &&
       contentHash == null &&
       diagnosticCount == null &&
@@ -96,8 +108,13 @@ class ToolOutcome {
   /// Whether a command ran to completion and reported success.
   bool get hasSucceedingExitCode => exitCode == 0;
 
+  bool get isProcessRunning => processState == ToolProcessState.running;
+
+  bool get isProcessTerminal => processState == ToolProcessState.exited;
+
   Map<String, dynamic> toJson() => {
     if (exitCode != null) 'exit_code': exitCode,
+    if (processState != null) 'process_state': processState!.name,
     if (fileChanged != null) 'changed': fileChanged,
     if (contentHash != null) 'content_hash': contentHash,
     if (diagnosticCount != null) 'diagnostic_count': diagnosticCount,
@@ -112,6 +129,7 @@ class ToolOutcome {
       return null;
     }
     final rawExitCode = json['exit_code'];
+    final rawProcessState = json['process_state'];
     final rawChanged = json['changed'];
     final rawHash = json['content_hash'];
     final rawDiagnosticCount = json['diagnostic_count'];
@@ -119,6 +137,11 @@ class ToolOutcome {
     final rawDiagnosticWarningCount = json['diagnostic_warning_count'];
     final outcome = ToolOutcome(
       exitCode: rawExitCode is num ? rawExitCode.toInt() : null,
+      processState: switch (rawProcessState) {
+        'running' => ToolProcessState.running,
+        'exited' => ToolProcessState.exited,
+        _ => null,
+      },
       fileChanged: rawChanged is bool ? rawChanged : null,
       contentHash: rawHash is String && rawHash.isNotEmpty ? rawHash : null,
       diagnosticCount: _nonNegativeInt(rawDiagnosticCount),
@@ -141,6 +164,7 @@ class ToolOutcome {
       identical(this, other) ||
       other is ToolOutcome &&
           other.exitCode == exitCode &&
+          other.processState == processState &&
           other.fileChanged == fileChanged &&
           other.contentHash == contentHash &&
           other.diagnosticCount == diagnosticCount &&
@@ -150,6 +174,7 @@ class ToolOutcome {
   @override
   int get hashCode => Object.hash(
     exitCode,
+    processState,
     fileChanged,
     contentHash,
     diagnosticCount,
@@ -159,7 +184,8 @@ class ToolOutcome {
 
   @override
   String toString() =>
-      'ToolOutcome(exitCode: $exitCode, fileChanged: $fileChanged, '
+      'ToolOutcome(exitCode: $exitCode, processState: $processState, '
+      'fileChanged: $fileChanged, '
       'contentHash: $contentHash, diagnosticCount: $diagnosticCount, '
       'diagnosticErrorCount: $diagnosticErrorCount, '
       'diagnosticWarningCount: $diagnosticWarningCount)';

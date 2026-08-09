@@ -6,6 +6,7 @@ import 'package:caverno/features/chat/data/datasources/background_process_tool_r
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/services/local_command_tool_handler.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -55,6 +56,8 @@ void main() {
       expect(identity.isRunning, isTrue);
       final payload = jsonDecode(started.result.result) as Map<String, dynamic>;
       expect(payload['job_id'], identity.externalProcessId);
+      expect(started.result.outcome?.processState, ToolProcessState.running);
+      expect(started.result.outcome?.exitCode, isNull);
 
       final lookup = await adapter.lookup(
         owner,
@@ -63,12 +66,13 @@ void main() {
       );
       expect(lookup.value, identity);
 
-      await adapter.cancel(
+      final cancelled = await adapter.cancel(
         owner,
         'cancel-1',
         identity,
         requireTermination: true,
       );
+      expect(cancelled.value?.outcome?.processState, ToolProcessState.exited);
     },
   );
 

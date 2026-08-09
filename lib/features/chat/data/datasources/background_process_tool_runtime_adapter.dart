@@ -5,6 +5,7 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/services/background_process_tool_handler.dart';
 import '../../domain/services/local_command_tool_handler.dart';
 import 'background_process_tools.dart';
+import 'command_payload_facts.dart';
 import 'mcp_tool_result_normalizer.dart';
 
 /// Adapts owner-scoped process storage to the extracted handler contracts.
@@ -50,6 +51,7 @@ final class BackgroundProcessToolRuntimeAdapter
     final result = McpToolResultNormalizer.success(
       toolName: operation.toolName,
       result: raw,
+      outcome: CommandPayloadFacts.backgroundProcessOutcome(raw),
     );
     return LocalCommandCompletion.completed(
       owner: owner,
@@ -102,6 +104,7 @@ final class BackgroundProcessToolRuntimeAdapter
       value: McpToolResultNormalizer.success(
         toolName: 'process_cancel',
         result: raw,
+        outcome: CommandPayloadFacts.backgroundProcessOutcome(raw),
       ),
     );
   }

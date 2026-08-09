@@ -199,6 +199,10 @@ class ToolCallExecutionPolicy {
     if (!isCommandExecutionTool(result.name)) {
       return false;
     }
+    final outcome = result.outcome;
+    if (outcome?.processState != null) {
+      return outcome!.isProcessTerminal && outcome.hasSucceedingExitCode;
+    }
     final name = result.name.trim().toLowerCase();
     if (name == 'process_start' ||
         name == 'process_status' ||

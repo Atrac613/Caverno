@@ -3013,7 +3013,20 @@ This does not promote diagnostic feedback into a successful verification: a
 clean analyzer run still emits no feedback result, so the existing completion
 semantics remain unchanged.
 
-Still open: terminal state for the `process_*` family.
+The background-process path now carries lifecycle facts too. Single-job
+`process_start`, `process_status`, `process_tail`, `process_wait`, and
+`process_cancel` results report `running` or `exited`, with an exit code only
+after exit. Completion guards and the follow-up scheduler prefer that outcome,
+so `ok: true` on a running process proves dispatch but cannot be mistaken for
+successful verification. `process_list` remains text-only because one outcome
+cannot represent multiple jobs.
+
+Still open: the test counts already present in
+`CodingVerificationSnapshot`. The next slice should attach those counts to the
+verification-evidence `ToolResultInfo` outcome at its typed producer, then
+switch `CodingVerificationClaimGuard` to prefer them while retaining the
+existing evidence-JSON path as the legacy fallback. Do not infer counts from
+`run_tests` console prose.
 
 Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
 traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.

@@ -4,6 +4,7 @@ import 'package:caverno/features/chat/data/datasources/background_process_monito
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
 import 'package:caverno/features/chat/data/datasources/built_in_local_command_tool_handler.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 typedef _CommandCall = ({String command, String workingDirectory});
@@ -325,6 +326,57 @@ void main() {
 
       expect(calls, hasLength(6));
       expect(tools.startCalls, isEmpty);
+    });
+
+    test('attaches lifecycle outcomes to single-process results', () async {
+      const running = '{"ok":true,"job_id":"job","status":"running"}';
+      const exited =
+          '{"ok":true,"job_id":"job","status":"exited","exit_code":4}';
+      final tools = _FakeBackgroundProcessTools(
+        startResult: running,
+        statusResult: running,
+        tailResult: running,
+        waitResult: exited,
+        cancelResult: exited,
+      );
+      final handler = BuiltInLocalCommandToolHandler(
+        backgroundProcessTools: tools,
+      );
+
+      final start = await handler.execute(
+        owner: owner,
+        name: 'process_start',
+        arguments: const {'command': 'sleep 1', 'working_directory': '/tmp'},
+      );
+      expect(start.outcome?.processState, ToolProcessState.running);
+      expect(start.outcome?.exitCode, isNull);
+
+      for (final name in const ['process_status', 'process_tail']) {
+        final result = await handler.execute(
+          owner: owner,
+          name: name,
+          arguments: const {'job_id': 'job'},
+        );
+        expect(
+          result.outcome?.processState,
+          ToolProcessState.running,
+          reason: name,
+        );
+      }
+
+      for (final name in const ['process_wait', 'process_cancel']) {
+        final result = await handler.execute(
+          owner: owner,
+          name: name,
+          arguments: const {'job_id': 'job'},
+        );
+        expect(
+          result.outcome?.processState,
+          ToolProcessState.exited,
+          reason: name,
+        );
+        expect(result.outcome?.exitCode, 4, reason: name);
+      }
     });
 
     test('blocks Git writes before foreground or background runners', () async {

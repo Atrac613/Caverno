@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno/features/chat/data/datasources/command_payload_facts.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -138,6 +139,45 @@ void main() {
       );
       expect(blank, isNull);
       expect(errored, isNull);
+    });
+  });
+
+  group('backgroundProcessOutcome', () {
+    test('carries running state without inventing an exit status', () {
+      final outcome = CommandPayloadFacts.backgroundProcessOutcome(
+        jsonEncode({'ok': true, 'status': 'running'}),
+      );
+
+      expect(outcome?.processState, ToolProcessState.running);
+      expect(outcome?.exitCode, isNull);
+    });
+
+    test('carries exited state and its reported exit status', () {
+      final outcome = CommandPayloadFacts.backgroundProcessOutcome(
+        jsonEncode({'ok': true, 'status': 'exited', 'exit_code': 7}),
+      );
+
+      expect(outcome?.processState, ToolProcessState.exited);
+      expect(outcome?.exitCode, 7);
+    });
+
+    test('rejects failed, unknown, and unstructured payloads', () {
+      expect(
+        CommandPayloadFacts.backgroundProcessOutcome(
+          jsonEncode({'ok': false, 'status': 'exited', 'exit_code': 1}),
+        ),
+        isNull,
+      );
+      expect(
+        CommandPayloadFacts.backgroundProcessOutcome(
+          jsonEncode({'ok': true, 'status': 'unknown'}),
+        ),
+        isNull,
+      );
+      expect(
+        CommandPayloadFacts.backgroundProcessOutcome('still running'),
+        isNull,
+      );
     });
   });
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import 'background_process_monitor_service.dart';
+import 'background_process_result_normalizer.dart';
 import 'background_process_tools.dart';
 import 'local_shell_tools.dart';
 import 'mcp_tool_result_normalizer.dart';
@@ -20,7 +21,6 @@ final class BackgroundProcessToolExecutor {
   final BackgroundProcessTools? _tools;
   final BackgroundProcessMonitorService? _monitor;
   final DateTime Function() _clock;
-
   bool get isSupported => _tools?.isSupported ?? false;
 
   Future<McpToolResult> start({
@@ -66,7 +66,7 @@ final class BackgroundProcessToolExecutor {
       workingDirectory: workingDirectory,
       label: label,
     );
-    return McpToolResultNormalizer.success(toolName: name, result: result);
+    return normalizeProcessResult(name, result);
   }
 
   Future<McpToolResult> execute({
@@ -120,7 +120,7 @@ final class BackgroundProcessToolExecutor {
     };
     return result == null
         ? _unavailable(name)
-        : McpToolResultNormalizer.success(toolName: name, result: result);
+        : normalizeProcessResult(name, result);
   }
 
   Future<McpToolResult> _list(

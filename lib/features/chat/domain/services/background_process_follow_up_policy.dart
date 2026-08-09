@@ -52,7 +52,10 @@ class BackgroundProcessFollowUpPolicy {
         }
         latestStatusesByJobId.putIfAbsent(
           jobId,
-          () => decoded['status']?.toString().trim().toLowerCase() ?? '',
+          () =>
+              result.outcome?.processState?.name ??
+              decoded['status']?.toString().trim().toLowerCase() ??
+              '',
         );
       }
     }
@@ -61,7 +64,8 @@ class BackgroundProcessFollowUpPolicy {
         continue;
       }
       return ToolCallInfo(
-        id: 'background_process_monitor_followup_'
+        id:
+            'background_process_monitor_followup_'
             '${DateTime.now().microsecondsSinceEpoch}',
         name: 'process_wait',
         arguments: {'job_id': entry.key, 'wait_ms': waitMs},

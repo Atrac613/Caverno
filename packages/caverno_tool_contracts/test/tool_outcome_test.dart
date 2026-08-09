@@ -25,6 +25,10 @@ void main() {
       expect(const ToolOutcome(exitCode: 0).isNotEmpty, isTrue);
       expect(const ToolOutcome(contentHash: 'sha256:file').isNotEmpty, isTrue);
       expect(const ToolOutcome(diagnosticCount: 0).isNotEmpty, isTrue);
+      expect(
+        const ToolOutcome(processState: ToolProcessState.running).isNotEmpty,
+        isTrue,
+      );
     });
   });
 
@@ -32,6 +36,7 @@ void main() {
     test('round-trips a populated outcome', () {
       const outcome = ToolOutcome(
         exitCode: 2,
+        processState: ToolProcessState.exited,
         fileChanged: false,
         contentHash: 'sha256:file',
         diagnosticCount: 5,
@@ -50,6 +55,7 @@ void main() {
       expect(ToolOutcome.fromJson(const {}), isNull);
       expect(ToolOutcome.fromJson(const {'exit_code': 'nope'}), isNull);
       expect(ToolOutcome.fromJson(const {'content_hash': ''}), isNull);
+      expect(ToolOutcome.fromJson(const {'process_state': 'unknown'}), isNull);
       expect(
         ToolOutcome.fromJson(const {'diagnostic_error_count': -1}),
         isNull,
@@ -71,6 +77,23 @@ void main() {
       expect(outcome?.diagnosticCount, 3);
       expect(outcome?.diagnosticErrorCount, 1);
       expect(outcome?.diagnosticWarningCount, 2);
+    });
+  });
+
+  group('background process state', () {
+    test('distinguishes running from terminal process results', () {
+      const running = ToolOutcome(processState: ToolProcessState.running);
+      const exited = ToolOutcome(
+        processState: ToolProcessState.exited,
+        exitCode: 0,
+      );
+
+      expect(running.isProcessRunning, isTrue);
+      expect(running.isProcessTerminal, isFalse);
+      expect(running.exitCode, isNull);
+      expect(exited.isProcessRunning, isFalse);
+      expect(exited.isProcessTerminal, isTrue);
+      expect(exited.hasSucceedingExitCode, isTrue);
     });
   });
 

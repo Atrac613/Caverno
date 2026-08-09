@@ -840,6 +840,75 @@ void main() {
       }
     });
 
+    test(
+      'treats a running process as dispatch but not successful verification',
+      () {
+        final evidence = ToolResultPromptBuilder.completionEvidence([
+          ToolResultInfo(
+            id: 'process-start',
+            name: 'process_start',
+            arguments: const {},
+            result: jsonEncode({
+              'ok': true,
+              'status': 'exited',
+              'exit_code': 9,
+            }),
+            outcome: const ToolOutcome(processState: ToolProcessState.running),
+          ),
+        ]);
+
+        expect(evidence.hasExecutionVerification, isTrue);
+        expect(evidence.hasSuccessfulExecutionVerification, isFalse);
+        expect(evidence.hasFailedExecutionVerification, isFalse);
+      },
+    );
+
+    test('uses typed terminal process state for verification outcome', () {
+      final succeeded = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'process-wait-success',
+          name: 'process_wait',
+          arguments: const {},
+          result: jsonEncode({'ok': true, 'status': 'running'}),
+          outcome: const ToolOutcome(
+            processState: ToolProcessState.exited,
+            exitCode: 0,
+          ),
+        ),
+      ]);
+      final failed = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'process-wait-failure',
+          name: 'process_wait',
+          arguments: const {},
+          result: jsonEncode({'ok': true, 'status': 'exited', 'exit_code': 0}),
+          outcome: const ToolOutcome(
+            processState: ToolProcessState.exited,
+            exitCode: 9,
+          ),
+        ),
+      ]);
+
+      expect(succeeded.hasSuccessfulExecutionVerification, isTrue);
+      expect(succeeded.hasFailedExecutionVerification, isFalse);
+      expect(failed.hasSuccessfulExecutionVerification, isFalse);
+      expect(failed.hasFailedExecutionVerification, isTrue);
+    });
+
+    test('does not promote legacy running process payloads to success', () {
+      final evidence = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'legacy-process-start',
+          name: 'process_start',
+          arguments: const {},
+          result: jsonEncode({'ok': true, 'status': 'running'}),
+        ),
+      ]);
+
+      expect(evidence.hasExecutionVerification, isTrue);
+      expect(evidence.hasSuccessfulExecutionVerification, isFalse);
+    });
+
     test('separates memory extraction errors from chat-turn stop causes', () {
       final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
         ToolResultInfo(

@@ -82,6 +82,33 @@ class CommandPayloadFacts {
         : null;
   }
 
+  /// Reads a single background process payload's lifecycle state.
+  ///
+  /// Only successful first-party status envelopes are eligible. Running jobs
+  /// deliberately carry no exit status, while exited jobs retain the status
+  /// the process backend reported.
+  static ToolOutcome? backgroundProcessOutcome(String payload) {
+    final decoded = tryDecodeMap(payload);
+    if (decoded == null || decoded['ok'] != true) {
+      return null;
+    }
+    final processState = switch (decoded['status']) {
+      'running' => ToolProcessState.running,
+      'exited' => ToolProcessState.exited,
+      _ => null,
+    };
+    if (processState == null) {
+      return null;
+    }
+    final rawExitCode = decoded['exit_code'];
+    return ToolOutcome(
+      processState: processState,
+      exitCode: processState == ToolProcessState.exited && rawExitCode is num
+          ? rawExitCode.toInt()
+          : null,
+    );
+  }
+
   static Map<String, dynamic>? tryDecodeMap(String payload) {
     try {
       final decoded = jsonDecode(payload);
