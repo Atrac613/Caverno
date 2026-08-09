@@ -241,13 +241,7 @@ final class WorkflowTaskRunCoordinator {
         .updateCurrentValidationProgressFromToolResults(
           task: task,
           toolResults: validationToolResults
-              .map(
-                (result) => ConversationValidationToolResultInput(
-                  toolName: result.name,
-                  rawResult: result.result,
-                  outcome: result.outcome,
-                ),
-              )
+              .map(ConversationValidationToolResultInput.fromToolResult)
               .toList(growable: false),
         );
     final completionPromoted = toolResultApplied
@@ -2046,36 +2040,17 @@ final class WorkflowTaskRunCoordinator {
           toolResults: toolResults,
         );
     final hasRecoverableFailureRoute =
-        onlyRecoverableMalformedFailures ||
-        recoverableMissingTargetFile != null ||
-        ConversationPlanExecutionGuardrails.unavailableToolNames(
-          toolResults,
-        ).isNotEmpty ||
-        ConversationPlanExecutionGuardrails.missingPythonTestDependency(
-              task: task,
-              toolResults: toolResults,
-            ) !=
-            null ||
-        ConversationPlanExecutionGuardrails.missingPythonRuntimeDependency(
-              task: task,
-              toolResults: toolResults,
-            ) !=
-            null ||
-        ConversationPlanExecutionGuardrails.blockedPythonImportModule(
-              toolResults,
-            ) !=
-            null;
+        ConversationPlanExecutionGuardrails.hasRecoverableValidationFailureRoute(
+          task: task,
+          toolResults: toolResults,
+          onlyRecoverableMalformedFailures: onlyRecoverableMalformedFailures,
+          recoverableMissingTargetFile: recoverableMissingTargetFile,
+        );
     final validationToolInference =
         ConversationValidationToolResultInference.infer(
           task: task,
           toolResults: toolResults
-              .map(
-                (result) => ConversationValidationToolResultInput(
-                  toolName: result.name,
-                  rawResult: result.result,
-                  outcome: result.outcome,
-                ),
-              )
+              .map(ConversationValidationToolResultInput.fromToolResult)
               .toList(growable: false),
         );
     if (validationToolInference != null &&
@@ -2087,13 +2062,7 @@ final class WorkflowTaskRunCoordinator {
           .updateCurrentValidationProgressFromToolResults(
             task: task,
             toolResults: toolResults
-                .map(
-                  (result) => ConversationValidationToolResultInput(
-                    toolName: result.name,
-                    rawResult: result.result,
-                    outcome: result.outcome,
-                  ),
-                )
+                .map(ConversationValidationToolResultInput.fromToolResult)
                 .toList(growable: false),
           );
       if (validationProgressUpdated && _taskReachedTerminalStatus(task.id)) {
@@ -2109,13 +2078,7 @@ final class WorkflowTaskRunCoordinator {
           .updateCurrentValidationProgressFromToolResults(
             task: task,
             toolResults: toolResults
-                .map(
-                  (result) => ConversationValidationToolResultInput(
-                    toolName: result.name,
-                    rawResult: result.result,
-                    outcome: result.outcome,
-                  ),
-                )
+                .map(ConversationValidationToolResultInput.fromToolResult)
                 .toList(growable: false),
           );
       if (validationProgressUpdated && _taskReachedTerminalStatus(task.id)) {
@@ -2128,13 +2091,7 @@ final class WorkflowTaskRunCoordinator {
           .updateCurrentValidationProgressFromToolResults(
             task: task,
             toolResults: toolResults
-                .map(
-                  (result) => ConversationValidationToolResultInput(
-                    toolName: result.name,
-                    rawResult: result.result,
-                    outcome: result.outcome,
-                  ),
-                )
+                .map(ConversationValidationToolResultInput.fromToolResult)
                 .toList(growable: false),
           );
       if (validationProgressUpdated && _taskReachedTerminalStatus(task.id)) {

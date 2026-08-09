@@ -84,6 +84,21 @@ class ConversationPlanExecutionCompletionAssessment {
 }
 
 class ConversationPlanExecutionGuardrails {
+  static bool hasRecoverableValidationFailureRoute({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    required bool onlyRecoverableMalformedFailures,
+    required String? recoverableMissingTargetFile,
+  }) =>
+      onlyRecoverableMalformedFailures ||
+      recoverableMissingTargetFile != null ||
+      unavailableToolNames(toolResults).isNotEmpty ||
+      missingPythonTestDependency(task: task, toolResults: toolResults) !=
+          null ||
+      missingPythonRuntimeDependency(task: task, toolResults: toolResults) !=
+          null ||
+      blockedPythonImportModule(toolResults) != null;
+
   ConversationPlanExecutionGuardrails._();
 
   static const _readOnlyInspectionToolNames = <String>{

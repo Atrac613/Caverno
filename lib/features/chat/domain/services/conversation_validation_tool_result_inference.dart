@@ -4,6 +4,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/utils/logger.dart';
 import '../entities/conversation_workflow.dart';
+import '../entities/tool_call_info.dart';
 import 'coding_command_output_guardrail_service.dart';
 import 'tool_outcome_shadow_comparison.dart';
 
@@ -25,6 +26,14 @@ class ConversationValidationToolResultInput {
   /// the two can be compared on real runs before either replaces the other.
   /// See LL34 in `docs/local_llm_agent_roadmap.md`.
   final ToolOutcome? outcome;
+
+  static ConversationValidationToolResultInput fromToolResult(
+    ToolResultInfo toolResult,
+  ) => ConversationValidationToolResultInput(
+    toolName: toolResult.name,
+    rawResult: toolResult.result,
+    outcome: toolResult.outcome,
+  );
 }
 
 class ConversationValidationToolResultInferenceResult {
