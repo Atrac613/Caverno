@@ -3,8 +3,10 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import 'built_in_filesystem_mutation_effect_boundary.dart';
 import 'file_rollback_checkpoint_store.dart';
 import 'built_in_filesystem_tool_definitions.dart';
+import 'command_payload_facts.dart';
 import 'file_mutation_runtime_contract.dart';
 import 'filesystem_tools.dart';
+import 'mcp_tool_result_normalizer.dart';
 
 part 'built_in_filesystem_mutation_runtime_facade.dart';
 
@@ -126,7 +128,13 @@ class BuiltInFilesystemToolHandler {
             'limit': rawLimit?.clamp(1, 20000).toInt(),
           },
         );
-        return McpToolResult(toolName: name, result: result, isSuccess: true);
+        // The read's whole-file hash is decoded once here, at the producer
+        // boundary, so no consumer has to recover it from the payload text.
+        return McpToolResultNormalizer.success(
+          toolName: name,
+          result: result,
+          outcome: CommandPayloadFacts.readOutcome(result),
+        );
       case 'inspect_file':
         final path = (arguments['path'] as String?)?.trim() ?? '';
         if (path.isEmpty) {
@@ -203,7 +211,6 @@ class BuiltInFilesystemToolHandler {
             'content': arguments['content'] as String? ?? '',
             'create_parents': arguments['create_parents'] as bool? ?? true,
           },
-          deriveSuccessFromPayload: false,
         );
       case 'edit_file':
         final path = (arguments['path'] as String?)?.trim() ?? '';
@@ -220,7 +227,6 @@ class BuiltInFilesystemToolHandler {
             'new_text': arguments['new_text'] as String? ?? '',
             'replace_all': arguments['replace_all'] as bool? ?? false,
           },
-          deriveSuccessFromPayload: false,
         );
       case 'delete_file':
         final path = (arguments['path'] as String?)?.trim() ?? '';
@@ -232,7 +238,6 @@ class BuiltInFilesystemToolHandler {
           name: name,
           path: path,
           arguments: <String, dynamic>{'path': path},
-          deriveSuccessFromPayload: true,
         );
       case 'rollback_last_file_change':
         return owner == null
@@ -254,12 +259,10 @@ class BuiltInFilesystemToolHandler {
     required String name,
     required String path,
     required Map<String, dynamic> arguments,
-    required bool deriveSuccessFromPayload,
-  }) async {
-    assert(
-      deriveSuccessFromPayload == (name == 'delete_file'),
-      'Only delete_file derives result success from its payload.',
-    );
+  }) {
+    // Whether a payload decides the result's success is a property of the tool
+    // (only delete_file does), resolved inside the effect boundary. A caller
+    // flag could only ever restate the name it already passes.
     return _mutationEffectBoundary.executeLegacy(
       owner: owner,
       name: name,
@@ -268,14 +271,8 @@ class BuiltInFilesystemToolHandler {
     );
   }
 
-  static McpToolResult _validationFailure(String name, String message) {
-    return McpToolResult(
-      toolName: name,
-      result: '',
-      isSuccess: false,
-      errorMessage: message,
-    );
-  }
+  static McpToolResult _validationFailure(String name, String message) =>
+      McpToolResultNormalizer.failure(toolName: name, errorMessage: message);
 
   static Future<String> _runFilesystemOperation({
     required String name,

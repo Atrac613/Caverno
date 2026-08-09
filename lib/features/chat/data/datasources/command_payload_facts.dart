@@ -70,6 +70,18 @@ class CommandPayloadFacts {
     return changed is bool ? ToolOutcome(fileChanged: changed) : null;
   }
 
+  /// Reads a file-read payload's whole-file `content_hash` as an outcome.
+  ///
+  /// Absent for an error payload, a file too large to hash, or a legacy result
+  /// written before the field existed. Every one of those means unknown, so a
+  /// consumer must fall back rather than treat the file as changed.
+  static ToolOutcome? readOutcome(String payload) {
+    final hash = tryDecodeMap(payload)?['content_hash'];
+    return hash is String && hash.isNotEmpty
+        ? ToolOutcome(contentHash: hash)
+        : null;
+  }
+
   static Map<String, dynamic>? tryDecodeMap(String payload) {
     try {
       final decoded = jsonDecode(payload);

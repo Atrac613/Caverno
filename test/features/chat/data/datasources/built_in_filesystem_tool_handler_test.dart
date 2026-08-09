@@ -69,6 +69,34 @@ void main() {
       expect(failed.outcome, isNull);
     });
 
+    test('carries the whole-file hash a read reported', () async {
+      Future<McpToolResult> run(String payload) {
+        final handler = BuiltInFilesystemToolHandler(
+          operationRunner: ({required name, required arguments}) async =>
+              payload,
+        );
+        return handler.execute(
+          name: 'read_file',
+          arguments: const {'path': '/tmp/x.dart'},
+        );
+      }
+
+      final hashed = await run(
+        '{"path":"/tmp/x.dart","content":"x","content_hash":"abc"}',
+      );
+      final legacy = await run('{"path":"/tmp/x.dart","content":"x"}');
+      final missing = await run('{"error":"File does not exist: /tmp/x.dart"}');
+
+      expect(hashed.outcome?.contentHash, 'abc');
+      expect(hashed.isSuccess, isTrue);
+      // A read reports no failure, so success is unchanged in every case; only
+      // the identity of what was read is new.
+      expect(legacy.isSuccess, isTrue);
+      expect(legacy.outcome, isNull);
+      expect(missing.isSuccess, isTrue);
+      expect(missing.outcome, isNull);
+    });
+
     test(
       'rejects missing required arguments without invoking dependencies',
       () async {

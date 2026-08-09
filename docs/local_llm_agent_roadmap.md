@@ -2978,10 +2978,31 @@ but it is **not** the dominant failure's driver: counting the logs afterwards
 put no-op mutations at 1 of 23 edit-bearing re-read sessions against anchor
 mismatch at 19 (`docs/reread_loop_mechanism_2026-07-21.md`).
 
-Still open: the `read_file` content hash (coverage and cross-parameter
-comparison, not the causal fix), an equivalent `changed` fact for `edit_file`'s
-own payload, and a second-tier pass over `process_*` and
-`dart_analyze_feedback`.
+**Implemented 2026-08-09 — the `read_file` content hash, producer and consumer.**
+`readFile` now hashes the *whole file* (reusing the mutation precondition's
+fingerprint, so a read and a pending edit agree on identity) and reports it as
+`content_hash`; the handler lifts it into `ToolOutcome.contentHash` at the
+producer boundary; `ToolLoopContextDigest` compares hashes instead of rendered
+bodies when every repeat carries one.
+
+The concrete gap it closes: the digest's label for a read is the **path alone**,
+so two paging windows of one file collapse to one label with two different
+bodies — byte-identity called that a change and the digest said nothing. It can
+now state the file is unchanged. Absent stays unknown: above an 8 MB ceiling, on
+an error, or on a legacy payload there is no hash, and a partial set falls back
+to byte-identity rather than letting the hashed subset imply unchanged.
+
+Two ratchet extractions paid for it, both structure the files wanted:
+`FilesystemOverviewFormat` (line clipping, byte formatting, format-hint
+guessing — none of it touches the filesystem) out of `FilesystemTools`, and
+`_executeMutation`'s `deriveSuccessFromPayload` parameter, which three call
+sites passed so that its own assert could check it restated the tool name; the
+real decision has always been inside the mutation effect boundary.
+
+Still open: an equivalent `changed` fact for `edit_file`'s own payload, and a
+second-tier pass over `process_*` and `dart_analyze_feedback` — though the
+coding re-measurement above puts `dart_analyze_feedback` at 7.9%, sixth overall,
+so "second-tier" understates it.
 
 Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
 traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.

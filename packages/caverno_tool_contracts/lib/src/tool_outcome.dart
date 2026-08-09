@@ -19,7 +19,7 @@
 /// outcome never carries a field nothing populates. See LL34 in
 /// `docs/local_llm_agent_roadmap.md`.
 class ToolOutcome {
-  const ToolOutcome({this.exitCode, this.fileChanged});
+  const ToolOutcome({this.exitCode, this.fileChanged, this.contentHash});
 
   /// Process exit status for tools that run a command.
   ///
@@ -38,6 +38,16 @@ class ToolOutcome {
   /// when the tool does not mutate files, or could not determine it.
   final bool? fileChanged;
 
+  /// Hash of the whole file a read returned content from.
+  ///
+  /// A read has no pass/fail outcome, but it has an identity. Two reads of the
+  /// same file through *different* paging windows return different text while
+  /// describing the same unchanged file, so comparing the returned bodies calls
+  /// that a change; comparing hashes does not. Null when the tool does not read
+  /// files, or the file was too large to hash — absent means unknown, never
+  /// unchanged.
+  final String? contentHash;
+
   /// Whether a mutation ran and left the file exactly as it was.
   bool get isNoOpMutation => fileChanged == false;
 
@@ -45,7 +55,8 @@ class ToolOutcome {
   ///
   /// An outcome with nothing populated is equivalent to no outcome, and
   /// consumers should fall back to their existing text handling.
-  bool get isEmpty => exitCode == null && fileChanged == null;
+  bool get isEmpty =>
+      exitCode == null && fileChanged == null && contentHash == null;
 
   bool get isNotEmpty => !isEmpty;
 
@@ -61,6 +72,7 @@ class ToolOutcome {
   Map<String, dynamic> toJson() => {
     if (exitCode != null) 'exit_code': exitCode,
     if (fileChanged != null) 'changed': fileChanged,
+    if (contentHash != null) 'content_hash': contentHash,
   };
 
   static ToolOutcome? fromJson(Map<String, dynamic>? json) {
@@ -69,9 +81,11 @@ class ToolOutcome {
     }
     final rawExitCode = json['exit_code'];
     final rawChanged = json['changed'];
+    final rawHash = json['content_hash'];
     final outcome = ToolOutcome(
       exitCode: rawExitCode is num ? rawExitCode.toInt() : null,
       fileChanged: rawChanged is bool ? rawChanged : null,
+      contentHash: rawHash is String && rawHash.isNotEmpty ? rawHash : null,
     );
     return outcome.isEmpty ? null : outcome;
   }
@@ -81,12 +95,14 @@ class ToolOutcome {
       identical(this, other) ||
       other is ToolOutcome &&
           other.exitCode == exitCode &&
-          other.fileChanged == fileChanged;
+          other.fileChanged == fileChanged &&
+          other.contentHash == contentHash;
 
   @override
-  int get hashCode => Object.hash(exitCode, fileChanged);
+  int get hashCode => Object.hash(exitCode, fileChanged, contentHash);
 
   @override
   String toString() =>
-      'ToolOutcome(exitCode: $exitCode, fileChanged: $fileChanged)';
+      'ToolOutcome(exitCode: $exitCode, fileChanged: $fileChanged, '
+      'contentHash: $contentHash)';
 }

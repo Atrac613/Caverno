@@ -12,15 +12,13 @@ abstract final class McpToolResultNormalizer {
     required String result,
     bool isExternalMcpResult = false,
     ToolOutcome? outcome,
-  }) {
-    return McpToolResult(
-      toolName: toolName,
-      result: result,
-      isSuccess: true,
-      isExternalMcpResult: isExternalMcpResult,
-      outcome: outcome,
-    );
-  }
+  }) => McpToolResult(
+    toolName: toolName,
+    result: result,
+    isSuccess: true,
+    isExternalMcpResult: isExternalMcpResult,
+    outcome: outcome,
+  );
 
   static McpToolResult failure({
     required String toolName,
@@ -28,30 +26,26 @@ abstract final class McpToolResultNormalizer {
     required String errorMessage,
     bool isExternalMcpResult = false,
     ToolOutcome? outcome,
-  }) {
-    return McpToolResult(
-      toolName: toolName,
-      result: result,
-      isSuccess: false,
-      errorMessage: errorMessage,
-      isExternalMcpResult: isExternalMcpResult,
-      outcome: outcome,
-    );
-  }
+  }) => McpToolResult(
+    toolName: toolName,
+    result: result,
+    isSuccess: false,
+    errorMessage: errorMessage,
+    isExternalMcpResult: isExternalMcpResult,
+    outcome: outcome,
+  );
 
   static McpToolResult structuredFailure({
     required String toolName,
     required Map<String, dynamic> payload,
     required String errorMessage,
     bool isExternalMcpResult = false,
-  }) {
-    return failure(
-      toolName: toolName,
-      result: jsonEncode(payload),
-      errorMessage: errorMessage,
-      isExternalMcpResult: isExternalMcpResult,
-    );
-  }
+  }) => failure(
+    toolName: toolName,
+    result: jsonEncode(payload),
+    errorMessage: errorMessage,
+    isExternalMcpResult: isExternalMcpResult,
+  );
 
   static McpToolResult fromOkPayload({
     required String toolName,

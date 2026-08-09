@@ -6,6 +6,7 @@ export 'filesystem_text_snapshot.dart';
 
 import 'filesystem_diff_builder.dart';
 import 'edit_anchor_failure_builder.dart';
+import 'filesystem_overview_format.dart';
 import 'filesystem_path_resolver.dart';
 import 'filesystem_text_snapshot.dart';
 
@@ -47,10 +48,14 @@ class FilesystemTools {
   /// without reading the whole file into memory.
   static const int _binarySniffBytes = 8192;
 
-  /// Per-line character cap for inspect_file head/tail and search_files
-  /// matches, so a single pathologically long line cannot blow the output
-  /// (or the scan's memory) on minified or single-line files.
-  static const int _maxOverviewLineChars = 1000;
+  /// Size ceiling for computing a read's whole-file content hash.
+  ///
+  /// The hash reads the file into memory, which the streaming read path
+  /// deliberately avoids, so it is skipped above this bound rather than paying
+  /// an unbounded cost for a fact that is only an optimisation. Source files
+  /// are orders of magnitude below it. Absent means "unknown", never
+  /// "unchanged" — see [ToolOutcome.contentHash].
+  static const int _maxContentHashBytes = 8 * 1024 * 1024;
 
   /// Hard cap on how many characters a single streamed line may buffer before
   /// it is truncated. Bounds memory on pathological single-giant-line files
@@ -110,7 +115,9 @@ class FilesystemTools {
         final relativePath = _relativePath(entity.path, directory.path);
         if (type == 'file') {
           final size = await File(entity.path).length();
-          lines.add('[$type] $relativePath (${_formatBytes(size)})');
+          lines.add(
+            '[$type] $relativePath (${FilesystemOverviewFormat.formatBytes(size)})',
+          );
         } else {
           lines.add('[$type] $relativePath');
         }
@@ -178,6 +185,7 @@ class FilesystemTools {
       final response = <String, dynamic>{
         'path': absolutePath,
         'content': selection.content,
+        'content_hash': await _contentHash(absolutePath, sizeBytes),
         'size_bytes': sizeBytes,
         'start_line': selection.startLine,
         'line_count': selection.lineCount,
@@ -207,6 +215,31 @@ class FilesystemTools {
         operation: 'read_file',
         error: error,
       );
+    }
+  }
+
+  /// Whole-file content hash for a read, or null when it cannot be computed.
+  ///
+  /// Deliberately hashes the *file*, not the returned selection: the point is
+  /// to answer "is this the same file I saw before" across different paging
+  /// windows, which a hash of the window cannot do. It reuses the mutation
+  /// precondition's fingerprint so a read and a pending edit agree on what
+  /// identity means.
+  ///
+  /// Returns null above [_maxContentHashBytes] or on any read failure, because
+  /// a missing hash means unknown and a caller must not read it as unchanged.
+  static Future<String?> _contentHash(String path, int sizeBytes) async {
+    if (sizeBytes > _maxContentHashBytes) {
+      return null;
+    }
+    try {
+      final snapshot = await captureTextSnapshot(path);
+      if (!snapshot.exists || snapshot.error != null) {
+        return null;
+      }
+      return textSnapshotFingerprintForSnapshot(snapshot);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -273,7 +306,7 @@ class FilesystemTools {
         return jsonEncode({
           'path': absolutePath,
           'size_bytes': sizeBytes,
-          'size_human': _formatBytes(sizeBytes),
+          'size_human': FilesystemOverviewFormat.formatBytes(sizeBytes),
           'is_binary': true,
           'encoding': 'binary',
         });
@@ -285,7 +318,7 @@ class FilesystemTools {
         file,
         maxScanBytes: _maxScanBytes,
         onLine: (lineNo, line) {
-          final clipped = _clipLine(line);
+          final clipped = FilesystemOverviewFormat.clipLine(line);
           if (head.length < headLimit) head.add(clipped);
           if (tailLimit > 0) {
             tail.addLast(clipped);
@@ -303,11 +336,14 @@ class FilesystemTools {
       final response = <String, dynamic>{
         'path': absolutePath,
         'size_bytes': sizeBytes,
-        'size_human': _formatBytes(sizeBytes),
+        'size_human': FilesystemOverviewFormat.formatBytes(sizeBytes),
         'total_lines': result.lineCount,
         'encoding': 'utf-8',
         'is_binary': false,
-        'format_hint': _detectFormatHint(absolutePath, firstNonEmpty),
+        'format_hint': FilesystemOverviewFormat.detectFormatHint(
+          absolutePath,
+          firstNonEmpty,
+        ),
         'head': head,
         if (tailLimit > 0) 'tail': tail.toList(),
         if (result.scanCeilingHit) 'line_count_capped': true,
@@ -327,39 +363,6 @@ class FilesystemTools {
         error: error,
       );
     }
-  }
-
-  static String _clipLine(String line) => line.length > _maxOverviewLineChars
-      ? '${line.substring(0, _maxOverviewLineChars)}…'
-      : line;
-
-  static final RegExp _logLinePrefix = RegExp(
-    r'^\[?\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}' // 2026-06-05 12:34:56
-    r'|^\[?\d{2}:\d{2}:\d{2}' // 12:34:56
-    r'|^\[?(ERROR|WARN|WARNING|INFO|DEBUG|TRACE|FATAL)\b', // level prefix
-    caseSensitive: false,
-  );
-
-  /// Best-effort, cheap format classification from the file extension first,
-  /// then the first non-empty line. Used only as a hint for the model.
-  static String _detectFormatHint(String path, String firstNonEmptyLine) {
-    final lower = path.toLowerCase();
-    if (lower.endsWith('.jsonl') || lower.endsWith('.ndjson')) return 'jsonl';
-    if (lower.endsWith('.json')) return 'json';
-    if (lower.endsWith('.csv')) return 'csv';
-    if (lower.endsWith('.tsv')) return 'tsv';
-    if (lower.endsWith('.log')) return 'log';
-    if (lower.endsWith('.xml')) return 'xml';
-    if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return 'yaml';
-    if (lower.endsWith('.md')) return 'markdown';
-
-    final trimmed = firstNonEmptyLine.trimLeft();
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) return 'json';
-    if (_logLinePrefix.hasMatch(trimmed)) return 'log';
-    if (trimmed.contains(',') && firstNonEmptyLine.split(',').length >= 3) {
-      return 'csv';
-    }
-    return 'text';
   }
 
   /// Sniffs the first [_binarySniffBytes] of [file] to decide whether it is a
@@ -829,7 +832,10 @@ class FilesystemTools {
       return jsonEncode({'error': 'offset must be greater than or equal to 0'});
     }
 
-    final lineClamp = maxLineLength.clamp(40, _maxOverviewLineChars);
+    final lineClamp = maxLineLength.clamp(
+      40,
+      FilesystemOverviewFormat.maxOverviewLineChars,
+    );
     var remainingBudget = (maxBytesScanned ?? _maxScanBytes).clamp(
       1,
       _maxScanBytes,
@@ -1114,14 +1120,6 @@ class FilesystemTools {
     }
     buffer.write(r'$');
     return RegExp(buffer.toString(), caseSensitive: false);
-  }
-
-  static String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    }
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   static String _buildFilesystemError({

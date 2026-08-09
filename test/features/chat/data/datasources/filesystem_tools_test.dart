@@ -297,40 +297,41 @@ void main() {
     expect(editResult.containsKey('new_text_present'), isFalse);
   });
 
-  test('editFile not-found error locates new_text when the edit already landed',
-      () async {
-    // The repeated-bump shape from a session log: the version was already
-    // changed, so old_text is gone and the model has no idea why. The file is
-    // over the inline-content limit, which is where the model then burned six
-    // read_file windows without reaching the line.
-    final targetPath =
-        '${tempDir.path}${Platform.pathSeparator}pubspec_like.yaml';
-    final file = File(targetPath)..createSync(recursive: true);
-    file.writeAsStringSync(
-      '${'# padding\n' * 500}version: 1.3.15+27\n${'# tail\n' * 500}',
-    );
+  test(
+    'editFile not-found error locates new_text when the edit already landed',
+    () async {
+      // The repeated-bump shape from a session log: the version was already
+      // changed, so old_text is gone and the model has no idea why. The file is
+      // over the inline-content limit, which is where the model then burned six
+      // read_file windows without reaching the line.
+      final targetPath =
+          '${tempDir.path}${Platform.pathSeparator}pubspec_like.yaml';
+      final file = File(targetPath)..createSync(recursive: true);
+      file.writeAsStringSync(
+        '${'# padding\n' * 500}version: 1.3.15+27\n${'# tail\n' * 500}',
+      );
 
-    final editResult =
-        jsonDecode(
-              await FilesystemTools.editFile(
-                path: targetPath,
-                oldText: 'version: 1.3.14+26',
-                newText: 'version: 1.3.15+27',
-              ),
-            )
-            as Map<String, dynamic>;
+      final editResult =
+          jsonDecode(
+                await FilesystemTools.editFile(
+                  path: targetPath,
+                  oldText: 'version: 1.3.14+26',
+                  newText: 'version: 1.3.15+27',
+                ),
+              )
+              as Map<String, dynamic>;
 
-    expect(editResult['error'], 'old_text was not found in the target file');
-    expect(editResult['new_text_present'], isTrue);
-    expect(editResult['new_text_line'], 501);
-    expect(editResult['hint'], contains('line 501'));
-    expect(editResult['hint'], contains('already'));
-  });
+      expect(editResult['error'], 'old_text was not found in the target file');
+      expect(editResult['new_text_present'], isTrue);
+      expect(editResult['new_text_line'], 501);
+      expect(editResult['hint'], contains('line 501'));
+      expect(editResult['hint'], contains('already'));
+    },
+  );
 
   test('editFile not-found error reports no new_text location for a small file '
       'that never had it', () async {
-    final targetPath =
-        '${tempDir.path}${Platform.pathSeparator}absent.txt';
+    final targetPath = '${tempDir.path}${Platform.pathSeparator}absent.txt';
     final file = File(targetPath)..createSync(recursive: true);
     file.writeAsStringSync('alpha\n');
 
@@ -370,6 +371,64 @@ void main() {
     expect(readResult['line_count'], 2);
     expect(readResult['total_lines'], 4);
     expect(readResult['truncated_by_limit'], isTrue);
+  });
+
+  test('readFile hashes the whole file, not the returned window', () async {
+    // The point of a whole-file hash: two paging windows of one unchanged file
+    // return different text, and a consumer must still be able to tell that
+    // the file did not move.
+    final targetPath =
+        '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}hashed.txt';
+    final file = File(targetPath);
+    file.createSync(recursive: true);
+    file.writeAsStringSync('one\ntwo\nthree\nfour\n');
+
+    Future<Map<String, dynamic>> read({int offset = 1, int? limit}) async =>
+        jsonDecode(
+              await FilesystemTools.readFile(
+                path: targetPath,
+                offset: offset,
+                limit: limit,
+              ),
+            )
+            as Map<String, dynamic>;
+
+    final head = await read(offset: 1, limit: 2);
+    final tail = await read(offset: 3, limit: 2);
+
+    expect(head['content'], isNot(tail['content']));
+    expect(head['content_hash'], isNotEmpty);
+    expect(
+      head['content_hash'],
+      tail['content_hash'],
+      reason: 'different windows of an unchanged file share one identity',
+    );
+
+    file.writeAsStringSync('one\ntwo\nthree\nFIVE\n');
+    final afterEdit = await read(offset: 1, limit: 2);
+
+    expect(
+      afterEdit['content'],
+      head['content'],
+      reason: 'the edit is outside this window, so the text is unchanged',
+    );
+    expect(
+      afterEdit['content_hash'],
+      isNot(head['content_hash']),
+      reason: 'the hash sees the edit the window does not show',
+    );
+  });
+
+  test('readFile omits the hash rather than guessing one', () async {
+    final targetPath =
+        '${tempDir.path}${Platform.pathSeparator}missing_hash.txt';
+
+    final missing =
+        jsonDecode(await FilesystemTools.readFile(path: targetPath))
+            as Map<String, dynamic>;
+
+    expect(missing.containsKey('content_hash'), isFalse);
+    expect(missing['error'], contains('does not exist'));
   });
 
   test('readFile reports empty content for an out-of-range offset', () async {

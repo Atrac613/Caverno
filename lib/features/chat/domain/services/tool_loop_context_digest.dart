@@ -10,11 +10,18 @@ import '../entities/tool_call_info.dart';
 /// same directories and re-read the same files it inspected earlier in the turn.
 ///
 /// The digest is also content-aware: when the same inspection was repeated and
-/// every repeat returned byte-identical output, the line is flagged as
-/// `unchanged`. This targets the non-converging edit→run→re-read debug loop
-/// (session 119292cb: 11x identical full-file reads while no-op edits left the
-/// file untouched) — the generic "unless a file was modified since" advisory
-/// is too weak there because the model believes its edits changed the file.
+/// every repeat saw the same content, the line is flagged as `unchanged`. This
+/// targets the non-converging edit→run→re-read debug loop (session 119292cb:
+/// 11x identical full-file reads while no-op edits left the file untouched) —
+/// the generic "unless a file was modified since" advisory is too weak there
+/// because the model believes its edits changed the file.
+///
+/// "Same content" prefers the read's whole-file hash (`ToolOutcome.contentHash`)
+/// and falls back to byte-identity of the rendered result. The hash matters
+/// because the label for a read is the path alone, so reading one file through
+/// two different paging windows lands on one label with two different bodies:
+/// byte-identity calls that a change and says nothing, while the hash states
+/// correctly that the file never moved.
 class ToolLoopContextDigest {
   const ToolLoopContextDigest();
 
@@ -53,6 +60,7 @@ class ToolLoopContextDigest {
     // an over-budget list can keep the tail rather than the head.
     final order = <String>[];
     final resultsByLabel = <String, List<String>>{};
+    final hashesByLabel = <String, List<String?>>{};
     final lastSeen = <String, int>{};
     var index = 0;
     for (final result in results) {
@@ -69,6 +77,9 @@ class ToolLoopContextDigest {
         return <String>[];
       });
       bodies.add(result.result);
+      hashesByLabel
+          .putIfAbsent(label, () => <String?>[])
+          .add(result.outcome?.contentHash);
       lastSeen[label] = index++;
     }
     if (order.length < minEntries) {
@@ -100,11 +111,12 @@ class ToolLoopContextDigest {
         continue;
       }
       final bodies = resultsByLabel[label]!;
-      final unchanged = bodies.length >= 2 && _allIdentical(bodies);
+      final unchanged = _isUnchanged(bodies, hashesByLabel[label]!);
       lines.add(
         unchanged
-            ? '- $label (unchanged — re-read returned identical content; do '
-                  'not read it again unless you actually modify it)'
+            ? '- $label (unchanged — repeated inspection found no file '
+                  'change; do not repeat it unless you modify the underlying '
+                  'files)'
             : '- $label',
       );
     }
@@ -113,6 +125,23 @@ class ToolLoopContextDigest {
     }
     return 'Context already gathered this turn (do not re-read these unless a '
         'file was modified since):\n${lines.join('\n')}';
+  }
+
+  /// Whether every repeat of one label saw the same file.
+  ///
+  /// The hash decides it whenever *all* repeats carry one, since it is a fact
+  /// about the file rather than about the text that was rendered. A partial
+  /// set falls back to byte-identity rather than comparing the subset that
+  /// happens to have hashes: a read that could not be hashed (too large, an
+  /// error) is unknown, and unknown must not be allowed to imply unchanged.
+  static bool _isUnchanged(List<String> bodies, List<String?> hashes) {
+    if (bodies.length < 2) {
+      return false;
+    }
+    if (hashes.length == bodies.length && !hashes.contains(null)) {
+      return _allIdentical(hashes.cast<String>());
+    }
+    return _allIdentical(bodies);
   }
 
   static bool _allIdentical(List<String> bodies) {

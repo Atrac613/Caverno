@@ -23,12 +23,17 @@ void main() {
       expect(const ToolOutcome().isEmpty, isTrue);
       expect(const ToolOutcome().isNotEmpty, isFalse);
       expect(const ToolOutcome(exitCode: 0).isNotEmpty, isTrue);
+      expect(const ToolOutcome(contentHash: 'sha256:file').isNotEmpty, isTrue);
     });
   });
 
   group('json', () {
     test('round-trips a populated outcome', () {
-      const outcome = ToolOutcome(exitCode: 2);
+      const outcome = ToolOutcome(
+        exitCode: 2,
+        fileChanged: false,
+        contentHash: 'sha256:file',
+      );
       expect(ToolOutcome.fromJson(outcome.toJson()), outcome);
     });
 
@@ -40,6 +45,7 @@ void main() {
       expect(ToolOutcome.fromJson(null), isNull);
       expect(ToolOutcome.fromJson(const {}), isNull);
       expect(ToolOutcome.fromJson(const {'exit_code': 'nope'}), isNull);
+      expect(ToolOutcome.fromJson(const {'content_hash': ''}), isNull);
     });
 
     test('accepts a numeric exit code that arrives as a double', () {

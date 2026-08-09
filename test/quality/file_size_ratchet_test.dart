@@ -349,7 +349,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/background_process_completion_monitor.dart':
       74,
   'lib/features/chat/data/datasources/lsp_server_process_manager.dart': 375,
-  'lib/features/chat/data/datasources/filesystem_tools.dart': 1186,
+  'lib/features/chat/data/datasources/filesystem_tools.dart': 1184,
+  'lib/features/chat/data/datasources/filesystem_overview_format.dart': 55,
   'lib/features/chat/data/datasources/filesystem_diff_builder.dart': 213,
   'lib/features/chat/data/datasources/project_scoped_tool_argument_resolver.dart':
       152,
@@ -366,7 +367,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/mcp_tool_provider.dart': 176,
   'lib/features/chat/presentation/providers/conversations_notifier.dart': 1838,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
-      332,
+      329,
   'lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart':
       191,
   'lib/features/chat/data/datasources/built_in_ble_tool_handler.dart': 360,
@@ -377,7 +378,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/built_in_lan_scan_tool_handler.dart': 77,
   'lib/features/chat/data/datasources/built_in_serial_tool_handler.dart': 141,
   'lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart': 183,
-  'lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart': 106,
+  'lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart': 100,
   'lib/features/chat/data/datasources/remote_mcp_connection_manager.dart': 317,
   'lib/features/chat/data/datasources/remote_mcp_tool_name_policy.dart': 120,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':

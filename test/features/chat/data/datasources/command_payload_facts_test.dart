@@ -114,5 +114,30 @@ void main() {
         'Git command exited with code 3',
       );
     });
+
+    test('reads a read payload\'s content hash, and nothing else', () {
+      final hashed = CommandPayloadFacts.readOutcome(
+        jsonEncode({'path': 'a.dart', 'content': 'x', 'content_hash': 'abc'}),
+      );
+      final unhashed = CommandPayloadFacts.readOutcome(
+        jsonEncode({'path': 'a.dart', 'content': 'x'}),
+      );
+      final blank = CommandPayloadFacts.readOutcome(
+        jsonEncode({'content_hash': ''}),
+      );
+      final errored = CommandPayloadFacts.readOutcome(
+        jsonEncode({'error': 'File does not exist: a.dart'}),
+      );
+
+      expect(hashed?.contentHash, 'abc');
+      expect(hashed?.exitCode, isNull);
+      expect(
+        unhashed,
+        isNull,
+        reason: 'a payload with no hash is unknown, not unchanged',
+      );
+      expect(blank, isNull);
+      expect(errored, isNull);
+    });
   });
 }
