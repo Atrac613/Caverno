@@ -53,43 +53,40 @@ void main() {
     );
   }
 
-  test(
-    'recordCurrentGoalTurn completes active goals from final evidence',
-    () async {
-      final container = createContainer();
-      addTearDown(container.dispose);
-      final notifier = container.read(conversationsNotifierProvider.notifier);
+  test('recordCurrentGoalTurn leaves completion prose shadow-only', () async {
+    final container = createContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(conversationsNotifierProvider.notifier);
 
-      notifier.createNewConversation(
-        workspaceMode: WorkspaceMode.coding,
-        projectId: 'project-1',
-      );
-      await notifier.saveCurrentGoal(
-        objective: 'Fix the login crash',
-        enabled: true,
-        status: ConversationGoalStatus.active,
-        tokenBudget: 1000,
-        turnBudget: 5,
-      );
+    notifier.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+    );
+    await notifier.saveCurrentGoal(
+      objective: 'Fix the login crash',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+      tokenBudget: 1000,
+      turnBudget: 5,
+    );
 
-      await notifier.recordCurrentGoalTurn(
-        assistantResponse: 'Goal complete. Tests passed.',
-        tokenUsageDelta: 120,
-      );
+    await notifier.recordCurrentGoalTurn(
+      assistantResponse: 'Goal complete. Tests passed.',
+      tokenUsageDelta: 120,
+    );
 
-      final goal = container
-          .read(conversationsNotifierProvider)
-          .currentConversation!
-          .goal!;
-      expect(goal.status, ConversationGoalStatus.completed);
-      expect(goal.tokenUsage, 120);
-      expect(goal.turnsUsed, 1);
-      expect(goal.completedAt, isNotNull);
-    },
-  );
+    final goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!
+        .goal!;
+    expect(goal.status, ConversationGoalStatus.active);
+    expect(goal.tokenUsage, 120);
+    expect(goal.turnsUsed, 1);
+    expect(goal.completedAt, isNull);
+  });
 
   test(
-    'recordCurrentGoalTurn completes active goals from Japanese final evidence',
+    'recordCurrentGoalTurn leaves Japanese completion prose shadow-only',
     () async {
       final container = createContainer();
       addTearDown(container.dispose);
@@ -118,15 +115,15 @@ void main() {
           .read(conversationsNotifierProvider)
           .currentConversation!
           .goal!;
-      expect(goal.status, ConversationGoalStatus.completed);
+      expect(goal.status, ConversationGoalStatus.active);
       expect(goal.tokenUsage, 150);
       expect(goal.turnsUsed, 1);
-      expect(goal.completedAt, isNotNull);
+      expect(goal.completedAt, isNull);
     },
   );
 
   test(
-    'recordCurrentGoalTurn completes when only unverified evidence remains',
+    'recordCurrentGoalTurn does not trust prose with unverified changes',
     () async {
       final container = createContainer();
       addTearDown(container.dispose);
@@ -145,7 +142,7 @@ void main() {
       );
 
       await notifier.recordCurrentGoalTurn(
-        assistantResponse: 'Goal complete. Tests passed.',
+        assistantResponse: 'All tests passed.',
         tokenUsageDelta: 90,
         completionEvidence: const ToolResultCompletionEvidence(
           unverifiedChangePaths: ['bin/todo_cli.dart'],
@@ -156,10 +153,10 @@ void main() {
           .read(conversationsNotifierProvider)
           .currentConversation!
           .goal!;
-      expect(goal.status, ConversationGoalStatus.completed);
+      expect(goal.status, ConversationGoalStatus.active);
       expect(goal.tokenUsage, 90);
       expect(goal.turnsUsed, 1);
-      expect(goal.completedAt, isNotNull);
+      expect(goal.completedAt, isNull);
     },
   );
 
@@ -251,36 +248,40 @@ void main() {
     },
   );
 
-  test('recordCurrentGoalTurn blocks after repeated same blocker', () async {
-    final container = createContainer();
-    addTearDown(container.dispose);
-    final notifier = container.read(conversationsNotifierProvider.notifier);
+  test(
+    'recordCurrentGoalTurn leaves repeated blocker prose shadow-only',
+    () async {
+      final container = createContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(conversationsNotifierProvider.notifier);
 
-    notifier.createNewConversation(
-      workspaceMode: WorkspaceMode.coding,
-      projectId: 'project-1',
-    );
-    await notifier.saveCurrentGoal(
-      objective: 'Update the project settings',
-      enabled: true,
-      status: ConversationGoalStatus.active,
-    );
-
-    for (var index = 0; index < 3; index++) {
-      await notifier.recordCurrentGoalTurn(
-        assistantResponse: 'Blocked: permission denied while reading settings.',
-        tokenUsageDelta: 10,
+      notifier.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
       );
-    }
+      await notifier.saveCurrentGoal(
+        objective: 'Update the project settings',
+        enabled: true,
+        status: ConversationGoalStatus.active,
+      );
 
-    final goal = container
-        .read(conversationsNotifierProvider)
-        .currentConversation!
-        .goal!;
-    expect(goal.status, ConversationGoalStatus.blocked);
-    expect(goal.blockerRepeatCount, 3);
-    expect(goal.blockedAt, isNotNull);
-  });
+      for (var index = 0; index < 3; index++) {
+        await notifier.recordCurrentGoalTurn(
+          assistantResponse:
+              'Blocked: permission denied while reading settings.',
+          tokenUsageDelta: 10,
+        );
+      }
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .goal!;
+      expect(goal.status, ConversationGoalStatus.active);
+      expect(goal.blockerRepeatCount, 0);
+      expect(goal.blockedAt, isNull);
+    },
+  );
 
   test('saveCurrentGoal stores and preserves the auto-continue flag', () async {
     final container = createContainer();
@@ -334,7 +335,52 @@ void main() {
     expect(goal.autoContinue, isFalse);
   });
 
-  test('recordCurrentGoalTurn blocks after equivalent blocker wording', () async {
+  test(
+    'recordCurrentGoalTurn leaves equivalent blocker prose shadow-only',
+    () async {
+      final container = createContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      await notifier.saveCurrentGoal(
+        objective: 'Update the project settings',
+        enabled: true,
+        status: ConversationGoalStatus.active,
+      );
+
+      for (final response in const [
+        'Blocked: permission denied while reading `/tmp/project/settings.json`.',
+        'Cannot proceed because permission was denied when reading /var/settings.json.',
+        'I am blocked: access denied while reading the settings file.',
+      ]) {
+        await notifier.recordCurrentGoalTurn(
+          assistantResponse: response,
+          tokenUsageDelta: 10,
+        );
+      }
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .goal!;
+      expect(goal.status, ConversationGoalStatus.active);
+      expect(goal.blockerSignature, isEmpty);
+      expect(goal.blockerRepeatCount, 0);
+      expect(goal.blockedAt, isNull);
+    },
+  );
+
+  test('recordCurrentGoalTurn completes the goal from an update_goal claim '
+      'when the response carries no completion prose', () async {
+    // The regression from session f2a25c20: the tool tells the model that
+    // prose is not how a goal is finished, so a model that obeys leaves no
+    // completion prose — and the goal ran forever because only the lexical
+    // path could complete it. Verified against a negative control: with
+    // toolCompletionClaimed false this response does not complete the goal.
     final container = createContainer();
     addTearDown(container.dispose);
     final notifier = container.read(conversationsNotifierProvider.notifier);
@@ -344,156 +390,105 @@ void main() {
       projectId: 'project-1',
     );
     await notifier.saveCurrentGoal(
-      objective: 'Update the project settings',
+      objective: 'Fix the login crash',
       enabled: true,
       status: ConversationGoalStatus.active,
+      tokenBudget: 1000,
+      turnBudget: 5,
     );
 
-    for (final response in const [
-      'Blocked: permission denied while reading `/tmp/project/settings.json`.',
-      'Cannot proceed because permission was denied when reading /var/settings.json.',
-      'I am blocked: access denied while reading the settings file.',
-    ]) {
-      await notifier.recordCurrentGoalTurn(
-        assistantResponse: response,
-        tokenUsageDelta: 10,
-      );
-    }
+    await notifier.recordCurrentGoalTurn(
+      assistantResponse: 'Ran the acceptance checks.',
+      tokenUsageDelta: 10,
+      toolCompletionClaimed: true,
+    );
 
     final goal = container
         .read(conversationsNotifierProvider)
         .currentConversation!
         .goal!;
-    expect(goal.status, ConversationGoalStatus.blocked);
-    expect(goal.blockerSignature, 'permission denied reading');
-    expect(goal.blockerRepeatCount, 3);
-    expect(goal.blockedAt, isNotNull);
+    expect(goal.status, ConversationGoalStatus.completed);
+    expect(goal.completedAt, isNotNull);
   });
 
-  test(
-    'recordCurrentGoalTurn completes the goal from an update_goal claim '
-    'when the response carries no completion prose',
-    () async {
-      // The regression from session f2a25c20: the tool tells the model that
-      // prose is not how a goal is finished, so a model that obeys leaves no
-      // completion prose — and the goal ran forever because only the lexical
-      // path could complete it. Verified against a negative control: with
-      // toolCompletionClaimed false this response does not complete the goal.
-      final container = createContainer();
-      addTearDown(container.dispose);
-      final notifier = container.read(conversationsNotifierProvider.notifier);
+  test('recordCurrentGoalTurn keeps the goal active when a tool completion '
+      'claim is contradicted by blocking evidence', () async {
+    // The claim is judged against the finalization evidence, not against the
+    // partial evidence the ack saw mid-turn. In f2a25c20 the claim arrived
+    // with five unresolved errors still outstanding.
+    final container = createContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(conversationsNotifierProvider.notifier);
 
-      notifier.createNewConversation(
-        workspaceMode: WorkspaceMode.coding,
-        projectId: 'project-1',
-      );
-      await notifier.saveCurrentGoal(
-        objective: 'Fix the login crash',
-        enabled: true,
-        status: ConversationGoalStatus.active,
-        tokenBudget: 1000,
-        turnBudget: 5,
-      );
+    notifier.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+    );
+    await notifier.saveCurrentGoal(
+      objective: 'Fix the login crash',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+      tokenBudget: 1000,
+      turnBudget: 5,
+    );
 
-      await notifier.recordCurrentGoalTurn(
-        assistantResponse: 'Ran the acceptance checks.',
-        tokenUsageDelta: 10,
-        toolCompletionClaimed: true,
-      );
+    await notifier.recordCurrentGoalTurn(
+      assistantResponse: 'Ran the acceptance checks.',
+      tokenUsageDelta: 10,
+      toolCompletionClaimed: true,
+      completionEvidence: const ToolResultCompletionEvidence(
+        unresolvedErrorCount: 5,
+        unresolvedErrorPaths: ['lib/todo.dart'],
+      ),
+    );
 
-      final goal = container
-          .read(conversationsNotifierProvider)
-          .currentConversation!
-          .goal!;
-      expect(goal.status, ConversationGoalStatus.completed);
-      expect(goal.completedAt, isNotNull);
-    },
-  );
+    final goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!
+        .goal!;
+    expect(goal.status, ConversationGoalStatus.active);
+    expect(goal.completedAt, isNull);
+  });
 
-  test(
-    'recordCurrentGoalTurn keeps the goal active when a tool completion '
-    'claim is contradicted by blocking evidence',
-    () async {
-      // The claim is judged against the finalization evidence, not against the
-      // partial evidence the ack saw mid-turn. In f2a25c20 the claim arrived
-      // with five unresolved errors still outstanding.
-      final container = createContainer();
-      addTearDown(container.dispose);
-      final notifier = container.read(conversationsNotifierProvider.notifier);
+  test('recordCurrentGoalTurn keeps the goal active when a tool completion '
+      'claim follows a mutation with no execution verification', () async {
+    // Completing the goal ends the run, because auto-continue only fires
+    // while the goal is active. A mutation with no verification carries no
+    // *blocking* evidence but is exactly the state the grounded-verification
+    // track exists to keep working on, so it must not end the run.
+    final container = createContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(conversationsNotifierProvider.notifier);
 
-      notifier.createNewConversation(
-        workspaceMode: WorkspaceMode.coding,
-        projectId: 'project-1',
-      );
-      await notifier.saveCurrentGoal(
-        objective: 'Fix the login crash',
-        enabled: true,
-        status: ConversationGoalStatus.active,
-        tokenBudget: 1000,
-        turnBudget: 5,
-      );
+    notifier.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+    );
+    await notifier.saveCurrentGoal(
+      objective: 'Fix the login crash',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+      tokenBudget: 1000,
+      turnBudget: 5,
+    );
 
-      await notifier.recordCurrentGoalTurn(
-        assistantResponse: 'Ran the acceptance checks.',
-        tokenUsageDelta: 10,
-        toolCompletionClaimed: true,
-        completionEvidence: const ToolResultCompletionEvidence(
-          unresolvedErrorCount: 5,
-          unresolvedErrorPaths: ['lib/todo.dart'],
-        ),
-      );
+    await notifier.recordCurrentGoalTurn(
+      assistantResponse: 'Edited the handler.',
+      tokenUsageDelta: 10,
+      toolCompletionClaimed: true,
+      completionEvidence: const ToolResultCompletionEvidence(
+        mutatedWithoutExecutionVerification: true,
+        unverifiedChangePaths: ['lib/login.dart'],
+      ),
+    );
 
-      final goal = container
-          .read(conversationsNotifierProvider)
-          .currentConversation!
-          .goal!;
-      expect(goal.status, ConversationGoalStatus.active);
-      expect(goal.completedAt, isNull);
-    },
-  );
-
-  test(
-    'recordCurrentGoalTurn keeps the goal active when a tool completion '
-    'claim follows a mutation with no execution verification',
-    () async {
-      // Completing the goal ends the run, because auto-continue only fires
-      // while the goal is active. A mutation with no verification carries no
-      // *blocking* evidence but is exactly the state the grounded-verification
-      // track exists to keep working on, so it must not end the run.
-      final container = createContainer();
-      addTearDown(container.dispose);
-      final notifier = container.read(conversationsNotifierProvider.notifier);
-
-      notifier.createNewConversation(
-        workspaceMode: WorkspaceMode.coding,
-        projectId: 'project-1',
-      );
-      await notifier.saveCurrentGoal(
-        objective: 'Fix the login crash',
-        enabled: true,
-        status: ConversationGoalStatus.active,
-        tokenBudget: 1000,
-        turnBudget: 5,
-      );
-
-      await notifier.recordCurrentGoalTurn(
-        assistantResponse: 'Edited the handler.',
-        tokenUsageDelta: 10,
-        toolCompletionClaimed: true,
-        completionEvidence: const ToolResultCompletionEvidence(
-          mutatedWithoutExecutionVerification: true,
-          unverifiedChangePaths: ['lib/login.dart'],
-        ),
-      );
-
-      final goal = container
-          .read(conversationsNotifierProvider)
-          .currentConversation!
-          .goal!;
-      expect(goal.status, ConversationGoalStatus.active);
-      expect(goal.completedAt, isNull);
-    },
-  );
+    final goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!
+        .goal!;
+    expect(goal.status, ConversationGoalStatus.active);
+    expect(goal.completedAt, isNull);
+  });
 
   test(
     'recordCurrentGoalTurn reactivates a goal that was awaiting confirmation',

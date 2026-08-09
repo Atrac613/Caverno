@@ -66,7 +66,7 @@ void main() {
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.passed)
           .length,
-      7,
+      8,
     );
     expect(
       report.results
@@ -116,7 +116,7 @@ void main() {
       probeIds: LiveLlmDiagnosticService.modelCapabilityProbeIds,
     );
 
-    expect(dataSource.requestedModels, List.filled(25, 'test-model'));
+    expect(dataSource.requestedModels, List.filled(26, 'test-model'));
     expect(
       report.samplerCalibrationTrials
           .map((trial) => trial.requestClass)
@@ -134,6 +134,10 @@ void main() {
     expect(
       _result(report, 'narrow_tool_call').status,
       LiveLlmDiagnosticStatus.skipped,
+    );
+    expect(
+      _result(report, 'update_goal_fidelity').status,
+      LiveLlmDiagnosticStatus.passed,
     );
     expect(
       _result(report, 'tool_result_integration').status,
@@ -165,7 +169,7 @@ void main() {
       expect(report.baseUrl, 'apple-foundation-models://local');
       expect(report.model, AppSettings.appleFoundationModelsModelId);
       expect(dataSource.requestedModels, [
-        for (var i = 0; i < 8; i += 1) AppSettings.appleFoundationModelsModelId,
+        for (var i = 0; i < 9; i += 1) AppSettings.appleFoundationModelsModelId,
       ]);
       expect(dataSource.toolResultFollowUpCount, 0);
       expect(
@@ -400,6 +404,9 @@ class _FakeDiagnosticDataSource implements ChatDataSource {
         'prompt': 'Summarize the marker CAVERNO_SUBAGENT_DIAGNOSTIC and stop.',
         'background': true,
       });
+    }
+    if (user.contains('update_goal exactly once')) {
+      return _toolCall('update_goal', const {'completed': true});
     }
     if (user.contains('get_current_datetime')) {
       return _toolCall('get_current_datetime', const <String, dynamic>{});

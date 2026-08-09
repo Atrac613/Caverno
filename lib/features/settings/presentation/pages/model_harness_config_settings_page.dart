@@ -31,6 +31,7 @@ class _ModelHarnessConfigSettingsPageState
   bool _recoveryMiddlewareEnabled = false;
   bool _explorationToEditNudgeEnabled = false;
   bool _summaryFirstToolResultsEnabled = false;
+  GoalCompletionPolicy _goalCompletionPolicy = GoalCompletionPolicy.toolOrAsk;
 
   @override
   void initState() {
@@ -52,6 +53,7 @@ class _ModelHarnessConfigSettingsPageState
     _recoveryMiddlewareEnabled = config.recoveryMiddlewareEnabled;
     _explorationToEditNudgeEnabled = config.explorationToEditNudgeEnabled;
     _summaryFirstToolResultsEnabled = config.summaryFirstToolResultsEnabled;
+    _goalCompletionPolicy = config.goalCompletionPolicy;
   }
 
   @override
@@ -79,6 +81,7 @@ class _ModelHarnessConfigSettingsPageState
       recoveryMiddlewareEnabled: _recoveryMiddlewareEnabled,
       explorationToEditNudgeEnabled: _explorationToEditNudgeEnabled,
       summaryFirstToolResultsEnabled: _summaryFirstToolResultsEnabled,
+      goalCompletionPolicy: _goalCompletionPolicy,
     );
     await ref
         .read(settingsNotifierProvider.notifier)
@@ -157,6 +160,33 @@ class _ModelHarnessConfigSettingsPageState
               helperMaxLines: 3,
               border: const OutlineInputBorder(),
             ),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<GoalCompletionPolicy>(
+            key: const ValueKey('harness-goal-completion-policy'),
+            initialValue: _goalCompletionPolicy,
+            decoration: InputDecoration(
+              labelText: 'settings.harness_config_goal_completion_label'.tr(),
+              helperText: 'settings.harness_config_goal_completion_helper'.tr(),
+              helperMaxLines: 3,
+              border: const OutlineInputBorder(),
+            ),
+            items: GoalCompletionPolicy.values
+                .map(
+                  (policy) => DropdownMenuItem(
+                    value: policy,
+                    child: Text(
+                      'settings.harness_config_goal_completion_${policy.name}'
+                          .tr(),
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _goalCompletionPolicy = value);
+              }
+            },
           ),
           const SizedBox(height: 8),
           SwitchListTile(

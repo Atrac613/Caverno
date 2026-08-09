@@ -150,10 +150,15 @@ final class TurnRuntimeFailedGoalDispatchFinalization {
 
 /// Exact goal status mutation requested by a runtime owner.
 final class TurnRuntimeGoalStatusUpdate {
-  const TurnRuntimeGoalStatusUpdate({required this.status, this.blockedReason});
+  const TurnRuntimeGoalStatusUpdate({
+    required this.status,
+    this.blockedReason,
+    this.completionSummary,
+  });
 
   final ConversationGoalStatus status;
   final String? blockedReason;
+  final String? completionSummary;
 }
 
 /// Owner-bound UI projection returned to the presentation wrapper.

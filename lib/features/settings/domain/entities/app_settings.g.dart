@@ -205,6 +205,13 @@ _ModelCapabilityProfile _$ModelCapabilityProfileFromJson(
         unknownValue: ModelStructuredOutputSupport.unknown,
       ) ??
       ModelStructuredOutputSupport.unknown,
+  goalUpdateFidelity:
+      $enumDecodeNullable(
+        _$ModelGoalUpdateFidelityEnumMap,
+        json['goalUpdateFidelity'],
+        unknownValue: ModelGoalUpdateFidelity.unknown,
+      ) ??
+      ModelGoalUpdateFidelity.unknown,
   editFormatPreference:
       $enumDecodeNullable(
         _$ModelEditFormatPreferenceEnumMap,
@@ -234,6 +241,8 @@ Map<String, dynamic> _$ModelCapabilityProfileToJson(
   'toolCallStyle': _$ModelToolCallStyleEnumMap[instance.toolCallStyle]!,
   'structuredOutputSupport':
       _$ModelStructuredOutputSupportEnumMap[instance.structuredOutputSupport]!,
+  'goalUpdateFidelity':
+      _$ModelGoalUpdateFidelityEnumMap[instance.goalUpdateFidelity]!,
   'editFormatPreference':
       _$ModelEditFormatPreferenceEnumMap[instance.editFormatPreference]!,
   'usableContextTokens': instance.usableContextTokens,
@@ -259,6 +268,12 @@ const _$ModelStructuredOutputSupportEnumMap = {
   ModelStructuredOutputSupport.jsonSchema: 'jsonSchema',
   ModelStructuredOutputSupport.jsonObject: 'jsonObject',
   ModelStructuredOutputSupport.none: 'none',
+};
+
+const _$ModelGoalUpdateFidelityEnumMap = {
+  ModelGoalUpdateFidelity.unknown: 'unknown',
+  ModelGoalUpdateFidelity.reliable: 'reliable',
+  ModelGoalUpdateFidelity.unreliable: 'unreliable',
 };
 
 const _$ModelEditFormatPreferenceEnumMap = {
@@ -293,6 +308,13 @@ _ModelHarnessConfig _$ModelHarnessConfigFromJson(Map<String, dynamic> json) =>
           json['explorationToEditNudgeEnabled'] as bool? ?? false,
       summaryFirstToolResultsEnabled:
           json['summaryFirstToolResultsEnabled'] as bool? ?? false,
+      goalCompletionPolicy:
+          $enumDecodeNullable(
+            _$GoalCompletionPolicyEnumMap,
+            json['goalCompletionPolicy'],
+            unknownValue: GoalCompletionPolicy.toolOrAsk,
+          ) ??
+          GoalCompletionPolicy.toolOrAsk,
     );
 
 Map<String, dynamic> _$ModelHarnessConfigToJson(_ModelHarnessConfig instance) =>
@@ -309,7 +331,15 @@ Map<String, dynamic> _$ModelHarnessConfigToJson(_ModelHarnessConfig instance) =>
       'recoveryMiddlewareEnabled': instance.recoveryMiddlewareEnabled,
       'explorationToEditNudgeEnabled': instance.explorationToEditNudgeEnabled,
       'summaryFirstToolResultsEnabled': instance.summaryFirstToolResultsEnabled,
+      'goalCompletionPolicy':
+          _$GoalCompletionPolicyEnumMap[instance.goalCompletionPolicy]!,
     };
+
+const _$GoalCompletionPolicyEnumMap = {
+  GoalCompletionPolicy.tool: 'tool',
+  GoalCompletionPolicy.toolOrAsk: 'toolOrAsk',
+  GoalCompletionPolicy.ask: 'ask',
+};
 
 _ModelCapabilityProfileRevision _$ModelCapabilityProfileRevisionFromJson(
   Map<String, dynamic> json,
@@ -326,6 +356,13 @@ _ModelCapabilityProfileRevision _$ModelCapabilityProfileRevisionFromJson(
     json['structuredOutputSupport'],
     unknownValue: ModelStructuredOutputSupport.unknown,
   ),
+  goalUpdateFidelity:
+      $enumDecodeNullable(
+        _$ModelGoalUpdateFidelityEnumMap,
+        json['goalUpdateFidelity'],
+        unknownValue: ModelGoalUpdateFidelity.unknown,
+      ) ??
+      ModelGoalUpdateFidelity.unknown,
   editFormatPreference: $enumDecode(
     _$ModelEditFormatPreferenceEnumMap,
     json['editFormatPreference'],
@@ -345,6 +382,8 @@ Map<String, dynamic> _$ModelCapabilityProfileRevisionToJson(
   'toolCallStyle': _$ModelToolCallStyleEnumMap[instance.toolCallStyle]!,
   'structuredOutputSupport':
       _$ModelStructuredOutputSupportEnumMap[instance.structuredOutputSupport]!,
+  'goalUpdateFidelity':
+      _$ModelGoalUpdateFidelityEnumMap[instance.goalUpdateFidelity]!,
   'editFormatPreference':
       _$ModelEditFormatPreferenceEnumMap[instance.editFormatPreference]!,
   'usableContextTokens': instance.usableContextTokens,

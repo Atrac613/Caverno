@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/core/types/goal_completion_policy.dart';
+import 'package:caverno/features/chat/application/runtime/turn_runtime_conversation_goal_store.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
+import 'package:caverno/features/chat/domain/services/goal_update_tool_contract.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/turn_finalization_state_registry.dart';
 import 'package:caverno/features/chat/presentation/providers/turn_goal_completion_evidence_registry.dart';
@@ -337,6 +339,7 @@ void main() {
       );
       final future =
           TurnGoalCompletionFinalizer(
+            goalStore: _GoalStore(),
             recordGoalTurn:
                 ({
                   required assistantResponse,
@@ -395,6 +398,99 @@ void main() {
   );
 
   test(
+    'finalizer downgrades a call-time completion from final evidence',
+    () async {
+      final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
+      final finalizationState = TurnFinalizationStateRegistry();
+      final timestamp = DateTime.utc(2026, 8, 9);
+      final conversation = Conversation(
+        id: 'thread-a',
+        title: 'Thread A',
+        messages: const [],
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        goal: ConversationGoal(
+          id: 'goal-a',
+          objective: 'Verify the final result',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        ),
+      );
+      final request = GoalUpdateToolRequest(
+        owner: owner,
+        toolCallId: 'completion-before-late-failure',
+        toolName: canonicalGoalUpdateToolName,
+        arguments: const {'completed': true},
+      );
+      final acknowledgement = GoalUpdateCompletionAcknowledgement(
+        identity: request.identity,
+        outcome: GoalUpdateAckOutcome.completionRecorded,
+        input: const GoalUpdateInput(completed: true),
+        completionPolicy: GoalCompletionPolicy.toolOrAsk,
+      );
+      bool? finalClaim;
+      GoalUpdateAckOutcome? finalShadowOutcome;
+
+      expect(evidenceRegistry.begin(owner), isTrue);
+      expect(
+        evidenceRegistry.replace(
+          owner,
+          const ToolResultCompletionEvidence(
+            hasFailedExecutionVerification: true,
+          ),
+        ),
+        isTrue,
+      );
+      expect(finalizationState.begin(owner), isTrue);
+      expect(
+        finalizationState.recordGoalAcknowledgement(owner, acknowledgement),
+        isTrue,
+      );
+
+      await TurnGoalCompletionFinalizer(
+        goalStore: _GoalStore(),
+        recordGoalTurn:
+            ({
+              required assistantResponse,
+              required tokenUsageDelta,
+              required completionEvidence,
+              required toolCompletionClaimed,
+              required conversationId,
+            }) async {
+              finalClaim = toolCompletionClaimed;
+              return true;
+            },
+        recordGoalCompletionShadow:
+            ({
+              required lexicalCompleted,
+              required owner,
+              required context,
+              required toolCompletionOutcome,
+            }) async {
+              finalShadowOutcome = toolCompletionOutcome;
+            },
+      ).finalize(
+        owner: owner,
+        evidenceRegistry: evidenceRegistry,
+        finalizationState: finalizationState,
+        completedToolResults: const [],
+        contentToolResults: const [],
+        conversation: conversation,
+        assistantResponse: 'All tests passed.',
+        tokenUsageDelta: 10,
+        context: const LlmSessionLogContext(
+          workspaceMode: WorkspaceMode.coding,
+          sessionId: 'thread-a',
+          conversationId: 'thread-a',
+        ),
+      );
+
+      expect(finalClaim, isFalse);
+      expect(finalShadowOutcome, GoalUpdateAckOutcome.completionRejected);
+    },
+  );
+
+  test(
     'finalizer excludes turns without an active goal from shadow data',
     () async {
       final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
@@ -419,6 +515,7 @@ void main() {
       expect(finalizationState.begin(owner), isTrue);
       final evidence =
           await TurnGoalCompletionFinalizer(
+            goalStore: _GoalStore(),
             recordGoalTurn:
                 ({
                   required assistantResponse,
@@ -457,6 +554,87 @@ void main() {
     },
   );
 
+  test('finalizer asks the user for an admissible ask-policy claim', () async {
+    final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
+    final finalizationState = TurnFinalizationStateRegistry();
+    final goalStore = _GoalStore();
+    final timestamp = DateTime.utc(2026, 8, 9);
+    final conversation = Conversation(
+      id: owner.conversationId,
+      title: 'Thread A',
+      messages: const [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      goal: ConversationGoal(
+        id: 'goal-a',
+        objective: 'Finish the implementation',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      ),
+    );
+    final request = GoalUpdateToolRequest(
+      owner: owner,
+      toolCallId: 'ask-policy-completion',
+      toolName: canonicalGoalUpdateToolName,
+      arguments: const {'completed': true},
+    );
+    final acknowledgement = GoalUpdateCompletionAcknowledgement.fromRequest(
+      request: request,
+      outcome: GoalUpdateAckOutcome.confirmationRequired,
+      completionPolicy: GoalCompletionPolicy.ask,
+    );
+    GoalUpdateAckOutcome? shadowOutcome;
+
+    expect(evidenceRegistry.begin(owner), isTrue);
+    expect(finalizationState.begin(owner), isTrue);
+    expect(
+      finalizationState.recordGoalAcknowledgement(owner, acknowledgement),
+      isTrue,
+    );
+
+    await TurnGoalCompletionFinalizer(
+      goalStore: goalStore,
+      recordGoalTurn:
+          ({
+            required assistantResponse,
+            required tokenUsageDelta,
+            required completionEvidence,
+            required toolCompletionClaimed,
+            required conversationId,
+          }) async {
+            expect(toolCompletionClaimed, isFalse);
+            return false;
+          },
+      recordGoalCompletionShadow:
+          ({
+            required lexicalCompleted,
+            required owner,
+            required context,
+            required toolCompletionOutcome,
+          }) async {
+            shadowOutcome = toolCompletionOutcome;
+          },
+    ).finalize(
+      owner: owner,
+      evidenceRegistry: evidenceRegistry,
+      finalizationState: finalizationState,
+      completedToolResults: const [],
+      contentToolResults: const [],
+      conversation: conversation,
+      assistantResponse: 'The implementation is complete.',
+      tokenUsageDelta: 0,
+      context: const LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'thread-a',
+        conversationId: 'thread-a',
+      ),
+    );
+
+    expect(goalStore.status, ConversationGoalStatus.awaitingConfirmation);
+    expect(goalStore.completionSummary, contains('Confirm completion'));
+    expect(shadowOutcome, GoalUpdateAckOutcome.confirmationRequired);
+  });
+
   test('finalizer records no shadow when goal persistence fails', () async {
     final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
     final finalizationState = TurnFinalizationStateRegistry();
@@ -480,6 +658,7 @@ void main() {
 
     final future =
         TurnGoalCompletionFinalizer(
+          goalStore: _GoalStore(),
           recordGoalTurn:
               ({
                 required assistantResponse,
@@ -535,6 +714,7 @@ void main() {
       }
       final result =
           await TurnGoalCompletionFinalizer(
+            goalStore: _GoalStore(),
             recordGoalTurn:
                 ({
                   required assistantResponse,
@@ -572,4 +752,23 @@ void main() {
     expect(goalWrites, 0);
     expect(shadowWrites, 0);
   });
+}
+
+final class _GoalStore implements TurnRuntimeConversationGoalStore {
+  ConversationGoalStatus? status;
+  String? completionSummary;
+
+  @override
+  Conversation? conversationForId(String conversationId) => null;
+
+  @override
+  Future<void> markGoalStatus({
+    required String conversationId,
+    required ConversationGoalStatus status,
+    String? blockedReason,
+    String? completionSummary,
+  }) async {
+    this.status = status;
+    this.completionSummary = completionSummary;
+  }
 }

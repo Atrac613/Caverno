@@ -31,6 +31,7 @@ void main() {
         TurnRuntimeGoalStatusUpdate(
           status: ConversationGoalStatus.blocked,
           blockedReason: 'No progress',
+          completionSummary: null,
         ),
       );
 
@@ -39,6 +40,7 @@ void main() {
           conversationId: 'conversation-a',
           status: ConversationGoalStatus.blocked,
           blockedReason: 'No progress',
+          completionSummary: null,
         ),
       ]);
     });
@@ -99,6 +101,7 @@ typedef _GoalWrite = ({
   String conversationId,
   ConversationGoalStatus status,
   String? blockedReason,
+  String? completionSummary,
 });
 
 final class _GoalStore implements TurnRuntimeConversationGoalStore {
@@ -116,11 +119,13 @@ final class _GoalStore implements TurnRuntimeConversationGoalStore {
     required String conversationId,
     required ConversationGoalStatus status,
     String? blockedReason,
+    String? completionSummary,
   }) async {
     writes.add((
       conversationId: conversationId,
       status: status,
       blockedReason: blockedReason,
+      completionSummary: completionSummary,
     ));
   }
 }
@@ -139,6 +144,7 @@ final class _PoisonedGoalStore implements TurnRuntimeConversationGoalStore {
     required String conversationId,
     required ConversationGoalStatus status,
     String? blockedReason,
+    String? completionSummary,
   }) async {
     writeCount += 1;
   }

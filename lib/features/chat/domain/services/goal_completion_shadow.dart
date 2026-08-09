@@ -68,7 +68,8 @@ abstract final class GoalCompletionShadow {
     required bool lexicalCompleted,
   }) {
     final toolAccepted =
-        toolCompletionOutcome == GoalUpdateAckOutcome.completionRecorded;
+        toolCompletionOutcome == GoalUpdateAckOutcome.completionRecorded ||
+        toolCompletionOutcome == GoalUpdateAckOutcome.confirmationRequired;
     final toolRejected =
         toolCompletionOutcome == GoalUpdateAckOutcome.completionRejected;
 

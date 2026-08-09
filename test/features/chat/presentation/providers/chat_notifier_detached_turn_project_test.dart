@@ -170,11 +170,13 @@ class _TestSettingsNotifier extends SettingsNotifier {
     this.assistantMode = AssistantMode.coding,
     this.codingApprovalMode = ToolApprovalMode.fullAccess,
     this.enableLlmSessionLogs = false,
+    this.goalCompletionPolicy = GoalCompletionPolicy.toolOrAsk,
   ]);
 
   final AssistantMode assistantMode;
   final ToolApprovalMode codingApprovalMode;
   final bool enableLlmSessionLogs;
+  final GoalCompletionPolicy goalCompletionPolicy;
 
   @override
   AppSettings build() => AppSettings.defaults().copyWith(
@@ -186,6 +188,14 @@ class _TestSettingsNotifier extends SettingsNotifier {
     confirmFileMutations: codingApprovalMode != ToolApprovalMode.fullAccess,
     confirmLocalCommands: codingApprovalMode != ToolApprovalMode.fullAccess,
     confirmGitWrites: codingApprovalMode != ToolApprovalMode.fullAccess,
+    modelHarnessConfigs: [
+      ModelHarnessConfig(
+        id: '',
+        baseUrl: AppSettings.defaults().baseUrl,
+        model: AppSettings.defaults().effectiveModel,
+        goalCompletionPolicy: goalCompletionPolicy,
+      ).normalizedForPersistence(),
+    ],
   );
 }
 
@@ -1557,6 +1567,7 @@ ProviderContainer _buildContainer({
   ToolApprovalAuditLog? toolApprovalAuditLog,
   LlmSessionLogStore? sessionLogStore,
   Future<void> Function(String encoded)? beforeConversationPut,
+  GoalCompletionPolicy goalCompletionPolicy = GoalCompletionPolicy.toolOrAsk,
 }) {
   final conversationBox = _MockBox();
   final storage = <String, String>{};
@@ -1587,6 +1598,7 @@ ProviderContainer _buildContainer({
           assistantMode,
           codingApprovalMode,
           sessionLogStore != null,
+          goalCompletionPolicy,
         ),
       ),
       conversationBoxProvider.overrideWithValue(conversationBox),
@@ -10095,6 +10107,111 @@ void main() {
           ?.goal;
       expect(goal?.status, ConversationGoalStatus.completed);
       expect(goal?.turnsUsed, 2);
+    },
+  );
+
+  test('update_goal blocker persists the owning goal as blocked', () async {
+    final dataSource = ScriptedChatDataSource(
+      initialResponses: [
+        ChatCompletionResult(
+          content: 'Reporting the external blocker.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'block-current-goal',
+              name: 'update_goal',
+              arguments: const {
+                'blocked_reason': 'The signing credential is unavailable.',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+      ],
+      toolResultResponses: [
+        ChatCompletionResult(
+          content: 'The goal is blocked pending credentials.',
+          finishReason: 'stop',
+        ),
+      ],
+    );
+    final container = _buildContainer(
+      dataSource: dataSource,
+      toolService: _GoalUpdateToolService(),
+    );
+    addTearDown(container.dispose);
+    final conversations = container.read(
+      conversationsNotifierProvider.notifier,
+    );
+    conversations.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-a',
+    );
+    await conversations.saveCurrentGoal(
+      objective: 'Sign the release build',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+    );
+
+    await container
+        .read(chatNotifierProvider.notifier)
+        .sendMessage('Finish signing.', bypassPlanMode: true);
+
+    expect(
+      dataSource.toolResultBatches.single.single.result,
+      contains('marked blocked'),
+    );
+    final goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(goal?.status, ConversationGoalStatus.blocked);
+    expect(goal?.blockedReason, 'The signing credential is unavailable.');
+    expect(goal?.blockedAt, isNotNull);
+  });
+
+  test(
+    'ask policy reaches user confirmation when the model stays tool-silent',
+    () async {
+      final dataSource = ScriptedChatDataSource(
+        initialResponses: [
+          ChatCompletionResult(
+            content: 'All requested release checks are ready for review.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: _GoalUpdateToolService(),
+        goalCompletionPolicy: GoalCompletionPolicy.ask,
+      );
+      addTearDown(container.dispose);
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-a',
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Prepare the release checks',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+      );
+
+      await container
+          .read(chatNotifierProvider.notifier)
+          .sendMessage('Prepare the release checks.', bypassPlanMode: true);
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.goal;
+      expect(goal?.status, ConversationGoalStatus.awaitingConfirmation);
+      expect(goal?.completionSummary, contains('Latest result:'));
+      expect(goal?.completionSummary, contains('Confirm completion'));
+      expect(dataSource.toolResultBatches, isEmpty);
     },
   );
 

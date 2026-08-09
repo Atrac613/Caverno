@@ -427,6 +427,7 @@ void main() {
       recoveryMiddlewareEnabled: true,
       explorationToEditNudgeEnabled: true,
       summaryFirstToolResultsEnabled: true,
+      goalCompletionPolicy: GoalCompletionPolicy.ask,
     ).normalizedForPersistence();
     final settings = AppSettings.defaults().copyWith(
       baseUrl: 'http://localhost:1234/v1',
@@ -451,6 +452,8 @@ void main() {
     expect(effective!.recoveryMiddlewareEnabled, isTrue);
     expect(effective.explorationToEditNudgeEnabled, isTrue);
     expect(effective.summaryFirstToolResultsEnabled, isTrue);
+    expect(effective.goalCompletionPolicy, GoalCompletionPolicy.ask);
+    expect(decoded.effectiveGoalCompletionPolicy, GoalCompletionPolicy.ask);
     expect(effective.hasInstructionOverrides, isTrue);
     expect(effective.hasControlPolicyOverrides, isTrue);
     expect(effective.isEmpty, isFalse);
@@ -462,9 +465,14 @@ void main() {
     expect(config.isEmpty, isTrue);
     expect(config.hasInstructionOverrides, isFalse);
     expect(config.hasControlPolicyOverrides, isFalse);
+    expect(config.goalCompletionPolicy, GoalCompletionPolicy.toolOrAsk);
     expect(config.copyWith(toolLoopMaxIterations: 12).isEmpty, isFalse);
     expect(
       config.copyWith(summaryFirstToolResultsEnabled: true).isEmpty,
+      isFalse,
+    );
+    expect(
+      config.copyWith(goalCompletionPolicy: GoalCompletionPolicy.ask).isEmpty,
       isFalse,
     );
     expect(

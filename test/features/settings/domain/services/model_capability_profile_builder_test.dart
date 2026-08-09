@@ -31,6 +31,12 @@ void main() {
           summary: 'Tool call ok.',
           toolCalls: ['get_current_datetime'],
         ),
+        LiveLlmDiagnosticProbeResult(
+          id: 'update_goal_fidelity',
+          status: LiveLlmDiagnosticStatus.passed,
+          summary: 'Goal update ok.',
+          toolCalls: ['update_goal'],
+        ),
       ],
     );
 
@@ -46,6 +52,7 @@ void main() {
       ModelStructuredOutputSupport.jsonObject,
     );
     expect(profile.editFormatPreference, ModelEditFormatPreference.unknown);
+    expect(profile.goalUpdateFidelity, ModelGoalUpdateFidelity.reliable);
     expect(profile.probedAt, DateTime.utc(2026, 6, 12, 0, 0, 3));
     expect(profile.probeMetadata['probe.instruction_echo.status'], 'passed');
     expect(profile.probeMetadata['toolSearchEnabled'], 'true');
@@ -116,6 +123,7 @@ void main() {
       profile.structuredOutputSupport,
       ModelStructuredOutputSupport.unknown,
     );
+    expect(profile.goalUpdateFidelity, ModelGoalUpdateFidelity.unknown);
   });
 
   test('stores sampler calibration selections in profile metadata', () {

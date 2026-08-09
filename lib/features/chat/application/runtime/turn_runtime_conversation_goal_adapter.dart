@@ -1,20 +1,11 @@
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation.dart';
-import '../../domain/entities/conversation_goal.dart';
 import 'turn_runtime.dart';
+import 'turn_runtime_conversation_goal_store.dart';
+
+export 'turn_runtime_conversation_goal_store.dart';
 
 // ChatNotifier decomposition collaborator: turn-runtime-conversation-goal-adapter
-/// Minimal owner-addressable goal storage required by the runtime adapter.
-abstract interface class TurnRuntimeConversationGoalStore {
-  Conversation? conversationForId(String conversationId);
-
-  Future<void> markGoalStatus({
-    required String conversationId,
-    required ConversationGoalStatus status,
-    String? blockedReason,
-  });
-}
-
 /// Adapts conversation storage to owner-bound runtime goal operations.
 final class TurnRuntimeConversationGoalAdapter
     implements TurnRuntimeConversationGoalPort {
@@ -42,6 +33,7 @@ final class TurnRuntimeConversationGoalAdapter
       conversationId: _owner.conversationId,
       status: update.status,
       blockedReason: update.blockedReason,
+      completionSummary: update.completionSummary,
     );
   }
 }

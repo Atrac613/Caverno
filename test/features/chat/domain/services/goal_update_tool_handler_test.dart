@@ -67,8 +67,8 @@ void main() {
       expect(outcome.ackOutcome, GoalUpdateAckOutcome.blockerLogged);
       expect(
         outcome.toolResult.result,
-        'Logged as blocked: Waiting for credentials. The goal stays active; '
-        'resolve the blocker or ask the user, then report progress again.',
+        'Goal marked blocked: Waiting for credentials. Resolve the blocker or '
+        'ask the user before reactivating the goal.',
       );
       expect(outcome.isCompletionClaim, isFalse);
       expect(outcome.shadowOutcome, isNull);

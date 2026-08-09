@@ -5,6 +5,9 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/types/assistant_mode.dart';
+import '../../../../core/types/goal_completion_policy.dart';
+
+export '../../../../core/types/goal_completion_policy.dart';
 
 part 'app_settings.freezed.dart';
 part 'app_settings.g.dart';
@@ -30,6 +33,8 @@ enum LlmProvider { openAiCompatible, appleFoundationModels }
 enum ModelToolCallStyle { unknown, nativeToolCalls, embeddedToolTags, none }
 
 enum ModelStructuredOutputSupport { unknown, jsonSchema, jsonObject, none }
+
+enum ModelGoalUpdateFidelity { unknown, reliable, unreliable }
 
 enum ModelEditFormatPreference {
   unknown,
@@ -255,6 +260,9 @@ abstract class ModelCapabilityProfile with _$ModelCapabilityProfile {
     @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)
     @Default(ModelStructuredOutputSupport.unknown)
     ModelStructuredOutputSupport structuredOutputSupport,
+    @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)
+    @Default(ModelGoalUpdateFidelity.unknown)
+    ModelGoalUpdateFidelity goalUpdateFidelity,
     @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)
     @Default(ModelEditFormatPreference.unknown)
     ModelEditFormatPreference editFormatPreference,
@@ -373,6 +381,9 @@ abstract class ModelHarnessConfig with _$ModelHarnessConfig {
     @Default(false) bool recoveryMiddlewareEnabled,
     @Default(false) bool explorationToEditNudgeEnabled,
     @Default(false) bool summaryFirstToolResultsEnabled,
+    @JsonKey(unknownEnumValue: GoalCompletionPolicy.toolOrAsk)
+    @Default(GoalCompletionPolicy.toolOrAsk)
+    GoalCompletionPolicy goalCompletionPolicy,
   }) = _ModelHarnessConfig;
 
   factory ModelHarnessConfig.fromJson(Map<String, dynamic> json) =>
@@ -412,7 +423,8 @@ abstract class ModelHarnessConfig with _$ModelHarnessConfig {
       toolLoopMaxIterations > 0 ||
       recoveryMiddlewareEnabled ||
       explorationToEditNudgeEnabled ||
-      summaryFirstToolResultsEnabled;
+      summaryFirstToolResultsEnabled ||
+      goalCompletionPolicy != GoalCompletionPolicy.toolOrAsk;
 
   /// True when the config carries no overrides, i.e. it is equivalent to having
   /// no stored config at all.
@@ -502,6 +514,9 @@ abstract class ModelCapabilityProfileRevision
     required ModelToolCallStyle toolCallStyle,
     @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)
     required ModelStructuredOutputSupport structuredOutputSupport,
+    @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)
+    @Default(ModelGoalUpdateFidelity.unknown)
+    ModelGoalUpdateFidelity goalUpdateFidelity,
     @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)
     required ModelEditFormatPreference editFormatPreference,
     required int usableContextTokens,
@@ -528,6 +543,7 @@ abstract class ModelCapabilityProfileRevision
     probedAt: profile.probedAt ?? DateTime.now(),
     toolCallStyle: profile.toolCallStyle,
     structuredOutputSupport: profile.structuredOutputSupport,
+    goalUpdateFidelity: profile.goalUpdateFidelity,
     editFormatPreference: profile.editFormatPreference,
     usableContextTokens: profile.usableContextTokens,
     probeSummary: profile.probeSummary,
@@ -934,6 +950,10 @@ abstract class AppSettings with _$AppSettings {
       model: effectiveModel,
     );
   }
+
+  GoalCompletionPolicy get effectiveGoalCompletionPolicy =>
+      effectiveModelHarnessConfig?.goalCompletionPolicy ??
+      GoalCompletionPolicy.toolOrAsk;
 
   ModelHarnessConfig? modelHarnessConfigFor({
     required LlmProvider provider,

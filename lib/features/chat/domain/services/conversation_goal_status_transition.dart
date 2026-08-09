@@ -18,10 +18,14 @@ final class ConversationGoalStatusTransition {
     return goal.copyWith(
       enabled: true,
       status: status,
-      completionSummary: status == ConversationGoalStatus.completed
+      completionSummary:
+          status == ConversationGoalStatus.completed ||
+              status == ConversationGoalStatus.awaitingConfirmation
           ? completionSummary?.trim() ??
                 goal.normalizedCompletionSummary ??
-                'Marked complete by the user.'
+                (status == ConversationGoalStatus.completed
+                    ? 'Marked complete by the user.'
+                    : 'Waiting for user confirmation.')
           : '',
       blockedReason: status == ConversationGoalStatus.blocked
           ? blockedReason?.trim() ??

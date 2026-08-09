@@ -1,4 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
+import 'package:caverno/core/types/goal_completion_policy.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
@@ -73,6 +74,19 @@ void main() {
       expect(ack.completionAccepted, isTrue);
       // The message must not overstate: not contradicted is not verified.
       expect(ack.modelMessage, contains('not been independently verified'));
+    });
+
+    test('requires user confirmation under the ask policy', () {
+      final ack = resolver.resolve(
+        input: const GoalUpdateInput(completed: true),
+        goal: _goal(),
+        completionPolicy: GoalCompletionPolicy.ask,
+      );
+
+      expect(ack.outcome, GoalUpdateAckOutcome.confirmationRequired);
+      expect(ack.isCompletionClaim, isTrue);
+      expect(ack.completionAccepted, isFalse);
+      expect(ack.modelMessage, contains('user confirmation'));
     });
 
     test('rejects completion when errors remain unresolved', () {
@@ -160,6 +174,16 @@ void main() {
       expect(ack.modelMessage, contains('wrote the parser'));
     });
 
+    test('reports paused-at-cap instead of accepting progress', () {
+      final ack = resolver.resolve(
+        input: const GoalUpdateInput(message: 'verification is next'),
+        goal: _goal(turnBudget: 2, turnsUsed: 2),
+      );
+
+      expect(ack.outcome, GoalUpdateAckOutcome.pausedAtCap);
+      expect(ack.modelMessage, contains('budget cap'));
+    });
+
     test('a completion claim outranks an accompanying blocker', () {
       final ack = resolver.resolve(
         input: const GoalUpdateInput(completed: true, blockedReason: 'ignored'),
@@ -173,12 +197,16 @@ void main() {
 
 ConversationGoal _goal({
   ConversationGoalStatus status = ConversationGoalStatus.active,
+  int turnBudget = 0,
+  int turnsUsed = 0,
 }) {
   return ConversationGoal(
     id: 'goal-1',
     objective: 'Fix analyzer errors',
     enabled: true,
     status: status,
+    turnBudget: turnBudget,
+    turnsUsed: turnsUsed,
     createdAt: DateTime(2026),
     updatedAt: DateTime(2026),
   );

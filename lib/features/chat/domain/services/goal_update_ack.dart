@@ -1,6 +1,7 @@
 import '../entities/conversation_goal.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
+import '../../../../core/types/goal_completion_policy.dart';
 import 'tool_result_prompt_builder.dart';
 
 /// What the model asked the harness to do with the goal.
@@ -25,8 +26,15 @@ enum GoalUpdateAckOutcome {
   /// contradicts the claim. The goal stays active and the gaps are returned.
   completionRejected,
 
+  /// The completion claim is mechanically admissible, but this model's policy
+  /// requires an explicit user decision before the goal closes.
+  confirmationRequired,
+
   /// A `blocked_reason` was logged against an active goal.
   blockerLogged,
+
+  /// Progress was reported after the configured goal budget was exhausted.
+  pausedAtCap,
 
   /// The call arrived with no active goal to update.
   rejectedInactive,
@@ -80,11 +88,13 @@ class GoalUpdateAck {
     required this.outcome,
     required this.modelMessage,
     this.gaps = const <String>[],
+    this.blockedReason,
   });
 
   final GoalUpdateAckOutcome outcome;
   final String modelMessage;
   final List<String> gaps;
+  final String? blockedReason;
 
   bool get completionAccepted =>
       outcome == GoalUpdateAckOutcome.completionRecorded;
@@ -92,9 +102,13 @@ class GoalUpdateAck {
   bool get completionRejected =>
       outcome == GoalUpdateAckOutcome.completionRejected;
 
+  bool get confirmationRequired =>
+      outcome == GoalUpdateAckOutcome.confirmationRequired;
+
   /// Whether this ack claimed completion at all (accepted or rejected), as
   /// opposed to a progress note, a blocker, or an inactive goal.
-  bool get isCompletionClaim => completionAccepted || completionRejected;
+  bool get isCompletionClaim =>
+      completionAccepted || completionRejected || confirmationRequired;
 
   /// The tool result the dispatch layer returns for this ack.
   ///
@@ -136,11 +150,13 @@ class GoalUpdateAckResolver {
     required ConversationGoal? goal,
     ToolResultCompletionEvidence evidence =
         const ToolResultCompletionEvidence(),
+    GoalCompletionPolicy completionPolicy = GoalCompletionPolicy.toolOrAsk,
   }) {
     return resolve(
       input: GoalUpdateInput.fromArguments(toolCall.arguments),
       goal: goal,
       evidence: evidence,
+      completionPolicy: completionPolicy,
     );
   }
 
@@ -149,6 +165,7 @@ class GoalUpdateAckResolver {
     required ConversationGoal? goal,
     ToolResultCompletionEvidence evidence =
         const ToolResultCompletionEvidence(),
+    GoalCompletionPolicy completionPolicy = GoalCompletionPolicy.toolOrAsk,
   }) {
     if (goal == null || !goal.isActive) {
       return const GoalUpdateAck(
@@ -161,17 +178,27 @@ class GoalUpdateAckResolver {
 
     switch (input.kind) {
       case GoalUpdateKind.completion:
-        return _resolveCompletion(evidence);
+        return _resolveCompletion(evidence, completionPolicy);
       case GoalUpdateKind.blocker:
         return GoalUpdateAck(
           outcome: GoalUpdateAckOutcome.blockerLogged,
+          blockedReason: input.normalizedBlockedReason,
           modelMessage:
-              'Logged as blocked: ${input.normalizedBlockedReason}. The goal '
-              'stays active; resolve the blocker or ask the user, then report '
-              'progress again.',
+              'Goal marked blocked: ${input.normalizedBlockedReason}. Resolve '
+              'the blocker or ask the user before reactivating the goal.',
         );
       case GoalUpdateKind.progress:
         final note = input.normalizedMessage;
+        if (goal.budgetExceeded) {
+          return GoalUpdateAck(
+            outcome: GoalUpdateAckOutcome.pausedAtCap,
+            modelMessage: note == null
+                ? 'Progress received, but the goal is paused at its configured '
+                      'budget cap. User confirmation is required to continue.'
+                : 'Progress received at the budget cap: $note. User '
+                      'confirmation is required to continue.',
+          );
+        }
         return GoalUpdateAck(
           outcome: GoalUpdateAckOutcome.progressLogged,
           modelMessage: note == null
@@ -181,8 +208,11 @@ class GoalUpdateAckResolver {
     }
   }
 
-  GoalUpdateAck _resolveCompletion(ToolResultCompletionEvidence evidence) {
-    final gaps = _completionGaps(evidence);
+  GoalUpdateAck _resolveCompletion(
+    ToolResultCompletionEvidence evidence,
+    GoalCompletionPolicy completionPolicy,
+  ) {
+    final gaps = completionGaps(evidence);
     if (gaps.isNotEmpty) {
       return GoalUpdateAck(
         outcome: GoalUpdateAckOutcome.completionRejected,
@@ -192,6 +222,14 @@ class GoalUpdateAckResolver {
             '${gaps.map((gap) => '- $gap').join('\n')}\n'
             'The goal is still active. Resolve these and report completion '
             'again.',
+      );
+    }
+    if (!completionPolicy.acceptsToolCompletion) {
+      return const GoalUpdateAck(
+        outcome: GoalUpdateAckOutcome.confirmationRequired,
+        modelMessage:
+            'Completion is mechanically admissible, but this model requires '
+            'user confirmation. The goal is awaiting a decision.',
       );
     }
     return const GoalUpdateAck(
@@ -208,7 +246,7 @@ class GoalUpdateAckResolver {
   /// Reads the LL34 completion evidence, not the response text. Order is most
   /// to least actionable. There are a fixed six evidence sources, so the list
   /// is naturally bounded — no truncation is needed.
-  List<String> _completionGaps(ToolResultCompletionEvidence evidence) {
+  List<String> completionGaps(ToolResultCompletionEvidence evidence) {
     final gaps = <String>[];
 
     if (evidence.unresolvedErrorCount > 0) {
@@ -240,6 +278,33 @@ class GoalUpdateAckResolver {
     }
 
     return gaps;
+  }
+
+  String buildConfirmationSummary({
+    required String assistantResponse,
+    required ToolResultCompletionEvidence evidence,
+    required bool stoppedAtBudget,
+  }) {
+    final firstLine = assistantResponse
+        .replaceAll('\r\n', '\n')
+        .split('\n')
+        .map((line) => line.trim())
+        .firstWhere((line) => line.isNotEmpty, orElse: () => '');
+    final boundedLine = firstLine.length <= 180
+        ? firstLine
+        : '${firstLine.substring(0, 177).trimRight()}...';
+    final gaps = completionGaps(evidence);
+    return [
+      if (stoppedAtBudget)
+        'The configured goal budget was reached before an accepted completion '
+            'claim.',
+      if (boundedLine.isNotEmpty) 'Latest result: $boundedLine',
+      if (gaps.isEmpty)
+        'No mechanical gap is currently recorded.'
+      else
+        'Still unverified: ${gaps.take(3).join('; ')}.',
+      'Confirm completion or reactivate the goal to continue.',
+    ].join('\n');
   }
 
   String _joinPaths(List<String> paths) {

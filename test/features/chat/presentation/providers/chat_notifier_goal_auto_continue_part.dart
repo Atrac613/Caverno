@@ -2303,7 +2303,7 @@ void registerChatNotifierGoalAutoContinueTests() {
   });
 
   test(
-    'goal auto-continue stops at the turn budget without hiding the active goal',
+    'goal auto-continue asks at the turn budget and keeps the goal active',
     () async {
       final dataSource = _GoalAutoContinueChatDataSource(
         toolCallBatches: [
@@ -2362,7 +2362,12 @@ void registerChatNotifierGoalAutoContinueTests() {
           ?.goal;
       expect(dataSource.initialRequestMessages, hasLength(1));
       expect(toolService.executedToolNames, ['analyze_project']);
-      expect(goal?.status, ConversationGoalStatus.active);
+      expect(goal?.status, ConversationGoalStatus.awaitingConfirmation);
+      expect(goal?.isActive, isTrue);
+      expect(
+        goal?.completionSummary,
+        contains('The configured goal budget was reached'),
+      );
       expect(goal?.turnBudgetExceeded, isTrue);
       expect(
         chatNotifier.state.goalAutoContinueNotice,

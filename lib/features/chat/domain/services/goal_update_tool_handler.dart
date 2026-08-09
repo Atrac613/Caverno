@@ -1,14 +1,12 @@
 import '../entities/chat_turn_owner.dart';
 import '../entities/conversation_goal.dart';
 import '../entities/tool_call_info.dart';
-import 'goal_update_ack.dart';
 import 'goal_update_tool_contract.dart';
 import 'tool_result_prompt_builder.dart';
 
-export 'goal_update_ack.dart';
+// ChatNotifier decomposition collaborator: goal-update-tool-handler
 export 'goal_update_tool_contract.dart';
 
-// ChatNotifier decomposition collaborator: goal-update-tool-handler
 final class GoalUpdateToolHandler {
   const GoalUpdateToolHandler();
 
@@ -48,10 +46,12 @@ final class GoalUpdateToolHandler {
       toolCall: request.toToolCallInfo(),
       goal: ownerSnapshot.goal,
       evidence: immutableEvidence,
+      completionPolicy: ownerSnapshot.completionPolicy,
     );
-    final acknowledgement = GoalUpdateCompletionAcknowledgement(
-      identity: request.identity,
+    final acknowledgement = GoalUpdateCompletionAcknowledgement.fromRequest(
+      request: request,
       outcome: ack.outcome,
+      completionPolicy: ownerSnapshot.completionPolicy,
     );
     return GoalUpdateToolHandlerOutcome(
       identity: request.identity,

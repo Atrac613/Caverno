@@ -23,6 +23,8 @@ void main() {
     );
 
     expect(result.status, ConversationGoalStatus.completed);
+    expect(result.hasStructuredCompletion, isTrue);
+    expect(result.hasLexicalCompletion, isFalse);
     expect(result.completionSummary, 'Validation passed.');
   });
 
@@ -88,6 +90,7 @@ void main() {
 
     expect(result.status, ConversationGoalStatus.completed);
     expect(result.hasCompletion, isTrue);
+    expect(result.hasLexicalCompletion, isTrue);
   });
 
   test('completes on successfully completed goal narration', () {

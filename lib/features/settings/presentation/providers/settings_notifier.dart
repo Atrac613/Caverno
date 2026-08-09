@@ -347,6 +347,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
     if (profile.structuredOutputSupport != prev.structuredOutputSupport) {
       return true;
     }
+    if (profile.goalUpdateFidelity != prev.goalUpdateFidelity) return true;
     if (profile.editFormatPreference != prev.editFormatPreference) return true;
     // Flag context-token drift beyond 20% in either direction.
     if (prev.usableContextTokens > 0 && profile.usableContextTokens > 0) {

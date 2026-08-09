@@ -1029,7 +1029,9 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       tokenUsage: resetProgress ? 0 : previous.tokenUsage,
       turnBudget: _sanitizeGoalBudget(turnBudget),
       turnsUsed: resetProgress ? 0 : previous.turnsUsed,
-      completionSummary: nextStatus == ConversationGoalStatus.completed
+      completionSummary:
+          nextStatus == ConversationGoalStatus.completed ||
+              nextStatus == ConversationGoalStatus.awaitingConfirmation
           ? completionSummary?.trim() ??
                 previous?.normalizedCompletionSummary ??
                 ''
@@ -1151,7 +1153,11 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     );
 
     final lexicalCompleted =
-        inference.hasCompletion && !completionEvidence.hasBlockingEvidence;
+        inference.hasLexicalCompletion &&
+        !completionEvidence.hasBlockingEvidence;
+    final structuredCompleted =
+        inference.hasStructuredCompletion &&
+        !completionEvidence.hasIncompleteEvidence;
     // The tool path is held to the stricter bar. Completing the goal ends the
     // run — auto-continue only fires while the goal is active — so this must
     // agree with "auto-continue would have stopped anyway", which keys on
@@ -1162,7 +1168,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     // reason to stop working.
     final toolCompleted =
         toolCompletionClaimed && !completionEvidence.hasIncompleteEvidence;
-    if (lexicalCompleted || toolCompleted) {
+    if (structuredCompleted || toolCompleted) {
       nextGoal = nextGoal.copyWith(
         status: ConversationGoalStatus.completed,
         completionSummary:
@@ -1174,23 +1180,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         blockedAt: null,
         lastBlockerSeenAt: null,
       );
-    } else if (inference.hasBlocker) {
-      final signature = inference.blockerSignature!;
-      final isSameBlocker = signature == goal.blockerSignature;
-      final repeatCount = isSameBlocker ? goal.blockerRepeatCount + 1 : 1;
-      nextGoal = nextGoal.copyWith(
-        blockedReason: inference.blockedReason ?? '',
-        blockerSignature: signature,
-        blockerRepeatCount: repeatCount,
-        lastBlockerSeenAt: now,
-      );
-      if (repeatCount >=
-          ConversationGoalProgressInference.blockedRepeatThreshold) {
-        nextGoal = nextGoal.copyWith(
-          status: ConversationGoalStatus.blocked,
-          blockedAt: now,
-        );
-      }
     } else if (goal.blockerRepeatCount > 0 ||
         goal.blockerSignature.isNotEmpty) {
       nextGoal = nextGoal.copyWith(

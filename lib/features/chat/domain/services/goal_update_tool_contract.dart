@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
+import '../../../../core/types/goal_completion_policy.dart';
 import '../entities/chat_turn_owner.dart';
 import '../entities/conversation_goal.dart';
 import '../entities/mcp_tool_entity.dart';
@@ -9,6 +10,8 @@ import '../entities/tool_call_info.dart';
 import 'goal_update_ack.dart';
 import 'immutable_json_snapshot.dart';
 import 'tool_result_prompt_builder.dart';
+
+export 'goal_update_ack.dart';
 
 const String canonicalGoalUpdateToolName = 'update_goal';
 
@@ -99,6 +102,7 @@ final class GoalUpdateOwnerSnapshot {
     required this.goal,
     required List<ToolResultInfo> toolResults,
     required ToolResultCompletionEvidence completionEvidence,
+    this.completionPolicy = GoalCompletionPolicy.toolOrAsk,
   }) : toolResults = List<ToolResultInfo>.unmodifiable(
          toolResults.map(_freezeToolResult),
        ),
@@ -110,6 +114,7 @@ final class GoalUpdateOwnerSnapshot {
   final ConversationGoal? goal;
   final List<ToolResultInfo> toolResults;
   final ToolResultCompletionEvidence completionEvidence;
+  final GoalCompletionPolicy completionPolicy;
 }
 
 /// Owner-bound acknowledgement safe to hand to claim persistence.
@@ -117,14 +122,30 @@ final class GoalUpdateCompletionAcknowledgement {
   const GoalUpdateCompletionAcknowledgement({
     required this.identity,
     required this.outcome,
+    required this.input,
+    required this.completionPolicy,
   });
+
+  factory GoalUpdateCompletionAcknowledgement.fromRequest({
+    required GoalUpdateToolRequest request,
+    required GoalUpdateAckOutcome outcome,
+    required GoalCompletionPolicy completionPolicy,
+  }) => GoalUpdateCompletionAcknowledgement(
+    identity: request.identity,
+    outcome: outcome,
+    input: GoalUpdateInput.fromArguments(request.arguments),
+    completionPolicy: completionPolicy,
+  );
 
   final GoalUpdateOperationIdentity identity;
   final GoalUpdateAckOutcome outcome;
+  final GoalUpdateInput input;
+  final GoalCompletionPolicy completionPolicy;
 
   bool get isCompletionClaim =>
       outcome == GoalUpdateAckOutcome.completionRecorded ||
-      outcome == GoalUpdateAckOutcome.completionRejected;
+      outcome == GoalUpdateAckOutcome.completionRejected ||
+      outcome == GoalUpdateAckOutcome.confirmationRequired;
 
   bool get completionAccepted =>
       outcome == GoalUpdateAckOutcome.completionRecorded;

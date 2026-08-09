@@ -22,11 +22,13 @@ final class ConversationsNotifierGoalRuntimeStore
     required String conversationId,
     required ConversationGoalStatus status,
     String? blockedReason,
+    String? completionSummary,
   }) async {
     final nextGoal = const ConversationGoalStatusTransition().apply(
       goal: conversationForId(conversationId)?.goal,
       status: status,
       blockedReason: blockedReason,
+      completionSummary: completionSummary,
     );
     if (nextGoal == null) {
       return;

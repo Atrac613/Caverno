@@ -187,6 +187,9 @@ class _TextOnlyDiagnosticDataSource implements ChatDataSource {
     int? maxTokens,
   }) async {
     final user = messages.last.content;
+    if (user.contains('update_goal exactly once')) {
+      return _toolCall('update_goal', {'completed': true});
+    }
     if (user.contains('product_label')) {
       return ChatCompletionResult(
         content: 'ZX-900_\u03b1 2026-06-12',
@@ -268,6 +271,16 @@ class _TextOnlyDiagnosticDataSource implements ChatDataSource {
     int? maxTokens,
   }) {
     throw UnimplementedError();
+  }
+
+  ChatCompletionResult _toolCall(String name, Map<String, dynamic> arguments) {
+    return ChatCompletionResult(
+      content: '',
+      toolCalls: [
+        ToolCallInfo(id: 'call-$name', name: name, arguments: arguments),
+      ],
+      finishReason: 'tool_calls',
+    );
   }
 
   @override
@@ -359,6 +372,7 @@ class _NativeToolDiagnosticDataSource extends _TextOnlyDiagnosticDataSource {
     );
   }
 
+  @override
   ChatCompletionResult _toolCall(String name, Map<String, dynamic> arguments) {
     return ChatCompletionResult(
       content: '',

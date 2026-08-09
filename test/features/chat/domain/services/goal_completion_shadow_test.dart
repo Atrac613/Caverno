@@ -31,6 +31,23 @@ void main() {
       );
     });
 
+    test('confirmation-required counts as a tool completion claim', () {
+      expect(
+        GoalCompletionShadow.compare(
+          toolCompletionOutcome: GoalUpdateAckOutcome.confirmationRequired,
+          lexicalCompleted: true,
+        ),
+        isNull,
+      );
+      expect(
+        GoalCompletionShadow.compare(
+          toolCompletionOutcome: GoalUpdateAckOutcome.confirmationRequired,
+          lexicalCompleted: false,
+        ),
+        GoalCompletionShadowDisagreement.toolAcceptedLexicalMissed,
+      );
+    });
+
     test('both reject', () {
       expect(
         GoalCompletionShadow.compare(

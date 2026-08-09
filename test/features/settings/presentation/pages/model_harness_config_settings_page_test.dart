@@ -44,6 +44,11 @@ void main() {
     await tester.tap(
       find.byKey(const ValueKey('harness-summary-first-toggle')),
     );
+    await tester.tap(
+      find.byKey(const ValueKey('harness-goal-completion-policy')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Always ask').last);
     await tester.pump();
 
     await tester.tap(find.byKey(const ValueKey('harness-save')));
@@ -57,6 +62,7 @@ void main() {
     expect(config.toolLoopMaxIterations, 6);
     expect(config.explorationToEditNudgeEnabled, isTrue);
     expect(config.summaryFirstToolResultsEnabled, isTrue);
+    expect(config.goalCompletionPolicy, GoalCompletionPolicy.ask);
   });
 
   testWidgets('seeds fields from the stored config', (tester) async {

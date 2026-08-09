@@ -1,7 +1,8 @@
 import '../../domain/entities/chat_turn_owner.dart';
-import '../../domain/services/goal_update_ack.dart';
 import '../../domain/services/tool_loop_exit_reason.dart';
 import 'turn_finalization_state.dart';
+
+export 'turn_finalization_goal_state_access.dart';
 
 /// Owns explicitly registered turn-finalization state without late resurrection.
 final class TurnFinalizationStateRegistry {
@@ -13,6 +14,8 @@ final class TurnFinalizationStateRegistry {
   bool get isEmpty => _states.isEmpty;
 
   bool contains(ChatTurnOwner owner) => _states.containsKey(owner);
+
+  TurnFinalizationState? stateFor(ChatTurnOwner owner) => _states[owner];
 
   bool begin(ChatTurnOwner owner) {
     final disposedThrough =
@@ -70,26 +73,6 @@ final class TurnFinalizationStateRegistry {
       (_states[owner]?.completedToolResultFinalAnswerRecoveryDecision ??
               CompletedToolResultFinalAnswerRecoveryDecision.notEvaluated)
           .logValue;
-
-  bool setGoalOutcome(ChatTurnOwner owner, GoalUpdateAckOutcome outcome) {
-    final state = _states[owner];
-    if (state == null) return false;
-    state.shadowGoalCompletionOutcome = outcome;
-    return true;
-  }
-
-  GoalUpdateAckOutcome? takeGoalOutcome(ChatTurnOwner owner) =>
-      _states[owner]?.takeGoalOutcome();
-
-  bool markGoalClaimed(ChatTurnOwner owner) {
-    final state = _states[owner];
-    if (state == null) return false;
-    state.toolGoalCompletionClaimed = true;
-    return true;
-  }
-
-  bool takeGoalClaim(ChatTurnOwner owner) =>
-      _states[owner]?.takeGoalClaim() ?? false;
 
   bool dispose(ChatTurnOwner owner) {
     final removed = _states.remove(owner) != null;

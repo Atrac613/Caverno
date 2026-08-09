@@ -39,6 +39,7 @@ class ModelCapabilityProfileBuilder {
       model: report.model,
       toolCallStyle: _toolCallStyle(report, provider),
       structuredOutputSupport: _structuredOutputSupport(report),
+      goalUpdateFidelity: _goalUpdateFidelity(report),
       editFormatPreference: ModelEditFormatPreference.unknown,
       usableContextTokens: usableContextTokens,
       probedAt: report.finishedAt ?? report.startedAt,
@@ -145,6 +146,17 @@ class ModelCapabilityProfileBuilder {
       return ModelStructuredOutputSupport.none;
     }
     return ModelStructuredOutputSupport.unknown;
+  }
+
+  static ModelGoalUpdateFidelity _goalUpdateFidelity(
+    LiveLlmDiagnosticReport report,
+  ) {
+    final result = _result(report, 'update_goal_fidelity');
+    return switch (result?.status) {
+      LiveLlmDiagnosticStatus.passed => ModelGoalUpdateFidelity.reliable,
+      LiveLlmDiagnosticStatus.failed => ModelGoalUpdateFidelity.unreliable,
+      _ => ModelGoalUpdateFidelity.unknown,
+    };
   }
 
   static LiveLlmDiagnosticProbeResult? _result(

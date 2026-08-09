@@ -303,6 +303,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             .read(conversationsNotifierProvider.notifier)
             .recordCurrentGoalTurn,
         recordGoalCompletionShadow: _recordGoalCompletionShadow,
+        goalStore: ConversationsNotifierGoalRuntimeStore(
+          notifier: ref.read(conversationsNotifierProvider.notifier),
+        ),
       ).finalize(
         owner: owner,
         evidenceRegistry: _goalCompletionEvidence,
@@ -500,27 +503,21 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         if (!ownerIsCurrent()) return;
       }
       if (!ownerIsCurrent()) return;
-      // Nothing left to schedule, and the harness cannot say the objective was
-      // met. Ask the model once ([GoalCompletionElicitationPrompt] carries the
-      // rationale and the measurement behind it); if that does not settle the
-      // goal, fall through to `awaitingConfirmation` so a stranded goal stops
-      // reading as one still working.
-      if (plan.elicitationEligibility ==
-          GoalCompletionElicitationEligibility.eligible) {
-        await _elicitGoalCompletionReport(
-          runtime: runtime,
-          languageCode: languageCode,
-          evidence: evidence,
-        );
-        return;
-      }
-      if (plan.shouldMarkAwaitingConfirmation) {
-        await goalContinuation.conversationGoal.markGoalStatus(
-          TurnRuntimeGoalStatusUpdate(
-            status: ConversationGoalStatus.awaitingConfirmation,
-          ),
-        );
-      }
+      final boundary = await const GoalCompletionBoundaryCoordinator()
+          .coordinate(
+            completionPolicy: _settings.effectiveGoalCompletionPolicy,
+            plan: plan,
+            assistantResponse: finalizedAssistantResponse,
+            evidence: evidence,
+            requestElicitation: () => _elicitGoalCompletionReport(
+              runtime: runtime,
+              languageCode: languageCode,
+              evidence: evidence,
+            ),
+            requestConfirmation:
+                goalContinuation.conversationGoal.markGoalStatus,
+          );
+      if (boundary.requestedElicitation) return;
       if (ownerIsCurrent()) {
         _applyTurnRuntimeGoalUiEffect(runtime.clearGoalIndicator());
       }
@@ -559,6 +556,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       nextTurnNumber: limits.nextTurnNumber,
       effectiveTurnBudget: limits.effectiveTurnBudget,
       languageCode: languageCode,
+      planMarkdown: currentConversation.effectiveExecutionDocument,
     );
 
     await _recordGoalAutoContinueSessionLog(
@@ -740,7 +738,12 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     if (owner == null) {
       return _turnOwnerSnapshotUnavailableResult(toolCall.name);
     }
-    final outcome = const GoalUpdateToolHandler().handleCall(
+    return GoalUpdateNotifierRuntimeCoordinator(
+      finalizationState: _turnEnd,
+      goalStore: ConversationsNotifierGoalRuntimeStore(
+        notifier: ref.read(conversationsNotifierProvider.notifier),
+      ),
+    ).handle(
       owner: owner,
       toolCall: toolCall,
       goal: _conversationForId(owner.conversationId)?.goal,
@@ -748,15 +751,10 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       completionEvidence:
           _goalCompletionEvidence.evidenceFor(owner) ??
           const ToolResultCompletionEvidence(),
+      completionPolicy: _settings.effectiveGoalCompletionPolicy,
+      isOwnerCurrent: () =>
+          _turnOwnerForGeneration(owner.interactionGeneration) == owner,
     );
-    final shadowOutcome = outcome.shadowOutcome;
-    if (shadowOutcome != null) {
-      _turnEnd.setGoalOutcome(owner, shadowOutcome);
-    }
-    if (outcome.completionAccepted) {
-      _turnEnd.markGoalClaimed(owner);
-    }
-    return outcome.toolResult;
   }
 
   Future<void> _recordGoalCompletionShadow({

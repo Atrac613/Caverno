@@ -47,6 +47,19 @@ void main() {
     expect(result?.completedAt, now);
   });
 
+  test('preserves a bounded summary while awaiting confirmation', () {
+    final result = transition.apply(
+      goal: _goal(),
+      status: ConversationGoalStatus.awaitingConfirmation,
+      completionSummary: '  Verify the final result  ',
+      now: now,
+    );
+
+    expect(result?.status, ConversationGoalStatus.awaitingConfirmation);
+    expect(result?.completionSummary, 'Verify the final result');
+    expect(result?.completedAt, isNull);
+  });
+
   test('rejects a missing goal or objective', () {
     expect(
       transition.apply(goal: null, status: ConversationGoalStatus.blocked),

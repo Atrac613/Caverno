@@ -48,7 +48,7 @@ void main() {
 
       final state = container.read(modelCapabilityAutoProbeNotifierProvider);
       expect(state.status, ModelCapabilityAutoProbeStatus.succeeded);
-      expect(dataSource.requestCount, 25);
+      expect(dataSource.requestCount, 26);
       expect(
         state.report?.results
             .singleWhere((result) => result.id == 'exact_preservation')
@@ -65,6 +65,7 @@ void main() {
         profile.structuredOutputSupport,
         ModelStructuredOutputSupport.jsonObject,
       );
+      expect(profile.goalUpdateFidelity, ModelGoalUpdateFidelity.reliable);
       expect(
         profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
           LlmSamplerRequestClass.routine,
@@ -208,6 +209,19 @@ class _InstructionOnlyDataSource implements ChatDataSource {
   }) async {
     requestCount += 1;
     final user = messages.last.content;
+    if (user.contains('update_goal exactly once')) {
+      return ChatCompletionResult(
+        content: '',
+        toolCalls: [
+          ToolCallInfo(
+            id: 'call-update-goal',
+            name: 'update_goal',
+            arguments: const {'completed': true},
+          ),
+        ],
+        finishReason: 'tool_calls',
+      );
+    }
     if (user.contains('routine sampler JSON object')) {
       return ChatCompletionResult(
         content:

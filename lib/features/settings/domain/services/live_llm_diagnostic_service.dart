@@ -7,6 +7,7 @@ import '../../../../core/services/apple_foundation_models_platform_client.dart';
 import '../../../chat/data/datasources/chat_datasource.dart';
 import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
+import '../../../chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/domain/entities/message.dart';
 import '../../../chat/domain/services/tool_definition_search_service.dart';
@@ -52,6 +53,11 @@ class LiveLlmDiagnosticService {
       descriptionKey: 'settings.live_llm_diag_probe_tool_call_desc',
     ),
     LiveLlmDiagnosticProbeDefinition(
+      id: _goalUpdateFidelityProbeId,
+      titleKey: 'settings.live_llm_diag_probe_goal_update_title',
+      descriptionKey: 'settings.live_llm_diag_probe_goal_update_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
       id: _toolResultProbeId,
       titleKey: 'settings.live_llm_diag_probe_tool_result_title',
       descriptionKey: 'settings.live_llm_diag_probe_tool_result_desc',
@@ -83,6 +89,7 @@ class LiveLlmDiagnosticService {
   static const _foundationModelsLanguageMatrixProbeId =
       'foundation_models_language_matrix';
   static const _narrowToolCallProbeId = 'narrow_tool_call';
+  static const _goalUpdateFidelityProbeId = 'update_goal_fidelity';
   static const _toolResultProbeId = 'tool_result_integration';
   static const _initialHarnessProbeId = 'initial_harness_selection';
   static const _toolSearchProbeId = 'tool_search_catalog';
@@ -92,6 +99,7 @@ class LiveLlmDiagnosticService {
   static const modelCapabilityProbeIds = <String>{
     _instructionProbeId,
     _narrowToolCallProbeId,
+    _goalUpdateFidelityProbeId,
     _toolResultProbeId,
     _initialHarnessProbeId,
   };
@@ -218,6 +226,13 @@ class LiveLlmDiagnosticService {
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
       run: () => _runNarrowToolCallProbe(catalogContext),
+    );
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _goalUpdateFidelityProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: _runGoalUpdateFidelityProbe,
     );
     report = await _appendToolLoopSamplerCalibrationTrials(
       report: report,
@@ -839,6 +854,47 @@ class LiveLlmDiagnosticService {
       details: names.isEmpty
           ? 'No tool calls were returned.'
           : names.join(', '),
+      modelContent: _preview(result.content),
+      toolCalls: names,
+      usage: _usage(result),
+    );
+  }
+
+  Future<LiveLlmDiagnosticProbeResult> _runGoalUpdateFidelityProbe() async {
+    final result = await chatDataSource.createChatCompletion(
+      messages: _messages(
+        user:
+            'The active goal is complete. Report that state by calling '
+            'update_goal exactly once with completed set to true. Do not add '
+            'message or blocked_reason, and do not answer in text.',
+      ),
+      tools: [McpGoalRoutineToolDefinitions.updateGoalTool],
+      model: _diagnosticModel,
+      temperature: _diagnosticTemperature,
+      maxTokens: _diagnosticMaxTokens,
+    );
+    final calls = _toolCallsFromResult(result);
+    final names = calls.map((call) => call.name).toList(growable: false);
+    final passed =
+        calls.length == 1 &&
+        calls.single.name == 'update_goal' &&
+        calls.single.arguments.length == 1 &&
+        calls.single.arguments['completed'] == true;
+    return LiveLlmDiagnosticProbeResult(
+      id: _goalUpdateFidelityProbeId,
+      status: passed
+          ? LiveLlmDiagnosticStatus.passed
+          : LiveLlmDiagnosticStatus.failed,
+      summary: passed
+          ? 'The model emitted the exact goal-completion tool call.'
+          : 'The model did not emit the exact goal-completion tool call.',
+      details: passed
+          ? 'Observed update_goal with {"completed":true}; it was not executed.'
+          : calls.isEmpty
+          ? 'No tool calls were returned.'
+          : calls
+                .map((call) => '${call.name}: ${jsonEncode(call.arguments)}')
+                .join('\n'),
       modelContent: _preview(result.content),
       toolCalls: names,
       usage: _usage(result),

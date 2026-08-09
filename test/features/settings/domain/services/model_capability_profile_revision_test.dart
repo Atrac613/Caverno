@@ -9,6 +9,7 @@ void main() {
     baseUrl: 'http://localhost:1234/v1',
     toolCallStyle: ModelToolCallStyle.nativeToolCalls,
     structuredOutputSupport: ModelStructuredOutputSupport.jsonSchema,
+    goalUpdateFidelity: ModelGoalUpdateFidelity.reliable,
     editFormatPreference: ModelEditFormatPreference.searchReplace,
     usableContextTokens: 8192,
   );
@@ -27,6 +28,7 @@ void main() {
         ModelStructuredOutputSupport.jsonSchema,
       );
       expect(rev.editFormatPreference, ModelEditFormatPreference.searchReplace);
+      expect(rev.goalUpdateFidelity, ModelGoalUpdateFidelity.reliable);
       expect(rev.usableContextTokens, 8192);
       expect(rev.source, 'idle_re_probe');
       expect(rev.capabilityChangeDetected, isFalse);
@@ -51,10 +53,12 @@ void main() {
     test('unknown JSON enum values fall back to unknown variants', () {
       final json = ModelCapabilityProfileRevision.fromProfile(profile).toJson()
         ..['toolCallStyle'] = 'some_future_value'
+        ..['goalUpdateFidelity'] = 'some_future_fidelity'
         ..['editFormatPreference'] = 'another_future_value';
 
       final decoded = ModelCapabilityProfileRevision.fromJson(json);
       expect(decoded.toolCallStyle, ModelToolCallStyle.unknown);
+      expect(decoded.goalUpdateFidelity, ModelGoalUpdateFidelity.unknown);
       expect(decoded.editFormatPreference, ModelEditFormatPreference.unknown);
     });
   });

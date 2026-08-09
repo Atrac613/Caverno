@@ -42,3 +42,30 @@ abstract final class ConversationGoalStatusPresentation {
     };
   }
 }
+
+extension ConversationGoalStatusPresentationAccess on ConversationGoalStatus {
+  bool get allowsUserResolution =>
+      this == ConversationGoalStatus.active ||
+      this == ConversationGoalStatus.awaitingConfirmation;
+}
+
+extension ConversationGoalConfirmationPresentation on ConversationGoal {
+  List<Widget> confirmationSummaryWidgets(ThemeData theme) {
+    final summary = normalizedCompletionSummary;
+    if (!isAwaitingConfirmation || summary == null) return const [];
+    return [
+      const SizedBox(height: 2),
+      Text(
+        summary,
+        key: const ValueKey('coding-goal-confirmation-summary'),
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.secondary,
+        ),
+      ),
+    ];
+  }
+}
+
+enum ConversationGoalMenuAction { complete, block, reactivate, clear }

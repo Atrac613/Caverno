@@ -261,6 +261,7 @@ final class _GoalStore implements TurnRuntimeConversationGoalStore {
     required String conversationId,
     required ConversationGoalStatus status,
     String? blockedReason,
+    String? completionSummary,
   }) async {}
 }
 

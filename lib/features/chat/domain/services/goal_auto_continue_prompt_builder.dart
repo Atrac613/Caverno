@@ -1,6 +1,7 @@
 import '../entities/conversation_goal.dart';
 import 'conversation_goal_auto_continue_policy.dart';
 import 'execution_snapshot_projector.dart';
+import 'goal_continuation_next_step_selector.dart';
 import 'tool_result_prompt_builder.dart';
 
 /// Builds the prompt that drives one automatic goal continuation.
@@ -20,10 +21,15 @@ abstract final class GoalAutoContinuePromptBuilder {
     required int nextTurnNumber,
     required int effectiveTurnBudget,
     required String languageCode,
+    String? planMarkdown,
   }) {
     final normalizedLanguageCode = languageCode.trim().isEmpty
         ? 'en'
         : languageCode.trim();
+    final nextStep = GoalContinuationNextStepSelector.select(
+      executionSnapshot: executionSnapshot,
+      planMarkdown: planMarkdown,
+    );
     return [
       'Automatic goal continuation $nextTurnNumber/$effectiveTurnBudget.',
       '',
@@ -40,6 +46,11 @@ abstract final class GoalAutoContinuePromptBuilder {
         '</execution_snapshot>',
       ],
       if (repairContract != null) ...['', repairContract],
+      if (nextStep?.trim().isNotEmpty == true) ...[
+        '',
+        'Immediate next step from the plan:',
+        nextStep!.trim(),
+      ],
       if (repairNoMutationRetry) ...[
         '',
         'The previous constrained repair turn ended without a file mutation. '

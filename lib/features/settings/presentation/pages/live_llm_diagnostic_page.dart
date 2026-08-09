@@ -612,10 +612,7 @@ class _ProfileRevisionCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.history_outlined,
-                  color: theme.colorScheme.primary,
-                ),
+                Icon(Icons.history_outlined, color: theme.colorScheme.primary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -663,8 +660,13 @@ class _ProfileRevisionCard extends StatelessWidget {
                   value: _enumName(revision.toolCallStyle),
                 ),
                 _SamplerInfoChip(
-                  label: 'settings.live_llm_diag_profile_structured_output'.tr(),
+                  label: 'settings.live_llm_diag_profile_structured_output'
+                      .tr(),
                   value: _enumName(revision.structuredOutputSupport),
+                ),
+                _SamplerInfoChip(
+                  label: 'settings.live_llm_diag_profile_goal_update'.tr(),
+                  value: _enumName(revision.goalUpdateFidelity),
                 ),
                 _SamplerInfoChip(
                   label: 'settings.live_llm_diag_profile_edit_format'.tr(),
@@ -672,8 +674,7 @@ class _ProfileRevisionCard extends StatelessWidget {
                 ),
                 if (revision.usableContextTokens > 0)
                   _SamplerInfoChip(
-                    label:
-                        'settings.live_llm_diag_profile_context_tokens'.tr(),
+                    label: 'settings.live_llm_diag_profile_context_tokens'.tr(),
                     value: '${revision.usableContextTokens}',
                   ),
               ],
@@ -688,7 +689,8 @@ class _ProfileRevisionCard extends StatelessWidget {
 String _profileSourceLabel(String source) {
   return switch (source) {
     'initial' => 'settings.live_llm_diag_profile_source_initial'.tr(),
-    'idle_re_probe' => 'settings.live_llm_diag_profile_source_idle_re_probe'.tr(),
+    'idle_re_probe' =>
+      'settings.live_llm_diag_profile_source_idle_re_probe'.tr(),
     'calibrate' => 'settings.live_llm_diag_profile_source_calibrate'.tr(),
     'manual' => 'settings.live_llm_diag_profile_source_manual'.tr(),
     _ => 'settings.live_llm_diag_profile_source_probe'.tr(),

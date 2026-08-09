@@ -1,20 +1,32 @@
 import '../entities/conversation_goal.dart';
 import '../entities/conversation_workflow.dart';
 
+enum ConversationGoalCompletionInferenceSource { structuredTasks, lexicalProse }
+
 class ConversationGoalProgressInferenceResult {
   const ConversationGoalProgressInferenceResult({
     this.status,
     this.completionSummary,
     this.blockedReason,
     this.blockerSignature,
+    this.completionSource,
   });
 
   final ConversationGoalStatus? status;
   final String? completionSummary;
   final String? blockedReason;
   final String? blockerSignature;
+  final ConversationGoalCompletionInferenceSource? completionSource;
 
   bool get hasCompletion => status == ConversationGoalStatus.completed;
+
+  bool get hasStructuredCompletion =>
+      completionSource ==
+      ConversationGoalCompletionInferenceSource.structuredTasks;
+
+  bool get hasLexicalCompletion =>
+      completionSource ==
+      ConversationGoalCompletionInferenceSource.lexicalProse;
 
   bool get hasBlocker => blockedReason != null && blockerSignature != null;
 }
@@ -239,6 +251,8 @@ class ConversationGoalProgressInference {
     if (_allTasksCompleted(taskList)) {
       return ConversationGoalProgressInferenceResult(
         status: ConversationGoalStatus.completed,
+        completionSource:
+            ConversationGoalCompletionInferenceSource.structuredTasks,
         completionSummary: summary.isEmpty
             ? 'All saved workflow tasks are complete.'
             : summary,
@@ -252,6 +266,8 @@ class ConversationGoalProgressInference {
     if (taskList.isEmpty && _looksComplete(lowercaseResponse)) {
       return ConversationGoalProgressInferenceResult(
         status: ConversationGoalStatus.completed,
+        completionSource:
+            ConversationGoalCompletionInferenceSource.lexicalProse,
         completionSummary: summary.isEmpty
             ? 'The assistant reported that the goal is complete.'
             : summary,

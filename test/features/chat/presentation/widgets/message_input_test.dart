@@ -724,6 +724,51 @@ void main() {
     expect(completeCount, 1);
   });
 
+  testWidgets('shows confirmation summary and completion controls', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+    final goal = ConversationGoal(
+      id: 'goal-confirmation',
+      objective: 'Finish the release checks',
+      status: ConversationGoalStatus.awaitingConfirmation,
+      completionSummary:
+          'The turn budget was reached. No mechanical gap is recorded.',
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+    );
+    var completeCount = 0;
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      isCodingWorkspace: true,
+      codingGoal: goal,
+      onCodingGoalMarkComplete: () => completeCount += 1,
+      onCodingGoalMarkBlocked: () {},
+      onCodingGoalReactivate: () {},
+    );
+
+    expect(find.text('Awaiting confirmation'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('coding-goal-confirmation-summary')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('turn budget was reached'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pumpAndSettle();
+    expect(find.text('Complete'), findsOneWidget);
+    expect(find.text('Block'), findsOneWidget);
+    expect(find.text('Reactivate'), findsOneWidget);
+    await tester.tap(find.text('Complete'));
+    await tester.pumpAndSettle();
+
+    expect(completeCount, 1);
+  });
+
   testWidgets('updates coding approval mode from the composer menu', (
     tester,
   ) async {

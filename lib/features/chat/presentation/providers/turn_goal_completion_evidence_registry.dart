@@ -1,26 +1,9 @@
-import '../../data/datasources/llm_session_log_store.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/goal_update_ack.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
-import 'turn_finalization_state_registry.dart';
 
-typedef GoalTurnRecorder =
-    Future<bool> Function({
-      required String assistantResponse,
-      required int tokenUsageDelta,
-      required ToolResultCompletionEvidence completionEvidence,
-      required bool toolCompletionClaimed,
-      required String conversationId,
-    });
-typedef GoalCompletionShadowRecorder =
-    Future<void> Function({
-      required bool lexicalCompleted,
-      required ChatTurnOwner owner,
-      required LlmSessionLogContext context,
-      required GoalUpdateAckOutcome? toolCompletionOutcome,
-    });
+export 'turn_goal_completion_finalizer.dart';
 
 /// Owns goal-completion evidence for explicitly registered turn owners.
 ///
@@ -150,62 +133,5 @@ final class TurnGoalCompletionEvidenceRegistry {
     for (final owner in _evidenceByOwner.keys.toList(growable: false)) {
       dispose(owner);
     }
-  }
-}
-
-/// Reconciles and records one owner's goal state before terminal disposal.
-///
-/// Consume claim and shadow values before awaiting the goal write.
-final class TurnGoalCompletionFinalizer {
-  TurnGoalCompletionFinalizer({
-    required GoalTurnRecorder recordGoalTurn,
-    required GoalCompletionShadowRecorder recordGoalCompletionShadow,
-  }) : _recordGoalTurn = recordGoalTurn,
-       _recordGoalCompletionShadow = recordGoalCompletionShadow;
-
-  final GoalTurnRecorder _recordGoalTurn;
-  final GoalCompletionShadowRecorder _recordGoalCompletionShadow;
-
-  Future<ToolResultCompletionEvidence?> finalize({
-    required ChatTurnOwner owner,
-    required TurnGoalCompletionEvidenceRegistry evidenceRegistry,
-    required TurnFinalizationStateRegistry finalizationState,
-    required List<ToolResultInfo> completedToolResults,
-    required List<ToolResultInfo> contentToolResults,
-    required Conversation? conversation,
-    required String assistantResponse,
-    required int tokenUsageDelta,
-    required LlmSessionLogContext context,
-  }) async {
-    if (!evidenceRegistry.contains(owner) ||
-        !finalizationState.contains(owner)) {
-      return null;
-    }
-    final evidence = evidenceRegistry.reconcileForFinalization(
-      owner,
-      completedToolResults: completedToolResults,
-      contentToolResults: contentToolResults,
-      mutationGeneration: conversation?.mutationGeneration,
-      verificationGeneration: conversation?.verificationGeneration,
-    );
-    final toolCompletionClaimed = finalizationState.takeGoalClaim(owner);
-    final toolCompletionOutcome = finalizationState.takeGoalOutcome(owner);
-    final goalWasActive = conversation?.goal?.isActive == true;
-    final lexicalCompleted = await _recordGoalTurn(
-      assistantResponse: assistantResponse,
-      tokenUsageDelta: tokenUsageDelta,
-      completionEvidence: evidence,
-      toolCompletionClaimed: toolCompletionClaimed,
-      conversationId: owner.conversationId,
-    );
-    if (goalWasActive) {
-      await _recordGoalCompletionShadow(
-        lexicalCompleted: lexicalCompleted,
-        owner: owner,
-        context: context,
-        toolCompletionOutcome: toolCompletionOutcome,
-      );
-    }
-    return evidence;
   }
 }

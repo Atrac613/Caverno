@@ -1490,15 +1490,15 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     return count.toString();
   }
 
-  void _handleGoalMenuAction(_GoalMenuAction action) {
+  void _handleGoalMenuAction(ConversationGoalMenuAction action) {
     switch (action) {
-      case _GoalMenuAction.complete:
+      case ConversationGoalMenuAction.complete:
         widget.onCodingGoalMarkComplete?.call();
-      case _GoalMenuAction.block:
+      case ConversationGoalMenuAction.block:
         widget.onCodingGoalMarkBlocked?.call();
-      case _GoalMenuAction.reactivate:
+      case ConversationGoalMenuAction.reactivate:
         widget.onCodingGoalReactivate?.call();
-      case _GoalMenuAction.clear:
+      case ConversationGoalMenuAction.clear:
         widget.onCodingGoalClear?.call();
     }
   }
@@ -1614,6 +1614,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                ...activeGoal.confirmationSummaryWidgets(theme),
                 if (budgetLabel.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
@@ -1648,15 +1649,15 @@ class _MessageInputState extends ConsumerState<MessageInput> {
               icon: const Icon(Icons.edit_outlined),
               onPressed: controlsEnabled ? widget.onCodingGoalEdit : null,
             ),
-          PopupMenuButton<_GoalMenuAction>(
+          PopupMenuButton<ConversationGoalMenuAction>(
             enabled: controlsEnabled,
             tooltip: 'chat.goal_title'.tr(),
             icon: const Icon(Icons.more_horiz),
             onSelected: _handleGoalMenuAction,
             itemBuilder: (context) => [
-              if (status == ConversationGoalStatus.active) ...[
-                PopupMenuItem<_GoalMenuAction>(
-                  value: _GoalMenuAction.complete,
+              if (status.allowsUserResolution) ...[
+                PopupMenuItem<ConversationGoalMenuAction>(
+                  value: ConversationGoalMenuAction.complete,
                   enabled: widget.onCodingGoalMarkComplete != null,
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -1664,8 +1665,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                     title: Text('chat.goal_mark_complete'.tr()),
                   ),
                 ),
-                PopupMenuItem<_GoalMenuAction>(
-                  value: _GoalMenuAction.block,
+                PopupMenuItem<ConversationGoalMenuAction>(
+                  value: ConversationGoalMenuAction.block,
                   enabled: widget.onCodingGoalMarkBlocked != null,
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -1675,8 +1676,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                 ),
               ],
               if (status != ConversationGoalStatus.active)
-                PopupMenuItem<_GoalMenuAction>(
-                  value: _GoalMenuAction.reactivate,
+                PopupMenuItem<ConversationGoalMenuAction>(
+                  value: ConversationGoalMenuAction.reactivate,
                   enabled: widget.onCodingGoalReactivate != null,
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -1684,8 +1685,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                     title: Text('chat.goal_reactivate'.tr()),
                   ),
                 ),
-              PopupMenuItem<_GoalMenuAction>(
-                value: _GoalMenuAction.clear,
+              PopupMenuItem<ConversationGoalMenuAction>(
+                value: ConversationGoalMenuAction.clear,
                 enabled: widget.onCodingGoalClear != null,
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -2364,5 +2365,3 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
 /// Actions available from the composer's "+" attachments menu.
 enum _AttachmentAction { image, file }
-
-enum _GoalMenuAction { complete, block, reactivate, clear }
