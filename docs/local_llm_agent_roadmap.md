@@ -3104,7 +3104,7 @@ work.
 
 ### LL35: Explicit Goal-State Tool With A Real Acknowledgement
 
-Status: `next`
+Status: `current`
 
 Problem:
 - `ConversationGoalProgressInference.infer`
@@ -3119,10 +3119,14 @@ Problem:
   they are the reason a truthful-sounding but unverified summary can close a
   goal.
 
-**Shadow mode is already implemented and already running.**
+**Shadow mode and its denominator are implemented and running.**
 `GoalUpdateAckResolver` and `GoalCompletionShadow` exist; the lexical path stays
-authoritative and disagreements are recorded under three labels. What this item
-still needs is not code but **usage**.
+authoritative. Commit `e77a57e7` records one comparison for every eligible turn
+that started with an active goal, including agreements, while retaining the
+three stable disagreement labels. `tool/triage_session_logs.py` aggregates the
+agreement distribution and treats old disagreement-only markers compatibly.
+What this item still needs is **grounded usage across multiple runs** before any
+authority change.
 
 First reading, 2026-08-05, over 1,735 session logs:
 
@@ -3203,6 +3207,25 @@ never-reached branch produces. Recording agreements (or at least a shadow-turn
 count) is the cheap next slice; without it this instrument can only ever produce
 counts of one kind of event.
 
+**Denominator repair and first live reading, 2026-08-09.** Commit `e77a57e7`
+landed that cheap slice. A clean grounded Coding Goal TODO auto-continue canary
+against `qwen3.6-27b-vision` at the configured LAN endpoint produced four
+owner-scoped comparisons across four goal turns:
+
+| agreement | count | rate |
+| --- | ---: | ---: |
+| `agree` | 3 | 75% |
+| `disagree` | 1 | 25% |
+| `unknown` | 0 | 0% |
+
+The one disagreement was
+`goal_completion_tool_accepted_lexical_missed`; the other comparisons were two
+tool-silent/lexical-open agreements and one rejected-tool/lexical-open
+agreement. All four markers carried distinct `turnId` values, and the canary
+passed with two auto-continuations, 31 grounded request/response pairs, and no
+transport failure. This proves the denominator is emitted and aggregatable; it
+does **not** provide enough independent runs to remove the lexical authority.
+
 Scope:
 - Add an `update_goal` built-in with `completed` / `blocked_reason` / `message`,
   routed through the existing tool-dispatch path.
@@ -3282,9 +3305,20 @@ Progress (branch `feature/ll35-explicit-goal-state`):
   on the turn_exit record. `tool/triage_session_logs.py` counts these under
   "Post-LLM transforms" with no change, since LL33's transform record is
   generic.
+- **Slice 4 (`e77a57e7`)** — every eligible active-goal turn emits an
+  agreement-aware `goal_completion_shadow` marker. The session-log store keeps
+  the owner-scoped turn id and optional tool outcome, and triage prints the
+  denominator plus disagreement labels without adding marker-only logs to the
+  grounded corpus or anomaly score. Focused tests and the full 6,889-test
+  repository gate passed. The first live canary recorded 3 agreements and 1
+  known disagreement, with no unknown verdicts.
 
-Next action: **collect shadow evidence before proceeding.** The remaining
-slices are gated on the disagreement counts:
+Next action: **collect several independent grounded goal runs before changing
+authority.** The denominator now grows correctly, but the first live run is one
+correlated four-turn sequence. Keep the lexical path authoritative while
+triage accumulates agreement rates across fresh coding sessions and explain
+every disagreement or unknown verdict. The remaining slices are gated on that
+distribution:
 - The **LL3 fidelity probe** and the **user-confirmation rung** are needed only
   if the shadow data shows models failing to call the tool (a high
   `goal_completion_lexical_only` count). Build them when that count justifies
@@ -3292,6 +3326,9 @@ slices are gated on the disagreement counts:
 - **Removing the lexical path** waits until `goal_completion_tool_accepted_lexical_missed`
   and `goal_completion_lexical_only` together show the tool covers what lexical
   catches. That is the measurement the shadow slice exists to produce.
+- The **plan-checklist next-step miner** remains a separate additive slice and
+  does not change goal-completion authority; it can proceed while evidence
+  accumulates if another implementation slice is required.
 
 ### LL36: Heuristic Demotion And Firing Audit
 
