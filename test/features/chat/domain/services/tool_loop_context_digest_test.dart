@@ -221,6 +221,15 @@ ToolResultInfo _result(
     name: name,
     arguments: arguments,
     result: result,
-    outcome: contentHash == null ? null : ToolOutcome(contentHash: contentHash),
+    outcome: contentHash == null
+        ? null
+        : ToolOutcome(
+            readOutcome: ToolReadOutcome(
+              path: arguments['path'] as String,
+              contentHash: contentHash,
+              byteSize: result.length,
+              lineCount: 1,
+            ),
+          ),
   );
 }

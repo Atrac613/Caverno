@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/built_in_filesystem_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
+import 'package:caverno/features/chat/data/datasources/first_party_tool_execution_result.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 typedef _OperationCall = ({String name, Map<String, dynamic> arguments});
@@ -43,10 +45,10 @@ void main() {
       // The whole point of the fact: a byte-identical write succeeds and looks
       // exactly like a real one, so without this a no-op edit reads as
       // progress and the edit/re-read loop has nothing to stop it.
-      Future<McpToolResult> run(String payload) {
+      Future<McpToolResult> run(String payload, {ToolOutcome? outcome}) {
         final handler = BuiltInFilesystemToolHandler(
-          operationRunner: ({required name, required arguments}) async =>
-              payload,
+          operationResultRunner: ({required name, required arguments}) async =>
+              FirstPartyToolExecutionResult(result: payload, outcome: outcome),
           snapshotReader: (path) async =>
               TextFileSnapshot(path: path, exists: false),
         );
@@ -56,13 +58,23 @@ void main() {
         );
       }
 
-      final changed = await run('{"path":"/tmp/x.txt","changed":true}');
-      final unchanged = await run('{"path":"/tmp/x.txt","changed":false}');
+      final changed = await run(
+        '{"path":"/tmp/x.txt","changed":true}',
+        outcome: const ToolOutcome(
+          fileMutations: [ToolFileMutation(path: '/tmp/x.txt', changed: true)],
+        ),
+      );
+      final unchanged = await run(
+        '{"path":"/tmp/x.txt","changed":false}',
+        outcome: const ToolOutcome(
+          fileMutations: [ToolFileMutation(path: '/tmp/x.txt', changed: false)],
+        ),
+      );
       final silent = await run('{"path":"/tmp/x.txt"}');
       final failed = await run('{"error":"permission denied"}');
 
-      expect(changed.outcome?.fileChanged, isTrue);
-      expect(unchanged.outcome?.fileChanged, isFalse);
+      expect(changed.outcome?.effectiveFileChanged, isTrue);
+      expect(unchanged.outcome?.effectiveFileChanged, isFalse);
       expect(unchanged.outcome?.isNoOpMutation, isTrue);
       // Absent means unknown, never "unchanged".
       expect(silent.outcome, isNull);
@@ -70,10 +82,10 @@ void main() {
     });
 
     test('carries the whole-file hash a read reported', () async {
-      Future<McpToolResult> run(String payload) {
+      Future<McpToolResult> run(String payload, {ToolOutcome? outcome}) {
         final handler = BuiltInFilesystemToolHandler(
-          operationRunner: ({required name, required arguments}) async =>
-              payload,
+          operationResultRunner: ({required name, required arguments}) async =>
+              FirstPartyToolExecutionResult(result: payload, outcome: outcome),
         );
         return handler.execute(
           name: 'read_file',
@@ -83,11 +95,20 @@ void main() {
 
       final hashed = await run(
         '{"path":"/tmp/x.dart","content":"x","content_hash":"abc"}',
+        outcome: const ToolOutcome(
+          readOutcome: ToolReadOutcome(
+            path: '/tmp/x.dart',
+            contentHash: 'abc',
+            byteSize: 1,
+            lineCount: 1,
+          ),
+        ),
       );
       final legacy = await run('{"path":"/tmp/x.dart","content":"x"}');
       final missing = await run('{"error":"File does not exist: /tmp/x.dart"}');
 
-      expect(hashed.outcome?.contentHash, 'abc');
+      expect(hashed.outcome?.effectiveContentHash, 'abc');
+      expect(hashed.outcome?.readOutcome?.byteSize, 1);
       expect(hashed.isSuccess, isTrue);
       // A read reports no failure, so success is unchanged in every case; only
       // the identity of what was read is new.
@@ -315,10 +336,13 @@ void main() {
       });
       final targetPath = '${tempDir.path}/target.txt';
 
-      BuiltInFilesystemToolHandler handlerReturning(String payload) {
+      BuiltInFilesystemToolHandler handlerReturning(
+        String payload, {
+        ToolOutcome? outcome,
+      }) {
         return BuiltInFilesystemToolHandler(
-          operationRunner: ({required name, required arguments}) async =>
-              payload,
+          operationResultRunner: ({required name, required arguments}) async =>
+              FirstPartyToolExecutionResult(result: payload, outcome: outcome),
           snapshotReader: (path) async =>
               TextFileSnapshot(path: path, exists: false),
         );
@@ -338,6 +362,11 @@ void main() {
 
       final alreadyApplied = handlerReturning(
         '{"already_applied":true,"changed":false}',
+        outcome: const ToolOutcome(
+          fileMutations: [
+            ToolFileMutation(path: '/tmp/target.txt', changed: false),
+          ],
+        ),
       );
       final alreadyAppliedResult = await alreadyApplied.execute(
         name: 'edit_file',
@@ -345,7 +374,7 @@ void main() {
         owner: owner,
       );
       expect(alreadyAppliedResult.isSuccess, isTrue);
-      expect(alreadyAppliedResult.outcome?.fileChanged, isFalse);
+      expect(alreadyAppliedResult.outcome?.effectiveFileChanged, isFalse);
       expect(alreadyAppliedResult.outcome?.isNoOpMutation, isTrue);
       expect(
         await alreadyApplied.checkpointStore.previewLastFileRollbackChange(

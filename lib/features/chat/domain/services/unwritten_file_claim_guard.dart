@@ -314,10 +314,19 @@ class UnwrittenFileClaimGuard {
     final paths = <String>{};
     for (final toolResult in toolResults) {
       if (!_fileMutationEvidencePolicy.isMutationToolName(toolResult.name) ||
-          !_fileMutationEvidencePolicy.isSuccessfulResult(toolResult) ||
-          toolResult.outcome?.isNoOpMutation == true) {
+          !_fileMutationEvidencePolicy.isSuccessfulResult(toolResult)) {
         continue;
       }
+      final typedMutations = toolResult.outcome?.fileMutations ?? const [];
+      if (typedMutations.isNotEmpty) {
+        for (final mutation in typedMutations) {
+          if (mutation.changed != true) continue;
+          final path = _resolveInsideRoot(mutation.path, normalizedRoot);
+          if (path != null) paths.add(path);
+        }
+        continue;
+      }
+      if (toolResult.outcome?.isNoOpMutation == true) continue;
       final rawPath = _fileMutationEvidencePolicy.pathForResult(toolResult);
       if (rawPath == null || rawPath.isEmpty) {
         continue;

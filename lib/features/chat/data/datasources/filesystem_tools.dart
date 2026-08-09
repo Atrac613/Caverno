@@ -2,6 +2,8 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 export 'filesystem_text_snapshot.dart';
 
 import 'filesystem_diff_builder.dart';
@@ -9,6 +11,7 @@ import 'edit_anchor_failure_builder.dart';
 import 'filesystem_overview_format.dart';
 import 'filesystem_path_resolver.dart';
 import 'filesystem_text_snapshot.dart';
+import 'first_party_tool_execution_result.dart';
 
 class _LineRangeSelection {
   const _LineRangeSelection({
@@ -144,33 +147,55 @@ class FilesystemTools {
     int maxChars = _maxReadChars,
     int offset = 1,
     int? limit,
+  }) async => (await readFileResult(
+    path: path,
+    maxChars: maxChars,
+    offset: offset,
+    limit: limit,
+  )).result;
+
+  static Future<FirstPartyToolExecutionResult> readFileResult({
+    required String path,
+    int maxChars = _maxReadChars,
+    int offset = 1,
+    int? limit,
   }) async {
     final file = File(path);
     if (!file.existsSync()) {
-      return jsonEncode({'error': 'File does not exist: $path'});
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({'error': 'File does not exist: $path'}),
+      );
     }
     if (offset < 1) {
-      return jsonEncode({'error': 'offset must be greater than or equal to 1'});
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({'error': 'offset must be greater than or equal to 1'}),
+      );
     }
     if (limit != null && limit < 1) {
-      return jsonEncode({'error': 'limit must be greater than or equal to 1'});
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({'error': 'limit must be greater than or equal to 1'}),
+      );
     }
 
     final absolutePath = file.absolute.path;
     if (FilesystemPathResolver.isBlockedReadPath(absolutePath)) {
-      return jsonEncode({
-        'error': 'Special device files are not supported by read_file.',
-        'path': absolutePath,
-      });
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({
+          'error': 'Special device files are not supported by read_file.',
+          'path': absolutePath,
+        }),
+      );
     }
 
     try {
       if (await _looksBinary(file)) {
-        return jsonEncode({
-          'error':
-              'File is not valid UTF-8 text. Binary files are not supported.',
-          'path': absolutePath,
-        });
+        return FirstPartyToolExecutionResult.payloadOnly(
+          jsonEncode({
+            'error':
+                'File is not valid UTF-8 text. Binary files are not supported.',
+            'path': absolutePath,
+          }),
+        );
       }
 
       final sizeBytes = await file.length();
@@ -182,10 +207,11 @@ class FilesystemTools {
         maxScanBytes: _maxScanBytes,
       );
 
+      final contentHash = await _contentHash(absolutePath, sizeBytes);
       final response = <String, dynamic>{
         'path': absolutePath,
         'content': selection.content,
-        'content_hash': await _contentHash(absolutePath, sizeBytes),
+        'content_hash': contentHash,
         'size_bytes': sizeBytes,
         'start_line': selection.startLine,
         'line_count': selection.lineCount,
@@ -202,18 +228,34 @@ class FilesystemTools {
         if (selection.totalLinesIsEstimate) 'total_lines_is_estimate': true,
       };
       response.removeWhere((_, value) => value == null);
-      return jsonEncode(response);
+      return FirstPartyToolExecutionResult(
+        result: jsonEncode(response),
+        outcome: contentHash == null || selection.totalLinesIsEstimate
+            ? null
+            : ToolOutcome(
+                readOutcome: ToolReadOutcome(
+                  path: absolutePath,
+                  contentHash: contentHash,
+                  byteSize: sizeBytes,
+                  lineCount: selection.totalLines,
+                ),
+              ),
+      );
     } on FormatException {
-      return jsonEncode({
-        'error':
-            'File is not valid UTF-8 text. Binary files are not supported.',
-        'path': absolutePath,
-      });
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({
+          'error':
+              'File is not valid UTF-8 text. Binary files are not supported.',
+          'path': absolutePath,
+        }),
+      );
     } on FileSystemException catch (error) {
-      return _buildFilesystemError(
-        path: absolutePath,
-        operation: 'read_file',
-        error: error,
+      return FirstPartyToolExecutionResult.payloadOnly(
+        _buildFilesystemError(
+          path: absolutePath,
+          operation: 'read_file',
+          error: error,
+        ),
       );
     }
   }
@@ -243,33 +285,54 @@ class FilesystemTools {
     }
   }
 
-  static Future<String> deleteFile({required String path}) async {
+  static Future<String> deleteFile({required String path}) async =>
+      (await deleteFileResult(path: path)).result;
+
+  static Future<FirstPartyToolExecutionResult> deleteFileResult({
+    required String path,
+  }) async {
     final type = await FileSystemEntity.type(path, followLinks: false);
     if (type == FileSystemEntityType.notFound) {
-      return jsonEncode({'error': 'File does not exist: $path'});
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({'error': 'File does not exist: $path'}),
+      );
     }
     if (type != FileSystemEntityType.file) {
-      return jsonEncode({
-        'error': 'delete_file supports regular files only.',
-        'path': File(path).absolute.path,
-      });
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({
+          'error': 'delete_file supports regular files only.',
+          'path': File(path).absolute.path,
+        }),
+      );
     }
     final snapshot = await captureTextSnapshot(path);
     if (snapshot.error != null) {
-      return jsonEncode({
-        'error':
-            'delete_file requires a readable UTF-8 text file so the change can be rolled back.',
-        'path': File(path).absolute.path,
-      });
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({
+          'error':
+              'delete_file requires a readable UTF-8 text file so the change can be rolled back.',
+          'path': File(path).absolute.path,
+        }),
+      );
     }
     try {
+      final absolutePath = File(path).absolute.path;
       await File(path).delete();
-      return jsonEncode({'deleted': true, 'path': File(path).absolute.path});
+      return FirstPartyToolExecutionResult(
+        result: jsonEncode({'deleted': true, 'path': absolutePath}),
+        outcome: ToolOutcome(
+          fileMutations: [
+            ToolFileMutation(path: absolutePath, byteSize: 0, changed: true),
+          ],
+        ),
+      );
     } on FileSystemException catch (error) {
-      return _buildFilesystemError(
-        path: File(path).absolute.path,
-        operation: 'delete_file',
-        error: error,
+      return FirstPartyToolExecutionResult.payloadOnly(
+        _buildFilesystemError(
+          path: File(path).absolute.path,
+          operation: 'delete_file',
+          error: error,
+        ),
       );
     }
   }
@@ -561,6 +624,16 @@ class FilesystemTools {
     required String path,
     required String content,
     bool createParents = true,
+  }) async => (await writeFileResult(
+    path: path,
+    content: content,
+    createParents: createParents,
+  )).result;
+
+  static Future<FirstPartyToolExecutionResult> writeFileResult({
+    required String path,
+    required String content,
+    bool createParents = true,
   }) async {
     final file = File(path);
     final existedBefore = file.existsSync();
@@ -585,17 +658,33 @@ class FilesystemTools {
         await file.parent.create(recursive: true);
       }
       await file.writeAsString(content);
-      return jsonEncode({
-        'path': file.absolute.path,
-        'bytes_written': newBytes.length,
-        'created': !existedBefore,
-        'changed': changed,
-      });
+      final absolutePath = file.absolute.path;
+      final contentHash = await _contentHash(absolutePath, newBytes.length);
+      return FirstPartyToolExecutionResult(
+        result: jsonEncode({
+          'path': file.absolute.path,
+          'bytes_written': newBytes.length,
+          'created': !existedBefore,
+          'changed': changed,
+        }),
+        outcome: ToolOutcome(
+          fileMutations: [
+            ToolFileMutation(
+              path: absolutePath,
+              contentHash: contentHash,
+              byteSize: newBytes.length,
+              changed: changed,
+            ),
+          ],
+        ),
+      );
     } on FileSystemException catch (error) {
-      return _buildFilesystemError(
-        path: file.absolute.path,
-        operation: 'write_file',
-        error: error,
+      return FirstPartyToolExecutionResult.payloadOnly(
+        _buildFilesystemError(
+          path: file.absolute.path,
+          operation: 'write_file',
+          error: error,
+        ),
       );
     }
   }
@@ -605,13 +694,29 @@ class FilesystemTools {
     required String oldText,
     required String newText,
     bool replaceAll = false,
+  }) async => (await editFileResult(
+    path: path,
+    oldText: oldText,
+    newText: newText,
+    replaceAll: replaceAll,
+  )).result;
+
+  static Future<FirstPartyToolExecutionResult> editFileResult({
+    required String path,
+    required String oldText,
+    required String newText,
+    bool replaceAll = false,
   }) async {
     final file = File(path);
     if (!file.existsSync()) {
-      return jsonEncode({'error': 'File does not exist: $path'});
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({'error': 'File does not exist: $path'}),
+      );
     }
     if (oldText.isEmpty) {
-      return jsonEncode({'error': 'old_text must not be empty'});
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({'error': 'old_text must not be empty'}),
+      );
     }
 
     try {
@@ -624,7 +729,29 @@ class FilesystemTools {
         replaceAll: replaceAll,
       );
       if (preconditionResult != null) {
-        return jsonEncode(preconditionResult);
+        final preconditionChanged = preconditionResult['changed'];
+        if (preconditionChanged is! bool) {
+          return FirstPartyToolExecutionResult.payloadOnly(
+            jsonEncode(preconditionResult),
+          );
+        }
+        final contentBytes = utf8.encode(content).length;
+        return FirstPartyToolExecutionResult(
+          result: jsonEncode(preconditionResult),
+          outcome: ToolOutcome(
+            fileMutations: [
+              ToolFileMutation(
+                path: file.absolute.path,
+                contentHash: await _contentHash(
+                  file.absolute.path,
+                  contentBytes,
+                ),
+                byteSize: contentBytes,
+                changed: preconditionChanged,
+              ),
+            ],
+          ),
+        );
       }
 
       final occurrences = _countOccurrences(content, oldText);
@@ -633,17 +760,32 @@ class FilesystemTools {
           : content.replaceFirst(oldText, newText);
       await file.writeAsString(updatedContent);
 
-      return jsonEncode({
-        'path': file.absolute.path,
-        'replacements': replaceAll ? occurrences : 1,
-        'replace_all': replaceAll,
-        'changed': true,
-      });
+      final updatedBytes = utf8.encode(updatedContent).length;
+      return FirstPartyToolExecutionResult(
+        result: jsonEncode({
+          'path': file.absolute.path,
+          'replacements': replaceAll ? occurrences : 1,
+          'replace_all': replaceAll,
+          'changed': true,
+        }),
+        outcome: ToolOutcome(
+          fileMutations: [
+            ToolFileMutation(
+              path: file.absolute.path,
+              contentHash: await _contentHash(file.absolute.path, updatedBytes),
+              byteSize: updatedBytes,
+              changed: true,
+            ),
+          ],
+        ),
+      );
     } on FileSystemException catch (error) {
-      return _buildFilesystemError(
-        path: file.absolute.path,
-        operation: 'edit_file',
-        error: error,
+      return FirstPartyToolExecutionResult.payloadOnly(
+        _buildFilesystemError(
+          path: file.absolute.path,
+          operation: 'edit_file',
+          error: error,
+        ),
       );
     }
   }

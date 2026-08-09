@@ -169,9 +169,12 @@ void main() {
       failed: 0,
       skipped: 0,
       outcome: const ToolOutcome(
-        testPassedCount: 3,
-        testFailedCount: 0,
-        testSkippedCount: 0,
+        testOutcome: ToolTestOutcome(
+          passedCount: 3,
+          failedCount: 0,
+          skippedCount: 0,
+          command: 'flutter test',
+        ),
       ),
     );
 
@@ -190,6 +193,7 @@ void main() {
     );
     expect(mismatch.hasMismatch, isTrue);
     expect(mismatch.mismatch?.actualPassedCount, 3);
+    expect(mismatch.mismatch?.command, 'flutter test');
   });
 
   test('uses complete typed counts even when evidence JSON is invalid', () {

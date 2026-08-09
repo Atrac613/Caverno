@@ -17,6 +17,9 @@ final class FileMutationEvidencePolicy {
   }
 
   bool isSuccessfulResult(ToolResultInfo toolResult) {
+    if (toolResult.outcome?.fileMutations.isNotEmpty == true) {
+      return true;
+    }
     final normalized = toolResult.result.trim().toLowerCase();
     if (normalized.isEmpty ||
         normalized.startsWith('error:') ||
@@ -60,6 +63,9 @@ final class FileMutationEvidencePolicy {
   }
 
   String? pathForResult(ToolResultInfo toolResult) =>
+      (toolResult.outcome?.fileMutations.length == 1
+          ? toolResult.outcome!.fileMutations.single.path
+          : null) ??
       resultPayloadPath(toolResult.result) ??
       argumentPath(toolResult.arguments);
 }

@@ -1103,11 +1103,20 @@ class ToolResultPromptBuilder {
     if (outcome.processState != null) {
       parts.add('process ${outcome.processState!.name}');
     }
-    if (outcome.fileChanged != null) {
-      parts.add(outcome.fileChanged! ? '1 file changed' : 'file unchanged');
+    final fileChanged = outcome.effectiveFileChanged;
+    if (fileChanged != null) {
+      final mutationCount = outcome.fileMutations.isEmpty
+          ? 1
+          : outcome.fileMutations.length;
+      parts.add(
+        fileChanged
+            ? '$mutationCount ${mutationCount == 1 ? 'file' : 'files'} changed'
+            : '${mutationCount == 1 ? 'file' : 'files'} unchanged',
+      );
     }
-    if (outcome.contentHash != null) {
-      final hash = outcome.contentHash!;
+    final contentHash = outcome.effectiveContentHash;
+    if (contentHash != null) {
+      final hash = contentHash;
       final displayHash = hash.length <= 20
           ? hash
           : '${hash.substring(0, 20)}…';
@@ -1127,10 +1136,13 @@ class ToolResultPromptBuilder {
     }
     if (outcome.hasCompleteTestCounts) {
       parts.add(
-        '${outcome.testPassedCount} tests passed · '
-        '${outcome.testFailedCount} failed · '
-        '${outcome.testSkippedCount} skipped',
+        '${outcome.effectiveTestPassedCount} tests passed · '
+        '${outcome.effectiveTestFailedCount} failed · '
+        '${outcome.effectiveTestSkippedCount} skipped',
       );
+      if (outcome.testOutcome case final testOutcome?) {
+        parts.add('command ${testOutcome.command}');
+      }
     }
     return parts.isEmpty ? null : parts.join(' · ');
   }

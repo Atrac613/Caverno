@@ -79,7 +79,7 @@ class ToolLoopContextDigest {
       bodies.add(result.result);
       hashesByLabel
           .putIfAbsent(label, () => <String?>[])
-          .add(result.outcome?.contentHash);
+          .add(result.outcome?.effectiveContentHash);
       lastSeen[label] = index++;
     }
     if (order.length < minEntries) {

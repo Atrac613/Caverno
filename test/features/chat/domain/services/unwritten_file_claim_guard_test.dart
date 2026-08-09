@@ -16,7 +16,9 @@ void main() {
       name: 'write_file',
       arguments: {'path': path},
       result: jsonEncode({'path': '$root/$path', 'bytes_written': 12}),
-      outcome: const ToolOutcome(fileChanged: true),
+      outcome: ToolOutcome(
+        fileMutations: [ToolFileMutation(path: '$root/$path', changed: true)],
+      ),
     );
   }
 
@@ -94,7 +96,11 @@ void main() {
             'bytes_written': 12,
             'changed': false,
           }),
-          outcome: const ToolOutcome(fileChanged: false),
+          outcome: ToolOutcome(
+            fileMutations: [
+              ToolFileMutation(path: '$root/lib/existing.dart', changed: false),
+            ],
+          ),
         ),
       ],
       projectRoot: root,
@@ -103,6 +109,31 @@ void main() {
 
     expect(assessment.claims, hasLength(1));
     expect(assessment.claims.single.exists, isTrue);
+  });
+
+  test('accepts every changed path in a rich mutation outcome', () {
+    final assessment = guard.assess(
+      candidateResponse:
+          '`lib/one.dart` was updated. `lib/two.dart` was created.',
+      toolResults: [
+        ToolResultInfo(
+          id: 'multi-file-mutation',
+          name: 'write_file',
+          arguments: const {},
+          result: 'opaque first-party result',
+          outcome: ToolOutcome(
+            fileMutations: [
+              ToolFileMutation(path: '$root/lib/one.dart', changed: true),
+              ToolFileMutation(path: '$root/lib/two.dart', changed: true),
+            ],
+          ),
+        ),
+      ],
+      projectRoot: root,
+      pathExists: (_) => true,
+    );
+
+    expect(assessment.hasClaims, isFalse);
   });
 
   test(

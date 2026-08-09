@@ -196,10 +196,12 @@ class CodingVerificationClaimGuard {
       return null;
     }
     return _VerificationEvidence(
-      passedCount: outcome.testPassedCount!,
-      failedCount: outcome.testFailedCount!,
-      skippedCount: outcome.testSkippedCount!,
-      command: payload == null ? null : _commandFromPayload(payload),
+      passedCount: outcome.effectiveTestPassedCount!,
+      failedCount: outcome.effectiveTestFailedCount!,
+      skippedCount: outcome.effectiveTestSkippedCount!,
+      command:
+          outcome.testOutcome?.command ??
+          (payload == null ? null : _commandFromPayload(payload)),
     );
   }
 

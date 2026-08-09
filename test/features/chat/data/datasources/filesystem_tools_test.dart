@@ -119,30 +119,22 @@ void main() {
     // edit -> re-read -> edit while the file never moves.
     final targetPath = '${tempDir.path}${Platform.pathSeparator}write.txt';
 
-    final created =
-        jsonDecode(
-              await FilesystemTools.writeFile(
-                path: targetPath,
-                content: 'hello world',
-              ),
-            )
-            as Map<String, dynamic>;
+    final createdExecution = await FilesystemTools.writeFileResult(
+      path: targetPath,
+      content: 'hello world',
+    );
+    final rewrittenExecution = await FilesystemTools.writeFileResult(
+      path: targetPath,
+      content: 'hello world',
+    );
+    final editedExecution = await FilesystemTools.writeFileResult(
+      path: targetPath,
+      content: 'hello there',
+    );
+    final created = jsonDecode(createdExecution.result) as Map<String, dynamic>;
     final rewritten =
-        jsonDecode(
-              await FilesystemTools.writeFile(
-                path: targetPath,
-                content: 'hello world',
-              ),
-            )
-            as Map<String, dynamic>;
-    final edited =
-        jsonDecode(
-              await FilesystemTools.writeFile(
-                path: targetPath,
-                content: 'hello there',
-              ),
-            )
-            as Map<String, dynamic>;
+        jsonDecode(rewrittenExecution.result) as Map<String, dynamic>;
+    final edited = jsonDecode(editedExecution.result) as Map<String, dynamic>;
 
     expect(created['created'], isTrue);
     expect(created['changed'], isTrue);
@@ -150,6 +142,12 @@ void main() {
     expect(rewritten['changed'], isFalse);
     expect(edited['changed'], isTrue);
     expect(rewritten['bytes_written'], created['bytes_written']);
+    expect(createdExecution.outcome?.effectiveFileChanged, isTrue);
+    expect(rewrittenExecution.outcome?.effectiveFileChanged, isFalse);
+    expect(
+      editedExecution.outcome?.fileMutations.single.contentHash,
+      isNotEmpty,
+    );
   });
 
   test('writeFile detects a same-length content change', () async {
@@ -385,38 +383,44 @@ void main() {
     file.createSync(recursive: true);
     file.writeAsStringSync('one\ntwo\nthree\nfour\n');
 
-    Future<Map<String, dynamic>> read({int offset = 1, int? limit}) async =>
-        jsonDecode(
-              await FilesystemTools.readFile(
-                path: targetPath,
-                offset: offset,
-                limit: limit,
-              ),
-            )
-            as Map<String, dynamic>;
+    Future<({Map<String, dynamic> payload, String? contentHash})> read({
+      int offset = 1,
+      int? limit,
+    }) async {
+      final execution = await FilesystemTools.readFileResult(
+        path: targetPath,
+        offset: offset,
+        limit: limit,
+      );
+      return (
+        payload: jsonDecode(execution.result) as Map<String, dynamic>,
+        contentHash: execution.outcome?.effectiveContentHash,
+      );
+    }
 
     final head = await read(offset: 1, limit: 2);
     final tail = await read(offset: 3, limit: 2);
 
-    expect(head['content'], isNot(tail['content']));
-    expect(head['content_hash'], isNotEmpty);
+    expect(head.payload['content'], isNot(tail.payload['content']));
+    expect(head.payload['content_hash'], isNotEmpty);
     expect(
-      head['content_hash'],
-      tail['content_hash'],
+      head.contentHash,
+      tail.contentHash,
       reason: 'different windows of an unchanged file share one identity',
     );
+    expect(head.contentHash, head.payload['content_hash']);
 
     file.writeAsStringSync('one\ntwo\nthree\nFIVE\n');
     final afterEdit = await read(offset: 1, limit: 2);
 
     expect(
-      afterEdit['content'],
-      head['content'],
+      afterEdit.payload['content'],
+      head.payload['content'],
       reason: 'the edit is outside this window, so the text is unchanged',
     );
     expect(
-      afterEdit['content_hash'],
-      isNot(head['content_hash']),
+      afterEdit.contentHash,
+      isNot(head.contentHash),
       reason: 'the hash sees the edit the window does not show',
     );
   });

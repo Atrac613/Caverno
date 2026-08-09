@@ -1557,9 +1557,12 @@ void main() {
           }),
           outcome: const ToolOutcome(
             exitCode: 0,
-            testPassedCount: 47,
-            testFailedCount: 0,
-            testSkippedCount: 2,
+            testOutcome: ToolTestOutcome(
+              passedCount: 47,
+              failedCount: 0,
+              skippedCount: 2,
+              command: 'flutter test',
+            ),
           ),
         ),
       ], summaryFirst: true);
@@ -1567,8 +1570,8 @@ void main() {
       expect(
         budgeted.single.result,
         startsWith(
-          'Outcome: exit 0 · 47 tests passed · 0 failed · 2 skipped\n'
-          'Raw result:\n',
+          'Outcome: exit 0 · 47 tests passed · 0 failed · 2 skipped · '
+          'command flutter test\nRaw result:\n',
         ),
       );
       expect(budgeted.single.result.length, lessThan(rawOutput.length));

@@ -4,15 +4,15 @@ import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/file_mutation_tool_handler.dart';
-import 'command_payload_facts.dart';
 import 'file_mutation_runtime_contract.dart';
 import 'file_rollback_checkpoint_store.dart';
 import 'filesystem_tools.dart';
+import 'first_party_tool_execution_result.dart';
 
 part 'built_in_filesystem_mutation_compensation.dart';
 
 typedef BuiltInFilesystemRawMutationRunner =
-    Future<String> Function({
+    Future<FirstPartyToolExecutionResult> Function({
       required String name,
       required Map<String, dynamic> arguments,
     });
@@ -78,12 +78,12 @@ final class BuiltInFilesystemMutationEffectBoundary {
         errorMessage: snapshot.isPathAlias ? message : null,
       );
     }
-    final payload = await _operationRunner(name: name, arguments: arguments);
-    final payloadSuccess = _isMutationPayloadSuccess(payload);
+    final execution = await _operationRunner(name: name, arguments: arguments);
+    final payloadSuccess = _isMutationPayloadSuccess(execution.result);
     if (payloadSuccess && owner != null) {
       _checkpointStore.push(owner, snapshot);
     }
-    return _resultForPayload(name, payload, payloadSuccess: payloadSuccess);
+    return _resultForExecution(name, execution, payloadSuccess: payloadSuccess);
   });
 
   Future<
@@ -229,10 +229,10 @@ final class BuiltInFilesystemMutationEffectBoundary {
         return acknowledgement;
       }
 
-      String? payload;
+      FirstPartyToolExecutionResult? execution;
       Object? operationError;
       try {
-        payload = await _operationRunner(
+        execution = await _operationRunner(
           name: identity.toolName,
           arguments: arguments,
         );
@@ -250,7 +250,7 @@ final class BuiltInFilesystemMutationEffectBoundary {
         final acknowledgement = FileMutationExecutionAcknowledgement(
           identity: identity,
           result: operationError == null
-              ? _resultForPayload(identity.toolName, payload!)
+              ? _resultForExecution(identity.toolName, execution!)
               : _rawFailure(
                   identity,
                   'The raw file mutation failed: $operationError',
@@ -280,12 +280,12 @@ final class BuiltInFilesystemMutationEffectBoundary {
         _checkpointStore.mutationPathFence.markHandoffReady(transaction);
         return acknowledgement;
       }
-      final payloadSuccess = _isMutationPayloadSuccess(payload!);
+      final payloadSuccess = _isMutationPayloadSuccess(execution!.result);
       final acknowledgement = FileMutationExecutionAcknowledgement(
         identity: identity,
-        result: _resultForPayload(
+        result: _resultForExecution(
           identity.toolName,
-          payload,
+          execution,
           payloadSuccess: payloadSuccess,
         ),
         effectDisposition: payloadSuccess
@@ -454,19 +454,20 @@ final class BuiltInFilesystemMutationEffectBoundary {
     };
   }
 
-  McpToolResult _resultForPayload(
+  McpToolResult _resultForExecution(
     String name,
-    String payload, {
+    FirstPartyToolExecutionResult execution, {
     bool? payloadSuccess,
   }) {
-    final succeeded = payloadSuccess ?? _isMutationPayloadSuccess(payload);
+    final succeeded =
+        payloadSuccess ?? _isMutationPayloadSuccess(execution.result);
     final resultSuccess = name == 'delete_file' ? succeeded : true;
     return McpToolResult(
       toolName: name,
-      result: payload,
+      result: execution.result,
       isSuccess: resultSuccess,
       errorMessage: resultSuccess ? null : 'Failed to delete file',
-      outcome: CommandPayloadFacts.mutationOutcome(payload),
+      outcome: execution.outcome,
     );
   }
 

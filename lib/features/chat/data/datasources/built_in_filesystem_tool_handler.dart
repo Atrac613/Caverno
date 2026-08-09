@@ -3,15 +3,21 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import 'built_in_filesystem_mutation_effect_boundary.dart';
 import 'file_rollback_checkpoint_store.dart';
 import 'built_in_filesystem_tool_definitions.dart';
-import 'command_payload_facts.dart';
 import 'file_mutation_runtime_contract.dart';
 import 'filesystem_tools.dart';
+import 'first_party_tool_execution_result.dart';
 import 'mcp_tool_result_normalizer.dart';
 
 part 'built_in_filesystem_mutation_runtime_facade.dart';
 
 typedef BuiltInFilesystemOperationRunner =
     Future<String> Function({
+      required String name,
+      required Map<String, dynamic> arguments,
+    });
+
+typedef BuiltInFilesystemOperationResultRunner =
+    Future<FirstPartyToolExecutionResult> Function({
       required String name,
       required Map<String, dynamic> arguments,
     });
@@ -23,10 +29,18 @@ typedef BuiltInFilesystemSnapshotReader =
 class BuiltInFilesystemToolHandler {
   BuiltInFilesystemToolHandler({
     BuiltInFilesystemOperationRunner? operationRunner,
+    BuiltInFilesystemOperationResultRunner? operationResultRunner,
     BuiltInFilesystemSnapshotReader? snapshotReader,
     BuiltInFilesystemMutationSnapshotRestorer? snapshotRestorer,
     FileRollbackCheckpointStore? checkpointStore,
-  }) : _operationRunner = operationRunner ?? _runFilesystemOperation,
+  }) : _operationResultRunner =
+           operationResultRunner ??
+           (operationRunner == null
+               ? _runFilesystemOperationResult
+               : ({required name, required arguments}) async =>
+                     FirstPartyToolExecutionResult.payloadOnly(
+                       await operationRunner(name: name, arguments: arguments),
+                     )),
        _snapshotReader = snapshotReader ?? FilesystemTools.captureTextSnapshot,
        _snapshotRestorer = snapshotRestorer,
        _checkpointStore = checkpointStore ?? FileRollbackCheckpointStore();
@@ -53,13 +67,13 @@ class BuiltInFilesystemToolHandler {
 
   static const Set<String> _toolNameSet = <String>{...toolNames};
 
-  final BuiltInFilesystemOperationRunner _operationRunner;
+  final BuiltInFilesystemOperationResultRunner _operationResultRunner;
   final BuiltInFilesystemSnapshotReader _snapshotReader;
   final BuiltInFilesystemMutationSnapshotRestorer? _snapshotRestorer;
   final FileRollbackCheckpointStore _checkpointStore;
   late final BuiltInFilesystemMutationEffectBoundary _mutationEffectBoundary =
       BuiltInFilesystemMutationEffectBoundary(
-        operationRunner: _operationRunner,
+        operationRunner: _operationResultRunner,
         snapshotReader: _snapshotReader,
         snapshotRestorer: _snapshotRestorer,
         checkpointStore: _checkpointStore,
@@ -100,7 +114,7 @@ class BuiltInFilesystemToolHandler {
         if (path.isEmpty) {
           return _validationFailure(name, 'path is required');
         }
-        final result = await _operationRunner(
+        final execution = await _operationResultRunner(
           name: name,
           arguments: <String, dynamic>{
             'path': path,
@@ -109,14 +123,19 @@ class BuiltInFilesystemToolHandler {
                 .clamp(1, 1000),
           },
         );
-        return McpToolResult(toolName: name, result: result, isSuccess: true);
+        return McpToolResult(
+          toolName: name,
+          result: execution.result,
+          isSuccess: true,
+          outcome: execution.outcome,
+        );
       case 'read_file':
         final path = (arguments['path'] as String?)?.trim() ?? '';
         if (path.isEmpty) {
           return _validationFailure(name, 'path is required');
         }
         final rawLimit = (arguments['limit'] as num?)?.toInt();
-        final result = await _operationRunner(
+        final execution = await _operationResultRunner(
           name: name,
           arguments: <String, dynamic>{
             'path': path,
@@ -128,19 +147,17 @@ class BuiltInFilesystemToolHandler {
             'limit': rawLimit?.clamp(1, 20000).toInt(),
           },
         );
-        // The read's whole-file hash is decoded once here, at the producer
-        // boundary, so no consumer has to recover it from the payload text.
         return McpToolResultNormalizer.success(
           toolName: name,
-          result: result,
-          outcome: CommandPayloadFacts.readOutcome(result),
+          result: execution.result,
+          outcome: execution.outcome,
         );
       case 'inspect_file':
         final path = (arguments['path'] as String?)?.trim() ?? '';
         if (path.isEmpty) {
           return _validationFailure(name, 'path is required');
         }
-        final result = await _operationRunner(
+        final execution = await _operationResultRunner(
           name: name,
           arguments: <String, dynamic>{
             'path': path,
@@ -152,14 +169,19 @@ class BuiltInFilesystemToolHandler {
                 .toInt(),
           },
         );
-        return McpToolResult(toolName: name, result: result, isSuccess: true);
+        return McpToolResult(
+          toolName: name,
+          result: execution.result,
+          isSuccess: true,
+          outcome: execution.outcome,
+        );
       case 'find_files':
         final path = (arguments['path'] as String?)?.trim() ?? '';
         final pattern = (arguments['pattern'] as String?)?.trim() ?? '';
         if (path.isEmpty || pattern.isEmpty) {
           return _validationFailure(name, 'path and pattern are required');
         }
-        final result = await _operationRunner(
+        final execution = await _operationResultRunner(
           name: name,
           arguments: <String, dynamic>{
             'path': path,
@@ -169,14 +191,19 @@ class BuiltInFilesystemToolHandler {
                 .clamp(1, 1000),
           },
         );
-        return McpToolResult(toolName: name, result: result, isSuccess: true);
+        return McpToolResult(
+          toolName: name,
+          result: execution.result,
+          isSuccess: true,
+          outcome: execution.outcome,
+        );
       case 'search_files':
         final path = (arguments['path'] as String?)?.trim() ?? '';
         final query = (arguments['query'] as String?)?.trim() ?? '';
         if (path.isEmpty || query.isEmpty) {
           return _validationFailure(name, 'path and query are required');
         }
-        final result = await _operationRunner(
+        final execution = await _operationResultRunner(
           name: name,
           arguments: <String, dynamic>{
             'path': path,
@@ -196,7 +223,12 @@ class BuiltInFilesystemToolHandler {
                 ?.toInt(),
           },
         );
-        return McpToolResult(toolName: name, result: result, isSuccess: true);
+        return McpToolResult(
+          toolName: name,
+          result: execution.result,
+          isSuccess: true,
+          outcome: execution.outcome,
+        );
       case 'write_file':
         final path = (arguments['path'] as String?)?.trim() ?? '';
         if (path.isEmpty) {
@@ -274,54 +306,62 @@ class BuiltInFilesystemToolHandler {
   static McpToolResult _validationFailure(String name, String message) =>
       McpToolResultNormalizer.failure(toolName: name, errorMessage: message);
 
-  static Future<String> _runFilesystemOperation({
+  static Future<FirstPartyToolExecutionResult> _runFilesystemOperationResult({
     required String name,
     required Map<String, dynamic> arguments,
-  }) => switch (name) {
-    'list_directory' => FilesystemTools.listDirectory(
-      path: arguments['path'] as String,
-      recursive: arguments['recursive'] as bool,
-      maxEntries: arguments['max_entries'] as int,
+  }) async => switch (name) {
+    'list_directory' => FirstPartyToolExecutionResult.payloadOnly(
+      await FilesystemTools.listDirectory(
+        path: arguments['path'] as String,
+        recursive: arguments['recursive'] as bool,
+        maxEntries: arguments['max_entries'] as int,
+      ),
     ),
-    'read_file' => FilesystemTools.readFile(
+    'read_file' => FilesystemTools.readFileResult(
       path: arguments['path'] as String,
       maxChars: arguments['max_chars'] as int,
       offset: arguments['offset'] as int,
       limit: arguments['limit'] as int?,
     ),
-    'inspect_file' => FilesystemTools.inspectFile(
-      path: arguments['path'] as String,
-      headLines: arguments['head_lines'] as int,
-      tailLines: arguments['tail_lines'] as int,
+    'inspect_file' => FirstPartyToolExecutionResult.payloadOnly(
+      await FilesystemTools.inspectFile(
+        path: arguments['path'] as String,
+        headLines: arguments['head_lines'] as int,
+        tailLines: arguments['tail_lines'] as int,
+      ),
     ),
-    'find_files' => FilesystemTools.findFiles(
-      path: arguments['path'] as String,
-      pattern: arguments['pattern'] as String,
-      recursive: arguments['recursive'] as bool,
-      maxResults: arguments['max_results'] as int,
+    'find_files' => FirstPartyToolExecutionResult.payloadOnly(
+      await FilesystemTools.findFiles(
+        path: arguments['path'] as String,
+        pattern: arguments['pattern'] as String,
+        recursive: arguments['recursive'] as bool,
+        maxResults: arguments['max_results'] as int,
+      ),
     ),
-    'search_files' => FilesystemTools.searchFiles(
-      path: arguments['path'] as String,
-      query: arguments['query'] as String,
-      filePattern: arguments['file_pattern'] as String?,
-      caseSensitive: arguments['case_sensitive'] as bool,
-      maxResults: arguments['max_results'] as int,
-      offset: arguments['offset'] as int,
-      maxLineLength: arguments['max_line_length'] as int,
-      maxBytesScanned: arguments['max_bytes_scanned'] as int?,
+    'search_files' => FirstPartyToolExecutionResult.payloadOnly(
+      await FilesystemTools.searchFiles(
+        path: arguments['path'] as String,
+        query: arguments['query'] as String,
+        filePattern: arguments['file_pattern'] as String?,
+        caseSensitive: arguments['case_sensitive'] as bool,
+        maxResults: arguments['max_results'] as int,
+        offset: arguments['offset'] as int,
+        maxLineLength: arguments['max_line_length'] as int,
+        maxBytesScanned: arguments['max_bytes_scanned'] as int?,
+      ),
     ),
-    'write_file' => FilesystemTools.writeFile(
+    'write_file' => FilesystemTools.writeFileResult(
       path: arguments['path'] as String,
       content: arguments['content'] as String,
       createParents: arguments['create_parents'] as bool,
     ),
-    'edit_file' => FilesystemTools.editFile(
+    'edit_file' => FilesystemTools.editFileResult(
       path: arguments['path'] as String,
       oldText: arguments['old_text'] as String,
       newText: arguments['new_text'] as String,
       replaceAll: arguments['replace_all'] as bool,
     ),
-    'delete_file' => FilesystemTools.deleteFile(
+    'delete_file' => FilesystemTools.deleteFileResult(
       path: arguments['path'] as String,
     ),
     _ => throw StateError('Unknown filesystem operation: $name'),
