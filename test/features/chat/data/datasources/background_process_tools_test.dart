@@ -7,6 +7,7 @@ import 'package:test/test.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
 import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 void main() {
   group('BackgroundProcessTools', () {
@@ -33,29 +34,32 @@ void main() {
     });
 
     test('starts a process and reports completion through wait', () async {
-      final started =
-          jsonDecode(
-                await tools.start(
-                  owner: owner,
-                  command: 'printf "ready\\n"',
-                  workingDirectory: tempDir.path,
-                  label: 'quick command',
-                ),
-              )
-              as Map<String, dynamic>;
+      final startExecution = await tools.startExecution(
+        owner: owner,
+        command: 'printf "ready\\n"',
+        workingDirectory: tempDir.path,
+        label: 'quick command',
+      );
+      final started = jsonDecode(startExecution.result) as Map<String, dynamic>;
 
       expect(started['ok'], isTrue);
       expect(started['status'], 'running');
+      expect(startExecution.outcome?.processState, ToolProcessState.running);
       final jobId = started['job_id'] as String;
 
-      final waited =
-          jsonDecode(await tools.wait(owner: owner, jobId: jobId, waitMs: 1000))
-              as Map<String, dynamic>;
+      final waitExecution = await tools.waitExecution(
+        owner: owner,
+        jobId: jobId,
+        waitMs: 1000,
+      );
+      final waited = jsonDecode(waitExecution.result) as Map<String, dynamic>;
 
       expect(waited['ok'], isTrue);
       expect(waited['status'], 'exited');
       expect(waited['exit_code'], 0);
       expect(waited['stdout_tail'], contains('ready'));
+      expect(waitExecution.outcome?.processState, ToolProcessState.exited);
+      expect(waitExecution.outcome?.exitCode, 0);
     });
 
     test('reuses an existing running job for the same command', () async {

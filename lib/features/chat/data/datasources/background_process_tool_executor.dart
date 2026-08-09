@@ -60,7 +60,7 @@ final class BackgroundProcessToolExecutor {
               errorMessage: message,
             );
     }
-    final result = await tools.start(
+    final result = await tools.startExecution(
       owner: owner,
       command: command,
       workingDirectory: workingDirectory,
@@ -100,22 +100,25 @@ final class BackgroundProcessToolExecutor {
       return _failure(name, 'job_id is required');
     }
     final result = switch (name) {
-      'process_status' => await _tools?.status(
+      'process_status' => await _tools?.statusExecution(
         owner: owner,
         jobId: jobId,
         tailChars: (arguments['tail_chars'] as num?)?.toInt(),
       ),
-      'process_tail' => await _tools?.tail(
+      'process_tail' => await _tools?.tailExecution(
         owner: owner,
         jobId: jobId,
         maxChars: (arguments['max_chars'] as num?)?.toInt(),
       ),
-      'process_wait' => await _tools?.wait(
+      'process_wait' => await _tools?.waitExecution(
         owner: owner,
         jobId: jobId,
         waitMs: (arguments['wait_ms'] as num?)?.toInt(),
       ),
-      'process_cancel' => await _tools?.cancel(owner: owner, jobId: jobId),
+      'process_cancel' => await _tools?.cancelExecution(
+        owner: owner,
+        jobId: jobId,
+      ),
       _ => throw ArgumentError.value(name, 'name', 'Unknown process tool'),
     };
     return result == null

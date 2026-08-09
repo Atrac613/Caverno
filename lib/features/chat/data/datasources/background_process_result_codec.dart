@@ -1,7 +1,10 @@
 part of 'background_process_tools.dart';
 
 extension _BackgroundProcessResultCodec on BackgroundProcessTools {
-  String _retiredStartResult(String command, String workingDirectory) => _error(
+  FirstPartyToolExecutionResult _retiredStartResult(
+    String command,
+    String workingDirectory,
+  ) => _error(
     'process_start_cancelled',
     command: command,
     workingDirectory: workingDirectory,
@@ -9,11 +12,11 @@ extension _BackgroundProcessResultCodec on BackgroundProcessTools {
         'The background process owner was cleared before startup completed.',
   );
 
-  String _unconfirmedStartResult(
+  FirstPartyToolExecutionResult _unconfirmedStartResult(
     _BackgroundProcessRecoveryRecord recovery,
     Object? startupError,
   ) {
-    return jsonEncode({
+    final payload = {
       ...recovery.job.toStatusJson(
         tailChars: BackgroundProcessTools._defaultTailChars,
       ),
@@ -25,59 +28,77 @@ extension _BackgroundProcessResultCodec on BackgroundProcessTools {
           startupError?.toString() ??
           'The process started after its owner retired and exact termination '
               'could not be confirmed.',
-    });
+    };
+    return _jobResult(recovery.job, payload);
   }
 
-  String _terminationUnconfirmedResult(
+  FirstPartyToolExecutionResult _terminationUnconfirmedResult(
     _BackgroundProcessRecoveryRecord recovery,
     String? message,
   ) {
-    return jsonEncode({
-      'ok': false,
-      'code': 'background_process_termination_unconfirmed',
-      ...recovery.receipt.toJson(),
-      'effect_uncertain': true,
-      'termination_unconfirmed': true,
-      'error':
-          message ??
-          'The background process did not confirm exact termination.',
-    });
+    return FirstPartyToolExecutionResult.payloadOnly(
+      jsonEncode({
+        'ok': false,
+        'code': 'background_process_termination_unconfirmed',
+        ...recovery.receipt.toJson(),
+        'effect_uncertain': true,
+        'termination_unconfirmed': true,
+        'error':
+            message ??
+            'The background process did not confirm exact termination.',
+      }),
+    );
   }
 
-  String _notFound(String jobId) => _error(
+  FirstPartyToolExecutionResult _notFound(String jobId) => _error(
     'job_not_found',
     jobId: jobId,
     message: 'No background process job exists for job_id: $jobId',
   );
 
-  String _error(
+  FirstPartyToolExecutionResult _error(
     String code, {
     String? jobId,
     String? command,
     String? workingDirectory,
     String? message,
   }) {
-    return jsonEncode({
-      'ok': false,
-      'code': code,
-      'job_id': ?jobId,
-      'command': ?command,
-      'working_directory': ?workingDirectory,
-      'error': ?message,
-    });
+    return FirstPartyToolExecutionResult.payloadOnly(
+      jsonEncode({
+        'ok': false,
+        'code': code,
+        'job_id': ?jobId,
+        'command': ?command,
+        'working_directory': ?workingDirectory,
+        'error': ?message,
+      }),
+    );
   }
 
-  String _statusResult(
+  FirstPartyToolExecutionResult _statusResult(
     _BackgroundProcessJob job,
     Map<String, dynamic> extra, {
     int tailChars = BackgroundProcessTools._defaultTailChars,
   }) {
-    return jsonEncode({
+    return _jobResult(job, {
       ...job.toStatusJson(tailChars: tailChars),
       'ok': true,
       ...extra,
     });
   }
+
+  FirstPartyToolExecutionResult _jobResult(
+    _BackgroundProcessJob job,
+    Map<String, dynamic> payload,
+  ) => FirstPartyToolExecutionResult(
+    result: jsonEncode(payload),
+    outcome: ToolOutcome(
+      processState: job.isRunning
+          ? ToolProcessState.running
+          : ToolProcessState.exited,
+      exitCode: job.exitCode,
+    ),
+  );
 
   String _newJobId(DateTime startedAt) =>
       'proc_${startedAt.microsecondsSinceEpoch}_${++_nextId}';

@@ -966,6 +966,21 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 
   @override
+  Future<FirstPartyToolExecutionResult> startExecution({
+    required ChatTurnOwner owner,
+    required String command,
+    required String workingDirectory,
+    String? label,
+  }) async => _execution(
+    await start(
+      owner: owner,
+      command: command,
+      workingDirectory: workingDirectory,
+      label: label,
+    ),
+  );
+
+  @override
   Future<String> status({
     required ChatTurnOwner owner,
     required String jobId,
@@ -975,6 +990,15 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     statusCalls.add((jobId: jobId, value: tailChars));
     return _ownerResult(owner, jobId, statusResult);
   }
+
+  @override
+  Future<FirstPartyToolExecutionResult> statusExecution({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? tailChars,
+  }) async => _execution(
+    await status(owner: owner, jobId: jobId, tailChars: tailChars),
+  );
 
   @override
   Future<String> tail({
@@ -988,6 +1012,14 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 
   @override
+  Future<FirstPartyToolExecutionResult> tailExecution({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? maxChars,
+  }) async =>
+      _execution(await tail(owner: owner, jobId: jobId, maxChars: maxChars));
+
+  @override
   Future<String> wait({
     required ChatTurnOwner owner,
     required String jobId,
@@ -999,6 +1031,14 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 
   @override
+  Future<FirstPartyToolExecutionResult> waitExecution({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? waitMs,
+  }) async =>
+      _execution(await wait(owner: owner, jobId: jobId, waitMs: waitMs));
+
+  @override
   Future<String> cancel({
     required ChatTurnOwner owner,
     required String jobId,
@@ -1007,6 +1047,12 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     cancelCalls.add(jobId);
     return _ownerResult(owner, jobId, cancelResult);
   }
+
+  @override
+  Future<FirstPartyToolExecutionResult> cancelExecution({
+    required ChatTurnOwner owner,
+    required String jobId,
+  }) async => _execution(await cancel(owner: owner, jobId: jobId));
 
   String _ownerResult(ChatTurnOwner owner, String jobId, String result) {
     if (visibleOwner == null || owner == visibleOwner) {
@@ -1018,6 +1064,33 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
       'job_id': jobId,
       'error': 'No background process job exists for job_id: $jobId',
     });
+  }
+
+  FirstPartyToolExecutionResult _execution(String result) {
+    Object? payload;
+    try {
+      payload = jsonDecode(result);
+    } on FormatException {
+      return FirstPartyToolExecutionResult.payloadOnly(result);
+    }
+    if (payload is! Map<String, dynamic> || payload['ok'] != true) {
+      return FirstPartyToolExecutionResult.payloadOnly(result);
+    }
+    final state = switch (payload['status']) {
+      'running' => ToolProcessState.running,
+      'exited' => ToolProcessState.exited,
+      _ => null,
+    };
+    final exitCode = payload['exit_code'];
+    return FirstPartyToolExecutionResult(
+      result: result,
+      outcome: state == null
+          ? null
+          : ToolOutcome(
+              processState: state,
+              exitCode: exitCode is num ? exitCode.toInt() : null,
+            ),
+    );
   }
 }
 

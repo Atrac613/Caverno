@@ -140,10 +140,10 @@ ToolOutcomeShadowRecord compareToolOutcomeExitCode({
 /// The exit status a command payload carries as text, independent of whatever
 /// the producer chose to report.
 ///
-/// Deliberately not `CommandPayloadFacts`: that is the producer, and comparing
-/// it with itself would answer nothing. The point is to find where the two
-/// diverge — notably that the producer suppresses the status entirely when the
-/// invocation reported an error, while the text still carries one.
+/// Deliberately independent from first-party producers: comparing a producer
+/// with itself would answer nothing. The point is to find where the typed and
+/// lexical contracts diverge, including results that never reached a process
+/// exit even when their compatibility payload carries a synthetic status.
 int? parseExitCodeFromPayload(String payload) {
   try {
     final decoded = jsonDecode(payload);

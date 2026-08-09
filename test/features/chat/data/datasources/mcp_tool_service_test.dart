@@ -13,6 +13,7 @@ import 'package:caverno/core/services/ssh_service.dart';
 import 'package:caverno/core/services/wifi_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_monitor_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
+import 'package:caverno/features/chat/data/datasources/first_party_tool_execution_result.dart';
 import 'package:caverno/features/chat/data/datasources/built_in_ble_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/built_in_browser_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/built_in_computer_use_tool_handler.dart';
@@ -176,6 +177,21 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 
   @override
+  Future<FirstPartyToolExecutionResult> startExecution({
+    required ChatTurnOwner owner,
+    required String command,
+    required String workingDirectory,
+    String? label,
+  }) async => FirstPartyToolExecutionResult.payloadOnly(
+    await start(
+      owner: owner,
+      command: command,
+      workingDirectory: workingDirectory,
+      label: label,
+    ),
+  );
+
+  @override
   bool get isSupported => true;
 
   @override
@@ -195,6 +211,15 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 
   @override
+  Future<FirstPartyToolExecutionResult> statusExecution({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? tailChars,
+  }) async => FirstPartyToolExecutionResult.payloadOnly(
+    await status(owner: owner, jobId: jobId, tailChars: tailChars),
+  );
+
+  @override
   Future<String> tail({
     required ChatTurnOwner owner,
     required String jobId,
@@ -209,6 +234,15 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
           'error': 'No background process job exists for job_id: $jobId',
         });
   }
+
+  @override
+  Future<FirstPartyToolExecutionResult> tailExecution({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? maxChars,
+  }) async => FirstPartyToolExecutionResult.payloadOnly(
+    await tail(owner: owner, jobId: jobId, maxChars: maxChars),
+  );
 
   @override
   Future<String> wait({
@@ -227,6 +261,15 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   }
 
   @override
+  Future<FirstPartyToolExecutionResult> waitExecution({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? waitMs,
+  }) async => FirstPartyToolExecutionResult.payloadOnly(
+    await wait(owner: owner, jobId: jobId, waitMs: waitMs),
+  );
+
+  @override
   Future<String> cancel({
     required ChatTurnOwner owner,
     required String jobId,
@@ -240,6 +283,14 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
           'error': 'No background process job exists for job_id: $jobId',
         });
   }
+
+  @override
+  Future<FirstPartyToolExecutionResult> cancelExecution({
+    required ChatTurnOwner owner,
+    required String jobId,
+  }) async => FirstPartyToolExecutionResult.payloadOnly(
+    await cancel(owner: owner, jobId: jobId),
+  );
 
   @override
   Future<void> clearOwner({required ChatTurnOwner owner}) async {

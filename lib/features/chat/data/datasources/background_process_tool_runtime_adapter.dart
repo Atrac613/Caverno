@@ -5,7 +5,6 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/services/background_process_tool_handler.dart';
 import '../../domain/services/local_command_tool_handler.dart';
 import 'background_process_tools.dart';
-import 'command_payload_facts.dart';
 import 'mcp_tool_result_normalizer.dart';
 
 /// Adapts owner-scoped process storage to the extracted handler contracts.
@@ -20,13 +19,13 @@ final class BackgroundProcessToolRuntimeAdapter
     ChatTurnOwner owner,
     LocalCommandExecutionRequest operation,
   ) async {
-    final raw = await _tools.start(
+    final execution = await _tools.startExecution(
       owner: owner,
       command: operation.command,
       workingDirectory: operation.workingDirectory,
       label: (operation.arguments['label'] as String?)?.trim(),
     );
-    final payload = _decode(raw);
+    final payload = _decode(execution.result);
     final terminationUnconfirmed =
         payload?['termination_unconfirmed'] == true &&
         _nonEmptyString(payload?['recovery_token']) != null;
@@ -50,8 +49,8 @@ final class BackgroundProcessToolRuntimeAdapter
           );
     final result = McpToolResultNormalizer.success(
       toolName: operation.toolName,
-      result: raw,
-      outcome: CommandPayloadFacts.backgroundProcessOutcome(raw),
+      result: execution.result,
+      outcome: execution.outcome,
     );
     return LocalCommandCompletion.completed(
       owner: owner,
@@ -80,13 +79,13 @@ final class BackgroundProcessToolRuntimeAdapter
         identity.backendProcessId.trim().isEmpty) {
       throw StateError('Background process cancellation identity is invalid.');
     }
-    final raw = await _tools.cancelExact(
+    final execution = await _tools.cancelExactExecution(
       owner: owner,
       jobId: identity.externalProcessId,
       processId: processId,
       requireTermination: requireTermination,
     );
-    final payload = _decode(raw);
+    final payload = _decode(execution.result);
     if (requireTermination && payload?['termination_unconfirmed'] == true) {
       throw StateError(
         'Background process exact termination remains unconfirmed.',
@@ -103,8 +102,8 @@ final class BackgroundProcessToolRuntimeAdapter
       toolCallId: toolCallId,
       value: McpToolResultNormalizer.success(
         toolName: 'process_cancel',
-        result: raw,
-        outcome: CommandPayloadFacts.backgroundProcessOutcome(raw),
+        result: execution.result,
+        outcome: execution.outcome,
       ),
     );
   }

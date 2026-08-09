@@ -3,8 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../../domain/entities/chat_turn_owner.dart';
 import 'local_shell_tools.dart';
+import 'first_party_tool_execution_result.dart';
 
 part 'background_process_job.dart';
 part 'background_process_launch_recovery.dart';
@@ -56,6 +59,18 @@ class BackgroundProcessTools {
     required String command,
     required String workingDirectory,
     String? label,
+  }) async => (await startExecution(
+    owner: owner,
+    command: command,
+    workingDirectory: workingDirectory,
+    label: label,
+  )).result;
+
+  Future<FirstPartyToolExecutionResult> startExecution({
+    required ChatTurnOwner owner,
+    required String command,
+    required String workingDirectory,
+    String? label,
   }) async {
     if (_disposed) {
       return _error(
@@ -84,7 +99,9 @@ class BackgroundProcessTools {
       command: normalizedCommand,
       workingDirectory: cwd,
     );
-    if (gitWriteBlockedResult != null) return gitWriteBlockedResult;
+    if (gitWriteBlockedResult != null) {
+      return FirstPartyToolExecutionResult.payloadOnly(gitWriteBlockedResult);
+    }
 
     final state = _ownerStates.putIfAbsent(owner, _OwnerProcessState.new);
     final existing = _runningJobFor(state, normalizedCommand, cwd);
@@ -182,6 +199,16 @@ class BackgroundProcessTools {
     required ChatTurnOwner owner,
     required String jobId,
     int? tailChars,
+  }) async => (await statusExecution(
+    owner: owner,
+    jobId: jobId,
+    tailChars: tailChars,
+  )).result;
+
+  Future<FirstPartyToolExecutionResult> statusExecution({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? tailChars,
   }) async {
     return _withJob(
       owner,
@@ -198,10 +225,20 @@ class BackgroundProcessTools {
     required ChatTurnOwner owner,
     required String jobId,
     int? maxChars,
+  }) async => (await tailExecution(
+    owner: owner,
+    jobId: jobId,
+    maxChars: maxChars,
+  )).result;
+
+  Future<FirstPartyToolExecutionResult> tailExecution({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? maxChars,
   }) async {
     return _withJob(owner, jobId, (job) {
       final tailChars = _normalizeTailChars(maxChars);
-      return jsonEncode({
+      return _jobResult(job, {
         'ok': true,
         'job_id': job.id,
         'status': job.status,
@@ -214,6 +251,13 @@ class BackgroundProcessTools {
   }
 
   Future<String> wait({
+    required ChatTurnOwner owner,
+    required String jobId,
+    int? waitMs,
+  }) async =>
+      (await waitExecution(owner: owner, jobId: jobId, waitMs: waitMs)).result;
+
+  Future<FirstPartyToolExecutionResult> waitExecution({
     required ChatTurnOwner owner,
     required String jobId,
     int? waitMs,
@@ -235,6 +279,11 @@ class BackgroundProcessTools {
   }
 
   Future<String> cancel({
+    required ChatTurnOwner owner,
+    required String jobId,
+  }) async => (await cancelExecution(owner: owner, jobId: jobId)).result;
+
+  Future<FirstPartyToolExecutionResult> cancelExecution({
     required ChatTurnOwner owner,
     required String jobId,
   }) async {
@@ -354,6 +403,18 @@ class BackgroundProcessTools {
     required String jobId,
     required int processId,
     bool requireTermination = false,
+  }) async => (await cancelExactExecution(
+    owner: owner,
+    jobId: jobId,
+    processId: processId,
+    requireTermination: requireTermination,
+  )).result;
+
+  Future<FirstPartyToolExecutionResult> cancelExactExecution({
+    required ChatTurnOwner owner,
+    required String jobId,
+    required int processId,
+    bool requireTermination = false,
   }) async {
     final job = _jobFor(owner, jobId);
     if (job == null) {
@@ -422,10 +483,10 @@ class BackgroundProcessTools {
     );
   }
 
-  String _withJob(
+  FirstPartyToolExecutionResult _withJob(
     ChatTurnOwner owner,
     String jobId,
-    String Function(_BackgroundProcessJob job) found,
+    FirstPartyToolExecutionResult Function(_BackgroundProcessJob job) found,
   ) {
     final job = _jobFor(owner, jobId);
     return job == null ? _notFound(jobId) : found(job);
