@@ -4531,22 +4531,23 @@ class ChatNotifier extends Notifier<ChatState> {
 
   bool get _supportsToolAwareRequests => true;
 
+  bool get _summaryFirstToolResultsEnabled =>
+      _settings.effectiveModelHarnessConfig?.summaryFirstToolResultsEnabled ??
+      false;
+
   List<ToolResultInfo> _budgetToolResultsForPrompt(
     List<ToolResultInfo> toolResults, {
     ToolResultPromptBudgetMode mode = ToolResultPromptBudgetMode.normal,
     required Set<String> protectedPaths,
     required ChatTurnOwner? observationOwner,
   }) {
-    final summaryFirst =
-        _settings.effectiveModelHarnessConfig?.summaryFirstToolResultsEnabled ??
-        false;
     final budgetedToolResults = ToolResultPromptBuilder.budgetToolResults(
       toolResults,
       mode: mode,
       protectedPaths: mode == ToolResultPromptBudgetMode.compact
           ? protectedPaths
           : const <String>{},
-      summaryFirst: summaryFirst,
+      summaryFirst: _summaryFirstToolResultsEnabled,
     );
     if (observationOwner != null) {
       _updateContextSurgeryObservation(
@@ -4560,16 +4561,11 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _hasAdditionalCompactToolResultBudget(
     List<ToolResultInfo> toolResults, {
     required Set<String> protectedPaths,
-  }) {
-    final summaryFirst =
-        _settings.effectiveModelHarnessConfig?.summaryFirstToolResultsEnabled ??
-        false;
-    return ToolResultPromptBuilder.hasAdditionalCompactBudgetReduction(
-      toolResults,
-      protectedPaths: protectedPaths,
-      summaryFirst: summaryFirst,
-    );
-  }
+  }) => ToolResultPromptBuilder.hasAdditionalCompactBudgetReduction(
+    toolResults,
+    protectedPaths: protectedPaths,
+    summaryFirst: _summaryFirstToolResultsEnabled,
+  );
 
   /// Resolves only the registered owner; visible state is unsafe for an
   /// untracked or background generation.

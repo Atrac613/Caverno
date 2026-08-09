@@ -54,19 +54,18 @@ abstract final class McpToolResultNormalizer {
     bool isExternalMcpResult = false,
   }) {
     final decoded = _tryDecodeMap(result);
-    if (decoded == null || decoded['ok'] != false) {
-      return success(
-        toolName: toolName,
-        result: result,
-        isExternalMcpResult: isExternalMcpResult,
-      );
-    }
-    return failure(
-      toolName: toolName,
-      result: result,
-      errorMessage: decoded['error'] as String? ?? fallbackErrorMessage,
-      isExternalMcpResult: isExternalMcpResult,
-    );
+    return decoded == null || decoded['ok'] != false
+        ? success(
+            toolName: toolName,
+            result: result,
+            isExternalMcpResult: isExternalMcpResult,
+          )
+        : failure(
+            toolName: toolName,
+            result: result,
+            errorMessage: decoded['error'] as String? ?? fallbackErrorMessage,
+            isExternalMcpResult: isExternalMcpResult,
+          );
   }
 
   static McpToolResult fromFirstPartyExecution({
@@ -74,22 +73,20 @@ abstract final class McpToolResultNormalizer {
     required FirstPartyToolExecutionResult execution,
     bool isExternalMcpResult = false,
   }) {
-    final errorMessage = execution.errorMessage;
-    if (errorMessage == null) {
-      return success(
-        toolName: toolName,
-        result: execution.result,
-        isExternalMcpResult: isExternalMcpResult,
-        outcome: execution.outcome,
-      );
-    }
-    return failure(
-      toolName: toolName,
-      result: execution.result,
-      errorMessage: errorMessage,
-      isExternalMcpResult: isExternalMcpResult,
-      outcome: execution.outcome,
-    );
+    return execution.errorMessage == null
+        ? success(
+            toolName: toolName,
+            result: execution.result,
+            isExternalMcpResult: isExternalMcpResult,
+            outcome: execution.outcome,
+          )
+        : failure(
+            toolName: toolName,
+            result: execution.result,
+            errorMessage: execution.errorMessage!,
+            isExternalMcpResult: isExternalMcpResult,
+            outcome: execution.outcome,
+          );
   }
 
   static Map<String, dynamic>? _tryDecodeMap(String payload) {

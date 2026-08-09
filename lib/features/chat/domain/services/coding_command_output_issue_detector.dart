@@ -3,54 +3,11 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
+import 'coding_command_output_issue.dart';
 import 'coding_command_preflight_issue_detector.dart';
 import 'tool_outcome_shadow_comparison.dart';
 
-class CodingCommandOutputIssue {
-  const CodingCommandOutputIssue({
-    required this.toolName,
-    required this.command,
-    required this.workingDirectory,
-    required this.exitCode,
-    required this.exitCodeSource,
-    required this.source,
-    required this.summary,
-    required this.excerpt,
-  });
-
-  final String toolName;
-  final String command;
-  final String workingDirectory;
-  final int exitCode;
-  final ToolOutcomeVerdictSource exitCodeSource;
-  final String source;
-  final String summary;
-  final String excerpt;
-
-  String get signature {
-    return jsonEncode({
-      'tool_name': toolName,
-      'command': command,
-      'working_directory': workingDirectory,
-      'source': source,
-      'summary': summary,
-      'excerpt': excerpt,
-    });
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'tool_name': toolName,
-      'command': command,
-      'working_directory': workingDirectory,
-      'exit_code': exitCode,
-      'exit_code_source': exitCodeSource.name,
-      'source': source,
-      'summary': summary,
-      'excerpt': excerpt,
-    };
-  }
-}
+export 'coding_command_output_issue.dart' show CodingCommandOutputIssue;
 
 /// Detects failure evidence in decoded command results.
 class CodingCommandOutputIssueDetector {

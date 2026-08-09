@@ -6,32 +6,25 @@ import 'dart:math';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../domain/entities/chat_turn_owner.dart';
-import 'local_shell_tools.dart';
+import 'background_process_tools_legacy_api.dart';
+import 'background_process_types.dart';
 import 'first_party_tool_execution_result.dart';
+import 'local_shell_tools.dart';
+
+export 'background_process_tools_legacy_api.dart';
+export 'background_process_types.dart'
+    show BackgroundProcessRuntimeIdentity, BackgroundProcessStarter;
 
 part 'background_process_job.dart';
 part 'background_process_launch_recovery.dart';
 part 'background_process_recovery_registry.dart';
 part 'background_process_result_codec.dart';
 
-typedef BackgroundProcessStarter =
-    Future<Process> Function(
-      String executable,
-      List<String> arguments,
-      String workingDirectory,
-    );
-
-typedef BackgroundProcessRuntimeIdentity = ({
-  String jobId,
-  int processId,
-  bool isRunning,
-});
-
-class BackgroundProcessTools {
+class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
   BackgroundProcessTools({
     BackgroundProcessStarter? processStarter,
     BackgroundProcessTerminator? processTerminator,
-  }) : _processStarter = processStarter ?? _defaultProcessStarter,
+  }) : _processStarter = processStarter ?? startBackgroundProcess,
        _processTerminator =
            processTerminator ?? _defaultBackgroundProcessTerminator;
 
@@ -54,18 +47,7 @@ class BackgroundProcessTools {
 
   bool get isSupported => LocalShellTools.isDesktopPlatform;
 
-  Future<String> start({
-    required ChatTurnOwner owner,
-    required String command,
-    required String workingDirectory,
-    String? label,
-  }) async => (await startExecution(
-    owner: owner,
-    command: command,
-    workingDirectory: workingDirectory,
-    label: label,
-  )).result;
-
+  @override
   Future<FirstPartyToolExecutionResult> startExecution({
     required ChatTurnOwner owner,
     required String command,
@@ -195,16 +177,7 @@ class BackgroundProcessTools {
     return _unconfirmedStartResult(recovery, attachmentError);
   }
 
-  Future<String> status({
-    required ChatTurnOwner owner,
-    required String jobId,
-    int? tailChars,
-  }) async => (await statusExecution(
-    owner: owner,
-    jobId: jobId,
-    tailChars: tailChars,
-  )).result;
-
+  @override
   Future<FirstPartyToolExecutionResult> statusExecution({
     required ChatTurnOwner owner,
     required String jobId,
@@ -221,16 +194,7 @@ class BackgroundProcessTools {
     );
   }
 
-  Future<String> tail({
-    required ChatTurnOwner owner,
-    required String jobId,
-    int? maxChars,
-  }) async => (await tailExecution(
-    owner: owner,
-    jobId: jobId,
-    maxChars: maxChars,
-  )).result;
-
+  @override
   Future<FirstPartyToolExecutionResult> tailExecution({
     required ChatTurnOwner owner,
     required String jobId,
@@ -250,13 +214,7 @@ class BackgroundProcessTools {
     });
   }
 
-  Future<String> wait({
-    required ChatTurnOwner owner,
-    required String jobId,
-    int? waitMs,
-  }) async =>
-      (await waitExecution(owner: owner, jobId: jobId, waitMs: waitMs)).result;
-
+  @override
   Future<FirstPartyToolExecutionResult> waitExecution({
     required ChatTurnOwner owner,
     required String jobId,
@@ -278,11 +236,7 @@ class BackgroundProcessTools {
         : _notFound(jobId);
   }
 
-  Future<String> cancel({
-    required ChatTurnOwner owner,
-    required String jobId,
-  }) async => (await cancelExecution(owner: owner, jobId: jobId)).result;
-
+  @override
   Future<FirstPartyToolExecutionResult> cancelExecution({
     required ChatTurnOwner owner,
     required String jobId,
@@ -398,18 +352,7 @@ class BackgroundProcessTools {
     });
   }
 
-  Future<String> cancelExact({
-    required ChatTurnOwner owner,
-    required String jobId,
-    required int processId,
-    bool requireTermination = false,
-  }) async => (await cancelExactExecution(
-    owner: owner,
-    jobId: jobId,
-    processId: processId,
-    requireTermination: requireTermination,
-  )).result;
-
+  @override
   Future<FirstPartyToolExecutionResult> cancelExactExecution({
     required ChatTurnOwner owner,
     required String jobId,
@@ -517,16 +460,4 @@ class BackgroundProcessTools {
       !_retiredOwners.contains(owner) &&
       !state.retired &&
       identical(_ownerStates[owner], state);
-
-  static Future<Process> _defaultProcessStarter(
-    String executable,
-    List<String> arguments,
-    String workingDirectory,
-  ) {
-    return Process.start(
-      executable,
-      arguments,
-      workingDirectory: workingDirectory,
-    );
-  }
 }

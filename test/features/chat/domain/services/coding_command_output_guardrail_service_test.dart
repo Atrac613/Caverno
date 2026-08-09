@@ -39,7 +39,7 @@ void main() {
       );
     });
 
-    test('keeps feedback JSON byte-compatible', () {
+    test('records lexical verdict provenance in feedback JSON', () {
       final result = _commandResult(
         id: 'call-1',
         command: 'python3 get_weather.py',
@@ -55,6 +55,7 @@ void main() {
         'command': 'python3 get_weather.py',
         'working_directory': '/tmp/weather',
         'exit_code': 0,
+        'exit_code_source': 'lexicalFallback',
         'source': 'stdout',
         'summary': 'Output contains a Markdown error heading.',
         'excerpt': '# Error\nrequired artifact is missing',

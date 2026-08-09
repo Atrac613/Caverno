@@ -1,20 +1,21 @@
 import 'dart:convert';
 
 import '../entities/tool_call_info.dart';
+import 'file_mutation_evidence_path_resolver.dart';
 
 /// Classifies file-mutation evidence without relying on notifier state.
 final class FileMutationEvidencePolicy {
   const FileMutationEvidencePolicy();
 
-  bool isMutationToolName(String toolName) {
-    switch (toolName.trim().toLowerCase()) {
-      case 'write_file':
-      case 'edit_file' || 'delete_file':
-      case 'rollback_last_file_change':
-        return true;
-    }
-    return false;
-  }
+  static const _mutationToolNames = {
+    'write_file',
+    'edit_file',
+    'delete_file',
+    'rollback_last_file_change',
+  };
+
+  bool isMutationToolName(String toolName) =>
+      _mutationToolNames.contains(toolName.trim().toLowerCase());
 
   bool isSuccessfulResult(ToolResultInfo toolResult) {
     if (toolResult.outcome?.fileMutations.isNotEmpty == true) {
@@ -43,29 +44,12 @@ final class FileMutationEvidencePolicy {
     }
   }
 
-  String? resultPayloadPath(String result) {
-    try {
-      final decoded = jsonDecode(result);
-      if (decoded is Map<String, dynamic>) {
-        final path = decoded['path'];
-        if (path is String && path.trim().isNotEmpty) return path.trim();
-      }
-    } catch (_) {}
-    return null;
-  }
+  String? resultPayloadPath(String result) =>
+      FileMutationEvidencePathResolver.resultPayloadPath(result);
 
-  String? argumentPath(Object? arguments) {
-    if (arguments is! Map) return null;
-    final rawPath = arguments['path'];
-    if (rawPath is! String) return null;
-    final path = rawPath.trim();
-    return path.isEmpty ? null : path;
-  }
+  String? argumentPath(Object? arguments) =>
+      FileMutationEvidencePathResolver.argumentPath(arguments);
 
-  String? pathForResult(ToolResultInfo toolResult) =>
-      (toolResult.outcome?.fileMutations.length == 1
-          ? toolResult.outcome!.fileMutations.single.path
-          : null) ??
-      resultPayloadPath(toolResult.result) ??
-      argumentPath(toolResult.arguments);
+  String? pathForResult(ToolResultInfo result) =>
+      FileMutationEvidencePathResolver.pathForResult(result);
 }

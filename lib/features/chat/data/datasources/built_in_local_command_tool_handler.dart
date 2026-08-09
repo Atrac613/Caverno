@@ -3,22 +3,13 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import 'background_process_monitor_service.dart';
 import 'background_process_tool_executor.dart';
 import 'background_process_tools.dart';
+import 'built_in_local_command_runner.dart';
 import 'built_in_local_command_tool_definitions.dart';
-import 'first_party_tool_execution_result.dart';
 import 'local_shell_tools.dart';
 import 'mcp_tool_result_normalizer.dart';
 
-typedef BuiltInLocalCommandRunner =
-    Future<String> Function({
-      required String command,
-      required String workingDirectory,
-    });
-
-typedef BuiltInLocalCommandResultRunner =
-    Future<FirstPartyToolExecutionResult> Function({
-      required String command,
-      required String workingDirectory,
-    });
+export 'built_in_local_command_runner.dart'
+    show BuiltInLocalCommandResultRunner, BuiltInLocalCommandRunner;
 
 /// Owns the built-in local command definitions and direct execution contract.
 class BuiltInLocalCommandToolHandler {
@@ -33,17 +24,10 @@ class BuiltInLocalCommandToolHandler {
          monitor: backgroundProcessMonitorService,
          clock: clock,
        ),
-       _foregroundCommandResultRunner =
-           foregroundCommandResultRunner ??
-           (foregroundCommandRunner == null
-               ? LocalShellTools.executeResult
-               : ({required command, required workingDirectory}) async =>
-                     FirstPartyToolExecutionResult.payloadOnly(
-                       await foregroundCommandRunner(
-                         command: command,
-                         workingDirectory: workingDirectory,
-                       ),
-                     ));
+       _foregroundCommandResultRunner = resolveBuiltInLocalCommandResultRunner(
+         legacyRunner: foregroundCommandRunner,
+         resultRunner: foregroundCommandResultRunner,
+       );
 
   static const List<String> toolNames = <String>[
     'local_execute_command',

@@ -227,6 +227,21 @@ class ToolCallExecutionPolicy {
     ).hasMatch(result.result);
   }
 
+  bool toolResultHasFailedExit(ToolResultInfo result) {
+    if (!isCommandExecutionTool(result.name)) return false;
+    final outcome = result.outcome;
+    if (outcome?.processState != null) {
+      return outcome!.isProcessTerminal && outcome.hasFailingExitCode;
+    }
+    if (outcome?.exitCode != null) return outcome!.hasFailingExitCode;
+    final exitCode = toolResultExitCode(result).exitCode;
+    if (exitCode != null) return exitCode != 0;
+    return RegExp(
+      r'^exit_code:\s*(?!0\s*$)-?\d+\s*$',
+      multiLine: true,
+    ).hasMatch(result.result);
+  }
+
   ToolOutcomeExitCodeResolution toolResultExitCode(ToolResultInfo result) {
     final outcome = result.outcome;
     if (outcome?.exitCode != null) {

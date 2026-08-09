@@ -7,9 +7,9 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 export 'filesystem_text_snapshot.dart';
 
 import 'filesystem_diff_builder.dart';
-import 'edit_anchor_failure_builder.dart';
 import 'filesystem_overview_format.dart';
 import 'filesystem_path_resolver.dart';
+import 'filesystem_mutation_operations.dart';
 import 'filesystem_text_snapshot.dart';
 import 'first_party_tool_execution_result.dart';
 
@@ -69,6 +69,10 @@ class FilesystemTools {
 
   static const int _maxEntries = 300;
   static const int _maxSearchResults = 200;
+  static final _mutationOperations = FilesystemMutationOperations(
+    contentHash: _contentHash,
+    buildError: _buildFilesystemError,
+  );
   static bool get isDesktopPlatform =>
       Platform.isMacOS || Platform.isLinux || Platform.isWindows;
 
@@ -76,14 +80,6 @@ class FilesystemTools {
   /// outside this file resolve paths through the tool surface.
   static String? resolvePath(String? rawPath, {String? defaultRoot}) =>
       FilesystemPathResolver.resolve(rawPath, defaultRoot: defaultRoot);
-
-  static bool _bytesEqual(List<int> a, List<int> b) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
 
   static Future<String> listDirectory({
     required String path,
@@ -290,52 +286,7 @@ class FilesystemTools {
 
   static Future<FirstPartyToolExecutionResult> deleteFileResult({
     required String path,
-  }) async {
-    final type = await FileSystemEntity.type(path, followLinks: false);
-    if (type == FileSystemEntityType.notFound) {
-      return FirstPartyToolExecutionResult.payloadOnly(
-        jsonEncode({'error': 'File does not exist: $path'}),
-      );
-    }
-    if (type != FileSystemEntityType.file) {
-      return FirstPartyToolExecutionResult.payloadOnly(
-        jsonEncode({
-          'error': 'delete_file supports regular files only.',
-          'path': File(path).absolute.path,
-        }),
-      );
-    }
-    final snapshot = await captureTextSnapshot(path);
-    if (snapshot.error != null) {
-      return FirstPartyToolExecutionResult.payloadOnly(
-        jsonEncode({
-          'error':
-              'delete_file requires a readable UTF-8 text file so the change can be rolled back.',
-          'path': File(path).absolute.path,
-        }),
-      );
-    }
-    try {
-      final absolutePath = File(path).absolute.path;
-      await File(path).delete();
-      return FirstPartyToolExecutionResult(
-        result: jsonEncode({'deleted': true, 'path': absolutePath}),
-        outcome: ToolOutcome(
-          fileMutations: [
-            ToolFileMutation(path: absolutePath, byteSize: 0, changed: true),
-          ],
-        ),
-      );
-    } on FileSystemException catch (error) {
-      return FirstPartyToolExecutionResult.payloadOnly(
-        _buildFilesystemError(
-          path: File(path).absolute.path,
-          operation: 'delete_file',
-          error: error,
-        ),
-      );
-    }
-  }
+  }) => _mutationOperations.deleteFileResult(path: path);
 
   /// Cheap overview of a (potentially huge) text file without reading it all.
   ///
@@ -634,60 +585,11 @@ class FilesystemTools {
     required String path,
     required String content,
     bool createParents = true,
-  }) async {
-    final file = File(path);
-    final existedBefore = file.existsSync();
-    try {
-      final newBytes = utf8.encode(content);
-      // Whether the write changed anything is not derivable from the response
-      // otherwise: a byte-identical write reports the same bytes_written as a
-      // real edit, which is what lets an edit/re-read loop repeat forever
-      // while nothing moves. Compare lengths first so the content read only
-      // happens when a no-op is actually possible.
-      var changed = true;
-      if (existedBefore) {
-        try {
-          changed =
-              await file.length() != newBytes.length ||
-              !_bytesEqual(await file.readAsBytes(), newBytes);
-        } on FileSystemException {
-          changed = true;
-        }
-      }
-      if (createParents) {
-        await file.parent.create(recursive: true);
-      }
-      await file.writeAsString(content);
-      final absolutePath = file.absolute.path;
-      final contentHash = await _contentHash(absolutePath, newBytes.length);
-      return FirstPartyToolExecutionResult(
-        result: jsonEncode({
-          'path': file.absolute.path,
-          'bytes_written': newBytes.length,
-          'created': !existedBefore,
-          'changed': changed,
-        }),
-        outcome: ToolOutcome(
-          fileMutations: [
-            ToolFileMutation(
-              path: absolutePath,
-              contentHash: contentHash,
-              byteSize: newBytes.length,
-              changed: changed,
-            ),
-          ],
-        ),
-      );
-    } on FileSystemException catch (error) {
-      return FirstPartyToolExecutionResult.payloadOnly(
-        _buildFilesystemError(
-          path: file.absolute.path,
-          operation: 'write_file',
-          error: error,
-        ),
-      );
-    }
-  }
+  }) => _mutationOperations.writeFileResult(
+    path: path,
+    content: content,
+    createParents: createParents,
+  );
 
   static Future<String> editFile({
     required String path,
@@ -706,89 +608,12 @@ class FilesystemTools {
     required String oldText,
     required String newText,
     bool replaceAll = false,
-  }) async {
-    final file = File(path);
-    if (!file.existsSync()) {
-      return FirstPartyToolExecutionResult.payloadOnly(
-        jsonEncode({'error': 'File does not exist: $path'}),
-      );
-    }
-    if (oldText.isEmpty) {
-      return FirstPartyToolExecutionResult.payloadOnly(
-        jsonEncode({'error': 'old_text must not be empty'}),
-      );
-    }
-
-    try {
-      final content = await file.readAsString();
-      final preconditionResult = _editPreconditionResult(
-        path: file.absolute.path,
-        content: content,
-        oldText: oldText,
-        newText: newText,
-        replaceAll: replaceAll,
-      );
-      if (preconditionResult != null) {
-        final preconditionChanged = preconditionResult['changed'];
-        if (preconditionChanged is! bool) {
-          return FirstPartyToolExecutionResult.payloadOnly(
-            jsonEncode(preconditionResult),
-          );
-        }
-        final contentBytes = utf8.encode(content).length;
-        return FirstPartyToolExecutionResult(
-          result: jsonEncode(preconditionResult),
-          outcome: ToolOutcome(
-            fileMutations: [
-              ToolFileMutation(
-                path: file.absolute.path,
-                contentHash: await _contentHash(
-                  file.absolute.path,
-                  contentBytes,
-                ),
-                byteSize: contentBytes,
-                changed: preconditionChanged,
-              ),
-            ],
-          ),
-        );
-      }
-
-      final occurrences = _countOccurrences(content, oldText);
-      final updatedContent = replaceAll
-          ? content.replaceAll(oldText, newText)
-          : content.replaceFirst(oldText, newText);
-      await file.writeAsString(updatedContent);
-
-      final updatedBytes = utf8.encode(updatedContent).length;
-      return FirstPartyToolExecutionResult(
-        result: jsonEncode({
-          'path': file.absolute.path,
-          'replacements': replaceAll ? occurrences : 1,
-          'replace_all': replaceAll,
-          'changed': true,
-        }),
-        outcome: ToolOutcome(
-          fileMutations: [
-            ToolFileMutation(
-              path: file.absolute.path,
-              contentHash: await _contentHash(file.absolute.path, updatedBytes),
-              byteSize: updatedBytes,
-              changed: true,
-            ),
-          ],
-        ),
-      );
-    } on FileSystemException catch (error) {
-      return FirstPartyToolExecutionResult.payloadOnly(
-        _buildFilesystemError(
-          path: file.absolute.path,
-          operation: 'edit_file',
-          error: error,
-        ),
-      );
-    }
-  }
+  }) => _mutationOperations.editFileResult(
+    path: path,
+    oldText: oldText,
+    newText: newText,
+    replaceAll: replaceAll,
+  );
 
   static Future<String?> preflightEditFile({
     required String path,
@@ -806,7 +631,7 @@ class FilesystemTools {
 
     try {
       final content = await file.readAsString();
-      final result = _editPreconditionResult(
+      final result = _mutationOperations.editPreconditionResult(
         path: file.absolute.path,
         content: content,
         oldText: oldText,
@@ -821,88 +646,6 @@ class FilesystemTools {
         error: error,
       );
     }
-  }
-
-  static Map<String, dynamic>? _editPreconditionResult({
-    required String path,
-    required String content,
-    required String oldText,
-    required String newText,
-    required bool replaceAll,
-  }) {
-    final oldTextOffsets = _occurrenceOffsets(content, oldText);
-    if (oldTextOffsets.isEmpty) {
-      return EditAnchorFailureBuilder.build(
-        path: path,
-        content: content,
-        newText: newText,
-      );
-    }
-    if (oldText == newText) {
-      return {
-        'error': 'no_change',
-        'path': path,
-        'message':
-            'The edit made no change: new_text is identical to old_text, so '
-            'the file is unchanged and your intended fix did not apply. Do '
-            'not re-read expecting a change. Provide a new_text that actually '
-            'differs from old_text, or use write_file to overwrite the file.',
-      };
-    }
-
-    final coveredOffsets = _oldTextOffsetsCoveredByNewText(
-      content: content,
-      oldText: oldText,
-      newText: newText,
-    );
-    if (coveredOffsets.length == oldTextOffsets.length) {
-      return {
-        'path': path,
-        'replacements': 0,
-        'replace_all': replaceAll,
-        'already_applied': true,
-        'changed': false,
-        'message':
-            'new_text is already present at every old_text match; the file was left unchanged.',
-      };
-    }
-    if (coveredOffsets.isNotEmpty) {
-      return {
-        'error': 'ambiguous_edit_overlap',
-        'path': path,
-        'occurrences': oldTextOffsets.length,
-        'already_applied_occurrences': coveredOffsets.length,
-        'message':
-            'Some old_text matches are already contained inside new_text. Re-read the file and use a more specific old_text so an applied edit is not expanded again.',
-      };
-    }
-    if (!replaceAll && oldTextOffsets.length > 1) {
-      return {
-        'error':
-            'old_text matched multiple locations. Set replace_all=true or make the target text more specific.',
-        'path': path,
-        'occurrences': oldTextOffsets.length,
-      };
-    }
-    return null;
-  }
-
-  static Set<int> _oldTextOffsetsCoveredByNewText({
-    required String content,
-    required String oldText,
-    required String newText,
-  }) {
-    if (newText.isEmpty || !newText.contains(oldText)) {
-      return const <int>{};
-    }
-    final relativeOldTextOffsets = _occurrenceOffsets(newText, oldText);
-    final coveredOffsets = <int>{};
-    for (final newTextOffset in _occurrenceOffsets(content, newText)) {
-      for (final relativeOffset in relativeOldTextOffsets) {
-        coveredOffsets.add(newTextOffset + relativeOffset);
-      }
-    }
-    return coveredOffsets;
   }
 
   static Future<String> findFiles({
@@ -1140,7 +883,7 @@ class FilesystemTools {
     }
 
     final content = snapshot.content ?? '';
-    final preconditionResult = _editPreconditionResult(
+    final preconditionResult = _mutationOperations.editPreconditionResult(
       path: snapshot.path,
       content: content,
       oldText: oldText,
@@ -1215,24 +958,6 @@ class FilesystemTools {
     oldContent: oldContent,
     newContent: newContent,
   );
-
-  static int _countOccurrences(String source, String target) {
-    return _occurrenceOffsets(source, target).length;
-  }
-
-  static List<int> _occurrenceOffsets(String source, String target) {
-    if (target.isEmpty) {
-      return const [];
-    }
-    final offsets = <int>[];
-    var start = 0;
-    while (true) {
-      final index = source.indexOf(target, start);
-      if (index == -1) return offsets;
-      offsets.add(index);
-      start = index + target.length;
-    }
-  }
 
   static String _relativePath(String candidatePath, String basePath) {
     final absoluteCandidate = File(candidatePath).absolute.path;

@@ -459,9 +459,8 @@ final class BuiltInFilesystemMutationEffectBoundary {
     FirstPartyToolExecutionResult execution, {
     bool? payloadSuccess,
   }) {
-    final succeeded =
-        payloadSuccess ?? _isMutationPayloadSuccess(execution.result);
-    final resultSuccess = name == 'delete_file' ? succeeded : true;
+    payloadSuccess ??= _isMutationPayloadSuccess(execution.result);
+    final resultSuccess = name == 'delete_file' ? payloadSuccess : true;
     return McpToolResult(
       toolName: name,
       result: execution.result,
