@@ -75,8 +75,10 @@ Each line is one JSON object with schema name
   for every turn that started with an active goal. Its `agreement` is `agree`
   or `disagree`; disagreement records also carry a stable `label`. Optional
   tool outcome, lexical completion verdict, and owner-scoped turn id fields
-  support diagnosis without changing which completion path is authoritative.
-  Older disagreement-only markers can omit `agreement`.
+  support diagnosis without mutating goal state. Tool acknowledgement,
+  structured task state, and explicit user confirmation own terminal status;
+  lexical completion is retained only for this comparison. Older
+  disagreement-only markers can omit `agreement`.
 
 ## Sensitivity
 

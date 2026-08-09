@@ -171,7 +171,7 @@ structurally unmotivated to build:
 | Local LLM | LL33 | current | S-M | LL31 | Turn provenance — session-log ↔ on-screen conversation correlation: stamp each `turn_exit` record with `turnId` + the `assistantMessageId` it finalized, and record the post-LLM transforms applied to that message (guard notices), so the LLM session log and the conversation the user saw can be traced to each other and guard firings are a direct triage signal instead of being inferred from leaked notice prose. Extends the LL31 instrument; came out of the verification-guard investigation where this gap repeatedly caused mis-diagnosis. |
 | Local LLM | LL32 | later | S-M | LL4, F6 | Deferred subdirectory instruction and skill discovery: when a tool touches a path outside the startup discovery chain, walk up to the repo root for `CLAUDE.md` / `AGENTS.md` / rules and skill directories, and surface newly found files as **paths only**, once per session (or once per compaction cycle), leaving the read decision to the model. Parked pending corroboration; corroborated 2026-07-21 by Grok Build's `agents_md_tracker.rs` / `skill_discovery.rs` shipping the same design. |
 | Local LLM | LL34 | done | M | F2, F6, LL23, SEC2 | Structured tool-result envelope: `McpToolResult` carries producer-owned command, filesystem, diagnostic, process, and verification facts from direct first-party producers; typed-first consumers retain a measured lexical fallback for outcome-free third-party MCP results. Current-turn mutations back file claims, replay paths preserve outcomes, and LL23 supplies deterministic summary-first rendering. Fresh grounded coding canaries on the configured LAN model produced five typed shadow comparisons across raw-first and summary-first runs: three exit 1 and two exit 0, all `agree`, with no missing or disagreeing verdicts. The measured model completed the summary-first MVP canary while the application default remains off. |
-| Local LLM | LL35 | current | M | LL34, LL3, LL23 | Explicit goal-state tool with a real acknowledgement: replace the lexical `_looksComplete` / `_looksBlocked` goal transitions with an `update_goal(completed:/blocked_reason:/message:)` built-in whose tool reply carries the harness's actual verdict (accepted / still-open gaps / paused at cap), so the model cannot mistake an unverified claim for a received completion. Also mines the plan's first unchecked `## Task checklist` item as the continuation next-step. Local-first addition: `update_goal` call fidelity is an LL3 probe and the completion policy is LL23-declared (`tool` / `tool_or_ask` / `ask`), because removing the lexical path without a fallback turns "false completion" into "goal never closes" on weak models — **user confirmation at budget exhaustion is a first-class completion mechanism**, not an error path. |
+| Local LLM | LL35 | done | M | LL34, LL3, LL23 | Explicit goal-state tool with a real acknowledgement: lexical completion and blocker prose remain observable in shadow but cannot set terminal goal state; `update_goal(completed:/blocked_reason:/message:)` carries the harness's final mechanically reconciled verdict (accepted / still-open gaps / paused at cap), and structured saved-task completion remains authoritative. The bounded continuation selector prefers the typed active task, then the first unchecked `## Task checklist` item. `update_goal` fidelity is stored by the LL3 capability probe, LL23 declares a per-model `tool` / `tool_or_ask` / `ask` policy, and user confirmation resolves no-work or budget boundaries for models that cannot reliably close through the tool. |
 | Local LLM | LL36 | current | S-M | LL33, LL34 | **Instrument for LL37, as LL31 was for LL29/LL30** — Heuristic demotion and firing audit: every remaining lexical guard gets a stable pattern label, emits a LL33-style transform record on each firing, and is barred from setting terminal state; new grounded verdicts run in shadow beside the lexical ones with disagreements logged, so guards are deleted on measurement rather than on argument. Adopted from Grok Build's labeled `GoalPrematureStopDetected` panel. |
 | Local LLM | LL37 | later | L | LL34, LL35, LL36 evidence, LL3, LL18, LL19 | Objective verification for **unattended runs only**: the N-way panel runs at idle via LL18 against goals completed by routines / overnight retry-until-green / LL13 agents, with the convergence controls that make it terminate — anti-ratchet, stall exit on repeated identical gaps, a run cap, and `none`/`contradiction`/`unverifiable` blocking classification. There is deliberately **no inline stage**: while a user is present, LL35's confirmation rung is both cheaper and more accurate than a local verifier, so nothing is added to the interactive turn. Local-first inversions vs Grok Build: uncertainty defaults to *not* refuted for weak verifiers (a weak skeptic that refutes correct work is worse than none) and an LL3 fidelity gate disables the panel entirely below threshold. The convergence controls (anti-ratchet, stall exit, blocking classification) are worth harvesting into the LL7 retry loop independently, and survive even if this milestone is dropped. Whether a local verifier is good enough at all is an LL19-measured open question. |
 | Local LLM | LL38 | done | S-M | LL31, LL33 | Mid-turn interruption (steering): an opt-in `interrupt: true` send joins the running turn instead of queueing behind it. Committed into the turn history at the top of `_prepareMessagesForLLM`, so every request path (native tools, content-tag tools, plain streaming) carries it without a per-site injection; rules in `TurnSteeringPolicy`, per-owner state in `TurnSteeringRegistry`, uncarried steers returned to `ThreadScopedMessageQueue` by the turn release scope. Ground-truth live canary with a queued control arm. |
@@ -2745,10 +2745,10 @@ Local-first consequences that shaped these milestones:
   prefill latency to the user's turn (Thesis §3).
 - **A weak verifier's default must be the opposite of Grok's.** See LL37.
 
-Execution state — **LL34 complete alongside LL35/LL36 → LL37**.
+Execution state — **LL34 and LL35 complete; LL36 → LL37**.
 
-LL34 implementation and its live observation gate are complete; LL35 and LL36
-are already active. LL37 remains downstream of their evidence.
+LL34 and LL35 implementation gates are complete. LL36 remains active, and LL37
+remains downstream of LL36's firing evidence.
 
 The track splits by how well-founded each milestone is, and the ordering has to
 respect that split rather than the narrative order:
@@ -2763,27 +2763,29 @@ respect that split rather than the narrative order:
 
 That makes **LL36 the instrument for LL37, exactly as LL31 was for LL29/LL30**:
 the firing distribution it produces is what says whether a verification stage
-has anything left to decide. So LL36 comes before LL35's removal step (its
-records are the removal evidence), and LL37 is gated on LL36's **measurements**,
-not merely on LL36 having shipped.
+has anything left to decide. LL35 could demote its lexical terminal transitions
+without stranding weak models because the per-model confirmation policy landed
+with the demotion. LL37 is still gated on LL36's **measurements**, not merely on
+LL36 having shipped.
 
 1. **LL34** restores structure at the tool boundary — deletes regex rather than
    adding heuristics, and its highest-value field feeds the dominant measured
    failure.
-2. **LL36** instruments every remaining lexical guard, producing both the
-   removal evidence for LL35 and the residue measurement that decides LL37.
-3. **LL35** makes the model state completion explicitly and the harness answer
-   honestly, then removes the lexical transitions on LL36's evidence.
+2. **LL35** makes the model state completion explicitly, reconciles the final
+   turn evidence, and supplies a user-confirmation fallback before removing
+   lexical prose from terminal authority.
+3. **LL36** instruments every remaining lexical guard and produces the residue
+   measurement that decides LL37.
 4. **LL37** is the expensive one, deliberately last, and may well not be built.
 
-Removal protocol — **shadow mode, always.** The false-completion guards are
-known to be load-bearing in real sessions, so no lexical path is deleted on
-the strength of a better design. A replacement runs beside the incumbent with
-both verdicts recorded and disagreements logged (LL33 `transforms[]` is the
-carrier); the lexical path is removed only after its firing record shows it
-adds nothing the grounded path already catches. This makes deletion a
-measurement, which is the same evidence-first discipline the LL29-LL31 track
-follows.
+Removal protocol — **shadow mode, always.** A replacement runs beside the
+incumbent with both verdicts recorded and disagreements logged. LL35 keeps the
+lexical parser as a shadow-only comparator while tool, structured task, and
+user-confirmed signals own terminal state; its standalone marker is required
+because the comparison is known after the immutable turn-exit snapshot. Other
+lexical guards still require LL36 firing evidence before deletion. This keeps
+deletion measurable, following the same evidence-first discipline as the
+LL29-LL31 track.
 
 Anti-goal: LL37 must not become a general-purpose "review everything" pass.
 Verifying with subagents what an exit code already proves is pure waste, and
@@ -3104,9 +3106,9 @@ work.
 
 ### LL35: Explicit Goal-State Tool With A Real Acknowledgement
 
-Status: `current`
+Status: `done`
 
-Problem:
+Historical problem:
 - `ConversationGoalProgressInference.infer`
   (`lib/features/chat/domain/services/conversation_goal_progress_inference.dart:225-256`)
   moves a goal to `completed` or `blocked` from string lists: `_looksComplete`
@@ -3119,14 +3121,13 @@ Problem:
   they are the reason a truthful-sounding but unverified summary can close a
   goal.
 
-**Shadow mode and its denominator are implemented and running.**
-`GoalUpdateAckResolver` and `GoalCompletionShadow` exist; the lexical path stays
-authoritative. Commit `e77a57e7` records one comparison for every eligible turn
-that started with an active goal, including agreements, while retaining the
-three stable disagreement labels. `tool/triage_session_logs.py` aggregates the
-agreement distribution and treats old disagreement-only markers compatibly.
-What this item still needs is **grounded usage across multiple runs** before any
-authority change.
+**Shadow mode and its denominator are implemented and remain active after the
+authority change.** Commit `e77a57e7` records one comparison for every eligible
+turn that started with an active goal, including agreements, while retaining
+the three stable disagreement labels. `tool/triage_session_logs.py` aggregates
+the agreement distribution and treats old disagreement-only markers
+compatibly. Lexical completion now feeds that comparator only; it cannot close
+or block a goal.
 
 First reading, 2026-08-05, over 1,735 session logs:
 
@@ -3246,12 +3247,32 @@ command result, while the intermediate diagnostic sequence increased from 2
 to 11. Commit `89c6cb85` adds that exact typed-result path and a regression
 test; the third clean run passed after the fix.
 
-Decision: the **LL3 fidelity probe and confirmation rung remain No-Go** for this
-model because `goal_completion_lexical_only` is still zero. **Lexical removal
-also remains No-Go** because three sessions of one fixture are not broad enough
-to establish coverage. The plan-checklist next-step miner is independent of
-completion authority and is the next additive implementation slice while
-broader goal shapes accumulate evidence.
+Historical decision before the completion slice: the **LL3 fidelity probe,
+confirmation rung, and lexical authority change were held** because three
+sessions of one fixture were not broad enough to establish coverage. The user
+then explicitly requested all remaining LL35 implementation. The shipped path
+does not turn that narrow sample into stronger evidence: it makes the authority
+change safe through an explicit per-model policy and user-confirmation fallback
+while retaining the lexical comparison marker.
+
+**Completion update, 2026-08-09.** The bounded next-step selector, LL3
+`update_goal_fidelity` probe and stored profile verdict, per-model
+`tool` / `tool_or_ask` / `ask` setting, budget/no-work confirmation path,
+confirmation summary/actions, blocker persistence, paused-at-cap handling, and
+final-turn acknowledgement reconciliation are implemented. Lexical completion
+and blocker prose remain measurable but cannot set `completed` or `blocked`;
+all-completed saved workflow tasks remain a structured completion signal.
+
+A direct non-executing probe against `qwen3.6-27b-vision` at the configured LAN
+endpoint returned exactly one `update_goal` call with
+`{"completed":true}` and no text, so the observed model verdict is `reliable`.
+A distinct Markdown TOC goal produced two additional owner-scoped comparisons,
+both `agree`, with zero unknowns or disagreements. The overall canary correctly
+failed because a repair after failed verification was not revalidated; it is
+recorded as a safety-gate failure, not as a successful task run. Its first
+hidden continuation also showed the selected immediate plan step. The pooled
+post-denominator sample is therefore 15 comparisons: 12 agree, 3 explained
+`goal_completion_tool_accepted_lexical_missed`, and 0 unknown.
 
 Scope:
 - Add an `update_goal` built-in with `completed` / `blocked_reason` / `message`,
@@ -3263,10 +3284,9 @@ Scope:
   that its claim was received as fact, which is the failure this milestone
   exists to remove. Until LL37 lands there is no verifier, so the initial
   outcomes are the mechanical ones (LL34 envelope facts + goal budget state).
-- Retire the lexical transitions behind the shadow-mode protocol: keep
-  `ConversationGoalProgressInference` running, record both verdicts, log
-  disagreements, and remove the lexical path once the record shows the tool
-  path covers it.
+- Retire lexical completion and blocker prose from terminal authority while
+  keeping `ConversationGoalProgressInference` as the shadow comparator. Record
+  both verdicts and keep disagreement visibility after the authority change.
 - Fold in the continuation next-step: mine the first unchecked `- [ ]` from the
   plan's task checklist for the auto-continue nudge. Do **not** mine numbered
   acceptance criteria — they never get checked off, so they surface the same
@@ -3309,8 +3329,10 @@ Acceptance criteria:
   visible to the model.
 - The auto-continue nudge quotes the plan's first unchecked checklist item when
   one exists, and falls back to the generic line when it does not.
-- Shadow-mode disagreements between the lexical inference and the tool path are
-  recorded in the LL33 transform record.
+- Shadow-mode agreements and disagreements between lexical inference and the
+  tool path are recorded in the standalone owner-scoped
+  `goal_completion_shadow` record. This cannot be a turn-exit transform because
+  the comparison is known only after goal-turn persistence.
 
 Depends on LL34 for the mechanical outcomes the ack reports, and on LL3/LL23
 for the per-model completion policy.
@@ -3319,19 +3341,20 @@ Source: Grok Build comparison, class 1; `update_goal/mod.rs` (`UpdateGoalAck`),
 `goal_next_step.rs`. The user-confirmation rung is a Caverno addition — Grok
 Build has no equivalent because it can assume tool-call fidelity.
 
-Progress (branch `feature/ll35-explicit-goal-state`):
+Progress (completed on branch `feat/ll35-shadow-denominator`):
 - **Slice 1 (`0ffb496f`)** — `GoalUpdateAckResolver`, the pure ack computation.
   The completion verdict reads the LL34 completion evidence, not the response
   prose; a recorded completion is "not contradicted", not "verified", and the
   message says so.
 - **Slice 2 (`0b501c08`)** — `update_goal` registered and dispatched through the
   existing tool-handler path. The reply carries the ack; only an inactive goal
-  is a tool failure. Lexical inference stays authoritative.
+  is a tool failure. At this staging slice lexical inference still remained
+  authoritative.
 - **Slice 3 (`97cb16b6`)** — `GoalCompletionShadow` records where the tool and
-  the lexical path decided completion differently, as a stable transform label
-  on the turn_exit record. `tool/triage_session_logs.py` counts these under
-  "Post-LLM transforms" with no change, since LL33's transform record is
-  generic.
+  the lexical path decided completion differently. This initial
+  disagreement-only turn-exit representation was superseded by Slice 4's
+  denominator-aware standalone marker, because the final comparison is known
+  only after goal-turn persistence.
 - **Slice 4 (`e77a57e7`)** — every eligible active-goal turn emits an
   agreement-aware `goal_completion_shadow` marker. The session-log store keeps
   the owner-scoped turn id and optional tool outcome, and triage prints the
@@ -3344,23 +3367,21 @@ Progress (branch `feature/ll35-explicit-goal-state`):
   exit 0. This closed a false-negative gate found by the second run. Three
   independent sessions now contribute 13 comparisons: 10 agreements, 3 known
   tool-accepted/lexical-missed disagreements, and no unknown verdicts.
+- **Completion slice (2026-08-09)** — final owner evidence now decides the tool
+  acknowledgement; exact blockers persist as `blocked`; budget-cap progress
+  pauses for confirmation; and confirmation-required tool claims become an
+  owner-scoped pending decision. The bounded selector reads at most 8 KiB,
+  prefers the typed active task, then reads the first unchecked item under the
+  exact `## Task checklist` section, drops partial trailing input, and preserves
+  the generic fallback. Model diagnostics record `update_goal` fidelity without
+  executing the call, and the per-model harness config controls completion
+  authority. Lexical prose is shadow-only for goal terminal state.
 
-Next action: **implement the bounded plan-checklist next-step miner while
-broadening shadow evidence to another grounded goal shape.** Keep the lexical
-path authoritative and continue to explain every disagreement or unknown
-verdict. The authority-changing slices remain gated on that broader
-distribution:
-- The **LL3 fidelity probe** and the **user-confirmation rung** are needed only
-  if the shadow data shows models failing to call the tool (a high
-  `goal_completion_lexical_only` count). Build them when that count justifies
-  it, not before.
-- **Removing the lexical path** waits until `goal_completion_tool_accepted_lexical_missed`
-  and `goal_completion_lexical_only` together show the tool covers what lexical
-  catches. That is the measurement the shadow slice exists to produce.
-- The **plan-checklist next-step miner** is the next code slice: read a bounded
-  plan window, return its first unchecked `- [ ]` item, ignore numbered
-  acceptance criteria, drop a trailing partial line, and preserve the generic
-  continuation fallback when no item is available.
+Operational follow-up: continue collecting `goal_completion_shadow` markers
+across normal coding goals and explain any disagreement or unknown. This is
+ongoing model monitoring, not remaining LL35 implementation. The failed
+Markdown TOC canary also exposed a separate verification-replay behavior for
+the Grounded Verification track; LL35 correctly left that goal blocked.
 
 ### LL36: Heuristic Demotion And Firing Audit
 
