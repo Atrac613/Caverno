@@ -25,6 +25,7 @@ void main() {
       expect(const ToolOutcome(exitCode: 0).isNotEmpty, isTrue);
       expect(const ToolOutcome(contentHash: 'sha256:file').isNotEmpty, isTrue);
       expect(const ToolOutcome(diagnosticCount: 0).isNotEmpty, isTrue);
+      expect(const ToolOutcome(testPassedCount: 0).isNotEmpty, isTrue);
       expect(
         const ToolOutcome(processState: ToolProcessState.running).isNotEmpty,
         isTrue,
@@ -42,6 +43,9 @@ void main() {
         diagnosticCount: 5,
         diagnosticErrorCount: 2,
         diagnosticWarningCount: 1,
+        testPassedCount: 12,
+        testFailedCount: 1,
+        testSkippedCount: 2,
       );
       expect(ToolOutcome.fromJson(outcome.toJson()), outcome);
     });
@@ -60,6 +64,7 @@ void main() {
         ToolOutcome.fromJson(const {'diagnostic_error_count': -1}),
         isNull,
       );
+      expect(ToolOutcome.fromJson(const {'test_passed_count': -1}), isNull);
     });
 
     test('accepts a numeric exit code that arrives as a double', () {
@@ -78,6 +83,19 @@ void main() {
       expect(outcome?.diagnosticErrorCount, 1);
       expect(outcome?.diagnosticWarningCount, 2);
     });
+
+    test('accepts numeric test counts that arrive as doubles', () {
+      final outcome = ToolOutcome.fromJson(const {
+        'test_passed_count': 3.0,
+        'test_failed_count': 1.0,
+        'test_skipped_count': 2.0,
+      });
+
+      expect(outcome?.testPassedCount, 3);
+      expect(outcome?.testFailedCount, 1);
+      expect(outcome?.testSkippedCount, 2);
+      expect(outcome?.hasCompleteTestCounts, isTrue);
+    });
   });
 
   group('background process state', () {
@@ -94,6 +112,23 @@ void main() {
       expect(exited.isProcessRunning, isFalse);
       expect(exited.isProcessTerminal, isTrue);
       expect(exited.hasSucceedingExitCode, isTrue);
+    });
+  });
+
+  group('test counts', () {
+    test('requires all three counts before claims can trust the outcome', () {
+      expect(
+        const ToolOutcome(
+          testPassedCount: 3,
+          testFailedCount: 1,
+          testSkippedCount: 2,
+        ).hasCompleteTestCounts,
+        isTrue,
+      );
+      expect(
+        const ToolOutcome(testPassedCount: 3).hasCompleteTestCounts,
+        isFalse,
+      );
     });
   });
 

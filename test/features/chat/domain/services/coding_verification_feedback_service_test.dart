@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
@@ -64,6 +65,14 @@ void main() {
       expect(evidence, isNotNull);
       expect(evidence!.id, 'dart_test_verification_evidence_42');
       expect(evidence.name, CodingVerificationFeedbackService.evidenceToolName);
+      expect(
+        evidence.outcome,
+        const ToolOutcome(
+          testPassedCount: 1,
+          testFailedCount: 0,
+          testSkippedCount: 0,
+        ),
+      );
       final payload = jsonDecode(evidence.result) as Map<String, dynamic>;
       expect(
         payload['schema'],

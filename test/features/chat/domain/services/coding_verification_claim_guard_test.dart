@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
@@ -13,6 +14,7 @@ void main() {
     required int passed,
     required int failed,
     required int skipped,
+    ToolOutcome? outcome,
   }) {
     return ToolResultInfo(
       id: 'verification-evidence',
@@ -27,6 +29,7 @@ void main() {
           'arguments': ['test', 'test'],
         },
       }),
+      outcome: outcome,
     );
   }
 
@@ -154,6 +157,75 @@ void main() {
       toolResults: [
         evidence(passed: 1, failed: 0, skipped: 0),
         evidence(passed: 3, failed: 0, skipped: 0),
+      ],
+    );
+
+    expect(assessment.hasMismatch, isFalse);
+  });
+
+  test('prefers typed counts over contradictory evidence JSON', () {
+    final result = evidence(
+      passed: 99,
+      failed: 0,
+      skipped: 0,
+      outcome: const ToolOutcome(
+        testPassedCount: 3,
+        testFailedCount: 0,
+        testSkippedCount: 0,
+      ),
+    );
+
+    expect(
+      guard
+          .assess(
+            candidateResponse: 'All 3 tests passed.',
+            toolResults: [result],
+          )
+          .hasMismatch,
+      isFalse,
+    );
+    final mismatch = guard.assess(
+      candidateResponse: 'All 99 tests passed.',
+      toolResults: [result],
+    );
+    expect(mismatch.hasMismatch, isTrue);
+    expect(mismatch.mismatch?.actualPassedCount, 3);
+  });
+
+  test('uses complete typed counts even when evidence JSON is invalid', () {
+    final assessment = guard.assess(
+      candidateResponse: 'All 8 tests passed.',
+      toolResults: [
+        ToolResultInfo(
+          id: 'typed-verification-evidence',
+          name: CodingVerificationFeedbackService.evidenceToolName,
+          arguments: const {},
+          result: 'not json',
+          outcome: const ToolOutcome(
+            testPassedCount: 2,
+            testFailedCount: 1,
+            testSkippedCount: 0,
+          ),
+        ),
+      ],
+    );
+
+    expect(assessment.hasMismatch, isTrue);
+    expect(assessment.mismatch?.actualPassedCount, 2);
+    expect(assessment.mismatch?.actualFailedCount, 1);
+    expect(assessment.mismatch?.command, isNull);
+  });
+
+  test('falls back to JSON when typed counts are incomplete', () {
+    final assessment = guard.assess(
+      candidateResponse: 'All 4 tests passed.',
+      toolResults: [
+        evidence(
+          passed: 4,
+          failed: 0,
+          skipped: 0,
+          outcome: const ToolOutcome(testPassedCount: 99),
+        ),
       ],
     );
 

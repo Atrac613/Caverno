@@ -30,9 +30,15 @@ class ToolOutcome {
     this.diagnosticCount,
     this.diagnosticErrorCount,
     this.diagnosticWarningCount,
+    this.testPassedCount,
+    this.testFailedCount,
+    this.testSkippedCount,
   }) : assert(diagnosticCount == null || diagnosticCount >= 0),
        assert(diagnosticErrorCount == null || diagnosticErrorCount >= 0),
-       assert(diagnosticWarningCount == null || diagnosticWarningCount >= 0);
+       assert(diagnosticWarningCount == null || diagnosticWarningCount >= 0),
+       assert(testPassedCount == null || testPassedCount >= 0),
+       assert(testFailedCount == null || testFailedCount >= 0),
+       assert(testSkippedCount == null || testSkippedCount >= 0);
 
   /// Process exit status for tools that run a command.
   ///
@@ -81,6 +87,15 @@ class ToolOutcome {
   /// Number of Warning-severity diagnostics in [diagnosticCount].
   final int? diagnosticWarningCount;
 
+  /// Number of tests the recognized verification runner observed as passed.
+  final int? testPassedCount;
+
+  /// Number of tests the recognized verification runner observed as failed.
+  final int? testFailedCount;
+
+  /// Number of tests the recognized verification runner observed as skipped.
+  final int? testSkippedCount;
+
   /// Whether a mutation ran and left the file exactly as it was.
   bool get isNoOpMutation => fileChanged == false;
 
@@ -95,7 +110,10 @@ class ToolOutcome {
       contentHash == null &&
       diagnosticCount == null &&
       diagnosticErrorCount == null &&
-      diagnosticWarningCount == null;
+      diagnosticWarningCount == null &&
+      testPassedCount == null &&
+      testFailedCount == null &&
+      testSkippedCount == null;
 
   bool get isNotEmpty => !isEmpty;
 
@@ -112,6 +130,12 @@ class ToolOutcome {
 
   bool get isProcessTerminal => processState == ToolProcessState.exited;
 
+  /// Whether all counts needed to verify a test-count claim are present.
+  bool get hasCompleteTestCounts =>
+      testPassedCount != null &&
+      testFailedCount != null &&
+      testSkippedCount != null;
+
   Map<String, dynamic> toJson() => {
     if (exitCode != null) 'exit_code': exitCode,
     if (processState != null) 'process_state': processState!.name,
@@ -122,6 +146,9 @@ class ToolOutcome {
       'diagnostic_error_count': diagnosticErrorCount,
     if (diagnosticWarningCount != null)
       'diagnostic_warning_count': diagnosticWarningCount,
+    if (testPassedCount != null) 'test_passed_count': testPassedCount,
+    if (testFailedCount != null) 'test_failed_count': testFailedCount,
+    if (testSkippedCount != null) 'test_skipped_count': testSkippedCount,
   };
 
   static ToolOutcome? fromJson(Map<String, dynamic>? json) {
@@ -135,6 +162,9 @@ class ToolOutcome {
     final rawDiagnosticCount = json['diagnostic_count'];
     final rawDiagnosticErrorCount = json['diagnostic_error_count'];
     final rawDiagnosticWarningCount = json['diagnostic_warning_count'];
+    final rawTestPassedCount = json['test_passed_count'];
+    final rawTestFailedCount = json['test_failed_count'];
+    final rawTestSkippedCount = json['test_skipped_count'];
     final outcome = ToolOutcome(
       exitCode: rawExitCode is num ? rawExitCode.toInt() : null,
       processState: switch (rawProcessState) {
@@ -147,6 +177,9 @@ class ToolOutcome {
       diagnosticCount: _nonNegativeInt(rawDiagnosticCount),
       diagnosticErrorCount: _nonNegativeInt(rawDiagnosticErrorCount),
       diagnosticWarningCount: _nonNegativeInt(rawDiagnosticWarningCount),
+      testPassedCount: _nonNegativeInt(rawTestPassedCount),
+      testFailedCount: _nonNegativeInt(rawTestFailedCount),
+      testSkippedCount: _nonNegativeInt(rawTestSkippedCount),
     );
     return outcome.isEmpty ? null : outcome;
   }
@@ -169,7 +202,10 @@ class ToolOutcome {
           other.contentHash == contentHash &&
           other.diagnosticCount == diagnosticCount &&
           other.diagnosticErrorCount == diagnosticErrorCount &&
-          other.diagnosticWarningCount == diagnosticWarningCount;
+          other.diagnosticWarningCount == diagnosticWarningCount &&
+          other.testPassedCount == testPassedCount &&
+          other.testFailedCount == testFailedCount &&
+          other.testSkippedCount == testSkippedCount;
 
   @override
   int get hashCode => Object.hash(
@@ -180,6 +216,9 @@ class ToolOutcome {
     diagnosticCount,
     diagnosticErrorCount,
     diagnosticWarningCount,
+    testPassedCount,
+    testFailedCount,
+    testSkippedCount,
   );
 
   @override
@@ -188,5 +227,7 @@ class ToolOutcome {
       'fileChanged: $fileChanged, '
       'contentHash: $contentHash, diagnosticCount: $diagnosticCount, '
       'diagnosticErrorCount: $diagnosticErrorCount, '
-      'diagnosticWarningCount: $diagnosticWarningCount)';
+      'diagnosticWarningCount: $diagnosticWarningCount, '
+      'testPassedCount: $testPassedCount, testFailedCount: $testFailedCount, '
+      'testSkippedCount: $testSkippedCount)';
 }

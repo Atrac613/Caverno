@@ -3021,12 +3021,19 @@ so `ok: true` on a running process proves dispatch but cannot be mistaken for
 successful verification. `process_list` remains text-only because one outcome
 cannot represent multiple jobs.
 
-Still open: the test counts already present in
-`CodingVerificationSnapshot`. The next slice should attach those counts to the
-verification-evidence `ToolResultInfo` outcome at its typed producer, then
-switch `CodingVerificationClaimGuard` to prefer them while retaining the
-existing evidence-JSON path as the legacy fallback. Do not infer counts from
-`run_tests` console prose.
+The verification-evidence path now carries the passed, failed, and skipped
+counts already present in `CodingVerificationSnapshot` as a typed outcome.
+`CodingVerificationClaimGuard` prefers that complete count set even when the
+rendered evidence conflicts or cannot be decoded, while retaining the existing
+evidence-JSON path when the outcome is absent or incomplete. Ordinary
+`run_tests` console prose remains ineligible, so no count is guessed after the
+runner boundary.
+
+The next narrow slice is the stalled observation transport above: persist each
+existing `ToolOutcomeShadow` comparison as a session-log marker instead of
+leaving it only in the rotating app log, then give the triage fixture a direct
+typed-versus-legacy agreement count. Do not begin summary-first rendering until
+that instrument accumulates a trustworthy production sample.
 
 Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
 traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.

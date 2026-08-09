@@ -156,38 +156,63 @@ class CodingVerificationClaimGuard {
 
   _VerificationEvidence? _latestEvidence(List<ToolResultInfo> toolResults) {
     for (final toolResult in toolResults.reversed) {
-      if (toolResult.name !=
-          CodingVerificationEvidenceContract.toolName) {
+      if (toolResult.name != CodingVerificationEvidenceContract.toolName) {
         continue;
       }
-      try {
-        final payload = jsonDecode(toolResult.result);
-        if (payload is! Map<Object?, Object?> ||
-            payload['schema'] !=
-                CodingVerificationEvidenceContract.schemaName) {
-          continue;
-        }
-        final counts = payload['counts'];
-        if (counts is! Map<Object?, Object?>) {
-          continue;
-        }
-        final passed = _nonNegativeInt(counts['passed']);
-        final failed = _nonNegativeInt(counts['failed']);
-        final skipped = _nonNegativeInt(counts['skipped']);
-        if (passed == null || failed == null || skipped == null) {
-          continue;
-        }
-        return _VerificationEvidence(
-          passedCount: passed,
-          failedCount: failed,
-          skippedCount: skipped,
-          command: _commandFromPayload(payload),
-        );
-      } catch (_) {
+      final payload = _decodeEvidencePayload(toolResult.result);
+      final typedEvidence = _evidenceFromOutcome(toolResult, payload);
+      if (typedEvidence != null) {
+        return typedEvidence;
+      }
+      if (payload == null) {
         continue;
       }
+      final counts = payload['counts'];
+      if (counts is! Map<Object?, Object?>) {
+        continue;
+      }
+      final passed = _nonNegativeInt(counts['passed']);
+      final failed = _nonNegativeInt(counts['failed']);
+      final skipped = _nonNegativeInt(counts['skipped']);
+      if (passed == null || failed == null || skipped == null) {
+        continue;
+      }
+      return _VerificationEvidence(
+        passedCount: passed,
+        failedCount: failed,
+        skippedCount: skipped,
+        command: _commandFromPayload(payload),
+      );
     }
     return null;
+  }
+
+  _VerificationEvidence? _evidenceFromOutcome(
+    ToolResultInfo toolResult,
+    Map<Object?, Object?>? payload,
+  ) {
+    final outcome = toolResult.outcome;
+    if (outcome == null || !outcome.hasCompleteTestCounts) {
+      return null;
+    }
+    return _VerificationEvidence(
+      passedCount: outcome.testPassedCount!,
+      failedCount: outcome.testFailedCount!,
+      skippedCount: outcome.testSkippedCount!,
+      command: payload == null ? null : _commandFromPayload(payload),
+    );
+  }
+
+  Map<Object?, Object?>? _decodeEvidencePayload(String result) {
+    try {
+      final payload = jsonDecode(result);
+      return payload is Map<Object?, Object?> &&
+              payload['schema'] == CodingVerificationEvidenceContract.schemaName
+          ? payload
+          : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   int? _nonNegativeInt(Object? value) {

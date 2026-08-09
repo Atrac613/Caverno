@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../entities/conversation_workflow.dart';
 import '../entities/tool_call_info.dart';
 import 'coding_diagnostic_feedback_service.dart';
@@ -318,6 +320,11 @@ class CodingVerificationFeedbackService {
         'schema': evidenceSchemaName,
         ..._snapshotEvidencePayload(snapshot),
       }),
+      outcome: ToolOutcome(
+        testPassedCount: snapshot.passedCount,
+        testFailedCount: snapshot.failedCount,
+        testSkippedCount: snapshot.skippedCount,
+      ),
     );
   }
 
