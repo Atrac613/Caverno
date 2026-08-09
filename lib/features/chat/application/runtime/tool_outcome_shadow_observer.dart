@@ -29,6 +29,7 @@ Future<void> observeToolOutcomeShadow({
     at: DateTime.now(),
     toolName: shadow.toolName,
     agreement: shadow.agreement.name,
+    verdictSource: shadow.verdictSource.name,
     structuredExitCode: shadow.structuredExitCode,
     parsedExitCode: shadow.parsedExitCode,
     toolCallId: toolCallId,

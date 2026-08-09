@@ -1,7 +1,10 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../entities/tool_call_info.dart';
 import 'coding_command_preflight_issue_detector.dart';
+import 'tool_outcome_shadow_comparison.dart';
 
 class CodingCommandOutputIssue {
   const CodingCommandOutputIssue({
@@ -9,6 +12,7 @@ class CodingCommandOutputIssue {
     required this.command,
     required this.workingDirectory,
     required this.exitCode,
+    required this.exitCodeSource,
     required this.source,
     required this.summary,
     required this.excerpt,
@@ -18,6 +22,7 @@ class CodingCommandOutputIssue {
   final String command;
   final String workingDirectory;
   final int exitCode;
+  final ToolOutcomeVerdictSource exitCodeSource;
   final String source;
   final String summary;
   final String excerpt;
@@ -39,6 +44,7 @@ class CodingCommandOutputIssue {
       'command': command,
       'working_directory': workingDirectory,
       'exit_code': exitCode,
+      'exit_code_source': exitCodeSource.name,
       'source': source,
       'summary': summary,
       'excerpt': excerpt,
@@ -98,6 +104,7 @@ class CodingCommandOutputIssueDetector {
       fallbackWorkingDirectory: _normalizeText(
         toolResult.arguments['working_directory'],
       ),
+      structuredExitCode: toolResult.outcome?.exitCode,
     );
   }
 
@@ -106,11 +113,18 @@ class CodingCommandOutputIssueDetector {
     required Map<String, dynamic> decoded,
     String? fallbackCommand,
     String? fallbackWorkingDirectory,
+    int? structuredExitCode,
   }) {
     if (!_isCommandTool(toolName)) {
       return null;
     }
-    final exitCode = _parseExitCode(decoded['exit_code']);
+    final exitCodeResolution = resolveToolOutcomeExitCode(
+      outcome: structuredExitCode == null
+          ? null
+          : ToolOutcome(exitCode: structuredExitCode),
+      parsedExitCode: _parseExitCode(decoded['exit_code']),
+    );
+    final exitCode = exitCodeResolution.exitCode;
     if (exitCode != 0) {
       return null;
     }
@@ -136,6 +150,7 @@ class CodingCommandOutputIssueDetector {
         command: command,
         workingDirectory: workingDirectory,
         exitCode: exitCode!,
+        exitCodeSource: exitCodeResolution.source,
         source: 'command',
         summary: preflightIssue.summary,
         excerpt: preflightIssue.segment,
@@ -158,6 +173,7 @@ class CodingCommandOutputIssueDetector {
         command: command,
         workingDirectory: workingDirectory,
         exitCode: exitCode!,
+        exitCodeSource: exitCodeResolution.source,
         source: entry.value,
         summary: signal.summary,
         excerpt: _excerpt(output, signal.startIndex),

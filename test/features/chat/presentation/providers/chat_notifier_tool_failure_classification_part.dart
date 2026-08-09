@@ -215,6 +215,7 @@ void registerChatNotifierToolFailureClassificationTests() {
         expect(shadowEntries.single['toolOutcomeShadow'], {
           'toolName': 'local_execute_command',
           'agreement': 'agree',
+          'verdictSource': 'typed',
           'structuredExitCode': 1,
           'parsedExitCode': 1,
           'toolCallId': 'verify-1',

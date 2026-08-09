@@ -437,18 +437,16 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
                 ? result.result
                 : 'Error: ${result.errorMessage}');
 
-      if (_toolCallExecutionPolicy.isCommandExecutionTool(toolCall.name)) {
-        await observeToolOutcomeShadow(
-          store: ref.read(llmSessionLogStoreProvider),
-          settingsEnabled: _settings.enableLlmSessionLogs,
-          context: _llmSessionLogContextForGeneration(interactionGeneration),
-          toolName: toolCall.name,
-          outcome: result.outcome,
-          renderedPayload: toolResult,
-          toolCallId: toolCall.id,
-          loopIndex: iteration,
-        );
-      }
+      await observeToolOutcomeShadow(
+        store: ref.read(llmSessionLogStoreProvider),
+        settingsEnabled: _settings.enableLlmSessionLogs,
+        context: _llmSessionLogContextForGeneration(interactionGeneration),
+        toolName: toolCall.name,
+        outcome: result.outcome,
+        renderedPayload: toolResult,
+        toolCallId: toolCall.id,
+        loopIndex: iteration,
+      );
 
       final promptToolResult = await _persistToolResultForPrompt(
         ToolResultInfo(

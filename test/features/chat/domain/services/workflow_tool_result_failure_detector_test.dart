@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/tool_outcome_shadow_comparison.dart';
 import 'package:caverno/features/chat/domain/services/workflow_tool_result_failure_detector.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -90,14 +92,40 @@ void main() {
         isTrue,
       );
     });
+
+    test('prefers typed exit status and exposes the verdict source', () {
+      final decision = WorkflowToolResultFailureDetector.inspect([
+        _result(
+          jsonEncode({'exit_code': 9, 'stdout': 'legacy contradiction'}),
+          outcome: const ToolOutcome(exitCode: 0),
+        ),
+      ]);
+
+      expect(decision.containsFailure, isFalse);
+      expect(decision.exitCodeSource, ToolOutcomeVerdictSource.typed);
+    });
+
+    test('keeps lexical exit status as the compatibility fallback', () {
+      final decision = WorkflowToolResultFailureDetector.inspect([
+        _result(jsonEncode({'exit_code': 2, 'stderr': 'failed'})),
+      ]);
+
+      expect(decision.containsFailure, isTrue);
+      expect(decision.exitCodeSource, ToolOutcomeVerdictSource.lexicalFallback);
+    });
   });
 }
 
-ToolResultInfo _result(String result, {String id = 'result'}) {
+ToolResultInfo _result(
+  String result, {
+  String id = 'result',
+  ToolOutcome? outcome,
+}) {
   return ToolResultInfo(
     id: id,
     name: 'local_execute_command',
     arguments: const {},
     result: result,
+    outcome: outcome,
   );
 }

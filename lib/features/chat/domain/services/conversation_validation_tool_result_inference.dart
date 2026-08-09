@@ -34,6 +34,7 @@ class ConversationValidationToolResultInferenceResult {
     required this.summary,
     required this.validationCommand,
     required this.validationSummary,
+    required this.verdictSource,
     this.blockedReason,
   });
 
@@ -42,6 +43,7 @@ class ConversationValidationToolResultInferenceResult {
   final String summary;
   final String validationCommand;
   final String validationSummary;
+  final ToolOutcomeVerdictSource verdictSource;
   final String? blockedReason;
 }
 
@@ -87,7 +89,7 @@ class ConversationValidationToolResultInference {
       final record = compareToolOutcomeExitCode(
         toolName: input.toolName,
         outcome: input.outcome,
-        parsedExitCode: parsed.exitCode,
+        parsedExitCode: parsed.payloadExitCode,
       );
       if (record.isNoteworthy) appLog(record.logLine);
     }
@@ -112,6 +114,7 @@ class ConversationValidationToolResultInference {
         blockedReason: detail,
         validationCommand: command,
         validationSummary: detail,
+        verdictSource: selected.verdictSource,
       );
     }
 
@@ -133,6 +136,7 @@ class ConversationValidationToolResultInference {
       summary: summary,
       validationCommand: command,
       validationSummary: detail,
+      verdictSource: selected.verdictSource,
     );
   }
 
@@ -156,8 +160,13 @@ class ConversationValidationToolResultInference {
     }
 
     return switch (input.toolName) {
-      'local_execute_command' || 'run_tests' || 'git_execute_command' =>
-        _parseCommandToolResult(rawResult, toolName: input.toolName),
+      'local_execute_command' ||
+      'run_tests' ||
+      'git_execute_command' => _parseCommandToolResult(
+        rawResult,
+        toolName: input.toolName,
+        outcome: input.outcome,
+      ),
       'ssh_execute_command' => _parseSshToolResult(rawResult),
       'ping' => _parsePingToolResult(rawResult),
       'dns_lookup' => _parseDnsLookupToolResult(rawResult),
@@ -173,6 +182,7 @@ class ConversationValidationToolResultInference {
   static _ParsedValidationToolResult? _parseCommandToolResult(
     String rawResult, {
     required String toolName,
+    required ToolOutcome? outcome,
   }) {
     final decoded = _tryDecodeMap(rawResult);
     if (decoded == null) {
@@ -183,7 +193,12 @@ class ConversationValidationToolResultInference {
     final error = _normalizeText(decoded['error']);
     final stdout = _normalizeText(decoded['stdout']);
     final stderr = _normalizeText(decoded['stderr']);
-    final exitCode = _parseExitCode(decoded['exit_code']);
+    final payloadExitCode = _parseExitCode(decoded['exit_code']);
+    final exitCodeResolution = resolveToolOutcomeExitCode(
+      outcome: outcome,
+      parsedExitCode: payloadExitCode,
+    );
+    final exitCode = exitCodeResolution.exitCode;
     if (command == null &&
         error == null &&
         stdout == null &&
@@ -203,6 +218,8 @@ class ConversationValidationToolResultInference {
         command: command,
         failureDetail: '${outputIssue.summary}\n${outputIssue.excerpt}'.trim(),
         exitCode: exitCode,
+        payloadExitCode: payloadExitCode,
+        verdictSource: ToolOutcomeVerdictSource.lexicalFallback,
         // A guardrail issue (truncated or unusable output) means the result
         // cannot be trusted as evidence at all, so it stands regardless of how
         // the process exited.
@@ -216,6 +233,10 @@ class ConversationValidationToolResultInference {
           stdout ?? stderr ?? 'The validation command completed successfully.',
       failureDetail: error ?? stderr,
       exitCode: exitCode,
+      payloadExitCode: payloadExitCode,
+      verdictSource: error != null
+          ? ToolOutcomeVerdictSource.lexicalFallback
+          : exitCodeResolution.source,
       // The tool's own `error` field means the invocation itself failed, which
       // is authoritative. Process `stderr` is not: git, dart test and npm all
       // write informational output there on success, so it is only a verdict
@@ -676,6 +697,8 @@ class _ParsedValidationToolResult {
     this.successDetail,
     this.failureDetail,
     this.exitCode,
+    this.payloadExitCode,
+    this.verdictSource = ToolOutcomeVerdictSource.lexicalFallback,
     this.forcedFailure = false,
   });
 
@@ -683,6 +706,8 @@ class _ParsedValidationToolResult {
   final String? successDetail;
   final String? failureDetail;
   final int? exitCode;
+  final int? payloadExitCode;
+  final ToolOutcomeVerdictSource verdictSource;
 
   /// Set when the failure is established independently of how the process
   /// exited (a tool-level error, or output the guardrails judged unusable).

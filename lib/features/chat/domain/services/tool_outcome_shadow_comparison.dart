@@ -34,6 +34,47 @@ enum ToolOutcomeAgreement {
   bothAbsent,
 }
 
+/// The source that supplied an exit status to a migrated consumer.
+///
+/// Consumers keep the lexical path for third-party MCP results and older
+/// first-party payloads, but first-party outcomes take precedence whenever
+/// they carry an exit code. Exposing the source keeps that fallback measurable
+/// instead of making it an invisible compatibility branch.
+enum ToolOutcomeVerdictSource { typed, lexicalFallback, unavailable }
+
+class ToolOutcomeExitCodeResolution {
+  const ToolOutcomeExitCodeResolution({
+    required this.exitCode,
+    required this.source,
+  });
+
+  final int? exitCode;
+  final ToolOutcomeVerdictSource source;
+}
+
+ToolOutcomeExitCodeResolution resolveToolOutcomeExitCode({
+  required ToolOutcome? outcome,
+  required int? parsedExitCode,
+}) {
+  final structuredExitCode = outcome?.exitCode;
+  if (structuredExitCode != null) {
+    return ToolOutcomeExitCodeResolution(
+      exitCode: structuredExitCode,
+      source: ToolOutcomeVerdictSource.typed,
+    );
+  }
+  if (parsedExitCode != null) {
+    return ToolOutcomeExitCodeResolution(
+      exitCode: parsedExitCode,
+      source: ToolOutcomeVerdictSource.lexicalFallback,
+    );
+  }
+  return const ToolOutcomeExitCodeResolution(
+    exitCode: null,
+    source: ToolOutcomeVerdictSource.unavailable,
+  );
+}
+
 /// One comparison, ready to be recorded.
 class ToolOutcomeShadowRecord {
   const ToolOutcomeShadowRecord({
@@ -47,6 +88,13 @@ class ToolOutcomeShadowRecord {
   final ToolOutcomeAgreement agreement;
   final int? structuredExitCode;
   final int? parsedExitCode;
+
+  ToolOutcomeVerdictSource get verdictSource => resolveToolOutcomeExitCode(
+    outcome: structuredExitCode == null
+        ? null
+        : ToolOutcome(exitCode: structuredExitCode),
+    parsedExitCode: parsedExitCode,
+  ).source;
 
   /// Whether this record is worth a log line.
   ///

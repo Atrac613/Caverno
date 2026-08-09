@@ -185,6 +185,7 @@ class TriageMarkerScoringTest(unittest.TestCase):
                         "toolOutcomeShadow": {
                             "toolName": "local_execute_command",
                             "agreement": "agree",
+                            "verdictSource": "typed",
                             "structuredExitCode": 1,
                             "parsedExitCode": 1,
                         }
@@ -198,6 +199,7 @@ class TriageMarkerScoringTest(unittest.TestCase):
         self.assertEqual(row["transforms"], {"unwritten_file_claim_notice": 1})
         self.assertEqual(row["goal_auto_continue"], {"continue: gaps": 1})
         self.assertEqual(row["tool_outcome_shadow"], {"agree": 1})
+        self.assertEqual(row["tool_outcome_verdict_source"], {"typed": 1})
 
 
 if __name__ == "__main__":

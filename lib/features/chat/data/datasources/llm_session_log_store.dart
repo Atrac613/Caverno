@@ -604,6 +604,7 @@ class LlmSessionLogStore {
     required DateTime at,
     required String toolName,
     required String agreement,
+    required String verdictSource,
     required int? structuredExitCode,
     required int? parsedExitCode,
     String? toolCallId,
@@ -621,6 +622,7 @@ class LlmSessionLogStore {
         'toolOutcomeShadow': {
           'toolName': toolName,
           'agreement': agreement,
+          'verdictSource': verdictSource,
           'structuredExitCode': ?structuredExitCode,
           'parsedExitCode': ?parsedExitCode,
           if (toolCallId != null && toolCallId.isNotEmpty)

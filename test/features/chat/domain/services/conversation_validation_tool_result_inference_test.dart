@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_validation_tool_result_inference.dart';
+import 'package:caverno/features/chat/domain/services/tool_outcome_shadow_comparison.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 void main() {
   test('a masked exit status does not pass validation', () {
@@ -66,6 +68,30 @@ void main() {
     expect(result.blockedReason, contains('1 smoke test failed.'));
     expect(result.validationCommand, 'flutter test');
     expect(result.validationSummary, contains('1 smoke test failed.'));
+  });
+
+  test('prefers typed command status and records its verdict source', () {
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'typed-exit',
+        title: 'Run validation',
+        validationCommand: 'dart test',
+      ),
+      toolResults: const [
+        ConversationValidationToolResultInput(
+          toolName: 'local_execute_command',
+          rawResult:
+              '{"command":"dart test","exit_code":9,"stdout":"All tests passed."}',
+          outcome: ToolOutcome(exitCode: 0),
+        ),
+      ],
+    );
+
+    expect(
+      result!.validationStatus,
+      ConversationExecutionValidationStatus.passed,
+    );
+    expect(result.verdictSource, ToolOutcomeVerdictSource.typed);
   });
 
   test('infers passed validation from successful tool output', () {

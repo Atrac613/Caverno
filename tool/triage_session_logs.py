@@ -247,6 +247,7 @@ def analyze(path: str) -> dict | None:
     transforms: Counter = Counter()
     goal_auto_continue: Counter = Counter()
     tool_outcome_shadow: Counter = Counter()
+    tool_outcome_verdict_source: Counter = Counter()
     for entry in entries:
         if entry.get("operation") in _COMPLETION_OPERATIONS:
             completions += 1
@@ -275,7 +276,9 @@ def analyze(path: str) -> dict | None:
         if entry.get("operation") == "tool_outcome_shadow":
             marker = entry.get("toolOutcomeShadow", {})
             agreement = marker.get("agreement") or "unknown"
+            verdict_source = marker.get("verdictSource") or "unknown"
             tool_outcome_shadow[agreement] += 1
+            tool_outcome_verdict_source[verdict_source] += 1
             continue
         # Any other marker (execution_shadow, goal_completion_shadow, or one
         # added later) contributes no anomaly signal and must not be scored.
@@ -338,6 +341,7 @@ def analyze(path: str) -> dict | None:
         "transforms": dict(transforms),
         "goal_auto_continue": dict(goal_auto_continue),
         "tool_outcome_shadow": dict(tool_outcome_shadow),
+        "tool_outcome_verdict_source": dict(tool_outcome_verdict_source),
         "mtime": os.path.getmtime(path),
         "score": round(score, 2),
         "commit": commit,
@@ -399,11 +403,15 @@ def main() -> int:
     transform_totals: Counter = Counter()
     goal_auto_continue_totals: Counter = Counter()
     tool_outcome_shadow_totals: Counter = Counter()
+    tool_outcome_verdict_source_totals: Counter = Counter()
     for r in rows:
         exit_totals.update(r.get("exit_reasons") or {})
         transform_totals.update(r.get("transforms") or {})
         goal_auto_continue_totals.update(r.get("goal_auto_continue") or {})
         tool_outcome_shadow_totals.update(r.get("tool_outcome_shadow") or {})
+        tool_outcome_verdict_source_totals.update(
+            r.get("tool_outcome_verdict_source") or {}
+        )
 
     # Worst byte-identical repeat-read offenders (reread_max), across all
     # scanned sessions — spotlights thrash that ranking-by-total can bury.
@@ -480,6 +488,14 @@ def main() -> int:
         )
         for agreement, count in tool_outcome_shadow_totals.most_common():
             print(f"  {count:>5} ({count / total:>5.1%})  {agreement}")
+    if tool_outcome_verdict_source_totals:
+        total = sum(tool_outcome_verdict_source_totals.values())
+        print(
+            f"\n== Tool outcome verdict source "
+            f"(LL34, {total} comparisons) =="
+        )
+        for source, count in tool_outcome_verdict_source_totals.most_common():
+            print(f"  {count:>5} ({count / total:>5.1%})  {source}")
     return 0
 
 

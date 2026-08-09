@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/coding_command_output_issue_detector.dart';
+import 'package:caverno/features/chat/domain/services/tool_outcome_shadow_comparison.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 void main() {
   const detector = CodingCommandOutputIssueDetector();
@@ -15,6 +17,7 @@ void main() {
         command: 'dart test',
         workingDirectory: '/workspace',
         exitCode: 0,
+        exitCodeSource: ToolOutcomeVerdictSource.typed,
         source: 'stdout',
         summary: 'summary',
         excerpt: 'excerpt',
@@ -36,6 +39,7 @@ void main() {
         'command': 'dart test',
         'working_directory': '/workspace',
         'exit_code': 0,
+        'exit_code_source': 'typed',
         'source': 'stdout',
         'summary': 'summary',
         'excerpt': 'excerpt',
@@ -118,6 +122,22 @@ void main() {
       expect(decoded!.command, '42');
       expect(decoded.workingDirectory, '/tmp');
       expect(decoded.summary, 'Output contains a runtime failure signal.');
+    });
+
+    test('prefers a typed exit status over a contradictory payload', () {
+      final issue = detector.detect(
+        ToolResultInfo(
+          id: 'typed',
+          name: 'local_execute_command',
+          arguments: const {},
+          result: jsonEncode({'exit_code': 4, 'stdout': '# Error'}),
+          outcome: const ToolOutcome(exitCode: 0),
+        ),
+      );
+
+      expect(issue, isNotNull);
+      expect(issue!.exitCode, 0);
+      expect(issue.exitCodeSource, ToolOutcomeVerdictSource.typed);
     });
 
     test('supports every command-result tool name', () {

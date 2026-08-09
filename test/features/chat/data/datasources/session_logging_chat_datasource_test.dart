@@ -305,6 +305,7 @@ void main() {
           at: DateTime(2026, 8, 9, 12),
           toolName: 'local_execute_command',
           agreement: 'disagree',
+          verdictSource: 'typed',
           structuredExitCode: 0,
           parsedExitCode: 1,
           toolCallId: 'call-1',
@@ -318,6 +319,7 @@ void main() {
         expect(decoded['toolOutcomeShadow'], {
           'toolName': 'local_execute_command',
           'agreement': 'disagree',
+          'verdictSource': 'typed',
           'structuredExitCode': 0,
           'parsedExitCode': 1,
           'toolCallId': 'call-1',

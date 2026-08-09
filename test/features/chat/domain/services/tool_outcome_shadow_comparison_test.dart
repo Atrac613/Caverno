@@ -3,6 +3,34 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('resolveToolOutcomeExitCode', () {
+    test('prefers typed outcomes and reports the selected source', () {
+      final typed = resolveToolOutcomeExitCode(
+        outcome: const ToolOutcome(exitCode: 0),
+        parsedExitCode: 7,
+      );
+      final fallback = resolveToolOutcomeExitCode(
+        outcome: null,
+        parsedExitCode: 7,
+      );
+
+      expect(typed.exitCode, 0);
+      expect(typed.source, ToolOutcomeVerdictSource.typed);
+      expect(fallback.exitCode, 7);
+      expect(fallback.source, ToolOutcomeVerdictSource.lexicalFallback);
+    });
+
+    test('reports unavailable when neither source has an exit status', () {
+      final resolution = resolveToolOutcomeExitCode(
+        outcome: const ToolOutcome(fileChanged: true),
+        parsedExitCode: null,
+      );
+
+      expect(resolution.exitCode, isNull);
+      expect(resolution.source, ToolOutcomeVerdictSource.unavailable);
+    });
+  });
+
   group('compareToolOutcomeExitCode', () {
     test('agrees when both sources report the same status', () {
       final record = compareToolOutcomeExitCode(
