@@ -6,6 +6,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 
 void main() {
+  test(
+    'GitTools.executeResult returns the process exit status directly',
+    () async {
+      final execution = await GitTools.executeResult(
+        command: 'status --short',
+        workingDirectory: Directory.current.path,
+      );
+
+      expect(execution.isSuccess, isTrue);
+      expect(execution.outcome?.exitCode, 0);
+      expect(jsonDecode(execution.result), containsPair('exit_code', 0));
+    },
+  );
+
   group('GitTools.normalizeCommand', () {
     test('strips a leading git binary prefix', () {
       expect(GitTools.normalizeCommand('git status --short'), 'status --short');

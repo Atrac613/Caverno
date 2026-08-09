@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/git_tool_runtime_adapter.dart';
+import 'package:caverno/features/chat/data/datasources/first_party_tool_execution_result.dart';
 import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -28,7 +30,7 @@ void main() {
         events.add('inspect');
         return _inspection(inspection++ == 0 ? 'before' : 'after');
       },
-      commandRunner:
+      commandResultRunner:
           ({
             required command,
             required workingDirectory,
@@ -38,7 +40,7 @@ void main() {
             events.add('runner');
             expect(beforeProcessStart!(), isTrue);
             events.add('process');
-            return _commandPayload(exitCode: 0);
+            return _commandExecution(exitCode: 0);
           },
     );
 
@@ -60,13 +62,13 @@ void main() {
   test('reports a preflight rejection as a launch failure', () async {
     final adapter = GitToolRuntimeAdapter(
       stateInspector: (_) async => _inspection('same'),
-      commandRunner:
+      commandResultRunner:
           ({
             required command,
             required workingDirectory,
             reason,
             beforeProcessStart,
-          }) async => _commandPayload(exitCode: 2),
+          }) async => _commandExecution(exitCode: 2),
     );
 
     await expectLater(
@@ -142,7 +144,7 @@ GitToolRuntimeAdapter _commandAdapter({
   var inspection = 0;
   return GitToolRuntimeAdapter(
     stateInspector: (_) async => inspection++ == 0 ? before : after,
-    commandRunner:
+    commandResultRunner:
         ({
           required command,
           required workingDirectory,
@@ -150,7 +152,7 @@ GitToolRuntimeAdapter _commandAdapter({
           beforeProcessStart,
         }) async {
           beforeProcessStart!();
-          return _commandPayload(exitCode: exitCode);
+          return _commandExecution(exitCode: exitCode);
         },
   );
 }
@@ -196,3 +198,12 @@ String _commandPayload({required int exitCode}) => jsonEncode({
   'stdout': '',
   'stderr': exitCode == 0 ? '' : 'failed',
 });
+
+FirstPartyToolExecutionResult _commandExecution({required int exitCode}) =>
+    FirstPartyToolExecutionResult(
+      result: _commandPayload(exitCode: exitCode),
+      outcome: ToolOutcome(exitCode: exitCode),
+      errorMessage: exitCode == 0
+          ? null
+          : 'Git command exited with code $exitCode: failed',
+    );

@@ -77,16 +77,15 @@ class GitFinishWorktreeSessionTool {
       );
     }
     try {
-      final result = await GitTools.finishWorktreeSession(
+      final execution = await GitTools.finishWorktreeSessionResult(
         worktreePath: worktreePath,
         baseBranch: baseBranch,
         removeWorktree: removeWorktree,
         mergeMessage: mergeMessage,
       );
-      final normalizedResult = McpToolResultNormalizer.fromCommandPayload(
+      final normalizedResult = McpToolResultNormalizer.fromFirstPartyExecution(
         toolName: toolName,
-        result: result,
-        toolLabel: 'Finish worktree session',
+        execution: execution,
       );
       if (!normalizedResult.isSuccess) {
         appLog(

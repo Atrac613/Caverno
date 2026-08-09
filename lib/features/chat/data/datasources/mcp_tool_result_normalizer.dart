@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../domain/entities/mcp_tool_entity.dart';
-import 'command_payload_facts.dart';
+import 'first_party_tool_execution_result.dart';
 
 /// Builds compatible tool results from direct, JSON, and command outcomes.
 abstract final class McpToolResultNormalizer {
@@ -53,7 +53,7 @@ abstract final class McpToolResultNormalizer {
     required String fallbackErrorMessage,
     bool isExternalMcpResult = false,
   }) {
-    final decoded = CommandPayloadFacts.tryDecodeMap(result);
+    final decoded = _tryDecodeMap(result);
     if (decoded == null || decoded['ok'] != false) {
       return success(
         toolName: toolName,
@@ -69,32 +69,35 @@ abstract final class McpToolResultNormalizer {
     );
   }
 
-  /// Normalizes a first-party command tool's payload, lifting the facts it
-  /// reported (see [CommandPayloadFacts]) onto the result so downstream
-  /// consumers read them instead of decoding the payload again.
-  static McpToolResult fromCommandPayload({
+  static McpToolResult fromFirstPartyExecution({
     required String toolName,
-    required String result,
-    required String toolLabel,
+    required FirstPartyToolExecutionResult execution,
     bool isExternalMcpResult = false,
   }) {
-    final facts = CommandPayloadFacts.tryParse(result);
-    final outcome = facts?.toOutcome();
-    final failureMessage = facts?.failureMessage(toolLabel);
-    if (failureMessage == null) {
+    final errorMessage = execution.errorMessage;
+    if (errorMessage == null) {
       return success(
         toolName: toolName,
-        result: result,
+        result: execution.result,
         isExternalMcpResult: isExternalMcpResult,
-        outcome: outcome,
+        outcome: execution.outcome,
       );
     }
     return failure(
       toolName: toolName,
-      result: result,
-      errorMessage: failureMessage,
+      result: execution.result,
+      errorMessage: errorMessage,
       isExternalMcpResult: isExternalMcpResult,
-      outcome: outcome,
+      outcome: execution.outcome,
     );
+  }
+
+  static Map<String, dynamic>? _tryDecodeMap(String payload) {
+    try {
+      final decoded = jsonDecode(payload);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
   }
 }

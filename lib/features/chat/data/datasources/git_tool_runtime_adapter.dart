@@ -8,6 +8,7 @@ import '../../../../core/services/login_shell_environment.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/services/git_process_execution_contract.dart';
 import '../../domain/services/git_tool_handler.dart';
+import 'first_party_tool_execution_result.dart';
 import 'git_tools.dart';
 import 'mcp_tool_result_normalizer.dart';
 
@@ -24,6 +25,23 @@ typedef GitRuntimeCommandRunner =
 
 typedef GitRuntimeWorktreeRunner =
     Future<String> Function({
+      required String worktreePath,
+      String baseBranch,
+      bool removeWorktree,
+      String? mergeMessage,
+      GitProcessHandoff? beforeProcessStart,
+    });
+
+typedef GitRuntimeCommandResultRunner =
+    Future<FirstPartyToolExecutionResult> Function({
+      required String command,
+      required String workingDirectory,
+      String? reason,
+      GitProcessHandoff? beforeProcessStart,
+    });
+
+typedef GitRuntimeWorktreeResultRunner =
+    Future<FirstPartyToolExecutionResult> Function({
       required String worktreePath,
       String baseBranch,
       bool removeWorktree,
@@ -148,14 +166,50 @@ final class GitToolRuntimeAdapter
   GitToolRuntimeAdapter({
     GitRuntimeCommandRunner? commandRunner,
     GitRuntimeWorktreeRunner? worktreeRunner,
+    GitRuntimeCommandResultRunner? commandResultRunner,
+    GitRuntimeWorktreeResultRunner? worktreeResultRunner,
     GitRuntimeStateInspector? stateInspector,
-  }) : _commandRunner = commandRunner ?? GitTools.execute,
-       _worktreeRunner = worktreeRunner ?? GitTools.finishWorktreeSession,
+  }) : _commandResultRunner =
+           commandResultRunner ??
+           (commandRunner == null
+               ? GitTools.executeResult
+               : ({
+                   required command,
+                   required workingDirectory,
+                   reason,
+                   beforeProcessStart,
+                 }) async => FirstPartyToolExecutionResult.payloadOnly(
+                   await commandRunner(
+                     command: command,
+                     workingDirectory: workingDirectory,
+                     reason: reason,
+                     beforeProcessStart: beforeProcessStart,
+                   ),
+                 )),
+       _worktreeResultRunner =
+           worktreeResultRunner ??
+           (worktreeRunner == null
+               ? GitTools.finishWorktreeSessionResult
+               : ({
+                   required worktreePath,
+                   baseBranch = 'main',
+                   removeWorktree = true,
+                   mergeMessage,
+                   beforeProcessStart,
+                 }) async => FirstPartyToolExecutionResult.payloadOnly(
+                   await worktreeRunner(
+                     worktreePath: worktreePath,
+                     baseBranch: baseBranch,
+                     removeWorktree: removeWorktree,
+                     mergeMessage: mergeMessage,
+                     beforeProcessStart: beforeProcessStart,
+                   ),
+                 )),
        _stateInspector =
            stateInspector ?? const GitRepositoryStateInspector().inspect;
 
-  final GitRuntimeCommandRunner _commandRunner;
-  final GitRuntimeWorktreeRunner _worktreeRunner;
+  final GitRuntimeCommandResultRunner _commandResultRunner;
+  final GitRuntimeWorktreeResultRunner _worktreeResultRunner;
   final GitRuntimeStateInspector _stateInspector;
 
   @override
@@ -169,16 +223,15 @@ final class GitToolRuntimeAdapter
       request.source.ownerWorktreePath,
     ];
     final before = await _stateInspector(candidates);
-    final payload = await _commandRunner(
+    final execution = await _commandResultRunner(
       command: request.command,
       workingDirectory: request.workingDirectory,
       reason: request.reason,
       beforeProcessStart: authorization.beginProcessHandoff,
     );
-    final result = McpToolResultNormalizer.fromCommandPayload(
+    final result = McpToolResultNormalizer.fromFirstPartyExecution(
       toolName: request.source.toolName,
-      result: payload,
-      toolLabel: 'Git command',
+      execution: execution,
     );
     return _completion(
       authorization: authorization,
@@ -200,17 +253,16 @@ final class GitToolRuntimeAdapter
       request.source.ownerWorktreePath,
     ];
     final before = await _stateInspector(candidates);
-    final payload = await _worktreeRunner(
+    final execution = await _worktreeResultRunner(
       worktreePath: request.worktreePath,
       baseBranch: request.baseBranch,
       removeWorktree: request.removeWorktree,
       mergeMessage: request.mergeMessage,
       beforeProcessStart: authorization.beginProcessHandoff,
     );
-    final result = McpToolResultNormalizer.fromCommandPayload(
+    final result = McpToolResultNormalizer.fromFirstPartyExecution(
       toolName: request.source.toolName,
-      result: payload,
-      toolLabel: 'Finish worktree session',
+      execution: execution,
     );
     return _completion(
       authorization: authorization,

@@ -1,4 +1,6 @@
+import 'package:caverno/features/chat/data/datasources/first_party_tool_execution_result.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_result_normalizer.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -113,10 +115,12 @@ void main() {
       ];
 
       for (final testCase in cases) {
-        final result = McpToolResultNormalizer.fromCommandPayload(
+        final result = McpToolResultNormalizer.fromFirstPartyExecution(
           toolName: 'git_execute_command',
-          result: testCase.payload,
-          toolLabel: 'Git command',
+          execution: FirstPartyToolExecutionResult(
+            result: testCase.payload,
+            errorMessage: testCase.expected,
+          ),
         );
 
         expect(result.result, testCase.payload);
@@ -133,10 +137,9 @@ void main() {
         '{"exit_code":0,"stderr":"ignored"}',
         '{"error":"  ","exit_code":0}',
       ]) {
-        final result = McpToolResultNormalizer.fromCommandPayload(
+        final result = McpToolResultNormalizer.fromFirstPartyExecution(
           toolName: 'git_execute_command',
-          result: payload,
-          toolLabel: 'Git command',
+          execution: FirstPartyToolExecutionResult.payloadOnly(payload),
           isExternalMcpResult: true,
         );
 
@@ -148,15 +151,20 @@ void main() {
     });
 
     test('lifts the reported exit status onto the result (LL34)', () {
-      final failed = McpToolResultNormalizer.fromCommandPayload(
+      final failed = McpToolResultNormalizer.fromFirstPartyExecution(
         toolName: 'git_execute_command',
-        result: '{"exit_code":1,"stderr":"merge conflict"}',
-        toolLabel: 'Git command',
+        execution: const FirstPartyToolExecutionResult(
+          result: '{"exit_code":1,"stderr":"merge conflict"}',
+          outcome: ToolOutcome(exitCode: 1),
+          errorMessage: 'Git command exited with code 1: merge conflict',
+        ),
       );
-      final succeeded = McpToolResultNormalizer.fromCommandPayload(
+      final succeeded = McpToolResultNormalizer.fromFirstPartyExecution(
         toolName: 'git_execute_command',
-        result: '{"exit_code":0,"stdout":"clean"}',
-        toolLabel: 'Git command',
+        execution: const FirstPartyToolExecutionResult(
+          result: '{"exit_code":0,"stdout":"clean"}',
+          outcome: ToolOutcome(exitCode: 0),
+        ),
       );
 
       expect(failed.outcome?.exitCode, 1);
@@ -168,15 +176,18 @@ void main() {
       // A payload the tool could not describe, and one whose explicit error
       // means the command failed to run, must both leave the fact absent
       // rather than inventing a status.
-      final unparseable = McpToolResultNormalizer.fromCommandPayload(
+      final unparseable = McpToolResultNormalizer.fromFirstPartyExecution(
         toolName: 'git_execute_command',
-        result: 'Command finished.',
-        toolLabel: 'Git command',
+        execution: const FirstPartyToolExecutionResult.payloadOnly(
+          'Command finished.',
+        ),
       );
-      final neverRan = McpToolResultNormalizer.fromCommandPayload(
+      final neverRan = McpToolResultNormalizer.fromFirstPartyExecution(
         toolName: 'git_execute_command',
-        result: '{"exit_code":1,"error":"Working directory missing."}',
-        toolLabel: 'Git command',
+        execution: const FirstPartyToolExecutionResult(
+          result: '{"exit_code":1,"error":"Working directory missing."}',
+          errorMessage: 'Working directory missing.',
+        ),
       );
 
       expect(unparseable.outcome, isNull);

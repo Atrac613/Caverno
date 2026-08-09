@@ -636,16 +636,16 @@ class McpToolService extends McpToolServiceFacadeBase {
         );
       }
       try {
-        final result = await GitTools.execute(
+        final execution = await GitTools.executeResult(
           command: command,
           workingDirectory: workingDirectory,
           reason: (arguments['reason'] as String?)?.trim(),
         );
-        final normalizedResult = McpToolResultNormalizer.fromCommandPayload(
-          toolName: name,
-          result: result,
-          toolLabel: 'Git command',
-        );
+        final normalizedResult =
+            McpToolResultNormalizer.fromFirstPartyExecution(
+              toolName: name,
+              execution: execution,
+            );
         if (!normalizedResult.isSuccess) {
           appLog(
             '[McpToolService] Git command failed: '

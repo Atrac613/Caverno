@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../../../../core/services/login_shell_environment.dart';
+import 'first_party_tool_execution_result.dart';
 
 typedef GitProcessHandoff = bool Function();
 
@@ -365,6 +368,18 @@ class GitTools {
     required String workingDirectory,
     String? reason,
     GitProcessHandoff? beforeProcessStart,
+  }) async => (await executeResult(
+    command: command,
+    workingDirectory: workingDirectory,
+    reason: reason,
+    beforeProcessStart: beforeProcessStart,
+  )).result;
+
+  static Future<FirstPartyToolExecutionResult> executeResult({
+    required String command,
+    required String workingDirectory,
+    String? reason,
+    GitProcessHandoff? beforeProcessStart,
   }) async {
     final shellOperator = firstShellControlOperator(command);
     final normalizedCommand = normalizeCommand(command);
@@ -372,17 +387,17 @@ class GitTools {
     // Validate working directory.
     final dir = Directory(workingDirectory);
     if (!dir.existsSync()) {
-      return jsonEncode({
+      return _failureExecution({
         'error': 'Working directory does not exist: $workingDirectory',
       });
     }
 
     final args = splitArgs(normalizedCommand);
     if (args.isEmpty) {
-      return jsonEncode({'error': 'Empty git command'});
+      return _failureExecution({'error': 'Empty git command'});
     }
     if (shellOperator != null) {
-      return jsonEncode({
+      return _failureExecution({
         'command': 'git $normalizedCommand',
         'working_directory': workingDirectory,
         'exit_code': 2,
@@ -410,12 +425,14 @@ class GitTools {
           environment: environment,
         );
         if (check.exitCode != 0) {
-          return jsonEncode({
+          return _failureExecution({
             'error': 'Not a git repository: $workingDirectory',
           });
         }
       } catch (e) {
-        return jsonEncode({'error': 'Failed to verify git repository: $e'});
+        return _failureExecution({
+          'error': 'Failed to verify git repository: $e',
+        });
       }
 
       final commitPreflightError = await _commitPreflightError(
@@ -461,7 +478,7 @@ class GitTools {
 
     try {
       if (beforeProcessStart != null && !beforeProcessStart()) {
-        return jsonEncode({
+        return _failureExecution({
           'command': 'git $normalizedCommand',
           'working_directory': workingDirectory,
           'exit_code': 130,
@@ -480,7 +497,7 @@ class GitTools {
       final stdoutTruncated = stdout.length > _kMaxOutputChars;
       final stderrTruncated = stderr.length > _kMaxOutputChars;
 
-      return jsonEncode({
+      final payload = {
         'command': 'git $normalizedCommand',
         'working_directory': workingDirectory,
         'exit_code': result.exitCode,
@@ -492,9 +509,21 @@ class GitTools {
             : stderr,
         if (stdoutTruncated) 'stdout_truncated': true,
         if (stderrTruncated) 'stderr_truncated': true,
-      });
+      };
+      final detail = stderr.trim().isNotEmpty
+          ? stderr.trim()
+          : (stdout.trim().isNotEmpty ? stdout.trim() : null);
+      return FirstPartyToolExecutionResult(
+        result: jsonEncode(payload),
+        outcome: ToolOutcome(exitCode: result.exitCode),
+        errorMessage: result.exitCode == 0
+            ? null
+            : detail == null
+            ? 'Git command exited with code ${result.exitCode}'
+            : 'Git command exited with code ${result.exitCode}: $detail',
+      );
     } on TimeoutException {
-      return jsonEncode({
+      return _failureExecution({
         'command': 'git $normalizedCommand',
         'working_directory': workingDirectory,
         'error':
@@ -502,7 +531,7 @@ class GitTools {
             'Avoid interactive git commands (use -m for commit, etc.).',
       });
     } catch (e) {
-      return jsonEncode({
+      return _failureExecution({
         'command': 'git $normalizedCommand',
         'working_directory': workingDirectory,
         'error': e.toString(),
@@ -516,11 +545,25 @@ class GitTools {
     bool removeWorktree = true,
     String? mergeMessage,
     GitProcessHandoff? beforeProcessStart,
+  }) async => (await finishWorktreeSessionResult(
+    worktreePath: worktreePath,
+    baseBranch: baseBranch,
+    removeWorktree: removeWorktree,
+    mergeMessage: mergeMessage,
+    beforeProcessStart: beforeProcessStart,
+  )).result;
+
+  static Future<FirstPartyToolExecutionResult> finishWorktreeSessionResult({
+    required String worktreePath,
+    String baseBranch = 'main',
+    bool removeWorktree = true,
+    String? mergeMessage,
+    GitProcessHandoff? beforeProcessStart,
   }) async {
     final normalizedWorktreePath = worktreePath.trim();
     final normalizedBaseBranch = _normalizeBranchName(baseBranch.trim());
     if (normalizedWorktreePath.isEmpty || normalizedBaseBranch.isEmpty) {
-      return jsonEncode({
+      return _failureExecution({
         'ok': false,
         'code': 'git_finish_worktree_invalid_arguments',
         'error': 'worktree_path and base_branch are required.',
@@ -529,7 +572,7 @@ class GitTools {
 
     final worktreeDir = Directory(normalizedWorktreePath);
     if (!worktreeDir.existsSync()) {
-      return jsonEncode({
+      return _failureExecution({
         'ok': false,
         'code': 'git_finish_worktree_path_not_found',
         'worktree_path': normalizedWorktreePath,
@@ -553,7 +596,7 @@ class GitTools {
     }
     final currentBranch = currentBranchResult.stdout.trim();
     if (currentBranch.isEmpty) {
-      return jsonEncode({
+      return _failureExecution({
         'ok': false,
         'code': 'git_finish_worktree_detached_head',
         'worktree_path': worktreeDir.absolute.path,
@@ -561,7 +604,7 @@ class GitTools {
       });
     }
     if (_normalizeBranchName(currentBranch) == normalizedBaseBranch) {
-      return jsonEncode({
+      return _failureExecution({
         'ok': false,
         'code': 'git_finish_worktree_base_branch_selected',
         'worktree_path': worktreeDir.absolute.path,
@@ -589,7 +632,7 @@ class GitTools {
       );
     }
     if (worktreeStatus.stdout.trim().isNotEmpty) {
-      return jsonEncode({
+      return _failureExecution({
         'ok': false,
         'code': 'git_finish_worktree_dirty',
         'worktree_path': worktreeDir.absolute.path,
@@ -626,7 +669,7 @@ class GitTools {
         .where((entry) => entry.normalizedPath == normalizedCurrentPath)
         .firstOrNull;
     if (currentEntry == null) {
-      return jsonEncode({
+      return _failureExecution({
         'ok': false,
         'code': 'git_finish_worktree_not_registered',
         'worktree_path': worktreeDir.absolute.path,
@@ -643,7 +686,7 @@ class GitTools {
         )
         .firstOrNull;
     if (baseEntry == null) {
-      return jsonEncode({
+      return _failureExecution({
         'ok': false,
         'code': 'git_finish_worktree_base_not_found',
         'worktree_path': worktreeDir.absolute.path,
@@ -673,7 +716,7 @@ class GitTools {
       );
     }
     if (baseStatus.stdout.trim().isNotEmpty) {
-      return jsonEncode({
+      return _failureExecution({
         'ok': false,
         'code': 'git_finish_worktree_base_dirty',
         'worktree_path': worktreeDir.absolute.path,
@@ -705,7 +748,7 @@ class GitTools {
     }
     mergeArgs.add(currentBranch);
     if (beforeProcessStart != null && !beforeProcessStart()) {
-      return jsonEncode({
+      return _failureExecution({
         'ok': false,
         'code': 'git_finish_worktree_owner_expired',
         'worktree_path': worktreeDir.absolute.path,
@@ -721,7 +764,7 @@ class GitTools {
       environment: environment,
     );
     if (mergeResult.exitCode != 0) {
-      return jsonEncode({
+      return _failureExecution({
         'ok': false,
         'code': 'git_finish_worktree_merge_failed',
         'worktree_path': worktreeDir.absolute.path,
@@ -747,7 +790,7 @@ class GitTools {
         environment: environment,
       );
       if (removeResult.exitCode != 0) {
-        return jsonEncode({
+        return _failureExecution({
           'ok': false,
           'code': 'git_finish_worktree_remove_failed',
           'worktree_path': worktreeDir.absolute.path,
@@ -762,7 +805,7 @@ class GitTools {
       }
     }
 
-    return jsonEncode({
+    return _successExecution({
       'ok': true,
       'code': 'git_finish_worktree_completed',
       'worktree_path': worktreeDir.absolute.path,
@@ -778,7 +821,30 @@ class GitTools {
     });
   }
 
-  static String? _worktreeRemovePreflightError({
+  static FirstPartyToolExecutionResult _successExecution(
+    Map<String, dynamic> payload, {
+    ToolOutcome? outcome,
+  }) => FirstPartyToolExecutionResult(
+    result: jsonEncode(payload),
+    outcome: outcome,
+  );
+
+  static FirstPartyToolExecutionResult _failureExecution(
+    Map<String, dynamic> payload, {
+    ToolOutcome? outcome,
+  }) {
+    final rawError = payload['error'];
+    final errorMessage = rawError is String && rawError.trim().isNotEmpty
+        ? rawError.trim()
+        : 'Git operation failed';
+    return FirstPartyToolExecutionResult(
+      result: jsonEncode(payload),
+      outcome: outcome,
+      errorMessage: errorMessage,
+    );
+  }
+
+  static FirstPartyToolExecutionResult? _worktreeRemovePreflightError({
     required List<String> args,
     required String normalizedCommand,
     required String workingDirectory,
@@ -792,7 +858,7 @@ class GitTools {
     if (forceCount < 2) {
       return null;
     }
-    return jsonEncode({
+    return _failureExecution({
       'command': 'git $normalizedCommand',
       'working_directory': workingDirectory,
       'exit_code': 2,
@@ -821,7 +887,7 @@ class GitTools {
     return 0;
   }
 
-  static Future<String?> _mergePreflightError({
+  static Future<FirstPartyToolExecutionResult?> _mergePreflightError({
     required List<String> args,
     required String normalizedCommand,
     required String workingDirectory,
@@ -852,7 +918,7 @@ class GitTools {
         if (_normalizeBranchName(target) != normalizedCurrent) {
           continue;
         }
-        return jsonEncode({
+        return _failureExecution({
           'command': 'git $normalizedCommand',
           'working_directory': workingDirectory,
           'exit_code': 2,
@@ -875,7 +941,7 @@ class GitTools {
       );
       if (intendedTargetBranch != null &&
           _normalizeBranchName(intendedTargetBranch) != normalizedCurrent) {
-        return jsonEncode({
+        return _failureExecution({
           'command': 'git $normalizedCommand',
           'working_directory': workingDirectory,
           'exit_code': 2,
@@ -893,7 +959,7 @@ class GitTools {
       }
       return null;
     } on TimeoutException {
-      return jsonEncode({
+      return _failureExecution({
         'command': 'git $normalizedCommand',
         'working_directory': workingDirectory,
         'exit_code': 2,
@@ -901,7 +967,7 @@ class GitTools {
         'error': 'Timed out while checking the current branch before merge.',
       });
     } catch (e) {
-      return jsonEncode({
+      return _failureExecution({
         'command': 'git $normalizedCommand',
         'working_directory': workingDirectory,
         'exit_code': 2,
@@ -1049,7 +1115,7 @@ class GitTools {
     }
   }
 
-  static String _finishWorktreeErrorResult({
+  static FirstPartyToolExecutionResult _finishWorktreeErrorResult({
     required String code,
     required String error,
     required String worktreePath,
@@ -1074,7 +1140,7 @@ class GitTools {
     if (currentBranch != null) {
       payload['current_branch'] = currentBranch;
     }
-    return jsonEncode(payload);
+    return _failureExecution(payload);
   }
 
   static List<_GitWorktreeEntry> _parseWorktreeListPorcelain(String output) {
@@ -1106,7 +1172,7 @@ class GitTools {
     return entries;
   }
 
-  static Future<String?> _commitPreflightError({
+  static Future<FirstPartyToolExecutionResult?> _commitPreflightError({
     required List<String> args,
     required String normalizedCommand,
     required String workingDirectory,
@@ -1124,7 +1190,7 @@ class GitTools {
         environment: environment,
       ).timeout(_kTimeout);
       if (status.exitCode != 0) {
-        return jsonEncode({
+        return _failureExecution({
           'command': 'git $normalizedCommand',
           'working_directory': workingDirectory,
           'exit_code': status.exitCode,
@@ -1139,7 +1205,7 @@ class GitTools {
       if (!_hasPartiallyStagedFiles(stdout)) {
         return null;
       }
-      return jsonEncode({
+      return _failureExecution({
         'command': 'git $normalizedCommand',
         'working_directory': workingDirectory,
         'exit_code': 2,
@@ -1156,7 +1222,7 @@ class GitTools {
         if (stdout.length > _kMaxOutputChars) 'status_truncated': true,
       });
     } on TimeoutException {
-      return jsonEncode({
+      return _failureExecution({
         'command': 'git $normalizedCommand',
         'working_directory': workingDirectory,
         'exit_code': 2,
@@ -1164,7 +1230,7 @@ class GitTools {
         'error': 'Timed out while inspecting git status before commit.',
       });
     } catch (e) {
-      return jsonEncode({
+      return _failureExecution({
         'command': 'git $normalizedCommand',
         'working_directory': workingDirectory,
         'exit_code': 2,
@@ -1236,7 +1302,7 @@ class GitTools {
   /// `1.3.8+20`). Inert unless this is a tag-creation command, the repo has a
   /// pubspec, and both the tag and the pubspec version parse as version tokens —
   /// so non-Dart repos and non-version tag schemes are never affected.
-  static Future<String?> _tagVersionPreflightError({
+  static Future<FirstPartyToolExecutionResult?> _tagVersionPreflightError({
     required List<String> args,
     required String normalizedCommand,
     required String workingDirectory,
@@ -1272,7 +1338,7 @@ class GitTools {
       return null;
     }
 
-    return jsonEncode({
+    return _failureExecution({
       'command': 'git $normalizedCommand',
       'working_directory': workingDirectory,
       'exit_code': 2,
