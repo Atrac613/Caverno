@@ -58,8 +58,9 @@ Each line is one JSON object with schema name
   The field is absent when no producer set a label.
 - Response content, finish reason, tool calls, token usage, or error details
 - Turn-level markers such as `turn_exit`, `goal_auto_continue`,
-  `execution_shadow`, and `tool_outcome_shadow`, which make non-request
-  decisions visible in the same JSONL timeline as model calls.
+  `goal_completion_shadow`, `execution_shadow`, and `tool_outcome_shadow`,
+  which make non-request decisions visible in the same JSONL timeline as model
+  calls.
   `turn_exit.guardDecisions` records metadata-
   only guard outcomes. Its `completedToolResultFinalAnswerRecovery` field is
   one of `not_evaluated`, `skip_recovery`, or `allow_recovery`; older v2 entries
@@ -70,6 +71,12 @@ Each line is one JSON object with schema name
   identifiers, and diagnostic text. `tool_outcome_shadow` records the tool
   name, typed-versus-legacy exit-code agreement, both optional exit codes, and
   correlation keys. It deliberately excludes the rendered tool payload.
+  `goal_completion_shadow` records one explicit-tool-versus-lexical comparison
+  for every turn that started with an active goal. Its `agreement` is `agree`
+  or `disagree`; disagreement records also carry a stable `label`. Optional
+  tool outcome, lexical completion verdict, and owner-scoped turn id fields
+  support diagnosis without changing which completion path is authoritative.
+  Older disagreement-only markers can omit `agreement`.
 
 ## Sensitivity
 
@@ -88,7 +95,7 @@ When debugging a session with Codex:
 1. Identify the relevant workspace subdirectory.
 2. Start with the bounded summary command:
    `dart run tool/caverno_session_log_summary.dart --log path/to/session.jsonl`
-   For corpus-level anomaly ranking and LL34 agreement counts, use
+   For corpus-level anomaly ranking and LL34/LL35 agreement counts, use
    `python3 tool/triage_session_logs.py --since-days 2 --top 40 --full`.
 3. Open the matching `.jsonl` file only when the summary flags an error, a
    loop-limit prompt, missing final answer, malformed lines,

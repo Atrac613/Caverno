@@ -14,7 +14,6 @@ typedef GoalTurnRecorder =
       required bool toolCompletionClaimed,
       required String conversationId,
     });
-
 typedef GoalCompletionShadowRecorder =
     Future<void> Function({
       required bool lexicalCompleted,
@@ -31,7 +30,6 @@ final class TurnGoalCompletionEvidenceRegistry {
   final Map<ChatTurnOwner, ToolResultCompletionEvidence> _evidenceByOwner =
       <ChatTurnOwner, ToolResultCompletionEvidence>{};
   final Map<String, int> _disposedGenerationWatermarks = <String, int>{};
-
   int get length => _evidenceByOwner.length;
   bool get isEmpty => _evidenceByOwner.isEmpty;
 
@@ -157,8 +155,7 @@ final class TurnGoalCompletionEvidenceRegistry {
 
 /// Reconciles and records one owner's goal state before terminal disposal.
 ///
-/// Claim and shadow values are consumed before the goal write is awaited so a
-/// detached turn cannot lose its one-shot state while persistence is pending.
+/// Consume claim and shadow values before awaiting the goal write.
 final class TurnGoalCompletionFinalizer {
   TurnGoalCompletionFinalizer({
     required GoalTurnRecorder recordGoalTurn,
@@ -193,6 +190,7 @@ final class TurnGoalCompletionFinalizer {
     );
     final toolCompletionClaimed = finalizationState.takeGoalClaim(owner);
     final toolCompletionOutcome = finalizationState.takeGoalOutcome(owner);
+    final goalWasActive = conversation?.goal?.isActive == true;
     final lexicalCompleted = await _recordGoalTurn(
       assistantResponse: assistantResponse,
       tokenUsageDelta: tokenUsageDelta,
@@ -200,12 +198,14 @@ final class TurnGoalCompletionFinalizer {
       toolCompletionClaimed: toolCompletionClaimed,
       conversationId: owner.conversationId,
     );
-    await _recordGoalCompletionShadow(
-      lexicalCompleted: lexicalCompleted,
-      owner: owner,
-      context: context,
-      toolCompletionOutcome: toolCompletionOutcome,
-    );
+    if (goalWasActive) {
+      await _recordGoalCompletionShadow(
+        lexicalCompleted: lexicalCompleted,
+        owner: owner,
+        context: context,
+        toolCompletionOutcome: toolCompletionOutcome,
+      );
+    }
     return evidence;
   }
 }

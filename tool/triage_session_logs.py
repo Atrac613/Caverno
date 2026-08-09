@@ -246,6 +246,8 @@ def analyze(path: str) -> dict | None:
     exit_reasons: Counter = Counter()
     transforms: Counter = Counter()
     goal_auto_continue: Counter = Counter()
+    goal_completion_shadow_agreement: Counter = Counter()
+    goal_completion_shadow_disagreement: Counter = Counter()
     tool_outcome_shadow: Counter = Counter()
     tool_outcome_verdict_source: Counter = Counter()
     for entry in entries:
@@ -273,6 +275,19 @@ def analyze(path: str) -> dict | None:
             reason = marker.get("reason") or "unknown"
             goal_auto_continue[f"{decision}: {reason}"] += 1
             continue
+        if entry.get("operation") == "goal_completion_shadow":
+            marker = entry.get("goalCompletionShadow", {})
+            agreement = marker.get("agreement")
+            label = marker.get("label")
+            # Legacy LL35 markers were emitted only for disagreements and did
+            # not carry an explicit agreement field. Preserve that evidence
+            # instead of classifying every pre-denominator record as unknown.
+            if agreement not in ("agree", "disagree"):
+                agreement = "disagree" if label else "unknown"
+            goal_completion_shadow_agreement[agreement] += 1
+            if agreement == "disagree":
+                goal_completion_shadow_disagreement[label or "unknown"] += 1
+            continue
         if entry.get("operation") == "tool_outcome_shadow":
             marker = entry.get("toolOutcomeShadow", {})
             agreement = marker.get("agreement") or "unknown"
@@ -280,8 +295,8 @@ def analyze(path: str) -> dict | None:
             tool_outcome_shadow[agreement] += 1
             tool_outcome_verdict_source[verdict_source] += 1
             continue
-        # Any other marker (execution_shadow, goal_completion_shadow, or one
-        # added later) contributes no anomaly signal and must not be scored.
+        # Any other marker (execution_shadow or one added later) contributes no
+        # anomaly signal and must not be scored.
         if not _is_completion_entry(entry):
             continue
         response = entry.get("response", {})
@@ -340,6 +355,12 @@ def analyze(path: str) -> dict | None:
         "exit_reasons": dict(exit_reasons),
         "transforms": dict(transforms),
         "goal_auto_continue": dict(goal_auto_continue),
+        "goal_completion_shadow_agreement": dict(
+            goal_completion_shadow_agreement
+        ),
+        "goal_completion_shadow_disagreement": dict(
+            goal_completion_shadow_disagreement
+        ),
         "tool_outcome_shadow": dict(tool_outcome_shadow),
         "tool_outcome_verdict_source": dict(tool_outcome_verdict_source),
         "mtime": os.path.getmtime(path),
@@ -402,12 +423,20 @@ def main() -> int:
     exit_totals: Counter = Counter()
     transform_totals: Counter = Counter()
     goal_auto_continue_totals: Counter = Counter()
+    goal_completion_shadow_agreement_totals: Counter = Counter()
+    goal_completion_shadow_disagreement_totals: Counter = Counter()
     tool_outcome_shadow_totals: Counter = Counter()
     tool_outcome_verdict_source_totals: Counter = Counter()
     for r in rows:
         exit_totals.update(r.get("exit_reasons") or {})
         transform_totals.update(r.get("transforms") or {})
         goal_auto_continue_totals.update(r.get("goal_auto_continue") or {})
+        goal_completion_shadow_agreement_totals.update(
+            r.get("goal_completion_shadow_agreement") or {}
+        )
+        goal_completion_shadow_disagreement_totals.update(
+            r.get("goal_completion_shadow_disagreement") or {}
+        )
         tool_outcome_shadow_totals.update(r.get("tool_outcome_shadow") or {})
         tool_outcome_verdict_source_totals.update(
             r.get("tool_outcome_verdict_source") or {}
@@ -479,6 +508,26 @@ def main() -> int:
         print("\n== Goal auto-continuation decisions ==")
         for name, count in goal_auto_continue_totals.most_common():
             print(f"  {count:>5}  {name}")
+
+    if goal_completion_shadow_agreement_totals:
+        total = sum(goal_completion_shadow_agreement_totals.values())
+        print(
+            f"\n== Goal completion shadow agreement "
+            f"(LL35, {total} comparisons) =="
+        )
+        for agreement, count in (
+            goal_completion_shadow_agreement_totals.most_common()
+        ):
+            print(f"  {count:>5} ({count / total:>5.1%})  {agreement}")
+    if goal_completion_shadow_disagreement_totals:
+        total = sum(goal_completion_shadow_disagreement_totals.values())
+        unit = "disagreement" if total == 1 else "disagreements"
+        print(
+            f"\n== Goal completion shadow disagreements "
+            f"(LL35, {total} {unit}) =="
+        )
+        for label, count in goal_completion_shadow_disagreement_totals.most_common():
+            print(f"  {count:>5}  {label}")
 
     if tool_outcome_shadow_totals:
         total = sum(tool_outcome_shadow_totals.values())

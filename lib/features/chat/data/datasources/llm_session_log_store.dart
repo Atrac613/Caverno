@@ -562,11 +562,12 @@ class LlmSessionLogStore {
   /// This is a record of its own rather than a `turn_exit` transform because
   /// the comparison is only known *after* the goal turn is recorded, which
   /// happens after the turn-exit entry is written. A late transform would miss
-  /// that immutable snapshot, so the disagreement requires a separate record.
+  /// that immutable snapshot, so the comparison requires a separate record.
   Future<void> recordGoalCompletionShadow({
     required LlmSessionLogContext? context,
     required DateTime at,
-    required String label,
+    required String agreement,
+    required String? label,
     required String? toolOutcome,
     required bool lexicalCompleted,
     String? turnId,
@@ -581,7 +582,8 @@ class LlmSessionLogStore {
         'context': effectiveContext.toJson(),
         'operation': 'goal_completion_shadow',
         'goalCompletionShadow': {
-          'label': label,
+          'agreement': agreement,
+          'label': ?label,
           'toolOutcome': ?toolOutcome,
           'lexicalCompleted': lexicalCompleted,
           if (turnId != null && turnId.isNotEmpty) 'turnId': turnId,

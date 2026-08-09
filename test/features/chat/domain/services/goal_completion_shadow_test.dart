@@ -3,6 +3,23 @@ import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('maps comparisons to stable agreement values', () {
+    expect(
+      GoalCompletionShadow.agreementFor(null),
+      GoalCompletionShadowAgreement.agree,
+    );
+    expect(
+      GoalCompletionShadow.agreementFor(
+        GoalCompletionShadowDisagreement.toolAcceptedLexicalMissed,
+      ),
+      GoalCompletionShadowAgreement.disagree,
+    );
+    expect(GoalCompletionShadowAgreement.values.map((value) => value.name), [
+      'agree',
+      'disagree',
+    ]);
+  });
+
   group('agreement (no disagreement recorded)', () {
     test('both complete', () {
       expect(

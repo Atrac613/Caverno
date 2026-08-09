@@ -28,8 +28,23 @@ enum GoalCompletionShadowDisagreement {
   toolRejectedLexicalCompleted,
 }
 
+/// Whether the explicit goal tool and lexical inference agreed for one turn.
+enum GoalCompletionShadowAgreement { agree, disagree }
+
 /// Compares the two goal-completion decisions for a single turn.
 abstract final class GoalCompletionShadow {
+  /// Converts the optional disagreement into the stable persisted verdict.
+  static GoalCompletionShadowAgreement agreementFor(
+    GoalCompletionShadowDisagreement? disagreement,
+  ) => disagreement == null
+      ? GoalCompletionShadowAgreement.agree
+      : GoalCompletionShadowAgreement.disagree;
+
+  /// Returns the stable disagreement label, or null for an agreement.
+  static String? optionalLabelFor(
+    GoalCompletionShadowDisagreement? disagreement,
+  ) => disagreement == null ? null : labelFor(disagreement);
+
   /// The stable transform label recorded for a disagreement, for triage.
   static String labelFor(GoalCompletionShadowDisagreement disagreement) {
     switch (disagreement) {

@@ -8,10 +8,13 @@ count 9x and reordering the ranking the triage exists to produce.
 """
 
 import importlib.util
+import io
 import json
 import pathlib
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -144,12 +147,22 @@ class TriageMarkerScoringTest(unittest.TestCase):
             [
                 _marker("turn_exit", {"turnExit": {"reason": "text_response"}}),
                 _marker("execution_shadow", {"executionShadow": {"action": "a"}}),
+                _marker(
+                    "goal_completion_shadow",
+                    {
+                        "goalCompletionShadow": {
+                            "agreement": "agree",
+                            "lexicalCompleted": False,
+                        }
+                    },
+                ),
             ]
         )
 
         self.assertEqual(row["completions"], 0)
         self.assertEqual(row["transport"], 0)
         self.assertEqual(row["score"], 0)
+        self.assertEqual(row["goal_completion_shadow_agreement"], {"agree": 1})
 
     def test_marker_only_session_keeps_its_title(self):
         row = _analyze(
@@ -180,6 +193,36 @@ class TriageMarkerScoringTest(unittest.TestCase):
                     {"goalAutoContinue": {"decision": "continue", "reason": "gaps"}},
                 ),
                 _marker(
+                    "goal_completion_shadow",
+                    {
+                        "goalCompletionShadow": {
+                            "agreement": "agree",
+                            "lexicalCompleted": False,
+                        }
+                    },
+                ),
+                _marker(
+                    "goal_completion_shadow",
+                    {
+                        "goalCompletionShadow": {
+                            "agreement": "disagree",
+                            "label": "goal_completion_tool_accepted_lexical_missed",
+                            "toolOutcome": "completionRecorded",
+                            "lexicalCompleted": False,
+                        }
+                    },
+                ),
+                # Pre-denominator records had a label but no agreement field.
+                _marker(
+                    "goal_completion_shadow",
+                    {
+                        "goalCompletionShadow": {
+                            "label": "goal_completion_lexical_only",
+                            "lexicalCompleted": True,
+                        }
+                    },
+                ),
+                _marker(
                     "tool_outcome_shadow",
                     {
                         "toolOutcomeShadow": {
@@ -198,8 +241,66 @@ class TriageMarkerScoringTest(unittest.TestCase):
         self.assertEqual(row["no_answer"], 1)
         self.assertEqual(row["transforms"], {"unwritten_file_claim_notice": 1})
         self.assertEqual(row["goal_auto_continue"], {"continue: gaps": 1})
+        self.assertEqual(
+            row["goal_completion_shadow_agreement"],
+            {"agree": 1, "disagree": 2},
+        )
+        self.assertEqual(
+            row["goal_completion_shadow_disagreement"],
+            {
+                "goal_completion_tool_accepted_lexical_missed": 1,
+                "goal_completion_lexical_only": 1,
+            },
+        )
         self.assertEqual(row["tool_outcome_shadow"], {"agree": 1})
         self.assertEqual(row["tool_outcome_verdict_source"], {"typed": 1})
+
+
+class TriageGoalCompletionOutputTest(unittest.TestCase):
+    def test_prints_goal_completion_denominator_and_disagreements(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "coding" / "session.jsonl"
+            path.parent.mkdir()
+            entries = [
+                _completion(response={"finishReason": "stop", "content": "ok"}),
+                _marker(
+                    "goal_completion_shadow",
+                    {
+                        "goalCompletionShadow": {
+                            "agreement": "agree",
+                            "lexicalCompleted": False,
+                        }
+                    },
+                ),
+                _marker(
+                    "goal_completion_shadow",
+                    {
+                        "goalCompletionShadow": {
+                            "agreement": "disagree",
+                            "label": "goal_completion_tool_accepted_lexical_missed",
+                            "lexicalCompleted": False,
+                        }
+                    },
+                ),
+            ]
+            path.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+            output = io.StringIO()
+            with mock.patch(
+                "sys.argv",
+                ["triage_session_logs.py", "--dir", directory, "--top", "5"],
+            ), redirect_stdout(output):
+                status = triage.main()
+
+        self.assertEqual(status, 0)
+        rendered = output.getvalue()
+        self.assertIn(
+            "Goal completion shadow agreement (LL35, 2 comparisons)", rendered
+        )
+        self.assertIn(
+            "Goal completion shadow disagreements (LL35, 1 disagreement)",
+            rendered,
+        )
+        self.assertIn("goal_completion_tool_accepted_lexical_missed", rendered)
 
 
 if __name__ == "__main__":

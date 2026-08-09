@@ -6496,9 +6496,9 @@ void main() {
     // Absence alone passes just as well when the answer was discarded, because
     // thread B is empty either way. Say positively where the answer went, or
     // the scenario cannot tell attribution from loss.
-    container.read(conversationsNotifierProvider.notifier).selectConversation(
-      threadA,
-    );
+    container
+        .read(conversationsNotifierProvider.notifier)
+        .selectConversation(threadA);
     await Future<void>.delayed(Duration.zero);
     expect(
       container
@@ -7426,7 +7426,6 @@ void main() {
     },
   );
 
-
   test(
     'a plan drafted while the user leaves lands on the drafting thread',
     () async {
@@ -7512,7 +7511,6 @@ void main() {
       );
     },
   );
-
 
   test(
     'a workflow proposal drafted while the user leaves lands on its thread',
@@ -7621,7 +7619,6 @@ void main() {
     },
   );
 
-
   // LL34. The first version of this test asserted the outcome could not
   // survive, blaming the four-string single-result datasource API. That was
   // wrong: the notifier never calls it. The fact was being dropped by
@@ -7651,9 +7648,7 @@ void main() {
     );
     final container = _buildContainer(
       dataSource: dataSource,
-      toolService: _ReportedOutcomeToolService(
-        const ToolOutcome(exitCode: 2),
-      ),
+      toolService: _ReportedOutcomeToolService(const ToolOutcome(exitCode: 2)),
     );
     addTearDown(container.dispose);
 
@@ -10255,6 +10250,10 @@ void main() {
     expect(ownerAShadows, hasLength(1));
     expect(
       ownerAShadows.single['goalCompletionShadow'],
+      containsPair('agreement', 'disagree'),
+    );
+    expect(
+      ownerAShadows.single['goalCompletionShadow'],
       containsPair('label', 'goal_completion_tool_accepted_lexical_missed'),
     );
     expect(
@@ -10265,7 +10264,14 @@ void main() {
       ownerAShadows.single['goalCompletionShadow'],
       containsPair('lexicalCompleted', false),
     );
-    expect(ownerBShadows, isEmpty);
+    expect(ownerBShadows, hasLength(1));
+    final ownerBShadow =
+        ownerBShadows.single['goalCompletionShadow'] as Map<String, dynamic>;
+    expect(ownerBShadow, containsPair('agreement', 'agree'));
+    expect(ownerBShadow, containsPair('lexicalCompleted', false));
+    expect(ownerBShadow.containsKey('label'), isFalse);
+    expect(ownerBShadow.containsKey('toolOutcome'), isFalse);
+    expect(ownerBShadow['turnId'], startsWith('gen-'));
   });
 }
 

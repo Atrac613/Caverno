@@ -771,7 +771,6 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
           lexicalCompleted: lexicalCompleted,
           toolCompletionOutcome: toolCompletionOutcome,
         );
-    if (record == null) return;
     final loggingEnabled = LlmSessionLogStore.isEnabled(
       settingsEnabled: _settings.enableLlmSessionLogs,
     );
@@ -781,6 +780,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         .recordGoalCompletionShadow(
           context: context,
           at: DateTime.now(),
+          agreement: record.agreement.name,
           label: record.label,
           toolOutcome: record.toolOutcome,
           lexicalCompleted: record.lexicalCompleted,

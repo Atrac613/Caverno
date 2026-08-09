@@ -238,6 +238,42 @@ void main() {
     });
 
     test(
+      'recordGoalCompletionShadow appends an agreement denominator',
+      () async {
+        final store = LlmSessionLogStore(
+          rootDirectoryProvider: () async => tempDir,
+        );
+        const context = LlmSessionLogContext(
+          workspaceMode: WorkspaceMode.coding,
+          sessionId: 'conversation/goal-shadow',
+          conversationId: 'conversation/goal-shadow',
+        );
+
+        await store.recordGoalCompletionShadow(
+          context: context,
+          at: DateTime(2026, 8, 9, 12),
+          agreement: 'agree',
+          label: null,
+          toolOutcome: 'completionRecorded',
+          lexicalCompleted: true,
+          turnId: 'gen-7',
+        );
+
+        final file = await store.fileForContext(context);
+        final decoded =
+            jsonDecode((await file.readAsLines()).single)
+                as Map<String, dynamic>;
+        expect(decoded['operation'], 'goal_completion_shadow');
+        expect(decoded['goalCompletionShadow'], {
+          'agreement': 'agree',
+          'toolOutcome': 'completionRecorded',
+          'lexicalCompleted': true,
+          'turnId': 'gen-7',
+        });
+      },
+    );
+
+    test(
       'recordExecutionShadow appends only redacted decision state',
       () async {
         final store = LlmSessionLogStore(

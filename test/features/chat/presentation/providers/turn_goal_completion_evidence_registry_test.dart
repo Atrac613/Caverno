@@ -5,6 +5,7 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
@@ -303,6 +304,12 @@ void main() {
         messages: const [],
         createdAt: timestamp,
         updatedAt: timestamp,
+        goal: ConversationGoal(
+          id: 'goal-a',
+          objective: 'Complete owner A work',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        ),
         mutationGeneration: 2,
         verificationGeneration: 2,
       );
@@ -384,6 +391,69 @@ void main() {
       expect(shadowOwner, owner);
       expect(shadowOutcome, GoalUpdateAckOutcome.completionRecorded);
       expect(shadowLexicalCompleted, isFalse);
+    },
+  );
+
+  test(
+    'finalizer excludes turns without an active goal from shadow data',
+    () async {
+      final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
+      final finalizationState = TurnFinalizationStateRegistry();
+      final timestamp = DateTime.utc(2026, 8, 9);
+      final conversation = Conversation(
+        id: 'thread-a',
+        title: 'Thread A',
+        messages: const [],
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      );
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'thread-a',
+        conversationId: 'thread-a',
+      );
+      var goalWrites = 0;
+      var shadowWrites = 0;
+
+      expect(evidenceRegistry.begin(owner), isTrue);
+      expect(finalizationState.begin(owner), isTrue);
+      final evidence =
+          await TurnGoalCompletionFinalizer(
+            recordGoalTurn:
+                ({
+                  required assistantResponse,
+                  required tokenUsageDelta,
+                  required completionEvidence,
+                  required toolCompletionClaimed,
+                  required conversationId,
+                }) async {
+                  goalWrites += 1;
+                  return false;
+                },
+            recordGoalCompletionShadow:
+                ({
+                  required lexicalCompleted,
+                  required owner,
+                  required context,
+                  required toolCompletionOutcome,
+                }) async {
+                  shadowWrites += 1;
+                },
+          ).finalize(
+            owner: owner,
+            evidenceRegistry: evidenceRegistry,
+            finalizationState: finalizationState,
+            completedToolResults: const <ToolResultInfo>[],
+            contentToolResults: const <ToolResultInfo>[],
+            conversation: conversation,
+            assistantResponse: 'No goal is active.',
+            tokenUsageDelta: 0,
+            context: context,
+          );
+
+      expect(evidence, isNotNull);
+      expect(goalWrites, 1);
+      expect(shadowWrites, 0);
     },
   );
 

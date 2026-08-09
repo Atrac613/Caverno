@@ -21,7 +21,6 @@ final class GoalAutoContinueLogRecord {
     required this.consecutiveAutoContinuations,
     required this.evidence,
   });
-
   final ChatTurnOwner owner;
   final String decision;
   final String reason;
@@ -30,7 +29,6 @@ final class GoalAutoContinueLogRecord {
   final int? effectiveTurnBudget;
   final int? consecutiveAutoContinuations;
   final Map<String, dynamic> evidence;
-
   Map<String, dynamic> get payload => Map<String, dynamic>.unmodifiable({
     'decision': decision,
     'reason': reason,
@@ -46,20 +44,21 @@ final class GoalAutoContinueLogRecord {
 final class GoalCompletionShadowLogRecord {
   const GoalCompletionShadowLogRecord._({
     required this.owner,
+    required this.agreement,
     required this.label,
     required this.toolOutcome,
     required this.lexicalCompleted,
     required this.turnId,
   });
-
   final ChatTurnOwner owner;
-  final String label;
+  final GoalCompletionShadowAgreement agreement;
+  final String? label;
   final String? toolOutcome;
   final bool lexicalCompleted;
   final String turnId;
-
   Map<String, dynamic> get payload => Map<String, dynamic>.unmodifiable({
-    'label': label,
+    'agreement': agreement.name,
+    if (label != null) 'label': label,
     if (toolOutcome != null) 'toolOutcome': toolOutcome,
     'lexicalCompleted': lexicalCompleted,
     'turnId': turnId,
@@ -116,7 +115,7 @@ final class GoalContinuationLogRecordBuilder {
     );
   }
 
-  GoalCompletionShadowLogRecord? buildCompletionShadow({
+  GoalCompletionShadowLogRecord buildCompletionShadow({
     required ChatTurnOwner owner,
     required bool lexicalCompleted,
     required GoalUpdateAckOutcome? toolCompletionOutcome,
@@ -125,10 +124,10 @@ final class GoalContinuationLogRecordBuilder {
       toolCompletionOutcome: toolCompletionOutcome,
       lexicalCompleted: lexicalCompleted,
     );
-    if (disagreement == null) return null;
     return GoalCompletionShadowLogRecord._(
       owner: owner,
-      label: GoalCompletionShadow.labelFor(disagreement),
+      agreement: GoalCompletionShadow.agreementFor(disagreement),
+      label: GoalCompletionShadow.optionalLabelFor(disagreement),
       toolOutcome: toolCompletionOutcome?.name,
       lexicalCompleted: lexicalCompleted,
       turnId: 'gen-${owner.interactionGeneration}',

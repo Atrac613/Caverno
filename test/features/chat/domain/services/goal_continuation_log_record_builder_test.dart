@@ -2,6 +2,7 @@ import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/services/conversation_goal_auto_continue_policy.dart';
 import 'package:caverno/features/chat/domain/services/goal_auto_continue_tracker_registry.dart';
+import 'package:caverno/features/chat/domain/services/goal_completion_shadow.dart';
 import 'package:caverno/features/chat/domain/services/goal_continuation_log_record_builder.dart';
 import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
@@ -309,13 +310,14 @@ void main() {
           toolCompletionOutcome: testCase.outcome,
         );
 
-        expect(record, isNotNull);
-        expect(record!.owner, _owner('owner-a', 23));
+        expect(record.owner, _owner('owner-a', 23));
+        expect(record.agreement, GoalCompletionShadowAgreement.disagree);
         expect(record.label, testCase.label);
         expect(record.toolOutcome, testCase.toolOutcome);
         expect(record.lexicalCompleted, testCase.lexicalCompleted);
         expect(record.turnId, 'gen-23');
         expect(record.payload, {
+          'agreement': 'disagree',
           'label': testCase.label,
           if (testCase.toolOutcome != null) 'toolOutcome': testCase.toolOutcome,
           'lexicalCompleted': testCase.lexicalCompleted,
@@ -331,36 +333,52 @@ void main() {
         toolCompletionOutcome: null,
       );
 
-      expect(record!.payload, {
+      expect(record.payload, {
+        'agreement': 'disagree',
         'label': 'goal_completion_lexical_only',
         'lexicalCompleted': true,
         'turnId': 'gen-5',
       });
     });
 
-    test('returns no record for every agreeing outcome', () {
-      final cases = <({GoalUpdateAckOutcome? outcome, bool lexicalCompleted})>[
-        (
-          outcome: GoalUpdateAckOutcome.completionRecorded,
-          lexicalCompleted: true,
-        ),
-        (
-          outcome: GoalUpdateAckOutcome.completionRejected,
-          lexicalCompleted: false,
-        ),
-        (outcome: null, lexicalCompleted: false),
-        (outcome: GoalUpdateAckOutcome.blockerLogged, lexicalCompleted: false),
-      ];
+    test('builds every agreeing outcome into the denominator', () {
+      final cases =
+          <
+            ({
+              GoalUpdateAckOutcome? outcome,
+              bool lexicalCompleted,
+              String? toolOutcome,
+            })
+          >[
+            (
+              outcome: GoalUpdateAckOutcome.completionRecorded,
+              lexicalCompleted: true,
+              toolOutcome: 'completionRecorded',
+            ),
+            (
+              outcome: GoalUpdateAckOutcome.completionRejected,
+              lexicalCompleted: false,
+              toolOutcome: 'completionRejected',
+            ),
+            (outcome: null, lexicalCompleted: false, toolOutcome: null),
+          ];
 
       for (final testCase in cases) {
-        expect(
-          _builder.buildCompletionShadow(
-            owner: _owner('owner-a', 1),
-            lexicalCompleted: testCase.lexicalCompleted,
-            toolCompletionOutcome: testCase.outcome,
-          ),
-          isNull,
+        final record = _builder.buildCompletionShadow(
+          owner: _owner('owner-a', 1),
+          lexicalCompleted: testCase.lexicalCompleted,
+          toolCompletionOutcome: testCase.outcome,
         );
+        expect(record.agreement, GoalCompletionShadowAgreement.agree);
+        expect(record.label, isNull);
+        expect(record.toolOutcome, testCase.toolOutcome);
+        expect(record.lexicalCompleted, testCase.lexicalCompleted);
+        expect(record.payload, {
+          'agreement': 'agree',
+          if (testCase.toolOutcome != null) 'toolOutcome': testCase.toolOutcome,
+          'lexicalCompleted': testCase.lexicalCompleted,
+          'turnId': 'gen-1',
+        });
       }
     });
 
@@ -373,7 +391,7 @@ void main() {
       );
       final visibleOwner = _owner('visible-b', 44);
 
-      expect(record!.owner, capturedOwner);
+      expect(record.owner, capturedOwner);
       expect(record.owner, isNot(visibleOwner));
       expect(record.turnId, 'gen-31');
     });
