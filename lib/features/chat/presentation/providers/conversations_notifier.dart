@@ -1116,7 +1116,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   ///
   /// [conversationId] targets a detached owner explicitly. Omitting it keeps
   /// the current-conversation behavior used by UI actions and existing callers.
-  Future<bool> recordCurrentGoalTurn({
+  Future<void> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
@@ -1127,7 +1127,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final conversation = state.conversationForId(conversationId);
     final goal = conversation?.goal;
     if (conversation == null || goal == null || !goal.isActive) {
-      return false;
+      return;
     }
 
     final now = DateTime.now();
@@ -1152,9 +1152,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
           : goal.status,
     );
 
-    final lexicalCompleted =
-        inference.hasLexicalCompletion &&
-        !completionEvidence.hasBlockingEvidence;
     final structuredCompleted =
         inference.hasStructuredCompletion &&
         !completionEvidence.hasIncompleteEvidence;
@@ -1191,7 +1188,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     }
 
     await _persistCurrentGoal(nextGoal, conversationId: conversation.id);
-    return lexicalCompleted;
   }
 
   Future<void> _persistCurrentGoal(

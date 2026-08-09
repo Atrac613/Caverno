@@ -10480,31 +10480,8 @@ void main() {
 
     final ownerAShadows = await shadowEntriesFor(threadA);
     final ownerBShadows = await shadowEntriesFor(threadB);
-    expect(ownerAShadows, hasLength(1));
-    expect(
-      ownerAShadows.single['goalCompletionShadow'],
-      containsPair('agreement', 'disagree'),
-    );
-    expect(
-      ownerAShadows.single['goalCompletionShadow'],
-      containsPair('label', 'goal_completion_tool_accepted_lexical_missed'),
-    );
-    expect(
-      ownerAShadows.single['goalCompletionShadow'],
-      containsPair('toolOutcome', 'completionRecorded'),
-    );
-    expect(
-      ownerAShadows.single['goalCompletionShadow'],
-      containsPair('lexicalCompleted', false),
-    );
-    expect(ownerBShadows, hasLength(1));
-    final ownerBShadow =
-        ownerBShadows.single['goalCompletionShadow'] as Map<String, dynamic>;
-    expect(ownerBShadow, containsPair('agreement', 'agree'));
-    expect(ownerBShadow, containsPair('lexicalCompleted', false));
-    expect(ownerBShadow.containsKey('label'), isFalse);
-    expect(ownerBShadow.containsKey('toolOutcome'), isFalse);
-    expect(ownerBShadow['turnId'], startsWith('gen-'));
+    expect(ownerAShadows, isEmpty);
+    expect(ownerBShadows, isEmpty);
   });
 }
 

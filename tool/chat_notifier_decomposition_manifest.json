@@ -1068,8 +1068,7 @@
         "_recordGoalAutoContinueSessionLog",
         "handleUpdateGoal",
         "_goalUpdateEvidenceAtCallTime",
-        "takeToolGoalCompletionClaim",
-        "recordGoalCompletionShadow"
+        "takeToolGoalCompletionClaim"
       ],
       "status": "partial",
       "collaborators": [

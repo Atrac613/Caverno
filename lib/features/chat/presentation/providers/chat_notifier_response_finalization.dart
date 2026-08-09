@@ -128,7 +128,6 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
       finishReason: finishReason,
     );
     if (!_activeResponseRegistry.containsOwner(owner)) return;
-    final turnLogContext = _llmSessionLogContextForGeneration(generation);
     final explicitTerminalSuccessSummary =
         _explicitTerminalSuccessSummariesByGeneration.remove(generation);
 
@@ -167,7 +166,6 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
             ? explicitTerminalSuccessSummary!
             : finalizedLastMessage.content,
         tokenUsageDelta: goalTokenUsageDelta,
-        context: turnLogContext,
       );
       if (completionEvidence == null) return;
       if (!_activeResponseRegistry.containsOwner(owner)) return;

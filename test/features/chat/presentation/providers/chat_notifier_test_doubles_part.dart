@@ -160,10 +160,20 @@ class _GoalAutoContinueConversationsNotifier
             : (workflowSpec ?? conversation.workflowSpec),
         workflowSourceHash: workflowSourceHash ?? '',
         workflowDerivedAt: workflowDerivedAt,
-        executionProgress: workflowSpec?.tasks.map((task) => ConversationExecutionTaskProgress(taskId: task.id, status: task.status)).toList() ?? conversation.executionProgress,
+        executionProgress:
+            workflowSpec?.tasks
+                .map(
+                  (task) => ConversationExecutionTaskProgress(
+                    taskId: task.id,
+                    status: task.status,
+                  ),
+                )
+                .toList() ??
+            conversation.executionProgress,
       ),
     );
   }
+
   @override
   Future<void> saveCurrentGoal({
     required String objective,
@@ -206,7 +216,7 @@ class _GoalAutoContinueConversationsNotifier
   }
 
   @override
-  Future<bool> recordCurrentGoalTurn({
+  Future<void> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
@@ -217,7 +227,7 @@ class _GoalAutoContinueConversationsNotifier
     lastToolCompletionClaimed = toolCompletionClaimed;
     final conversation = state.conversationForId(conversationId);
     final goal = conversation?.goal;
-    if (conversation == null || goal == null || !goal.isActive) return false;
+    if (conversation == null || goal == null || !goal.isActive) return;
     _replaceCurrentConversation(
       conversation.copyWith(
         goal: goal.copyWith(
@@ -227,7 +237,6 @@ class _GoalAutoContinueConversationsNotifier
         ),
       ),
     );
-    return false;
   }
 
   @override
@@ -282,7 +291,7 @@ class _TerminalSuccessGoalConversationsNotifier
   }
 
   @override
-  Future<bool> recordCurrentGoalTurn({
+  Future<void> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
@@ -294,7 +303,7 @@ class _TerminalSuccessGoalConversationsNotifier
     recordedAssistantResponse = assistantResponse;
     final conversation = state.conversationForId(conversationId);
     final goal = conversation?.goal;
-    if (conversation == null || goal == null) return false;
+    if (conversation == null || goal == null) return;
     final summary = assistantResponse
         .split('\n')
         .map((line) => line.trim())
@@ -310,7 +319,6 @@ class _TerminalSuccessGoalConversationsNotifier
         ),
       ),
     );
-    return true;
   }
 }
 
@@ -351,7 +359,7 @@ class _GitLifecycleGoalConversationsNotifier
   }
 
   @override
-  Future<bool> recordCurrentGoalTurn({
+  Future<void> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
@@ -362,12 +370,9 @@ class _GitLifecycleGoalConversationsNotifier
     lastToolCompletionClaimed = toolCompletionClaimed;
     final current = state.conversationForId(conversationId);
     final goal = current?.goal;
-    if (current == null || goal == null) return false;
+    if (current == null || goal == null) return;
     final now = DateTime(2026, 5, 25, 10, goal.turnsUsed + 1);
-    final normalized = assistantResponse.toLowerCase();
-    final completed =
-        normalized.contains('goal complete') &&
-        normalized.contains('tests passed');
+    final completed = toolCompletionClaimed;
     final updatedGoal = goal.copyWith(
       turnsUsed: goal.turnsUsed + 1,
       tokenUsage: goal.tokenUsage + tokenUsageDelta,
@@ -384,7 +389,6 @@ class _GitLifecycleGoalConversationsNotifier
           .map((item) => item.id == updated.id ? updated : item)
           .toList(growable: false),
     );
-    return completed;
   }
 }
 
@@ -2576,10 +2580,7 @@ class _NoToolStreamingWithToolsDataSource implements ChatDataSource {
   }) async {
     toolResultRequestCount += 1;
     return toolResultResponse ??
-        ChatCompletionResult(
-          content: completionContent,
-          finishReason: 'stop',
-        );
+        ChatCompletionResult(content: completionContent, finishReason: 'stop');
   }
 }
 

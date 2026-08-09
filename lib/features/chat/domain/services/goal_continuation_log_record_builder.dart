@@ -3,8 +3,6 @@ import '../entities/conversation_goal.dart';
 import 'conversation_goal_auto_continue_policy.dart';
 import 'goal_auto_continue_evidence_marker.dart';
 import 'goal_auto_continue_tracker_registry.dart';
-import 'goal_completion_shadow.dart';
-import 'goal_update_ack.dart';
 import 'immutable_json_snapshot.dart';
 import 'tool_result_prompt_builder.dart';
 import 'verification_cadence_policy.dart';
@@ -38,30 +36,6 @@ final class GoalAutoContinueLogRecord {
     if (consecutiveAutoContinuations != null)
       'consecutiveAutoContinuations': consecutiveAutoContinuations,
     if (evidence.isNotEmpty) 'evidence': evidence,
-  });
-}
-
-final class GoalCompletionShadowLogRecord {
-  const GoalCompletionShadowLogRecord._({
-    required this.owner,
-    required this.agreement,
-    required this.label,
-    required this.toolOutcome,
-    required this.lexicalCompleted,
-    required this.turnId,
-  });
-  final ChatTurnOwner owner;
-  final GoalCompletionShadowAgreement agreement;
-  final String? label;
-  final String? toolOutcome;
-  final bool lexicalCompleted;
-  final String turnId;
-  Map<String, dynamic> get payload => Map<String, dynamic>.unmodifiable({
-    'agreement': agreement.name,
-    if (label != null) 'label': label,
-    if (toolOutcome != null) 'toolOutcome': toolOutcome,
-    'lexicalCompleted': lexicalCompleted,
-    'turnId': turnId,
   });
 }
 
@@ -112,25 +86,6 @@ final class GoalContinuationLogRecordBuilder {
       effectiveTurnBudget: effectiveTurnBudget,
       consecutiveAutoContinuations: tracker?.consecutiveAutoContinuations,
       evidence: ImmutableJsonSnapshot.freezeMap(evidenceMarker),
-    );
-  }
-
-  GoalCompletionShadowLogRecord buildCompletionShadow({
-    required ChatTurnOwner owner,
-    required bool lexicalCompleted,
-    required GoalUpdateAckOutcome? toolCompletionOutcome,
-  }) {
-    final disagreement = GoalCompletionShadow.compare(
-      toolCompletionOutcome: toolCompletionOutcome,
-      lexicalCompleted: lexicalCompleted,
-    );
-    return GoalCompletionShadowLogRecord._(
-      owner: owner,
-      agreement: GoalCompletionShadow.agreementFor(disagreement),
-      label: GoalCompletionShadow.optionalLabelFor(disagreement),
-      toolOutcome: toolCompletionOutcome?.name,
-      lexicalCompleted: lexicalCompleted,
-      turnId: 'gen-${owner.interactionGeneration}',
     );
   }
 }

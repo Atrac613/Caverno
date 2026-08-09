@@ -1,6 +1,5 @@
 import '../../../../core/types/goal_completion_policy.dart';
 import '../../application/runtime/turn_runtime_conversation_goal_store.dart';
-import '../../data/datasources/llm_session_log_store.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
@@ -11,33 +10,23 @@ import 'turn_finalization_state_registry.dart';
 import 'turn_goal_completion_evidence_registry.dart';
 
 typedef GoalTurnRecorder =
-    Future<bool> Function({
+    Future<void> Function({
       required String assistantResponse,
       required int tokenUsageDelta,
       required ToolResultCompletionEvidence completionEvidence,
       required bool toolCompletionClaimed,
       required String conversationId,
     });
-typedef GoalCompletionShadowRecorder =
-    Future<void> Function({
-      required bool lexicalCompleted,
-      required ChatTurnOwner owner,
-      required LlmSessionLogContext context,
-      required GoalUpdateAckOutcome? toolCompletionOutcome,
-    });
 
 /// Reconciles and records one owner's goal state before terminal disposal.
 final class TurnGoalCompletionFinalizer {
   TurnGoalCompletionFinalizer({
     required GoalTurnRecorder recordGoalTurn,
-    required GoalCompletionShadowRecorder recordGoalCompletionShadow,
     required TurnRuntimeConversationGoalStore goalStore,
   }) : _recordGoalTurn = recordGoalTurn,
-       _recordGoalCompletionShadow = recordGoalCompletionShadow,
        _goalStore = goalStore;
 
   final GoalTurnRecorder _recordGoalTurn;
-  final GoalCompletionShadowRecorder _recordGoalCompletionShadow;
   final TurnRuntimeConversationGoalStore _goalStore;
 
   Future<ToolResultCompletionEvidence?> finalize({
@@ -49,7 +38,6 @@ final class TurnGoalCompletionFinalizer {
     required Conversation? conversation,
     required String assistantResponse,
     required int tokenUsageDelta,
-    required LlmSessionLogContext context,
   }) async {
     if (!evidenceRegistry.contains(owner) ||
         !finalizationState.contains(owner)) {
@@ -64,7 +52,7 @@ final class TurnGoalCompletionFinalizer {
     );
     final acknowledgement = finalizationState.takeGoalAcknowledgement(owner);
     final legacyCompletionClaimed = finalizationState.takeGoalClaim(owner);
-    final legacyCompletionOutcome = finalizationState.takeGoalOutcome(owner);
+    finalizationState.takeGoalOutcome(owner);
     final finalAck = acknowledgement?.isCompletionClaim == true
         ? const GoalUpdateAckResolver().resolve(
             input: acknowledgement!.input,
@@ -75,9 +63,7 @@ final class TurnGoalCompletionFinalizer {
         : null;
     final toolCompletionClaimed =
         finalAck?.completionAccepted ?? legacyCompletionClaimed;
-    final toolCompletionOutcome = finalAck?.outcome ?? legacyCompletionOutcome;
-    final goalWasActive = conversation?.goal?.isActive == true;
-    final lexicalCompleted = await _recordGoalTurn(
+    await _recordGoalTurn(
       assistantResponse: assistantResponse,
       tokenUsageDelta: tokenUsageDelta,
       completionEvidence: evidence,
@@ -97,18 +83,6 @@ final class TurnGoalCompletionFinalizer {
                   'Confirm completion or reactivate the goal.'
             : 'The goal reached its configured budget cap. Review the work and '
                   'confirm completion or reactivate it with a larger budget.',
-      );
-    }
-    final wasEligible =
-        goalWasActive ||
-        (acknowledgement != null &&
-            acknowledgement.outcome != GoalUpdateAckOutcome.rejectedInactive);
-    if (wasEligible) {
-      await _recordGoalCompletionShadow(
-        lexicalCompleted: lexicalCompleted,
-        owner: owner,
-        context: context,
-        toolCompletionOutcome: toolCompletionOutcome,
       );
     }
     return evidence;

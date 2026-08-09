@@ -2,9 +2,7 @@ import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/services/conversation_goal_auto_continue_policy.dart';
 import 'package:caverno/features/chat/domain/services/goal_auto_continue_tracker_registry.dart';
-import 'package:caverno/features/chat/domain/services/goal_completion_shadow.dart';
 import 'package:caverno/features/chat/domain/services/goal_continuation_log_record_builder.dart';
-import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/verification_cadence_policy.dart';
 import 'package:test/test.dart';
@@ -263,137 +261,6 @@ void main() {
         () => record.payload['decision'] = 'mutated',
         throwsUnsupportedError,
       );
-    });
-  });
-
-  group('GoalContinuationLogRecordBuilder shadow records', () {
-    test('builds every disagreement with the exact stable label', () {
-      final cases =
-          <
-            ({
-              GoalUpdateAckOutcome? outcome,
-              bool lexicalCompleted,
-              String label,
-              String? toolOutcome,
-            })
-          >[
-            (
-              outcome: GoalUpdateAckOutcome.completionRecorded,
-              lexicalCompleted: false,
-              label: 'goal_completion_tool_accepted_lexical_missed',
-              toolOutcome: 'completionRecorded',
-            ),
-            (
-              outcome: GoalUpdateAckOutcome.completionRejected,
-              lexicalCompleted: true,
-              label: 'goal_completion_tool_rejected_lexical_completed',
-              toolOutcome: 'completionRejected',
-            ),
-            (
-              outcome: null,
-              lexicalCompleted: true,
-              label: 'goal_completion_lexical_only',
-              toolOutcome: null,
-            ),
-            (
-              outcome: GoalUpdateAckOutcome.progressLogged,
-              lexicalCompleted: true,
-              label: 'goal_completion_lexical_only',
-              toolOutcome: 'progressLogged',
-            ),
-          ];
-
-      for (final testCase in cases) {
-        final record = _builder.buildCompletionShadow(
-          owner: _owner('owner-a', 23),
-          lexicalCompleted: testCase.lexicalCompleted,
-          toolCompletionOutcome: testCase.outcome,
-        );
-
-        expect(record.owner, _owner('owner-a', 23));
-        expect(record.agreement, GoalCompletionShadowAgreement.disagree);
-        expect(record.label, testCase.label);
-        expect(record.toolOutcome, testCase.toolOutcome);
-        expect(record.lexicalCompleted, testCase.lexicalCompleted);
-        expect(record.turnId, 'gen-23');
-        expect(record.payload, {
-          'agreement': 'disagree',
-          'label': testCase.label,
-          if (testCase.toolOutcome != null) 'toolOutcome': testCase.toolOutcome,
-          'lexicalCompleted': testCase.lexicalCompleted,
-          'turnId': 'gen-23',
-        });
-      }
-    });
-
-    test('omits the null tool outcome from the shadow payload', () {
-      final record = _builder.buildCompletionShadow(
-        owner: _owner('owner-a', 5),
-        lexicalCompleted: true,
-        toolCompletionOutcome: null,
-      );
-
-      expect(record.payload, {
-        'agreement': 'disagree',
-        'label': 'goal_completion_lexical_only',
-        'lexicalCompleted': true,
-        'turnId': 'gen-5',
-      });
-    });
-
-    test('builds every agreeing outcome into the denominator', () {
-      final cases =
-          <
-            ({
-              GoalUpdateAckOutcome? outcome,
-              bool lexicalCompleted,
-              String? toolOutcome,
-            })
-          >[
-            (
-              outcome: GoalUpdateAckOutcome.completionRecorded,
-              lexicalCompleted: true,
-              toolOutcome: 'completionRecorded',
-            ),
-            (
-              outcome: GoalUpdateAckOutcome.completionRejected,
-              lexicalCompleted: false,
-              toolOutcome: 'completionRejected',
-            ),
-            (outcome: null, lexicalCompleted: false, toolOutcome: null),
-          ];
-
-      for (final testCase in cases) {
-        final record = _builder.buildCompletionShadow(
-          owner: _owner('owner-a', 1),
-          lexicalCompleted: testCase.lexicalCompleted,
-          toolCompletionOutcome: testCase.outcome,
-        );
-        expect(record.agreement, GoalCompletionShadowAgreement.agree);
-        expect(record.label, isNull);
-        expect(record.toolOutcome, testCase.toolOutcome);
-        expect(record.lexicalCompleted, testCase.lexicalCompleted);
-        expect(record.payload, {
-          'agreement': 'agree',
-          if (testCase.toolOutcome != null) 'toolOutcome': testCase.toolOutcome,
-          'lexicalCompleted': testCase.lexicalCompleted,
-          'turnId': 'gen-1',
-        });
-      }
-    });
-
-    test('retains the captured owner when another turn becomes visible', () {
-      final capturedOwner = _owner('owner-a', 31);
-      final record = _builder.buildCompletionShadow(
-        owner: capturedOwner,
-        lexicalCompleted: false,
-        toolCompletionOutcome: GoalUpdateAckOutcome.completionRecorded,
-      );
-      final visibleOwner = _owner('visible-b', 44);
-
-      expect(record.owner, capturedOwner);
-      expect(record.owner, isNot(visibleOwner));
-      expect(record.turnId, 'gen-31');
     });
   });
 }

@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/core/types/goal_completion_policy.dart';
 import 'package:caverno/features/chat/application/runtime/turn_runtime_conversation_goal_store.dart';
-import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
@@ -293,109 +291,82 @@ void main() {
     expect(registry.isEmpty, isTrue);
   });
 
-  test(
-    'finalizer captures claim and shadow outcome before persistence',
-    () async {
-      final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
-      final finalizationState = TurnFinalizationStateRegistry();
-      final goalWrite = Completer<bool>();
-      final timestamp = DateTime.utc(2026, 7, 29);
-      final conversation = Conversation(
-        id: 'thread-a',
-        title: 'Thread A',
-        messages: const [],
+  test('finalizer captures the completion claim before persistence', () async {
+    final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
+    final finalizationState = TurnFinalizationStateRegistry();
+    final goalWrite = Completer<void>();
+    final timestamp = DateTime.utc(2026, 7, 29);
+    final conversation = Conversation(
+      id: 'thread-a',
+      title: 'Thread A',
+      messages: const [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      goal: ConversationGoal(
+        id: 'goal-a',
+        objective: 'Complete owner A work',
         createdAt: timestamp,
         updatedAt: timestamp,
-        goal: ConversationGoal(
-          id: 'goal-a',
-          objective: 'Complete owner A work',
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        ),
-        mutationGeneration: 2,
-        verificationGeneration: 2,
-      );
-      const context = LlmSessionLogContext(
-        workspaceMode: WorkspaceMode.coding,
-        sessionId: 'thread-a',
-        conversationId: 'thread-a',
-      );
-      late String recordedConversationId;
-      late bool recordedClaim;
-      late ToolResultCompletionEvidence recordedEvidence;
-      ChatTurnOwner? shadowOwner;
-      GoalUpdateAckOutcome? shadowOutcome;
-      bool? shadowLexicalCompleted;
+      ),
+      mutationGeneration: 2,
+      verificationGeneration: 2,
+    );
+    late String recordedConversationId;
+    late bool recordedClaim;
+    late ToolResultCompletionEvidence recordedEvidence;
 
-      expect(evidenceRegistry.begin(owner), isTrue);
-      expect(finalizationState.begin(owner), isTrue);
-      expect(finalizationState.markGoalClaimed(owner), isTrue);
-      expect(
-        finalizationState.setGoalOutcome(
-          owner,
-          GoalUpdateAckOutcome.completionRecorded,
-        ),
-        isTrue,
-      );
-      final future =
-          TurnGoalCompletionFinalizer(
-            goalStore: _GoalStore(),
-            recordGoalTurn:
-                ({
-                  required assistantResponse,
-                  required tokenUsageDelta,
-                  required completionEvidence,
-                  required toolCompletionClaimed,
-                  required conversationId,
-                }) {
-                  expect(assistantResponse, 'Done through the tool.');
-                  expect(tokenUsageDelta, 41);
-                  recordedConversationId = conversationId;
-                  recordedClaim = toolCompletionClaimed;
-                  recordedEvidence = completionEvidence;
-                  return goalWrite.future;
-                },
-            recordGoalCompletionShadow:
-                ({
-                  required lexicalCompleted,
-                  required owner,
-                  required context,
-                  required toolCompletionOutcome,
-                }) async {
-                  expect(context.conversationId, 'thread-a');
-                  shadowOwner = owner;
-                  shadowOutcome = toolCompletionOutcome;
-                  shadowLexicalCompleted = lexicalCompleted;
-                },
-          ).finalize(
-            owner: owner,
-            evidenceRegistry: evidenceRegistry,
-            finalizationState: finalizationState,
-            completedToolResults: const <ToolResultInfo>[],
-            contentToolResults: const <ToolResultInfo>[],
-            conversation: conversation,
-            assistantResponse: 'Done through the tool.',
-            tokenUsageDelta: 41,
-            context: context,
-          );
+    expect(evidenceRegistry.begin(owner), isTrue);
+    expect(finalizationState.begin(owner), isTrue);
+    expect(finalizationState.markGoalClaimed(owner), isTrue);
+    expect(
+      finalizationState.setGoalOutcome(
+        owner,
+        GoalUpdateAckOutcome.completionRecorded,
+      ),
+      isTrue,
+    );
+    final future =
+        TurnGoalCompletionFinalizer(
+          goalStore: _GoalStore(),
+          recordGoalTurn:
+              ({
+                required assistantResponse,
+                required tokenUsageDelta,
+                required completionEvidence,
+                required toolCompletionClaimed,
+                required conversationId,
+              }) {
+                expect(assistantResponse, 'Done through the tool.');
+                expect(tokenUsageDelta, 41);
+                recordedConversationId = conversationId;
+                recordedClaim = toolCompletionClaimed;
+                recordedEvidence = completionEvidence;
+                return goalWrite.future;
+              },
+        ).finalize(
+          owner: owner,
+          evidenceRegistry: evidenceRegistry,
+          finalizationState: finalizationState,
+          completedToolResults: const <ToolResultInfo>[],
+          contentToolResults: const <ToolResultInfo>[],
+          conversation: conversation,
+          assistantResponse: 'Done through the tool.',
+          tokenUsageDelta: 41,
+        );
 
-      await Future<void>.delayed(Duration.zero);
-      expect(recordedConversationId, 'thread-a');
-      expect(recordedClaim, isTrue);
-      expect(finalizationState.takeGoalClaim(owner), isFalse);
-      expect(finalizationState.takeGoalOutcome(owner), isNull);
-      expect(finalizationState.dispose(owner), isTrue);
-      goalWrite.complete(false);
+    await Future<void>.delayed(Duration.zero);
+    expect(recordedConversationId, 'thread-a');
+    expect(recordedClaim, isTrue);
+    expect(finalizationState.takeGoalClaim(owner), isFalse);
+    expect(finalizationState.takeGoalOutcome(owner), isNull);
+    expect(finalizationState.dispose(owner), isTrue);
+    goalWrite.complete();
 
-      final evidence = await future;
-      expect(evidence, isNotNull);
-      expect(identical(evidence, recordedEvidence), isTrue);
-      expect(evidence?.hasSuccessfulExecutionVerification, isTrue);
-      expect(shadowOwner, owner);
-      expect(shadowOutcome, GoalUpdateAckOutcome.completionRecorded);
-      expect(shadowLexicalCompleted, isFalse);
-    },
-  );
+    final evidence = await future;
+    expect(evidence, isNotNull);
+    expect(identical(evidence, recordedEvidence), isTrue);
+    expect(evidence?.hasSuccessfulExecutionVerification, isTrue);
+  });
 
   test(
     'finalizer downgrades a call-time completion from final evidence',
@@ -429,7 +400,6 @@ void main() {
         completionPolicy: GoalCompletionPolicy.toolOrAsk,
       );
       bool? finalClaim;
-      GoalUpdateAckOutcome? finalShadowOutcome;
 
       expect(evidenceRegistry.begin(owner), isTrue);
       expect(
@@ -458,16 +428,6 @@ void main() {
               required conversationId,
             }) async {
               finalClaim = toolCompletionClaimed;
-              return true;
-            },
-        recordGoalCompletionShadow:
-            ({
-              required lexicalCompleted,
-              required owner,
-              required context,
-              required toolCompletionOutcome,
-            }) async {
-              finalShadowOutcome = toolCompletionOutcome;
             },
       ).finalize(
         owner: owner,
@@ -478,81 +438,54 @@ void main() {
         conversation: conversation,
         assistantResponse: 'All tests passed.',
         tokenUsageDelta: 10,
-        context: const LlmSessionLogContext(
-          workspaceMode: WorkspaceMode.coding,
-          sessionId: 'thread-a',
-          conversationId: 'thread-a',
-        ),
       );
 
       expect(finalClaim, isFalse);
-      expect(finalShadowOutcome, GoalUpdateAckOutcome.completionRejected);
     },
   );
 
-  test(
-    'finalizer excludes turns without an active goal from shadow data',
-    () async {
-      final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
-      final finalizationState = TurnFinalizationStateRegistry();
-      final timestamp = DateTime.utc(2026, 8, 9);
-      final conversation = Conversation(
-        id: 'thread-a',
-        title: 'Thread A',
-        messages: const [],
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      );
-      const context = LlmSessionLogContext(
-        workspaceMode: WorkspaceMode.coding,
-        sessionId: 'thread-a',
-        conversationId: 'thread-a',
-      );
-      var goalWrites = 0;
-      var shadowWrites = 0;
+  test('finalizer records turns without an active goal as a no-op', () async {
+    final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
+    final finalizationState = TurnFinalizationStateRegistry();
+    final timestamp = DateTime.utc(2026, 8, 9);
+    final conversation = Conversation(
+      id: 'thread-a',
+      title: 'Thread A',
+      messages: const [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+    var goalWrites = 0;
 
-      expect(evidenceRegistry.begin(owner), isTrue);
-      expect(finalizationState.begin(owner), isTrue);
-      final evidence =
-          await TurnGoalCompletionFinalizer(
-            goalStore: _GoalStore(),
-            recordGoalTurn:
-                ({
-                  required assistantResponse,
-                  required tokenUsageDelta,
-                  required completionEvidence,
-                  required toolCompletionClaimed,
-                  required conversationId,
-                }) async {
-                  goalWrites += 1;
-                  return false;
-                },
-            recordGoalCompletionShadow:
-                ({
-                  required lexicalCompleted,
-                  required owner,
-                  required context,
-                  required toolCompletionOutcome,
-                }) async {
-                  shadowWrites += 1;
-                },
-          ).finalize(
-            owner: owner,
-            evidenceRegistry: evidenceRegistry,
-            finalizationState: finalizationState,
-            completedToolResults: const <ToolResultInfo>[],
-            contentToolResults: const <ToolResultInfo>[],
-            conversation: conversation,
-            assistantResponse: 'No goal is active.',
-            tokenUsageDelta: 0,
-            context: context,
-          );
+    expect(evidenceRegistry.begin(owner), isTrue);
+    expect(finalizationState.begin(owner), isTrue);
+    final evidence =
+        await TurnGoalCompletionFinalizer(
+          goalStore: _GoalStore(),
+          recordGoalTurn:
+              ({
+                required assistantResponse,
+                required tokenUsageDelta,
+                required completionEvidence,
+                required toolCompletionClaimed,
+                required conversationId,
+              }) async {
+                goalWrites += 1;
+              },
+        ).finalize(
+          owner: owner,
+          evidenceRegistry: evidenceRegistry,
+          finalizationState: finalizationState,
+          completedToolResults: const <ToolResultInfo>[],
+          contentToolResults: const <ToolResultInfo>[],
+          conversation: conversation,
+          assistantResponse: 'No goal is active.',
+          tokenUsageDelta: 0,
+        );
 
-      expect(evidence, isNotNull);
-      expect(goalWrites, 1);
-      expect(shadowWrites, 0);
-    },
-  );
+    expect(evidence, isNotNull);
+    expect(goalWrites, 1);
+  });
 
   test('finalizer asks the user for an admissible ask-policy claim', () async {
     final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
@@ -583,7 +516,6 @@ void main() {
       outcome: GoalUpdateAckOutcome.confirmationRequired,
       completionPolicy: GoalCompletionPolicy.ask,
     );
-    GoalUpdateAckOutcome? shadowOutcome;
 
     expect(evidenceRegistry.begin(owner), isTrue);
     expect(finalizationState.begin(owner), isTrue);
@@ -603,16 +535,6 @@ void main() {
             required conversationId,
           }) async {
             expect(toolCompletionClaimed, isFalse);
-            return false;
-          },
-      recordGoalCompletionShadow:
-          ({
-            required lexicalCompleted,
-            required owner,
-            required context,
-            required toolCompletionOutcome,
-          }) async {
-            shadowOutcome = toolCompletionOutcome;
           },
     ).finalize(
       owner: owner,
@@ -623,27 +545,15 @@ void main() {
       conversation: conversation,
       assistantResponse: 'The implementation is complete.',
       tokenUsageDelta: 0,
-      context: const LlmSessionLogContext(
-        workspaceMode: WorkspaceMode.coding,
-        sessionId: 'thread-a',
-        conversationId: 'thread-a',
-      ),
     );
 
     expect(goalStore.status, ConversationGoalStatus.awaitingConfirmation);
     expect(goalStore.completionSummary, contains('Confirm completion'));
-    expect(shadowOutcome, GoalUpdateAckOutcome.confirmationRequired);
   });
 
-  test('finalizer records no shadow when goal persistence fails', () async {
+  test('finalizer consumes completion state when persistence fails', () async {
     final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
     final finalizationState = TurnFinalizationStateRegistry();
-    const context = LlmSessionLogContext(
-      workspaceMode: WorkspaceMode.coding,
-      sessionId: 'thread-a',
-      conversationId: 'thread-a',
-    );
-    var shadowWrites = 0;
 
     expect(evidenceRegistry.begin(owner), isTrue);
     expect(finalizationState.begin(owner), isTrue);
@@ -669,15 +579,6 @@ void main() {
               }) async {
                 throw StateError('Goal persistence failed.');
               },
-          recordGoalCompletionShadow:
-              ({
-                required lexicalCompleted,
-                required owner,
-                required context,
-                required toolCompletionOutcome,
-              }) async {
-                shadowWrites += 1;
-              },
         ).finalize(
           owner: owner,
           evidenceRegistry: evidenceRegistry,
@@ -687,22 +588,15 @@ void main() {
           conversation: null,
           assistantResponse: 'Done.',
           tokenUsageDelta: 0,
-          context: context,
         );
 
     await expectLater(future, throwsStateError);
-    expect(shadowWrites, 0);
     expect(finalizationState.takeGoalClaim(owner), isFalse);
     expect(finalizationState.takeGoalOutcome(owner), isNull);
   });
 
   test('finalizer rejects owners missing either lifecycle registry', () async {
-    const context = LlmSessionLogContext(
-      workspaceMode: WorkspaceMode.coding,
-      sessionId: 'thread-a',
-    );
     var goalWrites = 0;
-    var shadowWrites = 0;
 
     for (final missingEvidence in <bool>[true, false]) {
       final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
@@ -724,16 +618,6 @@ void main() {
                   required conversationId,
                 }) async {
                   goalWrites += 1;
-                  return false;
-                },
-            recordGoalCompletionShadow:
-                ({
-                  required lexicalCompleted,
-                  required owner,
-                  required context,
-                  required toolCompletionOutcome,
-                }) async {
-                  shadowWrites += 1;
                 },
           ).finalize(
             owner: owner,
@@ -744,13 +628,11 @@ void main() {
             conversation: null,
             assistantResponse: 'Done.',
             tokenUsageDelta: 0,
-            context: context,
           );
       expect(result, isNull);
     }
 
     expect(goalWrites, 0);
-    expect(shadowWrites, 0);
   });
 }
 

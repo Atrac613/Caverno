@@ -296,13 +296,11 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     required ChatTurnOwner owner,
     required String assistantResponse,
     required int tokenUsageDelta,
-    required LlmSessionLogContext context,
   }) =>
       TurnGoalCompletionFinalizer(
         recordGoalTurn: ref
             .read(conversationsNotifierProvider.notifier)
             .recordCurrentGoalTurn,
-        recordGoalCompletionShadow: _recordGoalCompletionShadow,
         goalStore: ConversationsNotifierGoalRuntimeStore(
           notifier: ref.read(conversationsNotifierProvider.notifier),
         ),
@@ -315,7 +313,6 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         conversation: _conversationForId(owner.conversationId),
         assistantResponse: assistantResponse,
         tokenUsageDelta: tokenUsageDelta,
-        context: context,
       );
 
   @visibleForTesting
@@ -755,34 +752,5 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       isOwnerCurrent: () =>
           _turnOwnerForGeneration(owner.interactionGeneration) == owner,
     );
-  }
-
-  Future<void> _recordGoalCompletionShadow({
-    required bool lexicalCompleted,
-    required ChatTurnOwner owner,
-    required LlmSessionLogContext context,
-    required GoalUpdateAckOutcome? toolCompletionOutcome,
-  }) async {
-    final record = const GoalContinuationLogRecordBuilder()
-        .buildCompletionShadow(
-          owner: owner,
-          lexicalCompleted: lexicalCompleted,
-          toolCompletionOutcome: toolCompletionOutcome,
-        );
-    final loggingEnabled = LlmSessionLogStore.isEnabled(
-      settingsEnabled: _settings.enableLlmSessionLogs,
-    );
-    if (!loggingEnabled) return;
-    await ref
-        .read(llmSessionLogStoreProvider)
-        .recordGoalCompletionShadow(
-          context: context,
-          at: DateTime.now(),
-          agreement: record.agreement.name,
-          label: record.label,
-          toolOutcome: record.toolOutcome,
-          lexicalCompleted: record.lexicalCompleted,
-          turnId: record.turnId,
-        );
   }
 }

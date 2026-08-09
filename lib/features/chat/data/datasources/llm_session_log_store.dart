@@ -557,45 +557,6 @@ class LlmSessionLogStore {
     }
   }
 
-  /// Append the LL35 goal-completion shadow comparison for one turn.
-  ///
-  /// This is a record of its own rather than a `turn_exit` transform because
-  /// the comparison is only known *after* the goal turn is recorded, which
-  /// happens after the turn-exit entry is written. A late transform would miss
-  /// that immutable snapshot, so the comparison requires a separate record.
-  Future<void> recordGoalCompletionShadow({
-    required LlmSessionLogContext? context,
-    required DateTime at,
-    required String agreement,
-    required String? label,
-    required String? toolOutcome,
-    required bool lexicalCompleted,
-    String? turnId,
-  }) async {
-    try {
-      final effectiveContext = context ?? _fallbackContext();
-      final entry = {
-        'schemaName': schemaName,
-        'schemaVersion': schemaVersion,
-        'timestamp': _utcTimestamp(at),
-        'build': BuildInfo.toJson(),
-        'context': effectiveContext.toJson(),
-        'operation': 'goal_completion_shadow',
-        'goalCompletionShadow': {
-          'agreement': agreement,
-          'label': ?label,
-          'toolOutcome': ?toolOutcome,
-          'lexicalCompleted': lexicalCompleted,
-          if (turnId != null && turnId.isNotEmpty) 'turnId': turnId,
-        },
-      };
-      final line = '${jsonEncode(_redactValue(entry))}\n';
-      await _appendLine(context: effectiveContext, line: line, at: at);
-    } catch (error) {
-      appLog('[LlmSessionLog] Failed to record goal completion shadow: $error');
-    }
-  }
-
   /// Append one LL34 typed-versus-legacy exit-code comparison.
   ///
   /// The marker stores only the structured comparison, not the rendered tool

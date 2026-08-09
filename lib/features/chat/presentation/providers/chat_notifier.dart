@@ -8562,7 +8562,6 @@ class ChatNotifier extends Notifier<ChatState> {
       finishReason: finishReason,
     );
     if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
-    final turnLogContext = _llmSessionLogContextForGeneration(generation);
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
     if (!_isActiveResponseDetachedForGeneration(generation)) {
       state = state.copyWith(messages: updatedMessages, isLoading: false);
@@ -8603,7 +8602,6 @@ class ChatNotifier extends Notifier<ChatState> {
           ? explicitTerminalSuccessSummary!
           : finalizedLastMessage.content,
       tokenUsageDelta: goalTokenUsageDelta,
-      context: turnLogContext,
     );
     if (finalCompletionEvidence == null) return;
     if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
