@@ -170,7 +170,7 @@ structurally unmotivated to build:
 | Local LLM | LL31 | done | S-M | F2, LL23 | Turn-exit reason and completion explainer: tag every tool-loop exit with a structured reason (`text_response` / `max_iterations` / `guardrail_halt` / `empty` / `partial`), replace an empty or truncated final response with a single user-visible explanation derived from that reason, and log a WARNING when a turn ends on a pending tool result (the "just stops" case). Inspired by the Hermes `turn_finalizer.py`. |
 | Local LLM | LL33 | current | S-M | LL31 | Turn provenance — session-log ↔ on-screen conversation correlation: stamp each `turn_exit` record with `turnId` + the `assistantMessageId` it finalized, and record the post-LLM transforms applied to that message (guard notices), so the LLM session log and the conversation the user saw can be traced to each other and guard firings are a direct triage signal instead of being inferred from leaked notice prose. Extends the LL31 instrument; came out of the verification-guard investigation where this gap repeatedly caused mis-diagnosis. |
 | Local LLM | LL32 | later | S-M | LL4, F6 | Deferred subdirectory instruction and skill discovery: when a tool touches a path outside the startup discovery chain, walk up to the repo root for `CLAUDE.md` / `AGENTS.md` / rules and skill directories, and surface newly found files as **paths only**, once per session (or once per compaction cycle), leaving the read decision to the model. Parked pending corroboration; corroborated 2026-07-21 by Grok Build's `agents_md_tracker.rs` / `skill_discovery.rs` shipping the same design. |
-| Local LLM | LL34 | next | M | F2, F6, LL23, SEC2 | Structured tool-result envelope: give `McpToolResult` typed outcome fields (exit code, mutated files with content hashes, **read content hashes**, test counts) so first-party tool facts survive the tool boundary, and rewire `ToolFailureClassifier`, `WorkflowToolResultFailureDetector`, `CodingCommandOutputGuardrailService`, and the claim guards to read facts instead of re-parsing result strings. Third-party MCP results stay opaque text on a clearly-marked lexical path. Local-first payoff beyond hygiene: a typed outcome lets the harness render a deterministic one-line summary (`exit 0 · 3 files changed · 47 tests passed`) instead of shipping a 200-line build log a weak model misreads and a small context window cannot afford (LL23-togglable). Census-backed (`docs/ll34_tool_outcome_census_2026-07-21.md`): 7 tools cover 41.3% of real tool traffic, 8 cover 67.6% once `read_file` hashes are included — and that read hash turns the measured dominant failure (redundant re-reads, ~53% of sessions) into a field comparison. Lead milestone of the Grounded Verification Track; land `local_execute_command` + `read_file` first (43% of traffic, two tools). |
+| Local LLM | LL34 | next | M | F2, F6, LL23, SEC2 | Structured tool-result envelope: `McpToolResult` now carries producer-owned exit status, file mutation/read identity, diagnostics, process lifecycle, and verification counts. First-party local command, Git, filesystem, verification, and background-process functions return typed results directly; third-party MCP results remain opaque text on a measured lexical fallback. Consumers are typed-first, current-turn mutation evidence backs file claims, and LL23 can enable deterministic summary-first rendering. The coding-corpus census puts the scoped set at 81.7% before diagnostic coverage; the implemented set has about 89.5% potential coverage. Implementation is shipped, but rollout remains `next` until a fresh grounded post-change coding sample validates the session-log shadow distribution. |
 | Local LLM | LL35 | current | M | LL34, LL3, LL23 | Explicit goal-state tool with a real acknowledgement: replace the lexical `_looksComplete` / `_looksBlocked` goal transitions with an `update_goal(completed:/blocked_reason:/message:)` built-in whose tool reply carries the harness's actual verdict (accepted / still-open gaps / paused at cap), so the model cannot mistake an unverified claim for a received completion. Also mines the plan's first unchecked `## Task checklist` item as the continuation next-step. Local-first addition: `update_goal` call fidelity is an LL3 probe and the completion policy is LL23-declared (`tool` / `tool_or_ask` / `ask`), because removing the lexical path without a fallback turns "false completion" into "goal never closes" on weak models — **user confirmation at budget exhaustion is a first-class completion mechanism**, not an error path. |
 | Local LLM | LL36 | current | S-M | LL33, LL34 | **Instrument for LL37, as LL31 was for LL29/LL30** — Heuristic demotion and firing audit: every remaining lexical guard gets a stable pattern label, emits a LL33-style transform record on each firing, and is barred from setting terminal state; new grounded verdicts run in shadow beside the lexical ones with disagreements logged, so guards are deleted on measurement rather than on argument. Adopted from Grok Build's labeled `GoalPrematureStopDetected` panel. |
 | Local LLM | LL37 | later | L | LL34, LL35, LL36 evidence, LL3, LL18, LL19 | Objective verification for **unattended runs only**: the N-way panel runs at idle via LL18 against goals completed by routines / overnight retry-until-green / LL13 agents, with the convergence controls that make it terminate — anti-ratchet, stall exit on repeated identical gaps, a run cap, and `none`/`contradiction`/`unverifiable` blocking classification. There is deliberately **no inline stage**: while a user is present, LL35's confirmation rung is both cheaper and more accurate than a local verifier, so nothing is added to the interactive turn. Local-first inversions vs Grok Build: uncertainty defaults to *not* refuted for weak verifiers (a weak skeptic that refutes correct work is worse than none) and an LL3 fidelity gate disables the panel entirely below threshold. The convergence controls (anti-ratchet, stall exit, blocking classification) are worth harvesting into the LL7 retry loop independently, and survive even if this milestone is dropped. Whether a local verifier is good enough at all is an LL19-measured open question. |
@@ -2745,7 +2745,10 @@ Local-first consequences that shaped these milestones:
   prefill latency to the user's turn (Thesis §3).
 - **A weak verifier's default must be the opposite of Grok's.** See LL37.
 
-Sequencing — **LL34 → LL36 → LL35 → LL37**, observed first, speculative last.
+Execution state — **LL34 observation gate alongside LL35/LL36 → LL37**.
+
+LL34 implementation has shipped while its live observation gate remains open;
+LL35 and LL36 are already active. LL37 remains downstream of their evidence.
 
 The track splits by how well-founded each milestone is, and the ordering has to
 respect that split rather than the narrative order:
@@ -2791,7 +2794,7 @@ that failure mode.
 
 Status: `next`
 
-Problem:
+Historical problem (implementation now shipped; observation remains):
 - `McpToolResult` (`lib/features/chat/domain/entities/mcp_tool_entity.dart:43`)
   carries `String result` and `bool isSuccess` and nothing else. The real exit
   code exists — `lib/features/chat/data/datasources/local_shell_tools.dart:585`
@@ -2938,52 +2941,43 @@ Acceptance criteria:
 
 Non-goal (second): chasing the tail. 33 of the 41 invoked tools stay text-only.
 
-**Implementation note (2026-07-21) — the structure loss starts one level higher
-than this milestone assumed.** Every built-in tool's contract is
-`Future<String>`: the typed facts exist inside the tool function
-(`_LocalCommandResult.exitCode`) and are flattened to JSON before the handler
-wraps them in an `McpToolResult`. So a producer cannot simply "attach" a fact —
-either the tool-function return contract changes (large, touches every tool), or
-the fact is recovered once at the producer boundary.
+**Implementation history (2026-07-21 through 2026-08-09).** The original tool
+functions returned `Future<String>`, so the first slices recovered typed facts
+once at the first-party boundary through `CommandPayloadFacts`. That was an
+explicit staging step, not the intended end state.
 
-The shipped approach is the second, via `CommandPayloadFacts`: one adapter that
-decodes a first-party payload against a schema Caverno itself wrote, at the
-single boundary where the result is built. That is materially different from the
-downstream re-parsing this milestone removes — it is a contract with ourselves,
-not inference over prose — but it *is* a staging step, and the adapter should be
-deleted when tool functions return typed results. Recorded so the end state is
-not mistaken for reached.
+The staging adapter is now deleted. `FirstPartyToolExecutionResult` carries the
+rendered result, typed outcome, and producer-owned error status directly.
+Local-command, Git, filesystem, and background-process producers return that
+contract; their handlers only normalize it into `McpToolResult`. Verification
+feedback attaches its typed counts directly from the in-memory runner snapshot.
+No production first-party path reconstructs an outcome from rendered JSON.
 
-Consequence for sequencing: `exit_code` producers landed before the `read_file`
-hash, reversing the census's recommendation. Command results already had a
-normalization boundary (`McpToolResultNormalizer.fromCommandPayload`) to lift
-from; `read_file`'s JSON is passed through untouched, so its hash needs a lift
-point built first.
-
-Shipped so far: `ToolOutcome` in `caverno_tool_contracts`, the `outcome` field
-on `McpToolResult`, `ToolFailureClassifier` reading it, and exit-status
-producers for `git_execute_command`, `git_finish_worktree_session`, and
-`local_execute_command` — 26.2% of measured tool traffic. Both producer slices
-needed a ratchet extraction to make room, and in both cases the extraction was
-the structure the file wanted anyway (the normalizer was interpreting payloads
-as well as building results; the local command handler held ~250 lines of inert
-JSON schemas among its execution paths).
+The initial slice shipped `ToolOutcome` in `caverno_tool_contracts`, the
+`outcome` field on `McpToolResult`, `ToolFailureClassifier` reading it, and
+exit-status producers for `git_execute_command`,
+`git_finish_worktree_session`, and `local_execute_command` — 26.2% of the first
+measured corpus. Both producer slices needed a ratchet extraction to make room,
+and in both cases the extraction was the structure the file wanted anyway (the
+normalizer was interpreting payloads as well as building results; the local
+command handler held ~250 lines of inert JSON schemas among its execution
+paths).
 
 Also shipped: the mutation `changed` fact end to end — `writeFile` compares
 before writing (lengths first, bytes only when they match), the filesystem
-handler lifts it at `_executeMutation`, and the `write_file` operation note
-tells the model the file is UNCHANGED instead of "updated or overwrote". It closes a
-real ambiguity — a byte-identical write was indistinguishable from a real one —
-but it is **not** the dominant failure's driver: counting the logs afterwards
-put no-op mutations at 1 of 23 edit-bearing re-read sessions against anchor
-mismatch at 19 (`docs/reread_loop_mechanism_2026-07-21.md`).
+producer returns it in `ToolFileMutation`, and the `write_file` operation note
+tells the model the file is UNCHANGED instead of "updated or overwrote". It
+closes a real ambiguity — a byte-identical write was indistinguishable from a
+real one — but it is **not** the dominant failure's driver: counting the logs
+afterwards put no-op mutations at 1 of 23 edit-bearing re-read sessions against
+anchor mismatch at 19 (`docs/reread_loop_mechanism_2026-07-21.md`).
 
 **Implemented 2026-08-09 — the `read_file` content hash, producer and consumer.**
 `readFile` now hashes the *whole file* (reusing the mutation precondition's
-fingerprint, so a read and a pending edit agree on identity) and reports it as
-`content_hash`; the handler lifts it into `ToolOutcome.contentHash` at the
-producer boundary; `ToolLoopContextDigest` compares hashes instead of rendered
-bodies when every repeat carries one.
+fingerprint, so a read and a pending edit agree on identity) and returns path,
+hash, byte size, and line count in `ToolReadOutcome` directly at the producer
+boundary. `ToolLoopContextDigest` compares hashes instead of rendered bodies
+when every repeat carries one.
 
 The concrete gap it closes: the digest's label for a read is the **path alone**,
 so two paging windows of one file collapse to one label with two different
@@ -3001,8 +2995,9 @@ real decision has always been inside the mutation effect boundary.
 
 The equivalent `edit_file` fact is now shipped too: applied replacements report
 `changed: true`, while the idempotent `already_applied` response reports
-`changed: false`. The mutation boundary lifts that known no-op fact even though
-it correctly skips rollback capture for a file that did not change.
+`changed: false`. The producer reports that known no-op fact even though the
+mutation boundary correctly skips rollback capture for a file that did not
+change.
 
 The diagnostic path now carries typed facts too. `dart_analyze_feedback`
 attaches the total, Error, and Warning counts from the complete pre-truncation
@@ -3029,14 +3024,41 @@ evidence-JSON path when the outcome is absent or incomplete. Ordinary
 `run_tests` console prose remains ineligible, so no count is guessed after the
 runner boundary.
 
-The stalled observation transport now ships: each existing
+The observation transport now ships: each existing
 `ToolOutcomeShadow` exit-code comparison is persisted as a redacted,
 owner-scoped session-log marker, and `tool/triage_session_logs.py` reports the
 direct typed-versus-legacy agreement distribution without adding the marker to
-anomaly scores. The next operational step is to collect a fresh grounded coding
-sample containing command outcomes and inspect that distribution. Do not begin
-summary-first rendering until the sample is trustworthy and every disagreement
-is understood.
+anomaly scores.
+
+**Implemented 2026-08-09 — rich outcomes, typed consumers, and prompt
+rendering.** File mutation outcomes now carry path, resulting content hash,
+byte size, and whether content changed; reads carry whole-file identity
+independent of paging; recognized verification runs carry complete counts and
+the selected command. `UnwrittenFileClaimGuard` accepts only current-turn typed
+mutations, not pre-existing files. The failure classifier, workflow detector,
+validation inference, command-output detector, completion evidence, recovery,
+and final-answer command notices prefer typed exit status. The four original
+consumers expose `typed`, `lexicalFallback`, or `unavailable` provenance, and
+outcome-free third-party MCP results retain the lexical compatibility path.
+
+LL23 now declares the per-model `summaryFirstToolResultsEnabled` toggle. Its
+default is off. When enabled, prompt rendering leads with a deterministic typed
+summary and budgets the raw payload behind it. The reproducible measurement in
+`tool/ll34_summary_first_measurement.dart` reduces the tool-heavy fixture from
+13,844 to 5,152 estimated tokens, a 62.8% reduction.
+
+**Remaining observation gate, 2026-08-09.** No persisted session log yet
+contains a `tool_outcome_shadow` marker produced by the current implementation;
+the newest available grounded coding logs predate it. The historical rotating
+app-log sample has 84 comparisons: 71 `agree`, 13 explained
+`structuredMissing`, 0 `disagree`, and 0 `parsedMissing`. That sample validates
+the earlier producer shape but cannot close the current rollout gate. Run a
+fresh grounded coding canary in a new `CAVERNO_SESSION_LOG_DIR`, exercise both
+zero and non-zero command exits, and require a non-empty distribution with zero
+disagreements, zero unexplained parsed-missing cases, and every
+structured-missing case classified. Sending prompts and tool data to the
+configured LAN endpoint requires explicit data-perimeter approval. Keep
+summary-first disabled by default until this gate is closed.
 
 Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
 traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.
@@ -3057,11 +3079,9 @@ the distribution shifts in this milestone's favour:
 - The 18.3% left uncovered is mostly `list_directory` (9.6%, no natural outcome,
   correctly text-only) and that `dart_analyze_feedback` share.
 
-Next action: define the envelope type beside `McpToolResult` and populate it for
-**two tools first** — `local_execute_command` (exit code) and `read_file`
-(content hash). That is 58% of coding tool traffic for two implementations, and
-the read hash feeds the known dominant failure. Rewire `ToolFailureClassifier` as
-the first consumer, then `ToolLoopContextDigest` as the second.
+Next action: collect the fresh grounded post-change coding sample described
+above, classify every typed-versus-lexical mismatch, and enable summary-first
+only for a measured model after the distribution passes the gate.
 
 ### LL35: Explicit Goal-State Tool With A Real Acknowledgement
 
