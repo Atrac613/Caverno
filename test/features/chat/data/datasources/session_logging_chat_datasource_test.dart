@@ -8,6 +8,7 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -822,13 +823,20 @@ void main() {
         );
         final toolResults = [
           ToolResultInfo(
-            id: 'pending-edit-call',
-            name: 'edit_file',
-            arguments: const {'path': 'pubspec.yaml'},
+            id: 'diagnostic-feedback',
+            name: 'dart_analyze_feedback',
+            arguments: const {'project_root': '/tmp/project'},
             result: const JsonEncoder().convert({
-              'path': '/tmp/project/pubspec.yaml',
-              'replacements': 1,
+              'diagnostics': [
+                {'severity': 'Error'},
+                {'severity': 'Warning'},
+              ],
             }),
+            outcome: const ToolOutcome(
+              diagnosticCount: 2,
+              diagnosticErrorCount: 1,
+              diagnosticWarningCount: 1,
+            ),
           ),
         ];
 
@@ -847,8 +855,22 @@ void main() {
         )).readAsLines()).single;
         final decoded = jsonDecode(line) as Map<String, dynamic>;
         expect(decoded['operation'], 'streamChatCompletion');
-        expect(decoded['request']['toolResults'][0]['id'], 'pending-edit-call');
-        expect(decoded['request']['toolResults'][0]['name'], 'edit_file');
+        expect(
+          decoded['request']['toolResults'][0]['id'],
+          'diagnostic-feedback',
+        );
+        expect(
+          decoded['request']['toolResults'][0]['name'],
+          'dart_analyze_feedback',
+        );
+        expect(
+          decoded['request']['toolResults'][0]['outcome'],
+          containsPair('diagnostic_error_count', 1),
+        );
+        expect(
+          decoded['request']['toolResults'][0]['outcome'],
+          containsPair('diagnostic_warning_count', 1),
+        );
       },
     );
 

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:caverno/features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -34,6 +35,11 @@ void main() {
           name: 'read_file',
           arguments: const {'path': 'lib/main.dart'},
           result: largeResult,
+          outcome: const ToolOutcome(
+            diagnosticCount: 4,
+            diagnosticErrorCount: 1,
+            diagnosticWarningCount: 2,
+          ),
         ),
         conversationId: 'conversation/1',
         thresholdChars: 1000,
@@ -44,6 +50,14 @@ void main() {
       expect(decoded['persisted_output'], isTrue);
       expect(decoded['original_char_count'], largeResult.length);
       expect(decoded['preview'], contains('Persisted output preview omitted'));
+      expect(
+        persisted.outcome,
+        const ToolOutcome(
+          diagnosticCount: 4,
+          diagnosticErrorCount: 1,
+          diagnosticWarningCount: 2,
+        ),
+      );
 
       final file = File(decoded['file_path'] as String);
       expect(file.existsSync(), isTrue);

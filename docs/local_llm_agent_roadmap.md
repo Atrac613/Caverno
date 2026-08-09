@@ -3004,9 +3004,16 @@ The equivalent `edit_file` fact is now shipped too: applied replacements report
 `changed: false`. The mutation boundary lifts that known no-op fact even though
 it correctly skips rollback capture for a file that did not change.
 
-Still open: a second-tier pass over `process_*` and
-`dart_analyze_feedback` — though the coding re-measurement above puts
-`dart_analyze_feedback` at 7.9%, sixth overall, so "second-tier" understates it.
+The diagnostic path now carries typed facts too. `dart_analyze_feedback`
+attaches the total, Error, and Warning counts from the complete pre-truncation
+diagnostic set. Prompt budgeting and large-result artifact persistence retain
+the outcome, and session logs record it beside the rendered payload so corpus
+analysis does not have to reconstruct counts from a clipped diagnostics list.
+This does not promote diagnostic feedback into a successful verification: a
+clean analyzer run still emits no feedback result, so the existing completion
+semantics remain unchanged.
+
+Still open: terminal state for the `process_*` family.
 
 Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
 traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.

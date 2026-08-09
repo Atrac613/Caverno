@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../entities/tool_call_info.dart';
 import 'dart_diagnostic_line_parser.dart';
 import 'dart_project_tooling.dart';
@@ -292,6 +294,8 @@ class CodingDiagnosticFeedbackService {
     }
 
     final limitedDiagnostics = _limitDiagnostics(newDiagnostics);
+    final diagnosticErrorCount = _severityCount(newDiagnostics, 'error');
+    final diagnosticWarningCount = _severityCount(newDiagnostics, 'warning');
     final selectedAttempt = snapshot.selectedAttempt;
     final payload = {
       'schema': schemaName,
@@ -338,8 +342,22 @@ class CodingDiagnosticFeedbackService {
         'changed_paths': snapshot.changedPaths,
       },
       result: jsonEncode(payload),
+      outcome: ToolOutcome(
+        diagnosticCount: newDiagnostics.length,
+        diagnosticErrorCount: diagnosticErrorCount,
+        diagnosticWarningCount: diagnosticWarningCount,
+      ),
     );
   }
+
+  static int _severityCount(
+    Iterable<CodeDiagnostic> diagnostics,
+    String severity,
+  ) => diagnostics
+      .where(
+        (diagnostic) => diagnostic.severity.trim().toLowerCase() == severity,
+      )
+      .length;
 
   static bool get isDesktopPlatform =>
       Platform.isMacOS || Platform.isLinux || Platform.isWindows;
@@ -688,10 +706,6 @@ class DartAnalyzerDiagnosticFeedbackProvider
     });
     return diagnostics;
   }
-
-
-
-
 
   static Future<CodingDiagnosticCommandOutput> _runAnalyzeCommand(
     CodingDiagnosticCommand command,

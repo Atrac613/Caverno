@@ -24,6 +24,7 @@ void main() {
       expect(const ToolOutcome().isNotEmpty, isFalse);
       expect(const ToolOutcome(exitCode: 0).isNotEmpty, isTrue);
       expect(const ToolOutcome(contentHash: 'sha256:file').isNotEmpty, isTrue);
+      expect(const ToolOutcome(diagnosticCount: 0).isNotEmpty, isTrue);
     });
   });
 
@@ -33,6 +34,9 @@ void main() {
         exitCode: 2,
         fileChanged: false,
         contentHash: 'sha256:file',
+        diagnosticCount: 5,
+        diagnosticErrorCount: 2,
+        diagnosticWarningCount: 1,
       );
       expect(ToolOutcome.fromJson(outcome.toJson()), outcome);
     });
@@ -46,11 +50,27 @@ void main() {
       expect(ToolOutcome.fromJson(const {}), isNull);
       expect(ToolOutcome.fromJson(const {'exit_code': 'nope'}), isNull);
       expect(ToolOutcome.fromJson(const {'content_hash': ''}), isNull);
+      expect(
+        ToolOutcome.fromJson(const {'diagnostic_error_count': -1}),
+        isNull,
+      );
     });
 
     test('accepts a numeric exit code that arrives as a double', () {
       // JSON decoders may hand back 1.0 for an integer field.
       expect(ToolOutcome.fromJson(const {'exit_code': 1.0})?.exitCode, 1);
+    });
+
+    test('accepts numeric diagnostic counts that arrive as doubles', () {
+      final outcome = ToolOutcome.fromJson(const {
+        'diagnostic_count': 3.0,
+        'diagnostic_error_count': 1.0,
+        'diagnostic_warning_count': 2.0,
+      });
+
+      expect(outcome?.diagnosticCount, 3);
+      expect(outcome?.diagnosticErrorCount, 1);
+      expect(outcome?.diagnosticWarningCount, 2);
     });
   });
 

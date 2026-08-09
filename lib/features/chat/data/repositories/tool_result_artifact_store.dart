@@ -46,6 +46,7 @@ class ToolResultArtifactStore {
       name: toolResult.name,
       arguments: toolResult.arguments,
       result: _buildPersistedResultPayload(toolResult: toolResult, file: file),
+      outcome: toolResult.outcome,
     );
   }
 

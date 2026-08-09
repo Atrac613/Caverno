@@ -46,6 +46,9 @@ void main() {
 
       expect(result, isNotNull);
       expect(result!.name, CodingDiagnosticFeedbackService.toolName);
+      expect(result.outcome?.diagnosticCount, 1);
+      expect(result.outcome?.diagnosticErrorCount, 1);
+      expect(result.outcome?.diagnosticWarningCount, 0);
       expect(commands, hasLength(1));
       expect(commands.single.executable, 'dart');
       expect(
@@ -305,6 +308,9 @@ environment:
       final payload = jsonDecode(result!.result) as Map<String, dynamic>;
       expect(payload['diagnostic_count'], 2);
       expect(payload['truncated_diagnostic_count'], 3);
+      expect(result.outcome?.diagnosticCount, 5);
+      expect(result.outcome?.diagnosticErrorCount, 0);
+      expect(result.outcome?.diagnosticWarningCount, 5);
     });
 
     test('returns only diagnostics introduced after the baseline', () async {
@@ -351,6 +357,9 @@ environment:
       expect(payload['current_diagnostic_count'], 2);
       expect(payload['existing_diagnostic_count'], 1);
       expect(payload['diagnostic_count'], 1);
+      expect(result.outcome?.diagnosticCount, 1);
+      expect(result.outcome?.diagnosticErrorCount, 1);
+      expect(result.outcome?.diagnosticWarningCount, 0);
       final diagnostics = payload['diagnostics'] as List<dynamic>;
       expect(
         diagnostics.single,

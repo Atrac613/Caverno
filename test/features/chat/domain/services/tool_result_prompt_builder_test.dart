@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/domain/services/coding_command_output_guardrail_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 void main() {
   group('ToolResultPromptBuilder', () {
@@ -1442,6 +1443,34 @@ void main() {
         (decoded['content'] as String).length,
         lessThan(largeContent.length),
       );
+    });
+
+    test('preserves diagnostic outcome while budgeting result text', () {
+      const outcome = ToolOutcome(
+        diagnosticCount: 50,
+        diagnosticErrorCount: 20,
+        diagnosticWarningCount: 30,
+      );
+      final budgeted = ToolResultPromptBuilder.budgetToolResults([
+        ToolResultInfo(
+          id: 'diagnostics-1',
+          name: 'dart_analyze_feedback',
+          arguments: const {},
+          result: jsonEncode({
+            'diagnostics': List.generate(
+              80,
+              (index) => {
+                'severity': index.isEven ? 'Error' : 'Warning',
+                'message': 'Diagnostic ${'detail ' * 200}$index',
+              },
+            ),
+          }),
+          outcome: outcome,
+        ),
+      ], mode: ToolResultPromptBudgetMode.compact);
+
+      expect(budgeted.single.outcome, outcome);
+      expect(budgeted.single.result.length, lessThanOrEqualTo(8000));
     });
 
     test('does not stub stale tool results in normal budget mode', () {

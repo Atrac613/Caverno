@@ -19,7 +19,16 @@
 /// outcome never carries a field nothing populates. See LL34 in
 /// `docs/local_llm_agent_roadmap.md`.
 class ToolOutcome {
-  const ToolOutcome({this.exitCode, this.fileChanged, this.contentHash});
+  const ToolOutcome({
+    this.exitCode,
+    this.fileChanged,
+    this.contentHash,
+    this.diagnosticCount,
+    this.diagnosticErrorCount,
+    this.diagnosticWarningCount,
+  }) : assert(diagnosticCount == null || diagnosticCount >= 0),
+       assert(diagnosticErrorCount == null || diagnosticErrorCount >= 0),
+       assert(diagnosticWarningCount == null || diagnosticWarningCount >= 0);
 
   /// Process exit status for tools that run a command.
   ///
@@ -48,6 +57,19 @@ class ToolOutcome {
   /// unchanged.
   final String? contentHash;
 
+  /// Number of diagnostics a diagnostics producer observed.
+  ///
+  /// This is counted before the rendered payload is capped, so prompt
+  /// budgeting cannot turn omitted diagnostics into an apparent clean result.
+  /// Null when the tool does not produce diagnostics.
+  final int? diagnosticCount;
+
+  /// Number of Error-severity diagnostics in [diagnosticCount].
+  final int? diagnosticErrorCount;
+
+  /// Number of Warning-severity diagnostics in [diagnosticCount].
+  final int? diagnosticWarningCount;
+
   /// Whether a mutation ran and left the file exactly as it was.
   bool get isNoOpMutation => fileChanged == false;
 
@@ -56,7 +78,12 @@ class ToolOutcome {
   /// An outcome with nothing populated is equivalent to no outcome, and
   /// consumers should fall back to their existing text handling.
   bool get isEmpty =>
-      exitCode == null && fileChanged == null && contentHash == null;
+      exitCode == null &&
+      fileChanged == null &&
+      contentHash == null &&
+      diagnosticCount == null &&
+      diagnosticErrorCount == null &&
+      diagnosticWarningCount == null;
 
   bool get isNotEmpty => !isEmpty;
 
@@ -73,6 +100,11 @@ class ToolOutcome {
     if (exitCode != null) 'exit_code': exitCode,
     if (fileChanged != null) 'changed': fileChanged,
     if (contentHash != null) 'content_hash': contentHash,
+    if (diagnosticCount != null) 'diagnostic_count': diagnosticCount,
+    if (diagnosticErrorCount != null)
+      'diagnostic_error_count': diagnosticErrorCount,
+    if (diagnosticWarningCount != null)
+      'diagnostic_warning_count': diagnosticWarningCount,
   };
 
   static ToolOutcome? fromJson(Map<String, dynamic>? json) {
@@ -82,12 +114,26 @@ class ToolOutcome {
     final rawExitCode = json['exit_code'];
     final rawChanged = json['changed'];
     final rawHash = json['content_hash'];
+    final rawDiagnosticCount = json['diagnostic_count'];
+    final rawDiagnosticErrorCount = json['diagnostic_error_count'];
+    final rawDiagnosticWarningCount = json['diagnostic_warning_count'];
     final outcome = ToolOutcome(
       exitCode: rawExitCode is num ? rawExitCode.toInt() : null,
       fileChanged: rawChanged is bool ? rawChanged : null,
       contentHash: rawHash is String && rawHash.isNotEmpty ? rawHash : null,
+      diagnosticCount: _nonNegativeInt(rawDiagnosticCount),
+      diagnosticErrorCount: _nonNegativeInt(rawDiagnosticErrorCount),
+      diagnosticWarningCount: _nonNegativeInt(rawDiagnosticWarningCount),
     );
     return outcome.isEmpty ? null : outcome;
+  }
+
+  static int? _nonNegativeInt(Object? value) {
+    if (value is! num) {
+      return null;
+    }
+    final integer = value.toInt();
+    return integer >= 0 ? integer : null;
   }
 
   @override
@@ -96,13 +142,25 @@ class ToolOutcome {
       other is ToolOutcome &&
           other.exitCode == exitCode &&
           other.fileChanged == fileChanged &&
-          other.contentHash == contentHash;
+          other.contentHash == contentHash &&
+          other.diagnosticCount == diagnosticCount &&
+          other.diagnosticErrorCount == diagnosticErrorCount &&
+          other.diagnosticWarningCount == diagnosticWarningCount;
 
   @override
-  int get hashCode => Object.hash(exitCode, fileChanged, contentHash);
+  int get hashCode => Object.hash(
+    exitCode,
+    fileChanged,
+    contentHash,
+    diagnosticCount,
+    diagnosticErrorCount,
+    diagnosticWarningCount,
+  );
 
   @override
   String toString() =>
       'ToolOutcome(exitCode: $exitCode, fileChanged: $fileChanged, '
-      'contentHash: $contentHash)';
+      'contentHash: $contentHash, diagnosticCount: $diagnosticCount, '
+      'diagnosticErrorCount: $diagnosticErrorCount, '
+      'diagnosticWarningCount: $diagnosticWarningCount)';
 }

@@ -786,6 +786,8 @@ class LlmSessionLogStore {
       'name': toolResult.name,
       'arguments': toolResult.arguments,
       'result': _decodeJsonStringIfPossible(toolResult.result),
+      if (toolResult.outcome?.isNotEmpty ?? false)
+        'outcome': toolResult.outcome!.toJson(),
     };
   }
 
