@@ -288,6 +288,46 @@ void main() {
       },
     );
 
+    test(
+      'recordToolOutcomeShadow appends structured comparison only',
+      () async {
+        final store = LlmSessionLogStore(
+          rootDirectoryProvider: () async => tempDir,
+        );
+        const context = LlmSessionLogContext(
+          workspaceMode: WorkspaceMode.coding,
+          sessionId: 'conversation/tool-outcome-shadow',
+          conversationId: 'conversation/tool-outcome-shadow',
+        );
+
+        await store.recordToolOutcomeShadow(
+          context: context,
+          at: DateTime(2026, 8, 9, 12),
+          toolName: 'local_execute_command',
+          agreement: 'disagree',
+          structuredExitCode: 0,
+          parsedExitCode: 1,
+          toolCallId: 'call-1',
+          loopIndex: 2,
+        );
+
+        final file = await store.fileForContext(context);
+        final line = (await file.readAsLines()).single;
+        final decoded = jsonDecode(line) as Map<String, dynamic>;
+        expect(decoded['operation'], 'tool_outcome_shadow');
+        expect(decoded['toolOutcomeShadow'], {
+          'toolName': 'local_execute_command',
+          'agreement': 'disagree',
+          'structuredExitCode': 0,
+          'parsedExitCode': 1,
+          'toolCallId': 'call-1',
+          'loopIndex': 2,
+        });
+        expect(line, isNot(contains('stdout')));
+        expect(line, isNot(contains('diagnostics')));
+      },
+    );
+
     test('serializes concurrent request and marker writes', () async {
       final store = LlmSessionLogStore(
         rootDirectoryProvider: () async => tempDir,

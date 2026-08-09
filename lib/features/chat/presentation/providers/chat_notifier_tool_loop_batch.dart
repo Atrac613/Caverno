@@ -437,18 +437,17 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
                 ? result.result
                 : 'Error: ${result.errorMessage}');
 
-      // Shadow only. No canary reaches the validation consumer, so this is the
-      // one point a live run can answer the coverage question from: does the
-      // producer attach an outcome when the payload text carries a status?
       if (_toolCallExecutionPolicy.isCommandExecutionTool(toolCall.name)) {
-        final shadow = compareToolOutcomeExitCode(
+        await observeToolOutcomeShadow(
+          store: ref.read(llmSessionLogStoreProvider),
+          settingsEnabled: _settings.enableLlmSessionLogs,
+          context: _llmSessionLogContextForGeneration(interactionGeneration),
           toolName: toolCall.name,
           outcome: result.outcome,
-          parsedExitCode: parseExitCodeFromPayload(toolResult),
+          renderedPayload: toolResult,
+          toolCallId: toolCall.id,
+          loopIndex: iteration,
         );
-        if (shadow.agreement != ToolOutcomeAgreement.bothAbsent) {
-          appLog(shadow.logLine);
-        }
       }
 
       final promptToolResult = await _persistToolResultForPrompt(

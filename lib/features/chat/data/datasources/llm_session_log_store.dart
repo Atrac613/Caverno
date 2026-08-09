@@ -594,6 +594,47 @@ class LlmSessionLogStore {
     }
   }
 
+  /// Append one LL34 typed-versus-legacy exit-code comparison.
+  ///
+  /// The marker stores only the structured comparison, not the rendered tool
+  /// payload. This keeps the observation useful after app-log rotation without
+  /// duplicating command output or diagnostics in the session corpus.
+  Future<void> recordToolOutcomeShadow({
+    required LlmSessionLogContext? context,
+    required DateTime at,
+    required String toolName,
+    required String agreement,
+    required int? structuredExitCode,
+    required int? parsedExitCode,
+    String? toolCallId,
+    int? loopIndex,
+  }) async {
+    try {
+      final effectiveContext = context ?? _fallbackContext();
+      final entry = {
+        'schemaName': schemaName,
+        'schemaVersion': schemaVersion,
+        'timestamp': _utcTimestamp(at),
+        'build': BuildInfo.toJson(),
+        'context': effectiveContext.toJson(),
+        'operation': 'tool_outcome_shadow',
+        'toolOutcomeShadow': {
+          'toolName': toolName,
+          'agreement': agreement,
+          'structuredExitCode': ?structuredExitCode,
+          'parsedExitCode': ?parsedExitCode,
+          if (toolCallId != null && toolCallId.isNotEmpty)
+            'toolCallId': toolCallId,
+          'loopIndex': ?loopIndex,
+        },
+      };
+      final line = '${jsonEncode(_redactValue(entry))}\n';
+      await _appendLine(context: effectiveContext, line: line, at: at);
+    } catch (error) {
+      appLog('[SessionLog] Failed to write tool-outcome shadow entry: $error');
+    }
+  }
+
   /// Append a redacted execution-snapshot decision produced in shadow mode.
   ///
   /// The marker intentionally stores only hashes, enum names, counts, and

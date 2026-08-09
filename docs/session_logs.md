@@ -57,16 +57,19 @@ Each line is one JSON object with schema name
   list of two adjacent requests and read which producer built the odd one out.
   The field is absent when no producer set a label.
 - Response content, finish reason, tool calls, token usage, or error details
-- Turn-level markers such as `turn_exit`, `goal_auto_continue`, and
-  `execution_shadow`, which make non-request decisions visible in the same
-  JSONL timeline as model calls. `turn_exit.guardDecisions` records metadata-
+- Turn-level markers such as `turn_exit`, `goal_auto_continue`,
+  `execution_shadow`, and `tool_outcome_shadow`, which make non-request
+  decisions visible in the same JSONL timeline as model calls.
+  `turn_exit.guardDecisions` records metadata-
   only guard outcomes. Its `completedToolResultFinalAnswerRecovery` field is
   one of `not_evaluated`, `skip_recovery`, or `allow_recovery`; older v2 entries
   can omit the object. `goal_auto_continue` records bounded continue, stop, and
   active-goal skip decisions; its evidence includes the first safe boundary
   veto when one prevented dispatch. `execution_shadow` stores only redacted
   hashes, enum names, counts, and booleans; it excludes contract text, task
-  identifiers, and diagnostic text.
+  identifiers, and diagnostic text. `tool_outcome_shadow` records the tool
+  name, typed-versus-legacy exit-code agreement, both optional exit codes, and
+  correlation keys. It deliberately excludes the rendered tool payload.
 
 ## Sensitivity
 
@@ -85,6 +88,8 @@ When debugging a session with Codex:
 1. Identify the relevant workspace subdirectory.
 2. Start with the bounded summary command:
    `dart run tool/caverno_session_log_summary.dart --log path/to/session.jsonl`
+   For corpus-level anomaly ranking and LL34 agreement counts, use
+   `python3 tool/triage_session_logs.py --since-days 2 --top 40 --full`.
 3. Open the matching `.jsonl` file only when the summary flags an error, a
    loop-limit prompt, missing final answer, malformed lines,
    `coding_action_promise_without_tool`, or ambiguous tool call sequence.

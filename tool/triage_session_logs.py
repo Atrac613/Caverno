@@ -186,8 +186,9 @@ def _is_completion_entry(entry: dict) -> bool:
 
     `LlmSessionLogStore.record` always writes a `request` block (and a
     `response` unless the call errored), while every marker writer — `turn_exit`,
-    `goal_auto_continue`, `goal_completion_shadow`, `execution_shadow` — writes
-    neither. The test is structural on purpose: an allowlist of marker
+    `goal_auto_continue`, `goal_completion_shadow`, `execution_shadow`,
+    `tool_outcome_shadow` — writes neither. The test is structural on purpose:
+    an allowlist of marker
     *operations* is what broke here, because two markers were added to the app
     after this tool learned the two it skips, and every one of their entries was
     then scored as an aborted request (89% of the reported transport errors —
@@ -245,6 +246,7 @@ def analyze(path: str) -> dict | None:
     exit_reasons: Counter = Counter()
     transforms: Counter = Counter()
     goal_auto_continue: Counter = Counter()
+    tool_outcome_shadow: Counter = Counter()
     for entry in entries:
         if entry.get("operation") in _COMPLETION_OPERATIONS:
             completions += 1
@@ -269,6 +271,11 @@ def analyze(path: str) -> dict | None:
             decision = marker.get("decision") or "unknown"
             reason = marker.get("reason") or "unknown"
             goal_auto_continue[f"{decision}: {reason}"] += 1
+            continue
+        if entry.get("operation") == "tool_outcome_shadow":
+            marker = entry.get("toolOutcomeShadow", {})
+            agreement = marker.get("agreement") or "unknown"
+            tool_outcome_shadow[agreement] += 1
             continue
         # Any other marker (execution_shadow, goal_completion_shadow, or one
         # added later) contributes no anomaly signal and must not be scored.
@@ -330,6 +337,7 @@ def analyze(path: str) -> dict | None:
         "exit_reasons": dict(exit_reasons),
         "transforms": dict(transforms),
         "goal_auto_continue": dict(goal_auto_continue),
+        "tool_outcome_shadow": dict(tool_outcome_shadow),
         "mtime": os.path.getmtime(path),
         "score": round(score, 2),
         "commit": commit,
@@ -390,10 +398,12 @@ def main() -> int:
     exit_totals: Counter = Counter()
     transform_totals: Counter = Counter()
     goal_auto_continue_totals: Counter = Counter()
+    tool_outcome_shadow_totals: Counter = Counter()
     for r in rows:
         exit_totals.update(r.get("exit_reasons") or {})
         transform_totals.update(r.get("transforms") or {})
         goal_auto_continue_totals.update(r.get("goal_auto_continue") or {})
+        tool_outcome_shadow_totals.update(r.get("tool_outcome_shadow") or {})
 
     # Worst byte-identical repeat-read offenders (reread_max), across all
     # scanned sessions — spotlights thrash that ranking-by-total can bury.
@@ -461,6 +471,15 @@ def main() -> int:
         print("\n== Goal auto-continuation decisions ==")
         for name, count in goal_auto_continue_totals.most_common():
             print(f"  {count:>5}  {name}")
+
+    if tool_outcome_shadow_totals:
+        total = sum(tool_outcome_shadow_totals.values())
+        print(
+            f"\n== Tool outcome shadow agreement "
+            f"(LL34, {total} comparisons) =="
+        )
+        for agreement, count in tool_outcome_shadow_totals.most_common():
+            print(f"  {count:>5} ({count / total:>5.1%})  {agreement}")
     return 0
 
 

@@ -5,6 +5,17 @@ void registerChatNotifierToolFailureClassificationTests() {
     'sendMessage blocks unchanged path-backed verifier replay until repair',
     () async {
       const command = 'dart run tool/verify_todo_app.dart';
+      final sessionLogRoot = await Directory.systemTemp.createTemp(
+        'tool_outcome_shadow_logs_',
+      );
+      addTearDown(() async {
+        if (sessionLogRoot.existsSync()) {
+          await sessionLogRoot.delete(recursive: true);
+        }
+      });
+      final sessionLogStore = LlmSessionLogStore(
+        rootDirectoryProvider: () async => sessionLogRoot,
+      );
       final conversation = Conversation(
         id: 'command-diagnostic-focus',
         title: 'Repair TODO CLI',
@@ -73,6 +84,7 @@ void registerChatNotifierToolFailureClassificationTests() {
             '{"exit_code":1,"stdout":"","stderr":"TODO fixture acceptance criteria failed.","diagnostics":[{"severity":"Error","path":"/tmp/run/bin/todo_cli.dart","relative_path":"bin/todo_cli.dart","code":"todo_cli_missing","message":"bin/todo_cli.dart does not exist."}]}',
         isSuccess: false,
         errorMessage: 'TODO verifier found one issue.',
+        outcome: ToolOutcome(exitCode: 1),
       );
       final toolService = _QueuedMcpToolResultService({
         'local_execute_command': [verifierFailure, verifierFailure],
@@ -102,6 +114,7 @@ void registerChatNotifierToolFailureClassificationTests() {
             _TestSessionMemoryService(),
           ),
           mcpToolServiceProvider.overrideWithValue(toolService),
+          llmSessionLogStoreProvider.overrideWithValue(sessionLogStore),
           appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
           backgroundTaskServiceProvider.overrideWithValue(
             _TestBackgroundTaskService(),
@@ -184,6 +197,29 @@ void registerChatNotifierToolFailureClassificationTests() {
           toolNotifier.state.messages.last.content,
           isNot(contains('check your server configuration')),
         );
+        final sessionLogFile = await sessionLogStore.fileForContext(
+          const LlmSessionLogContext(
+            workspaceMode: WorkspaceMode.coding,
+            sessionId: 'command-diagnostic-focus',
+            conversationId: 'command-diagnostic-focus',
+          ),
+          create: false,
+        );
+        final entries = (await sessionLogFile.readAsLines())
+            .map((line) => jsonDecode(line) as Map<String, dynamic>)
+            .toList(growable: false);
+        final shadowEntries = entries
+            .where((entry) => entry['operation'] == 'tool_outcome_shadow')
+            .toList(growable: false);
+        expect(shadowEntries, hasLength(1));
+        expect(shadowEntries.single['toolOutcomeShadow'], {
+          'toolName': 'local_execute_command',
+          'agreement': 'agree',
+          'structuredExitCode': 1,
+          'parsedExitCode': 1,
+          'toolCallId': 'verify-1',
+          'loopIndex': 1,
+        });
       } finally {
         toolContainer.dispose();
       }
@@ -357,5 +393,6 @@ class _ToolEnabledCodingNoConfirmSettingsNotifier extends SettingsNotifier {
     confirmFileMutations: false,
     confirmLocalCommands: false,
     confirmGitWrites: false,
+    enableLlmSessionLogs: true,
   );
 }

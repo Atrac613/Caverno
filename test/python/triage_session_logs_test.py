@@ -99,6 +99,10 @@ class TriageMarkerScoringTest(unittest.TestCase):
                     "goal_completion_shadow",
                     {"goalCompletionShadow": {"label": "x", "lexicalCompleted": True}},
                 ),
+                _marker(
+                    "tool_outcome_shadow",
+                    {"toolOutcomeShadow": {"agreement": "parsedMissing"}},
+                ),
             ]
         )
 
@@ -175,6 +179,17 @@ class TriageMarkerScoringTest(unittest.TestCase):
                     "goal_auto_continue",
                     {"goalAutoContinue": {"decision": "continue", "reason": "gaps"}},
                 ),
+                _marker(
+                    "tool_outcome_shadow",
+                    {
+                        "toolOutcomeShadow": {
+                            "toolName": "local_execute_command",
+                            "agreement": "agree",
+                            "structuredExitCode": 1,
+                            "parsedExitCode": 1,
+                        }
+                    },
+                ),
             ]
         )
 
@@ -182,6 +197,7 @@ class TriageMarkerScoringTest(unittest.TestCase):
         self.assertEqual(row["no_answer"], 1)
         self.assertEqual(row["transforms"], {"unwritten_file_claim_notice": 1})
         self.assertEqual(row["goal_auto_continue"], {"continue: gaps": 1})
+        self.assertEqual(row["tool_outcome_shadow"], {"agree": 1})
 
 
 if __name__ == "__main__":

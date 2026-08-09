@@ -3029,11 +3029,14 @@ evidence-JSON path when the outcome is absent or incomplete. Ordinary
 `run_tests` console prose remains ineligible, so no count is guessed after the
 runner boundary.
 
-The next narrow slice is the stalled observation transport above: persist each
-existing `ToolOutcomeShadow` comparison as a session-log marker instead of
-leaving it only in the rotating app log, then give the triage fixture a direct
-typed-versus-legacy agreement count. Do not begin summary-first rendering until
-that instrument accumulates a trustworthy production sample.
+The stalled observation transport now ships: each existing
+`ToolOutcomeShadow` exit-code comparison is persisted as a redacted,
+owner-scoped session-log marker, and `tool/triage_session_logs.py` reports the
+direct typed-versus-legacy agreement distribution without adding the marker to
+anomaly scores. The next operational step is to collect a fresh grounded coding
+sample containing command outcomes and inspect that distribution. Do not begin
+summary-first rendering until the sample is trustworthy and every disagreement
+is understood.
 
 Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
 traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.
