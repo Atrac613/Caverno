@@ -22,8 +22,9 @@ class ConversationExecutionProgressInferenceResult {
 ///
 /// Deliberately has no exit code to consult. Two other paths already ground
 /// `validationStatus` in one and run ahead of this class:
-/// `ConversationValidationToolResultInference` parses `exit_code` out of the
-/// tool result matching the task's `validationCommand`, and
+/// `ConversationValidationToolResultInference` reads typed exit status, with a
+/// lexical fallback for outcome-free results matching the task's
+/// `validationCommand`, and
 /// `CodingVerificationFeedbackService` reads the exit code of the test commands
 /// it runs itself. Adding a `validationExitCode` parameter here — as
 /// `04a71756` did, and `52926cc3` reverted — makes this a fourth derivation of
@@ -179,10 +180,9 @@ class ConversationExecutionProgressInference {
         return ConversationExecutionProgressInferenceResult(
           status: ConversationWorkflowTaskStatus.completed,
           summary: summary,
-          validationStatus:
-              (hasValidationPassedSignal
-                  ? ConversationExecutionValidationStatus.passed
-                  : ConversationExecutionValidationStatus.unknown),
+          validationStatus: (hasValidationPassedSignal
+              ? ConversationExecutionValidationStatus.passed
+              : ConversationExecutionValidationStatus.unknown),
           validationSummary: summary,
         );
       }
@@ -191,10 +191,9 @@ class ConversationExecutionProgressInference {
             ? ConversationWorkflowTaskStatus.completed
             : ConversationWorkflowTaskStatus.inProgress,
         summary: summary,
-        validationStatus:
-            (hasValidationPassedSignal
-                ? ConversationExecutionValidationStatus.passed
-                : ConversationExecutionValidationStatus.unknown),
+        validationStatus: (hasValidationPassedSignal
+            ? ConversationExecutionValidationStatus.passed
+            : ConversationExecutionValidationStatus.unknown),
         validationSummary: summary,
       );
     }

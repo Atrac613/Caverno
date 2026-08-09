@@ -3336,6 +3336,8 @@ BuildVersion: 23F79
 
         expect(result.isSuccess, isTrue);
         expect(result.result, 'remote pong');
+        expect(result.outcome, isNull);
+        expect(result.isExternalMcpResult, isTrue);
         expect(client.calledToolNames, ['ping']);
       },
     );
