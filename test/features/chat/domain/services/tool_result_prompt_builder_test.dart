@@ -1542,6 +1542,53 @@ void main() {
       expect(budgeted.single.result.length, lessThanOrEqualTo(8000));
     });
 
+    test('renders typed outcomes before reduced raw tool results', () {
+      final rawOutput = 'test output line\n' * 1000;
+      final budgeted = ToolResultPromptBuilder.budgetToolResults([
+        ToolResultInfo(
+          id: 'tests-1',
+          name: 'run_tests',
+          arguments: const {'command': 'flutter test'},
+          result: jsonEncode({
+            'command': 'flutter test',
+            'exit_code': 0,
+            'stdout': rawOutput,
+            'stderr': '',
+          }),
+          outcome: const ToolOutcome(
+            exitCode: 0,
+            testPassedCount: 47,
+            testFailedCount: 0,
+            testSkippedCount: 2,
+          ),
+        ),
+      ], summaryFirst: true);
+
+      expect(
+        budgeted.single.result,
+        startsWith(
+          'Outcome: exit 0 · 47 tests passed · 0 failed · 2 skipped\n'
+          'Raw result:\n',
+        ),
+      );
+      expect(budgeted.single.result.length, lessThan(rawOutput.length));
+      final prompt = ToolResultPromptBuilder.buildAnswerPrompt(budgeted);
+      expect(prompt, contains('Outcome: exit 0'));
+    });
+
+    test('keeps untyped tool results raw in summary-first mode', () {
+      final budgeted = ToolResultPromptBuilder.budgetToolResults([
+        ToolResultInfo(
+          id: 'external-1',
+          name: 'external_tool',
+          arguments: const {},
+          result: '{"status":"opaque"}',
+        ),
+      ], summaryFirst: true);
+
+      expect(budgeted.single.result, '{"status":"opaque"}');
+    });
+
     test('does not stub stale tool results in normal budget mode', () {
       final budgeted = ToolResultPromptBuilder.budgetToolResults([
         ToolResultInfo(

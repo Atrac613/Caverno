@@ -1493,7 +1493,7 @@ mixin _$ModelHarnessConfig {
 // SystemPromptBuilder guidance for that surface.
  String get bootstrapInstruction; String get executionInstruction; String get verificationInstruction; String get failureRecoveryInstruction;// Runtime control policy. Zero / false means "use the existing harness
 // default" so the config never silently weakens current behaviour.
- int get toolLoopMaxIterations; bool get recoveryMiddlewareEnabled; bool get explorationToEditNudgeEnabled;
+ int get toolLoopMaxIterations; bool get recoveryMiddlewareEnabled; bool get explorationToEditNudgeEnabled; bool get summaryFirstToolResultsEnabled;
 /// Create a copy of ModelHarnessConfig
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1506,16 +1506,16 @@ $ModelHarnessConfigCopyWith<ModelHarnessConfig> get copyWith => _$ModelHarnessCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelHarnessConfig&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.bootstrapInstruction, bootstrapInstruction) || other.bootstrapInstruction == bootstrapInstruction)&&(identical(other.executionInstruction, executionInstruction) || other.executionInstruction == executionInstruction)&&(identical(other.verificationInstruction, verificationInstruction) || other.verificationInstruction == verificationInstruction)&&(identical(other.failureRecoveryInstruction, failureRecoveryInstruction) || other.failureRecoveryInstruction == failureRecoveryInstruction)&&(identical(other.toolLoopMaxIterations, toolLoopMaxIterations) || other.toolLoopMaxIterations == toolLoopMaxIterations)&&(identical(other.recoveryMiddlewareEnabled, recoveryMiddlewareEnabled) || other.recoveryMiddlewareEnabled == recoveryMiddlewareEnabled)&&(identical(other.explorationToEditNudgeEnabled, explorationToEditNudgeEnabled) || other.explorationToEditNudgeEnabled == explorationToEditNudgeEnabled));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelHarnessConfig&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.bootstrapInstruction, bootstrapInstruction) || other.bootstrapInstruction == bootstrapInstruction)&&(identical(other.executionInstruction, executionInstruction) || other.executionInstruction == executionInstruction)&&(identical(other.verificationInstruction, verificationInstruction) || other.verificationInstruction == verificationInstruction)&&(identical(other.failureRecoveryInstruction, failureRecoveryInstruction) || other.failureRecoveryInstruction == failureRecoveryInstruction)&&(identical(other.toolLoopMaxIterations, toolLoopMaxIterations) || other.toolLoopMaxIterations == toolLoopMaxIterations)&&(identical(other.recoveryMiddlewareEnabled, recoveryMiddlewareEnabled) || other.recoveryMiddlewareEnabled == recoveryMiddlewareEnabled)&&(identical(other.explorationToEditNudgeEnabled, explorationToEditNudgeEnabled) || other.explorationToEditNudgeEnabled == explorationToEditNudgeEnabled)&&(identical(other.summaryFirstToolResultsEnabled, summaryFirstToolResultsEnabled) || other.summaryFirstToolResultsEnabled == summaryFirstToolResultsEnabled));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,bootstrapInstruction,executionInstruction,verificationInstruction,failureRecoveryInstruction,toolLoopMaxIterations,recoveryMiddlewareEnabled,explorationToEditNudgeEnabled);
+int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,bootstrapInstruction,executionInstruction,verificationInstruction,failureRecoveryInstruction,toolLoopMaxIterations,recoveryMiddlewareEnabled,explorationToEditNudgeEnabled,summaryFirstToolResultsEnabled);
 
 @override
 String toString() {
-  return 'ModelHarnessConfig(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, bootstrapInstruction: $bootstrapInstruction, executionInstruction: $executionInstruction, verificationInstruction: $verificationInstruction, failureRecoveryInstruction: $failureRecoveryInstruction, toolLoopMaxIterations: $toolLoopMaxIterations, recoveryMiddlewareEnabled: $recoveryMiddlewareEnabled, explorationToEditNudgeEnabled: $explorationToEditNudgeEnabled)';
+  return 'ModelHarnessConfig(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, bootstrapInstruction: $bootstrapInstruction, executionInstruction: $executionInstruction, verificationInstruction: $verificationInstruction, failureRecoveryInstruction: $failureRecoveryInstruction, toolLoopMaxIterations: $toolLoopMaxIterations, recoveryMiddlewareEnabled: $recoveryMiddlewareEnabled, explorationToEditNudgeEnabled: $explorationToEditNudgeEnabled, summaryFirstToolResultsEnabled: $summaryFirstToolResultsEnabled)';
 }
 
 
@@ -1526,7 +1526,7 @@ abstract mixin class $ModelHarnessConfigCopyWith<$Res>  {
   factory $ModelHarnessConfigCopyWith(ModelHarnessConfig value, $Res Function(ModelHarnessConfig) _then) = _$ModelHarnessConfigCopyWithImpl;
 @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model, String bootstrapInstruction, String executionInstruction, String verificationInstruction, String failureRecoveryInstruction, int toolLoopMaxIterations, bool recoveryMiddlewareEnabled, bool explorationToEditNudgeEnabled
+ String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model, String bootstrapInstruction, String executionInstruction, String verificationInstruction, String failureRecoveryInstruction, int toolLoopMaxIterations, bool recoveryMiddlewareEnabled, bool explorationToEditNudgeEnabled, bool summaryFirstToolResultsEnabled
 });
 
 
@@ -1543,7 +1543,7 @@ class _$ModelHarnessConfigCopyWithImpl<$Res>
 
 /// Create a copy of ModelHarnessConfig
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? bootstrapInstruction = null,Object? executionInstruction = null,Object? verificationInstruction = null,Object? failureRecoveryInstruction = null,Object? toolLoopMaxIterations = null,Object? recoveryMiddlewareEnabled = null,Object? explorationToEditNudgeEnabled = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? bootstrapInstruction = null,Object? executionInstruction = null,Object? verificationInstruction = null,Object? failureRecoveryInstruction = null,Object? toolLoopMaxIterations = null,Object? recoveryMiddlewareEnabled = null,Object? explorationToEditNudgeEnabled = null,Object? summaryFirstToolResultsEnabled = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,provider: null == provider ? _self.provider : provider // ignore: cast_nullable_to_non_nullable
@@ -1556,6 +1556,7 @@ as String,failureRecoveryInstruction: null == failureRecoveryInstruction ? _self
 as String,toolLoopMaxIterations: null == toolLoopMaxIterations ? _self.toolLoopMaxIterations : toolLoopMaxIterations // ignore: cast_nullable_to_non_nullable
 as int,recoveryMiddlewareEnabled: null == recoveryMiddlewareEnabled ? _self.recoveryMiddlewareEnabled : recoveryMiddlewareEnabled // ignore: cast_nullable_to_non_nullable
 as bool,explorationToEditNudgeEnabled: null == explorationToEditNudgeEnabled ? _self.explorationToEditNudgeEnabled : explorationToEditNudgeEnabled // ignore: cast_nullable_to_non_nullable
+as bool,summaryFirstToolResultsEnabled: null == summaryFirstToolResultsEnabled ? _self.summaryFirstToolResultsEnabled : summaryFirstToolResultsEnabled // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -1641,10 +1642,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model,  String bootstrapInstruction,  String executionInstruction,  String verificationInstruction,  String failureRecoveryInstruction,  int toolLoopMaxIterations,  bool recoveryMiddlewareEnabled,  bool explorationToEditNudgeEnabled)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model,  String bootstrapInstruction,  String executionInstruction,  String verificationInstruction,  String failureRecoveryInstruction,  int toolLoopMaxIterations,  bool recoveryMiddlewareEnabled,  bool explorationToEditNudgeEnabled,  bool summaryFirstToolResultsEnabled)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ModelHarnessConfig() when $default != null:
-return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.bootstrapInstruction,_that.executionInstruction,_that.verificationInstruction,_that.failureRecoveryInstruction,_that.toolLoopMaxIterations,_that.recoveryMiddlewareEnabled,_that.explorationToEditNudgeEnabled);case _:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.bootstrapInstruction,_that.executionInstruction,_that.verificationInstruction,_that.failureRecoveryInstruction,_that.toolLoopMaxIterations,_that.recoveryMiddlewareEnabled,_that.explorationToEditNudgeEnabled,_that.summaryFirstToolResultsEnabled);case _:
   return orElse();
 
 }
@@ -1662,10 +1663,10 @@ return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.bootstra
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model,  String bootstrapInstruction,  String executionInstruction,  String verificationInstruction,  String failureRecoveryInstruction,  int toolLoopMaxIterations,  bool recoveryMiddlewareEnabled,  bool explorationToEditNudgeEnabled)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model,  String bootstrapInstruction,  String executionInstruction,  String verificationInstruction,  String failureRecoveryInstruction,  int toolLoopMaxIterations,  bool recoveryMiddlewareEnabled,  bool explorationToEditNudgeEnabled,  bool summaryFirstToolResultsEnabled)  $default,) {final _that = this;
 switch (_that) {
 case _ModelHarnessConfig():
-return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.bootstrapInstruction,_that.executionInstruction,_that.verificationInstruction,_that.failureRecoveryInstruction,_that.toolLoopMaxIterations,_that.recoveryMiddlewareEnabled,_that.explorationToEditNudgeEnabled);case _:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.bootstrapInstruction,_that.executionInstruction,_that.verificationInstruction,_that.failureRecoveryInstruction,_that.toolLoopMaxIterations,_that.recoveryMiddlewareEnabled,_that.explorationToEditNudgeEnabled,_that.summaryFirstToolResultsEnabled);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1682,10 +1683,10 @@ return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.bootstra
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model,  String bootstrapInstruction,  String executionInstruction,  String verificationInstruction,  String failureRecoveryInstruction,  int toolLoopMaxIterations,  bool recoveryMiddlewareEnabled,  bool explorationToEditNudgeEnabled)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model,  String bootstrapInstruction,  String executionInstruction,  String verificationInstruction,  String failureRecoveryInstruction,  int toolLoopMaxIterations,  bool recoveryMiddlewareEnabled,  bool explorationToEditNudgeEnabled,  bool summaryFirstToolResultsEnabled)?  $default,) {final _that = this;
 switch (_that) {
 case _ModelHarnessConfig() when $default != null:
-return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.bootstrapInstruction,_that.executionInstruction,_that.verificationInstruction,_that.failureRecoveryInstruction,_that.toolLoopMaxIterations,_that.recoveryMiddlewareEnabled,_that.explorationToEditNudgeEnabled);case _:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.bootstrapInstruction,_that.executionInstruction,_that.verificationInstruction,_that.failureRecoveryInstruction,_that.toolLoopMaxIterations,_that.recoveryMiddlewareEnabled,_that.explorationToEditNudgeEnabled,_that.summaryFirstToolResultsEnabled);case _:
   return null;
 
 }
@@ -1697,7 +1698,7 @@ return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.bootstra
 @JsonSerializable()
 
 class _ModelHarnessConfig extends ModelHarnessConfig {
-  const _ModelHarnessConfig({required this.id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.provider = LlmProvider.openAiCompatible, this.baseUrl = '', required this.model, this.bootstrapInstruction = '', this.executionInstruction = '', this.verificationInstruction = '', this.failureRecoveryInstruction = '', this.toolLoopMaxIterations = 0, this.recoveryMiddlewareEnabled = false, this.explorationToEditNudgeEnabled = false}): super._();
+  const _ModelHarnessConfig({required this.id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.provider = LlmProvider.openAiCompatible, this.baseUrl = '', required this.model, this.bootstrapInstruction = '', this.executionInstruction = '', this.verificationInstruction = '', this.failureRecoveryInstruction = '', this.toolLoopMaxIterations = 0, this.recoveryMiddlewareEnabled = false, this.explorationToEditNudgeEnabled = false, this.summaryFirstToolResultsEnabled = false}): super._();
   factory _ModelHarnessConfig.fromJson(Map<String, dynamic> json) => _$ModelHarnessConfigFromJson(json);
 
 @override final  String id;
@@ -1715,6 +1716,7 @@ class _ModelHarnessConfig extends ModelHarnessConfig {
 @override@JsonKey() final  int toolLoopMaxIterations;
 @override@JsonKey() final  bool recoveryMiddlewareEnabled;
 @override@JsonKey() final  bool explorationToEditNudgeEnabled;
+@override@JsonKey() final  bool summaryFirstToolResultsEnabled;
 
 /// Create a copy of ModelHarnessConfig
 /// with the given fields replaced by the non-null parameter values.
@@ -1729,16 +1731,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelHarnessConfig&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.bootstrapInstruction, bootstrapInstruction) || other.bootstrapInstruction == bootstrapInstruction)&&(identical(other.executionInstruction, executionInstruction) || other.executionInstruction == executionInstruction)&&(identical(other.verificationInstruction, verificationInstruction) || other.verificationInstruction == verificationInstruction)&&(identical(other.failureRecoveryInstruction, failureRecoveryInstruction) || other.failureRecoveryInstruction == failureRecoveryInstruction)&&(identical(other.toolLoopMaxIterations, toolLoopMaxIterations) || other.toolLoopMaxIterations == toolLoopMaxIterations)&&(identical(other.recoveryMiddlewareEnabled, recoveryMiddlewareEnabled) || other.recoveryMiddlewareEnabled == recoveryMiddlewareEnabled)&&(identical(other.explorationToEditNudgeEnabled, explorationToEditNudgeEnabled) || other.explorationToEditNudgeEnabled == explorationToEditNudgeEnabled));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelHarnessConfig&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.bootstrapInstruction, bootstrapInstruction) || other.bootstrapInstruction == bootstrapInstruction)&&(identical(other.executionInstruction, executionInstruction) || other.executionInstruction == executionInstruction)&&(identical(other.verificationInstruction, verificationInstruction) || other.verificationInstruction == verificationInstruction)&&(identical(other.failureRecoveryInstruction, failureRecoveryInstruction) || other.failureRecoveryInstruction == failureRecoveryInstruction)&&(identical(other.toolLoopMaxIterations, toolLoopMaxIterations) || other.toolLoopMaxIterations == toolLoopMaxIterations)&&(identical(other.recoveryMiddlewareEnabled, recoveryMiddlewareEnabled) || other.recoveryMiddlewareEnabled == recoveryMiddlewareEnabled)&&(identical(other.explorationToEditNudgeEnabled, explorationToEditNudgeEnabled) || other.explorationToEditNudgeEnabled == explorationToEditNudgeEnabled)&&(identical(other.summaryFirstToolResultsEnabled, summaryFirstToolResultsEnabled) || other.summaryFirstToolResultsEnabled == summaryFirstToolResultsEnabled));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,bootstrapInstruction,executionInstruction,verificationInstruction,failureRecoveryInstruction,toolLoopMaxIterations,recoveryMiddlewareEnabled,explorationToEditNudgeEnabled);
+int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,bootstrapInstruction,executionInstruction,verificationInstruction,failureRecoveryInstruction,toolLoopMaxIterations,recoveryMiddlewareEnabled,explorationToEditNudgeEnabled,summaryFirstToolResultsEnabled);
 
 @override
 String toString() {
-  return 'ModelHarnessConfig(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, bootstrapInstruction: $bootstrapInstruction, executionInstruction: $executionInstruction, verificationInstruction: $verificationInstruction, failureRecoveryInstruction: $failureRecoveryInstruction, toolLoopMaxIterations: $toolLoopMaxIterations, recoveryMiddlewareEnabled: $recoveryMiddlewareEnabled, explorationToEditNudgeEnabled: $explorationToEditNudgeEnabled)';
+  return 'ModelHarnessConfig(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, bootstrapInstruction: $bootstrapInstruction, executionInstruction: $executionInstruction, verificationInstruction: $verificationInstruction, failureRecoveryInstruction: $failureRecoveryInstruction, toolLoopMaxIterations: $toolLoopMaxIterations, recoveryMiddlewareEnabled: $recoveryMiddlewareEnabled, explorationToEditNudgeEnabled: $explorationToEditNudgeEnabled, summaryFirstToolResultsEnabled: $summaryFirstToolResultsEnabled)';
 }
 
 
@@ -1749,7 +1751,7 @@ abstract mixin class _$ModelHarnessConfigCopyWith<$Res> implements $ModelHarness
   factory _$ModelHarnessConfigCopyWith(_ModelHarnessConfig value, $Res Function(_ModelHarnessConfig) _then) = __$ModelHarnessConfigCopyWithImpl;
 @override @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model, String bootstrapInstruction, String executionInstruction, String verificationInstruction, String failureRecoveryInstruction, int toolLoopMaxIterations, bool recoveryMiddlewareEnabled, bool explorationToEditNudgeEnabled
+ String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model, String bootstrapInstruction, String executionInstruction, String verificationInstruction, String failureRecoveryInstruction, int toolLoopMaxIterations, bool recoveryMiddlewareEnabled, bool explorationToEditNudgeEnabled, bool summaryFirstToolResultsEnabled
 });
 
 
@@ -1766,7 +1768,7 @@ class __$ModelHarnessConfigCopyWithImpl<$Res>
 
 /// Create a copy of ModelHarnessConfig
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? bootstrapInstruction = null,Object? executionInstruction = null,Object? verificationInstruction = null,Object? failureRecoveryInstruction = null,Object? toolLoopMaxIterations = null,Object? recoveryMiddlewareEnabled = null,Object? explorationToEditNudgeEnabled = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? bootstrapInstruction = null,Object? executionInstruction = null,Object? verificationInstruction = null,Object? failureRecoveryInstruction = null,Object? toolLoopMaxIterations = null,Object? recoveryMiddlewareEnabled = null,Object? explorationToEditNudgeEnabled = null,Object? summaryFirstToolResultsEnabled = null,}) {
   return _then(_ModelHarnessConfig(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,provider: null == provider ? _self.provider : provider // ignore: cast_nullable_to_non_nullable
@@ -1779,6 +1781,7 @@ as String,failureRecoveryInstruction: null == failureRecoveryInstruction ? _self
 as String,toolLoopMaxIterations: null == toolLoopMaxIterations ? _self.toolLoopMaxIterations : toolLoopMaxIterations // ignore: cast_nullable_to_non_nullable
 as int,recoveryMiddlewareEnabled: null == recoveryMiddlewareEnabled ? _self.recoveryMiddlewareEnabled : recoveryMiddlewareEnabled // ignore: cast_nullable_to_non_nullable
 as bool,explorationToEditNudgeEnabled: null == explorationToEditNudgeEnabled ? _self.explorationToEditNudgeEnabled : explorationToEditNudgeEnabled // ignore: cast_nullable_to_non_nullable
+as bool,summaryFirstToolResultsEnabled: null == summaryFirstToolResultsEnabled ? _self.summaryFirstToolResultsEnabled : summaryFirstToolResultsEnabled // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }

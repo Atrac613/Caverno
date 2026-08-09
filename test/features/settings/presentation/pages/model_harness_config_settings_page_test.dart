@@ -41,6 +41,9 @@ void main() {
       '6',
     );
     await tester.tap(find.byKey(const ValueKey('harness-exploration-toggle')));
+    await tester.tap(
+      find.byKey(const ValueKey('harness-summary-first-toggle')),
+    );
     await tester.pump();
 
     await tester.tap(find.byKey(const ValueKey('harness-save')));
@@ -53,6 +56,7 @@ void main() {
     expect(config!.bootstrapInstruction, 'Create the answer file early.');
     expect(config.toolLoopMaxIterations, 6);
     expect(config.explorationToEditNudgeEnabled, isTrue);
+    expect(config.summaryFirstToolResultsEnabled, isTrue);
   });
 
   testWidgets('seeds fields from the stored config', (tester) async {
@@ -64,6 +68,7 @@ void main() {
       model: settings.effectiveModel,
       verificationInstruction: 'Run the tests before finishing.',
       recoveryMiddlewareEnabled: true,
+      summaryFirstToolResultsEnabled: true,
     ).normalizedForPersistence();
 
     await _pumpHarnessPage(
@@ -76,6 +81,10 @@ void main() {
       find.byKey(const ValueKey('harness-recovery-toggle')),
     );
     expect(toggle.value, isTrue);
+    final summaryToggle = tester.widget<SwitchListTile>(
+      find.byKey(const ValueKey('harness-summary-first-toggle')),
+    );
+    expect(summaryToggle.value, isTrue);
   });
 }
 

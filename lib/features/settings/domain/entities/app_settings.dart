@@ -372,6 +372,7 @@ abstract class ModelHarnessConfig with _$ModelHarnessConfig {
     @Default(0) int toolLoopMaxIterations,
     @Default(false) bool recoveryMiddlewareEnabled,
     @Default(false) bool explorationToEditNudgeEnabled,
+    @Default(false) bool summaryFirstToolResultsEnabled,
   }) = _ModelHarnessConfig;
 
   factory ModelHarnessConfig.fromJson(Map<String, dynamic> json) =>
@@ -410,7 +411,8 @@ abstract class ModelHarnessConfig with _$ModelHarnessConfig {
   bool get hasControlPolicyOverrides =>
       toolLoopMaxIterations > 0 ||
       recoveryMiddlewareEnabled ||
-      explorationToEditNudgeEnabled;
+      explorationToEditNudgeEnabled ||
+      summaryFirstToolResultsEnabled;
 
   /// True when the config carries no overrides, i.e. it is equivalent to having
   /// no stored config at all.

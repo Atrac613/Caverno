@@ -250,6 +250,26 @@ class ToolResultPromptBuilder {
     maxImageAttachments: 1,
   );
 
+  static const _summaryFirstNormalBudget = _ToolResultPromptBudget(
+    maxTotalResultChars: 24000,
+    maxSingleResultChars: 8000,
+    maxStringValueChars: 4000,
+    maxReadFileContentChars: 4000,
+    maxCommandOutputChars: 2000,
+    maxListItems: 40,
+    maxImageAttachments: 1,
+  );
+
+  static const _summaryFirstCompactBudget = _ToolResultPromptBudget(
+    maxTotalResultChars: 12000,
+    maxSingleResultChars: 5000,
+    maxStringValueChars: 2400,
+    maxReadFileContentChars: 2400,
+    maxCommandOutputChars: 1400,
+    maxListItems: 24,
+    maxImageAttachments: 1,
+  );
+
   static List<Map<String, dynamic>> dedupeToolsByName(
     List<Map<String, dynamic>> tools,
   ) {
@@ -271,6 +291,7 @@ class ToolResultPromptBuilder {
     List<ToolResultInfo> toolResults, {
     ToolResultPromptBudgetMode mode = ToolResultPromptBudgetMode.normal,
     Set<String> protectedPaths = const {},
+    bool summaryFirst = false,
   }) {
     if (toolResults.isEmpty) {
       return const [];
@@ -282,7 +303,7 @@ class ToolResultPromptBuilder {
             protectedPaths: protectedPaths,
           )
         : toolResults;
-    final budget = _budgetForMode(mode);
+    final budget = _budgetForMode(mode, summaryFirst: summaryFirst);
     final imageResultIndexes = <int>[];
     for (var index = 0; index < sourceToolResults.length; index += 1) {
       final decoded = _tryDecodeJsonMap(sourceToolResults[index].result);
@@ -299,7 +320,7 @@ class ToolResultPromptBuilder {
     final budgeted = <ToolResultInfo>[];
     for (var index = 0; index < sourceToolResults.length; index += 1) {
       final toolResult = sourceToolResults[index];
-      final result = _budgetToolResultPayload(
+      final budgetedResult = _budgetToolResultPayload(
         toolResult,
         budget: budget,
         keepImagePayload: keptImageIndexes.contains(index),
@@ -309,7 +330,9 @@ class ToolResultPromptBuilder {
           id: toolResult.id,
           name: toolResult.name,
           arguments: toolResult.arguments,
-          result: result,
+          result: summaryFirst
+              ? _renderSummaryFirst(toolResult, budgetedResult)
+              : budgetedResult,
           // Budgeting shortens the payload text; it does not change what the
           // tool reported about its own execution. Dropping the outcome here
           // is what forced downstream consumers to parse an exit status back
@@ -352,12 +375,14 @@ class ToolResultPromptBuilder {
   static bool hasAdditionalCompactBudgetReduction(
     List<ToolResultInfo> toolResults, {
     Set<String> protectedPaths = const {},
+    bool summaryFirst = false,
   }) {
-    final normal = budgetToolResults(toolResults);
+    final normal = budgetToolResults(toolResults, summaryFirst: summaryFirst);
     final compact = budgetToolResults(
       toolResults,
       mode: ToolResultPromptBudgetMode.compact,
       protectedPaths: protectedPaths,
+      summaryFirst: summaryFirst,
     );
     if (normal.length != compact.length) {
       return true;
@@ -1067,6 +1092,55 @@ class ToolResultPromptBuilder {
     return jsonEncode(redacted);
   }
 
+  static String? buildToolOutcomeSummary(ToolResultInfo toolResult) {
+    final outcome = toolResult.outcome;
+    if (outcome == null || outcome.isEmpty) return null;
+
+    final parts = <String>[];
+    if (outcome.exitCode != null) {
+      parts.add('exit ${outcome.exitCode}');
+    }
+    if (outcome.processState != null) {
+      parts.add('process ${outcome.processState!.name}');
+    }
+    if (outcome.fileChanged != null) {
+      parts.add(outcome.fileChanged! ? '1 file changed' : 'file unchanged');
+    }
+    if (outcome.contentHash != null) {
+      final hash = outcome.contentHash!;
+      final displayHash = hash.length <= 20
+          ? hash
+          : '${hash.substring(0, 20)}…';
+      parts.add('file hash $displayHash');
+    }
+    if (outcome.diagnosticCount != null) {
+      final details = <String>[
+        if (outcome.diagnosticErrorCount != null)
+          '${outcome.diagnosticErrorCount} errors',
+        if (outcome.diagnosticWarningCount != null)
+          '${outcome.diagnosticWarningCount} warnings',
+      ];
+      parts.add(
+        '${outcome.diagnosticCount} diagnostics'
+        '${details.isEmpty ? '' : ' (${details.join(', ')})'}',
+      );
+    }
+    if (outcome.hasCompleteTestCounts) {
+      parts.add(
+        '${outcome.testPassedCount} tests passed · '
+        '${outcome.testFailedCount} failed · '
+        '${outcome.testSkippedCount} skipped',
+      );
+    }
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
+
+  static String _renderSummaryFirst(ToolResultInfo toolResult, String raw) {
+    final summary = buildToolOutcomeSummary(toolResult);
+    if (summary == null) return raw;
+    return 'Outcome: $summary\nRaw result:\n$raw';
+  }
+
   static String? buildToolOperationNote(ToolResultInfo toolResult) {
     final decoded = _tryDecodeJsonMap(toolResult.result);
     if (decoded == null) {
@@ -1353,8 +1427,15 @@ class ToolResultPromptBuilder {
   }
 
   static _ToolResultPromptBudget _budgetForMode(
-    ToolResultPromptBudgetMode mode,
-  ) {
+    ToolResultPromptBudgetMode mode, {
+    required bool summaryFirst,
+  }) {
+    if (summaryFirst) {
+      return switch (mode) {
+        ToolResultPromptBudgetMode.normal => _summaryFirstNormalBudget,
+        ToolResultPromptBudgetMode.compact => _summaryFirstCompactBudget,
+      };
+    }
     return switch (mode) {
       ToolResultPromptBudgetMode.normal => _normalBudget,
       ToolResultPromptBudgetMode.compact => _compactBudget,
@@ -1624,7 +1705,15 @@ class ToolResultPromptBuilder {
   }
 
   static Map<String, dynamic>? _tryDecodeJsonMap(String value) {
-    final trimmed = value.trim();
+    var trimmed = value.trim();
+    if (trimmed.startsWith('Outcome:')) {
+      final rawMarker = trimmed.indexOf('\nRaw result:\n');
+      if (rawMarker >= 0) {
+        trimmed = trimmed
+            .substring(rawMarker + '\nRaw result:\n'.length)
+            .trim();
+      }
+    }
     if (!trimmed.startsWith('{')) {
       return null;
     }

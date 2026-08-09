@@ -1240,6 +1240,8 @@
     "harness_config_recovery_toggle_helper": "Prime the model to diagnose and recover instead of blindly retrying a failed tool.",
     "harness_config_exploration_toggle_label": "Exploration-to-edit nudge",
     "harness_config_exploration_toggle_helper": "Push the model from exploring to implementing once it understands the task.",
+    "harness_config_summary_first_toggle_label": "Summary-first tool results",
+    "harness_config_summary_first_toggle_helper": "Lead typed tool results with a compact outcome summary and retain reduced raw output for detail.",
     "harness_config_save": "Save",
     "harness_config_saved": "Harness config saved",
     "harness_config_cleared": "Harness config cleared",

@@ -1240,6 +1240,8 @@
     "harness_config_recovery_toggle_helper": "失敗したツールを盲目的に再試行せず、診断して回復するよう促します。",
     "harness_config_exploration_toggle_label": "探索→実装の促し",
     "harness_config_exploration_toggle_helper": "タスクを把握したら探索から実装へ移行するよう促します。",
+    "harness_config_summary_first_toggle_label": "ツール結果を要約優先で表示",
+    "harness_config_summary_first_toggle_helper": "型付きツール結果を簡潔な結果要約から始め、詳細用に縮約した生出力を残します。",
     "harness_config_save": "保存",
     "harness_config_saved": "ハーネス設定を保存しました",
     "harness_config_cleared": "ハーネス設定をクリアしました",

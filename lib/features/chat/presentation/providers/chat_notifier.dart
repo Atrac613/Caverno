@@ -4537,12 +4537,16 @@ class ChatNotifier extends Notifier<ChatState> {
     required Set<String> protectedPaths,
     required ChatTurnOwner? observationOwner,
   }) {
+    final summaryFirst =
+        _settings.effectiveModelHarnessConfig?.summaryFirstToolResultsEnabled ??
+        false;
     final budgetedToolResults = ToolResultPromptBuilder.budgetToolResults(
       toolResults,
       mode: mode,
       protectedPaths: mode == ToolResultPromptBudgetMode.compact
           ? protectedPaths
           : const <String>{},
+      summaryFirst: summaryFirst,
     );
     if (observationOwner != null) {
       _updateContextSurgeryObservation(
@@ -4556,10 +4560,16 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _hasAdditionalCompactToolResultBudget(
     List<ToolResultInfo> toolResults, {
     required Set<String> protectedPaths,
-  }) => ToolResultPromptBuilder.hasAdditionalCompactBudgetReduction(
-    toolResults,
-    protectedPaths: protectedPaths,
-  );
+  }) {
+    final summaryFirst =
+        _settings.effectiveModelHarnessConfig?.summaryFirstToolResultsEnabled ??
+        false;
+    return ToolResultPromptBuilder.hasAdditionalCompactBudgetReduction(
+      toolResults,
+      protectedPaths: protectedPaths,
+      summaryFirst: summaryFirst,
+    );
+  }
 
   /// Resolves only the registered owner; visible state is unsafe for an
   /// untracked or background generation.

@@ -291,6 +291,8 @@ _ModelHarnessConfig _$ModelHarnessConfigFromJson(Map<String, dynamic> json) =>
           json['recoveryMiddlewareEnabled'] as bool? ?? false,
       explorationToEditNudgeEnabled:
           json['explorationToEditNudgeEnabled'] as bool? ?? false,
+      summaryFirstToolResultsEnabled:
+          json['summaryFirstToolResultsEnabled'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$ModelHarnessConfigToJson(_ModelHarnessConfig instance) =>
@@ -306,6 +308,7 @@ Map<String, dynamic> _$ModelHarnessConfigToJson(_ModelHarnessConfig instance) =>
       'toolLoopMaxIterations': instance.toolLoopMaxIterations,
       'recoveryMiddlewareEnabled': instance.recoveryMiddlewareEnabled,
       'explorationToEditNudgeEnabled': instance.explorationToEditNudgeEnabled,
+      'summaryFirstToolResultsEnabled': instance.summaryFirstToolResultsEnabled,
     };
 
 _ModelCapabilityProfileRevision _$ModelCapabilityProfileRevisionFromJson(

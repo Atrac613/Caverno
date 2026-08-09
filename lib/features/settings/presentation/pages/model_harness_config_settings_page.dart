@@ -30,6 +30,7 @@ class _ModelHarnessConfigSettingsPageState
   late final TextEditingController _toolLoopCap;
   bool _recoveryMiddlewareEnabled = false;
   bool _explorationToEditNudgeEnabled = false;
+  bool _summaryFirstToolResultsEnabled = false;
 
   @override
   void initState() {
@@ -50,6 +51,7 @@ class _ModelHarnessConfigSettingsPageState
     );
     _recoveryMiddlewareEnabled = config.recoveryMiddlewareEnabled;
     _explorationToEditNudgeEnabled = config.explorationToEditNudgeEnabled;
+    _summaryFirstToolResultsEnabled = config.summaryFirstToolResultsEnabled;
   }
 
   @override
@@ -76,6 +78,7 @@ class _ModelHarnessConfigSettingsPageState
       toolLoopMaxIterations: int.tryParse(_toolLoopCap.text.trim()) ?? 0,
       recoveryMiddlewareEnabled: _recoveryMiddlewareEnabled,
       explorationToEditNudgeEnabled: _explorationToEditNudgeEnabled,
+      summaryFirstToolResultsEnabled: _summaryFirstToolResultsEnabled,
     );
     await ref
         .read(settingsNotifierProvider.notifier)
@@ -164,6 +167,18 @@ class _ModelHarnessConfigSettingsPageState
             title: Text('settings.harness_config_recovery_toggle_label'.tr()),
             subtitle: Text(
               'settings.harness_config_recovery_toggle_helper'.tr(),
+            ),
+          ),
+          SwitchListTile(
+            key: const ValueKey('harness-summary-first-toggle'),
+            value: _summaryFirstToolResultsEnabled,
+            onChanged: (value) =>
+                setState(() => _summaryFirstToolResultsEnabled = value),
+            title: Text(
+              'settings.harness_config_summary_first_toggle_label'.tr(),
+            ),
+            subtitle: Text(
+              'settings.harness_config_summary_first_toggle_helper'.tr(),
             ),
           ),
           SwitchListTile(
