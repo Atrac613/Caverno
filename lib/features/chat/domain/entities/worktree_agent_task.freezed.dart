@@ -13,9 +13,287 @@ part of 'worktree_agent_task.dart';
 T _$identity<T>(T value) => value;
 
 /// @nodoc
+mixin _$WorktreeAgentChangedFileEvidence {
+
+ String get path; String get content; String? get contentHash; int get byteSize; bool get deleted; bool get truncated;
+/// Create a copy of WorktreeAgentChangedFileEvidence
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$WorktreeAgentChangedFileEvidenceCopyWith<WorktreeAgentChangedFileEvidence> get copyWith => _$WorktreeAgentChangedFileEvidenceCopyWithImpl<WorktreeAgentChangedFileEvidence>(this as WorktreeAgentChangedFileEvidence, _$identity);
+
+  /// Serializes this WorktreeAgentChangedFileEvidence to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is WorktreeAgentChangedFileEvidence&&(identical(other.path, path) || other.path == path)&&(identical(other.content, content) || other.content == content)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.byteSize, byteSize) || other.byteSize == byteSize)&&(identical(other.deleted, deleted) || other.deleted == deleted)&&(identical(other.truncated, truncated) || other.truncated == truncated));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,path,content,contentHash,byteSize,deleted,truncated);
+
+@override
+String toString() {
+  return 'WorktreeAgentChangedFileEvidence(path: $path, content: $content, contentHash: $contentHash, byteSize: $byteSize, deleted: $deleted, truncated: $truncated)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $WorktreeAgentChangedFileEvidenceCopyWith<$Res>  {
+  factory $WorktreeAgentChangedFileEvidenceCopyWith(WorktreeAgentChangedFileEvidence value, $Res Function(WorktreeAgentChangedFileEvidence) _then) = _$WorktreeAgentChangedFileEvidenceCopyWithImpl;
+@useResult
+$Res call({
+ String path, String content, String? contentHash, int byteSize, bool deleted, bool truncated
+});
+
+
+
+
+}
+/// @nodoc
+class _$WorktreeAgentChangedFileEvidenceCopyWithImpl<$Res>
+    implements $WorktreeAgentChangedFileEvidenceCopyWith<$Res> {
+  _$WorktreeAgentChangedFileEvidenceCopyWithImpl(this._self, this._then);
+
+  final WorktreeAgentChangedFileEvidence _self;
+  final $Res Function(WorktreeAgentChangedFileEvidence) _then;
+
+/// Create a copy of WorktreeAgentChangedFileEvidence
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? path = null,Object? content = null,Object? contentHash = freezed,Object? byteSize = null,Object? deleted = null,Object? truncated = null,}) {
+  return _then(_self.copyWith(
+path: null == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
+as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
+as String,contentHash: freezed == contentHash ? _self.contentHash : contentHash // ignore: cast_nullable_to_non_nullable
+as String?,byteSize: null == byteSize ? _self.byteSize : byteSize // ignore: cast_nullable_to_non_nullable
+as int,deleted: null == deleted ? _self.deleted : deleted // ignore: cast_nullable_to_non_nullable
+as bool,truncated: null == truncated ? _self.truncated : truncated // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [WorktreeAgentChangedFileEvidence].
+extension WorktreeAgentChangedFileEvidencePatterns on WorktreeAgentChangedFileEvidence {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _WorktreeAgentChangedFileEvidence value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _WorktreeAgentChangedFileEvidence() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _WorktreeAgentChangedFileEvidence value)  $default,){
+final _that = this;
+switch (_that) {
+case _WorktreeAgentChangedFileEvidence():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _WorktreeAgentChangedFileEvidence value)?  $default,){
+final _that = this;
+switch (_that) {
+case _WorktreeAgentChangedFileEvidence() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String path,  String content,  String? contentHash,  int byteSize,  bool deleted,  bool truncated)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _WorktreeAgentChangedFileEvidence() when $default != null:
+return $default(_that.path,_that.content,_that.contentHash,_that.byteSize,_that.deleted,_that.truncated);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String path,  String content,  String? contentHash,  int byteSize,  bool deleted,  bool truncated)  $default,) {final _that = this;
+switch (_that) {
+case _WorktreeAgentChangedFileEvidence():
+return $default(_that.path,_that.content,_that.contentHash,_that.byteSize,_that.deleted,_that.truncated);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String path,  String content,  String? contentHash,  int byteSize,  bool deleted,  bool truncated)?  $default,) {final _that = this;
+switch (_that) {
+case _WorktreeAgentChangedFileEvidence() when $default != null:
+return $default(_that.path,_that.content,_that.contentHash,_that.byteSize,_that.deleted,_that.truncated);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _WorktreeAgentChangedFileEvidence implements WorktreeAgentChangedFileEvidence {
+  const _WorktreeAgentChangedFileEvidence({required this.path, this.content = '', this.contentHash, this.byteSize = 0, this.deleted = false, this.truncated = false});
+  factory _WorktreeAgentChangedFileEvidence.fromJson(Map<String, dynamic> json) => _$WorktreeAgentChangedFileEvidenceFromJson(json);
+
+@override final  String path;
+@override@JsonKey() final  String content;
+@override final  String? contentHash;
+@override@JsonKey() final  int byteSize;
+@override@JsonKey() final  bool deleted;
+@override@JsonKey() final  bool truncated;
+
+/// Create a copy of WorktreeAgentChangedFileEvidence
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$WorktreeAgentChangedFileEvidenceCopyWith<_WorktreeAgentChangedFileEvidence> get copyWith => __$WorktreeAgentChangedFileEvidenceCopyWithImpl<_WorktreeAgentChangedFileEvidence>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$WorktreeAgentChangedFileEvidenceToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WorktreeAgentChangedFileEvidence&&(identical(other.path, path) || other.path == path)&&(identical(other.content, content) || other.content == content)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.byteSize, byteSize) || other.byteSize == byteSize)&&(identical(other.deleted, deleted) || other.deleted == deleted)&&(identical(other.truncated, truncated) || other.truncated == truncated));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,path,content,contentHash,byteSize,deleted,truncated);
+
+@override
+String toString() {
+  return 'WorktreeAgentChangedFileEvidence(path: $path, content: $content, contentHash: $contentHash, byteSize: $byteSize, deleted: $deleted, truncated: $truncated)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$WorktreeAgentChangedFileEvidenceCopyWith<$Res> implements $WorktreeAgentChangedFileEvidenceCopyWith<$Res> {
+  factory _$WorktreeAgentChangedFileEvidenceCopyWith(_WorktreeAgentChangedFileEvidence value, $Res Function(_WorktreeAgentChangedFileEvidence) _then) = __$WorktreeAgentChangedFileEvidenceCopyWithImpl;
+@override @useResult
+$Res call({
+ String path, String content, String? contentHash, int byteSize, bool deleted, bool truncated
+});
+
+
+
+
+}
+/// @nodoc
+class __$WorktreeAgentChangedFileEvidenceCopyWithImpl<$Res>
+    implements _$WorktreeAgentChangedFileEvidenceCopyWith<$Res> {
+  __$WorktreeAgentChangedFileEvidenceCopyWithImpl(this._self, this._then);
+
+  final _WorktreeAgentChangedFileEvidence _self;
+  final $Res Function(_WorktreeAgentChangedFileEvidence) _then;
+
+/// Create a copy of WorktreeAgentChangedFileEvidence
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? path = null,Object? content = null,Object? contentHash = freezed,Object? byteSize = null,Object? deleted = null,Object? truncated = null,}) {
+  return _then(_WorktreeAgentChangedFileEvidence(
+path: null == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
+as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
+as String,contentHash: freezed == contentHash ? _self.contentHash : contentHash // ignore: cast_nullable_to_non_nullable
+as String?,byteSize: null == byteSize ? _self.byteSize : byteSize // ignore: cast_nullable_to_non_nullable
+as int,deleted: null == deleted ? _self.deleted : deleted // ignore: cast_nullable_to_non_nullable
+as bool,truncated: null == truncated ? _self.truncated : truncated // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$WorktreeAgentTask {
 
- String get id;@JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery) WorktreeAgentTaskStatus get status; String get title; String get prompt; String get codingProjectId; String get baseBranch; String get branchName; String get worktreePath; String get checkpointLineageId; String get endpointId; String get verificationCommand; DateTime get createdAt; DateTime get updatedAt; DateTime? get startedAt; DateTime? get finishedAt; String get resultSummary; bool get verifiedGreen; String get verificationSummary; String get recoveryNote; String get error;
+ String get id;@JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery) WorktreeAgentTaskStatus get status; String get title; String get prompt; String get codingProjectId; String get baseBranch; String get branchName; String get worktreePath; String get checkpointLineageId; String get endpointId; String get verificationCommand; DateTime get createdAt; DateTime get updatedAt; DateTime? get startedAt; DateTime? get finishedAt; String get resultSummary; bool get verifiedGreen; String get verificationSummary; List<WorktreeAgentChangedFileEvidence> get changedFiles; bool get changedFileEvidenceTruncated; String get recoveryNote; String get error;
 /// Create a copy of WorktreeAgentTask
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +306,16 @@ $WorktreeAgentTaskCopyWith<WorktreeAgentTask> get copyWith => _$WorktreeAgentTas
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is WorktreeAgentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.title, title) || other.title == title)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.codingProjectId, codingProjectId) || other.codingProjectId == codingProjectId)&&(identical(other.baseBranch, baseBranch) || other.baseBranch == baseBranch)&&(identical(other.branchName, branchName) || other.branchName == branchName)&&(identical(other.worktreePath, worktreePath) || other.worktreePath == worktreePath)&&(identical(other.checkpointLineageId, checkpointLineageId) || other.checkpointLineageId == checkpointLineageId)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.verifiedGreen, verifiedGreen) || other.verifiedGreen == verifiedGreen)&&(identical(other.verificationSummary, verificationSummary) || other.verificationSummary == verificationSummary)&&(identical(other.recoveryNote, recoveryNote) || other.recoveryNote == recoveryNote)&&(identical(other.error, error) || other.error == error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is WorktreeAgentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.title, title) || other.title == title)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.codingProjectId, codingProjectId) || other.codingProjectId == codingProjectId)&&(identical(other.baseBranch, baseBranch) || other.baseBranch == baseBranch)&&(identical(other.branchName, branchName) || other.branchName == branchName)&&(identical(other.worktreePath, worktreePath) || other.worktreePath == worktreePath)&&(identical(other.checkpointLineageId, checkpointLineageId) || other.checkpointLineageId == checkpointLineageId)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.verifiedGreen, verifiedGreen) || other.verifiedGreen == verifiedGreen)&&(identical(other.verificationSummary, verificationSummary) || other.verificationSummary == verificationSummary)&&const DeepCollectionEquality().equals(other.changedFiles, changedFiles)&&(identical(other.changedFileEvidenceTruncated, changedFileEvidenceTruncated) || other.changedFileEvidenceTruncated == changedFileEvidenceTruncated)&&(identical(other.recoveryNote, recoveryNote) || other.recoveryNote == recoveryNote)&&(identical(other.error, error) || other.error == error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,status,title,prompt,codingProjectId,baseBranch,branchName,worktreePath,checkpointLineageId,endpointId,verificationCommand,createdAt,updatedAt,startedAt,finishedAt,resultSummary,verifiedGreen,verificationSummary,recoveryNote,error]);
+int get hashCode => Object.hashAll([runtimeType,id,status,title,prompt,codingProjectId,baseBranch,branchName,worktreePath,checkpointLineageId,endpointId,verificationCommand,createdAt,updatedAt,startedAt,finishedAt,resultSummary,verifiedGreen,verificationSummary,const DeepCollectionEquality().hash(changedFiles),changedFileEvidenceTruncated,recoveryNote,error]);
 
 @override
 String toString() {
-  return 'WorktreeAgentTask(id: $id, status: $status, title: $title, prompt: $prompt, codingProjectId: $codingProjectId, baseBranch: $baseBranch, branchName: $branchName, worktreePath: $worktreePath, checkpointLineageId: $checkpointLineageId, endpointId: $endpointId, verificationCommand: $verificationCommand, createdAt: $createdAt, updatedAt: $updatedAt, startedAt: $startedAt, finishedAt: $finishedAt, resultSummary: $resultSummary, verifiedGreen: $verifiedGreen, verificationSummary: $verificationSummary, recoveryNote: $recoveryNote, error: $error)';
+  return 'WorktreeAgentTask(id: $id, status: $status, title: $title, prompt: $prompt, codingProjectId: $codingProjectId, baseBranch: $baseBranch, branchName: $branchName, worktreePath: $worktreePath, checkpointLineageId: $checkpointLineageId, endpointId: $endpointId, verificationCommand: $verificationCommand, createdAt: $createdAt, updatedAt: $updatedAt, startedAt: $startedAt, finishedAt: $finishedAt, resultSummary: $resultSummary, verifiedGreen: $verifiedGreen, verificationSummary: $verificationSummary, changedFiles: $changedFiles, changedFileEvidenceTruncated: $changedFileEvidenceTruncated, recoveryNote: $recoveryNote, error: $error)';
 }
 
 
@@ -48,7 +326,7 @@ abstract mixin class $WorktreeAgentTaskCopyWith<$Res>  {
   factory $WorktreeAgentTaskCopyWith(WorktreeAgentTask value, $Res Function(WorktreeAgentTask) _then) = _$WorktreeAgentTaskCopyWithImpl;
 @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery) WorktreeAgentTaskStatus status, String title, String prompt, String codingProjectId, String baseBranch, String branchName, String worktreePath, String checkpointLineageId, String endpointId, String verificationCommand, DateTime createdAt, DateTime updatedAt, DateTime? startedAt, DateTime? finishedAt, String resultSummary, bool verifiedGreen, String verificationSummary, String recoveryNote, String error
+ String id,@JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery) WorktreeAgentTaskStatus status, String title, String prompt, String codingProjectId, String baseBranch, String branchName, String worktreePath, String checkpointLineageId, String endpointId, String verificationCommand, DateTime createdAt, DateTime updatedAt, DateTime? startedAt, DateTime? finishedAt, String resultSummary, bool verifiedGreen, String verificationSummary, List<WorktreeAgentChangedFileEvidence> changedFiles, bool changedFileEvidenceTruncated, String recoveryNote, String error
 });
 
 
@@ -65,7 +343,7 @@ class _$WorktreeAgentTaskCopyWithImpl<$Res>
 
 /// Create a copy of WorktreeAgentTask
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? status = null,Object? title = null,Object? prompt = null,Object? codingProjectId = null,Object? baseBranch = null,Object? branchName = null,Object? worktreePath = null,Object? checkpointLineageId = null,Object? endpointId = null,Object? verificationCommand = null,Object? createdAt = null,Object? updatedAt = null,Object? startedAt = freezed,Object? finishedAt = freezed,Object? resultSummary = null,Object? verifiedGreen = null,Object? verificationSummary = null,Object? recoveryNote = null,Object? error = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? status = null,Object? title = null,Object? prompt = null,Object? codingProjectId = null,Object? baseBranch = null,Object? branchName = null,Object? worktreePath = null,Object? checkpointLineageId = null,Object? endpointId = null,Object? verificationCommand = null,Object? createdAt = null,Object? updatedAt = null,Object? startedAt = freezed,Object? finishedAt = freezed,Object? resultSummary = null,Object? verifiedGreen = null,Object? verificationSummary = null,Object? changedFiles = null,Object? changedFileEvidenceTruncated = null,Object? recoveryNote = null,Object? error = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
@@ -85,7 +363,9 @@ as DateTime?,finishedAt: freezed == finishedAt ? _self.finishedAt : finishedAt /
 as DateTime?,resultSummary: null == resultSummary ? _self.resultSummary : resultSummary // ignore: cast_nullable_to_non_nullable
 as String,verifiedGreen: null == verifiedGreen ? _self.verifiedGreen : verifiedGreen // ignore: cast_nullable_to_non_nullable
 as bool,verificationSummary: null == verificationSummary ? _self.verificationSummary : verificationSummary // ignore: cast_nullable_to_non_nullable
-as String,recoveryNote: null == recoveryNote ? _self.recoveryNote : recoveryNote // ignore: cast_nullable_to_non_nullable
+as String,changedFiles: null == changedFiles ? _self.changedFiles : changedFiles // ignore: cast_nullable_to_non_nullable
+as List<WorktreeAgentChangedFileEvidence>,changedFileEvidenceTruncated: null == changedFileEvidenceTruncated ? _self.changedFileEvidenceTruncated : changedFileEvidenceTruncated // ignore: cast_nullable_to_non_nullable
+as bool,recoveryNote: null == recoveryNote ? _self.recoveryNote : recoveryNote // ignore: cast_nullable_to_non_nullable
 as String,error: null == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
 as String,
   ));
@@ -172,10 +452,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery)  WorktreeAgentTaskStatus status,  String title,  String prompt,  String codingProjectId,  String baseBranch,  String branchName,  String worktreePath,  String checkpointLineageId,  String endpointId,  String verificationCommand,  DateTime createdAt,  DateTime updatedAt,  DateTime? startedAt,  DateTime? finishedAt,  String resultSummary,  bool verifiedGreen,  String verificationSummary,  String recoveryNote,  String error)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery)  WorktreeAgentTaskStatus status,  String title,  String prompt,  String codingProjectId,  String baseBranch,  String branchName,  String worktreePath,  String checkpointLineageId,  String endpointId,  String verificationCommand,  DateTime createdAt,  DateTime updatedAt,  DateTime? startedAt,  DateTime? finishedAt,  String resultSummary,  bool verifiedGreen,  String verificationSummary,  List<WorktreeAgentChangedFileEvidence> changedFiles,  bool changedFileEvidenceTruncated,  String recoveryNote,  String error)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _WorktreeAgentTask() when $default != null:
-return $default(_that.id,_that.status,_that.title,_that.prompt,_that.codingProjectId,_that.baseBranch,_that.branchName,_that.worktreePath,_that.checkpointLineageId,_that.endpointId,_that.verificationCommand,_that.createdAt,_that.updatedAt,_that.startedAt,_that.finishedAt,_that.resultSummary,_that.verifiedGreen,_that.verificationSummary,_that.recoveryNote,_that.error);case _:
+return $default(_that.id,_that.status,_that.title,_that.prompt,_that.codingProjectId,_that.baseBranch,_that.branchName,_that.worktreePath,_that.checkpointLineageId,_that.endpointId,_that.verificationCommand,_that.createdAt,_that.updatedAt,_that.startedAt,_that.finishedAt,_that.resultSummary,_that.verifiedGreen,_that.verificationSummary,_that.changedFiles,_that.changedFileEvidenceTruncated,_that.recoveryNote,_that.error);case _:
   return orElse();
 
 }
@@ -193,10 +473,10 @@ return $default(_that.id,_that.status,_that.title,_that.prompt,_that.codingProje
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery)  WorktreeAgentTaskStatus status,  String title,  String prompt,  String codingProjectId,  String baseBranch,  String branchName,  String worktreePath,  String checkpointLineageId,  String endpointId,  String verificationCommand,  DateTime createdAt,  DateTime updatedAt,  DateTime? startedAt,  DateTime? finishedAt,  String resultSummary,  bool verifiedGreen,  String verificationSummary,  String recoveryNote,  String error)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery)  WorktreeAgentTaskStatus status,  String title,  String prompt,  String codingProjectId,  String baseBranch,  String branchName,  String worktreePath,  String checkpointLineageId,  String endpointId,  String verificationCommand,  DateTime createdAt,  DateTime updatedAt,  DateTime? startedAt,  DateTime? finishedAt,  String resultSummary,  bool verifiedGreen,  String verificationSummary,  List<WorktreeAgentChangedFileEvidence> changedFiles,  bool changedFileEvidenceTruncated,  String recoveryNote,  String error)  $default,) {final _that = this;
 switch (_that) {
 case _WorktreeAgentTask():
-return $default(_that.id,_that.status,_that.title,_that.prompt,_that.codingProjectId,_that.baseBranch,_that.branchName,_that.worktreePath,_that.checkpointLineageId,_that.endpointId,_that.verificationCommand,_that.createdAt,_that.updatedAt,_that.startedAt,_that.finishedAt,_that.resultSummary,_that.verifiedGreen,_that.verificationSummary,_that.recoveryNote,_that.error);case _:
+return $default(_that.id,_that.status,_that.title,_that.prompt,_that.codingProjectId,_that.baseBranch,_that.branchName,_that.worktreePath,_that.checkpointLineageId,_that.endpointId,_that.verificationCommand,_that.createdAt,_that.updatedAt,_that.startedAt,_that.finishedAt,_that.resultSummary,_that.verifiedGreen,_that.verificationSummary,_that.changedFiles,_that.changedFileEvidenceTruncated,_that.recoveryNote,_that.error);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -213,10 +493,10 @@ return $default(_that.id,_that.status,_that.title,_that.prompt,_that.codingProje
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery)  WorktreeAgentTaskStatus status,  String title,  String prompt,  String codingProjectId,  String baseBranch,  String branchName,  String worktreePath,  String checkpointLineageId,  String endpointId,  String verificationCommand,  DateTime createdAt,  DateTime updatedAt,  DateTime? startedAt,  DateTime? finishedAt,  String resultSummary,  bool verifiedGreen,  String verificationSummary,  String recoveryNote,  String error)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery)  WorktreeAgentTaskStatus status,  String title,  String prompt,  String codingProjectId,  String baseBranch,  String branchName,  String worktreePath,  String checkpointLineageId,  String endpointId,  String verificationCommand,  DateTime createdAt,  DateTime updatedAt,  DateTime? startedAt,  DateTime? finishedAt,  String resultSummary,  bool verifiedGreen,  String verificationSummary,  List<WorktreeAgentChangedFileEvidence> changedFiles,  bool changedFileEvidenceTruncated,  String recoveryNote,  String error)?  $default,) {final _that = this;
 switch (_that) {
 case _WorktreeAgentTask() when $default != null:
-return $default(_that.id,_that.status,_that.title,_that.prompt,_that.codingProjectId,_that.baseBranch,_that.branchName,_that.worktreePath,_that.checkpointLineageId,_that.endpointId,_that.verificationCommand,_that.createdAt,_that.updatedAt,_that.startedAt,_that.finishedAt,_that.resultSummary,_that.verifiedGreen,_that.verificationSummary,_that.recoveryNote,_that.error);case _:
+return $default(_that.id,_that.status,_that.title,_that.prompt,_that.codingProjectId,_that.baseBranch,_that.branchName,_that.worktreePath,_that.checkpointLineageId,_that.endpointId,_that.verificationCommand,_that.createdAt,_that.updatedAt,_that.startedAt,_that.finishedAt,_that.resultSummary,_that.verifiedGreen,_that.verificationSummary,_that.changedFiles,_that.changedFileEvidenceTruncated,_that.recoveryNote,_that.error);case _:
   return null;
 
 }
@@ -228,7 +508,7 @@ return $default(_that.id,_that.status,_that.title,_that.prompt,_that.codingProje
 @JsonSerializable()
 
 class _WorktreeAgentTask extends WorktreeAgentTask {
-  const _WorktreeAgentTask({required this.id, @JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery) this.status = WorktreeAgentTaskStatus.queued, this.title = '', this.prompt = '', this.codingProjectId = '', this.baseBranch = 'main', required this.branchName, required this.worktreePath, this.checkpointLineageId = '', this.endpointId = '', this.verificationCommand = '', required this.createdAt, required this.updatedAt, this.startedAt, this.finishedAt, this.resultSummary = '', this.verifiedGreen = false, this.verificationSummary = '', this.recoveryNote = '', this.error = ''}): super._();
+  const _WorktreeAgentTask({required this.id, @JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery) this.status = WorktreeAgentTaskStatus.queued, this.title = '', this.prompt = '', this.codingProjectId = '', this.baseBranch = 'main', required this.branchName, required this.worktreePath, this.checkpointLineageId = '', this.endpointId = '', this.verificationCommand = '', required this.createdAt, required this.updatedAt, this.startedAt, this.finishedAt, this.resultSummary = '', this.verifiedGreen = false, this.verificationSummary = '', final  List<WorktreeAgentChangedFileEvidence> changedFiles = const <WorktreeAgentChangedFileEvidence>[], this.changedFileEvidenceTruncated = false, this.recoveryNote = '', this.error = ''}): _changedFiles = changedFiles,super._();
   factory _WorktreeAgentTask.fromJson(Map<String, dynamic> json) => _$WorktreeAgentTaskFromJson(json);
 
 @override final  String id;
@@ -249,6 +529,14 @@ class _WorktreeAgentTask extends WorktreeAgentTask {
 @override@JsonKey() final  String resultSummary;
 @override@JsonKey() final  bool verifiedGreen;
 @override@JsonKey() final  String verificationSummary;
+ final  List<WorktreeAgentChangedFileEvidence> _changedFiles;
+@override@JsonKey() List<WorktreeAgentChangedFileEvidence> get changedFiles {
+  if (_changedFiles is EqualUnmodifiableListView) return _changedFiles;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_changedFiles);
+}
+
+@override@JsonKey() final  bool changedFileEvidenceTruncated;
 @override@JsonKey() final  String recoveryNote;
 @override@JsonKey() final  String error;
 
@@ -265,16 +553,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WorktreeAgentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.title, title) || other.title == title)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.codingProjectId, codingProjectId) || other.codingProjectId == codingProjectId)&&(identical(other.baseBranch, baseBranch) || other.baseBranch == baseBranch)&&(identical(other.branchName, branchName) || other.branchName == branchName)&&(identical(other.worktreePath, worktreePath) || other.worktreePath == worktreePath)&&(identical(other.checkpointLineageId, checkpointLineageId) || other.checkpointLineageId == checkpointLineageId)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.verifiedGreen, verifiedGreen) || other.verifiedGreen == verifiedGreen)&&(identical(other.verificationSummary, verificationSummary) || other.verificationSummary == verificationSummary)&&(identical(other.recoveryNote, recoveryNote) || other.recoveryNote == recoveryNote)&&(identical(other.error, error) || other.error == error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WorktreeAgentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.title, title) || other.title == title)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.codingProjectId, codingProjectId) || other.codingProjectId == codingProjectId)&&(identical(other.baseBranch, baseBranch) || other.baseBranch == baseBranch)&&(identical(other.branchName, branchName) || other.branchName == branchName)&&(identical(other.worktreePath, worktreePath) || other.worktreePath == worktreePath)&&(identical(other.checkpointLineageId, checkpointLineageId) || other.checkpointLineageId == checkpointLineageId)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.verifiedGreen, verifiedGreen) || other.verifiedGreen == verifiedGreen)&&(identical(other.verificationSummary, verificationSummary) || other.verificationSummary == verificationSummary)&&const DeepCollectionEquality().equals(other._changedFiles, _changedFiles)&&(identical(other.changedFileEvidenceTruncated, changedFileEvidenceTruncated) || other.changedFileEvidenceTruncated == changedFileEvidenceTruncated)&&(identical(other.recoveryNote, recoveryNote) || other.recoveryNote == recoveryNote)&&(identical(other.error, error) || other.error == error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,status,title,prompt,codingProjectId,baseBranch,branchName,worktreePath,checkpointLineageId,endpointId,verificationCommand,createdAt,updatedAt,startedAt,finishedAt,resultSummary,verifiedGreen,verificationSummary,recoveryNote,error]);
+int get hashCode => Object.hashAll([runtimeType,id,status,title,prompt,codingProjectId,baseBranch,branchName,worktreePath,checkpointLineageId,endpointId,verificationCommand,createdAt,updatedAt,startedAt,finishedAt,resultSummary,verifiedGreen,verificationSummary,const DeepCollectionEquality().hash(_changedFiles),changedFileEvidenceTruncated,recoveryNote,error]);
 
 @override
 String toString() {
-  return 'WorktreeAgentTask(id: $id, status: $status, title: $title, prompt: $prompt, codingProjectId: $codingProjectId, baseBranch: $baseBranch, branchName: $branchName, worktreePath: $worktreePath, checkpointLineageId: $checkpointLineageId, endpointId: $endpointId, verificationCommand: $verificationCommand, createdAt: $createdAt, updatedAt: $updatedAt, startedAt: $startedAt, finishedAt: $finishedAt, resultSummary: $resultSummary, verifiedGreen: $verifiedGreen, verificationSummary: $verificationSummary, recoveryNote: $recoveryNote, error: $error)';
+  return 'WorktreeAgentTask(id: $id, status: $status, title: $title, prompt: $prompt, codingProjectId: $codingProjectId, baseBranch: $baseBranch, branchName: $branchName, worktreePath: $worktreePath, checkpointLineageId: $checkpointLineageId, endpointId: $endpointId, verificationCommand: $verificationCommand, createdAt: $createdAt, updatedAt: $updatedAt, startedAt: $startedAt, finishedAt: $finishedAt, resultSummary: $resultSummary, verifiedGreen: $verifiedGreen, verificationSummary: $verificationSummary, changedFiles: $changedFiles, changedFileEvidenceTruncated: $changedFileEvidenceTruncated, recoveryNote: $recoveryNote, error: $error)';
 }
 
 
@@ -285,7 +573,7 @@ abstract mixin class _$WorktreeAgentTaskCopyWith<$Res> implements $WorktreeAgent
   factory _$WorktreeAgentTaskCopyWith(_WorktreeAgentTask value, $Res Function(_WorktreeAgentTask) _then) = __$WorktreeAgentTaskCopyWithImpl;
 @override @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery) WorktreeAgentTaskStatus status, String title, String prompt, String codingProjectId, String baseBranch, String branchName, String worktreePath, String checkpointLineageId, String endpointId, String verificationCommand, DateTime createdAt, DateTime updatedAt, DateTime? startedAt, DateTime? finishedAt, String resultSummary, bool verifiedGreen, String verificationSummary, String recoveryNote, String error
+ String id,@JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery) WorktreeAgentTaskStatus status, String title, String prompt, String codingProjectId, String baseBranch, String branchName, String worktreePath, String checkpointLineageId, String endpointId, String verificationCommand, DateTime createdAt, DateTime updatedAt, DateTime? startedAt, DateTime? finishedAt, String resultSummary, bool verifiedGreen, String verificationSummary, List<WorktreeAgentChangedFileEvidence> changedFiles, bool changedFileEvidenceTruncated, String recoveryNote, String error
 });
 
 
@@ -302,7 +590,7 @@ class __$WorktreeAgentTaskCopyWithImpl<$Res>
 
 /// Create a copy of WorktreeAgentTask
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? status = null,Object? title = null,Object? prompt = null,Object? codingProjectId = null,Object? baseBranch = null,Object? branchName = null,Object? worktreePath = null,Object? checkpointLineageId = null,Object? endpointId = null,Object? verificationCommand = null,Object? createdAt = null,Object? updatedAt = null,Object? startedAt = freezed,Object? finishedAt = freezed,Object? resultSummary = null,Object? verifiedGreen = null,Object? verificationSummary = null,Object? recoveryNote = null,Object? error = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? status = null,Object? title = null,Object? prompt = null,Object? codingProjectId = null,Object? baseBranch = null,Object? branchName = null,Object? worktreePath = null,Object? checkpointLineageId = null,Object? endpointId = null,Object? verificationCommand = null,Object? createdAt = null,Object? updatedAt = null,Object? startedAt = freezed,Object? finishedAt = freezed,Object? resultSummary = null,Object? verifiedGreen = null,Object? verificationSummary = null,Object? changedFiles = null,Object? changedFileEvidenceTruncated = null,Object? recoveryNote = null,Object? error = null,}) {
   return _then(_WorktreeAgentTask(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
@@ -322,7 +610,9 @@ as DateTime?,finishedAt: freezed == finishedAt ? _self.finishedAt : finishedAt /
 as DateTime?,resultSummary: null == resultSummary ? _self.resultSummary : resultSummary // ignore: cast_nullable_to_non_nullable
 as String,verifiedGreen: null == verifiedGreen ? _self.verifiedGreen : verifiedGreen // ignore: cast_nullable_to_non_nullable
 as bool,verificationSummary: null == verificationSummary ? _self.verificationSummary : verificationSummary // ignore: cast_nullable_to_non_nullable
-as String,recoveryNote: null == recoveryNote ? _self.recoveryNote : recoveryNote // ignore: cast_nullable_to_non_nullable
+as String,changedFiles: null == changedFiles ? _self._changedFiles : changedFiles // ignore: cast_nullable_to_non_nullable
+as List<WorktreeAgentChangedFileEvidence>,changedFileEvidenceTruncated: null == changedFileEvidenceTruncated ? _self.changedFileEvidenceTruncated : changedFileEvidenceTruncated // ignore: cast_nullable_to_non_nullable
+as bool,recoveryNote: null == recoveryNote ? _self.recoveryNote : recoveryNote // ignore: cast_nullable_to_non_nullable
 as String,error: null == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
 as String,
   ));

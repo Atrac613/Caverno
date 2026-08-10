@@ -9,10 +9,12 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
+import 'package:caverno/features/chat/presentation/providers/worktree_agent_execution_evidence_recorder.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_executor.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_registry_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_verification_runner.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -34,6 +36,15 @@ void main() {
           resultSummary: 'Implemented the assigned change.',
           verifiedGreen: true,
           verificationSummary: 'flutter test passed',
+          changedFiles: [
+            WorktreeAgentChangedFileEvidence(
+              path: 'lib/example.dart',
+              content: 'updated',
+              contentHash: 'hash-1',
+              byteSize: 7,
+            ),
+          ],
+          changedFileEvidenceTruncated: true,
         );
       },
     );
@@ -73,6 +84,9 @@ void main() {
     expect(completed.resultSummary, 'Implemented the assigned change.');
     expect(completed.verifiedGreen, isTrue);
     expect(completed.verificationSummary, 'flutter test passed');
+    expect(completed.changedFiles.single.path, 'lib/example.dart');
+    expect(completed.changedFiles.single.content, 'updated');
+    expect(completed.changedFileEvidenceTruncated, isTrue);
   });
 
   test('marks a running task failed when the delegate throws', () async {
@@ -293,6 +307,40 @@ void main() {
     },
   );
 
+  test('scoped dispatcher records typed changed-file evidence', () async {
+    final worktree = await Directory.systemTemp.createTemp(
+      'worktree_agent_evidence_',
+    );
+    addTearDown(() => worktree.delete(recursive: true));
+    final file = File('${worktree.path}/lib/example.dart');
+    await file.parent.create(recursive: true);
+    await file.writeAsString('updated');
+    final recorder = WorktreeAgentExecutionEvidenceRecorder(
+      worktreePath: worktree.path,
+    );
+    final dispatcher = WorktreeAgentScopedToolDispatcher(
+      toolService: _RecordingMcpToolService(
+        toolDefinitions: const [_editFileToolDefinition],
+        reportChangedMutation: true,
+      ),
+      worktreePath: worktree.path,
+      evidenceRecorder: recorder,
+    );
+
+    final result = await dispatcher.dispatch(
+      ToolCallInfo(
+        id: 'call-edit',
+        name: 'edit_file',
+        arguments: const {'path': 'lib/example.dart'},
+      ),
+    );
+    final evidence = await recorder.capture();
+
+    expect(result.isSuccess, isTrue);
+    expect(evidence.changedFiles.single.path, 'lib/example.dart');
+    expect(evidence.changedFiles.single.content, 'updated');
+  });
+
   test(
     'scoped dispatcher mutations stay out of chat rollback history',
     () async {
@@ -487,9 +535,13 @@ class _RecordingChatDataSource extends ChatDataSource {
 }
 
 class _RecordingMcpToolService extends McpToolService {
-  _RecordingMcpToolService({required this.toolDefinitions});
+  _RecordingMcpToolService({
+    required this.toolDefinitions,
+    this.reportChangedMutation = false,
+  });
 
   final List<Map<String, dynamic>> toolDefinitions;
+  final bool reportChangedMutation;
   final List<String> executedToolNames = <String>[];
   final List<Map<String, dynamic>> executedToolArguments =
       <Map<String, dynamic>>[];
@@ -506,6 +558,20 @@ class _RecordingMcpToolService extends McpToolService {
   }) async {
     executedToolNames.add(name);
     executedToolArguments.add(Map<String, dynamic>.from(arguments));
-    return McpToolResult(toolName: name, result: 'ok', isSuccess: true);
+    return McpToolResult(
+      toolName: name,
+      result: 'ok',
+      isSuccess: true,
+      outcome: reportChangedMutation
+          ? ToolOutcome(
+              fileMutations: [
+                ToolFileMutation(
+                  path: arguments['path'] as String,
+                  changed: true,
+                ),
+              ],
+            )
+          : null,
+    );
   }
 }

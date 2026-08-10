@@ -18,6 +18,7 @@ import '../../domain/entities/worktree_agent_task.dart';
 import '../../domain/services/subagent_execution_service.dart';
 import 'chat_notifier.dart';
 import 'mcp_tool_provider.dart';
+import 'worktree_agent_execution_evidence_recorder.dart';
 import 'worktree_agent_task_registry_notifier.dart';
 import 'worktree_agent_verification_runner.dart';
 
@@ -48,11 +49,15 @@ class WorktreeAgentTaskExecutionOutcome {
     required this.resultSummary,
     this.verifiedGreen = false,
     this.verificationSummary = '',
+    this.changedFiles = const [],
+    this.changedFileEvidenceTruncated = false,
   });
 
   final String resultSummary;
   final bool verifiedGreen;
   final String verificationSummary;
+  final List<WorktreeAgentChangedFileEvidence> changedFiles;
+  final bool changedFileEvidenceTruncated;
 }
 
 class WorktreeAgentTaskExecutionResult {
@@ -142,9 +147,13 @@ class WorktreeAgentLlmExecutionDelegate {
     WorktreeAgentTaskExecutionContext context,
   ) async {
     final resolved = _resolveDataSource(context);
+    final evidenceRecorder = WorktreeAgentExecutionEvidenceRecorder(
+      worktreePath: context.worktreePath,
+    );
     final dispatcher = WorktreeAgentScopedToolDispatcher(
       toolService: toolService,
       worktreePath: context.worktreePath,
+      evidenceRecorder: evidenceRecorder,
     );
     final service = SubagentExecutionService(dataSource: resolved.dataSource);
     final task = await service.run(
@@ -177,6 +186,7 @@ class WorktreeAgentLlmExecutionDelegate {
       final summary = task.resultSummary.trim().isEmpty
           ? 'Worktree agent completed without a summary.'
           : task.resultSummary.trim();
+      final evidence = await evidenceRecorder.capture();
       final verification = await verificationRunner.run(
         verificationCommand: context.verificationCommand,
         worktreePath: context.worktreePath,
@@ -185,6 +195,8 @@ class WorktreeAgentLlmExecutionDelegate {
         resultSummary: summary,
         verifiedGreen: verification.verifiedGreen,
         verificationSummary: verification.summary,
+        changedFiles: evidence.changedFiles,
+        changedFileEvidenceTruncated: evidence.truncated,
       );
     }
 
@@ -257,8 +269,10 @@ class WorktreeAgentScopedToolDispatcher {
   WorktreeAgentScopedToolDispatcher({
     required McpToolService? toolService,
     required String worktreePath,
+    WorktreeAgentExecutionEvidenceRecorder? evidenceRecorder,
   }) : _toolService = toolService,
-       _worktreePath = _normalizeAbsolutePath(worktreePath);
+       _worktreePath = _normalizeAbsolutePath(worktreePath),
+       _evidenceRecorder = evidenceRecorder;
 
   static const Set<String> _allowedToolNames = {
     'list_directory',
@@ -290,6 +304,7 @@ class WorktreeAgentScopedToolDispatcher {
 
   final McpToolService? _toolService;
   final String _worktreePath;
+  final WorktreeAgentExecutionEvidenceRecorder? _evidenceRecorder;
 
   List<String> get toolNames => toolDefinitions
       .map(_toolName)
@@ -331,7 +346,12 @@ class WorktreeAgentScopedToolDispatcher {
     if (scopeFailure != null) {
       return scopeFailure;
     }
-    return service.executeTool(name: toolCall.name, arguments: scopedArguments);
+    final result = await service.executeTool(
+      name: toolCall.name,
+      arguments: scopedArguments,
+    );
+    _evidenceRecorder?.record(result);
+    return result;
   }
 
   McpToolResult? _scopePathArgument(
@@ -460,6 +480,8 @@ class WorktreeAgentTaskExecutor {
         resultSummary: outcome.resultSummary,
         verifiedGreen: outcome.verifiedGreen,
         verificationSummary: outcome.verificationSummary,
+        changedFiles: outcome.changedFiles,
+        changedFileEvidenceTruncated: outcome.changedFileEvidenceTruncated,
       );
       return WorktreeAgentTaskExecutionResult.succeeded(
         taskId: task.id,

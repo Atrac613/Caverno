@@ -3720,13 +3720,22 @@ Measurement start (2026-08-10):
   `qwen3.6-35b-a3b-vision`: both verdicts matched at confidence 1.0, with 0%
   false refutes, 100% broken-case recall, and zero unverifiable or invalid
   outputs. The eligible denominator is now two cases from one Routine surface.
+- The second-surface inventory found no persisted retry-until-green reports and
+  an empty LL13 task store. It also found that LL13 persisted summaries and
+  verification verdicts but dropped changed-file contents, making later
+  objective replay impossible. LL13 now captures successful typed mutations as
+  bounded relative-path content, full-file hash, byte size, deletion state, and
+  truncation state on the persisted task. Existing task JSON defaults to empty
+  evidence. This is capture instrumentation only; no LL13 case enters the
+  denominator until a consented real task pair is recorded and exported.
 - The production Go gate requires at least five correct and five known-broken
   cases across at least two of Routine, retry-until-green, and LL13 worktree
   agent surfaces; invalid and unverifiable counts must both be zero, the
   correct-case false-refute rate must be at most 10%, and broken-case recall
   must be at least 80%. The current result remains
-  `no_go_insufficient_eligible_sample`; the next action is four additional
-  correct/broken pairs including a second unattended surface, not panel wiring.
+  `no_go_insufficient_eligible_sample`; the next action is a consented LL13
+  correct/broken pair using the new capture surface, followed by the remaining
+  Routine/LL13 cases, not panel wiring.
 
 Source: Grok Build `session/goal_classifier.rs`,
 `session/templates/goal_verifier_prompt.md`, `goal_strategist_prompt.md`. The
