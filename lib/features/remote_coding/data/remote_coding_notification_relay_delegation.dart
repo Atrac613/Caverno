@@ -1,6 +1,36 @@
 import 'remote_coding_notification_relay_contract.dart';
 import 'remote_coding_security.dart';
 
+/// Longest delegation lifetime the relay is allowed to issue.
+const remoteCodingRelayDelegationMaximumLifetime = Duration(minutes: 5);
+
+/// Clock skew already tolerated between a device and the relay by the signed
+/// request contract.
+const remoteCodingRelayDelegationMaximumClockSkew = Duration(minutes: 5);
+
+/// Whether a relay-issued delegation expiry is acceptable to the mobile client.
+///
+/// The delegation must still be valid and must stay short-lived. It is
+/// deliberately not compared against the QR challenge expiry: the relay stamps
+/// the delegation from its own clock when the phone redeems the code, which is
+/// necessarily later than the moment the desktop generated the challenge, so
+/// that comparison rejected every real scan. The challenge window itself is
+/// still enforced by the desktop, which refuses an expired challenge when it
+/// consumes one.
+bool isRemoteCodingRelayDelegationExpiryAcceptable({
+  required DateTime delegationExpiresAt,
+  required DateTime now,
+  Duration maximumLifetime = remoteCodingRelayDelegationMaximumLifetime,
+  Duration maximumClockSkew = remoteCodingRelayDelegationMaximumClockSkew,
+}) {
+  final expiry = delegationExpiresAt.toUtc();
+  final reference = now.toUtc();
+  if (!expiry.isAfter(reference)) {
+    return false;
+  }
+  return !expiry.isAfter(reference.add(maximumLifetime + maximumClockSkew));
+}
+
 enum RemoteCodingRelayDelegationState {
   pending,
   redeemed,

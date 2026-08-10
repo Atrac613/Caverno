@@ -179,4 +179,51 @@ void main() {
       RemoteCodingRelayDelegationFailure.expired,
     );
   });
+
+  group('delegation expiry acceptance', () {
+    final scannedAt = DateTime.utc(2026, 8, 10, 16);
+
+    test('accepts an expiry the relay stamps after the QR was generated', () {
+      // The desktop generates the challenge first and the phone scans it
+      // later, so the relay always stamps a delegation that outlives the
+      // challenge printed in the QR. That must not be rejected.
+      expect(
+        isRemoteCodingRelayDelegationExpiryAcceptable(
+          delegationExpiresAt: scannedAt.add(const Duration(minutes: 5)),
+          now: scannedAt,
+        ),
+        isTrue,
+      );
+    });
+
+    test('rejects an expiry that already passed', () {
+      expect(
+        isRemoteCodingRelayDelegationExpiryAcceptable(
+          delegationExpiresAt: scannedAt,
+          now: scannedAt,
+        ),
+        isFalse,
+      );
+    });
+
+    test('rejects a delegation that would outlive the bounded window', () {
+      expect(
+        isRemoteCodingRelayDelegationExpiryAcceptable(
+          delegationExpiresAt: scannedAt.add(const Duration(minutes: 11)),
+          now: scannedAt,
+        ),
+        isFalse,
+      );
+    });
+
+    test('tolerates the clock skew the signed contract already allows', () {
+      expect(
+        isRemoteCodingRelayDelegationExpiryAcceptable(
+          delegationExpiresAt: scannedAt.add(const Duration(minutes: 9)),
+          now: scannedAt,
+        ),
+        isTrue,
+      );
+    });
+  });
 }

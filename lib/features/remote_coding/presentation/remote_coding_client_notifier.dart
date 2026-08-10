@@ -10,6 +10,7 @@ import '../../dashboard/domain/entities/dashboard_stats.dart';
 import '../../dashboard/domain/services/dashboard_stats_codec.dart';
 import '../data/remote_coding_connection_messages.dart';
 import '../data/remote_coding_notification_payload.dart';
+import '../data/remote_coding_notification_relay_delegation.dart';
 import '../data/remote_coding_notification_relay_pairing.dart';
 import '../data/remote_coding_notification_relay_providers.dart';
 import '../data/remote_coding_notification_relay_provisioning.dart';
@@ -281,8 +282,10 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         challengeDigest: payload.challengeDigest,
         targetDeviceId: payload.targetDeviceId,
       );
-      if (!delegation.expiresAt.toUtc().isAfter(now) ||
-          delegation.expiresAt.toUtc().isAfter(payload.expiresAt.toUtc())) {
+      if (!isRemoteCodingRelayDelegationExpiryAcceptable(
+        delegationExpiresAt: delegation.expiresAt,
+        now: now,
+      )) {
         throw StateError('Relay returned an invalid delegation expiry.');
       }
       await _sendCommand(
