@@ -1,0 +1,30 @@
+{
+  "schemaName": "caverno_ll37_verifier_fidelity_case",
+  "schemaVersion": 1,
+  "caseId": "slugify-correct",
+  "pairId": "slugify-label",
+  "title": "Correct slugify implementation",
+  "sourceSurface": "synthetic",
+  "expectedVerdict": "not_refuted",
+  "personalEvalManifestPath": "slugify_correct_manifest.json",
+  "acceptanceCriteria": [
+    "Trim leading and trailing whitespace.",
+    "Lowercase ASCII letters.",
+    "Collapse every run of non-alphanumeric characters to one hyphen.",
+    "Remove leading and trailing hyphens.",
+    "Return untitled when no alphanumeric characters remain."
+  ],
+  "changedFiles": [
+    {
+      "path": "lib/slugify_label.dart",
+      "content": "String slugifyLabel(String input) {\n  final lowered = input.trim().toLowerCase();\n  final collapsed = lowered.replaceAll(RegExp(r'[^a-z0-9]+'), '-');\n  final slug = collapsed.replaceAll(RegExp(r'^-+|-+$'), '');\n  return slug.isEmpty ? 'untitled' : slug;\n}\n"
+    }
+  ],
+  "verificationEvidence": [
+    {
+      "command": "dart test test/slugify_label_test.dart",
+      "exitCode": 0,
+      "stdout": "All basic slugify tests passed."
+    }
+  ]
+}

@@ -173,7 +173,7 @@ structurally unmotivated to build:
 | Local LLM | LL34 | done | M | F2, F6, LL23, SEC2 | Structured tool-result envelope: `McpToolResult` carries producer-owned command, filesystem, diagnostic, process, and verification facts from direct first-party producers; typed-first consumers retain a measured lexical fallback for outcome-free third-party MCP results. Current-turn mutations back file claims, replay paths preserve outcomes, and LL23 supplies deterministic summary-first rendering. Fresh grounded coding canaries on the configured LAN model produced five typed shadow comparisons across raw-first and summary-first runs: three exit 1 and two exit 0, all `agree`, with no missing or disagreeing verdicts. The measured model completed the summary-first MVP canary while the application default remains off. |
 | Local LLM | LL35 | done | M | LL34, LL3, LL23 | Explicit goal-state tool with a real acknowledgement: lexical completion and blocker prose remain observable in shadow but cannot set terminal goal state; `update_goal(completed:/blocked_reason:/message:)` carries the harness's final mechanically reconciled verdict (accepted / still-open gaps / paused at cap), and structured saved-task completion remains authoritative. The bounded continuation selector prefers the typed active task, then the first unchecked `## Task checklist` item. `update_goal` fidelity is stored by the LL3 capability probe, LL23 declares a per-model `tool` / `tool_or_ask` / `ask` policy, and user confirmation resolves no-work or budget boundaries for models that cannot reliably close through the tool. |
 | Local LLM | LL36 | done | S-M | LL33, LL34, LL35 | **Instrument for LL37, as LL31 was for LL29/LL30** — Heuristic demotion and firing audit: every remaining lexical guard gets a stable pattern label, emits a LL33-style transform record on each firing, and is barred from setting terminal state; grounded verdicts measured the lexical paths before deletion. The goal-completion inference was removed, prose task progress is structurally advisory, and remaining compatibility fallbacks have explicit Go/No-Go evidence. |
-| Local LLM | LL37 | later | L | LL34, LL35, LL36 evidence, LL3, LL18, LL19 | Objective verification for **unattended runs only**: the N-way panel runs at idle via LL18 against goals completed by routines / overnight retry-until-green / LL13 agents, with the convergence controls that make it terminate — anti-ratchet, stall exit on repeated identical gaps, a run cap, and `none`/`contradiction`/`unverifiable` blocking classification. There is deliberately **no inline stage**: while a user is present, LL35's confirmation rung is both cheaper and more accurate than a local verifier, so nothing is added to the interactive turn. Local-first inversions vs Grok Build: uncertainty defaults to *not* refuted for weak verifiers (a weak skeptic that refutes correct work is worse than none) and an LL3 fidelity gate disables the panel entirely below threshold. The convergence controls (anti-ratchet, stall exit, blocking classification) are worth harvesting into the LL7 retry loop independently, and survive even if this milestone is dropped. Whether a local verifier is good enough at all is an LL19-measured open question. |
+| Local LLM | LL37 | current | L | LL34, LL35, LL36 evidence, LL3, LL18, LL19 | Objective verification for **unattended runs only**: the N-way panel runs at idle via LL18 against goals completed by routines / overnight retry-until-green / LL13 agents, with the convergence controls that make it terminate — anti-ratchet, stall exit on repeated identical gaps, a run cap, and `none`/`contradiction`/`unverifiable` blocking classification. There is deliberately **no inline stage**: while a user is present, LL35's confirmation rung is both cheaper and more accurate than a local verifier, so nothing is added to the interactive turn. Only the LL19-measured fidelity gate is active: the production panel remains blocked until at least five correct and five known-broken cases from at least two unattended surfaces meet the false-refute and broken-recall thresholds. |
 | Local LLM | LL38 | done | S-M | LL31, LL33 | Mid-turn interruption (steering): an opt-in `interrupt: true` send joins the running turn instead of queueing behind it. Committed into the turn history at the top of `_prepareMessagesForLLM`, so every request path (native tools, content-tag tools, plain streaming) carries it without a per-site injection; rules in `TurnSteeringPolicy`, per-owner state in `TurnSteeringRegistry`, uncarried steers returned to `ThreadScopedMessageQueue` by the turn release scope. Ground-truth live canary with a queued control arm. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
@@ -2745,10 +2745,11 @@ Local-first consequences that shaped these milestones:
   prefill latency to the user's turn (Thesis §3).
 - **A weak verifier's default must be the opposite of Grok's.** See LL37.
 
-Execution state — **LL34 and LL35 complete; LL36 → LL37**.
+Execution state — **LL34-LL36 complete; LL37 fidelity measurement current**.
 
-LL34 and LL35 implementation gates are complete. LL36 remains active, and LL37
-remains downstream of LL36's firing evidence.
+LL34-LL36 implementation and measurement gates are complete. LL37 has entered
+its LL19 fidelity-measurement gate; production idle-panel work remains blocked
+until that evidence is representative and passes the conservative thresholds.
 
 The track splits by how well-founded each milestone is, and the ordering has to
 respect that split rather than the narrative order:
@@ -3574,7 +3575,7 @@ evidence for LL37 feasibility and future deletion decisions.
 
 ### LL37: Objective Verification (Idle Panel Only)
 
-Status: `later`
+Status: `current` (fidelity measurement only)
 
 Problem:
 - After LL34-LL36 the remaining question is the one no mechanical signal
@@ -3699,6 +3700,23 @@ outcomes, and read precision on correct work (false refutes) separately from
 recall on broken work. If false refutes dominate at every available model size,
 the honest conclusion is to ship the idle stage only, or to drop the milestone
 and rely on LL35's confirmation rung.
+
+Measurement start (2026-08-10):
+- `tool/ll37_verifier_fidelity_probe.dart` is a read-only scorer over paired
+  correct and known-broken LL19 manifests. It rejects attended or unconsented
+  cases, omits the expected label from the verifier prompt, and reports false
+  refutes, broken-case recall, unverifiable output, and invalid output
+  separately.
+- A synthetic `slugifyLabel` pair exercised the live OpenAI-compatible path on
+  `qwen3.6-35b-a3b-vision`: both verdicts matched, with zero unverifiable or
+  invalid responses. Synthetic cases are excluded from the eligible
+  denominator, so the result is correctly
+  `no_go_insufficient_eligible_sample` with 0 eligible cases.
+- The production Go gate requires at least five correct and five known-broken
+  cases across at least two of Routine, retry-until-green, and LL13 worktree
+  agent surfaces; invalid and unverifiable counts must both be zero, the
+  correct-case false-refute rate must be at most 10%, and broken-case recall
+  must be at least 80%. The next action is evidence capture, not panel wiring.
 
 Source: Grok Build `session/goal_classifier.rs`,
 `session/templates/goal_verifier_prompt.md`, `goal_strategist_prompt.md`. The
