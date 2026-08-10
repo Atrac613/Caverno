@@ -88,4 +88,25 @@ void main() {
       );
     }
   });
+
+  test('macOS entitlements grant the keychain access secure storage needs', () {
+    // flutter_secure_storage holds the relay delivery credential and the SSH
+    // credentials. Without this entitlement the macOS keychain answers
+    // errSecMissingEntitlement (-34018) and every write fails at runtime while
+    // the build stays green.
+    final entitlementsFiles = [
+      File('macos/Runner/DebugProfile.entitlements'),
+      File('macos/Runner/Release.entitlements'),
+    ];
+
+    for (final entitlements in entitlementsFiles) {
+      expect(entitlements.existsSync(), isTrue);
+      final content = entitlements.readAsStringSync();
+      expect(content, contains('keychain-access-groups'));
+      expect(
+        content,
+        contains(r'$(AppIdentifierPrefix)com.noguwo.apps.caverno'),
+      );
+    }
+  });
 }
