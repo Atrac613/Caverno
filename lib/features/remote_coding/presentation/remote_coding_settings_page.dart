@@ -8,6 +8,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_multi_device_evidence.dart';
+import '../data/remote_coding_notification_relay_pairing.dart';
 import '../data/remote_coding_support_packet.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_server_notifier.dart';
@@ -108,10 +109,38 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.link_off),
-                    tooltip: 'Revoke',
-                    onPressed: () => notifier.revokeDevice(device.id),
+                  trailing: Wrap(
+                    spacing: 4,
+                    children: [
+                      if (device.relayCredentialState ==
+                          RemoteCodingRelayCredentialState.pendingRevocation)
+                        IconButton(
+                          icon: const Icon(Icons.sync_problem),
+                          tooltip: 'Retry notification relay cleanup',
+                          onPressed: notifier.retryPendingRelayLifecycle,
+                        )
+                      else
+                        IconButton(
+                          icon: Icon(
+                            device.hasNotificationRelay
+                                ? Icons.notifications_active_outlined
+                                : Icons.notifications_outlined,
+                          ),
+                          tooltip: device.hasNotificationRelay
+                              ? 'Replace notification relay credential'
+                              : 'Enable completion notifications',
+                          onPressed: () => _showNotificationRelayDialog(
+                            context,
+                            ref,
+                            device.id,
+                          ),
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.link_off),
+                        tooltip: 'Revoke',
+                        onPressed: () => notifier.revokeDevice(device.id),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -141,6 +170,29 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
         .cancelPairingPayload(payload.ticketId);
   }
 
+  Future<void> _showNotificationRelayDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String deviceId,
+  ) async {
+    final payload = await ref
+        .read(remoteCodingServerProvider.notifier)
+        .createNotificationRelayPairingPayload(deviceId);
+    if (payload == null || !context.mounted) {
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _NotificationRelayPairingDialog(payload: payload),
+    );
+    if (!context.mounted) {
+      return;
+    }
+    ref
+        .read(remoteCodingServerProvider.notifier)
+        .cancelNotificationRelayPairingPayload(payload.challengeId);
+  }
+
   Future<void> _copySupportPacket(
     BuildContext context,
     RemoteCodingServerState state,
@@ -153,6 +205,7 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
       activeConnectionCount: state.activeConnectionCount,
       pairingPayload: state.pairingPayload,
       error: state.error,
+      notificationDelivery: state.lastNotificationDelivery,
     );
     final supportPacket = RemoteCodingSupportPacket.build(
       side: RemoteCodingSupportPacketSide.desktop,
@@ -390,6 +443,102 @@ class _RemoteCodingPairingDialogState
               'Expires at ${widget.payload.expiresAt.toLocal()}',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+}
+
+class _NotificationRelayPairingDialog extends ConsumerStatefulWidget {
+  const _NotificationRelayPairingDialog({required this.payload});
+
+  final RemoteCodingNotificationRelayPairingPayload payload;
+
+  @override
+  ConsumerState<_NotificationRelayPairingDialog> createState() =>
+      _NotificationRelayPairingDialogState();
+}
+
+class _NotificationRelayPairingDialogState
+    extends ConsumerState<_NotificationRelayPairingDialog> {
+  Timer? _timer;
+  late Duration _remaining;
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = _computeRemaining();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() => _remaining = _computeRemaining());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Duration _computeRemaining() {
+    final remaining = widget.payload.expiresAt.difference(DateTime.now());
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<RemoteCodingNotificationRelayPairingPayload?>(
+      remoteCodingServerProvider.select((state) => state.relayPairingPayload),
+      (previous, next) {
+        final wasCurrent = previous?.challengeId == widget.payload.challengeId;
+        final isCurrent = next?.challengeId == widget.payload.challengeId;
+        if (wasCurrent && !isCurrent && context.mounted) {
+          Navigator.of(context).maybePop();
+        }
+      },
+    );
+    return AlertDialog(
+      title: const Text('Enable Completion Notifications'),
+      content: SizedBox(
+        width: 280,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox.square(
+              dimension: 240,
+              child: QrImageView(
+                data: widget.payload.toQrData(),
+                version: QrVersions.auto,
+                size: 240,
+                backgroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _remaining == Duration.zero
+                  ? 'Notification code expired'
+                  : 'Expires in ${_formatDuration(_remaining)}',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Scan this code from the connected mobile device.',
+              textAlign: TextAlign.center,
             ),
           ],
         ),

@@ -8,6 +8,8 @@ list(APPEND FLUTTER_PLUGIN_LIST
   bluetooth_low_energy_windows
   desktop_drop
   file_selector_windows
+  firebase_app_check
+  firebase_core
   flutter_inappwebview_windows
   flutter_libserialport
   flutter_secure_storage_windows

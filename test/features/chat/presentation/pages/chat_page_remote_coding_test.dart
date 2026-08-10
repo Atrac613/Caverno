@@ -12,9 +12,11 @@ import 'package:caverno/features/chat/presentation/providers/coding_projects_not
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/widgets/conversation_drawer.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_notification_payload.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_page.dart';
+import 'package:caverno/features/remote_coding/presentation/remote_coding_mobile_notification_notifier.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
@@ -560,6 +562,55 @@ void main() {
         container.read(remoteCodingClientProvider.notifier)
             as _ConnectedRemoteCodingQuestionClientNotifier;
     expect(notifier.resolvedQuestionIds, ['question-1']);
+  });
+
+  testWidgets('notification tap opens the matching connected remote thread', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        remoteCodingClientProvider.overrideWith(
+          _ConnectedRemoteCodingClientNotifier.new,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: RemoteCodingPage())),
+      ),
+    );
+    await tester.pump();
+    container
+        .read(remoteCodingMobileNotificationProvider.notifier)
+        .applyNotificationTapForTest(
+          RemoteCodingNotificationPayload(
+            eventId: 'event_navigation_1',
+            turnId: 'turn_navigation_1',
+            conversationId: 'thread-2',
+            outcome: RemoteCodingNotificationOutcome.completed,
+            title: 'Remote coding completed',
+            body: 'Your remote coding task completed.',
+            completedAt: DateTime.utc(2026, 8, 10, 12),
+          ).toFcmData(),
+        );
+    await tester.pump();
+
+    expect(
+      container.read(remoteCodingClientProvider).currentConversationId,
+      'thread-2',
+    );
+    expect(
+      container
+          .read(remoteCodingMobileNotificationProvider)
+          .pendingNotificationTap,
+      isNull,
+    );
   });
 
   testWidgets('desktop coding tab keeps local project controls', (

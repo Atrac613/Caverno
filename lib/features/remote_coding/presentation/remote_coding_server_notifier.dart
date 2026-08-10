@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -10,6 +11,7 @@ import '../../../core/types/workspace_mode.dart';
 import '../../chat/domain/entities/coding_project.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/message.dart';
+import '../../chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/chat_state.dart';
 import '../../chat/presentation/providers/coding_projects_notifier.dart';
@@ -18,9 +20,15 @@ import '../../dashboard/domain/entities/dashboard_stats.dart';
 import '../../dashboard/domain/services/dashboard_stats_calculator.dart';
 import '../../dashboard/domain/services/dashboard_stats_codec.dart';
 import '../data/remote_coding_pairing_registry.dart';
+import '../data/remote_coding_notification_payload.dart';
+import '../data/remote_coding_notification_relay_pairing.dart';
+import '../data/remote_coding_notification_relay_providers.dart';
+import '../data/remote_coding_notification_relay_provisioning.dart';
 import '../data/remote_coding_protocol.dart';
 import '../data/remote_coding_repository.dart';
 import '../data/remote_coding_security.dart';
+import '../data/remote_coding_terminal_notification_mapper.dart';
+import '../data/remote_coding_terminal_notification_delivery.dart';
 import '../domain/remote_coding_models.dart';
 
 final remoteCodingServerProvider =
@@ -35,7 +43,9 @@ class RemoteCodingServerState {
     this.activeHost,
     this.error,
     this.pairingPayload,
+    this.relayPairingPayload,
     this.activeConnectionCount = 0,
+    this.lastNotificationDelivery,
   });
 
   final RemoteCodingServerSettings settings;
@@ -43,7 +53,10 @@ class RemoteCodingServerState {
   final String? activeHost;
   final String? error;
   final RemoteCodingPairingPayload? pairingPayload;
+  final RemoteCodingNotificationRelayPairingPayload? relayPairingPayload;
   final int activeConnectionCount;
+  final RemoteCodingTerminalNotificationDeliveryReport?
+  lastNotificationDelivery;
 
   String? get activeUrl {
     final host = activeHost;
@@ -57,9 +70,12 @@ class RemoteCodingServerState {
     String? activeHost,
     String? error,
     RemoteCodingPairingPayload? pairingPayload,
+    RemoteCodingNotificationRelayPairingPayload? relayPairingPayload,
     int? activeConnectionCount,
+    RemoteCodingTerminalNotificationDeliveryReport? lastNotificationDelivery,
     bool clearError = false,
     bool clearPairingPayload = false,
+    bool clearRelayPairingPayload = false,
   }) {
     return RemoteCodingServerState(
       settings: settings ?? this.settings,
@@ -69,23 +85,35 @@ class RemoteCodingServerState {
       pairingPayload: clearPairingPayload
           ? null
           : (pairingPayload ?? this.pairingPayload),
+      relayPairingPayload: clearRelayPairingPayload
+          ? null
+          : (relayPairingPayload ?? this.relayPairingPayload),
       activeConnectionCount:
           activeConnectionCount ?? this.activeConnectionCount,
+      lastNotificationDelivery:
+          lastNotificationDelivery ?? this.lastNotificationDelivery,
     );
   }
 }
 
 class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   static const Duration _pairingLifetime = Duration(minutes: 5);
+  static const Duration _relayPairingLifetime = Duration(minutes: 5);
 
   final _uuid = const Uuid();
   final RemoteCodingPairingRegistry _pairingRegistry =
       RemoteCodingPairingRegistry();
+  final RemoteCodingNotificationRelayPairingRegistry _relayPairingRegistry =
+      RemoteCodingNotificationRelayPairingRegistry();
   final Set<_RemoteCodingSocketClient> _clients = {};
+  final RemoteCodingTerminalNotificationMapper _terminalNotificationMapper =
+      const RemoteCodingTerminalNotificationMapper();
 
   late final RemoteCodingRepository _repository;
   HttpServer? _server;
+  StreamSubscription<CavernoRuntimeEvent>? _runtimeEventSubscription;
   Timer? _pairingExpiryTimer;
+  Timer? _relayPairingExpiryTimer;
   int _snapshotSequence = 0;
   bool _startInProgress = false;
 
@@ -117,13 +145,24 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       }
     });
 
+    if (_canRunServer) {
+      _runtimeEventSubscription = ref
+          .read(cavernoExecutionRuntimeProvider)
+          .events
+          .listen(_handleRuntimeEvent);
+    }
+
     ref.onDispose(() {
+      unawaited(_runtimeEventSubscription?.cancel());
       unawaited(_stopServer());
     });
 
     final initialState = RemoteCodingServerState(settings: settings);
     if (_canRunServer && settings.enabled) {
       unawaited(_startServer(settings.port));
+    }
+    if (_canRunServer) {
+      Future<void>.microtask(_retryPendingRelayLifecycle);
     }
     return initialState;
   }
@@ -143,18 +182,84 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   }
 
   Future<void> revokeDevice(String deviceId) async {
-    final devices = state.settings.pairedDevices
-        .where((device) => device.id != deviceId)
-        .toList(growable: false);
-    final settings = state.settings.copyWith(pairedDevices: devices);
-    await _repository.saveServerSettings(settings);
-    state = state.copyWith(settings: settings);
+    final revokedDevice = state.settings.pairedDevices
+        .where((device) => device.id == deviceId)
+        .firstOrNull;
+    if (revokedDevice == null) {
+      return;
+    }
+    if (!revokedDevice.hasNotificationRelay) {
+      await _removePairedDevice(deviceId);
+    } else {
+      final disabledDevice = revokedDevice.copyWith(
+        tokenHash: '',
+        relayCredentialState:
+            RemoteCodingRelayCredentialState.pendingRevocation,
+      );
+      final disabledSettings = state.settings.copyWith(
+        pairedDevices: [
+          for (final device in state.settings.pairedDevices)
+            if (device.id == deviceId) disabledDevice else device,
+        ],
+      );
+      await _repository.saveServerSettings(disabledSettings);
+      state = state.copyWith(settings: disabledSettings, clearError: true);
+    }
     for (final client
         in _clients
             .where((client) => client.deviceId == deviceId)
             .toList(growable: false)) {
       await client.close(notify: true, reason: 'revoked');
     }
+    if (!revokedDevice.hasNotificationRelay) {
+      await _repository.deleteDesktopRelayDeliverySecret(deviceId);
+      return;
+    }
+    await _retryRelayRevocation(deviceId);
+  }
+
+  Future<void> retryPendingRelayLifecycle() {
+    return _retryPendingRelayLifecycle();
+  }
+
+  Future<RemoteCodingNotificationRelayPairingPayload?>
+  createNotificationRelayPairingPayload(String deviceId) async {
+    final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
+    if (relayClient == null) {
+      state = state.copyWith(error: 'Notification relay is not configured.');
+      return null;
+    }
+    final device = state.settings.pairedDevices
+        .where((item) => item.id == deviceId && item.tokenHash.isNotEmpty)
+        .firstOrNull;
+    if (device == null) {
+      state = state.copyWith(
+        error: 'An active paired device is required for relay setup.',
+      );
+      return null;
+    }
+    _relayPairingRegistry.purgeExpired();
+    final payload = RemoteCodingNotificationRelayPairingPayload(
+      challengeId: _uuid.v4(),
+      challengeSecret: RemoteCodingSecurity.randomToken(byteLength: 32),
+      targetDeviceId: deviceId,
+      expiresAt: DateTime.now().toUtc().add(_relayPairingLifetime),
+    );
+    _relayPairingRegistry.clear();
+    _relayPairingRegistry.add(payload);
+    state = state.copyWith(relayPairingPayload: payload, clearError: true);
+    _scheduleRelayPairingExpiryTimer();
+    return payload;
+  }
+
+  void cancelNotificationRelayPairingPayload(String challengeId) {
+    if (state.relayPairingPayload?.challengeId != challengeId) {
+      return;
+    }
+    _relayPairingRegistry.remove(challengeId);
+    _relayPairingExpiryTimer?.cancel();
+    _relayPairingExpiryTimer = null;
+    state = state.copyWith(clearRelayPairingPayload: true);
   }
 
   Future<RemoteCodingPairingPayload?> createPairingPayload() async {
@@ -182,6 +287,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       serverName: Platform.localHostname,
     );
     _pairingRegistry.clear();
+    _relayPairingRegistry.clear();
     _pairingRegistry.add(payload);
     state = state.copyWith(pairingPayload: payload);
     _schedulePairingExpiryTimer();
@@ -195,6 +301,8 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     _pairingRegistry.remove(ticketId);
     _pairingExpiryTimer?.cancel();
     _pairingExpiryTimer = null;
+    _relayPairingExpiryTimer?.cancel();
+    _relayPairingExpiryTimer = null;
     state = state.copyWith(clearPairingPayload: true);
   }
 
@@ -240,6 +348,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         isRunning: false,
         activeConnectionCount: 0,
         clearPairingPayload: true,
+        clearRelayPairingPayload: true,
       );
     }
   }
@@ -345,6 +454,89 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         _handleResolveQuestion(client, message);
       case 'requestSnapshot':
         client.sendSnapshot(id: message.id, payload: _buildSnapshot());
+      case 'relayDelegationReady':
+        await _handleRelayDelegationReady(client, message);
+    }
+  }
+
+  Future<void> _handleRelayDelegationReady(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    final deviceId = client.deviceId;
+    late final RemoteCodingRelayDelegationReadyMessage ready;
+    try {
+      ready = RemoteCodingRelayDelegationReadyMessage.fromPayload(
+        message.payload,
+      );
+    } on FormatException {
+      client.sendError(
+        id: message.id,
+        code: 'relay_delegation_invalid',
+        message: 'Notification relay delegation response is invalid.',
+      );
+      return;
+    }
+    if (deviceId == null || !ready.expiresAt.isAfter(DateTime.now().toUtc())) {
+      client.sendError(
+        id: message.id,
+        code: 'relay_delegation_expired',
+        message: 'Notification relay delegation is unavailable or expired.',
+      );
+      return;
+    }
+    final challenge = _relayPairingRegistry.consume(
+      challengeId: ready.challengeId,
+      authenticatedDeviceId: deviceId,
+    );
+    if (!challenge.isAccepted) {
+      client.sendError(
+        id: message.id,
+        code: 'relay_challenge_rejected',
+        message: 'Notification relay challenge is invalid or expired.',
+      );
+      return;
+    }
+    _relayPairingExpiryTimer?.cancel();
+    _relayPairingExpiryTimer = null;
+    state = state.copyWith(clearRelayPairingPayload: true);
+    final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
+    if (relayClient == null) {
+      client.sendError(
+        id: message.id,
+        code: 'relay_unavailable',
+        message: 'Notification relay is not configured.',
+      );
+      return;
+    }
+    try {
+      final coordinator = RemoteCodingDesktopRelayProvisioningCoordinator(
+        repository: _repository,
+        relayClient: relayClient,
+        clock: DateTime.now,
+      );
+      await coordinator.redeemAndActivate(
+        deviceId: deviceId,
+        delegationId: ready.delegationId,
+        challengeId: ready.challengeId,
+        challengeSecret: challenge.payload!.challengeSecret,
+        idempotencyKey: _uuid.v4(),
+      );
+      state = state.copyWith(
+        settings: _repository.loadServerSettings(),
+        clearError: true,
+      );
+      client.sendSnapshot(id: message.id, payload: _buildSnapshot());
+    } catch (_) {
+      state = state.copyWith(
+        settings: _repository.loadServerSettings(),
+        error: 'Notification relay credential setup failed.',
+      );
+      client.sendError(
+        id: message.id,
+        code: 'relay_provisioning_failed',
+        message: 'Notification relay credential setup failed.',
+      );
     }
   }
 
@@ -823,6 +1015,53 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     }
   }
 
+  void _handleRuntimeEvent(CavernoRuntimeEvent event) {
+    if (event is! CavernoRuntimeTerminalEvent) {
+      return;
+    }
+    final payload = _terminalNotificationMapper.mapTerminal(
+      event,
+      eventId: _uuid.v4(),
+    );
+    if (payload == null) {
+      return;
+    }
+    for (final client in _clients.where((client) => client.isAuthenticated)) {
+      client.send(type: 'runTerminal', payload: payload.toFcmData());
+    }
+    unawaited(_deliverTerminalNotification(payload));
+  }
+
+  Future<void> _deliverTerminalNotification(
+    RemoteCodingNotificationPayload notification,
+  ) async {
+    final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
+    if (relayClient == null) {
+      return;
+    }
+    try {
+      final report =
+          await RemoteCodingTerminalNotificationDeliveryService(
+            repository: _repository,
+            relayClient: relayClient,
+            clock: DateTime.now,
+          ).deliver(
+            notification: notification,
+            devices: state.settings.pairedDevices,
+          );
+      if (ref.mounted) {
+        state = state.copyWith(lastNotificationDelivery: report);
+      }
+    } catch (_) {
+      // Relay delivery is best-effort and must never fail the coding turn.
+    }
+  }
+
+  @visibleForTesting
+  void handleRuntimeEventForTest(CavernoRuntimeEvent event) {
+    _handleRuntimeEvent(event);
+  }
+
   void _syncActiveConnectionCount() {
     if (!ref.mounted) {
       return;
@@ -849,6 +1088,96 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     return null;
   }
 
+  Future<void> _retryPendingRelayLifecycle() async {
+    final pendingDevices = _repository
+        .loadServerSettings()
+        .pairedDevices
+        .where((device) => device.needsNotificationRelayLifecycleRetry)
+        .toList(growable: false);
+    for (final device in pendingDevices) {
+      if (device.relayCredentialState ==
+          RemoteCodingRelayCredentialState.pendingRevocation) {
+        await _retryRelayRevocation(device.id);
+        continue;
+      }
+      final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
+      final delegationId = device.relayDelegationId;
+      if (relayClient == null || delegationId == null) {
+        if (ref.mounted) {
+          state = state.copyWith(
+            settings: _repository.loadServerSettings(),
+            error: 'Notification relay activation requires retry.',
+          );
+        }
+        continue;
+      }
+      try {
+        final coordinator = RemoteCodingDesktopRelayProvisioningCoordinator(
+          repository: _repository,
+          relayClient: relayClient,
+          clock: DateTime.now,
+        );
+        await coordinator.retryPendingActivation(
+          deviceId: device.id,
+          delegationId: delegationId,
+        );
+        if (ref.mounted) {
+          state = state.copyWith(
+            settings: _repository.loadServerSettings(),
+            clearError: true,
+          );
+        }
+      } catch (_) {
+        if (ref.mounted) {
+          state = state.copyWith(
+            settings: _repository.loadServerSettings(),
+            error: 'Notification relay activation requires retry.',
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _retryRelayRevocation(String deviceId) async {
+    final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
+    if (relayClient == null) {
+      state = state.copyWith(
+        settings: _repository.loadServerSettings(),
+        error: 'Notification relay revocation requires retry.',
+      );
+      return;
+    }
+    try {
+      final coordinator = RemoteCodingDesktopRelayProvisioningCoordinator(
+        repository: _repository,
+        relayClient: relayClient,
+        clock: DateTime.now,
+      );
+      await coordinator.retryPendingRevocation(deviceId);
+      await _removePairedDevice(deviceId);
+    } catch (_) {
+      if (ref.mounted) {
+        state = state.copyWith(
+          settings: _repository.loadServerSettings(),
+          error: 'Notification relay revocation requires retry.',
+        );
+      }
+    }
+  }
+
+  Future<void> _removePairedDevice(String deviceId) async {
+    final settings = _repository.loadServerSettings();
+    final updated = settings.copyWith(
+      pairedDevices: settings.pairedDevices
+          .where((device) => device.id != deviceId)
+          .toList(growable: false),
+    );
+    await _repository.saveServerSettings(updated);
+    if (ref.mounted) {
+      state = state.copyWith(settings: updated, clearError: true);
+    }
+  }
+
   void _purgeExpiredTickets() {
     final now = DateTime.now();
     _pairingRegistry.purgeExpired(now: now);
@@ -873,6 +1202,35 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         _purgeExpiredTickets();
       }
     });
+  }
+
+  void _purgeExpiredRelayPairing() {
+    final now = DateTime.now().toUtc();
+    _relayPairingRegistry.purgeExpired(now: now);
+    final current = state.relayPairingPayload;
+    if (current != null && !current.expiresAt.toUtc().isAfter(now)) {
+      _relayPairingExpiryTimer?.cancel();
+      _relayPairingExpiryTimer = null;
+      state = state.copyWith(clearRelayPairingPayload: true);
+    }
+  }
+
+  void _scheduleRelayPairingExpiryTimer() {
+    _relayPairingExpiryTimer?.cancel();
+    final payload = state.relayPairingPayload;
+    if (payload == null) {
+      _relayPairingExpiryTimer = null;
+      return;
+    }
+    final delay = payload.expiresAt.difference(DateTime.now().toUtc());
+    _relayPairingExpiryTimer = Timer(
+      delay.isNegative ? Duration.zero : delay,
+      () {
+        if (ref.mounted) {
+          _purgeExpiredRelayPairing();
+        }
+      },
+    );
   }
 }
 

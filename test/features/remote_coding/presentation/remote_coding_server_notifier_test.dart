@@ -8,12 +8,19 @@ import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart'
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_notification_payload.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_notification_relay_client.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_notification_relay_contract.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_notification_relay_pairing.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_notification_relay_providers.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_protocol.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_secure_store.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_security.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_server_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -64,6 +71,60 @@ class _DashboardConversationsNotifier extends ConversationsNotifier {
 class _TestChatNotifier extends ChatNotifier {
   @override
   ChatState build() => ChatState.initial();
+}
+
+final class _MemorySecureStore implements RemoteCodingSecureStore {
+  final Map<String, String> values = <String, String>{};
+
+  @override
+  Future<void> delete({required String key}) async {
+    values.remove(key);
+  }
+
+  @override
+  Future<String?> read({required String key}) async => values[key];
+
+  @override
+  Future<void> write({required String key, required String value}) async {
+    values[key] = value;
+  }
+}
+
+final class _ProvisioningRelayClient
+    implements RemoteCodingNotificationRelayClient {
+  int redemptionCount = 0;
+  int activationCount = 0;
+  RemoteCodingRelayDelegationRedemptionRequest? redemptionRequest;
+
+  @override
+  Future<RemoteCodingRelayDelegationRedemptionResponse> redeemDelegation({
+    required String delegationId,
+    required RemoteCodingRelayDelegationRedemptionRequest request,
+  }) async {
+    redemptionCount += 1;
+    redemptionRequest = request;
+    return RemoteCodingRelayDelegationRedemptionResponse(
+      delegationId: delegationId,
+      deliveryHandle: 'delivery_handle_1',
+      deliveryKeyId: 'delivery-key-1',
+      deliverySecret: 'desktop-delivery-secret',
+      expiresAt: DateTime.now().toUtc().add(const Duration(days: 30)),
+    );
+  }
+
+  @override
+  Future<void> activateDelegation({
+    required String deliveryHandle,
+    required String delegationId,
+    required String deliveryKeyId,
+    required String deliverySecret,
+    required RemoteCodingRelayDelegationActivationRequest request,
+  }) async {
+    activationCount += 1;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 Future<int> _unusedPort() async {
@@ -234,19 +295,137 @@ void main() {
     }
   });
 
-  test('revoking a paired device disconnects active sockets', () async {
+  test(
+    'authenticated clients receive only remote-origin terminal payloads',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final port = await _unusedPort();
+      const rawToken = 'mobile-token';
+      final device = RemoteCodingPairedDevice(
+        id: 'device-1',
+        name: 'Phone',
+        tokenHash: RemoteCodingSecurity.hashToken(rawToken),
+        createdAt: DateTime(2026, 8, 10, 14),
+        lastSeenAt: DateTime(2026, 8, 10, 14),
+      );
+      await RemoteCodingRepository(prefs).saveServerSettings(
+        RemoteCodingServerSettings(
+          enabled: true,
+          port: port,
+          pairedDevices: [device],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+        ],
+      );
+
+      WebSocket? socket;
+      StreamSubscription<dynamic>? subscription;
+      final messages = <RemoteCodingProtocolMessage>[];
+      try {
+        container.read(remoteCodingServerProvider);
+        await _waitUntil(
+          () => container.read(remoteCodingServerProvider).isRunning,
+        );
+
+        socket = await WebSocket.connect('ws://127.0.0.1:$port/ws');
+        subscription = socket.listen((raw) {
+          if (raw is String) {
+            messages.add(RemoteCodingProtocolMessage.decode(raw));
+          }
+        });
+        socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'auth',
+            id: 'auth-terminal',
+            payload: const {'token': rawToken},
+          ),
+        );
+        await _waitUntil(
+          () => messages.any(
+            (message) =>
+                message.id == 'auth-terminal' && message.type == 'snapshot',
+          ),
+        );
+
+        final notifier = container.read(remoteCodingServerProvider.notifier);
+        notifier.handleRuntimeEventForTest(
+          CavernoRuntimeRunCompleted(
+            sequence: 1,
+            timestamp: DateTime.utc(2026, 8, 10, 14, 30),
+            turnId: 'gen-15',
+            conversationId: 'conversation-15',
+            interactionOrigin: CavernoRuntimeInteractionOrigin.remoteCoding,
+            content: 'Private model result',
+          ),
+        );
+        await _waitUntil(
+          () => messages.any((message) => message.type == 'runTerminal'),
+        );
+
+        final terminal = messages.singleWhere(
+          (message) => message.type == 'runTerminal',
+        );
+        final payload = RemoteCodingNotificationPayload.fromFcmData(
+          terminal.payload,
+        );
+        expect(payload.eventId, isNotEmpty);
+        expect(payload.turnId, 'gen-15');
+        expect(payload.conversationId, 'conversation-15');
+        expect(payload.outcome, RemoteCodingNotificationOutcome.completed);
+        expect(
+          terminal.payload.values,
+          isNot(contains('Private model result')),
+        );
+
+        notifier.handleRuntimeEventForTest(
+          CavernoRuntimeRunCompleted(
+            sequence: 2,
+            timestamp: DateTime.utc(2026, 8, 10, 14, 31),
+            turnId: 'gen-local',
+            conversationId: 'conversation-local',
+            content: 'Local model result',
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(
+          messages.where((message) => message.type == 'runTerminal'),
+          hasLength(1),
+        );
+      } finally {
+        await subscription?.cancel();
+        await socket?.close();
+        container.dispose();
+      }
+    },
+  );
+
+  test('authenticated device completes relay redemption over HTTPS', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final port = await _unusedPort();
     const rawToken = 'mobile-token';
+    final secureStore = _MemorySecureStore();
+    final repository = RemoteCodingRepository(prefs, secureStore: secureStore);
+    final relayClient = _ProvisioningRelayClient();
     final device = RemoteCodingPairedDevice(
       id: 'device-1',
       name: 'Phone',
       tokenHash: RemoteCodingSecurity.hashToken(rawToken),
-      createdAt: DateTime(2026, 5, 26, 12),
-      lastSeenAt: DateTime(2026, 5, 26, 12),
+      createdAt: DateTime.now(),
+      lastSeenAt: DateTime.now(),
     );
-    await RemoteCodingRepository(prefs).saveServerSettings(
+    await repository.saveServerSettings(
       RemoteCodingServerSettings(
         enabled: true,
         port: port,
@@ -256,6 +435,10 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
+        remoteCodingRepositoryProvider.overrideWithValue(repository),
+        remoteCodingNotificationRelayClientProvider.overrideWithValue(
+          relayClient,
+        ),
         codingProjectsNotifierProvider.overrideWith(
           _TestCodingProjectsNotifier.new,
         ),
@@ -269,88 +452,224 @@ void main() {
     WebSocket? socket;
     StreamSubscription<dynamic>? subscription;
     final messages = <RemoteCodingProtocolMessage>[];
-    final closed = Completer<void>();
     try {
       container.read(remoteCodingServerProvider);
       await _waitUntil(
         () => container.read(remoteCodingServerProvider).isRunning,
       );
+      final qr = await container
+          .read(remoteCodingServerProvider.notifier)
+          .createNotificationRelayPairingPayload(device.id);
+      expect(qr, isNotNull);
 
       socket = await WebSocket.connect('ws://127.0.0.1:$port/ws');
-      subscription = socket.listen(
-        (raw) {
-          if (raw is String) {
-            messages.add(RemoteCodingProtocolMessage.decode(raw));
-          }
-        },
-        onDone: () {
-          if (!closed.isCompleted) {
-            closed.complete();
-          }
-        },
-      );
+      subscription = socket.listen((raw) {
+        if (raw is String) {
+          messages.add(RemoteCodingProtocolMessage.decode(raw));
+        }
+      });
       socket.add(
         RemoteCodingProtocol.encode(
           type: 'auth',
-          id: 'auth-1',
-          payload: const {'token': rawToken},
+          id: 'auth-relay',
+          payload: const <String, dynamic>{'token': rawToken},
+        ),
+      );
+      await _waitUntil(
+        () => messages.any((message) => message.id == 'auth-relay'),
+      );
+      socket.add(
+        RemoteCodingProtocol.encode(
+          type: 'relayDelegationReady',
+          id: 'relay-ready',
+          payload: RemoteCodingRelayDelegationReadyMessage(
+            challengeId: qr!.challengeId,
+            delegationId: 'delegation-1',
+            expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 2)),
+          ).toPayload(),
         ),
       );
       await _waitUntil(
         () => messages.any(
-          (message) => message.id == 'auth-1' && message.type == 'snapshot',
+          (message) =>
+              message.id == 'relay-ready' && message.type == 'snapshot',
         ),
       );
+
+      expect(relayClient.redemptionCount, 1);
+      expect(relayClient.activationCount, 1);
       expect(
-        container.read(remoteCodingServerProvider).activeConnectionCount,
-        1,
+        relayClient.redemptionRequest?.challengeSecret,
+        qr.challengeSecret,
       );
-
-      await container
-          .read(remoteCodingServerProvider.notifier)
-          .revokeDevice(device.id);
-
-      await _waitUntil(
-        () => messages.any((message) => message.type == 'disconnected'),
+      final configured = repository.loadServerSettings().pairedDevices.single;
+      expect(configured.relayDelegationId, 'delegation-1');
+      expect(
+        configured.relayCredentialState,
+        RemoteCodingRelayCredentialState.active,
       );
-      await closed.future.timeout(const Duration(seconds: 3));
-      await _waitUntil(
-        () =>
-            container.read(remoteCodingServerProvider).activeConnectionCount ==
-            0,
+      expect(
+        await repository.loadDesktopRelayDeliverySecret(device.id),
+        'desktop-delivery-secret',
       );
-
-      final rejectedSocket = await WebSocket.connect('ws://127.0.0.1:$port/ws');
-      final rejectedMessages = <RemoteCodingProtocolMessage>[];
-      final rejectedSubscription = rejectedSocket.listen((raw) {
-        if (raw is String) {
-          rejectedMessages.add(RemoteCodingProtocolMessage.decode(raw));
-        }
-      });
-      try {
-        rejectedSocket.add(
-          RemoteCodingProtocol.encode(
-            type: 'auth',
-            id: 'auth-2',
-            payload: const {'token': rawToken},
-          ),
-        );
-        await _waitUntil(
-          () => rejectedMessages.any(
-            (message) =>
-                message.id == 'auth-2' &&
-                message.type == 'error' &&
-                message.payload['code'] == 'unauthorized',
-          ),
-        );
-      } finally {
-        await rejectedSubscription.cancel();
-        await rejectedSocket.close();
-      }
     } finally {
       await subscription?.cancel();
       await socket?.close();
       container.dispose();
     }
   });
+
+  test(
+    'revoking disconnects sockets and retains relay cleanup for retry',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final port = await _unusedPort();
+      const rawToken = 'mobile-token';
+      final secureStore = _MemorySecureStore();
+      final repository = RemoteCodingRepository(
+        prefs,
+        secureStore: secureStore,
+      );
+      final device = RemoteCodingPairedDevice(
+        id: 'device-1',
+        name: 'Phone',
+        tokenHash: RemoteCodingSecurity.hashToken(rawToken),
+        createdAt: DateTime(2026, 5, 26, 12),
+        lastSeenAt: DateTime(2026, 5, 26, 12),
+        relayDeliveryHandle: 'delivery_handle_1',
+        relayDeliveryKeyId: 'delivery-key-1',
+        relayCredentialExpiresAt: DateTime(2026, 6, 26, 12),
+      );
+      await repository.saveDesktopRelayDeliverySecret(
+        deviceId: device.id,
+        deliverySecret: 'relay-delivery-secret',
+      );
+      await repository.saveServerSettings(
+        RemoteCodingServerSettings(
+          enabled: true,
+          port: port,
+          pairedDevices: [device],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          remoteCodingRepositoryProvider.overrideWithValue(repository),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+        ],
+      );
+
+      WebSocket? socket;
+      StreamSubscription<dynamic>? subscription;
+      final messages = <RemoteCodingProtocolMessage>[];
+      final closed = Completer<void>();
+      try {
+        container.read(remoteCodingServerProvider);
+        await _waitUntil(
+          () => container.read(remoteCodingServerProvider).isRunning,
+        );
+
+        socket = await WebSocket.connect('ws://127.0.0.1:$port/ws');
+        subscription = socket.listen(
+          (raw) {
+            if (raw is String) {
+              messages.add(RemoteCodingProtocolMessage.decode(raw));
+            }
+          },
+          onDone: () {
+            if (!closed.isCompleted) {
+              closed.complete();
+            }
+          },
+        );
+        socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'auth',
+            id: 'auth-1',
+            payload: const {'token': rawToken},
+          ),
+        );
+        await _waitUntil(
+          () => messages.any(
+            (message) => message.id == 'auth-1' && message.type == 'snapshot',
+          ),
+        );
+        expect(
+          container.read(remoteCodingServerProvider).activeConnectionCount,
+          1,
+        );
+
+        await container
+            .read(remoteCodingServerProvider.notifier)
+            .revokeDevice(device.id);
+
+        expect(
+          await repository.loadDesktopRelayDeliverySecret(device.id),
+          'relay-delivery-secret',
+        );
+        final pendingDevice = repository
+            .loadServerSettings()
+            .pairedDevices
+            .single;
+        expect(pendingDevice.tokenHash, isEmpty);
+        expect(
+          pendingDevice.relayCredentialState,
+          RemoteCodingRelayCredentialState.pendingRevocation,
+        );
+
+        await _waitUntil(
+          () => messages.any((message) => message.type == 'disconnected'),
+        );
+        await closed.future.timeout(const Duration(seconds: 3));
+        await _waitUntil(
+          () =>
+              container
+                  .read(remoteCodingServerProvider)
+                  .activeConnectionCount ==
+              0,
+        );
+
+        final rejectedSocket = await WebSocket.connect(
+          'ws://127.0.0.1:$port/ws',
+        );
+        final rejectedMessages = <RemoteCodingProtocolMessage>[];
+        final rejectedSubscription = rejectedSocket.listen((raw) {
+          if (raw is String) {
+            rejectedMessages.add(RemoteCodingProtocolMessage.decode(raw));
+          }
+        });
+        try {
+          rejectedSocket.add(
+            RemoteCodingProtocol.encode(
+              type: 'auth',
+              id: 'auth-2',
+              payload: const {'token': rawToken},
+            ),
+          );
+          await _waitUntil(
+            () => rejectedMessages.any(
+              (message) =>
+                  message.id == 'auth-2' &&
+                  message.type == 'error' &&
+                  message.payload['code'] == 'unauthorized',
+            ),
+          );
+        } finally {
+          await rejectedSubscription.cancel();
+          await rejectedSocket.close();
+        }
+      } finally {
+        await subscription?.cancel();
+        await socket?.close();
+        container.dispose();
+      }
+    },
+  );
 }

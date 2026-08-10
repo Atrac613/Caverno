@@ -9,6 +9,10 @@ import '../../chat/domain/entities/message.dart';
 import '../../dashboard/domain/entities/dashboard_stats.dart';
 import '../../dashboard/domain/services/dashboard_stats_codec.dart';
 import '../data/remote_coding_connection_messages.dart';
+import '../data/remote_coding_notification_payload.dart';
+import '../data/remote_coding_notification_relay_pairing.dart';
+import '../data/remote_coding_notification_relay_providers.dart';
+import '../data/remote_coding_notification_relay_provisioning.dart';
 import '../data/remote_coding_protocol.dart';
 import '../data/remote_coding_repository.dart';
 import '../data/remote_coding_security.dart';
@@ -39,6 +43,7 @@ class RemoteCodingClientState {
     this.reconnectAttempt = 0,
     this.nextReconnectAt,
     this.pendingCommandCount = 0,
+    this.lastTerminalNotification,
   });
 
   final RemoteCodingConnectionStatus status;
@@ -59,6 +64,7 @@ class RemoteCodingClientState {
   final int reconnectAttempt;
   final DateTime? nextReconnectAt;
   final int pendingCommandCount;
+  final RemoteCodingNotificationPayload? lastTerminalNotification;
 
   bool get isConnected => status == RemoteCodingConnectionStatus.connected;
   bool get hasScheduledReconnect => nextReconnectAt != null;
@@ -82,6 +88,7 @@ class RemoteCodingClientState {
     int? reconnectAttempt,
     DateTime? nextReconnectAt,
     int? pendingCommandCount,
+    RemoteCodingNotificationPayload? lastTerminalNotification,
     bool clearError = false,
     bool clearSelectedProjectId = false,
     bool clearCurrentConversationId = false,
@@ -89,6 +96,7 @@ class RemoteCodingClientState {
     bool clearPendingQuestion = false,
     bool clearSnapshotGeneratedAt = false,
     bool clearNextReconnectAt = false,
+    bool clearLastTerminalNotification = false,
   }) {
     return RemoteCodingClientState(
       status: status ?? this.status,
@@ -122,6 +130,9 @@ class RemoteCodingClientState {
           ? null
           : (nextReconnectAt ?? this.nextReconnectAt),
       pendingCommandCount: pendingCommandCount ?? this.pendingCommandCount,
+      lastTerminalNotification: clearLastTerminalNotification
+          ? null
+          : (lastTerminalNotification ?? this.lastTerminalNotification),
     );
   }
 }
@@ -234,6 +245,58 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       secret: payload.secret,
       autoReconnectOnFailure: false,
     );
+  }
+
+  Future<void> authorizeNotificationRelayFromQr(String qrData) async {
+    try {
+      final payload = RemoteCodingNotificationRelayPairingPayload.fromQrData(
+        qrData,
+      );
+      final host = state.host;
+      if (!state.isConnected || host == null) {
+        throw StateError(
+          'Connect to the paired remote coding desktop before enabling notifications.',
+        );
+      }
+      if (payload.targetDeviceId != host.id) {
+        throw StateError(
+          'Notification relay code belongs to a different paired device.',
+        );
+      }
+      final now = DateTime.now().toUtc();
+      if (!payload.expiresAt.toUtc().isAfter(now)) {
+        throw StateError('Notification relay code has expired.');
+      }
+      final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
+      if (relayClient == null) {
+        throw StateError('Notification relay is not configured.');
+      }
+      final coordinator = RemoteCodingMobileRelayDelegationCoordinator(
+        repository: _repository,
+        relayClient: relayClient,
+        clock: DateTime.now,
+      );
+      final delegation = await coordinator.createDelegation(
+        challengeId: payload.challengeId,
+        challengeDigest: payload.challengeDigest,
+        targetDeviceId: payload.targetDeviceId,
+      );
+      if (!delegation.expiresAt.toUtc().isAfter(now) ||
+          delegation.expiresAt.toUtc().isAfter(payload.expiresAt.toUtc())) {
+        throw StateError('Relay returned an invalid delegation expiry.');
+      }
+      await _sendCommand(
+        'relayDelegationReady',
+        RemoteCodingRelayDelegationReadyMessage(
+          challengeId: delegation.challengeId,
+          delegationId: delegation.delegationId,
+          expiresAt: delegation.expiresAt,
+        ).toPayload(),
+      );
+      state = state.copyWith(clearError: true);
+    } catch (error) {
+      state = state.copyWith(error: error.toString());
+    }
   }
 
   Future<void> disconnect() async {
@@ -450,6 +513,8 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         case 'questionRequested':
         case 'questionResolved':
           await _applySnapshot(message.payload);
+        case 'runTerminal':
+          _handleRunTerminal(message.payload);
         case 'error':
           await _handleRemoteError(message.payload);
         case 'disconnected':
@@ -499,6 +564,18 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       clearPendingApproval: true,
       clearSnapshotGeneratedAt: true,
     );
+  }
+
+  void _handleRunTerminal(Map<String, dynamic> payload) {
+    state = state.copyWith(
+      lastTerminalNotification: RemoteCodingNotificationPayload.fromFcmData(
+        payload,
+      ),
+    );
+  }
+
+  void clearLastTerminalNotification() {
+    state = state.copyWith(clearLastTerminalNotification: true);
   }
 
   Future<void> _handleRemoteDisconnect(Map<String, dynamic> payload) async {

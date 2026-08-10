@@ -32,6 +32,7 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
     required int generation,
     required String ownerConversationId,
     required bool hidden,
+    required ChatInteractionOrigin origin,
     ToolResultCompletionEvidence initialGoalCompletionEvidence =
         const ToolResultCompletionEvidence(),
   }) async {
@@ -55,6 +56,12 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
           turnId: 'gen-$generation',
           conversationId: ownerConversationId,
           hidden: hidden,
+          interactionOrigin: switch (origin) {
+            ChatInteractionOrigin.local =>
+              CavernoRuntimeInteractionOrigin.local,
+            ChatInteractionOrigin.remote =>
+              CavernoRuntimeInteractionOrigin.remoteCoding,
+          },
         ),
       );
       if (!_isCurrentInteractionGeneration(generation)) {

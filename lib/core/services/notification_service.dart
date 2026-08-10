@@ -1,4 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import '../../features/remote_coding/data/remote_coding_notification_payload.dart';
 
 /// Wrapper around [FlutterLocalNotificationsPlugin] for showing local
 /// notifications (e.g. when an LLM response completes in the background).
@@ -6,11 +11,19 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 /// Permissions are requested lazily on the first notification attempt
 /// rather than at init, so the permission dialog appears in context.
 class NotificationService {
+  static const remoteCodingChannelId = 'remote_coding_completion';
+  static const remoteCodingChannelName = 'Remote Coding Completion';
+
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   Future<void>? _initialization;
   bool _initialized = false;
   bool _permissionRequested = false;
+  final StreamController<String> _notificationTapController =
+      StreamController<String>.broadcast();
+
+  Stream<String> get notificationTapPayloads =>
+      _notificationTapController.stream;
 
   /// Initialize the plugin without requesting permissions upfront.
   Future<void> init() {
@@ -39,7 +52,15 @@ class NotificationService {
       macOS: darwinSettings,
     );
 
-    await _plugin.initialize(settings: settings);
+    await _plugin.initialize(
+      settings: settings,
+      onDidReceiveNotificationResponse: (response) {
+        final payload = response.payload?.trim();
+        if (payload != null && payload.isNotEmpty) {
+          _notificationTapController.add(payload);
+        }
+      },
+    );
     _initialized = true;
   }
 
@@ -138,12 +159,54 @@ class NotificationService {
     );
   }
 
+  Future<void> showRemoteCodingTerminalNotification(
+    RemoteCodingNotificationPayload notification,
+  ) async {
+    await _showNotification(
+      id: notification.eventId.hashCode & 0x7fffffff,
+      title: notification.title,
+      body: notification.body,
+      channelId: remoteCodingChannelId,
+      channelName: remoteCodingChannelName,
+      payload: jsonEncode(notification.toFcmData()),
+    );
+  }
+
+  Future<void> prepareRemoteCodingNotificationChannel() async {
+    await init();
+    if (!_initialized) {
+      return;
+    }
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        remoteCodingChannelId,
+        remoteCodingChannelName,
+        importance: Importance.defaultImportance,
+      ),
+    );
+  }
+
+  Future<String?> getInitialNotificationTapPayload() async {
+    await init();
+    final details = await _plugin.getNotificationAppLaunchDetails();
+    if (details?.didNotificationLaunchApp != true) {
+      return null;
+    }
+    final payload = details?.notificationResponse?.payload?.trim();
+    return payload == null || payload.isEmpty ? null : payload;
+  }
+
   Future<void> _showNotification({
     required int id,
     required String title,
     required String body,
     required String channelId,
     required String channelName,
+    String? payload,
   }) async {
     await init();
     if (!_initialized) return;
@@ -169,8 +232,11 @@ class NotificationService {
       title: title,
       body: body,
       notificationDetails: details,
+      payload: payload,
     );
   }
 
-  void dispose() {}
+  void dispose() {
+    unawaited(_notificationTapController.close());
+  }
 }

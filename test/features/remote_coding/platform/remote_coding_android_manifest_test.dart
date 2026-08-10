@@ -13,6 +13,18 @@ void main() {
     );
   });
 
+  test('Android FCM uses the pre-created Remote Coding channel', () {
+    final manifest = File(
+      'android/app/src/main/AndroidManifest.xml',
+    ).readAsStringSync();
+
+    expect(
+      manifest,
+      contains('com.google.firebase.messaging.default_notification_channel_id'),
+    );
+    expect(manifest, contains('android:value="remote_coding_completion"'));
+  });
+
   test('iOS declares local networking for LAN Remote Coding', () {
     final plist = File('ios/Runner/Info.plist');
 

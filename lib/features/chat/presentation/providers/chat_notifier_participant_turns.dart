@@ -59,6 +59,7 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
           generation: turn.generation,
           ownerConversationId: turn.ownerId,
           hidden: false,
+          origin: ChatInteractionOrigin.local,
         ) ==
         null) {
       _participantTurnControls.clear(pausedOwner);

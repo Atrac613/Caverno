@@ -13,6 +13,9 @@ void main() {
       tokenHash: 'secret-token-hash',
       createdAt: DateTime(2026, 5, 26, 12),
       lastSeenAt: DateTime(2026, 5, 26, 12, 30),
+      relayDeliveryHandle: 'private_delivery_handle',
+      relayDeliveryKeyId: 'private-delivery-key',
+      relayCredentialExpiresAt: DateTime(2026, 6, 26, 12),
     );
     final snapshot = RemoteCodingDiagnostics.serverSnapshot(
       RemoteCodingServerSettings(
@@ -38,12 +41,20 @@ void main() {
     expect(snapshot['privacy'], {
       'rawDeviceTokensIncluded': false,
       'tokenHashesIncluded': false,
+      'relayIdentifiersIncluded': false,
+      'relayCredentialsIncluded': false,
     });
     expect(
       (snapshot['pairedDevices'] as List<dynamic>).single,
       isNot(containsPair('tokenHash', anything)),
     );
+    expect(
+      (snapshot['pairedDevices'] as List<dynamic>).single,
+      containsPair('notificationRelayConfigured', true),
+    );
     expect(encoded, isNot(contains('secret-token-hash')));
+    expect(encoded, isNot(contains('private_delivery_handle')));
+    expect(encoded, isNot(contains('private-delivery-key')));
   });
 
   test('mobile diagnostics include reconnect state without token material', () {

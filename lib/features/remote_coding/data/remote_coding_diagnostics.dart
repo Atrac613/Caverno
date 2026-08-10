@@ -1,4 +1,5 @@
 import 'remote_coding_protocol.dart';
+import 'remote_coding_terminal_notification_delivery.dart';
 import '../domain/remote_coding_models.dart';
 
 class RemoteCodingDiagnostics {
@@ -12,6 +13,7 @@ class RemoteCodingDiagnostics {
     required int activeConnectionCount,
     required RemoteCodingPairingPayload? pairingPayload,
     required String? error,
+    RemoteCodingTerminalNotificationDeliveryReport? notificationDelivery,
     DateTime? generatedAt,
   }) {
     final now = generatedAt ?? DateTime.now();
@@ -33,9 +35,13 @@ class RemoteCodingDiagnostics {
       'pairedDevices': settings.pairedDevices
           .map(_pairedDeviceSnapshot)
           .toList(growable: false),
+      if (notificationDelivery != null)
+        'lastNotificationDelivery': notificationDelivery.toDiagnosticsJson(),
       'privacy': {
         'rawDeviceTokensIncluded': false,
         'tokenHashesIncluded': false,
+        'relayIdentifiersIncluded': false,
+        'relayCredentialsIncluded': false,
       },
       if (error != null && error.isNotEmpty) 'error': error,
     };
@@ -94,6 +100,7 @@ class RemoteCodingDiagnostics {
       'name': device.name,
       'createdAt': device.createdAt.toIso8601String(),
       'lastSeenAt': device.lastSeenAt.toIso8601String(),
+      'notificationRelayConfigured': device.hasNotificationRelay,
     };
   }
 }

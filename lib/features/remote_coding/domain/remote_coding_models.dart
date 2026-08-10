@@ -10,6 +10,12 @@ enum RemoteCodingConnectionStatus {
 
 enum RemoteCodingApprovalKind { file, localCommand, gitCommand }
 
+enum RemoteCodingRelayCredentialState {
+  pendingActivation,
+  active,
+  pendingRevocation,
+}
+
 class RemoteCodingServerSettings {
   const RemoteCodingServerSettings({
     this.enabled = false,
@@ -59,6 +65,11 @@ class RemoteCodingPairedDevice {
     required this.tokenHash,
     required this.createdAt,
     required this.lastSeenAt,
+    this.relayDeliveryHandle,
+    this.relayDeliveryKeyId,
+    this.relayDelegationId,
+    this.relayCredentialExpiresAt,
+    this.relayCredentialState = RemoteCodingRelayCredentialState.active,
   });
 
   final String id;
@@ -66,9 +77,44 @@ class RemoteCodingPairedDevice {
   final String tokenHash;
   final DateTime createdAt;
   final DateTime lastSeenAt;
+  final String? relayDeliveryHandle;
+  final String? relayDeliveryKeyId;
+  final String? relayDelegationId;
+  final DateTime? relayCredentialExpiresAt;
+  final RemoteCodingRelayCredentialState relayCredentialState;
+
+  bool get hasNotificationRelay =>
+      (relayDeliveryHandle?.trim().isNotEmpty ?? false) &&
+      (relayDeliveryKeyId?.trim().isNotEmpty ?? false) &&
+      relayCredentialExpiresAt != null;
+
+  bool hasUsableNotificationRelayAt(DateTime now) {
+    final expiresAt = relayCredentialExpiresAt;
+    return hasNotificationRelay &&
+        relayCredentialState == RemoteCodingRelayCredentialState.active &&
+        expiresAt != null &&
+        expiresAt.toUtc().isAfter(now.toUtc());
+  }
+
+  bool get needsNotificationRelayLifecycleRetry =>
+      hasNotificationRelay &&
+      relayCredentialState != RemoteCodingRelayCredentialState.active;
 
   factory RemoteCodingPairedDevice.fromJson(Map<String, dynamic> json) {
     final now = DateTime.now();
+    final relayDeliveryHandle = _nonEmptyString(json['relayDeliveryHandle']);
+    final relayDeliveryKeyId = _nonEmptyString(json['relayDeliveryKeyId']);
+    final relayDelegationId = _nonEmptyString(json['relayDelegationId']);
+    final relayCredentialExpiresAt = DateTime.tryParse(
+      (json['relayCredentialExpiresAt'] as String?) ?? '',
+    );
+    final hasCompleteRelayReference =
+        relayDeliveryHandle != null &&
+        relayDeliveryKeyId != null &&
+        relayCredentialExpiresAt != null;
+    final relayCredentialState = _relayCredentialState(
+      json['relayCredentialState'],
+    );
     return RemoteCodingPairedDevice(
       id: (json['id'] as String?)?.trim() ?? '',
       name: (json['name'] as String?)?.trim() ?? 'Mobile device',
@@ -76,6 +122,15 @@ class RemoteCodingPairedDevice {
       createdAt: DateTime.tryParse((json['createdAt'] as String?) ?? '') ?? now,
       lastSeenAt:
           DateTime.tryParse((json['lastSeenAt'] as String?) ?? '') ?? now,
+      relayDeliveryHandle: hasCompleteRelayReference
+          ? relayDeliveryHandle
+          : null,
+      relayDeliveryKeyId: hasCompleteRelayReference ? relayDeliveryKeyId : null,
+      relayDelegationId: hasCompleteRelayReference ? relayDelegationId : null,
+      relayCredentialExpiresAt: hasCompleteRelayReference
+          ? relayCredentialExpiresAt
+          : null,
+      relayCredentialState: relayCredentialState,
     );
   }
 
@@ -85,6 +140,13 @@ class RemoteCodingPairedDevice {
     'tokenHash': tokenHash,
     'createdAt': createdAt.toIso8601String(),
     'lastSeenAt': lastSeenAt.toIso8601String(),
+    if (hasNotificationRelay) ...{
+      'relayDeliveryHandle': relayDeliveryHandle,
+      'relayDeliveryKeyId': relayDeliveryKeyId,
+      if (relayDelegationId != null) 'relayDelegationId': relayDelegationId,
+      'relayCredentialExpiresAt': relayCredentialExpiresAt!.toIso8601String(),
+      'relayCredentialState': relayCredentialState.name,
+    },
   };
 
   RemoteCodingPairedDevice copyWith({
@@ -93,6 +155,11 @@ class RemoteCodingPairedDevice {
     String? tokenHash,
     DateTime? createdAt,
     DateTime? lastSeenAt,
+    String? relayDeliveryHandle,
+    String? relayDeliveryKeyId,
+    String? relayDelegationId,
+    DateTime? relayCredentialExpiresAt,
+    RemoteCodingRelayCredentialState? relayCredentialState,
   }) {
     return RemoteCodingPairedDevice(
       id: id ?? this.id,
@@ -100,8 +167,38 @@ class RemoteCodingPairedDevice {
       tokenHash: tokenHash ?? this.tokenHash,
       createdAt: createdAt ?? this.createdAt,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
+      relayDeliveryHandle: relayDeliveryHandle ?? this.relayDeliveryHandle,
+      relayDeliveryKeyId: relayDeliveryKeyId ?? this.relayDeliveryKeyId,
+      relayDelegationId: relayDelegationId ?? this.relayDelegationId,
+      relayCredentialExpiresAt:
+          relayCredentialExpiresAt ?? this.relayCredentialExpiresAt,
+      relayCredentialState: relayCredentialState ?? this.relayCredentialState,
     );
   }
+
+  RemoteCodingPairedDevice withoutNotificationRelay() {
+    return RemoteCodingPairedDevice(
+      id: id,
+      name: name,
+      tokenHash: tokenHash,
+      createdAt: createdAt,
+      lastSeenAt: lastSeenAt,
+    );
+  }
+}
+
+String? _nonEmptyString(Object? value) {
+  final normalized = value is String ? value.trim() : '';
+  return normalized.isEmpty ? null : normalized;
+}
+
+RemoteCodingRelayCredentialState _relayCredentialState(Object? value) {
+  final wireName = value is String ? value.trim() : '';
+  return RemoteCodingRelayCredentialState.values.firstWhere(
+    (state) => state.name == wireName,
+    // Complete legacy relay metadata was active before lifecycle state existed.
+    orElse: () => RemoteCodingRelayCredentialState.active,
+  );
 }
 
 class RemoteCodingHost {

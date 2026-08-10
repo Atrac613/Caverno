@@ -23,7 +23,7 @@ import 'features/chat/data/repositories/chat_memory_repository.dart';
 import 'features/chat/data/repositories/conversation_repository.dart';
 import 'features/chat/data/repositories/skill_repository.dart';
 import 'features/chat/data/repositories/tool_result_artifact_store.dart';
-import 'features/chat/presentation/pages/chat_page.dart';
+import 'features/remote_coding/presentation/remote_coding_notification_navigation_shell.dart';
 import 'features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'features/chat/presentation/providers/semantic_search_provider.dart';
 import 'features/maintenance/presentation/providers/maintenance_scheduler_provider.dart';
@@ -376,7 +376,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: ThemeMode.dark,
-          home: const ChatPage(),
+          home: const RemoteCodingNotificationNavigationShell(),
         ),
       ),
     );

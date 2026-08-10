@@ -138,6 +138,9 @@ dependencies:
   # the login shell behind it; see features/chat/presentation/widgets/terminal.
   xterm: ^4.0.0
   flutter_pty: ^0.4.2
+  firebase_core: ^4.13.0
+  firebase_messaging: ^16.5.0
+  firebase_app_check: ^0.4.6
 
 dev_dependencies:
   flutter_test:

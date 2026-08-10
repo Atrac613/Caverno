@@ -62,6 +62,7 @@ class RemoteCodingProtocol {
     'resolveApproval',
     'resolveQuestion',
     'requestSnapshot',
+    'relayDelegationReady',
   };
 
   static const Set<String> allowedServerEvents = {
@@ -73,6 +74,7 @@ class RemoteCodingProtocol {
     'approvalResolved',
     'questionRequested',
     'questionResolved',
+    'runTerminal',
     'error',
     'disconnected',
   };

@@ -45,6 +45,7 @@ void main() {
         'resolveApproval',
         'resolveQuestion',
         'requestSnapshot',
+        'relayDelegationReady',
       }),
     );
     expect(
@@ -67,5 +68,9 @@ void main() {
       RemoteCodingProtocol.allowedClientCommands,
       isNot(contains('removeMcpServer')),
     );
+  });
+
+  test('server event allowlist includes terminal run delivery', () {
+    expect(RemoteCodingProtocol.allowedServerEvents, contains('runTerminal'));
   });
 }

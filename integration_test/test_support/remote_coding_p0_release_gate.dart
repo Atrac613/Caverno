@@ -197,6 +197,10 @@ List<RemoteCodingP0Gate> _buildStaticGates(Directory repoRoot) {
     repoRoot,
     'lib/features/remote_coding/data/remote_coding_repository.dart',
   );
+  final secureStore = _read(
+    repoRoot,
+    'lib/features/remote_coding/data/remote_coding_secure_store.dart',
+  );
   final diagnosticsTest = _read(
     repoRoot,
     'test/features/remote_coding/data/remote_coding_diagnostics_test.dart',
@@ -281,8 +285,10 @@ List<RemoteCodingP0Gate> _buildStaticGates(Directory repoRoot) {
       label:
           'Mobile tokens use secure storage and desktop diagnostics are redacted.',
       ready:
-          repository.contains('FlutterSecureStorage') &&
-          repository.contains('_secureStorage.write') &&
+          repository.contains('RemoteCodingSecureStore') &&
+          repository.contains('_secureStore.write') &&
+          secureStore.contains('FlutterSecureStorage') &&
+          secureStore.contains('storage.write') &&
           diagnosticsTest.contains('rawDeviceTokensIncluded') &&
           diagnosticsTest.contains('tokenHashesIncluded') &&
           diagnosticsTest.contains('secret-token-hash'),

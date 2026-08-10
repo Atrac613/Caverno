@@ -1,6 +1,7 @@
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/dashboard/domain/entities/dashboard_stats.dart';
 import 'package:caverno/features/dashboard/domain/services/dashboard_stats_codec.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_notification_payload.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_protocol.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
@@ -338,6 +339,40 @@ void main() {
       state = container.read(remoteCodingClientProvider);
       expect(state.snapshotSequence, 9);
       expect(state.pendingQuestion, isNull);
+    });
+
+    test('receives and clears a terminal notification event', () async {
+      final notifier = container.read(remoteCodingClientProvider.notifier);
+
+      await notifier.handleRawMessageForTest(
+        RemoteCodingProtocol.encode(
+          type: 'runTerminal',
+          payload: const {
+            'kind': 'remote_coding_run_terminal',
+            'schemaVersion': '1',
+            'eventId': 'event-12',
+            'turnId': 'gen-12',
+            'conversationId': 'conversation-12',
+            'outcome': 'completed',
+            'title': 'Remote coding completed',
+            'body': 'Open Caverno to review the result.',
+            'completedAt': '2026-08-10T14:00:00.000Z',
+          },
+        ),
+      );
+
+      final notification = container
+          .read(remoteCodingClientProvider)
+          .lastTerminalNotification;
+      expect(notification?.eventId, 'event-12');
+      expect(notification?.turnId, 'gen-12');
+      expect(notification?.outcome, RemoteCodingNotificationOutcome.completed);
+
+      notifier.clearLastTerminalNotification();
+      expect(
+        container.read(remoteCodingClientProvider).lastTerminalNotification,
+        isNull,
+      );
     });
 
     test('rejects unsupported server events', () async {

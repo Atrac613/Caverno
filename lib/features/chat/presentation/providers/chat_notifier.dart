@@ -2721,6 +2721,7 @@ class ChatNotifier extends Notifier<ChatState> {
         generation: interactionGeneration,
         ownerConversationId: effectiveOwner,
         hidden: false,
+        origin: queuedMessage.origin,
       );
       if (startedRuntime == null) {
         _clearActiveResponseForGeneration(interactionGeneration);
@@ -3085,6 +3086,7 @@ class ChatNotifier extends Notifier<ChatState> {
       generation: interactionGeneration,
       ownerConversationId: ownerConversationId,
       hidden: true,
+      origin: ChatInteractionOrigin.local,
       initialGoalCompletionEvidence:
           initialGoalCompletionEvidence ?? const ToolResultCompletionEvidence(),
     );
@@ -3358,6 +3360,7 @@ class ChatNotifier extends Notifier<ChatState> {
           generation: interactionGeneration,
           ownerConversationId: ownerConversationId,
           hidden: false,
+          origin: ChatInteractionOrigin.local,
         ) ==
         null) {
       _clearActiveResponseForGeneration(interactionGeneration);

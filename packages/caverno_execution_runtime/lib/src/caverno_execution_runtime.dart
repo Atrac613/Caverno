@@ -8,11 +8,13 @@ final class CavernoRuntimeTurnRequest {
     required this.turnId,
     this.conversationId,
     this.hidden = false,
+    this.interactionOrigin = CavernoRuntimeInteractionOrigin.local,
   });
 
   final String turnId;
   final String? conversationId;
   final bool hidden;
+  final CavernoRuntimeInteractionOrigin interactionOrigin;
 }
 
 final class CavernoRuntimeTurnStartException implements Exception {
@@ -108,6 +110,7 @@ final class CavernoExecutionRuntime {
         turnId: request.turnId,
         conversationId: conversationId,
         hidden: request.hidden,
+        interactionOrigin: request.interactionOrigin,
         ownership: ownership,
       );
       ownershipTransferred = true;
@@ -128,6 +131,7 @@ final class CavernoExecutionRuntime {
                     composition.tools.availableToolNames,
                   ),
                   hidden: request.hidden,
+                  interactionOrigin: request.interactionOrigin,
                   frontendDiagnostics: Map<String, String>.unmodifiable(
                     settings.frontendDiagnostics,
                   ),
@@ -184,6 +188,7 @@ final class CavernoExecutionRuntime {
                 timestamp: timestamp,
                 turnId: request.turnId,
                 conversationId: conversationId,
+                interactionOrigin: request.interactionOrigin,
                 code: code,
                 message: message,
                 exitCode: exitCode,
@@ -338,6 +343,7 @@ final class CavernoRuntimeTurnHandle {
     required this.turnId,
     required this.conversationId,
     required this.hidden,
+    required this.interactionOrigin,
     required CavernoRuntimeOwnershipHandle ownership,
   }) : _runtime = runtime,
        _ownership = ownership;
@@ -346,6 +352,7 @@ final class CavernoRuntimeTurnHandle {
   final String turnId;
   final String? conversationId;
   final bool hidden;
+  final CavernoRuntimeInteractionOrigin interactionOrigin;
   final CavernoRuntimeOwnershipHandle _ownership;
   final Completer<CavernoRuntimeTerminalEvent> _done =
       Completer<CavernoRuntimeTerminalEvent>();
@@ -368,6 +375,7 @@ final class CavernoRuntimeTurnHandle {
             timestamp: timestamp,
             turnId: turnId,
             conversationId: conversationId,
+            interactionOrigin: interactionOrigin,
             delta: delta,
           ),
     );
@@ -394,6 +402,7 @@ final class CavernoRuntimeTurnHandle {
             timestamp: timestamp,
             turnId: turnId,
             conversationId: conversationId,
+            interactionOrigin: interactionOrigin,
             toolCallId: toolCallId,
             toolName: toolName,
             state: state,
@@ -419,6 +428,7 @@ final class CavernoRuntimeTurnHandle {
             timestamp: timestamp,
             turnId: turnId,
             conversationId: conversationId,
+            interactionOrigin: interactionOrigin,
             request: request,
           ),
     );
@@ -436,6 +446,7 @@ final class CavernoRuntimeTurnHandle {
             timestamp: timestamp,
             turnId: turnId,
             conversationId: conversationId,
+            interactionOrigin: interactionOrigin,
             request: request,
           ),
     );
@@ -457,6 +468,7 @@ final class CavernoRuntimeTurnHandle {
             timestamp: timestamp,
             turnId: turnId,
             conversationId: conversationId,
+            interactionOrigin: interactionOrigin,
             stage: stage,
             taskId: taskId,
             taskStatus: taskStatus,
@@ -484,6 +496,7 @@ final class CavernoRuntimeTurnHandle {
         timestamp: timestamp,
         turnId: turnId,
         conversationId: conversationId,
+        interactionOrigin: interactionOrigin,
         promptTokens: promptTokens,
         completionTokens: completionTokens,
         totalTokens: totalTokens,
@@ -500,6 +513,7 @@ final class CavernoRuntimeTurnHandle {
             timestamp: timestamp,
             turnId: turnId,
             conversationId: conversationId,
+            interactionOrigin: interactionOrigin,
             content: hidden ? '' : content,
           ),
     );
@@ -517,6 +531,7 @@ final class CavernoRuntimeTurnHandle {
         timestamp: timestamp,
         turnId: turnId,
         conversationId: conversationId,
+        interactionOrigin: interactionOrigin,
         code: code,
         message: message,
         exitCode: exitCode,

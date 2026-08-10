@@ -208,6 +208,7 @@
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				12D13D7C86FAD0DE834A55AC /* [CP] Embed Pods Frameworks */,
 				4784B168A7007187ABA8B78F /* [CP] Copy Pods Resources */,
+				A7C2F31B5D8E4906B1E0F245 /* Copy Firebase Configuration */,
 			);
 			buildRules = (
 			);
@@ -235,6 +236,14 @@
 					97C146ED1CF9000F007C117D = {
 						CreatedOnToolsVersion = 7.3.1;
 						LastSwiftMigration = 1100;
+						SystemCapabilities = {
+							com.apple.BackgroundModes = {
+								enabled = 1;
+							};
+							com.apple.Push = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -390,6 +399,21 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+		};
+		A7C2F31B5D8E4906B1E0F245 /* Copy Firebase Configuration */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Copy Firebase Configuration";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Copy the environment-owned Firebase app configuration into the bundle.\n# The file is gitignored, so builds without it must still succeed and keep\n# Remote Coding push notifications fail-closed.\nset -e\nCONFIG_SOURCE=\"${SRCROOT}/Runner/GoogleService-Info.plist\"\nif [ ! -f \"${CONFIG_SOURCE}\" ]; then\n  echo \"warning: GoogleService-Info.plist is absent; Remote Coding push notifications stay disabled in this build.\"\n  exit 0\nfi\ncp \"${CONFIG_SOURCE}\" \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

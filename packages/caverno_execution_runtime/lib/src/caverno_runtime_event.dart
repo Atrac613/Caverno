@@ -8,6 +8,16 @@ extension CavernoRuntimeSurfaceWireName on CavernoRuntimeSurface {
   };
 }
 
+enum CavernoRuntimeInteractionOrigin { local, remoteCoding }
+
+extension CavernoRuntimeInteractionOriginWireName
+    on CavernoRuntimeInteractionOrigin {
+  String get wireName => switch (this) {
+    CavernoRuntimeInteractionOrigin.local => 'local',
+    CavernoRuntimeInteractionOrigin.remoteCoding => 'remote_coding',
+  };
+}
+
 enum CavernoRuntimeToolLifecycleState { queued, started, completed }
 
 enum CavernoRuntimeApprovalRisk { low, medium, high }
@@ -18,6 +28,7 @@ abstract base class CavernoRuntimeEvent {
     required this.timestamp,
     required this.turnId,
     this.conversationId,
+    this.interactionOrigin = CavernoRuntimeInteractionOrigin.local,
   });
 
   static const schema = 'caverno_cli_event';
@@ -27,6 +38,7 @@ abstract base class CavernoRuntimeEvent {
   final DateTime timestamp;
   final String turnId;
   final String? conversationId;
+  final CavernoRuntimeInteractionOrigin interactionOrigin;
 
   String get type;
 
@@ -39,6 +51,8 @@ abstract base class CavernoRuntimeEvent {
     'timestamp': timestamp.toUtc().toIso8601String(),
     'type': type,
     if (conversationId != null) 'conversationId': conversationId,
+    if (interactionOrigin != CavernoRuntimeInteractionOrigin.local)
+      'interactionOrigin': interactionOrigin.wireName,
     'turnId': turnId,
     'payload': payload,
   };
@@ -58,6 +72,7 @@ final class CavernoRuntimeRunStarted extends CavernoRuntimeEvent {
     required this.hidden,
     this.frontendDiagnostics = const <String, String>{},
     super.conversationId,
+    super.interactionOrigin,
   });
 
   final CavernoRuntimeSurface surface;
@@ -92,6 +107,7 @@ final class CavernoRuntimeAssistantDelta extends CavernoRuntimeEvent {
     required super.turnId,
     required this.delta,
     super.conversationId,
+    super.interactionOrigin,
   });
 
   final String delta;
@@ -117,6 +133,7 @@ final class CavernoRuntimeToolLifecycle extends CavernoRuntimeEvent {
     this.skipReason,
     this.durationMs,
     super.conversationId,
+    super.interactionOrigin,
   });
 
   final String toolCallId;
@@ -169,6 +186,7 @@ final class CavernoRuntimeApprovalRequired extends CavernoRuntimeEvent {
     required super.turnId,
     required this.request,
     super.conversationId,
+    super.interactionOrigin,
   });
 
   final CavernoRuntimeApprovalRequest request;
@@ -208,6 +226,7 @@ final class CavernoRuntimeQuestionRequired extends CavernoRuntimeEvent {
     required super.turnId,
     required this.request,
     super.conversationId,
+    super.interactionOrigin,
   });
 
   final CavernoRuntimeQuestionRequest request;
@@ -233,6 +252,7 @@ final class CavernoRuntimeWorkflowTransition extends CavernoRuntimeEvent {
     this.taskId,
     this.taskStatus,
     super.conversationId,
+    super.interactionOrigin,
   });
 
   final String stage;
@@ -259,6 +279,7 @@ final class CavernoRuntimeUsage extends CavernoRuntimeEvent {
     required this.completionTokens,
     required this.totalTokens,
     super.conversationId,
+    super.interactionOrigin,
   });
 
   final int promptTokens;
@@ -282,6 +303,7 @@ sealed class CavernoRuntimeTerminalEvent extends CavernoRuntimeEvent {
     required super.timestamp,
     required super.turnId,
     super.conversationId,
+    super.interactionOrigin,
   });
 }
 
@@ -292,6 +314,7 @@ final class CavernoRuntimeRunCompleted extends CavernoRuntimeTerminalEvent {
     required super.turnId,
     required this.content,
     super.conversationId,
+    super.interactionOrigin,
   });
 
   final String content;
@@ -312,6 +335,7 @@ final class CavernoRuntimeRunFailed extends CavernoRuntimeTerminalEvent {
     required this.message,
     required this.exitCode,
     super.conversationId,
+    super.interactionOrigin,
   });
 
   final String code;

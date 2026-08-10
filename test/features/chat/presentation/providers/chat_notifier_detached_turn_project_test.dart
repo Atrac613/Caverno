@@ -3331,7 +3331,10 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       final notifier = container.read(chatNotifierProvider.notifier);
-      final firstOwnerFuture = notifier.sendMessage(firstPrompt);
+      final firstOwnerFuture = notifier.sendMessage(
+        firstPrompt,
+        origin: ChatInteractionOrigin.remote,
+      );
       await _waitUntil(
         () => dataSource.plainRequests.any(
           (messages) =>
@@ -3339,7 +3342,10 @@ void main() {
         ),
       );
       expect(notifier.state.isLoading, isTrue);
-      final queuedOwnerFuture = notifier.sendMessage(queuedPrompt);
+      final queuedOwnerFuture = notifier.sendMessage(
+        queuedPrompt,
+        origin: ChatInteractionOrigin.remote,
+      );
       expect(notifier.state.queuedMessages.map((message) => message.content), [
         queuedPrompt,
       ]);
@@ -3427,6 +3433,10 @@ void main() {
           .whereType<CavernoRuntimeTerminalEvent>()
           .toList(growable: false);
       expect(terminalEvents.map((event) => event.turnId).toSet(), hasLength(2));
+      expect(
+        terminalEvents.map((event) => event.interactionOrigin),
+        everyElement(CavernoRuntimeInteractionOrigin.remoteCoding),
+      );
       for (final turnId in terminalEvents.map((event) => event.turnId)) {
         expect(
           terminalEvents.where((event) => event.turnId == turnId),
@@ -3950,7 +3960,10 @@ void main() {
           .read(conversationsNotifierProvider)
           .currentConversationId!;
       final returnedOwnerB = await notifier
-          .sendMessage('Cancel only visible owner B.')
+          .sendMessage(
+            'Cancel only visible owner B.',
+            origin: ChatInteractionOrigin.remote,
+          )
           .timeout(const Duration(seconds: 2));
       expect(returnedOwnerB, isNotNull);
       final ownerB = returnedOwnerB!;
@@ -3977,6 +3990,10 @@ void main() {
       );
       expect(terminalB, isA<CavernoRuntimeRunFailed>());
       expect((terminalB as CavernoRuntimeRunFailed).code, 'cancelled');
+      expect(
+        terminalB.interactionOrigin,
+        CavernoRuntimeInteractionOrigin.remoteCoding,
+      );
       expect(
         terminalsBeforeACompletes.where(
           (event) => event.conversationId == threadA,
@@ -4010,6 +4027,10 @@ void main() {
         (event) => event.conversationId == threadA,
       );
       expect(terminalA, isA<CavernoRuntimeRunCompleted>());
+      expect(
+        terminalA.interactionOrigin,
+        CavernoRuntimeInteractionOrigin.local,
+      );
       expect(terminals, hasLength(2));
       expect(notifier.state.busyConversationIds, isEmpty);
       expect(runtime.hasActiveTurns, isFalse);

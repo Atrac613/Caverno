@@ -12,6 +12,7 @@ import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_support_packet.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_client_notifier.dart';
+import 'remote_coding_mobile_notification_notifier.dart';
 import '../../../core/theme/app_tokens.dart';
 
 class RemoteCodingPage extends ConsumerStatefulWidget {
@@ -36,6 +37,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
   final _scrollController = ScrollController();
   final Set<String> _presentedApprovalIds = <String>{};
   final Set<String> _presentedQuestionIds = <String>{};
+  final Set<String> _handledNotificationTapEventIds = <String>{};
 
   @override
   void dispose() {
@@ -74,6 +76,37 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     });
   }
 
+  void _scheduleNotificationTap(RemoteCodingMobileNotificationState state) {
+    final notification = state.pendingNotificationTap;
+    if (notification == null ||
+        !_handledNotificationTapEventIds.add(notification.eventId)) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(_openNotificationTarget(notification.conversationId));
+      }
+    });
+  }
+
+  Future<void> _openNotificationTarget(String conversationId) async {
+    final clientNotifier = ref.read(remoteCodingClientProvider.notifier);
+    try {
+      if (!ref.read(remoteCodingClientProvider).isConnected) {
+        await clientNotifier.connectSavedHost();
+      }
+      if (ref.read(remoteCodingClientProvider).isConnected) {
+        await clientNotifier.selectConversation(conversationId);
+      }
+    } finally {
+      if (mounted) {
+        ref
+            .read(remoteCodingMobileNotificationProvider.notifier)
+            .clearPendingNotificationTap();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<RemoteCodingApproval?>(
@@ -104,6 +137,8 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     );
 
     final state = ref.watch(remoteCodingClientProvider);
+    final notificationState = ref.watch(remoteCodingMobileNotificationProvider);
+    _scheduleNotificationTap(notificationState);
     _schedulePendingPrompts(state);
     final notifier = ref.read(remoteCodingClientProvider.notifier);
 
@@ -123,8 +158,19 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
         children: [
           _RemoteCodingHeader(
             state: state,
+            notificationState: notificationState,
             onRefresh: notifier.requestSnapshot,
+            onEnableNotifications: _enableCompletionNotifications,
+            onDisableNotifications: () => ref
+                .read(remoteCodingMobileNotificationProvider.notifier)
+                .disable(),
           ),
+          if (!notificationState.isEnabled &&
+              notificationState.message?.isNotEmpty == true)
+            _MobileNotificationStatusBanner(
+              state: notificationState,
+              onRetry: _enableCompletionNotifications,
+            ),
           if (state.error?.isNotEmpty == true)
             _RemoteStatusBanner(
               message: state.error!,
@@ -180,6 +226,33 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
       return;
     }
     await ref.read(remoteCodingClientProvider.notifier).pairFromQr(raw);
+  }
+
+  Future<void> _scanNotificationRelayCode() async {
+    final raw = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => const QrScannerPage(
+          title: 'Enable Completion Notifications',
+          hint: 'Scan the notification QR shown by the connected desktop',
+        ),
+      ),
+    );
+    if (raw == null || raw.trim().isEmpty) {
+      return;
+    }
+    await ref
+        .read(remoteCodingClientProvider.notifier)
+        .authorizeNotificationRelayFromQr(raw);
+  }
+
+  Future<void> _enableCompletionNotifications() async {
+    final enabled = await ref
+        .read(remoteCodingMobileNotificationProvider.notifier)
+        .enable();
+    if (!enabled || !mounted) {
+      return;
+    }
+    await _scanNotificationRelayCode();
   }
 
   Future<void> _send(RemoteCodingClientNotifier notifier) async {
@@ -1198,10 +1271,19 @@ class _RemoteShowMoreThreadsTile extends StatelessWidget {
 }
 
 class _RemoteCodingHeader extends StatelessWidget {
-  const _RemoteCodingHeader({required this.state, required this.onRefresh});
+  const _RemoteCodingHeader({
+    required this.state,
+    required this.notificationState,
+    required this.onRefresh,
+    required this.onEnableNotifications,
+    required this.onDisableNotifications,
+  });
 
   final RemoteCodingClientState state;
+  final RemoteCodingMobileNotificationState notificationState;
   final VoidCallback onRefresh;
+  final VoidCallback onEnableNotifications;
+  final VoidCallback onDisableNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -1250,12 +1332,85 @@ class _RemoteCodingHeader extends StatelessWidget {
               ],
             ),
           ),
+          if (notificationState.isEnabled)
+            PopupMenuButton<String>(
+              tooltip: 'Completion notifications enabled',
+              icon: const Icon(Icons.notifications_active_outlined),
+              onSelected: (value) {
+                if (value == 'replace') {
+                  onEnableNotifications();
+                } else if (value == 'disable') {
+                  onDisableNotifications();
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'replace',
+                  child: Text('Authorize another desktop'),
+                ),
+                PopupMenuItem(
+                  value: 'disable',
+                  child: Text('Disable notifications'),
+                ),
+              ],
+            )
+          else
+            IconButton(
+              onPressed:
+                  notificationState.status ==
+                      RemoteCodingMobileNotificationStatus.enabling
+                  ? null
+                  : onEnableNotifications,
+              icon: Icon(
+                notificationState.status ==
+                        RemoteCodingMobileNotificationStatus.denied
+                    ? Icons.notifications_off_outlined
+                    : Icons.notifications_outlined,
+              ),
+              tooltip:
+                  notificationState.message ??
+                  'Enable completion notifications',
+            ),
           IconButton(
             onPressed: onRefresh,
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MobileNotificationStatusBanner extends StatelessWidget {
+  const _MobileNotificationStatusBanner({
+    required this.state,
+    required this.onRetry,
+  });
+
+  final RemoteCodingMobileNotificationState state;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Row(
+          children: [
+            const Icon(Icons.notifications_none, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                state.message ?? 'Completion notifications are unavailable.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            if (state.canRetry)
+              TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
       ),
     );
   }

@@ -40,6 +40,7 @@ void main() {
         const CavernoRuntimeTurnRequest(
           turnId: 'turn-1',
           conversationId: 'conversation-1',
+          interactionOrigin: CavernoRuntimeInteractionOrigin.remoteCoding,
         ),
       );
       handle.emitAssistantDelta('Hello');
@@ -93,6 +94,10 @@ void main() {
         events.map((event) => event.sequence),
         orderedEquals(List<int>.generate(events.length, (index) => index + 1)),
       );
+      expect(
+        events.map((event) => event.interactionOrigin),
+        everyElement(CavernoRuntimeInteractionOrigin.remoteCoding),
+      );
       expect(events.first, isA<CavernoRuntimeRunStarted>());
       expect(
         (events.first as CavernoRuntimeRunStarted).frontendDiagnostics,
@@ -110,6 +115,10 @@ void main() {
       expect(
         events.first.toJson(),
         containsPair('conversationId', 'conversation-1'),
+      );
+      expect(
+        events.first.toJson(),
+        containsPair('interactionOrigin', 'remote_coding'),
       );
       expect(fixture.approvals.requests, hasLength(1));
       expect(fixture.repository.terminals, <CavernoRuntimeTerminalEvent>[
@@ -219,7 +228,10 @@ void main() {
 
       await expectLater(
         fixture.runtime.startTurn(
-          const CavernoRuntimeTurnRequest(turnId: 'turn-conflict'),
+          const CavernoRuntimeTurnRequest(
+            turnId: 'turn-conflict',
+            interactionOrigin: CavernoRuntimeInteractionOrigin.remoteCoding,
+          ),
         ),
         throwsA(isA<CavernoRuntimeTurnStartException>()),
       );
@@ -228,6 +240,10 @@ void main() {
       final failure = events.single as CavernoRuntimeRunFailed;
       expect(failure.code, 'execution_lease_conflict');
       expect(failure.exitCode, 75);
+      expect(
+        failure.interactionOrigin,
+        CavernoRuntimeInteractionOrigin.remoteCoding,
+      );
       expect(fixture.repository.refreshes, isEmpty);
       expect(fixture.lifecycle.started, isEmpty);
       await fixture.runtime.close();

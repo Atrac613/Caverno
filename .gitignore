@@ -62,3 +62,14 @@ screenshots/
 
 # macOS canonical worktree sentinel for tool/safe-flutter
 .macos-canonical
+
+# Firebase app configuration (environment-owned, see
+# docs/remote_coding_fcm_release_gate.md)
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
+
+# Firebase CLI deploy cache
+/.firebase/
+
+# Notification relay dependencies (restored with `npm ci`)
+/services/notification_relay/node_modules/
