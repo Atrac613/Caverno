@@ -77,16 +77,18 @@ tool/codex_verify.sh --test test/tool/ll37_routine_history_export_test.dart --te
   strips hidden reasoning, and replaces network identifiers with stable
   `device-XXX` tokens while fully redacting MAC addresses. One real Routine
   pair was exported to a local temporary directory; no private evidence was
-  committed or sent to a model.
+  committed. After explicit approval, the anonymized pair was scored by
+  `qwen3.6-35b-a3b-vision` on the LAN endpoint.
 - Tests run: `fvm dart analyze` over the exporter and LL37 probe sources (no
   issues); `fvm flutter test test/tool/ll37_routine_history_export_test.dart
   test/tool/ll37_verifier_fidelity_probe_test.dart` (16 passed). A local
   fixture-response run loaded both real exported cases and matched the expected
-  labels, but does not count as model-fidelity evidence.
+  labels. The approved live run also matched both labels with confidence 1.0,
+  zero false refutes, 100% broken-case recall, and zero unverifiable or invalid
+  outputs.
 - Coverage or low-coverage notes: Stored Routine parsing and pair validation use
   deterministic fixtures. The real exported payload contains zero raw IPv4 or
   MAC matches after anonymization.
-- Risks or follow-ups: Live scoring of the anonymized real Routine payload needs
-  explicit approval because its objective and abstracted tool evidence still
-  derive from private run history. Even after that run, one Routine pair cannot
-  satisfy the two-surface or minimum-case gate.
+- Risks or follow-ups: One Routine pair cannot satisfy the two-surface or
+  minimum-case gate. Collect four more correct and four more known-broken cases,
+  including at least one second unattended surface, before panel wiring.
