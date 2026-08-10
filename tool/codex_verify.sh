@@ -15,6 +15,7 @@ COVERAGE_THRESHOLD=60
 TEST_TARGETS=()
 PACKAGE_DIRS=()
 PACKAGE_COVERAGE_DIR=""
+NOTIFICATION_RELAY_DIR="services/notification_relay"
 
 usage() {
   cat <<'EOF'
@@ -245,6 +246,13 @@ done < <(find packages -mindepth 2 -maxdepth 2 -name pubspec.yaml -print 2>/dev/
 run_step "Install dependencies" "${FLUTTER_CMD[@]}" pub get
 run_step "List workspace packages" "${DART_CMD[@]}" pub workspace list
 
+if [[ -f "$NOTIFICATION_RELAY_DIR/package-lock.json" ]]; then
+  run_in_directory_step \
+    "Install notification relay dependencies" \
+    "$NOTIFICATION_RELAY_DIR" \
+    npm ci --ignore-scripts
+fi
+
 if $RUN_CODEGEN; then
   run_step "Regenerate Freezed and JSON files" \
     "${DART_CMD[@]}" run build_runner build --delete-conflicting-outputs
@@ -269,6 +277,12 @@ if $RUN_ANALYZE; then
       "$package_dir" \
       "${PACKAGE_CMD[@]}" analyze
   done
+  if [[ -f "$NOTIFICATION_RELAY_DIR/package.json" ]]; then
+    run_in_directory_step \
+      "Check notification relay" \
+      "$NOTIFICATION_RELAY_DIR" \
+      npm run check
+  fi
 fi
 
 if $RUN_TESTS; then
@@ -314,6 +328,13 @@ if $RUN_TESTS; then
     run_step "Run tests with coverage" "${FLUTTER_CMD[@]}" test --coverage
   else
     run_step "Run tests" "${FLUTTER_CMD[@]}" test
+  fi
+
+  if [[ -f "$NOTIFICATION_RELAY_DIR/package.json" ]]; then
+    run_in_directory_step \
+      "Test notification relay" \
+      "$NOTIFICATION_RELAY_DIR" \
+      npm test
   fi
 
   if $RUN_COVERAGE; then

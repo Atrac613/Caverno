@@ -1,0 +1,22 @@
+{
+  "name": "caverno-notification-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "test": "node --test test/relay_service_test.js test/http_handler_test.js test/firebase_adapters_test.js",
+    "test:firestore": "node --test test/firestore_store_test.js",
+    "check": "node scripts/check_sources.js"
+  },
+  "dependencies": {
+    "firebase-admin": "14.2.0",
+    "firebase-functions": "7.3.2"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
+  }
+}

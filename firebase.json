@@ -1,0 +1,43 @@
+{
+  "functions": {
+    "source": "services/notification_relay",
+    "codebase": "notification-relay",
+    "runtime": "nodejs22",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log"
+    ]
+  },
+  "firestore": {
+    "rules": "services/notification_relay/firestore.rules",
+    "indexes": "services/notification_relay/firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "services/notification_relay/public",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "/v2/**",
+        "function": {
+          "functionId": "notificationRelay",
+          "region": "asia-northeast1"
+        }
+      },
+      {
+        "source": "/health",
+        "function": {
+          "functionId": "notificationRelay",
+          "region": "asia-northeast1"
+        }
+      }
+    ]
+  },
+  "emulators": {
+    "functions": { "port": 5001 },
+    "firestore": { "port": 8080 },
+    "hosting": { "port": 5500 },
+    "ui": { "enabled": true }
+  }
+}
