@@ -1,10 +1,11 @@
 # Remote Coding FCM Notification Tasks
 
 Status: All repository-owned FCM1-FCM7 work completed on 2026-08-10. Firebase
-app configuration and relay deployment were completed on the environment
-owner's project on 2026-08-10. App Check attestation providers, the APNs
+app configuration, relay deployment, and Apple App Attest registration were
+completed on the environment owner's project on 2026-08-10. The APNs
 authentication key, Firestore replay TTL, the release relay origin, release
-signing inspection, and physical device evidence remain pending.
+signing inspection, and physical device evidence remain pending. Android is
+deferred, so evidence is being collected on iOS first.
 
 ## Goal
 
@@ -140,11 +141,23 @@ Implementation slices:
   indexes, and the Hosting rewrite deployed. `/health` answers
   `{"ok":true,"schemaVersion":2}` through the Hosting origin, and
   `POST /v2/registrations` without an App Check token fails closed with 401.
-  Still pending: App Check attestation providers (App Attest, DeviceCheck key,
-  Play Integrity linkage), the APNs authentication key, the
-  `roles/firebaseappcheck.tokenVerifier` grant for the Functions runtime
-  identity, Firestore replay TTL on `replays.expiresAt`, and a test-device
-  canary. Provider credentials remain environment-owned.
+  Apple App Attest was registered on 2026-08-10. Still pending: the APNs
+  authentication key, Firestore replay TTL on `replays.expiresAt`, and a
+  test-device canary. Android is deferred, so the Play Integrity linkage and
+  every Android delivery scenario stay open. Provider credentials remain
+  environment-owned.
+
+  The Functions runtime identity needs no extra App Check grant. The relay
+  consumes limited-use tokens through `verifyToken(token, {consume: true})`,
+  which requires `firebaseappcheck.appCheckTokens.verify`, and the default
+  compute service account already holds it through `roles/editor`. Granting
+  `roles/firebaseappcheck.tokenVerifier` separately is redundant.
+
+  The App Check REST API cannot confirm provider registration. Every
+  `appAttestConfig`, `deviceCheckConfig`, and `playIntegrityConfig` record
+  exists from project creation and returns only its token TTL, so registration
+  status is an environment-owner report and must be proven by a device that
+  successfully registers with the relay.
 
   Hosting rewrites to a function are only released after the target function
   exists. A first-time deployment that creates the functions and the Hosting
