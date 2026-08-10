@@ -1,0 +1,62 @@
+[
+  {
+    "id": "routine-fixture",
+    "name": "Fixture state updater",
+    "prompt": "Read the prior state for 192.168.100.1, scan the current state, save the result, and notify only when an item is new.",
+    "workspaceDirectory": "/tmp/fixture",
+    "runs": [
+      {
+        "id": "run-a",
+        "startedAt": "2026-08-10T00:00:00.000Z",
+        "finishedAt": "2026-08-10T00:00:02.000Z",
+        "status": "completed",
+        "trigger": "scheduled",
+        "toolCalls": [
+          {
+            "name": "scan_state",
+            "arguments": "{}",
+            "result": "{\"items\":[\"192.168.100.1\",\"192.168.100.2\"],\"mac\":\"aa:bb:cc:dd:ee:ff\"}"
+          },
+          {
+            "name": "read_file",
+            "arguments": "{\"path\":\"state.json\"}",
+            "result": "{\"content\":\"[\\\"192.168.100.1\\\"]\"}"
+          },
+          {
+            "name": "write_file",
+            "arguments": "{\"path\":\"state.json\",\"content\":\"[\\\"192.168.100.1\\\",\\\"192.168.100.2\\\"]\"}",
+            "result": "{\"bytes_written\":13}"
+          },
+          {
+            "name": "notify",
+            "arguments": "{\"text\":\"192.168.100.2\"}",
+            "result": "{\"delivered\":true}"
+          }
+        ],
+        "output": "<think>Hidden reasoning.</think>State saved and notification sent.",
+        "error": ""
+      },
+      {
+        "id": "run-b",
+        "startedAt": "2026-08-10T01:00:00.000Z",
+        "finishedAt": "2026-08-10T01:00:02.000Z",
+        "status": "completed",
+        "trigger": "scheduled",
+        "toolCalls": [
+          {
+            "name": "scan_state",
+            "arguments": "{}",
+            "result": "{\"items\":[\"192.168.100.1\",\"192.168.100.3\"]}"
+          },
+          {
+            "name": "read_file",
+            "arguments": "{\"path\":\"state.json\"}",
+            "result": "{\"content\":\"[\\\"192.168.100.1\\\"]\"}"
+          }
+        ],
+        "output": "State inspected.",
+        "error": ""
+      }
+    ]
+  }
+]

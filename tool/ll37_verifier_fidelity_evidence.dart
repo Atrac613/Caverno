@@ -106,6 +106,10 @@ final class Ll37VerifierFidelityCase {
       manifestFile,
       expectedCaseId: caseId,
     );
+    final expectedVerdict = Ll37ExpectedVerdict.parse(
+      _requiredString(json, 'expectedVerdict', caseFile.path),
+      caseFile.path,
+    );
 
     final criteria = _stringList(json['acceptanceCriteria']);
     if (criteria.isEmpty) {
@@ -114,8 +118,11 @@ final class Ll37VerifierFidelityCase {
       );
     }
     final changedFiles = _objectList(json['changedFiles']);
-    if (changedFiles.isEmpty) {
-      throw FormatException('LL37 case $caseId must include changed files.');
+    if (changedFiles.isEmpty &&
+        expectedVerdict == Ll37ExpectedVerdict.notRefuted) {
+      throw FormatException(
+        'Correct LL37 case $caseId must include changed files.',
+      );
     }
     final verificationEvidence = _objectList(json['verificationEvidence']);
     if (verificationEvidence.isEmpty) {
@@ -132,10 +139,7 @@ final class Ll37VerifierFidelityCase {
         _requiredString(json, 'sourceSurface', caseFile.path),
         caseFile.path,
       ),
-      expectedVerdict: Ll37ExpectedVerdict.parse(
-        _requiredString(json, 'expectedVerdict', caseFile.path),
-        caseFile.path,
-      ),
+      expectedVerdict: expectedVerdict,
       objective: manifest.objective,
       acceptanceCriteria: List.unmodifiable(criteria),
       changedFiles: List.unmodifiable(changedFiles),

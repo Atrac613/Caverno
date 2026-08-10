@@ -1,0 +1,24 @@
+{
+  "schemaName": "caverno_ll37_routine_history_selection",
+  "schemaVersion": 1,
+  "routineId": "routine-fixture",
+  "pairId": "routine-fixture-pair",
+  "correctRunId": "run-a",
+  "brokenRunId": "run-b",
+  "acceptanceCriteria": [
+    "Read the prior state.",
+    "Scan the current state.",
+    "Save the current state.",
+    "Notify only when an item is new."
+  ],
+  "requiredTools": [
+    "scan_state",
+    "read_file",
+    "write_file",
+    "notify"
+  ],
+  "consent": {
+    "explicitUserConsent": true,
+    "scope": "personal_eval_case_recording"
+  }
+}

@@ -3712,11 +3712,21 @@ Measurement start (2026-08-10):
   invalid responses. Synthetic cases are excluded from the eligible
   denominator, so the result is correctly
   `no_go_insufficient_eligible_sample` with 0 eligible cases.
+- `tool/ll37_routine_history_export.dart` now converts one explicitly consented
+  scheduled Routine correct/broken pair into neutral LL19/LL37 evidence. The
+  exporter validates objective-tool coverage, strips hidden reasoning, and
+  anonymizes IP-like identifiers and MAC addresses across the verifier payload.
+  A real pair was exported locally and its two cases passed the fixture-response
+  bridge, but fixture responses do not measure model fidelity; the live eligible
+  denominator therefore remains 0. Sending even the anonymized objective and
+  tool evidence to the LAN verifier requires explicit approval.
 - The production Go gate requires at least five correct and five known-broken
   cases across at least two of Routine, retry-until-green, and LL13 worktree
   agent surfaces; invalid and unverifiable counts must both be zero, the
   correct-case false-refute rate must be at most 10%, and broken-case recall
-  must be at least 80%. The next action is evidence capture, not panel wiring.
+  must be at least 80%. After approval, the next action is to score the prepared
+  Routine pair live; evidence capture on a second unattended surface remains
+  mandatory before panel wiring.
 
 Source: Grok Build `session/goal_classifier.rs`,
 `session/templates/goal_verifier_prompt.md`, `goal_strategist_prompt.md`. The
