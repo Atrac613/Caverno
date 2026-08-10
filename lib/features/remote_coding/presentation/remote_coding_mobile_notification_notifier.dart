@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/services/notification_providers.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/utils/logger.dart';
 import '../data/remote_coding_mobile_notification_gateway.dart';
 import '../data/remote_coding_notification_receipt_store.dart';
 import '../data/remote_coding_notification_relay_mobile_registration.dart';
@@ -156,7 +157,10 @@ final class RemoteCodingMobileNotificationNotifier
       state = const RemoteCodingMobileNotificationState(
         status: RemoteCodingMobileNotificationStatus.enabled,
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      appLog(
+        '[RemoteCodingNotifications] initialize failed: $error\n$stackTrace',
+      );
       state = const RemoteCodingMobileNotificationState(
         status: RemoteCodingMobileNotificationStatus.unavailable,
         message: 'Firebase notifications are unavailable in this build.',
@@ -199,7 +203,8 @@ final class RemoteCodingMobileNotificationNotifier
         status: RemoteCodingMobileNotificationStatus.enabled,
       );
       return true;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      appLog('[RemoteCodingNotifications] enable failed: $error\n$stackTrace');
       state = const RemoteCodingMobileNotificationState(
         status: RemoteCodingMobileNotificationStatus.error,
         message: 'Completion notifications could not be enabled.',
@@ -228,8 +233,11 @@ final class RemoteCodingMobileNotificationNotifier
       await _repository.saveMobileRelayNotificationsEnabled(false);
       try {
         await _gateway.disableFcmToken();
-      } catch (_) {
+      } catch (error) {
         // Relay revocation remains authoritative if local token cleanup fails.
+        appLog(
+          '[RemoteCodingNotifications] local FCM token cleanup failed: $error',
+        );
       }
       await _tokenRefreshSubscription?.cancel();
       _tokenRefreshSubscription = null;
@@ -242,7 +250,8 @@ final class RemoteCodingMobileNotificationNotifier
         message: 'Completion notifications are disabled.',
       );
       return true;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      appLog('[RemoteCodingNotifications] disable failed: $error\n$stackTrace');
       state = const RemoteCodingMobileNotificationState(
         status: RemoteCodingMobileNotificationStatus.error,
         message: 'Notification relay cleanup will need to be retried.',
@@ -316,8 +325,11 @@ final class RemoteCodingMobileNotificationNotifier
       if (payload != null) {
         _recordLocalNotificationTap(payload);
       }
-    } catch (_) {
+    } catch (error) {
       // Local notification launch details are optional recovery context.
+      appLog(
+        '[RemoteCodingNotifications] initial local tap lookup failed: $error',
+      );
     }
   }
 
@@ -359,8 +371,12 @@ final class RemoteCodingMobileNotificationNotifier
       if (ref.mounted) {
         state = state.copyWith(lastForegroundNotification: notification);
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
       // Notification delivery is best effort and must not affect the session.
+      appLog(
+        '[RemoteCodingNotifications] presenting a terminal notification '
+        'failed: $error\n$stackTrace',
+      );
     }
   }
 
@@ -415,7 +431,11 @@ final class RemoteCodingMobileNotificationNotifier
           status: RemoteCodingMobileNotificationStatus.enabled,
         );
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
+      appLog(
+        '[RemoteCodingNotifications] FCM token rotation failed: '
+        '$error\n$stackTrace',
+      );
       if (ref.mounted) {
         state = const RemoteCodingMobileNotificationState(
           status: RemoteCodingMobileNotificationStatus.error,

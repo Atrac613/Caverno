@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../../core/utils/logger.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_notification_payload.dart';
 import 'remote_coding_notification_relay_client.dart';
@@ -89,7 +90,10 @@ final class RemoteCodingTerminalNotificationDeliveryService {
       deliverySecret = await repository.loadDesktopRelayDeliverySecret(
         device.id,
       );
-    } catch (_) {
+    } catch (error) {
+      appLog(
+        '[RemoteCodingRelay] reading a delivery credential failed: $error',
+      );
       return false;
     }
     if (deliveryHandle == null ||
@@ -115,7 +119,8 @@ final class RemoteCodingTerminalNotificationDeliveryService {
           return false;
         }
         await retryDelay(_retryDelays[attempt]);
-      } catch (_) {
+      } catch (error) {
+        appLog('[RemoteCodingRelay] delivery attempt failed: $error');
         return false;
       }
     }

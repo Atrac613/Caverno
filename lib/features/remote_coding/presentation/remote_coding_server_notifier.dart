@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/types/workspace_mode.dart';
+import '../../../core/utils/logger.dart';
 import '../../chat/domain/entities/coding_project.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/message.dart';
@@ -527,7 +528,11 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         clearError: true,
       );
       client.sendSnapshot(id: message.id, payload: _buildSnapshot());
-    } catch (_) {
+    } catch (error, stackTrace) {
+      appLog(
+        '[RemoteCodingRelay] delivery credential setup failed: '
+        '$error\n$stackTrace',
+      );
       state = state.copyWith(
         settings: _repository.loadServerSettings(),
         error: 'Notification relay credential setup failed.',
@@ -1052,8 +1057,9 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       if (ref.mounted) {
         state = state.copyWith(lastNotificationDelivery: report);
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
       // Relay delivery is best-effort and must never fail the coding turn.
+      appLog('[RemoteCodingRelay] delivery failed: $error\n$stackTrace');
     }
   }
 
@@ -1127,7 +1133,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
             clearError: true,
           );
         }
-      } catch (_) {
+      } catch (error, stackTrace) {
+        appLog(
+          '[RemoteCodingRelay] pending activation failed: $error\n$stackTrace',
+        );
         if (ref.mounted) {
           state = state.copyWith(
             settings: _repository.loadServerSettings(),
@@ -1155,7 +1164,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       );
       await coordinator.retryPendingRevocation(deviceId);
       await _removePairedDevice(deviceId);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      appLog(
+        '[RemoteCodingRelay] pending revocation failed: $error\n$stackTrace',
+      );
       if (ref.mounted) {
         state = state.copyWith(
           settings: _repository.loadServerSettings(),
