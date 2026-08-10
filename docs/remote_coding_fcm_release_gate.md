@@ -39,6 +39,22 @@ Apple Firebase SDK reads `GoogleService-Info.plist` from the bundle, and a
 missing required resource would break every build made without Firebase
 configuration.
 
+## Desktop keychain capability
+
+The desktop stores its relay delivery credential through
+`flutter_secure_storage`, so both macOS entitlements files declare
+`keychain-access-groups`. The entitlement alone is only a request: the
+provisioning profile must carry the matching Keychain Sharing capability, or
+signing fails with `Provisioning profile ... doesn't include signing
+certificate`. Add the capability once in Xcode under Runner ->
+Signing & Capabilities -> Keychain Sharing; automatic signing then updates the
+App ID and regenerates the profile.
+
+Without the entitlement the build still succeeds and the keychain rejects every
+write at runtime with `errSecMissingEntitlement` (-34018), which also breaks the
+SSH credentials manager. Treat a macOS signing failure here as the capability
+being absent from the profile, not as a reason to drop the entitlement.
+
 ## Bootstrap the Firebase mobile apps
 
 Create or select a dedicated Firebase project first. Project creation is kept
