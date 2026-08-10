@@ -1,11 +1,19 @@
 # Remote Coding FCM Notification Tasks
 
 Status: All repository-owned FCM1-FCM7 work completed on 2026-08-10. Firebase
-app configuration, relay deployment, and Apple App Attest registration were
-completed on the environment owner's project on 2026-08-10. The APNs
-authentication key, Firestore replay TTL, the release relay origin, release
-signing inspection, and physical device evidence remain pending. Android is
-deferred, so evidence is being collected on iOS first.
+app configuration, relay deployment, Apple App Attest registration, the APNs
+authentication key, and the App Check token-verifier grant were completed on
+the environment owner's project on 2026-08-10. Firestore replay TTL, the
+release relay origin, release signing inspection, and physical device evidence
+remain pending. Android is deferred, so evidence is being collected on iOS
+first.
+
+App Attest cannot attest a development-signed build: Apple issues the
+attestation in its development environment and `exchangeAppAttestAttestation`
+answers 403 `App attestation failed`. Development device runs therefore need
+`--dart-define=CAVERNO_FIREBASE_APP_CHECK_DEBUG=true` and a debug token
+registered for the Apple app. Production App Attest can only be proven with a
+distribution-signed build.
 
 ## Goal
 
@@ -147,11 +155,14 @@ Implementation slices:
   every Android delivery scenario stay open. Provider credentials remain
   environment-owned.
 
-  The Functions runtime identity needs no extra App Check grant. The relay
-  consumes limited-use tokens through `verifyToken(token, {consume: true})`,
-  which requires `firebaseappcheck.appCheckTokens.verify`, and the default
-  compute service account already holds it through `roles/editor`. Granting
-  `roles/firebaseappcheck.tokenVerifier` separately is redundant.
+  The Functions runtime identity must hold `roles/firebaseappcheck.tokenVerifier`
+  explicitly. The relay consumes limited-use tokens through
+  `verifyToken(token, {consume: true})`, which requires
+  `firebaseappcheck.appCheckTokens.verify`. `gcloud iam roles describe
+  roles/editor` lists that permission, but the basic role does not confer it in
+  practice: every registration failed with `app-check/permission-denied` until
+  the dedicated role was granted to the runtime service account. Read the role
+  definition as documentation, not as proof of an effective grant.
 
   The App Check REST API cannot confirm provider registration. Every
   `appAttestConfig`, `deviceCheckConfig`, and `playIntegrityConfig` record

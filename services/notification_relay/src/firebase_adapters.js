@@ -2,10 +2,29 @@ import { getAppCheck } from "firebase-admin/app-check";
 import { getMessaging } from "firebase-admin/messaging";
 
 export class FirebaseAppCheckVerifier {
+  constructor({ logger = console } = {}) {
+    this.logger = logger;
+  }
+
   async verify(token) {
-    const result = await getAppCheck().verifyToken(token, { consume: true });
-    if (result.alreadyConsumed === true) {
-      throw new Error("App Check token was already consumed.");
+    try {
+      const result = await getAppCheck().verifyToken(token, { consume: true });
+      if (result.alreadyConsumed === true) {
+        throw new Error("App Check token was already consumed.");
+      }
+    } catch (error) {
+      // The caller collapses every failure into 401, which hides whether a
+      // registration was rejected for an unregistered app, a consumed token,
+      // or a misconfigured project. Record the provider reason without the
+      // token itself.
+      this.logger.warn?.("app_check_verification_failed", {
+        code: typeof error?.code === "string" ? error.code : null,
+        reason:
+          typeof error?.message === "string"
+            ? error.message.slice(0, 300)
+            : null,
+      });
+      throw error;
     }
   }
 }
