@@ -59,6 +59,26 @@ void main() {
       expect(state().tasks.single.id, task.id);
     });
 
+    test('loads legacy task JSON without changed-file evidence', () {
+      final task = WorktreeAgentTask(
+        id: 'legacy-task',
+        title: 'Legacy task',
+        prompt: 'Inspect the task.',
+        branchName: 'feature/legacy-task',
+        worktreePath: '/tmp/caverno-worktrees/legacy-task',
+        createdAt: DateTime.utc(2026, 8, 10),
+        updatedAt: DateTime.utc(2026, 8, 10),
+      );
+      final json = task.toJson()
+        ..remove('changedFiles')
+        ..remove('changedFileEvidenceTruncated');
+
+      final restored = WorktreeAgentTask.fromJson(json);
+
+      expect(restored.changedFiles, isEmpty);
+      expect(restored.changedFileEvidenceTruncated, isFalse);
+    });
+
     test('registerAssignment stores a planner-produced assignment', () async {
       const plan = WorktreeAgentAssignmentPlan(
         title: 'Fix test',
@@ -117,6 +137,15 @@ void main() {
         resultSummary: 'Implemented the worktree task.',
         verifiedGreen: true,
         verificationSummary: 'flutter test passed',
+        changedFiles: const [
+          WorktreeAgentChangedFileEvidence(
+            path: 'lib/example.dart',
+            content: 'updated',
+            contentHash: 'hash-1',
+            byteSize: 7,
+          ),
+        ],
+        changedFileEvidenceTruncated: true,
       );
 
       final completed = state().byId(task.id)!;
@@ -124,7 +153,15 @@ void main() {
       expect(completed.resultSummary, 'Implemented the worktree task.');
       expect(completed.verifiedGreen, isTrue);
       expect(completed.verificationSummary, 'flutter test passed');
+      expect(completed.changedFiles.single.path, 'lib/example.dart');
+      expect(completed.changedFileEvidenceTruncated, isTrue);
       expect(completed.error, isEmpty);
+
+      container.dispose();
+      container = registryContainer();
+      final reloaded = state().byId(task.id)!;
+      expect(reloaded.changedFiles.single.contentHash, 'hash-1');
+      expect(reloaded.changedFileEvidenceTruncated, isTrue);
     });
 
     test(

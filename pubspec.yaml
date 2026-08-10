@@ -65,6 +65,9 @@ dependencies:
   # Utilities
   uuid: ^4.6.0
   crypto: ^3.0.7
+  # Runtime evidence paths and lexical-guard tests both require canonical
+  # relative path handling; avoid a second hand-rolled normalizer.
+  path: ^1.9.0
 
   # Local storage
   shared_preferences: ^2.5.5
@@ -152,10 +155,6 @@ dev_dependencies:
   analyzer: ^10.2.0
   coverage: ^1.15.1
   mocktail: ^1.0.5
-  # Used by test/quality/lexical_guard_advisory_test.dart to resolve relative
-  # imports; hand-rolled path normalization is exactly where that test first
-  # produced a false pass.
-  path: ^1.9.0
   pubspec_parse: ^1.5.0
   # Read-only persisted-data audit tools use the resolved SQLite API directly.
   sqlite3: ^3.5.0

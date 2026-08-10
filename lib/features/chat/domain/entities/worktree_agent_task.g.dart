@@ -6,6 +6,28 @@ part of 'worktree_agent_task.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_WorktreeAgentChangedFileEvidence _$WorktreeAgentChangedFileEvidenceFromJson(
+  Map<String, dynamic> json,
+) => _WorktreeAgentChangedFileEvidence(
+  path: json['path'] as String,
+  content: json['content'] as String? ?? '',
+  contentHash: json['contentHash'] as String?,
+  byteSize: (json['byteSize'] as num?)?.toInt() ?? 0,
+  deleted: json['deleted'] as bool? ?? false,
+  truncated: json['truncated'] as bool? ?? false,
+);
+
+Map<String, dynamic> _$WorktreeAgentChangedFileEvidenceToJson(
+  _WorktreeAgentChangedFileEvidence instance,
+) => <String, dynamic>{
+  'path': instance.path,
+  'content': instance.content,
+  'contentHash': instance.contentHash,
+  'byteSize': instance.byteSize,
+  'deleted': instance.deleted,
+  'truncated': instance.truncated,
+};
+
 _WorktreeAgentTask _$WorktreeAgentTaskFromJson(Map<String, dynamic> json) =>
     _WorktreeAgentTask(
       id: json['id'] as String,
@@ -36,6 +58,17 @@ _WorktreeAgentTask _$WorktreeAgentTaskFromJson(Map<String, dynamic> json) =>
       resultSummary: json['resultSummary'] as String? ?? '',
       verifiedGreen: json['verifiedGreen'] as bool? ?? false,
       verificationSummary: json['verificationSummary'] as String? ?? '',
+      changedFiles:
+          (json['changedFiles'] as List<dynamic>?)
+              ?.map(
+                (e) => WorktreeAgentChangedFileEvidence.fromJson(
+                  e as Map<String, dynamic>,
+                ),
+              )
+              .toList() ??
+          const <WorktreeAgentChangedFileEvidence>[],
+      changedFileEvidenceTruncated:
+          json['changedFileEvidenceTruncated'] as bool? ?? false,
       recoveryNote: json['recoveryNote'] as String? ?? '',
       error: json['error'] as String? ?? '',
     );
@@ -60,6 +93,8 @@ Map<String, dynamic> _$WorktreeAgentTaskToJson(_WorktreeAgentTask instance) =>
       'resultSummary': instance.resultSummary,
       'verifiedGreen': instance.verifiedGreen,
       'verificationSummary': instance.verificationSummary,
+      'changedFiles': instance.changedFiles,
+      'changedFileEvidenceTruncated': instance.changedFileEvidenceTruncated,
       'recoveryNote': instance.recoveryNote,
       'error': instance.error,
     };

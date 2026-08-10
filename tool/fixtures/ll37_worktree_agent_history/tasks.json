@@ -1,0 +1,66 @@
+[
+  {
+    "id": "worktree-correct",
+    "status": "completed",
+    "title": "Update greeting",
+    "prompt": "Change greeting() to return the exact text hello world.",
+    "branchName": "feature/ll37-greeting-correct",
+    "worktreePath": "/Users/example/private/worktrees/correct",
+    "verificationCommand": "dart tool/verify.dart",
+    "createdAt": "2026-08-10T01:00:00.000Z",
+    "updatedAt": "2026-08-10T01:00:03.000Z",
+    "startedAt": "2026-08-10T01:00:01.000Z",
+    "finishedAt": "2026-08-10T01:00:03.000Z",
+    "resultSummary": "Updated lib/greeting.dart in /Users/example/private/worktrees/correct.",
+    "verifiedGreen": true,
+    "verificationSummary": "Verification passed: dart tool/verify.dart (exit code 0).",
+    "changedFiles": [
+      {
+        "path": "lib/greeting.dart",
+        "content": "String greeting() => 'hello world';\n",
+        "contentHash": "86120a18630669e7f0b9b70569d23d05531f091cffc523b0a0ef80ce25c9efea",
+        "byteSize": 36,
+        "deleted": false,
+        "truncated": false
+      },
+      {
+        "path": "config/runtime.env",
+        "content": "API_TOKEN=super-secret-value\nserver=192.168.100.241\n",
+        "contentHash": "2e4fc5792265deea9da639460ac67e9919ca8b6832009706f94d83813ef99473",
+        "byteSize": 52,
+        "deleted": false,
+        "truncated": false
+      }
+    ],
+    "changedFileEvidenceTruncated": false,
+    "error": ""
+  },
+  {
+    "id": "worktree-broken",
+    "status": "completed",
+    "title": "Update greeting",
+    "prompt": "Change greeting() to return the exact text hello world.",
+    "branchName": "feature/ll37-greeting-broken",
+    "worktreePath": "/Users/example/private/worktrees/broken",
+    "verificationCommand": "dart tool/verify.dart",
+    "createdAt": "2026-08-10T02:00:00.000Z",
+    "updatedAt": "2026-08-10T02:00:03.000Z",
+    "startedAt": "2026-08-10T02:00:01.000Z",
+    "finishedAt": "2026-08-10T02:00:03.000Z",
+    "resultSummary": "Updated lib/greeting.dart.",
+    "verifiedGreen": false,
+    "verificationSummary": "Verification failed: dart tool/verify.dart (exit code 1). server=192.168.100.241",
+    "changedFiles": [
+      {
+        "path": "lib/greeting.dart",
+        "content": "String greeting() => 'hello';\n",
+        "contentHash": "18146da61f8b6cc5120c17585c64dc91a420a1958645370d1b1bc54a3521da5e",
+        "byteSize": 30,
+        "deleted": false,
+        "truncated": false
+      }
+    ],
+    "changedFileEvidenceTruncated": false,
+    "error": ""
+  }
+]

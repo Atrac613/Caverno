@@ -1,0 +1,18 @@
+{
+  "schemaName": "caverno_ll37_worktree_agent_history_selection",
+  "schemaVersion": 1,
+  "pairId": "worktree-greeting-pair",
+  "correctTaskId": "worktree-correct",
+  "brokenTaskId": "worktree-broken",
+  "evidenceClass": "controlled_live_canary",
+  "correctCaptureProvenance": "normal worktree-agent file tools",
+  "brokenCaptureProvenance": "write tools disabled control",
+  "acceptanceCriteria": [
+    "greeting() returns the exact text hello world.",
+    "The verification command exits successfully for the correct implementation."
+  ],
+  "consent": {
+    "explicitUserConsent": true,
+    "scope": "personal_eval_case_recording"
+  }
+}

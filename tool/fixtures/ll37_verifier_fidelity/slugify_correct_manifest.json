@@ -1,0 +1,36 @@
+{
+  "schemaName": "caverno_personal_eval_case_manifest",
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-10T00:00:00.000Z",
+  "caseId": "slugify-correct",
+  "title": "Correct slugify implementation",
+  "readiness": "ready",
+  "split": "heldIn",
+  "task": {
+    "prompt": "Implement slugifyLabel so it trims leading and trailing whitespace, lowercases ASCII letters, collapses every run of non-alphanumeric characters to one hyphen, removes leading and trailing hyphens, and returns untitled when no alphanumeric characters remain.",
+    "repoStateRef": "synthetic-slugify-correct",
+    "verificationCommand": "dart test test/slugify_label_test.dart",
+    "verificationResult": "passed",
+    "workspaceMode": "coding"
+  },
+  "source": {
+    "sessionLogPath": "synthetic",
+    "sessionLogSummary": {
+      "result": "passed",
+      "turnCount": 1,
+      "toolCallCount": 2,
+      "totalDurationMs": 1000,
+      "warningCodes": []
+    }
+  },
+  "consent": {
+    "explicitUserConsent": true,
+    "recordedAt": "2026-08-10T00:00:00.000Z",
+    "scope": "personal_eval_case_recording"
+  },
+  "privacy": {
+    "localOnly": true,
+    "anonymization": "synthetic",
+    "exportPolicy": "excluded_by_default"
+  }
+}

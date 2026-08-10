@@ -161,6 +161,8 @@ class WorktreeAgentTaskRegistryNotifier
     String resultSummary = '',
     bool verifiedGreen = false,
     String verificationSummary = '',
+    List<WorktreeAgentChangedFileEvidence> changedFiles = const [],
+    bool changedFileEvidenceTruncated = false,
   }) {
     return _updateTask(
       id,
@@ -169,6 +171,8 @@ class WorktreeAgentTaskRegistryNotifier
         resultSummary: resultSummary.trim(),
         verifiedGreen: verifiedGreen,
         verificationSummary: verificationSummary.trim(),
+        changedFiles: List.unmodifiable(changedFiles),
+        changedFileEvidenceTruncated: changedFileEvidenceTruncated,
         error: '',
         finishedAt: now,
         updatedAt: now,

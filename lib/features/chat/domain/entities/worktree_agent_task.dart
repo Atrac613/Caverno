@@ -13,6 +13,23 @@ enum WorktreeAgentTaskStatus {
 }
 
 @freezed
+abstract class WorktreeAgentChangedFileEvidence
+    with _$WorktreeAgentChangedFileEvidence {
+  const factory WorktreeAgentChangedFileEvidence({
+    required String path,
+    @Default('') String content,
+    String? contentHash,
+    @Default(0) int byteSize,
+    @Default(false) bool deleted,
+    @Default(false) bool truncated,
+  }) = _WorktreeAgentChangedFileEvidence;
+
+  factory WorktreeAgentChangedFileEvidence.fromJson(
+    Map<String, dynamic> json,
+  ) => _$WorktreeAgentChangedFileEvidenceFromJson(json);
+}
+
+@freezed
 abstract class WorktreeAgentTask with _$WorktreeAgentTask {
   const WorktreeAgentTask._();
 
@@ -37,6 +54,9 @@ abstract class WorktreeAgentTask with _$WorktreeAgentTask {
     @Default('') String resultSummary,
     @Default(false) bool verifiedGreen,
     @Default('') String verificationSummary,
+    @Default(<WorktreeAgentChangedFileEvidence>[])
+    List<WorktreeAgentChangedFileEvidence> changedFiles,
+    @Default(false) bool changedFileEvidenceTruncated,
     @Default('') String recoveryNote,
     @Default('') String error,
   }) = _WorktreeAgentTask;
