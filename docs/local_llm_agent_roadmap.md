@@ -175,6 +175,7 @@ structurally unmotivated to build:
 | Local LLM | LL36 | done | S-M | LL33, LL34, LL35 | **Instrument for LL37, as LL31 was for LL29/LL30** — Heuristic demotion and firing audit: every remaining lexical guard gets a stable pattern label, emits a LL33-style transform record on each firing, and is barred from setting terminal state; grounded verdicts measured the lexical paths before deletion. The goal-completion inference was removed, prose task progress is structurally advisory, and remaining compatibility fallbacks have explicit Go/No-Go evidence. |
 | Local LLM | LL37 | current | L | LL34, LL35, LL36 evidence, LL3, LL18, LL19 | Objective verification for **unattended runs only**: the N-way panel runs at idle via LL18 against goals completed by routines / overnight retry-until-green / LL13 agents, with the convergence controls that make it terminate — anti-ratchet, stall exit on repeated identical gaps, a run cap, and `none`/`contradiction`/`unverifiable` blocking classification. There is deliberately **no inline stage**: while a user is present, LL35's confirmation rung is both cheaper and more accurate than a local verifier, so nothing is added to the interactive turn. Only the LL19-measured fidelity gate is active: the production panel remains blocked until at least five correct and five known-broken cases from at least two unattended surfaces meet the false-refute and broken-recall thresholds. |
 | Local LLM | LL38 | done | S-M | LL31, LL33 | Mid-turn interruption (steering): an opt-in `interrupt: true` send joins the running turn instead of queueing behind it. Committed into the turn history at the top of `_prepareMessagesForLLM`, so every request path (native tools, content-tag tools, plain streaming) carries it without a per-site injection; rules in `TurnSteeringPolicy`, per-owner state in `TurnSteeringRegistry`, uncarried steers returned to `ThreadScopedMessageQueue` by the turn release scope. Ground-truth live canary with a queued control arm. |
+| Local LLM | LL39 | next | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: an opt-in composer toggle (plus `/pro`) that spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the existing `sendHiddenPrompt` path. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
@@ -2387,6 +2388,130 @@ Verification:
 
 Dependencies: LL1, LL8, LL3 / LL23. Related: LL27 (auto-orchestration sibling),
 LL24 / LL25 (per-turn primary-model routing).
+
+### LL39: Pro Reasoning Mode (Chat Workspace)
+
+Status: `next`
+
+Full design: `docs/pro_reasoning_chat_mode_design.md`.
+
+Scope:
+- An opt-in composer toggle (plus a one-shot `/pro` command) that spends minutes
+  instead of seconds on a single chat question, through a budgeted five-stage
+  run: **frame** (decompose + success criteria) → **investigate** (bounded
+  read-only tool loop) → **explore** (N independent candidates in parallel) →
+  **critique** (rank + surface contradictions) → **synthesize** (streamed
+  answer). Stages 1-4 are internal; only stage 5 is visible.
+- Three depth presets (Standard 2 / Deep 3 / Max 5 candidates, 3 / 6 / 12 minute
+  wall clocks). `AssistantMode` is deliberately **not** extended — the toggle is
+  orthogonal, avoiding a new enum case across the 24 files that reference it.
+
+Why now:
+- **First production consumer of LL20.** `ParallelSlotExecutor`,
+  `LlamaCppSlotDiscovery`, and `LlamaCppSlotTransport` shipped and are referenced
+  only by their own providers and tests. LL20 already degrades to sequential
+  execution below two assignable slots, so a single-slot endpoint needs no
+  special case.
+- **Unblocks the LL26/LL27 measurement question.** The research doc parks "does
+  parallel-aggregate actually beat the best single-model path, counting the
+  slowest worker plus aggregation" as the core go/no-go. A chat-side Pro mode
+  generates that dataset on the user's real questions without waiting for LL24.
+
+Divergence from LL26 (deliberate):
+- LL26's acceptance criterion "selection is verifier-grounded (compile / test /
+  LSP), not a subjective vote" **cannot be met for prose**. LL39 names its
+  stage-4 pass a rubric judge rather than a verifier, and treats the
+  *contradictions between independent candidates* as the primary signal — the
+  thing a multi-candidate setup actually buys when there is no oracle.
+
+Also lands:
+- `chat_template_kwargs` / `reasoningEffort` / `seed` on
+  `LlamaCppSlotTransport.buildRequestBody`, emitted only when non-null.
+- **An LL20 fix**: `LlamaCppSlotDiscovery` must send the model name
+  (`GET /slots?model=<name>`). A router-mode server answers the bare `GET /slots`
+  with HTTP 400, so the substrate reports `unsupported` and every caller silently
+  degrades to sequential — the parallel stage would be parallel in name only.
+- A `proReasoningModel` / `proReasoningEndpointId` role pair mirroring the LL1
+  planning role, plus `ModelUsageRole.proReasoning`.
+
+Measured on the real endpoint 2026-08-12 (llama.cpp `b10358-030ebb558`,
+`qwen3.6-27b-128k`) — full table in the design doc §2.4:
+- `reasoning_effort: high` is **inert** (byte-identical output to baseline);
+  `chat_template_kwargs.enable_thinking` returns reasoning in `reasoning_content`,
+  which `chat_completion_response_normalizer.dart:150` already wraps into
+  `<think>`. The LL39 premise is confirmed, not assumed.
+- Thinking mode needs a generous token budget: at `max_tokens: 512` the model
+  spent the whole budget reasoning and returned **empty content**. Candidates
+  must treat "reasoning present, content empty, `finish_reason: length`" as a
+  failed candidate.
+- **Placement rule: fan out across LL8 mesh *hosts*, never across slots on one
+  GPU** (design doc §2.5). Raising `--parallel` on a single-GPU host splits the
+  KV cache, halving every request to ~64 K — which stage 5 (full tool catalog +
+  history + candidates) and every ordinary turn would pay for — in exchange for
+  only ~10-18% end-to-end, since two slots on one GPU batch to ~1.4-1.7x, not 2x,
+  and each slot re-prefills the shared evidence. Across separate hosts every one
+  of those objections disappears: independent compute, full context each, and the
+  duplicate prefill runs concurrently. Routing candidates to the already-
+  `parallel=2` `qwen3.6-35b-a3b-vision` on the same host was rejected for the same
+  family of reasons — it cannot be VRAM-resident alongside the 27B, so each
+  candidate would drag a model load-unload cycle. This makes LL39 the chat-side
+  delivery of LL26/A0 rather than a compromise around it.
+- **Trust health, not config.** Of three registered LAN endpoints, only
+  `192.168.100.241` answered; `.91`/`.78` had moved to `192.168.100.5`. Runs must
+  health-check at start and size to endpoints that actually respond
+  (`EndpointHealthTracker` / `MeshEndpointRouter` already do this), and the
+  progress card must show which endpoints a run is really using so a
+  silently-degraded single-host run is visible rather than just slow.
+- **Hosts are heterogeneous; capability must be probed per endpoint, not assumed
+  globally** (design doc §2.6). Measured: `.241` is llama.cpp router mode —
+  `/slots` supported (requires `?model=`), `enable_thinking` works, 128 K context.
+  `.5` is **LM Studio** — `/slots` unimplemented (answers HTTP **200** with an
+  error object, so a status-code check would misread it as supported),
+  `chat_template_kwargs` had **no effect on `qwen/qwen3-coder-next`** (output
+  byte-identical to baseline; only that model was tested, so this is "unknown per
+  model", not "LM Studio cannot do thinking"), 31 K context, and a **111 s cold
+  start** to load a model. Consequences: resolve the
+  reasoning override per endpoint; tell stage 4 which candidates actually had
+  thinking, so it does not score "no thinking available" as "worse model"; size
+  the evidence block to the *minimum* participating context, not the maximum; and
+  rank already-loaded models first, since a cold candidate spends its whole budget
+  loading and evicts whatever was resident. The heterogeneity itself is desirable
+  — a homogeneous pool is the failure mode the orchestration research warns about.
+- Single-host fallback has a compensating advantage: all candidates share one
+  evidence prefix, so `cache_prompt: true` lets candidates 2..N skip re-prefilling
+  it. **This makes prompt layout load-bearing** — the per-candidate angle must be
+  appended *last*, after the byte-identical shared prefix.
+- ~30 tok/s; one thinking candidate on a simple question took 37 s, and decode
+  dominates, so a real candidate costs ~2-3.5 min. Stage 3 is
+  `ceil(N / healthy_hosts) x candidate_time`; deadlines are sized for the
+  single-host worst case so a healthy mesh finishes early instead of a degraded
+  one overrunning: Standard 2/6 min, Deep 3/10 min, Max 4/20 min.
+
+Acceptance criteria:
+- The run never fails the turn: deadline expiry, zero surviving candidates, or a
+  mid-run cancel all still produce an answer, degrading to a plain single-pass
+  response in the worst case.
+- The deadline is checked at every stage boundary; depth comes from staged work
+  under a budget, never from raising the tool-loop cap
+  (`docs/execution_contract_design.md`).
+- Sequential degradation on a non-slot or `--parallel 1` endpoint is verified,
+  not assumed.
+- Each stage emits a `pro_reasoning_*` session-log operation plus a run summary
+  (stage timings, candidates, slots used, deadline-hit, winner), so
+  `tool/triage_session_logs.py` scores it with no tool changes.
+
+Constraint:
+- `chat_notifier.dart` is at its ratchet ceiling (8984/8984; library aggregate
+  19814/19840 as of 2026-08-12). Essentially all new code lives in
+  `domain/services/` and a `presentation/coordinators/` run coordinator, reaching
+  `ChatNotifier` only through the existing public `sendHiddenPrompt`. Any line
+  added to the notifier must be paid for by an extraction in the same change.
+
+Dependencies: LL8 (mesh endpoint routing + health), LL20 (slot substrate), LL1
+(role routing), LL7 (Best-of-N policy shape). Related: **LL26** — LL39 delivers
+A0's parallel-selection shape on the chat side, so LL26 narrows to the coding
+case (verifier-grounded selection) and should be re-scoped once LL39 has run
+data. Also LL27, LL24 / LL25.
 
 ## Complex-Task Robustness Track (LL29-LL31)
 
