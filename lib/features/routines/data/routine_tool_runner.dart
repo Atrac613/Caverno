@@ -26,8 +26,14 @@ class RoutineToolRunner {
     ToolCallExecutionPolicy toolCallExecutionPolicy =
         const ToolCallExecutionPolicy(),
     ToolCallBatchExecutor? toolCallBatchExecutor,
+    int? maxTurns,
+    int? maxToolCalls,
   }) : _dataSource = dataSource,
        _toolCallExecutionPolicy = toolCallExecutionPolicy,
+       assert(maxTurns == null || maxTurns > 0),
+       assert(maxToolCalls == null || maxToolCalls > 0),
+       _maxTurns = maxTurns,
+       _maxToolCalls = maxToolCalls,
        _toolCallBatchExecutor =
            toolCallBatchExecutor ??
            ToolCallBatchExecutor(
@@ -41,6 +47,8 @@ class RoutineToolRunner {
   final ChatDataSource _dataSource;
   final ToolCallExecutionPolicy _toolCallExecutionPolicy;
   final ToolCallBatchExecutor _toolCallBatchExecutor;
+  final int? _maxTurns;
+  final int? _maxToolCalls;
 
   Future<RoutineToolExecutionResult> execute({
     required List<Message> messages,
@@ -58,6 +66,8 @@ class RoutineToolRunner {
       temperature: temperature,
       maxTokens: maxTokens,
     );
+    var completedTurns = 1;
+    var executedToolCalls = 0;
 
     final initialToolCalls = _extractToolCalls(initialResult);
     if (initialToolCalls.isEmpty) {
@@ -80,10 +90,17 @@ class RoutineToolRunner {
     var wasTruncated = _isCompletionTruncated(initialResult.finishReason);
     var iteration = 0;
 
-    while (currentToolCalls.isNotEmpty && iteration < _maxToolLoopIterations) {
+    final mainLoopLimit = _maxTurns ?? _maxToolLoopIterations;
+    while (currentToolCalls.isNotEmpty && iteration < mainLoopLimit) {
       iteration += 1;
+      final allowedToolCalls = _toolCallsWithinBudget(
+        currentToolCalls,
+        executedToolCalls,
+      );
+      if (allowedToolCalls.isEmpty) break;
+      executedToolCalls += allowedToolCalls.length;
       final batchResult = await _toolCallBatchExecutor.execute(
-        toolCalls: currentToolCalls,
+        toolCalls: allowedToolCalls,
         dispatchToolCall: dispatchToolCall,
         executedToolCallKeys: executedToolCallKeys,
         toolFailureCounts: toolFailureCounts,
@@ -94,6 +111,7 @@ class RoutineToolRunner {
       if (batchToolResults.isEmpty || batchResult.abortLoop) {
         break;
       }
+      if (!_canRequestTurn(completedTurns)) break;
 
       final nextResult = await _dataSource.createChatCompletionWithToolResults(
         messages: messages,
@@ -104,6 +122,7 @@ class RoutineToolRunner {
         temperature: temperature,
         maxTokens: maxTokens,
       );
+      completedTurns += 1;
       wasTruncated =
           wasTruncated || _isCompletionTruncated(nextResult.finishReason);
 
@@ -128,6 +147,13 @@ class RoutineToolRunner {
         wasTruncated: wasTruncated,
       );
     }
+    if (!_canRequestTurn(completedTurns)) {
+      return RoutineToolExecutionResult(
+        output: fallbackResponse?.trim() ?? '',
+        toolResults: List<ToolResultInfo>.unmodifiable(executedToolResults),
+        wasTruncated: wasTruncated,
+      );
+    }
 
     final answerPrompt = _buildRoutineAnswerPrompt(
       executedToolResults,
@@ -148,6 +174,7 @@ class RoutineToolRunner {
       maxTokens: maxTokens,
       tools: tools,
     );
+    completedTurns += 1;
 
     var finalOutput = finalResult.content.trim();
     var finalToolCalls = _extractToolCalls(finalResult);
@@ -164,7 +191,8 @@ class RoutineToolRunner {
           executedToolResults: executedToolResults,
         );
         if (missingToolNames.isNotEmpty &&
-            missingActionRetries < _maxMissingActionRetries) {
+            missingActionRetries < _maxMissingActionRetries &&
+            _canRequestTurn(completedTurns)) {
           missingActionRetries += 1;
           finalResult = await _dataSource.createChatCompletion(
             messages: [
@@ -186,6 +214,7 @@ class RoutineToolRunner {
             maxTokens: maxTokens,
             tools: tools,
           );
+          completedTurns += 1;
           finalOutput = finalResult.content.trim();
           finalToolCalls = _extractToolCalls(finalResult);
           wasTruncated =
@@ -195,13 +224,20 @@ class RoutineToolRunner {
         break;
       }
 
-      if (finalIteration >= _maxFinalToolIterations) {
+      final finalLoopLimit = _maxTurns ?? _maxFinalToolIterations;
+      if (finalIteration >= finalLoopLimit) {
         break;
       }
 
       finalIteration += 1;
+      final allowedToolCalls = _toolCallsWithinBudget(
+        finalToolCalls,
+        executedToolCalls,
+      );
+      if (allowedToolCalls.isEmpty) break;
+      executedToolCalls += allowedToolCalls.length;
       final batchResult = await _toolCallBatchExecutor.execute(
-        toolCalls: finalToolCalls,
+        toolCalls: allowedToolCalls,
         dispatchToolCall: dispatchToolCall,
         executedToolCallKeys: executedToolCallKeys,
         toolFailureCounts: toolFailureCounts,
@@ -212,6 +248,7 @@ class RoutineToolRunner {
       }
       executedToolResults.addAll(batchToolResults);
       executedFinalToolCall = true;
+      if (!_canRequestTurn(completedTurns)) break;
 
       final followUpPrompt = _buildRoutineAnswerPrompt(
         executedToolResults,
@@ -232,6 +269,7 @@ class RoutineToolRunner {
         maxTokens: maxTokens,
         tools: tools,
       );
+      completedTurns += 1;
       finalOutput = finalResult.content.trim();
       finalToolCalls = _extractToolCalls(finalResult);
       wasTruncated =
@@ -250,6 +288,21 @@ class RoutineToolRunner {
       toolResults: List<ToolResultInfo>.unmodifiable(executedToolResults),
       wasTruncated: wasTruncated,
     );
+  }
+
+  bool _canRequestTurn(int completedTurns) {
+    return _maxTurns == null || completedTurns < _maxTurns;
+  }
+
+  List<ToolCallInfo> _toolCallsWithinBudget(
+    List<ToolCallInfo> toolCalls,
+    int executedToolCalls,
+  ) {
+    final maxToolCalls = _maxToolCalls;
+    if (maxToolCalls == null) return toolCalls;
+    final remaining = maxToolCalls - executedToolCalls;
+    if (remaining <= 0) return const [];
+    return toolCalls.take(remaining).toList(growable: false);
   }
 
   List<ToolCallInfo> _extractToolCalls(ChatCompletionResult result) {

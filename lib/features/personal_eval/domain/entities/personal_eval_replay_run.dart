@@ -14,10 +14,19 @@ abstract class PersonalEvalReplayCaseResult
 
   const factory PersonalEvalReplayCaseResult({
     required String caseId,
+    @Default('trial-1') String trialId,
+    @Default(0) int executionOrder,
     @Default('') String title,
     @JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn)
     @Default(PersonalEvalCaseSplit.heldIn)
     PersonalEvalCaseSplit split,
+    @JsonKey(unknownEnumValue: PersonalEvalCaseOrigin.recorded)
+    @Default(PersonalEvalCaseOrigin.recorded)
+    PersonalEvalCaseOrigin origin,
+    @Default(0) int tier,
+    @JsonKey(unknownEnumValue: PersonalEvalPromptStyle.unclassified)
+    @Default(PersonalEvalPromptStyle.unclassified)
+    PersonalEvalPromptStyle promptStyle,
     @Default('') String logPath,
     @JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive)
     @Default(PersonalEvalVerificationResult.inconclusive)
@@ -39,10 +48,21 @@ abstract class PersonalEvalReplayCaseResult
       verificationResult == PersonalEvalVerificationResult.passed;
 
   /// Per-case entry of the `caverno_personal_eval_replay_run` artifact.
-  Map<String, dynamic> toReplayCaseJson() {
+  Map<String, dynamic> toReplayCaseJson({int? fallbackExecutionOrder}) {
     return {
       'caseId': caseId,
+      'trialId': trialId,
+      'executionOrder': executionOrder > 0
+          ? executionOrder
+          : fallbackExecutionOrder ?? 0,
+      if (summary.startedAt != null)
+        'startedAt': summary.startedAt!.toIso8601String(),
       'title': title,
+      'split': split.name,
+      'origin': origin.name,
+      if (tier >= 1 && tier <= 3) 'tier': tier,
+      if (promptStyle != PersonalEvalPromptStyle.unclassified)
+        'promptStyle': promptStyle.name,
       'logPath': logPath,
       'verificationResult': verificationResult.name,
       'durationMs': durationMs,
@@ -75,9 +95,14 @@ abstract class PersonalEvalReplayRun with _$PersonalEvalReplayRun {
       _$PersonalEvalReplayRunFromJson(json);
 
   static const replayRunSchemaName = 'caverno_personal_eval_replay_run';
-  static const replayRunSchemaVersion = 1;
+  static const replayRunSchemaVersion = 5;
 
   int get caseCount => cases.length;
+
+  int get distinctCaseCount =>
+      cases.map((entry) => entry.caseId).toSet().length;
+
+  int get trialCount => cases.length;
 
   int countWhere(PersonalEvalVerificationResult result) =>
       cases.where((entry) => entry.verificationResult == result).length;
@@ -120,14 +145,17 @@ abstract class PersonalEvalReplayRun with _$PersonalEvalReplayRun {
       if (baseUrl != null) 'baseUrl': baseUrl,
       'manifestPaths': manifestPaths,
       'caseCount': caseCount,
+      'distinctCaseCount': distinctCaseCount,
+      'trialCount': trialCount,
       'passedCount': passedCount,
       'failedCount': failedCount,
       'inconclusiveCount': inconclusiveCount,
       'totalDurationMs': totalDurationMs,
       'totalToolCallCount': totalToolCallCount,
-      'cases': cases
-          .map((entry) => entry.toReplayCaseJson())
-          .toList(growable: false),
+      'cases': [
+        for (var index = 0; index < cases.length; index += 1)
+          cases[index].toReplayCaseJson(fallbackExecutionOrder: index + 1),
+      ],
     };
   }
 }

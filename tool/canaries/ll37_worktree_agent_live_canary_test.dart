@@ -48,7 +48,7 @@ void main() {
       expect(correct.changedFiles, isNotEmpty);
       expect(correct.changedFileEvidenceTruncated, isFalse);
       expect(broken.status, WorktreeAgentTaskStatus.completed);
-      expect(broken.verifiedGreen, isFalse);
+      expect(broken.verifiedGreen, isTrue);
       expect(broken.changedFiles, isEmpty);
 
       await File('${outputDirectory.path}/tasks.json').writeAsString(
@@ -63,8 +63,8 @@ void main() {
           'brokenTaskId': broken.id,
           'evidenceClass': 'controlled_live_canary',
           'correctCaptureProvenance': 'production LL13 delegate with normal worktree-scoped file tools',
-          'brokenCaptureProvenance': 'production LL13 delegate with write tools disabled as a known-broken control',
-          'acceptanceCriteria': const ['greeting() returns the exact text hello world.', 'The verification command exits successfully for the correct implementation.'],
+          'brokenCaptureProvenance': 'production LL13 delegate with write tools disabled after a mechanically green baseline check',
+          'acceptanceCriteria': const ["Changed-file evidence for lib/greeting.dart contains exactly: String greeting() => 'hello world';", 'The shared verification command exits successfully for both implementations.'],
           'consent': const {'explicitUserConsent': true, 'scope': 'personal_eval_case_recording'},
         })}\n',
       );
@@ -73,10 +73,10 @@ void main() {
       ).writeAsString(
         '${const JsonEncoder.withIndent(' ').convert({
           'schemaName': 'caverno_ll37_worktree_agent_live_canary_capture',
-          'schemaVersion': 1,
+          'schemaVersion': 2,
           'model': env.model,
           'correct': {'verifiedGreen': correct.verifiedGreen, 'changedFileCount': correct.changedFiles.length},
-          'broken': {'verifiedGreen': broken.verifiedGreen, 'changedFileCount': broken.changedFiles.length, 'control': 'write_tools_disabled'},
+          'broken': {'verifiedGreen': broken.verifiedGreen, 'changedFileCount': broken.changedFiles.length, 'control': 'write_tools_disabled_mechanically_green'},
         })}\n',
       );
     },
@@ -167,17 +167,17 @@ Future<void> _prepareFixture(Directory directory) async {
   await File(
     '${directory.path}/lib/greeting.dart',
   ).writeAsString("String greeting() => 'hello';\n");
-  await File('${directory.path}/tool/verify.dart').writeAsString('''
+  await File('${directory.path}/tool/verify.dart').writeAsString(r'''
 import 'dart:io';
 
 void main() {
   final source = File('lib/greeting.dart').readAsStringSync().trim();
-  const expected = "String greeting() => 'hello world';";
-  if (source == expected) {
-    stdout.writeln('Greeting verification passed.');
+  final validGreeting = RegExp(r"^String greeting\(\) => '[^']+';$");
+  if (validGreeting.hasMatch(source)) {
+    stdout.writeln('Greeting syntax verification passed.');
     return;
   }
-  stderr.writeln('Expected the exact hello world implementation.');
+  stderr.writeln('Expected a non-empty single-line greeting implementation.');
   exitCode = 1;
 }
 ''');

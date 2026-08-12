@@ -30,6 +30,9 @@ _PersonalEvalSessionLogSummary _$PersonalEvalSessionLogSummaryFromJson(
           ?.map((e) => e as String)
           .toList() ??
       const <String>[],
+  startedAt: json['startedAt'] == null
+      ? null
+      : DateTime.parse(json['startedAt'] as String),
   finalAnswerLineNumber: (json['finalAnswerLineNumber'] as num?)?.toInt(),
 );
 
@@ -45,5 +48,6 @@ Map<String, dynamic> _$PersonalEvalSessionLogSummaryToJson(
   'operationCounts': instance.operationCounts,
   'finishReasonCounts': instance.finishReasonCounts,
   'warningCodes': instance.warningCodes,
+  'startedAt': ?instance.startedAt?.toIso8601String(),
   'finalAnswerLineNumber': ?instance.finalAnswerLineNumber,
 };

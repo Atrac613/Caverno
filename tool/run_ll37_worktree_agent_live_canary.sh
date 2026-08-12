@@ -79,7 +79,11 @@ if len(results) != 2:
     raise SystemExit("Expected exactly two LL37 worktree-agent results.")
 if any(item.get("matchesExpected") is not True for item in results):
     raise SystemExit("LL37 worktree-agent verifier mismatch.")
+if any(item.get("mechanicalVerificationPassed") is not True for item in results):
+    raise SystemExit("LL37 worktree-agent pair was not mechanically green.")
 metrics = report.get("eligibleCases", {})
+if metrics.get("totalCount") != 2:
+    raise SystemExit("Expected both mechanically-green cases to be eligible.")
 if metrics.get("invalidCount") != 0 or metrics.get("unverifiableCount") != 0:
     raise SystemExit("LL37 worktree-agent verifier output was unreliable.")
 if probe_status not in (0, 1):

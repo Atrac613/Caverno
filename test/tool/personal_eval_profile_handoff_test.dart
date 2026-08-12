@@ -146,6 +146,42 @@ void main() {
     },
   );
 
+  test('surfaces decision eligibility blockers fail-closed', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'personal-eval-profile-handoff-evidence-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final report = _writeSuiteReport(
+      directory: directory,
+      recommendation: 'insufficient_evidence',
+      hardRegressionCount: 0,
+      candidateModel: 'candidate-model',
+      candidateBaseUrl: 'http://localhost:1234/v1',
+      decisionEligible: false,
+      decisionBlockers: [
+        'effect task count 9 is below the pre-registered minimum 20',
+      ],
+    );
+
+    final handoff = await buildPersonalEvalProfileHandoff(
+      suiteReportFile: report,
+    );
+
+    expect(handoff.readyForProfileUpdate, isFalse);
+    expect(
+      handoff.blockers,
+      containsAll([
+        'suite recommendation is insufficient_evidence',
+        'suite decision eligibility is not established',
+        'effect task count 9 is below the pre-registered minimum 20',
+      ]),
+    );
+    expect(
+      handoff.metadataPatch,
+      containsPair('personalEval.decisionEligible', 'false'),
+    );
+  });
+
   test('parses CLI options and validates report schema', () async {
     final options = PersonalEvalProfileHandoffOptions.parse([
       '--suite-report',
@@ -192,6 +228,8 @@ File _writeSuiteReport({
   String? candidateModel,
   String? candidateBaseUrl,
   List<Map<String, Object?>> entries = const [],
+  bool decisionEligible = true,
+  List<String> decisionBlockers = const [],
 }) {
   final file = File('${directory.path}/personal_eval_suite_report.json');
   final candidate = <String, Object?>{'passRate': 1.0};
@@ -209,6 +247,10 @@ File _writeSuiteReport({
       'label': 'incumbent vs candidate',
       'result': result,
       'recommendation': recommendation,
+      'decisionEligibility': {
+        'isEligible': decisionEligible,
+        'blockers': decisionBlockers,
+      },
       'hardRegressionCount': hardRegressionCount,
       'watchSignalCount': entries.fold<int>(
         0,

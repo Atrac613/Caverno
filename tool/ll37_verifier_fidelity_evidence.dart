@@ -70,6 +70,8 @@ final class Ll37VerifierFidelityCase {
     required this.verificationEvidence,
     required this.casePath,
     required this.personalEvalManifestPath,
+    this.schemaVersion = _caseSchemaVersion,
+    this.mechanicalVerificationPassed = true,
   });
 
   final String caseId;
@@ -83,18 +85,34 @@ final class Ll37VerifierFidelityCase {
   final List<Map<String, dynamic>> verificationEvidence;
   final String casePath;
   final String personalEvalManifestPath;
+  final int schemaVersion;
+  final bool mechanicalVerificationPassed;
+
+  bool get isEligible =>
+      sourceSurface.isEligible && mechanicalVerificationPassed;
 
   static Future<Ll37VerifierFidelityCase> load(File caseFile) async {
     if (!caseFile.existsSync()) {
       throw FileSystemException('LL37 evidence case not found.', caseFile.path);
     }
     final json = _decodeObject(await caseFile.readAsString(), caseFile.path);
+    final schemaVersion = _integer(json['schemaVersion']);
     if (_string(json['schemaName']) != _caseSchemaName ||
-        _integer(json['schemaVersion']) != _caseSchemaVersion) {
+        (schemaVersion != _legacyCaseSchemaVersion &&
+            schemaVersion != _caseSchemaVersion)) {
       throw FormatException(
         'Invalid LL37 evidence schema in ${caseFile.path}.',
       );
     }
+    final mechanicalVerificationPassed = switch (schemaVersion) {
+      _legacyCaseSchemaVersion => false,
+      _caseSchemaVersion when json['mechanicalVerificationPassed'] is bool =>
+        json['mechanicalVerificationPassed'] as bool,
+      _ => throw FormatException(
+        'LL37 schema-v2 case must declare mechanicalVerificationPassed in '
+        '${caseFile.path}.',
+      ),
+    };
     final caseId = _requiredString(json, 'caseId', caseFile.path);
     final manifestRef = _requiredString(
       json,
@@ -146,6 +164,8 @@ final class Ll37VerifierFidelityCase {
       verificationEvidence: List.unmodifiable(verificationEvidence),
       casePath: caseFile.path,
       personalEvalManifestPath: manifestFile.path,
+      schemaVersion: schemaVersion!,
+      mechanicalVerificationPassed: mechanicalVerificationPassed,
     );
   }
 }
@@ -343,7 +363,8 @@ final class Ll37VerifierCaseResult {
     'pairId': evalCase.pairId,
     'title': evalCase.title,
     'sourceSurface': evalCase.sourceSurface.jsonValue,
-    'eligible': evalCase.sourceSurface.isEligible,
+    'eligible': evalCase.isEligible,
+    'mechanicalVerificationPassed': evalCase.mechanicalVerificationPassed,
     'expectedVerdict': evalCase.expectedVerdict.jsonValue,
     if (verdict != null) 'verdict': verdict!.jsonValue,
     if (confidence != null) 'confidence': confidence,

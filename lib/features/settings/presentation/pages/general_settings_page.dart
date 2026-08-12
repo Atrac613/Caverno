@@ -10,6 +10,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/apple_foundation_models_platform_client.dart';
 import '../../../../core/services/google_chat_delivery_service.dart';
 import '../../../../core/services/lan_endpoint_discovery.dart';
+import '../../../../core/services/macos_update_service.dart';
 import '../../../../core/utils/debouncer.dart';
 import '../../domain/entities/app_settings.dart';
 import '../providers/apple_foundation_models_availability_provider.dart';
@@ -17,6 +18,7 @@ import '../providers/mesh_endpoint_provider.dart';
 import '../providers/model_capability_auto_probe_notifier.dart';
 import '../providers/model_list_provider.dart';
 import '../providers/settings_notifier.dart';
+import '../widgets/macos_update_tile.dart';
 
 class GeneralSettingsPage extends ConsumerStatefulWidget {
   const GeneralSettingsPage({super.key});
@@ -1040,6 +1042,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     final asyncModels = isAppleProvider
         ? AsyncValue.data([selectedModel])
         : ref.watch(modelListProvider(modelListConfig));
+    final updateService = ref.watch(macosUpdateServiceProvider);
 
     return Scaffold(
       appBar: AppBar(title: Text('settings.menu_general'.tr())),
@@ -1312,6 +1315,15 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
             },
           ),
           const SizedBox(height: 16),
+          // App update section: macOS only, because Sparkle is the only update
+          // channel Caverno ships. Other platforms update through their store.
+          if (updateService.isAvailable) ...[
+            const SizedBox(height: 8),
+            _buildSectionHeader('settings.app_updates_section'.tr()),
+            const SizedBox(height: 8),
+            MacosUpdateTile(service: updateService),
+            const SizedBox(height: 16),
+          ],
         ],
       ),
     );

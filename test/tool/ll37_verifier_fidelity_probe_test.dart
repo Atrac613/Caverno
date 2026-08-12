@@ -25,10 +25,23 @@ void main() {
     expect(report.allCases.falseRefuteRate, 0);
     expect(report.allCases.brokenRecall, 1);
     expect(report.eligibleCases.totalCount, 0);
+    expect(report.eligiblePairCount, 0);
+    expect(report.eligibleObjectiveCount, 0);
+    expect(
+      report.results.every(
+        (result) => !result.evalCase.mechanicalVerificationPassed,
+      ),
+      isTrue,
+    );
+    expect(
+      report.results.every((result) => !result.evalCase.isEligible),
+      isTrue,
+    );
     expect(
       report.toJson()['schemaName'],
       'caverno_ll37_verifier_fidelity_report',
     );
+    expect(report.toJson()['schemaVersion'], 3);
     expect(report.toMarkdown(), contains('LL37 Verifier Fidelity Probe'));
   });
 
@@ -166,6 +179,127 @@ void main() {
     );
   });
 
+  test('loads legacy cases as ineligible and requires the v2 status', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'caverno_ll37_probe_v2_',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final caseJson =
+        jsonDecode(await File(correctPath).readAsString())
+            as Map<String, dynamic>;
+    final manifestContents = await File(
+      _fixturePath('slugify_correct_manifest.json'),
+    ).readAsString();
+    final caseFile = File('${directory.path}/case.json');
+    await File(
+      '${directory.path}/manifest.json',
+    ).writeAsString(manifestContents);
+    caseJson['personalEvalManifestPath'] = 'manifest.json';
+
+    await caseFile.writeAsString(jsonEncode(caseJson));
+    final legacy = await Ll37VerifierFidelityCase.load(caseFile);
+    expect(legacy.schemaVersion, 1);
+    expect(legacy.mechanicalVerificationPassed, isFalse);
+    expect(legacy.isEligible, isFalse);
+
+    caseJson['schemaVersion'] = 2;
+    await caseFile.writeAsString(jsonEncode(caseJson));
+    await expectLater(
+      Ll37VerifierFidelityCase.load(caseFile),
+      throwsFormatException,
+    );
+
+    caseJson['mechanicalVerificationPassed'] = true;
+    await caseFile.writeAsString(jsonEncode(caseJson));
+    final current = await Ll37VerifierFidelityCase.load(caseFile);
+    expect(current.schemaVersion, 2);
+    expect(current.mechanicalVerificationPassed, isTrue);
+    expect(current.isEligible, isFalse);
+
+    caseJson['sourceSurface'] = 'routine';
+    await caseFile.writeAsString(jsonEncode(caseJson));
+    expect((await Ll37VerifierFidelityCase.load(caseFile)).isEligible, isTrue);
+  });
+
+  test('requires one objective contract and source surface per pair', () {
+    final correct = _evidenceCase(
+      caseId: 'correct',
+      pairId: 'pair',
+      expected: Ll37ExpectedVerdict.notRefuted,
+      surface: Ll37SourceSurface.routine,
+      objective: 'Implement the parser',
+      acceptanceCriteria: const ['Parses compound input', 'Tests pass'],
+    );
+    final normalizedMatch = _evidenceCase(
+      caseId: 'broken',
+      pairId: 'pair',
+      expected: Ll37ExpectedVerdict.refuted,
+      surface: Ll37SourceSurface.routine,
+      objective: '  implement   THE parser ',
+      acceptanceCriteria: const [' tests PASS ', 'parses compound input'],
+    );
+    expect(
+      () => validateLl37VerifierFidelityPairs([correct, normalizedMatch]),
+      returnsNormally,
+    );
+
+    final differentObjective = _evidenceCase(
+      caseId: 'broken-objective',
+      pairId: 'pair',
+      expected: Ll37ExpectedVerdict.refuted,
+      surface: Ll37SourceSurface.routine,
+      objective: 'Implement another parser',
+      acceptanceCriteria: correct.acceptanceCriteria,
+    );
+    expect(
+      () => validateLl37VerifierFidelityPairs([correct, differentObjective]),
+      throwsFormatException,
+    );
+
+    final differentCriteria = _evidenceCase(
+      caseId: 'broken-criteria',
+      pairId: 'pair',
+      expected: Ll37ExpectedVerdict.refuted,
+      surface: Ll37SourceSurface.routine,
+      objective: correct.objective,
+      acceptanceCriteria: const ['Tests pass'],
+    );
+    expect(
+      () => validateLl37VerifierFidelityPairs([correct, differentCriteria]),
+      throwsFormatException,
+    );
+
+    final differentSurface = _evidenceCase(
+      caseId: 'broken-surface',
+      pairId: 'pair',
+      expected: Ll37ExpectedVerdict.refuted,
+      surface: Ll37SourceSurface.worktreeAgent,
+      objective: correct.objective,
+      acceptanceCriteria: correct.acceptanceCriteria,
+    );
+    expect(
+      () => validateLl37VerifierFidelityPairs([correct, differentSurface]),
+      throwsFormatException,
+    );
+
+    final differentMechanicalStatus = _evidenceCase(
+      caseId: 'broken-mechanical',
+      pairId: 'pair',
+      expected: Ll37ExpectedVerdict.refuted,
+      surface: Ll37SourceSurface.routine,
+      objective: correct.objective,
+      acceptanceCriteria: correct.acceptanceCriteria,
+      mechanicalVerificationPassed: false,
+    );
+    expect(
+      () => validateLl37VerifierFidelityPairs([
+        correct,
+        differentMechanicalStatus,
+      ]),
+      throwsFormatException,
+    );
+  });
+
   test('rejects an attended source surface and missing consent', () async {
     final directory = await Directory.systemTemp.createTemp(
       'caverno_ll37_probe_invalid_',
@@ -226,6 +360,7 @@ void main() {
           surface: index.isEven
               ? Ll37SourceSurface.routine
               : Ll37SourceSurface.worktreeAgent,
+          objective: 'Objective $index',
         ),
       );
       results.add(
@@ -236,6 +371,7 @@ void main() {
           surface: index.isEven
               ? Ll37SourceSurface.routine
               : Ll37SourceSurface.worktreeAgent,
+          objective: 'Objective $index',
         ),
       );
     }
@@ -248,12 +384,39 @@ void main() {
       results: results,
     );
     expect(ready.gate, 'go');
+    expect(ready.eligiblePairCount, 5);
+    expect(ready.eligibleObjectiveCount, 5);
+    expect(ready.toJson()['eligiblePairCount'], 5);
+    expect(ready.toJson()['eligibleObjectiveCount'], 5);
+    expect(ready.toMarkdown(), contains('- Eligible pairs: `5`'));
+    expect(ready.toMarkdown(), contains('- Eligible objectives: `5`'));
+
+    final repeatedObjective = Ll37VerifierFidelityReport.build(
+      generatedAt: DateTime.utc(2026, 8, 10),
+      mode: 'fixture',
+      model: 'model',
+      baseUrl: 'local',
+      results: [
+        for (final result in results)
+          _result(
+            caseId: result.evalCase.caseId,
+            expected: result.evalCase.expectedVerdict,
+            verdict: result.verdict!,
+            surface: result.evalCase.sourceSurface,
+            objective: 'Repeated objective',
+          ),
+      ],
+    );
+    expect(repeatedObjective.eligiblePairCount, 5);
+    expect(repeatedObjective.eligibleObjectiveCount, 1);
+    expect(repeatedObjective.gate, 'no_go_insufficient_eligible_sample');
 
     final falseRefute = _result(
       caseId: 'correct-0',
       expected: Ll37ExpectedVerdict.notRefuted,
       verdict: Ll37VerifierVerdict.refuted,
       surface: Ll37SourceSurface.routine,
+      objective: 'Objective 0',
     );
     final blocked = Ll37VerifierFidelityReport.build(
       generatedAt: DateTime.utc(2026, 8, 10),
@@ -334,15 +497,42 @@ Ll37VerifierCaseResult _result({
   required Ll37ExpectedVerdict expected,
   required Ll37VerifierVerdict verdict,
   required Ll37SourceSurface surface,
+  String objective = 'Objective',
 }) {
-  final evalCase = Ll37VerifierFidelityCase(
+  final evalCase = _evidenceCase(
     caseId: caseId,
     pairId: caseId.split('-').last,
+    surface: surface,
+    expected: expected,
+    objective: objective,
+    acceptanceCriteria: const ['Criterion'],
+  );
+  return Ll37VerifierCaseResult(
+    evalCase: evalCase,
+    rawResponse: '',
+    verdict: verdict,
+    confidence: 1,
+    findings: const [],
+  );
+}
+
+Ll37VerifierFidelityCase _evidenceCase({
+  required String caseId,
+  required String pairId,
+  required Ll37ExpectedVerdict expected,
+  required Ll37SourceSurface surface,
+  required String objective,
+  required List<String> acceptanceCriteria,
+  bool mechanicalVerificationPassed = true,
+}) {
+  return Ll37VerifierFidelityCase(
+    caseId: caseId,
+    pairId: pairId,
     title: caseId,
     sourceSurface: surface,
     expectedVerdict: expected,
-    objective: 'Objective',
-    acceptanceCriteria: const ['Criterion'],
+    objective: objective,
+    acceptanceCriteria: acceptanceCriteria,
     changedFiles: const [
       {'path': 'lib/file.dart', 'content': 'content'},
     ],
@@ -351,13 +541,7 @@ Ll37VerifierCaseResult _result({
     ],
     casePath: 'case.json',
     personalEvalManifestPath: 'manifest.json',
-  );
-  return Ll37VerifierCaseResult(
-    evalCase: evalCase,
-    rawResponse: '',
-    verdict: verdict,
-    confidence: 1,
-    findings: const [],
+    mechanicalVerificationPassed: mechanicalVerificationPassed,
   );
 }
 

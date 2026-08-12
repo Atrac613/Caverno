@@ -1,0 +1,448 @@
+{
+  "schemaName": "caverno_personal_eval_authored_corpus",
+  "schemaVersion": 1,
+  "note": "Authored fixture tasks. These measure coding capability in general, NOT this user's own work: every case built from this corpus carries origin=authored so a report can never present it as representative. See docs/personal_eval_paired_statistics_codex_tasks.md (Task 3 corpus inventory). Tasks carry a difficulty tier; see `tiers`. Difficulty is governed by reconstruction depth, not by how much the prompt gives away: a 2026-08-12 probe found unguided prompts cost about one extra turn and changed no outcome, while the one task that discriminated required re-deriving a remainder-distribution algorithm including its negative case.",
+  "replay": {
+    "isolation": "Copy fixtureDirectory to a temporary working directory, overlay seeds/<caseId>/ onto the copy, then run the agent and the verification command there. Never replay in the repository working tree: LL19 has not shipped worktree isolation.",
+    "seedRoot": "seeds"
+  },
+  "tasks": [
+    {
+      "caseId": "authored_textkit_trailing_run",
+      "title": "Strip the whole trailing punctuation run",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. TextNormalizer.stripTrailingPunctuation should remove the entire trailing run of punctuation, not just the last character, while leaving punctuation inside the string alone. Fix src/normalizer.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/textkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_textkit_inner_capitals",
+      "title": "Preserve capitals inside a title-cased word",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. TextNormalizer.titleCase must upper-case the first letter of each word without altering the rest, so an acronym written inside a word survives. Fix src/normalizer.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/textkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_textkit_escaped_quote",
+      "title": "Unescape a doubled quote inside a CSV field",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. CsvRowParser.parse must treat a doubled quote inside a quoted field as one literal quote character rather than as the end of the field. Fix src/csv_row.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/textkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_datekit_century_leap",
+      "title": "Apply the full Gregorian leap-year rule",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Calendar.isLeapYear must apply the whole Gregorian rule: a century year is only a leap year when it is also divisible by 400. Fix src/calendar.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/datekit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_datekit_month_clamp",
+      "title": "Clamp the day when adding months",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Calendar.addMonths must clamp the day to the target month's length, so the last day of January plus one month lands on the last day of February instead of rolling into March. Fix src/calendar.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/datekit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_datekit_days_backwards",
+      "title": "Keep the sign on a backwards day count",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Calendar.daysBetween must return a negative count when the end date precedes the start date, rather than an absolute distance. Fix src/calendar.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/datekit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_datekit_iso_week_boundary",
+      "title": "Compute the ISO week from its Thursday",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Calendar.isoWeekNumber must determine the week from the Thursday of that ISO week, which is what decides the year a week belongs to at a year boundary. Fix src/calendar.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/datekit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_datekit_negative_format",
+      "title": "Keep the sign on a formatted negative duration",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. DurationText.format must render a negative duration with a single leading minus sign. Fix src/duration_text.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/datekit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_datekit_parse_partial",
+      "title": "Reject a duration string with an unreadable token",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. DurationText.parse must return null when any token is unreadable, rather than skipping it and returning a partial duration. Fix src/duration_text.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/datekit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_taskflow_terminal_final",
+      "title": "Keep a finished task terminal",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. A task that has reached `done` is terminal: no later event may move it back to running. Fix src/task_state.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/taskflow",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_taskflow_paused_shortcut",
+      "title": "Reject finishing straight from paused",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. A paused task must resume before it can finish, so the transition table must not offer a direct route from paused to done. Fix src/task_state.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/taskflow",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_taskflow_replay_ignores",
+      "title": "Ignore an illegal step instead of aborting",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. TaskStateMachine.replay must skip an illegal event and keep applying the rest, rather than stopping at the first one it cannot apply. Fix src/task_state.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/taskflow",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_taskflow_backoff_overflow",
+      "title": "Bound the backoff exponent",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. RetryPolicy.delayFor must stay capped and positive for a very large attempt number, which means the shift exponent has to be bounded before it is applied. Fix src/retry_policy.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/taskflow",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_taskflow_attempt_budget",
+      "title": "Stop retrying at the attempt limit",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. RetryPolicy.shouldRetry counts maxAttempts as the total number of attempts including the first, so it must refuse once that many have been made. Fix src/retry_policy.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/taskflow",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_taskflow_total_backoff",
+      "title": "Sum only the retries the policy permits",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. RetryPolicy.totalBackoff must add up exactly the retries the policy allows, not one more. Fix src/retry_policy.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/taskflow",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_numkit_negative_half",
+      "title": "Round money to the nearest minor unit",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Money.scale must round the scaled amount to the nearest minor unit instead of discarding the fraction, so a half lands away from zero in both directions. Fix src/money.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/numkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_numkit_split_remainder",
+      "title": "Keep the total when splitting money",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Money.split must distribute the remainder across the shares so they always add back up to the original amount. Fix src/money.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/numkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_numkit_median_mutates",
+      "title": "Stop median from reordering the caller's list",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Stats.median must not sort the list it was given; the caller's order has to survive the call. Fix src/stats.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/numkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_numkit_median_empty",
+      "title": "Report no median for empty input",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Stats.median must return null for an empty list so a caller cannot mistake \"no data\" for a measured zero. Fix src/stats.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/numkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_numkit_clamp_reversed",
+      "title": "Tolerate a reversed clamp range",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Stats.clamp must handle bounds passed in the wrong order by normalizing them, rather than producing a range nothing can satisfy. Fix src/stats.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/numkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_numkit_percent_zero",
+      "title": "Guard percentOf against a zero whole",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Stats.percentOf must return null when the whole is zero. Fix src/stats.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/numkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_numkit_rank_ties",
+      "title": "Break ranking ties deterministically",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Stats.rank must break equal scores by ascending label so the order is stable across runs. Fix src/stats.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/numkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_textkit_truncate_budget",
+      "title": "Fit the ellipsis inside the truncation budget",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. TextNormalizer.truncate must never return more characters than the budget, which means the ellipsis has to be counted against it. Fix src/normalizer.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/textkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_textkit_truncate_exact",
+      "title": "Leave input at exactly the budget untouched",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. TextNormalizer.truncate must return input whose length equals the budget unchanged, without adding an ellipsis. Fix src/normalizer.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/textkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_textkit_slug_collapse",
+      "title": "Collapse repeated hyphens in a slug",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. TextNormalizer.slugify must collapse a run of separators into a single hyphen. Fix src/normalizer.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/textkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_textkit_slug_trim",
+      "title": "Trim hyphens from both ends of a slug",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. TextNormalizer.slugify must strip hyphens from the end of the slug as well as the start. Fix src/normalizer.dart so every check passes.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/textkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "guided"
+    },
+    {
+      "caseId": "authored_datekit_unguided_leap",
+      "title": "Unguided: make the calendar verifier pass",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/datekit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_numkit_unguided_clamp",
+      "title": "Unguided: make the numeric verifier pass",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/numkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 1,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_textkit_unguided_truncate",
+      "title": "Unguided: make the text verifier pass",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/textkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 1,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_numkit_split_and_rank",
+      "title": "Unguided: repair every failing numeric check",
+      "objectiveFingerprint": "numkit.split_remainder_and_rank_ties",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/numkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 3,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_textkit_collapse_and_title",
+      "title": "Unguided: repair every failing text check",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/textkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 1,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_numkit_rebuild_split",
+      "title": "Rebuild remainder distribution",
+      "objectiveFingerprint": "money.split.remainder_distribution",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/numkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 2,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_numkit_rebuild_rank",
+      "title": "Rebuild the ranking comparator",
+      "objectiveFingerprint": "stats.rank.score_and_label_order",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/numkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 2,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_datekit_rebuild_add_months",
+      "title": "Rebuild month addition",
+      "objectiveFingerprint": "calendar.add_months.clamped_arithmetic",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/datekit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 2,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_datekit_rebuild_iso_week",
+      "title": "Rebuild ISO week numbering",
+      "objectiveFingerprint": "calendar.iso_week.thursday_year_boundary",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/datekit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 2,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_datekit_rebuild_format",
+      "title": "Rebuild duration formatting",
+      "objectiveFingerprint": "duration.format.two_largest_units_and_sign",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/datekit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 2,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_textkit_rebuild_csv",
+      "title": "Rebuild the CSV field parser",
+      "objectiveFingerprint": "csv.parse.quoted_fields",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/textkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 2,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_textkit_rebuild_truncate",
+      "title": "Rebuild truncation",
+      "objectiveFingerprint": "text.truncate.budget_and_ellipsis",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/textkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 2,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_taskflow_rebuild_backoff",
+      "title": "Rebuild backoff bounding",
+      "objectiveFingerprint": "retry.delay.exponential_cap",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/taskflow",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldIn",
+      "tier": 2,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_datekit_rebuild_parse",
+      "title": "Rebuild duration token parsing",
+      "objectiveFingerprint": "duration.parse.tokenized_units",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/datekit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 2,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_textkit_rebuild_slug",
+      "title": "Rebuild slug normalization",
+      "objectiveFingerprint": "text.slug.normalization_pipeline",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/textkit",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 2,
+      "promptStyle": "unguided"
+    },
+    {
+      "caseId": "authored_taskflow_rebuild_state_and_budget",
+      "title": "Rebuild state transitions and retry budgeting",
+      "objectiveFingerprint": "taskflow.state_graph_and_retry_budget",
+      "prompt": "In this Dart package, `dart run bin/verify.dart` fails. Make it pass. Do not change bin/verify.dart or pubspec.yaml.",
+      "fixtureDirectory": "tool/personal_eval_corpus/fixtures/taskflow",
+      "verificationCommand": "dart run bin/verify.dart",
+      "split": "heldOut",
+      "tier": 3,
+      "promptStyle": "unguided"
+    }
+  ],
+  "tiers": {
+    "1": "Inversion. The seed flips a comparison, operator, or guard, so the repair is the inverse of the visible defect. Measured 2026-08-12: both models solve these, and neither an unguided prompt nor a second file changes that.",
+    "2": "Reconstruction. The seed removes an algorithm or invariant rather than inverting it, so the repair must be derived and has non-obvious cases (negatives, empties, boundaries). This is the axis that actually discriminated.",
+    "3": "Reconstruction across more than one site, so a partial repair leaves the verifier red."
+  }
+}

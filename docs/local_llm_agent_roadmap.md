@@ -175,7 +175,8 @@ structurally unmotivated to build:
 | Local LLM | LL36 | done | S-M | LL33, LL34, LL35 | **Instrument for LL37, as LL31 was for LL29/LL30** — Heuristic demotion and firing audit: every remaining lexical guard gets a stable pattern label, emits a LL33-style transform record on each firing, and is barred from setting terminal state; grounded verdicts measured the lexical paths before deletion. The goal-completion inference was removed, prose task progress is structurally advisory, and remaining compatibility fallbacks have explicit Go/No-Go evidence. |
 | Local LLM | LL37 | current | L | LL34, LL35, LL36 evidence, LL3, LL18, LL19 | Objective verification for **unattended runs only**: the N-way panel runs at idle via LL18 against goals completed by routines / overnight retry-until-green / LL13 agents, with the convergence controls that make it terminate — anti-ratchet, stall exit on repeated identical gaps, a run cap, and `none`/`contradiction`/`unverifiable` blocking classification. There is deliberately **no inline stage**: while a user is present, LL35's confirmation rung is both cheaper and more accurate than a local verifier, so nothing is added to the interactive turn. Only the LL19-measured fidelity gate is active: the production panel remains blocked until at least five correct and five known-broken cases from at least two unattended surfaces meet the false-refute and broken-recall thresholds. |
 | Local LLM | LL38 | done | S-M | LL31, LL33 | Mid-turn interruption (steering): an opt-in `interrupt: true` send joins the running turn instead of queueing behind it. Committed into the turn history at the top of `_prepareMessagesForLLM`, so every request path (native tools, content-tag tools, plain streaming) carries it without a per-site injection; rules in `TurnSteeringPolicy`, per-owner state in `TurnSteeringRegistry`, uncarried steers returned to `ThreadScopedMessageQueue` by the turn release scope. Ground-truth live canary with a queued control arm. |
-| Local LLM | LL39 | next | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: an opt-in composer toggle (plus `/pro`) that spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the existing `sendHiddenPrompt` path. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
+| Local LLM | LL39 | current | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
+| Local LLM | LL40 | next | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: an opt-in composer toggle (plus `/pro`) that spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the existing `sendHiddenPrompt` path. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
@@ -1323,11 +1324,100 @@ Implementation status:
   tool-call-count fidelity against the original session-log summary. Candidate
   reports with verification regressions or missing cases are rejected before
   LL17 can adopt profile mutations.
+- Suite report schema v2 adds distinct-task paired statistics: the
+  candidate-minus-incumbent pass-rate effect with a deterministic 10,000-draw
+  task-bootstrap interval, candidate-only/incumbent-only pass counts with an
+  exact two-sided McNemar test, and median paired duration, turn, and tool-call
+  differences. Schema v3 pairs repeated observations by case and trial ID,
+  averages trial effects within each task, and uses a hierarchical bootstrap
+  that resamples tasks before trials. Exact McNemar evidence excludes mixed or
+  incomplete repeated tasks instead of treating their trials as independent
+  evidence.
 - Replay-run artifact generation started with
   `tool/personal_eval_replay_run.dart`. The tool consumes LL12 manifests plus
   per-case replay session logs and explicit verification results, summarizes
   the replay logs through the existing session-log summary parser, and writes
   `caverno_personal_eval_replay_run` JSON that the suite comparison can consume.
+  Replay-run schema v2 introduced repeated `caseId#trialId` observations and
+  `distinctCaseCount`; schema v3 also records the earliest primary-turn start
+  time in both offline and in-app artifacts so cross-model order is observable.
+  Schema v4 carries case origin and held-in/held-out split through both artifact
+  paths. Legacy case-only inputs remain valid as `trial-1`.
+- Reproducible experiment protocol support started with
+  `tool/personal_eval_experiment_protocol.dart`. Its versioned artifact records
+  both model endpoints and sampler settings, confirmed warm-up iterations,
+  execution limits, and a validated AB/BA order for every case/trial identity.
+  Duplicate trials, incomplete conditions, and unbalanced order fail before a
+  live comparison begins. The suite pipeline now requires the protocol at its
+  CLI boundary and rejects model, endpoint, case/trial, budget, timestamp, or
+  observed AB/BA order mismatches. Suite-report schema v4 embeds the canonical
+  protocol path and SHA-256 digest with its validated evidence counts. Schema
+  v5 exposes evidence origins and split counts and rejects replay provenance
+  that differs from the case manifest. Protocol schema v2 now pre-registers
+  whether a run is for `corpus_design` or `model_selection`; model-selection
+  protocols must declare minimum total and held-out effect-task counts.
+- Suite-report schema v6 separates raw outcomes from decision authority. A
+  corpus-design run reports `not_applicable`, and a model-selection run reports
+  `insufficient_evidence` until its pre-registered sample minimums are met.
+  The LL3 profile handoff also consumes these blockers and fails closed when
+  eligibility metadata is absent. The existing nine-task reconstruction probe
+  was re-rendered offline with unchanged statistics and now correctly reports
+  `not_applicable` instead of a model-adoption recommendation.
+- Replay-run schema v5 and suite-report schema v7 carry the authored corpus's
+  tier and prompt style from manifest through every result. The report emits
+  counts and independent paired statistics for each observed stratum while
+  preserving `unclassified` compatibility for older and recorded cases.
+- `tool/personal_eval_artifact_metadata_backfill.dart` now migrates validated
+  authored bundles without rerunning either model or overwriting the source.
+  The nine-task reconstruction probe was migrated to
+  `build/personal_eval/rebuild-probe-stratified/suite`: eight tier-2 tasks, one
+  tier-3 task, and nine unguided prompts, with the unchanged overall 0.0-point
+  effect, 95% CI [-27.8, +33.3], exact p=1.0, and a fail-closed
+  `not_applicable` recommendation.
+- The authored corpus now has 42 tasks (29 held-in, 13 held-out; tiers
+  30/10/2). Three new held-out unguided tasks cover objective-distinct
+  reconstruction of duration token parsing, slug normalization, and a
+  multi-site state-transition plus retry-budget policy. All three are
+  mechanically red when seeded and green when restored; the tier-3 task also
+  stays red after either single-file repair. Before the live corpus-design run,
+  their model-discrimination value was unmeasured and they did not change any
+  adoption conclusion.
+- The three-task expansion was pre-registered in
+  `tool/personal_eval_corpus/reconstruction_expansion_protocol_config.json` as
+  a `corpus_design` study: two opposite-order trials per task, 6 trial
+  identities, 12 balanced model events, and the existing measured sampler and
+  execution budgets through the loopback relay. The live run completed all 12
+  events: the 27B candidate passed 6/6 verifications and the 35B incumbent
+  passed 4/6. The repeated-task effect was +33.3 percentage points with 95% CI
+  [0.0, +83.3], but two of three incumbent task results were mixed across their
+  repeats, leaving no discordant binary task pair for an exact test. The 27B
+  median was also 46.9 seconds slower. The report therefore remains
+  `not_applicable`, profile mutation remains blocked, and the next bounded step
+  is a pre-registered repeat of only the two unstable tasks before any broader
+  model-selection run. That follow-up is split into protocol lock, contract
+  test and dry run, eight-event live execution, and a no-mutation result review.
+  The first slice is now pre-registered: trials 3 and 4 retain the existing
+  model, endpoint, sampler, and execution budgets; source digests lock the two
+  fixtures; and the contract requires an exact eight-event pending plan. The
+  decision rule treats any 1/2 cell as a repeatability risk, both-model 2/2 as
+  non-discriminating, candidate 2/2 versus incumbent 0/2 as a reproduced
+  discriminating failure, and any candidate failure as a non-reproduced
+  advantage. The live eight-event run then produced 2/2 for both models on both
+  tasks: a 0.0-point effect with 95% CI [0.0, 0.0], zero discordant pairs, and a
+  candidate median 41.7 seconds slower. The Task 8 incumbent failures therefore
+  did not reproduce, both fixtures are non-discriminating in this repeat, and
+  no broader model-selection run is justified from them. Recommendation remains
+  `not_applicable`, profile mutation remains blocked, and the next bounded
+  Personal Eval work is fixture review rather than more inference.
+- Fixture review found an execution-contract defect before any new inference:
+  authored protocols declared 24 turns and 100 tool calls, but the live canary
+  did not forward either value and silently inherited the Routine runner's 5+3
+  loop bounds. The runner now supports optional hard total-turn and tool-call
+  caps, and the authored operator, canary, factory, and replay driver propagate
+  the pre-registered values end to end. Default Routine and subagent behavior
+  is unchanged. Deterministic tests reach a ninth tool action under an explicit
+  budget and prove both caps. Task 8/9 artifacts remain historical evidence
+  under the old contract; any later comparison needs new trial identities.
 - Suite pipeline orchestration started with
   `tool/personal_eval_suite_pipeline.dart`. It writes incumbent and candidate
   replay-run artifacts, then immediately produces the single comparison report
@@ -2389,7 +2479,240 @@ Verification:
 Dependencies: LL1, LL8, LL3 / LL23. Related: LL27 (auto-orchestration sibling),
 LL24 / LL25 (per-turn primary-model routing).
 
-### LL39: Pro Reasoning Mode (Chat Workspace)
+### LL39: Live Capability Benchmark (Absolute Score And Unprobed Production Paths)
+
+Status: `current`
+
+Context:
+- The Live LLM diagnostic is already the app's model-acceptance instrument: it
+  feeds `ModelCapabilityProfile`, which the system prompt and the LL16 sampler
+  presets consume. Its headline number, however, is
+  `passedProbeCount / scoredProbeCount` (`live_llm_diagnostic.dart`), which is
+  not comparable between two runs, so it cannot answer the question it is
+  actually asked: *is this model better than the one I had?*
+- Read of the current suite (2026-08-11): one full run on an OpenAI-compatible
+  endpoint issues **~43 live requests**, of which **32 are LL16 sampler trials**
+  (4 temperatures x 2 repeats x routine/coding/plan/toolLoop). Those 32 requests
+  — 74% of the run — contribute **nothing** to the score. The remaining scored
+  probes are at most 9.
+
+Measured scoring defects (each one blocks cross-model comparison):
+- **The denominator moves.** `scoredProbeCount` excludes `skipped`, so a run
+  with MCP disabled skips six probes and reports 3/3 = 100%.
+- **`warning` earns zero.** `exact_preservation` evaluates three sub-outcomes
+  and already knows 2-of-3; the score keeps only `passed`, so partial credit is
+  computed and then discarded.
+- **No weights.** `instruction_echo` (one request) and `tool_result_integration`
+  (a real tool execution plus two round-trips) count the same.
+- **No suite version.** `LiveLlmDiagnosticReport.toJson()` carries no suite or
+  schema version, so adding a probe silently invalidates every stored score
+  without anything saying so — the same failure mode `build.commit` was added to
+  session logs to prevent.
+- **Speed is collected and dropped.** Per-probe `elapsed` and token usage are
+  recorded and shown, but never enter any comparable figure.
+
+Unprobed production paths (capability gaps, not scoring gaps):
+- **Vision, both shapes.** Attached user images become
+  `ContentPart.imageBase64` on the user message; computer-use screenshots take a
+  *different* path — `_buildToolImageObservationMessages` emits a separate
+  synthetic user message carrying the screenshot plus observation metadata. The
+  diagnostic exercises neither, `ModelCapabilityProfile` has no vision axis at
+  all, and `chat_remote_datasource` silently strips history images when the
+  latest user message has none. A text-only endpoint may reject image parts *or*
+  accept and ignore them; only the first is currently visible to the user, and
+  only as a failed turn.
+- **The streaming request path.** Every probe uses `createChatCompletion` /
+  `createChatCompletionWithToolResults`. Production chat runs through
+  `streamChatCompletion`, which owns its own failure modes: reasoning-field
+  fallback, `<think>` batching, content-embedded tool calls parsed mid-stream,
+  and `finish_reason=length`. A streaming probe is also the only place TTFT and
+  decode rate can be measured.
+- **Multi-round tool loops.** `_runToolResultProbe` performs exactly one
+  round-trip; real coding turns run many.
+- **Edit-format fidelity.** `editFormatPreference` is hard-coded to `unknown` in
+  `ModelCapabilityProfileBuilder`, yet `WeakModelEditHarnessService` and
+  `SystemPromptBuilder` both branch on it. The axis is consumed but never
+  measured.
+- **`response_format` / `json_schema`.** `ModelStructuredOutputSupport.jsonSchema`
+  is reachable in consumers but not from a live run: the builder can only ever
+  return `jsonObject`, `none`, or `unknown`.
+- **Embeddings.** LL5 semantic search degrades silently when `/v1/embeddings` is
+  missing or slow; nothing reports whether it works, its dimension, or its cost.
+- **Effective context.** `usableContextTokens` is the endpoint's *advertised*
+  window, as the builder's own doc comment states. It is never verified.
+
+Two tiers, because there are two questions:
+- **Conformance — bounded, and saturating is the correct behavior.** "Will this
+  model drive Caverno without breaking?" A fixed weight table and a fixed
+  maximum, so two models share a denominator and a narrow environment cannot
+  inflate the number. Every probe here is a pass/fail compatibility check, so a
+  frontier model scoring the maximum on day one is not a defect: it is the
+  answer, and it means no compatibility work is needed. This tier is a gate, not
+  a ranking.
+- **Capability — unbounded, and reported in physical units.** "Which of two
+  capable models is better for my work?" Conformance cannot answer this once it
+  saturates. The answer must **not** be another invented point total: a
+  synthesized unbounded score reintroduces the arbitrary denominator the fixed
+  maximum was created to remove, and changing its weights breaks history again.
+  Report milliseconds, tokens per second, turns, tokens per task, and trial pass
+  counts. Physical units carry no denominator, so they stay comparable across
+  suite versions and across years, which is exactly what comparing against a
+  future frontier model requires. `tool/personal_eval_suite_report.dart` already
+  scores this way (`durationMs`, `toolCallCount`, `turnCount`) — the same
+  pattern, applied to a fixed synthetic suite instead of recorded cases.
+
+The axes that actually separate a frontier model from a good local one are all
+unbounded: turns to reach a completed goal, tokens spent getting there, recovery
+count after a failed edit anchor, exact preservation over long output, TTFT and
+decode rate. "Can it call one tool" separates nothing.
+
+Scope:
+- A versioned conformance model: a declared weight table plus a suite identifier
+  persisted in the report, partial credit from sub-outcomes, and a fixed maximum.
+  Report earned and attempted points separately, so "the model failed" and "not
+  applicable here" stay distinguishable.
+- Score the 32 LL16 sampler trials as a stability component instead of
+  discarding them.
+- Vision probes covering both production shapes, plus a classification probe
+  that separates `endpoint_rejected` from `model_ignored_the_image`, backing a
+  new vision axis on the capability profile. Apple Foundation Models drops
+  images at the datasource (`_contentWithImageNotice`), so it must resolve to
+  *not applicable* rather than a zero.
+- Probes for the remaining unprobed paths above, each one wired to the profile
+  field it is supposed to populate, and each one reporting its physical
+  measurements alongside its pass/fail verdict.
+- **A saturation watchdog.** When the conformance score across the user's
+  registered models clears a high-water threshold, the suite says so: it has
+  stopped discriminating and needs a harder tier. The benchmark declares its own
+  obsolescence rather than waiting to be noticed.
+- **A difficulty ladder versioned separately from conformance**
+  (`cavernobench-vN` + `ladder-vN`), so adding headroom at the top never moves
+  the conformance denominator and never invalidates stored history.
+- Persist both tiers with the LL21 profile revision and support comparing a run
+  against earlier revisions. Consecutive same-model revisions are the repeat
+  sample, so the run-to-run spread comes from stored history rather than from
+  tripling the request count.
+
+Acceptance criteria:
+- Two models probed on different machines produce conformance scores with the
+  same denominator; disabling MCP lowers coverage instead of raising the score.
+- A report from a different suite version is refused for comparison rather than
+  silently compared.
+- Two models that both max out conformance are still ordered by the capability
+  tier — the benchmark does not run out of resolution at the top.
+- Every capability figure is a measured physical quantity with a unit, not a
+  weighted point total.
+- A vision-capable and a text-only endpoint produce distinguishable, non-punitive
+  results, and the profile records which one it saw.
+- `editFormatPreference` and `structuredOutputSupport` can each take every enum
+  value from a live run; no consumer branch is unreachable from probe evidence.
+- A regression is only reported when the delta exceeds the spread measured from
+  stored history.
+
+Implementation status:
+- Slice 1 (scoring, `cavernobench` v1) shipped: `LiveLlmDiagnosticSuite` holds
+  the weight table and suite version, `LiveLlmDiagnosticScore.fromReport` yields
+  earned/attempted/coverage, sampler trials became a 200-point stability block,
+  and `warning` earns a probe's own sub-check ratio (`passedChecks` /
+  `totalChecks` on the probe result, populated by `exact_preservation` and the
+  Foundation Models language matrix). The suite version travels in the exported
+  report and in `probeMetadata`.
+- Slice 2 (vision, suite v2) shipped: `vision_attachment` and
+  `vision_tool_observation` cover both production message shapes with one
+  embedded 139-byte four-quadrant PNG. The attachment probe runs a no-image
+  control arm and the control outranks the score, so a blind guess cannot
+  register as vision. Outcomes classify as `endpoint_rejected` /
+  `model_ignored_the_image` / `partially_read` / `read_correctly` and set
+  `ModelVisionSupport` on the profile, which `SystemPromptBuilder` consumes.
+  Apple Foundation Models resolves to not-applicable. Weights rebalanced so the
+  maximum stayed at 1000.
+- Remaining, reordered 2026-08-11 once the two-tier split was adopted. Work that
+  feeds the unbounded tier outranks work that only widens the saturating one:
+  1. ~~Score history and delta.~~ **Shipped.** Revisions carry points,
+     attempted, max, and suite, with null meaning "not measured" so an unscored
+     upsert never reads as a collapse to zero. `ModelBenchmarkHistory` derives
+     the noise floor from stored same-suite revisions — `_buildUpdatedRevisions`
+     already appends on every probe, so consecutive unattended calibrations are
+     the repeat sample and the spread costs nothing. A drop counts only past the
+     observed range, and nothing is claimed with fewer than two prior runs. This
+     closed the hole `_hasCapabilityChanged` could not see (enum axes unchanged,
+     model measurably worse) and put the score and delta into LL18's morning
+     report, which previously emitted a fixed string.
+  2. ~~Headless canary.~~ **Shipped** as
+     `tool/run_live_llm_benchmark_canary.sh` +
+     `tool/canaries/live_llm_benchmark_canary_test.dart`. Writes
+     `benchmark_run.json` with each run's scored report and the min/max/spread
+     across repeats. It measures rather than gates: only a run that measured
+     nothing fails, with the points floor and required-probe pinning opt-in.
+     Validated live on 2026-08-11 against `qwen3.6-35b-a3b-vision`: **950/1000
+     — every attempted point** — nine runs, ~24 s each, spread **0**
+     (`docs/live_llm_canary_coverage.md`). The vision control arm earned its
+     cost: image arm 4/4, no-image control 1/4, so the pass is falsifiable
+     rather than assumed. The run's real find was a defect in the benchmark
+     itself: the subagent probe scored 0 in 6/6 runs because its prompt asked
+     the model to "emit a spawn_subagent tool call" rather than to delegate a
+     task, and a three-way live A/B showed neither the tool nor the phrasing
+     alone caused it — only the conjunction. Fixed, then 3/3 passing. **This is
+     why the canary was worth building before adding probes**: the suite was
+     under-reporting a capable model by 30 points on its own wording.
+     Note for the regression rule: a measured spread of 0 means any drop clears
+     the threshold, which is intended, since the smallest possible drop is a
+     probe changing status. Note for the two-tier split: a local 35B model
+     already earns every attempted conformance point, so the bounded tier is
+     near saturation before any frontier model is involved. The LAN constraint is
+     documented in the script: `flutter_tester` cannot reach the LAN endpoint
+     under macOS Local Network Privacy, so a loopback tunnel is required and a
+     blocked connection otherwise looks like a model that failed every probe.
+  3. ~~Streaming path with TTFT and decode rate.~~ **Shipped** in
+     `cavernobench` v3. The probe uses the production
+     `streamChatCompletion` path and a task-shaped 1-through-40 request, then
+     records TTFT, total elapsed time, completion tokens, chunk count, and
+     terminal finish reason outside the bounded score. Decode tok/s is emitted
+     only when delivery spans a meaningful decode window: a one-chunk response
+     or a sub-100 ms terminal burst is marked buffered so Caverno does not rank
+     a gateway's queue-drain speed as model throughput. The 2026-08-11 live
+     full-suite run remained 950/1000 (every attempted point); streaming passed
+     40/40 with TTFT 974 ms, but 111 tokens arrived in the final 24 ms and were
+     therefore correctly classified as buffered rather than 4,600+ tok/s.
+  4. ~~Multi-round tool loops.~~ **Shipped** as the `multi_round_tool_loop`
+     probe (suite v4). It forces genuinely sequential rounds by withholding the
+     datetime tool from the first request, so the model must `tool_search` for
+     it and then use what it found — a direct or parallel call cannot satisfy
+     the probe. `LiveLlmDiagnosticMultiRoundToolLoopMetrics` carries turns, tool
+     calls, successful executions, prompt/completion tokens, and elapsed time as
+     physical units outside the weighted score, which is where
+     turns-to-completion becomes measurable. Validated live on
+     `qwen3.6-35b-a3b-vision`: 3 model turns, 2 successful tool executions,
+     3,282 tokens, 2,985 ms.
+  5. Edit-format fidelity, embeddings, effective context.
+  6. `response_format` / `json_schema`. Cheap, but it widens the saturating
+     tier, so it now sorts last despite costing one request.
+
+Cost note:
+- The suite is already ~43 requests; the additions roughly reach ~55, and
+  repeats multiply that. `LiveLlmDiagnosticService.run(probeIds:)` already
+  supports bounded runs — LL21's idle re-probe uses it with
+  `modelCapabilityProbeIds` — so quick / standard / full tiers fit the existing
+  API without a new execution path. The effective-context probe is the expensive
+  one and should stay opt-in.
+
+Boundary with neighbouring milestones:
+- **COMPAT1** owns protocol conformance: whether the endpoint *accepts* image
+  content parts, `response_format`, or `/v1/embeddings` at all. LL39 owns model
+  capability: whether the model actually reads the image or holds the format.
+  The vision classification probe is the handoff — it must name which of the two
+  failed, which is also what COMPAT1's "distinguish protocol failures from
+  weak-model behavior" criterion needs.
+- **MLIB3** badges require probe-backed evidence; the vision, edit-format,
+  structured-output, and context badges have no source today. LL39 supplies it.
+- **LL12 / LL19** replay *recorded real tasks* and are representative but not
+  comparable across time. LL39 is a fixed synthetic suite: comparable but not
+  representative. They are complements, and the bake-off verdict should be read
+  alongside the benchmark score rather than replaced by it.
+
+Dependencies: LL3 (profiles), LL16 (sampler trials to score), LL21 (profile
+history to store scores in). Related: COMPAT1 / COMPAT2, MLIB3, LL12 / LL19.
+### LL40: Pro Reasoning Mode (Chat Workspace)
 
 Status: `next`
 
@@ -2419,7 +2742,7 @@ Why now:
 
 Divergence from LL26 (deliberate):
 - LL26's acceptance criterion "selection is verifier-grounded (compile / test /
-  LSP), not a subjective vote" **cannot be met for prose**. LL39 names its
+  LSP), not a subjective vote" **cannot be met for prose**. LL40 names its
   stage-4 pass a rubric judge rather than a verifier, and treats the
   *contradictions between independent candidates* as the primary signal — the
   thing a multi-candidate setup actually buys when there is no oracle.
@@ -2439,7 +2762,7 @@ Measured on the real endpoint 2026-08-12 (llama.cpp `b10358-030ebb558`,
 - `reasoning_effort: high` is **inert** (byte-identical output to baseline);
   `chat_template_kwargs.enable_thinking` returns reasoning in `reasoning_content`,
   which `chat_completion_response_normalizer.dart:150` already wraps into
-  `<think>`. The LL39 premise is confirmed, not assumed.
+  `<think>`. The LL40 premise is confirmed, not assumed.
 - Thinking mode needs a generous token budget: at `max_tokens: 512` the model
   spent the whole budget reasoning and returned **empty content**. Candidates
   must treat "reasoning present, content empty, `finish_reason: length`" as a
@@ -2454,7 +2777,7 @@ Measured on the real endpoint 2026-08-12 (llama.cpp `b10358-030ebb558`,
   duplicate prefill runs concurrently. Routing candidates to the already-
   `parallel=2` `qwen3.6-35b-a3b-vision` on the same host was rejected for the same
   family of reasons — it cannot be VRAM-resident alongside the 27B, so each
-  candidate would drag a model load-unload cycle. This makes LL39 the chat-side
+  candidate would drag a model load-unload cycle. This makes LL40 the chat-side
   delivery of LL26/A0 rather than a compromise around it.
 - **Trust health, not config.** Of three registered LAN endpoints, only
   `192.168.100.241` answered; `.91`/`.78` had moved to `192.168.100.5`. Runs must
@@ -2508,9 +2831,9 @@ Constraint:
   added to the notifier must be paid for by an extraction in the same change.
 
 Dependencies: LL8 (mesh endpoint routing + health), LL20 (slot substrate), LL1
-(role routing), LL7 (Best-of-N policy shape). Related: **LL26** — LL39 delivers
+(role routing), LL7 (Best-of-N policy shape). Related: **LL26** — LL40 delivers
 A0's parallel-selection shape on the chat side, so LL26 narrows to the coding
-case (verifier-grounded selection) and should be re-scoped once LL39 has run
+case (verifier-grounded selection) and should be re-scoped once LL40 has run
 data. Also LL27, LL24 / LL25.
 
 ## Complex-Task Robustness Track (LL29-LL31)
@@ -3869,10 +4192,47 @@ Measurement start (2026-08-10):
   cases across at least two of Routine, retry-until-green, and LL13 worktree
   agent surfaces; invalid and unverifiable counts must both be zero, the
   correct-case false-refute rate must be at most 10%, and broken-case recall
-  must be at least 80%. The current result remains
-  `no_go_insufficient_eligible_sample`; the next action is three
-  objective-distinct consented pairs across Routine and LL13, followed by one
-  combined probe over all ten cases, not panel wiring.
+  must be at least 80%. The historical schema-v1 result remains
+  `no_go_insufficient_eligible_sample`; its former three-pair shortfall is
+  superseded by the mechanically-green schema-v2 eligibility contract below.
+- Objective-diversity gate hardening is complete. Report schema v2 validates
+  that each pair shares one canonical objective/acceptance contract and one
+  source surface, reports eligible pair and objective counts, and requires five
+  distinct objective fingerprints for Go. Case, whitespace, and criterion-order
+  changes do not create a new fingerprint. The former test fixture that reused
+  one literal objective five times now remains
+  `no_go_insufficient_eligible_sample`; five structurally distinct objectives
+  are required. This is a deterministic gate correction and does not add live
+  evidence. Before collecting the remaining pairs, the evidence contract must
+  also cover the milestone's harder target: both arms mechanically green while
+  the known-broken arm violates an independent acceptance criterion. The
+  existing LL13 `verifiedGreen: false` control remains useful harness evidence
+  but does not establish that population.
+- Mechanically-green evidence hardening is complete. LL37 case schema v2 records
+  `mechanicalVerificationPassed` separately from the expected objective verdict,
+  and report schema v3 exposes that status and its eligibility effect. Only
+  unattended v2 cases with that field true are eligible. Schema-v1 cases remain
+  readable and scoreable but are historical harness evidence, so the
+  production-eligible denominator resets from the previously reported 2+2 to
+  zero. The LL13 exporter now requires both tasks to be completed and
+  `verifiedGreen: true`, emits `verificationResult: passed` for both manifests,
+  and never derives mechanical status from the expected label. Its controlled
+  canary uses a shared syntax-only command for both arms while an independent
+  criterion requires changed-file evidence containing the exact objective
+  implementation. The next evidence action was one newly consented LL13 v2
+  pair; reaching Go would then require four more objective-distinct v2 pairs and
+  an eligible second unattended surface. No production panel wiring was
+  justified at this point.
+- The first explicitly authorized schema-v2 live pair then completed on
+  `qwen3.6-35b-a3b-vision`. Both production LL13 delegate arms reported
+  `verifiedGreen: true`; the correct arm captured one changed file, while the
+  write-disabled broken arm captured none and violated the independent
+  changed-file acceptance criterion. The verifier matched both expected labels
+  at confidence 1.0 with zero invalid or unverifiable outputs. The current
+  eligible inventory is therefore one correct and one broken case, one
+  objective pair, and one LL13 surface. The gate remains
+  `no_go_insufficient_eligible_sample`; four objective-distinct v2 pairs and a
+  second eligible unattended surface remain before any panel wiring.
 
 Source: Grok Build `session/goal_classifier.rs`,
 `session/templates/goal_verifier_prompt.md`, `goal_strategist_prompt.md`. The

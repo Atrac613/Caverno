@@ -12,10 +12,12 @@ void main() {
     List<Map<String, dynamic>> toolCalls = const [],
     List<Map<String, dynamic>> requestMessages = const [],
     Map<String, dynamic>? error,
+    String? startedAt,
   }) {
     return jsonEncode({
       'operation': operation,
       'durationMs': durationMs,
+      'startedAt': ?startedAt,
       'request': {'messages': requestMessages},
       if (content != null || finishReason != null || toolCalls.isNotEmpty)
         'response': {
@@ -32,6 +34,7 @@ void main() {
       entry(
         operation: 'chat',
         durationMs: 100,
+        startedAt: '2026-06-14T00:00:02.000Z',
         finishReason: 'tool_calls',
         toolCalls: [
           {'name': 'read_file'},
@@ -41,6 +44,7 @@ void main() {
       entry(
         operation: 'chat',
         durationMs: 250,
+        startedAt: '2026-06-14T00:00:01.000Z',
         content: 'Done. The fix is applied.',
         finishReason: 'stream_end',
       ),
@@ -55,6 +59,7 @@ void main() {
     expect(summary.malformedLineCount, 1);
     expect(summary.toolCallCount, 2);
     expect(summary.totalDurationMs, 350);
+    expect(summary.startedAt, DateTime.utc(2026, 6, 14, 0, 0, 1));
     expect(summary.operationCounts, {'chat': 2});
     expect(summary.finishReasonCounts, {'stream_end': 1, 'tool_calls': 1});
     expect(summary.finalAnswerLineNumber, 2);

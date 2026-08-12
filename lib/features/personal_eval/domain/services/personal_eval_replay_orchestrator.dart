@@ -78,6 +78,9 @@ class PersonalEvalReplayOrchestrator {
         caseId: evalCase.caseId,
         title: evalCase.title,
         split: evalCase.split,
+        origin: evalCase.origin,
+        tier: evalCase.tier,
+        promptStyle: evalCase.promptStyle,
         logPath: outcome.logPath,
         verificationResult: outcome.verificationResult,
         summary: PersonalEvalSessionLogSummary.parseLogContents(
@@ -90,6 +93,9 @@ class PersonalEvalReplayOrchestrator {
         caseId: evalCase.caseId,
         title: evalCase.title,
         split: evalCase.split,
+        origin: evalCase.origin,
+        tier: evalCase.tier,
+        promptStyle: evalCase.promptStyle,
         verificationResult: PersonalEvalVerificationResult.inconclusive,
         error: error.toString(),
       );

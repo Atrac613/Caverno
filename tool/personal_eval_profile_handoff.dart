@@ -94,6 +94,10 @@ Future<PersonalEvalProfileHandoff> buildPersonalEvalProfileHandoff({
   if (report.recommendation != 'candidate_ready') {
     blockers.add('suite recommendation is ${report.recommendation}');
   }
+  if (!report.decisionEligible) {
+    blockers.add('suite decision eligibility is not established');
+  }
+  blockers.addAll(report.decisionBlockers);
   if (report.hardRegressionCount > 0) {
     blockers.add('suite has ${report.hardRegressionCount} hard regression(s)');
   }
@@ -132,6 +136,7 @@ Map<String, String> _metadataPatch(
     'personalEval.lastLabel': report.label,
     'personalEval.lastResult': report.result,
     'personalEval.lastRecommendation': report.recommendation,
+    'personalEval.decisionEligible': report.decisionEligible.toString(),
     'personalEval.caseCount': report.caseCount.toString(),
     'personalEval.hardRegressionCount': report.hardRegressionCount.toString(),
     'personalEval.watchSignalCount': report.watchSignalCount.toString(),
@@ -436,6 +441,8 @@ final class PersonalEvalSuiteReportSnapshot {
     required this.label,
     required this.result,
     required this.recommendation,
+    required this.decisionEligible,
+    required this.decisionBlockers,
     required this.hardRegressionCount,
     required this.watchSignalCount,
     required this.improvementCount,
@@ -450,6 +457,8 @@ final class PersonalEvalSuiteReportSnapshot {
   final String label;
   final String result;
   final String recommendation;
+  final bool decisionEligible;
+  final List<String> decisionBlockers;
   final int hardRegressionCount;
   final int watchSignalCount;
   final int improvementCount;
@@ -489,6 +498,7 @@ final class PersonalEvalSuiteReportSnapshot {
     }
     final incumbent = _asStringMap(json['incumbent']);
     final candidate = _asStringMap(json['candidate']);
+    final decisionEligibility = _asStringMap(json['decisionEligibility']);
     final rawEntries = _asList(json['entries']);
     final entries = <PersonalEvalSuiteEntrySnapshot>[];
     for (final rawEntry in rawEntries) {
@@ -506,6 +516,8 @@ final class PersonalEvalSuiteReportSnapshot {
       label: _requiredString(json, 'label', path),
       result: _requiredString(json, 'result', path),
       recommendation: _requiredString(json, 'recommendation', path),
+      decisionEligible: decisionEligibility?['isEligible'] == true,
+      decisionBlockers: _stringList(decisionEligibility?['blockers']),
       hardRegressionCount: _asNonNegativeInt(json['hardRegressionCount']) ?? 0,
       watchSignalCount: _asNonNegativeInt(json['watchSignalCount']) ?? 0,
       improvementCount: _asNonNegativeInt(json['improvementCount']) ?? 0,

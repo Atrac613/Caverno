@@ -49,8 +49,11 @@ CAVERNO_FEEDBACK_REVIEW_DEFAULT_BRANCH=main
 that token is blocked unless `CAVERNO_FEEDBACK_ALLOW_UNAUTHENTICATED_POST=1` is
 set for local smoke testing.
 
-After deployment, configure Caverno Debug settings with both the endpoint URL and
-the same feedback auth token.
+After deployment, configure both the endpoint URL and the same feedback auth
+token under `Settings > Advanced > Debug`. That entry is only rendered in debug
+builds, so a release build has to ship the intended defaults (upload is enabled
+with `defaultFeedbackEndpointUrl` out of the box) or be reconfigured through an
+imported settings file.
 
 ## Local Worker
 

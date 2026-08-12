@@ -1,0 +1,9 @@
+name: datekit
+description: >-
+  Fixture package for authored personal eval tasks. Dependency free so a replay
+  never needs network access or pub resolution.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"

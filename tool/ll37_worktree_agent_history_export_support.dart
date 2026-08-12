@@ -96,18 +96,12 @@ final class _WorktreeAgentEvidenceRedactor {
   }
 }
 
-void _validateTask(
-  Map<String, dynamic> task, {
-  required String label,
-  required bool expectedGreen,
-}) {
+void _validateTask(Map<String, dynamic> task, {required String label}) {
   if (_string(task['status']) != 'completed') {
     throw FormatException('$label must be recorded as completed.');
   }
-  if (task['verifiedGreen'] != expectedGreen) {
-    throw FormatException(
-      '$label must have verifiedGreen set to $expectedGreen.',
-    );
+  if (task['verifiedGreen'] != true) {
+    throw FormatException('$label must have verifiedGreen set to true.');
   }
   if (task['changedFileEvidenceTruncated'] == true) {
     throw FormatException('$label contains truncated changed-file evidence.');
@@ -233,7 +227,7 @@ final class _WorktreeAgentHistorySelection {
     String sourcePath,
   ) {
     if (_string(json['schemaName']) != _selectionSchemaName ||
-        _integer(json['schemaVersion']) != _schemaVersion) {
+        _integer(json['schemaVersion']) != _selectionSchemaVersion) {
       throw FormatException(
         'Invalid worktree-agent history selection in $sourcePath.',
       );

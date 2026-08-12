@@ -11,6 +11,7 @@ import '../../../chat/presentation/providers/repo_map_precompute_cache_provider.
 import '../../../personal_eval/domain/services/personal_eval_replay_orchestrator.dart';
 import '../../../personal_eval/presentation/providers/personal_eval_cases_notifier.dart';
 import '../../../settings/domain/entities/app_settings.dart';
+import '../../../settings/domain/services/model_benchmark_history.dart';
 import '../../../settings/presentation/providers/live_llm_diagnostic_notifier.dart';
 import '../../../settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -126,8 +127,22 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
         // The full diagnostic re-measures the model and records LL16 sampler
         // calibration, persisting the updated profile.
         await ref.read(liveLlmDiagnosticNotifierProvider.notifier).run();
-        return const MaintenanceStageOutcome.completed(
-          'ran diagnostic + sampler calibration',
+        // LL39: this is the only place the benchmark runs unattended, so the
+        // score has to reach the morning report — otherwise a nightly
+        // regression is measured, stored, and never read.
+        final settings = ref.read(settingsNotifierProvider);
+        final profile = settings.effectiveModelCapabilityProfile;
+        final summary = profile == null
+            ? null
+            : ModelBenchmarkHistory.forProfile(
+                revisions: settings.modelCapabilityProfileRevisions,
+                profileId: profile.computedId,
+                suite: profile.probeMetadata['benchmarkSuite'] ?? '',
+              ).summaryLine();
+        return MaintenanceStageOutcome.completed(
+          summary == null
+              ? 'ran diagnostic + sampler calibration'
+              : 'ran diagnostic + sampler calibration; $summary',
         );
       },
     ),

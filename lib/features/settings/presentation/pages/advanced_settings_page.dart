@@ -1,9 +1,11 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../maintenance/presentation/pages/idle_maintenance_settings_page.dart';
 import '../../../personal_eval/presentation/pages/personal_eval_cases_page.dart';
 import 'debug_settings_page.dart';
+import 'live_llm_diagnostic_page.dart';
 import 'local_stack_settings_page.dart';
 import 'model_harness_config_settings_page.dart';
 import 'model_routing_settings_page.dart';
@@ -82,6 +84,22 @@ class AdvancedSettingsPage extends StatelessWidget {
           ),
           const Divider(height: 1),
           ListTile(
+            key: const ValueKey('settings-menu-live-llm-diagnostics'),
+            leading: const Icon(Icons.monitor_heart_outlined),
+            title: Text('settings.live_llm_diagnostics'.tr()),
+            subtitle: Text('settings.live_llm_diagnostics_desc'.tr()),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const LiveLlmDiagnosticPage(),
+                ),
+              );
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
             key: const ValueKey('settings-menu-personal-eval-cases'),
             leading: const Icon(Icons.fact_check_outlined),
             title: Text('settings.personal_eval_cases_title'.tr()),
@@ -112,19 +130,23 @@ class AdvancedSettingsPage extends StatelessWidget {
               );
             },
           ),
-          const Divider(height: 1),
-          ListTile(
-            key: const ValueKey('settings-menu-debug'),
-            leading: const Icon(Icons.bug_report_outlined),
-            title: Text('settings.menu_debug'.tr()),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DebugSettingsPage()),
-              );
-            },
-          ),
+          // Debug tooling stays out of release builds: everything behind it is
+          // developer instrumentation, not a user-facing setting.
+          if (kDebugMode) ...[
+            const Divider(height: 1),
+            ListTile(
+              key: const ValueKey('settings-menu-debug'),
+              leading: const Icon(Icons.bug_report_outlined),
+              title: Text('settings.menu_debug'.tr()),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DebugSettingsPage()),
+                );
+              },
+            ),
+          ],
         ],
       ),
     );

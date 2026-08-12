@@ -43,6 +43,28 @@ enum ModelEditFormatPreference {
   unifiedDiff,
 }
 
+/// LL39 vision axis. Caverno attaches images on two production paths — a user
+/// attachment and a computer-use screenshot observation — so "cannot read the
+/// image" is a real capability gap, and the way it fails matters: an endpoint
+/// that rejects image content parts needs a different response from a model
+/// that accepts them and answers from the text alone.
+enum ModelVisionSupport {
+  unknown,
+
+  /// The endpoint refused the request carrying image content.
+  rejected,
+
+  /// The request succeeded, but a no-image control arm scored the same, so the
+  /// image did not inform the answer.
+  ignored,
+
+  /// Read a plain user attachment, but not the computer-use observation shape.
+  basic,
+
+  /// Read both production shapes.
+  reliable,
+}
+
 extension ReasoningEffortPreferenceApi on ReasoningEffortPreference {
   String? get apiValue => switch (this) {
     ReasoningEffortPreference.automatic => null,
@@ -266,6 +288,9 @@ abstract class ModelCapabilityProfile with _$ModelCapabilityProfile {
     @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)
     @Default(ModelEditFormatPreference.unknown)
     ModelEditFormatPreference editFormatPreference,
+    @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)
+    @Default(ModelVisionSupport.unknown)
+    ModelVisionSupport visionSupport,
     @Default(0) int usableContextTokens,
     DateTime? probedAt,
     @Default('') String probeSummary,
@@ -519,8 +544,35 @@ abstract class ModelCapabilityProfileRevision
     ModelGoalUpdateFidelity goalUpdateFidelity,
     @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)
     required ModelEditFormatPreference editFormatPreference,
+    @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)
+    @Default(ModelVisionSupport.unknown)
+    ModelVisionSupport visionSupport,
     required int usableContextTokens,
     @Default('') String probeSummary,
+
+    /// LL39 bounded conformance score for this revision, and the suite that
+    /// produced it. Null means the revision predates the benchmark or came from
+    /// a path that does not score (a settings import, a bounded re-probe with
+    /// no scored probes) — which is not the same as scoring zero, so a missing
+    /// value must never read as a regression.
+    ///
+    /// Kept on the revision, not only on the profile: the profile is
+    /// overwritten by every run, so without this the score has no history and
+    /// nothing can be compared.
+    int? benchmarkPoints,
+    int? benchmarkAttemptedPoints,
+    int? benchmarkMaxPoints,
+
+    /// Suite identity, e.g. `cavernobench-v2`. Two suite versions are not
+    /// comparable, so history is partitioned by this before any delta.
+    @Default('') String benchmarkSuite,
+
+    /// True when this revision's score dropped by more than the spread measured
+    /// across earlier same-suite revisions. Separate from
+    /// [capabilityChangeDetected] because the diagnosis differs: an enum flip
+    /// says a capability appeared or vanished, while this says every capability
+    /// still reports the same but the model got measurably worse.
+    @Default(false) bool benchmarkRegressionDetected,
 
     /// How this revision was triggered. Known values: 'initial', 'idle_re_probe',
     /// 'calibrate', 'manual', 'probe'.
@@ -538,6 +590,7 @@ abstract class ModelCapabilityProfileRevision
     ModelCapabilityProfile profile, {
     String source = 'probe',
     bool capabilityChangeDetected = false,
+    bool benchmarkRegressionDetected = false,
   }) => ModelCapabilityProfileRevision(
     profileId: profile.computedId,
     probedAt: profile.probedAt ?? DateTime.now(),
@@ -545,11 +598,30 @@ abstract class ModelCapabilityProfileRevision
     structuredOutputSupport: profile.structuredOutputSupport,
     goalUpdateFidelity: profile.goalUpdateFidelity,
     editFormatPreference: profile.editFormatPreference,
+    visionSupport: profile.visionSupport,
     usableContextTokens: profile.usableContextTokens,
     probeSummary: profile.probeSummary,
+    benchmarkPoints: _metadataInt(profile, 'benchmarkPoints'),
+    benchmarkAttemptedPoints: _metadataInt(profile, 'benchmarkAttemptedPoints'),
+    benchmarkMaxPoints: _metadataInt(profile, 'benchmarkMaxPoints'),
+    benchmarkSuite: profile.probeMetadata['benchmarkSuite'] ?? '',
     source: source,
     capabilityChangeDetected: capabilityChangeDetected,
+    benchmarkRegressionDetected: benchmarkRegressionDetected,
   );
+
+  /// The builder writes the score into `probeMetadata`, which is the profile's
+  /// existing output contract. Absent or unparseable stays null rather than
+  /// becoming zero.
+  static int? _metadataInt(ModelCapabilityProfile profile, String key) {
+    final raw = profile.probeMetadata[key];
+    if (raw == null) {
+      return null;
+    }
+    return int.tryParse(raw.trim());
+  }
+
+  bool get hasBenchmarkScore => benchmarkPoints != null;
 
   /// Maximum revisions stored per profile id; oldest are dropped on overflow.
   static const maxPerProfile = 10;

@@ -33,6 +33,12 @@ void main() {
     expect(candidateA.expectedVerdict, Ll37ExpectedVerdict.notRefuted);
     expect(candidateB.expectedVerdict, Ll37ExpectedVerdict.refuted);
     expect(candidateA.sourceSurface, Ll37SourceSurface.worktreeAgent);
+    expect(candidateA.schemaVersion, 2);
+    expect(candidateB.schemaVersion, 2);
+    expect(candidateA.mechanicalVerificationPassed, isTrue);
+    expect(candidateB.mechanicalVerificationPassed, isTrue);
+    expect(candidateA.isEligible, isTrue);
+    expect(candidateB.isEligible, isTrue);
     expect(candidateA.objective, candidateB.objective);
     expect(candidateA.changedFiles, hasLength(2));
     expect(candidateB.changedFiles.single['path'], 'lib/greeting.dart');
@@ -46,7 +52,15 @@ void main() {
     expect(payload, contains('API_TOKEN=[redacted]'));
     expect(payload, contains('sourceContentHash'));
     expect(payload, contains('controlled_live_canary'));
-    expect(payload, contains('write tools disabled control'));
+    expect(payload, contains('mechanically green objective-miss control'));
+    expect(
+      RegExp(r'"verificationResult": "passed"').allMatches(payload),
+      hasLength(2),
+    );
+    expect(
+      RegExp(r'"mechanicalVerificationPassed": true').allMatches(payload),
+      hasLength(2),
+    );
   });
 
   test('requires explicit personal-eval consent', () async {
@@ -63,7 +77,7 @@ void main() {
     expect(Directory('${fixture.path}/evidence').existsSync(), isFalse);
   });
 
-  test('requires a completed green and non-green matched pair', () async {
+  test('requires a completed mechanically-green matched pair', () async {
     final fixture = await _mutableFixture();
     addTearDown(() => fixture.delete(recursive: true));
     final tasksFile = File('${fixture.path}/tasks.json');
@@ -74,6 +88,12 @@ void main() {
     await expectLater(_exportMutable(fixture), throwsFormatException);
 
     correct['verifiedGreen'] = true;
+    final broken = tasks.last as Map<String, dynamic>;
+    broken['verifiedGreen'] = false;
+    await tasksFile.writeAsString(jsonEncode(tasks));
+    await expectLater(_exportMutable(fixture), throwsFormatException);
+
+    broken['verifiedGreen'] = true;
     correct['status'] = 'running';
     await tasksFile.writeAsString(jsonEncode(tasks));
     await expectLater(_exportMutable(fixture), throwsFormatException);

@@ -930,6 +930,20 @@ class SystemPromptBuilder {
       case ModelEditFormatPreference.unknown:
         break;
     }
+    switch (profile.visionSupport) {
+      case ModelVisionSupport.rejected:
+      case ModelVisionSupport.ignored:
+        lines.add(
+          'MODEL CAPABILITY PROFILE: This model cannot read attached images. Ask the user to describe visual content in text instead of relying on a screenshot or attachment.',
+        );
+      case ModelVisionSupport.basic:
+        lines.add(
+          'MODEL CAPABILITY PROFILE: This model reads attached images but was unreliable on tool-delivered screenshots. Confirm what you see before acting on a screen observation.',
+        );
+      case ModelVisionSupport.reliable:
+      case ModelVisionSupport.unknown:
+        break;
+    }
     if (profile.usableContextTokens > 0) {
       lines.add(
         'MODEL CAPABILITY PROFILE: Keep prompt construction within approximately ${profile.usableContextTokens} usable context tokens for this model.',

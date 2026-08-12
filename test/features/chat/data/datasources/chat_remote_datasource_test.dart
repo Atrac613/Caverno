@@ -32,6 +32,43 @@ void main() {
     );
   });
 
+  test('applies a fixed top-p value to eval requests', () async {
+    Map<String, dynamic>? requestBody;
+    final client = MockClient((request) async {
+      requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          'id': 'completion-1',
+          'object': 'chat.completion',
+          'created': 0,
+          'model': 'test-model',
+          'choices': [
+            {
+              'index': 0,
+              'message': {'role': 'assistant', 'content': 'done'},
+              'finish_reason': 'stop',
+            },
+          ],
+        }),
+        200,
+        headers: const {'content-type': 'application/json'},
+      );
+    });
+    final evalDataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      defaultTopP: 0.95,
+      httpClient: client,
+    );
+
+    await evalDataSource.createChatCompletion(
+      messages: [_userMessage()],
+      model: 'test-model',
+    );
+
+    expect(requestBody?['top_p'], 0.95);
+  });
+
   test('returns null when the error does not include recoverable raw text', () {
     final recovered = dataSource.tryRecoverRawAssistantTextFromError(
       Exception('Connection refused'),

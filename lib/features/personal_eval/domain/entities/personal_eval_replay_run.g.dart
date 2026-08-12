@@ -10,6 +10,8 @@ _PersonalEvalReplayCaseResult _$PersonalEvalReplayCaseResultFromJson(
   Map<String, dynamic> json,
 ) => _PersonalEvalReplayCaseResult(
   caseId: json['caseId'] as String,
+  trialId: json['trialId'] as String? ?? 'trial-1',
+  executionOrder: (json['executionOrder'] as num?)?.toInt() ?? 0,
   title: json['title'] as String? ?? '',
   split:
       $enumDecodeNullable(
@@ -18,6 +20,21 @@ _PersonalEvalReplayCaseResult _$PersonalEvalReplayCaseResultFromJson(
         unknownValue: PersonalEvalCaseSplit.heldIn,
       ) ??
       PersonalEvalCaseSplit.heldIn,
+  origin:
+      $enumDecodeNullable(
+        _$PersonalEvalCaseOriginEnumMap,
+        json['origin'],
+        unknownValue: PersonalEvalCaseOrigin.recorded,
+      ) ??
+      PersonalEvalCaseOrigin.recorded,
+  tier: (json['tier'] as num?)?.toInt() ?? 0,
+  promptStyle:
+      $enumDecodeNullable(
+        _$PersonalEvalPromptStyleEnumMap,
+        json['promptStyle'],
+        unknownValue: PersonalEvalPromptStyle.unclassified,
+      ) ??
+      PersonalEvalPromptStyle.unclassified,
   logPath: json['logPath'] as String? ?? '',
   verificationResult:
       $enumDecodeNullable(
@@ -38,8 +55,13 @@ Map<String, dynamic> _$PersonalEvalReplayCaseResultToJson(
   _PersonalEvalReplayCaseResult instance,
 ) => <String, dynamic>{
   'caseId': instance.caseId,
+  'trialId': instance.trialId,
+  'executionOrder': instance.executionOrder,
   'title': instance.title,
   'split': _$PersonalEvalCaseSplitEnumMap[instance.split]!,
+  'origin': _$PersonalEvalCaseOriginEnumMap[instance.origin]!,
+  'tier': instance.tier,
+  'promptStyle': _$PersonalEvalPromptStyleEnumMap[instance.promptStyle]!,
   'logPath': instance.logPath,
   'verificationResult':
       _$PersonalEvalVerificationResultEnumMap[instance.verificationResult]!,
@@ -50,6 +72,17 @@ Map<String, dynamic> _$PersonalEvalReplayCaseResultToJson(
 const _$PersonalEvalCaseSplitEnumMap = {
   PersonalEvalCaseSplit.heldIn: 'heldIn',
   PersonalEvalCaseSplit.heldOut: 'heldOut',
+};
+
+const _$PersonalEvalCaseOriginEnumMap = {
+  PersonalEvalCaseOrigin.recorded: 'recorded',
+  PersonalEvalCaseOrigin.authored: 'authored',
+};
+
+const _$PersonalEvalPromptStyleEnumMap = {
+  PersonalEvalPromptStyle.unclassified: 'unclassified',
+  PersonalEvalPromptStyle.guided: 'guided',
+  PersonalEvalPromptStyle.unguided: 'unguided',
 };
 
 const _$PersonalEvalVerificationResultEnumMap = {

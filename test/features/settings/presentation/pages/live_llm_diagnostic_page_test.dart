@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
+import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_scoring.dart';
 import 'package:caverno/features/settings/presentation/pages/live_llm_diagnostic_page.dart';
 import 'package:caverno/features/settings/presentation/providers/live_llm_diagnostic_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
@@ -164,6 +165,130 @@ void main() {
     );
   });
 
+  testWidgets('summarizes the run as absolute points, not a percentage', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      settings: AppSettings.defaults(),
+      diagnosticState: LiveLlmDiagnosticState(
+        report: LiveLlmDiagnosticReport(
+          startedAt: DateTime.utc(2026, 8, 11),
+          finishedAt: DateTime.utc(2026, 8, 11, 0, 0, 2),
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'benchmark-model',
+          demoMode: false,
+          mcpEnabled: true,
+          results: const [
+            LiveLlmDiagnosticProbeResult(
+              id: 'instruction_echo',
+              status: LiveLlmDiagnosticStatus.passed,
+              summary: 'passed',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final expectedPoints = LiveLlmDiagnosticSuite.pointsFor('instruction_echo');
+    expect(
+      find.text('$expectedPoints / ${LiveLlmDiagnosticSuite.maxPoints}'),
+      findsOneWidget,
+    );
+    // The old headline: one passing probe out of one scored probe read as 100%.
+    expect(find.text('100%'), findsNothing);
+    expect(find.byKey(const ValueKey('live-llm-diag-coverage-tile')), findsOne);
+    expect(
+      find.byKey(const ValueKey('live-llm-diag-stability-tile')),
+      findsOne,
+    );
+  });
+
+  testWidgets('shows streaming capability measurements outside the score', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      settings: AppSettings.defaults(),
+      diagnosticState: LiveLlmDiagnosticState(
+        report: LiveLlmDiagnosticReport(
+          startedAt: DateTime.utc(2026, 8, 11),
+          finishedAt: DateTime.utc(2026, 8, 11, 0, 0, 2),
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'streaming-model',
+          demoMode: false,
+          mcpEnabled: false,
+          streamingMetrics: const LiveLlmDiagnosticStreamingMetrics(
+            timeToFirstToken: Duration(milliseconds: 250),
+            totalElapsed: Duration(milliseconds: 2250),
+            completionTokens: 100,
+            chunkCount: 12,
+          ),
+        ),
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('Capability (measured)'),
+      400,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('Capability (measured)'), findsOneWidget);
+    expect(find.text('250 ms'), findsOneWidget);
+    expect(find.text('50.0 tok/s'), findsOneWidget);
+    expect(find.text('100'), findsOneWidget);
+    expect(find.text('12'), findsOneWidget);
+  });
+
+  testWidgets('shows multi-round physical measurements outside the score', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      settings: AppSettings.defaults(),
+      diagnosticState: LiveLlmDiagnosticState(
+        report: LiveLlmDiagnosticReport(
+          startedAt: DateTime.utc(2026, 8, 11),
+          finishedAt: DateTime.utc(2026, 8, 11, 0, 0, 2),
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'multi-round-model',
+          demoMode: false,
+          mcpEnabled: true,
+          multiRoundToolLoopMetrics:
+              const LiveLlmDiagnosticMultiRoundToolLoopMetrics(
+                totalElapsed: Duration(milliseconds: 1875),
+                modelTurnCount: 3,
+                toolCallCount: 2,
+                successfulToolExecutionCount: 2,
+                promptTokens: 410,
+                completionTokens: 90,
+                taskCompleted: true,
+              ),
+        ),
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('live-llm-diag-loop-turns-tile')),
+      400,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('Capability (measured)'), findsOneWidget);
+    expect(find.text('Tool-loop model turns'), findsOneWidget);
+    expect(find.text('Tool-loop calls'), findsOneWidget);
+    expect(find.text('Successful tool executions'), findsOneWidget);
+    expect(find.text('Tool-loop prompt tokens'), findsOneWidget);
+    expect(find.text('Tool-loop completion tokens'), findsOneWidget);
+    expect(find.text('Tool-loop total tokens'), findsOneWidget);
+    expect(find.text('Tool-loop elapsed'), findsOneWidget);
+    expect(find.text('Tool-loop task completed'), findsOneWidget);
+    expect(find.text('1875 ms'), findsOneWidget);
+    expect(find.text('500'), findsOneWidget);
+    expect(find.text('Yes'), findsOneWidget);
+  });
+
   testWidgets('shows profile history empty state when no revisions', (
     tester,
   ) async {
@@ -224,10 +349,7 @@ void main() {
 
     expect(find.text('Idle re-probe'), findsOneWidget);
     expect(find.text('Probe'), findsOneWidget);
-    expect(
-      find.textContaining('Capability change detected'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Capability change detected'), findsOneWidget);
     expect(find.text('Usable context: 8192'), findsWidgets);
   });
 }

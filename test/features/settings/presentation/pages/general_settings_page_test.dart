@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:caverno/core/services/apple_foundation_models_platform_client.dart';
 import 'package:caverno/core/services/lan_endpoint_discovery.dart';
+import 'package:caverno/core/services/macos_update_service.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/pages/general_settings_page.dart';
 import 'package:caverno/features/settings/presentation/providers/apple_foundation_models_availability_provider.dart';
@@ -419,6 +420,68 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('shows the promoted macOS update tile on macOS', (tester) async {
+    await _pumpGeneralSettingsPage(
+      tester,
+      settings: AppSettings.defaults(),
+      loadModels: () async => [AppSettings.defaults().model],
+      updateService: const _FakeMacosUpdateService(isAvailable: true),
+    );
+
+    final tile = find.byKey(const ValueKey('settings-macos-updates'));
+    await tester.scrollUntilVisible(
+      tile,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('App Updates'), findsOneWidget);
+    expect(tile, findsOneWidget);
+  });
+
+  testWidgets('hides the macOS update tile off macOS', (tester) async {
+    await _pumpGeneralSettingsPage(
+      tester,
+      settings: AppSettings.defaults(),
+      loadModels: () async => [AppSettings.defaults().model],
+      updateService: const _FakeMacosUpdateService(isAvailable: false),
+    );
+
+    expect(find.text('App Updates'), findsNothing);
+    expect(find.byKey(const ValueKey('settings-macos-updates')), findsNothing);
+  });
+}
+
+class _FakeMacosUpdateService extends MacosUpdateService {
+  const _FakeMacosUpdateService({required bool isAvailable})
+    : _isAvailable = isAvailable,
+      super();
+
+  final bool _isAvailable;
+
+  @override
+  bool get isAvailable => _isAvailable;
+
+  @override
+  Future<MacosUpdateStatus> getStatus() async {
+    return const MacosUpdateStatus(
+      available: true,
+      configured: true,
+      feedUrl: 'https://example.test/appcast.xml',
+      publicKeyConfigured: true,
+      automaticallyChecksForUpdates: true,
+      automaticallyDownloadsUpdates: false,
+      scheduledCheckIntervalSeconds: 3600,
+      updateCheckIntervalSeconds: 3600,
+      bundleVersion: '13',
+      bundleShortVersion: '1.3.2',
+    );
+  }
+
+  @override
+  Future<MacosUpdateStatus> checkForUpdates() async => getStatus();
 }
 
 Future<void> _pumpGeneralSettingsPage(
@@ -427,6 +490,7 @@ Future<void> _pumpGeneralSettingsPage(
   required Future<List<String>> Function() loadModels,
   AppleFoundationModelsAvailability? appleAvailability,
   _StubMeshDiscoveryNotifier? meshDiscoveryNotifier,
+  MacosUpdateService? updateService,
   Size physicalSize = const Size(1200, 1800),
 }) async {
   SharedPreferences.setMockInitialValues({
@@ -462,6 +526,8 @@ Future<void> _pumpGeneralSettingsPage(
               ),
               if (meshDiscoveryNotifier != null)
                 meshDiscoveryProvider.overrideWith(() => meshDiscoveryNotifier),
+              if (updateService != null)
+                macosUpdateServiceProvider.overrideWithValue(updateService),
               modelListProvider(
                 modelConfig,
               ).overrideWith((ref) => loadModels()),

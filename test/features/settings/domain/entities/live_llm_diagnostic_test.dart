@@ -3,6 +3,120 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 
 void main() {
+  test('serializes completed multi-round tool-loop measurements', () {
+    const metrics = LiveLlmDiagnosticMultiRoundToolLoopMetrics(
+      totalElapsed: Duration(milliseconds: 1450),
+      modelTurnCount: 3,
+      toolCallCount: 2,
+      successfulToolExecutionCount: 2,
+      promptTokens: 420,
+      completionTokens: 80,
+      taskCompleted: true,
+    );
+    final report = LiveLlmDiagnosticReport(
+      startedAt: DateTime.utc(2026, 8, 11),
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'tool-loop-model',
+      demoMode: false,
+      mcpEnabled: true,
+      multiRoundToolLoopMetrics: metrics,
+    );
+
+    expect(metrics.totalTokens, 500);
+    expect(report.toJson()['multiRoundToolLoop'], {
+      'totalElapsedMs': 1450,
+      'modelTurnCount': 3,
+      'toolCallCount': 2,
+      'successfulToolExecutionCount': 2,
+      'promptTokens': 420,
+      'completionTokens': 80,
+      'totalTokens': 500,
+      'taskCompleted': true,
+    });
+  });
+
+  test('retains partial multi-round measurements after an early exit', () {
+    const metrics = LiveLlmDiagnosticMultiRoundToolLoopMetrics(
+      totalElapsed: Duration(milliseconds: 600),
+      modelTurnCount: 2,
+      toolCallCount: 1,
+      successfulToolExecutionCount: 1,
+      promptTokens: 220,
+      completionTokens: 30,
+      taskCompleted: false,
+    );
+
+    expect(metrics.toJson(), containsPair('taskCompleted', false));
+    expect(metrics.toJson(), containsPair('modelTurnCount', 2));
+    expect(metrics.toJson(), containsPair('totalTokens', 250));
+  });
+
+  test('omits unmeasured multi-round metrics from reports', () {
+    final report = LiveLlmDiagnosticReport(
+      startedAt: DateTime.utc(2026, 8, 11),
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'unmeasured-model',
+      demoMode: false,
+      mcpEnabled: false,
+    );
+
+    expect(report.toJson(), isNot(contains('multiRoundToolLoop')));
+  });
+
+  test('serializes streaming capability metrics in physical units', () {
+    final metrics = LiveLlmDiagnosticStreamingMetrics(
+      timeToFirstToken: const Duration(milliseconds: 250),
+      totalElapsed: const Duration(milliseconds: 2250),
+      completionTokens: 100,
+      chunkCount: 12,
+      finishReason: 'stop',
+    );
+    final report = LiveLlmDiagnosticReport(
+      startedAt: DateTime.utc(2026, 8, 11),
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'streaming-model',
+      demoMode: false,
+      mcpEnabled: false,
+      streamingMetrics: metrics,
+    );
+
+    expect(metrics.decodeTokensPerSecond, 50);
+    expect(report.toJson()['streaming'], {
+      'timeToFirstTokenMs': 250,
+      'totalElapsedMs': 2250,
+      'completionTokens': 100,
+      'chunkCount': 12,
+      'likelyBuffered': false,
+      'finishReason': 'stop',
+      'decodeTokensPerSecond': 50.0,
+    });
+  });
+
+  test('omits decode rate when the provider buffers the whole response', () {
+    const metrics = LiveLlmDiagnosticStreamingMetrics(
+      timeToFirstToken: Duration(seconds: 2),
+      totalElapsed: Duration(seconds: 2),
+      completionTokens: 100,
+      chunkCount: 1,
+    );
+
+    expect(metrics.decodeTokensPerSecond, isNull);
+    expect(metrics.isLikelyBuffered, isTrue);
+    expect(metrics.toJson(), isNot(contains('decodeTokensPerSecond')));
+  });
+
+  test('rejects a many-chunk terminal burst as buffered delivery', () {
+    const metrics = LiveLlmDiagnosticStreamingMetrics(
+      timeToFirstToken: Duration(milliseconds: 1085),
+      totalElapsed: Duration(milliseconds: 1109),
+      completionTokens: 111,
+      chunkCount: 110,
+    );
+
+    expect(metrics.isLikelyBuffered, isTrue);
+    expect(metrics.decodeTokensPerSecond, isNull);
+  });
+
   test('serializes sampler calibration trials in diagnostic reports', () {
     final report = LiveLlmDiagnosticReport(
       startedAt: DateTime.utc(2026, 6, 12),

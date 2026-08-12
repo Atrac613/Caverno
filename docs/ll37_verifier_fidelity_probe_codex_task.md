@@ -81,5 +81,10 @@ tool/codex_verify.sh --test test/tool/ll37_verifier_fidelity_probe_test.dart
   deterministic tests.
 - Risks or follow-ups: A synthetic pair is harness validation only and is
   excluded from the eligible denominator. LL37 remains No-Go until at least
-  five correct and five known-broken real cases from at least two unattended
-  surfaces meet the documented thresholds.
+  five objective-distinct correct/known-broken real pairs from at least two
+  unattended surfaces meet the documented thresholds. Report schema v2 added
+  the objective-diversity requirement and rejects pairs whose arms disagree on
+  objective, acceptance criteria, or source surface. Case schema v2 and report
+  schema v3 additionally require and expose explicit mechanically-green
+  evidence; legacy schema-v1 pairs remain readable harness results but are
+  excluded from eligibility.

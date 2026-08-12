@@ -31,6 +31,22 @@ _PersonalEvalCase _$PersonalEvalCaseFromJson(Map<String, dynamic> json) =>
             unknownValue: PersonalEvalCaseSplit.heldIn,
           ) ??
           PersonalEvalCaseSplit.heldIn,
+      origin:
+          $enumDecodeNullable(
+            _$PersonalEvalCaseOriginEnumMap,
+            json['origin'],
+            unknownValue: PersonalEvalCaseOrigin.recorded,
+          ) ??
+          PersonalEvalCaseOrigin.recorded,
+      tier: (json['tier'] as num?)?.toInt() ?? 0,
+      promptStyle:
+          $enumDecodeNullable(
+            _$PersonalEvalPromptStyleEnumMap,
+            json['promptStyle'],
+            unknownValue: PersonalEvalPromptStyle.unclassified,
+          ) ??
+          PersonalEvalPromptStyle.unclassified,
+      fixtureDirectory: json['fixtureDirectory'] as String? ?? '',
       consentGranted: json['consentGranted'] as bool? ?? false,
       consentedAt: json['consentedAt'] == null
           ? null
@@ -55,6 +71,10 @@ Map<String, dynamic> _$PersonalEvalCaseToJson(_PersonalEvalCase instance) =>
           _$PersonalEvalVerificationResultEnumMap[instance.verificationResult]!,
       'workspaceMode': instance.workspaceMode,
       'split': _$PersonalEvalCaseSplitEnumMap[instance.split]!,
+      'origin': _$PersonalEvalCaseOriginEnumMap[instance.origin]!,
+      'tier': instance.tier,
+      'promptStyle': _$PersonalEvalPromptStyleEnumMap[instance.promptStyle]!,
+      'fixtureDirectory': instance.fixtureDirectory,
       'consentGranted': instance.consentGranted,
       'consentedAt': instance.consentedAt?.toIso8601String(),
       'sessionLogPath': instance.sessionLogPath,
@@ -70,4 +90,15 @@ const _$PersonalEvalVerificationResultEnumMap = {
 const _$PersonalEvalCaseSplitEnumMap = {
   PersonalEvalCaseSplit.heldIn: 'heldIn',
   PersonalEvalCaseSplit.heldOut: 'heldOut',
+};
+
+const _$PersonalEvalCaseOriginEnumMap = {
+  PersonalEvalCaseOrigin.recorded: 'recorded',
+  PersonalEvalCaseOrigin.authored: 'authored',
+};
+
+const _$PersonalEvalPromptStyleEnumMap = {
+  PersonalEvalPromptStyle.unclassified: 'unclassified',
+  PersonalEvalPromptStyle.guided: 'guided',
+  PersonalEvalPromptStyle.unguided: 'unguided',
 };

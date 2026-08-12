@@ -20,6 +20,8 @@ void main() {
       title: 'Ping CLI',
       verificationResult: 'passed',
       toolCallCount: 1,
+      tier: 2,
+      promptStyle: 'guided',
     );
     final weatherManifest = _writeManifest(
       directory: directory,
@@ -88,6 +90,7 @@ void main() {
     );
 
     expect(run.schemaName, 'caverno_personal_eval_replay_run');
+    expect(run.schemaVersion, 5);
     expect(run.isSuccessful, isFalse);
     expect(run.passedCount, 1);
     expect(run.failedCount, 1);
@@ -101,17 +104,28 @@ void main() {
     expect(ping.turnCount, 2);
     expect(ping.summaryResult, 'complete');
     expect(ping.warningCodes, isEmpty);
+    expect(ping.tier, 2);
+    expect(ping.promptStyle, 'guided');
 
     final json = run.toJson();
     expect(json['schemaName'], 'caverno_personal_eval_replay_run');
-    expect(json['schemaVersion'], 1);
+    expect(json['schemaVersion'], 5);
     expect(json['generatedAt'], '2026-06-14T03:04:05.000Z');
     expect(json['label'], 'candidate');
     expect(json['model'], 'test-model');
     expect(json['baseUrl'], 'http://localhost:1234/v1');
     expect(json['caseCount'], 2);
+    expect(json['trialCount'], 2);
     expect(json['failedCount'], 1);
     expect(json['cases'], hasLength(2));
+    expect(run.cases.first.trialId, 'trial-1');
+    expect(run.cases.first.executionOrder, 1);
+    expect(run.cases.first.origin, 'recorded');
+    expect(run.cases.first.split, 'heldIn');
+    expect(
+      run.cases.first.startedAt,
+      DateTime.parse('2026-06-14T00:00:00.000'),
+    );
     expect(run.toMarkdown(), contains('Personal Eval Replay Run'));
 
     final incumbentFile = _writeReplayRun(directory, 'incumbent.json', run);
@@ -124,6 +138,89 @@ void main() {
     );
     expect(report.result, 'passed');
     expect(report.entries, hasLength(2));
+  });
+
+  test('records repeated trials without duplicating logical cases', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'personal-eval-repeated-trials-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+
+    final manifest = _writeManifest(
+      directory: directory,
+      caseId: 'case-a',
+      title: 'Case A',
+      verificationResult: 'passed',
+      toolCallCount: 0,
+    );
+    final firstLog = _writeSessionLog(
+      directory: directory,
+      fileName: 'case-a-first.jsonl',
+      entries: [
+        _entry(
+          operation: 'streamChatCompletion',
+          finishReason: 'stream_end',
+          content: 'First trial complete.',
+        ),
+      ],
+    );
+    final secondLog = _writeSessionLog(
+      directory: directory,
+      fileName: 'case-a-second.jsonl',
+      entries: [
+        _entry(
+          operation: 'streamChatCompletion',
+          finishReason: 'stream_end',
+          content: 'Second trial complete.',
+          durationMs: 1500,
+        ),
+      ],
+    );
+
+    final run = await buildPersonalEvalReplayRun(
+      label: 'candidate',
+      manifestFiles: [manifest],
+      caseLogFiles: {'case-a#trial-2': secondLog, 'case-a#trial-1': firstLog},
+      verificationResults: {
+        'case-a#trial-2': PersonalEvalVerificationResult.failed,
+        'case-a#trial-1': PersonalEvalVerificationResult.passed,
+      },
+    );
+
+    expect(run.distinctCaseCount, 1);
+    expect(run.cases, hasLength(2));
+    expect(run.cases.map((entry) => entry.trialId), ['trial-2', 'trial-1']);
+    expect(run.cases.map((entry) => entry.executionOrder), [1, 2]);
+    expect(run.toJson()['caseCount'], 2);
+    expect(run.toJson()['distinctCaseCount'], 1);
+    expect(run.toJson()['trialCount'], 2);
+    expect(
+      run.toMarkdown(),
+      contains(
+        '| `1` | case-a | trial-2 | `recorded` | `heldIn` '
+        '| `unclassified` | `unclassified` '
+        '| `2026-06-14T00:00:00.000` |',
+      ),
+    );
+  });
+
+  test('normalizes legacy and explicit trial keys', () {
+    final legacy = PersonalEvalReplayTrialKey.parse('case-a');
+    final explicit = PersonalEvalReplayTrialKey.parse('case-a#trial-2');
+
+    expect(legacy.caseId, 'case-a');
+    expect(legacy.trialId, 'trial-1');
+    expect(legacy.normalized, 'case-a#trial-1');
+    expect(explicit.caseId, 'case-a');
+    expect(explicit.trialId, 'trial-2');
+    expect(
+      () => PersonalEvalReplayTrialKey.parse('case-a#'),
+      throwsFormatException,
+    );
+    expect(
+      () => PersonalEvalReplayTrialKey.parse('case-a#trial#2'),
+      throwsFormatException,
+    );
   });
 
   test('validates manifests, case logs, and verification results', () async {
@@ -298,6 +395,10 @@ File _writeManifest({
   required String verificationResult,
   required int toolCallCount,
   String readiness = 'ready',
+  String origin = 'recorded',
+  String split = 'heldIn',
+  int? tier,
+  String? promptStyle,
   String? fileName,
 }) {
   final file = File('${directory.path}/${fileName ?? '$caseId.json'}');
@@ -309,6 +410,10 @@ File _writeManifest({
       'caseId': caseId,
       'title': title,
       'readiness': readiness,
+      'origin': origin,
+      'split': split,
+      'tier': ?tier,
+      'promptStyle': ?promptStyle,
       'task': {
         'prompt': 'Do $title.',
         'repoStateRef': 'HEAD',

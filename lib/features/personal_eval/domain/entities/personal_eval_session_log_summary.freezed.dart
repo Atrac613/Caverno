@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PersonalEvalSessionLogSummary {
 
- String get result; int get entryCount; int get turnCount; int get malformedLineCount; int get toolCallCount; int get totalDurationMs; Map<String, int> get operationCounts; Map<String, int> get finishReasonCounts; List<String> get warningCodes;@JsonKey(includeIfNull: false) int? get finalAnswerLineNumber;
+ String get result; int get entryCount; int get turnCount; int get malformedLineCount; int get toolCallCount; int get totalDurationMs; Map<String, int> get operationCounts; Map<String, int> get finishReasonCounts; List<String> get warningCodes;@JsonKey(includeIfNull: false) DateTime? get startedAt;@JsonKey(includeIfNull: false) int? get finalAnswerLineNumber;
 /// Create a copy of PersonalEvalSessionLogSummary
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $PersonalEvalSessionLogSummaryCopyWith<PersonalEvalSessionLogSummary> get copyWi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PersonalEvalSessionLogSummary&&(identical(other.result, result) || other.result == result)&&(identical(other.entryCount, entryCount) || other.entryCount == entryCount)&&(identical(other.turnCount, turnCount) || other.turnCount == turnCount)&&(identical(other.malformedLineCount, malformedLineCount) || other.malformedLineCount == malformedLineCount)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&(identical(other.totalDurationMs, totalDurationMs) || other.totalDurationMs == totalDurationMs)&&const DeepCollectionEquality().equals(other.operationCounts, operationCounts)&&const DeepCollectionEquality().equals(other.finishReasonCounts, finishReasonCounts)&&const DeepCollectionEquality().equals(other.warningCodes, warningCodes)&&(identical(other.finalAnswerLineNumber, finalAnswerLineNumber) || other.finalAnswerLineNumber == finalAnswerLineNumber));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PersonalEvalSessionLogSummary&&(identical(other.result, result) || other.result == result)&&(identical(other.entryCount, entryCount) || other.entryCount == entryCount)&&(identical(other.turnCount, turnCount) || other.turnCount == turnCount)&&(identical(other.malformedLineCount, malformedLineCount) || other.malformedLineCount == malformedLineCount)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&(identical(other.totalDurationMs, totalDurationMs) || other.totalDurationMs == totalDurationMs)&&const DeepCollectionEquality().equals(other.operationCounts, operationCounts)&&const DeepCollectionEquality().equals(other.finishReasonCounts, finishReasonCounts)&&const DeepCollectionEquality().equals(other.warningCodes, warningCodes)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finalAnswerLineNumber, finalAnswerLineNumber) || other.finalAnswerLineNumber == finalAnswerLineNumber));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,result,entryCount,turnCount,malformedLineCount,toolCallCount,totalDurationMs,const DeepCollectionEquality().hash(operationCounts),const DeepCollectionEquality().hash(finishReasonCounts),const DeepCollectionEquality().hash(warningCodes),finalAnswerLineNumber);
+int get hashCode => Object.hash(runtimeType,result,entryCount,turnCount,malformedLineCount,toolCallCount,totalDurationMs,const DeepCollectionEquality().hash(operationCounts),const DeepCollectionEquality().hash(finishReasonCounts),const DeepCollectionEquality().hash(warningCodes),startedAt,finalAnswerLineNumber);
 
 @override
 String toString() {
-  return 'PersonalEvalSessionLogSummary(result: $result, entryCount: $entryCount, turnCount: $turnCount, malformedLineCount: $malformedLineCount, toolCallCount: $toolCallCount, totalDurationMs: $totalDurationMs, operationCounts: $operationCounts, finishReasonCounts: $finishReasonCounts, warningCodes: $warningCodes, finalAnswerLineNumber: $finalAnswerLineNumber)';
+  return 'PersonalEvalSessionLogSummary(result: $result, entryCount: $entryCount, turnCount: $turnCount, malformedLineCount: $malformedLineCount, toolCallCount: $toolCallCount, totalDurationMs: $totalDurationMs, operationCounts: $operationCounts, finishReasonCounts: $finishReasonCounts, warningCodes: $warningCodes, startedAt: $startedAt, finalAnswerLineNumber: $finalAnswerLineNumber)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $PersonalEvalSessionLogSummaryCopyWith<$Res>  {
   factory $PersonalEvalSessionLogSummaryCopyWith(PersonalEvalSessionLogSummary value, $Res Function(PersonalEvalSessionLogSummary) _then) = _$PersonalEvalSessionLogSummaryCopyWithImpl;
 @useResult
 $Res call({
- String result, int entryCount, int turnCount, int malformedLineCount, int toolCallCount, int totalDurationMs, Map<String, int> operationCounts, Map<String, int> finishReasonCounts, List<String> warningCodes,@JsonKey(includeIfNull: false) int? finalAnswerLineNumber
+ String result, int entryCount, int turnCount, int malformedLineCount, int toolCallCount, int totalDurationMs, Map<String, int> operationCounts, Map<String, int> finishReasonCounts, List<String> warningCodes,@JsonKey(includeIfNull: false) DateTime? startedAt,@JsonKey(includeIfNull: false) int? finalAnswerLineNumber
 });
 
 
@@ -65,7 +65,7 @@ class _$PersonalEvalSessionLogSummaryCopyWithImpl<$Res>
 
 /// Create a copy of PersonalEvalSessionLogSummary
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? result = null,Object? entryCount = null,Object? turnCount = null,Object? malformedLineCount = null,Object? toolCallCount = null,Object? totalDurationMs = null,Object? operationCounts = null,Object? finishReasonCounts = null,Object? warningCodes = null,Object? finalAnswerLineNumber = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? result = null,Object? entryCount = null,Object? turnCount = null,Object? malformedLineCount = null,Object? toolCallCount = null,Object? totalDurationMs = null,Object? operationCounts = null,Object? finishReasonCounts = null,Object? warningCodes = null,Object? startedAt = freezed,Object? finalAnswerLineNumber = freezed,}) {
   return _then(_self.copyWith(
 result: null == result ? _self.result : result // ignore: cast_nullable_to_non_nullable
 as String,entryCount: null == entryCount ? _self.entryCount : entryCount // ignore: cast_nullable_to_non_nullable
@@ -76,7 +76,8 @@ as int,totalDurationMs: null == totalDurationMs ? _self.totalDurationMs : totalD
 as int,operationCounts: null == operationCounts ? _self.operationCounts : operationCounts // ignore: cast_nullable_to_non_nullable
 as Map<String, int>,finishReasonCounts: null == finishReasonCounts ? _self.finishReasonCounts : finishReasonCounts // ignore: cast_nullable_to_non_nullable
 as Map<String, int>,warningCodes: null == warningCodes ? _self.warningCodes : warningCodes // ignore: cast_nullable_to_non_nullable
-as List<String>,finalAnswerLineNumber: freezed == finalAnswerLineNumber ? _self.finalAnswerLineNumber : finalAnswerLineNumber // ignore: cast_nullable_to_non_nullable
+as List<String>,startedAt: freezed == startedAt ? _self.startedAt : startedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,finalAnswerLineNumber: freezed == finalAnswerLineNumber ? _self.finalAnswerLineNumber : finalAnswerLineNumber // ignore: cast_nullable_to_non_nullable
 as int?,
   ));
 }
@@ -162,10 +163,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String result,  int entryCount,  int turnCount,  int malformedLineCount,  int toolCallCount,  int totalDurationMs,  Map<String, int> operationCounts,  Map<String, int> finishReasonCounts,  List<String> warningCodes, @JsonKey(includeIfNull: false)  int? finalAnswerLineNumber)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String result,  int entryCount,  int turnCount,  int malformedLineCount,  int toolCallCount,  int totalDurationMs,  Map<String, int> operationCounts,  Map<String, int> finishReasonCounts,  List<String> warningCodes, @JsonKey(includeIfNull: false)  DateTime? startedAt, @JsonKey(includeIfNull: false)  int? finalAnswerLineNumber)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PersonalEvalSessionLogSummary() when $default != null:
-return $default(_that.result,_that.entryCount,_that.turnCount,_that.malformedLineCount,_that.toolCallCount,_that.totalDurationMs,_that.operationCounts,_that.finishReasonCounts,_that.warningCodes,_that.finalAnswerLineNumber);case _:
+return $default(_that.result,_that.entryCount,_that.turnCount,_that.malformedLineCount,_that.toolCallCount,_that.totalDurationMs,_that.operationCounts,_that.finishReasonCounts,_that.warningCodes,_that.startedAt,_that.finalAnswerLineNumber);case _:
   return orElse();
 
 }
@@ -183,10 +184,10 @@ return $default(_that.result,_that.entryCount,_that.turnCount,_that.malformedLin
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String result,  int entryCount,  int turnCount,  int malformedLineCount,  int toolCallCount,  int totalDurationMs,  Map<String, int> operationCounts,  Map<String, int> finishReasonCounts,  List<String> warningCodes, @JsonKey(includeIfNull: false)  int? finalAnswerLineNumber)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String result,  int entryCount,  int turnCount,  int malformedLineCount,  int toolCallCount,  int totalDurationMs,  Map<String, int> operationCounts,  Map<String, int> finishReasonCounts,  List<String> warningCodes, @JsonKey(includeIfNull: false)  DateTime? startedAt, @JsonKey(includeIfNull: false)  int? finalAnswerLineNumber)  $default,) {final _that = this;
 switch (_that) {
 case _PersonalEvalSessionLogSummary():
-return $default(_that.result,_that.entryCount,_that.turnCount,_that.malformedLineCount,_that.toolCallCount,_that.totalDurationMs,_that.operationCounts,_that.finishReasonCounts,_that.warningCodes,_that.finalAnswerLineNumber);case _:
+return $default(_that.result,_that.entryCount,_that.turnCount,_that.malformedLineCount,_that.toolCallCount,_that.totalDurationMs,_that.operationCounts,_that.finishReasonCounts,_that.warningCodes,_that.startedAt,_that.finalAnswerLineNumber);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -203,10 +204,10 @@ return $default(_that.result,_that.entryCount,_that.turnCount,_that.malformedLin
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String result,  int entryCount,  int turnCount,  int malformedLineCount,  int toolCallCount,  int totalDurationMs,  Map<String, int> operationCounts,  Map<String, int> finishReasonCounts,  List<String> warningCodes, @JsonKey(includeIfNull: false)  int? finalAnswerLineNumber)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String result,  int entryCount,  int turnCount,  int malformedLineCount,  int toolCallCount,  int totalDurationMs,  Map<String, int> operationCounts,  Map<String, int> finishReasonCounts,  List<String> warningCodes, @JsonKey(includeIfNull: false)  DateTime? startedAt, @JsonKey(includeIfNull: false)  int? finalAnswerLineNumber)?  $default,) {final _that = this;
 switch (_that) {
 case _PersonalEvalSessionLogSummary() when $default != null:
-return $default(_that.result,_that.entryCount,_that.turnCount,_that.malformedLineCount,_that.toolCallCount,_that.totalDurationMs,_that.operationCounts,_that.finishReasonCounts,_that.warningCodes,_that.finalAnswerLineNumber);case _:
+return $default(_that.result,_that.entryCount,_that.turnCount,_that.malformedLineCount,_that.toolCallCount,_that.totalDurationMs,_that.operationCounts,_that.finishReasonCounts,_that.warningCodes,_that.startedAt,_that.finalAnswerLineNumber);case _:
   return null;
 
 }
@@ -218,7 +219,7 @@ return $default(_that.result,_that.entryCount,_that.turnCount,_that.malformedLin
 @JsonSerializable()
 
 class _PersonalEvalSessionLogSummary extends PersonalEvalSessionLogSummary {
-  const _PersonalEvalSessionLogSummary({this.result = 'incomplete', this.entryCount = 0, this.turnCount = 0, this.malformedLineCount = 0, this.toolCallCount = 0, this.totalDurationMs = 0, final  Map<String, int> operationCounts = const <String, int>{}, final  Map<String, int> finishReasonCounts = const <String, int>{}, final  List<String> warningCodes = const <String>[], @JsonKey(includeIfNull: false) this.finalAnswerLineNumber}): _operationCounts = operationCounts,_finishReasonCounts = finishReasonCounts,_warningCodes = warningCodes,super._();
+  const _PersonalEvalSessionLogSummary({this.result = 'incomplete', this.entryCount = 0, this.turnCount = 0, this.malformedLineCount = 0, this.toolCallCount = 0, this.totalDurationMs = 0, final  Map<String, int> operationCounts = const <String, int>{}, final  Map<String, int> finishReasonCounts = const <String, int>{}, final  List<String> warningCodes = const <String>[], @JsonKey(includeIfNull: false) this.startedAt, @JsonKey(includeIfNull: false) this.finalAnswerLineNumber}): _operationCounts = operationCounts,_finishReasonCounts = finishReasonCounts,_warningCodes = warningCodes,super._();
   factory _PersonalEvalSessionLogSummary.fromJson(Map<String, dynamic> json) => _$PersonalEvalSessionLogSummaryFromJson(json);
 
 @override@JsonKey() final  String result;
@@ -248,6 +249,7 @@ class _PersonalEvalSessionLogSummary extends PersonalEvalSessionLogSummary {
   return EqualUnmodifiableListView(_warningCodes);
 }
 
+@override@JsonKey(includeIfNull: false) final  DateTime? startedAt;
 @override@JsonKey(includeIfNull: false) final  int? finalAnswerLineNumber;
 
 /// Create a copy of PersonalEvalSessionLogSummary
@@ -263,16 +265,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PersonalEvalSessionLogSummary&&(identical(other.result, result) || other.result == result)&&(identical(other.entryCount, entryCount) || other.entryCount == entryCount)&&(identical(other.turnCount, turnCount) || other.turnCount == turnCount)&&(identical(other.malformedLineCount, malformedLineCount) || other.malformedLineCount == malformedLineCount)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&(identical(other.totalDurationMs, totalDurationMs) || other.totalDurationMs == totalDurationMs)&&const DeepCollectionEquality().equals(other._operationCounts, _operationCounts)&&const DeepCollectionEquality().equals(other._finishReasonCounts, _finishReasonCounts)&&const DeepCollectionEquality().equals(other._warningCodes, _warningCodes)&&(identical(other.finalAnswerLineNumber, finalAnswerLineNumber) || other.finalAnswerLineNumber == finalAnswerLineNumber));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PersonalEvalSessionLogSummary&&(identical(other.result, result) || other.result == result)&&(identical(other.entryCount, entryCount) || other.entryCount == entryCount)&&(identical(other.turnCount, turnCount) || other.turnCount == turnCount)&&(identical(other.malformedLineCount, malformedLineCount) || other.malformedLineCount == malformedLineCount)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&(identical(other.totalDurationMs, totalDurationMs) || other.totalDurationMs == totalDurationMs)&&const DeepCollectionEquality().equals(other._operationCounts, _operationCounts)&&const DeepCollectionEquality().equals(other._finishReasonCounts, _finishReasonCounts)&&const DeepCollectionEquality().equals(other._warningCodes, _warningCodes)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finalAnswerLineNumber, finalAnswerLineNumber) || other.finalAnswerLineNumber == finalAnswerLineNumber));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,result,entryCount,turnCount,malformedLineCount,toolCallCount,totalDurationMs,const DeepCollectionEquality().hash(_operationCounts),const DeepCollectionEquality().hash(_finishReasonCounts),const DeepCollectionEquality().hash(_warningCodes),finalAnswerLineNumber);
+int get hashCode => Object.hash(runtimeType,result,entryCount,turnCount,malformedLineCount,toolCallCount,totalDurationMs,const DeepCollectionEquality().hash(_operationCounts),const DeepCollectionEquality().hash(_finishReasonCounts),const DeepCollectionEquality().hash(_warningCodes),startedAt,finalAnswerLineNumber);
 
 @override
 String toString() {
-  return 'PersonalEvalSessionLogSummary(result: $result, entryCount: $entryCount, turnCount: $turnCount, malformedLineCount: $malformedLineCount, toolCallCount: $toolCallCount, totalDurationMs: $totalDurationMs, operationCounts: $operationCounts, finishReasonCounts: $finishReasonCounts, warningCodes: $warningCodes, finalAnswerLineNumber: $finalAnswerLineNumber)';
+  return 'PersonalEvalSessionLogSummary(result: $result, entryCount: $entryCount, turnCount: $turnCount, malformedLineCount: $malformedLineCount, toolCallCount: $toolCallCount, totalDurationMs: $totalDurationMs, operationCounts: $operationCounts, finishReasonCounts: $finishReasonCounts, warningCodes: $warningCodes, startedAt: $startedAt, finalAnswerLineNumber: $finalAnswerLineNumber)';
 }
 
 
@@ -283,7 +285,7 @@ abstract mixin class _$PersonalEvalSessionLogSummaryCopyWith<$Res> implements $P
   factory _$PersonalEvalSessionLogSummaryCopyWith(_PersonalEvalSessionLogSummary value, $Res Function(_PersonalEvalSessionLogSummary) _then) = __$PersonalEvalSessionLogSummaryCopyWithImpl;
 @override @useResult
 $Res call({
- String result, int entryCount, int turnCount, int malformedLineCount, int toolCallCount, int totalDurationMs, Map<String, int> operationCounts, Map<String, int> finishReasonCounts, List<String> warningCodes,@JsonKey(includeIfNull: false) int? finalAnswerLineNumber
+ String result, int entryCount, int turnCount, int malformedLineCount, int toolCallCount, int totalDurationMs, Map<String, int> operationCounts, Map<String, int> finishReasonCounts, List<String> warningCodes,@JsonKey(includeIfNull: false) DateTime? startedAt,@JsonKey(includeIfNull: false) int? finalAnswerLineNumber
 });
 
 
@@ -300,7 +302,7 @@ class __$PersonalEvalSessionLogSummaryCopyWithImpl<$Res>
 
 /// Create a copy of PersonalEvalSessionLogSummary
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? result = null,Object? entryCount = null,Object? turnCount = null,Object? malformedLineCount = null,Object? toolCallCount = null,Object? totalDurationMs = null,Object? operationCounts = null,Object? finishReasonCounts = null,Object? warningCodes = null,Object? finalAnswerLineNumber = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? result = null,Object? entryCount = null,Object? turnCount = null,Object? malformedLineCount = null,Object? toolCallCount = null,Object? totalDurationMs = null,Object? operationCounts = null,Object? finishReasonCounts = null,Object? warningCodes = null,Object? startedAt = freezed,Object? finalAnswerLineNumber = freezed,}) {
   return _then(_PersonalEvalSessionLogSummary(
 result: null == result ? _self.result : result // ignore: cast_nullable_to_non_nullable
 as String,entryCount: null == entryCount ? _self.entryCount : entryCount // ignore: cast_nullable_to_non_nullable
@@ -311,7 +313,8 @@ as int,totalDurationMs: null == totalDurationMs ? _self.totalDurationMs : totalD
 as int,operationCounts: null == operationCounts ? _self._operationCounts : operationCounts // ignore: cast_nullable_to_non_nullable
 as Map<String, int>,finishReasonCounts: null == finishReasonCounts ? _self._finishReasonCounts : finishReasonCounts // ignore: cast_nullable_to_non_nullable
 as Map<String, int>,warningCodes: null == warningCodes ? _self._warningCodes : warningCodes // ignore: cast_nullable_to_non_nullable
-as List<String>,finalAnswerLineNumber: freezed == finalAnswerLineNumber ? _self.finalAnswerLineNumber : finalAnswerLineNumber // ignore: cast_nullable_to_non_nullable
+as List<String>,startedAt: freezed == startedAt ? _self.startedAt : startedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,finalAnswerLineNumber: freezed == finalAnswerLineNumber ? _self.finalAnswerLineNumber : finalAnswerLineNumber // ignore: cast_nullable_to_non_nullable
 as int?,
   ));
 }

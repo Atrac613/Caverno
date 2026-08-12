@@ -60,6 +60,8 @@ void main() {
       ModelStructuredOutputSupport.jsonObject,
     );
     expect(profile.probeMetadata['probe.instruction_echo.status'], 'passed');
+    // Both vision shapes read the image, and the no-image control arm did not.
+    expect(profile.visionSupport, ModelVisionSupport.reliable);
   });
 
   test('run persists sampler metadata from diagnostic trials', () async {
@@ -209,6 +211,14 @@ class _TextOnlyDiagnosticDataSource implements ChatDataSource {
         finishReason: 'stop',
       );
     }
+    if (user.contains('four equal quadrants')) {
+      return ChatCompletionResult(
+        content: messages.last.imageBase64 == null
+            ? 'red, green, blue, yellow'
+            : 'yellow, blue, red, green',
+        finishReason: 'stop',
+      );
+    }
     if (user.contains('routine sampler JSON object')) {
       return ChatCompletionResult(
         content:
@@ -244,7 +254,16 @@ class _TextOnlyDiagnosticDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
-    throw UnimplementedError();
+    final content = [for (var value = 1; value <= 40; value += 1) '$value\n'];
+    return StreamedChatCompletion.fromStream(
+      Stream.value(content.join()),
+      finishReason: 'stop',
+      usage: const TokenUsage(
+        promptTokens: 12,
+        completionTokens: 40,
+        totalTokens: 52,
+      ),
+    );
   }
 
   @override
@@ -308,7 +327,15 @@ class _TextOnlyDiagnosticDataSource implements ChatDataSource {
     String? model,
     double? temperature,
     int? maxTokens,
-  }) {
+  }) async {
+    final payload =
+        jsonDecode(toolResults.single.result) as Map<String, dynamic>;
+    if (payload['imageBase64'] is String) {
+      return ChatCompletionResult(
+        content: 'yellow, blue, red, green',
+        finishReason: 'stop',
+      );
+    }
     throw UnimplementedError();
   }
 }
@@ -329,7 +356,13 @@ class _NativeToolDiagnosticDataSource extends _TextOnlyDiagnosticDataSource {
         'max_results': 8,
       });
     }
-    if (user.contains('spawn_subagent tool call')) {
+    if (user.contains('Find the available tool that reports')) {
+      return _toolCall('tool_search', {
+        'query': 'get_current_datetime current date timezone',
+        'max_results': 8,
+      });
+    }
+    if (user.contains('Delegate a sub-task to a subagent')) {
       return _toolCall('spawn_subagent', {
         'description': 'Diagnostic subagent marker summary',
         'prompt': 'Summarize the marker CAVERNO_SUBAGENT_DIAGNOSTIC and stop.',
@@ -358,9 +391,22 @@ class _NativeToolDiagnosticDataSource extends _TextOnlyDiagnosticDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
-    final payload =
-        jsonDecode(toolResults.single.result) as Map<String, dynamic>;
+    final toolResult = toolResults.single;
+    final payload = jsonDecode(toolResult.result) as Map<String, dynamic>;
+    if (toolResult.name == 'tool_search') {
+      return _toolCall('get_current_datetime', const <String, dynamic>{});
+    }
     final relativeDates = payload['relative_dates'] as Map<String, dynamic>;
+    if (messages.last.content.contains('CAVERNO_MULTI_ROUND_LOOP_OK')) {
+      return ChatCompletionResult(
+        content: jsonEncode({
+          'marker': 'CAVERNO_MULTI_ROUND_LOOP_OK',
+          'today': relativeDates['today'],
+          'timezone': payload['timezone'],
+        }),
+        finishReason: 'stop',
+      );
+    }
     return ChatCompletionResult(
       content: jsonEncode({
         'probe': 'datetime_tool_result',

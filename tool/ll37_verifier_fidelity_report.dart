@@ -97,12 +97,16 @@ final class Ll37VerifierFidelityReport {
     required this.gate,
     required this.allCases,
     required this.eligibleCases,
+    required this.eligiblePairCount,
+    required this.eligibleObjectiveCount,
     required this.eligibleSourceSurfaces,
     required this.results,
   });
 
   static const minimumCorrectCases = 5;
   static const minimumBrokenCases = 5;
+  static const minimumEligiblePairs = 5;
+  static const minimumDistinctObjectives = 5;
   static const minimumSourceSurfaces = 2;
   static const maximumFalseRefuteRate = 0.1;
   static const minimumBrokenRecall = 0.8;
@@ -114,15 +118,27 @@ final class Ll37VerifierFidelityReport {
     required String baseUrl,
     required List<Ll37VerifierCaseResult> results,
   }) {
+    validateLl37VerifierFidelityPairs(
+      results.map((result) => result.evalCase).toList(growable: false),
+    );
     final eligible = results
-        .where((result) => result.evalCase.sourceSurface.isEligible)
+        .where((result) => result.evalCase.isEligible)
         .toList(growable: false);
     final allMetrics = Ll37VerifierFidelityMetrics.fromResults(results);
     final eligibleMetrics = Ll37VerifierFidelityMetrics.fromResults(eligible);
     final surfaces = eligible
         .map((result) => result.evalCase.sourceSurface.jsonValue)
         .toSet();
-    final gate = _gateFor(eligibleMetrics, surfaces.length);
+    final pairIds = eligible.map((result) => result.evalCase.pairId).toSet();
+    final objectiveFingerprints = eligible
+        .map((result) => _ll37ObjectiveFingerprint(result.evalCase))
+        .toSet();
+    final gate = _gateFor(
+      eligibleMetrics,
+      pairIds.length,
+      objectiveFingerprints.length,
+      surfaces.length,
+    );
     return Ll37VerifierFidelityReport(
       generatedAt: generatedAt,
       mode: mode,
@@ -131,6 +147,8 @@ final class Ll37VerifierFidelityReport {
       gate: gate,
       allCases: allMetrics,
       eligibleCases: eligibleMetrics,
+      eligiblePairCount: pairIds.length,
+      eligibleObjectiveCount: objectiveFingerprints.length,
       eligibleSourceSurfaces: surfaces.length,
       results: List.unmodifiable(results),
     );
@@ -143,6 +161,8 @@ final class Ll37VerifierFidelityReport {
   final String gate;
   final Ll37VerifierFidelityMetrics allCases;
   final Ll37VerifierFidelityMetrics eligibleCases;
+  final int eligiblePairCount;
+  final int eligibleObjectiveCount;
   final int eligibleSourceSurfaces;
   final List<Ll37VerifierCaseResult> results;
 
@@ -150,10 +170,14 @@ final class Ll37VerifierFidelityReport {
 
   static String _gateFor(
     Ll37VerifierFidelityMetrics metrics,
+    int pairCount,
+    int objectiveCount,
     int sourceSurfaceCount,
   ) {
     if (metrics.correctCaseCount < minimumCorrectCases ||
         metrics.brokenCaseCount < minimumBrokenCases ||
+        pairCount < minimumEligiblePairs ||
+        objectiveCount < minimumDistinctObjectives ||
         sourceSurfaceCount < minimumSourceSurfaces) {
       return 'no_go_insufficient_eligible_sample';
     }
@@ -181,12 +205,16 @@ final class Ll37VerifierFidelityReport {
     'thresholds': {
       'minimumCorrectCases': minimumCorrectCases,
       'minimumBrokenCases': minimumBrokenCases,
+      'minimumEligiblePairs': minimumEligiblePairs,
+      'minimumDistinctObjectives': minimumDistinctObjectives,
       'minimumSourceSurfaces': minimumSourceSurfaces,
       'maximumFalseRefuteRate': maximumFalseRefuteRate,
       'minimumBrokenRecall': minimumBrokenRecall,
     },
     'allCases': allCases.toJson(),
     'eligibleCases': eligibleCases.toJson(),
+    'eligiblePairCount': eligiblePairCount,
+    'eligibleObjectiveCount': eligibleObjectiveCount,
     'eligibleSourceSurfaces': eligibleSourceSurfaces,
     'results': results.map((item) => item.toJson()).toList(growable: false),
   };
@@ -199,6 +227,8 @@ final class Ll37VerifierFidelityReport {
       ..writeln('- Mode: `$mode`')
       ..writeln('- Model: `${model.isEmpty ? 'fixture' : model}`')
       ..writeln('- Base URL: `${baseUrl.isEmpty ? 'none' : baseUrl}`')
+      ..writeln('- Eligible pairs: `$eligiblePairCount`')
+      ..writeln('- Eligible objectives: `$eligibleObjectiveCount`')
       ..writeln('- Eligible source surfaces: `$eligibleSourceSurfaces`')
       ..writeln()
       ..writeln('## Metrics')

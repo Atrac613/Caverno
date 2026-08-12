@@ -23,6 +23,8 @@ void main() {
           'case-a=passed',
           '--candidate-verification-result',
           'case-a=passed',
+          '--protocol',
+          'protocol.json',
         ],
         environment: {'CAVERNO_PERSONAL_EVAL_SUITE_LABEL': 'candidate-rollout'},
       );
@@ -67,6 +69,8 @@ void main() {
           'case-a=passed',
           '--candidate-verification-result',
           'case-a=passed',
+          '--protocol',
+          'protocol.json',
           '--out-dir=${explicitOutDir.path}',
           '--label',
           'explicit-label',

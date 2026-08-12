@@ -1,7 +1,7 @@
-# Pro Reasoning Mode For Chat Workspace (LL39)
+# Pro Reasoning Mode For Chat Workspace (LL40)
 
 Status: **design, not yet implemented** (2026-08-12)
-Roadmap item: LL39 in `docs/local_llm_agent_roadmap.md`
+Roadmap item: LL40 in `docs/local_llm_agent_roadmap.md`
 Related: LL7 (Best-of-N), LL20 (parallel slot substrate), LL26 (A0 mesh
 selection), LL27 (collaborative orchestration),
 `docs/multi_model_orchestration_research.md`
@@ -48,7 +48,7 @@ architecture worth wiring now.
 
 The important divergence: **LL26 is about code, and code has ground truth.** Its
 acceptance criterion "selection is verifier-grounded (compile / test / LSP), not
-a subjective vote" cannot be met for prose. LL39 therefore does *not* claim to
+a subjective vote" cannot be met for prose. LL40 therefore does *not* claim to
 be verifier-grounded; see §4.4.
 
 ### 2.3 The existing reasoning knob is a no-op on the real server
@@ -98,7 +98,7 @@ Four further findings changed the plan:
    the request"**; `GET /slots?model=<name>` returns 200. `LlamaCppSlotDiscovery`
    does not send the model parameter, so on any router-mode endpoint it silently
    reports `unsupported`. **This is a real LL20 gap and should be fixed as part
-   of LL39.** It does not change the execution path chosen in §2.5 — this host
+   of LL40.** It does not change the execution path chosen in §2.5 — this host
    has one slot either way — but it is the difference between "one slot, known"
    and "slots unknown, assume the worst", which the budget policy and the
    progress UI both read, and it is what makes a future `--parallel N` host work
@@ -161,7 +161,7 @@ sharing one GPU, and none of them survives moving to separate machines:
 
 So the rule is: **fan out across hosts, never across slots on one GPU.** This is
 `docs/multi_model_orchestration_research.md`'s core claim — over a mesh, latency
-is `max(workers) + aggregation`, not `sum` — and it makes LL39 the chat-side
+is `max(workers) + aggregation`, not `sum` — and it makes LL40 the chat-side
 delivery of LL26/A0 rather than a compromise around it.
 
 When only one host is healthy the run degrades to sequential candidates on that

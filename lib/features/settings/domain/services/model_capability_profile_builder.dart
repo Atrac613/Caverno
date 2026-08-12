@@ -1,5 +1,6 @@
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
+import 'live_llm_diagnostic_scoring.dart';
 import 'llm_sampler_calibration_service.dart';
 import 'llm_sampler_preset_profile.dart';
 
@@ -22,9 +23,18 @@ class ModelCapabilityProfileBuilder {
           .whereType<LlmSamplerCalibrationTrial>(),
       ...samplerTrials,
     ];
+    final score = LiveLlmDiagnosticScore.fromReport(report);
     final metadata = <String, String>{
       'overallStatus': report.overallStatus.name,
       'score': report.score.toStringAsFixed(3),
+      // LL39 absolute score. Recorded alongside the legacy ratio so a stored
+      // revision can be compared across models; the suite version is part of
+      // the record because two versions must never be diffed.
+      'benchmarkSuite':
+          '${LiveLlmDiagnosticSuite.id}-v${LiveLlmDiagnosticSuite.version}',
+      'benchmarkPoints': score.earnedPoints.toString(),
+      'benchmarkMaxPoints': score.maxPoints.toString(),
+      'benchmarkAttemptedPoints': score.attemptedPoints.toString(),
       'passedProbeCount': report.passedProbeCount.toString(),
       'scoredProbeCount': report.scoredProbeCount.toString(),
       'totalToolCount': report.toolCatalog.totalToolCount.toString(),
@@ -41,6 +51,7 @@ class ModelCapabilityProfileBuilder {
       structuredOutputSupport: _structuredOutputSupport(report),
       goalUpdateFidelity: _goalUpdateFidelity(report),
       editFormatPreference: ModelEditFormatPreference.unknown,
+      visionSupport: _visionSupport(report),
       usableContextTokens: usableContextTokens,
       probedAt: report.finishedAt ?? report.startedAt,
       probeSummary:
@@ -157,6 +168,35 @@ class ModelCapabilityProfileBuilder {
       LiveLlmDiagnosticStatus.failed => ModelGoalUpdateFidelity.unreliable,
       _ => ModelGoalUpdateFidelity.unknown,
     };
+  }
+
+  /// LL39 vision axis, derived from the two production message shapes.
+  ///
+  /// The attachment probe is the gate: it carries the no-image control arm, so
+  /// it is the only one that can tell "read the image" from "guessed well". The
+  /// observation probe then decides whether the model also handles the
+  /// computer-use shape.
+  static ModelVisionSupport _visionSupport(LiveLlmDiagnosticReport report) {
+    final attachment = _result(report, 'vision_attachment');
+    if (attachment == null ||
+        attachment.status == LiveLlmDiagnosticStatus.skipped) {
+      return ModelVisionSupport.unknown;
+    }
+    if (attachment.status == LiveLlmDiagnosticStatus.failed) {
+      if (attachment.details.contains('endpoint_rejected')) {
+        return ModelVisionSupport.rejected;
+      }
+      return ModelVisionSupport.ignored;
+    }
+
+    final observation = _result(report, 'vision_tool_observation');
+    final observationPassed =
+        observation?.status == LiveLlmDiagnosticStatus.passed;
+    if (attachment.status == LiveLlmDiagnosticStatus.passed &&
+        observationPassed) {
+      return ModelVisionSupport.reliable;
+    }
+    return ModelVisionSupport.basic;
   }
 
   static LiveLlmDiagnosticProbeResult? _result(

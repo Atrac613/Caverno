@@ -10,7 +10,9 @@ part 'll37_worktree_agent_history_export_support.dart';
 const _selectionSchemaName = 'caverno_ll37_worktree_agent_history_selection';
 const _caseSchemaName = 'caverno_ll37_verifier_fidelity_case';
 const _manifestSchemaName = 'caverno_personal_eval_case_manifest';
-const _schemaVersion = 1;
+const _selectionSchemaVersion = 1;
+const _caseSchemaVersion = 2;
+const _manifestSchemaVersion = 1;
 
 Future<void> main(List<String> args) async {
   try {
@@ -58,8 +60,8 @@ exportLl37WorktreeAgentHistoryEvidence({
 
   final correctTask = _findById(tasks, selection.correctTaskId);
   final brokenTask = _findById(tasks, selection.brokenTaskId);
-  _validateTask(correctTask, label: 'candidate A', expectedGreen: true);
-  _validateTask(brokenTask, label: 'candidate B', expectedGreen: false);
+  _validateTask(correctTask, label: 'candidate A');
+  _validateTask(brokenTask, label: 'candidate B');
 
   final correctPrompt = _requiredString(correctTask, 'prompt', 'candidate A');
   final brokenPrompt = _requiredString(brokenTask, 'prompt', 'candidate B');

@@ -593,6 +593,81 @@ void main() {
           model: model,
         );
 
+    ModelCapabilityProfile scoredProfile(String model, int points) =>
+        createProfile('http://localhost:1234/v1', model).copyWith(
+          probeMetadata: {
+            'benchmarkSuite': 'cavernobench-v2',
+            'benchmarkPoints': '$points',
+            'benchmarkMaxPoints': '1000',
+          },
+        );
+
+    test(
+      'a score drop beyond the measured spread flags a regression',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final container = createContainer(prefs);
+        final notifier = container.read(settingsNotifierProvider.notifier);
+
+        // Three steady runs establish the noise floor, then the model degrades
+        // with every capability enum reporting exactly the same as before.
+        for (final points in [940, 948, 942, 700]) {
+          await notifier.upsertModelCapabilityProfile(
+            scoredProfile('my-model', points),
+            source: 'calibrate',
+          );
+        }
+
+        final revisions = revisionsFor(container, 'my-model');
+        expect(revisions.first.benchmarkPoints, 700);
+        expect(revisions.first.benchmarkRegressionDetected, isTrue);
+        // The enum axes never moved, which is exactly why the old signal missed
+        // this.
+        expect(revisions.first.capabilityChangeDetected, isFalse);
+      },
+    );
+
+    test('a wobble inside the measured spread is not a regression', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = createContainer(prefs);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      for (final points in [940, 900, 946, 912]) {
+        await notifier.upsertModelCapabilityProfile(
+          scoredProfile('my-model', points),
+          source: 'calibrate',
+        );
+      }
+
+      final revisions = revisionsFor(container, 'my-model');
+      expect(revisions.first.benchmarkPoints, 912);
+      expect(revisions.first.benchmarkRegressionDetected, isFalse);
+    });
+
+    test('an unscored upsert never reads as a collapse to zero', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = createContainer(prefs);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      for (final points in [940, 948, 942]) {
+        await notifier.upsertModelCapabilityProfile(
+          scoredProfile('my-model', points),
+          source: 'calibrate',
+        );
+      }
+      await notifier.upsertModelCapabilityProfile(
+        createProfile('http://localhost:1234/v1', 'my-model'),
+        source: 'manual',
+      );
+
+      final revisions = revisionsFor(container, 'my-model');
+      expect(revisions.first.hasBenchmarkScore, isFalse);
+      expect(revisions.first.benchmarkRegressionDetected, isFalse);
+    });
+
     test('upsert appends a revision with the given source', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();

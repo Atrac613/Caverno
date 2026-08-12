@@ -5,8 +5,9 @@ import 'caverno_session_log_summary.dart';
 import 'personal_eval_case_manifest.dart';
 
 const _schemaName = 'caverno_personal_eval_replay_run';
-const _schemaVersion = 1;
+const _schemaVersion = 5;
 const _manifestSchemaName = 'caverno_personal_eval_case_manifest';
+const _defaultTrialId = 'trial-1';
 
 Future<void> main(List<String> args) async {
   final options = PersonalEvalReplayRunOptions.parse(args);
@@ -14,8 +15,9 @@ Future<void> main(List<String> args) async {
     stderr.writeln(
       'Usage: dart run tool/personal_eval_replay_run.dart '
       '--label LABEL --manifest PATH [--manifest PATH ...] '
-      '--case-log CASE_ID=PATH '
-      '--verification-result CASE_ID=passed|failed|inconclusive '
+      '--case-log CASE_ID[#TRIAL_ID]=PATH '
+      '--verification-result CASE_ID[#TRIAL_ID]='
+      'passed|failed|inconclusive '
       '--out PATH [--model MODEL] [--base-url URL]',
     );
     exitCode = 64;
@@ -87,16 +89,15 @@ Future<PersonalEvalReplayRunArtifact> buildPersonalEvalReplayRun({
     manifests.add(manifest);
   }
 
-  _validateCaseMap(
-    mapName: 'case log',
+  final trialInputs = _buildTrialInputs(
     knownCaseIds: seenCaseIds,
-    values: caseLogFiles,
+    caseLogFiles: caseLogFiles,
+    verificationResults: verificationResults,
   );
-  _validateCaseMap(
-    mapName: 'verification result',
-    knownCaseIds: seenCaseIds,
-    values: verificationResults,
-  );
+  final manifestByCaseId = {
+    for (final manifest in manifests) manifest.caseId: manifest,
+  };
+  final observedCaseIds = trialInputs.map((input) => input.key.caseId).toSet();
 
   final cases = <PersonalEvalReplayCaseArtifact>[];
   for (final manifest in manifests) {
@@ -105,26 +106,26 @@ Future<PersonalEvalReplayRunArtifact> buildPersonalEvalReplayRun({
         'Blocked eval case cannot be replayed: ${manifest.caseId}',
       );
     }
-    final logFile = caseLogFiles[manifest.caseId];
-    if (logFile == null) {
+    if (!observedCaseIds.contains(manifest.caseId)) {
       throw FormatException('Missing replay log for case ${manifest.caseId}.');
     }
+  }
+
+  for (var index = 0; index < trialInputs.length; index += 1) {
+    final input = trialInputs[index];
+    final manifest = manifestByCaseId[input.key.caseId]!;
+    final logFile = input.logFile;
     if (!logFile.existsSync()) {
       throw FileSystemException('Replay log file not found.', logFile.path);
     }
-    final verificationResult = verificationResults[manifest.caseId];
-    if (verificationResult == null) {
-      throw FormatException(
-        'Missing verification result for case ${manifest.caseId}.',
-      );
-    }
-
     final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
     cases.add(
       PersonalEvalReplayCaseArtifact.fromSummary(
         manifest: manifest,
         logFile: logFile,
-        verificationResult: verificationResult,
+        trialId: input.key.trialId,
+        executionOrder: index + 1,
+        verificationResult: input.verificationResult,
         summary: summary,
       ),
     );
@@ -142,16 +143,95 @@ Future<PersonalEvalReplayRunArtifact> buildPersonalEvalReplayRun({
   );
 }
 
-void _validateCaseMap<T>({
-  required String mapName,
+List<_PersonalEvalReplayTrialInput> _buildTrialInputs({
   required Set<String> knownCaseIds,
-  required Map<String, T> values,
+  required Map<String, File> caseLogFiles,
+  required Map<String, PersonalEvalVerificationResult> verificationResults,
 }) {
-  for (final caseId in values.keys) {
-    if (!knownCaseIds.contains(caseId)) {
-      throw FormatException('Unknown $mapName case id: $caseId');
+  final logsByKey = <String, MapEntry<PersonalEvalReplayTrialKey, File>>{};
+  for (final entry in caseLogFiles.entries) {
+    final key = PersonalEvalReplayTrialKey.parse(entry.key);
+    if (!knownCaseIds.contains(key.caseId)) {
+      throw FormatException('Unknown case log case id: ${key.caseId}');
+    }
+    if (logsByKey.containsKey(key.normalized)) {
+      throw FormatException('Duplicate replay trial: ${key.normalized}');
+    }
+    logsByKey[key.normalized] = MapEntry(key, entry.value);
+  }
+
+  final resultsByKey = <String, PersonalEvalVerificationResult>{};
+  for (final entry in verificationResults.entries) {
+    final key = PersonalEvalReplayTrialKey.parse(entry.key);
+    if (!knownCaseIds.contains(key.caseId)) {
+      throw FormatException(
+        'Unknown verification result case id: ${key.caseId}',
+      );
+    }
+    if (resultsByKey.containsKey(key.normalized)) {
+      throw FormatException('Duplicate verification trial: ${key.normalized}');
+    }
+    resultsByKey[key.normalized] = entry.value;
+  }
+
+  for (final key in logsByKey.keys) {
+    if (!resultsByKey.containsKey(key)) {
+      throw FormatException('Missing verification result for trial $key.');
     }
   }
+  for (final key in resultsByKey.keys) {
+    if (!logsByKey.containsKey(key)) {
+      throw FormatException('Missing replay log for trial $key.');
+    }
+  }
+
+  return [
+    for (final entry in logsByKey.entries)
+      _PersonalEvalReplayTrialInput(
+        key: entry.value.key,
+        logFile: entry.value.value,
+        verificationResult: resultsByKey[entry.key]!,
+      ),
+  ];
+}
+
+final class PersonalEvalReplayTrialKey {
+  const PersonalEvalReplayTrialKey({
+    required this.caseId,
+    required this.trialId,
+  });
+
+  final String caseId;
+  final String trialId;
+
+  String get normalized => '$caseId#$trialId';
+
+  factory PersonalEvalReplayTrialKey.parse(String value) {
+    final normalized = value.trim();
+    final separator = normalized.indexOf('#');
+    final caseId =
+        (separator < 0 ? normalized : normalized.substring(0, separator))
+            .trim();
+    final trialId =
+        (separator < 0 ? _defaultTrialId : normalized.substring(separator + 1))
+            .trim();
+    if (caseId.isEmpty || trialId.isEmpty || trialId.contains('#')) {
+      throw FormatException('Invalid replay trial key: $value');
+    }
+    return PersonalEvalReplayTrialKey(caseId: caseId, trialId: trialId);
+  }
+}
+
+final class _PersonalEvalReplayTrialInput {
+  const _PersonalEvalReplayTrialInput({
+    required this.key,
+    required this.logFile,
+    required this.verificationResult,
+  });
+
+  final PersonalEvalReplayTrialKey key;
+  final File logFile;
+  final PersonalEvalVerificationResult verificationResult;
 }
 
 final class PersonalEvalReplayRunOptions {
@@ -303,6 +383,9 @@ final class PersonalEvalReplayRunArtifact {
   int get totalToolCallCount =>
       cases.fold(0, (total, entry) => total + entry.toolCallCount);
 
+  int get distinctCaseCount =>
+      cases.map((entry) => entry.caseId).toSet().length;
+
   Map<String, dynamic> toJson() {
     return {
       'schemaName': schemaName,
@@ -313,6 +396,8 @@ final class PersonalEvalReplayRunArtifact {
       if (baseUrl != null) 'baseUrl': baseUrl,
       'manifestPaths': manifestPaths,
       'caseCount': cases.length,
+      'distinctCaseCount': distinctCaseCount,
+      'trialCount': cases.length,
       'passedCount': passedCount,
       'failedCount': failedCount,
       'inconclusiveCount': inconclusiveCount,
@@ -327,19 +412,31 @@ final class PersonalEvalReplayRunArtifact {
       ..writeln('# Personal Eval Replay Run')
       ..writeln()
       ..writeln('- Label: `$label`')
-      ..writeln('- Cases: `${cases.length}`')
+      ..writeln('- Distinct cases: `$distinctCaseCount`')
+      ..writeln('- Trials: `${cases.length}`')
       ..writeln('- Passed: `$passedCount`')
       ..writeln('- Failed: `$failedCount`')
       ..writeln('- Inconclusive: `$inconclusiveCount`')
       ..writeln('- Duration: `$totalDurationMs ms`')
       ..writeln('- Tool calls: `$totalToolCallCount`')
       ..writeln()
-      ..writeln('| Case | Result | Duration | Tool Calls | Turns | Summary |')
-      ..writeln('|------|--------|----------|------------|-------|---------|');
+      ..writeln(
+        '| Order | Case | Trial | Origin | Split | Tier | Prompt Style | Started | Result | Duration | Tool Calls | Turns | Summary |',
+      )
+      ..writeln(
+        '|-------|------|-------|--------|-------|------|--------------|---------|--------|----------|------------|-------|---------|',
+      );
 
     for (final entry in cases) {
       buffer.writeln(
+        '| `${entry.executionOrder}` '
         '| ${_markdownCell(entry.caseId)} '
+        '| ${_markdownCell(entry.trialId)} '
+        '| `${entry.origin}` '
+        '| `${entry.split}` '
+        '| `${entry.tier?.toString() ?? 'unclassified'}` '
+        '| `${entry.promptStyle ?? 'unclassified'}` '
+        '| `${entry.startedAt?.toIso8601String() ?? 'unknown'}` '
         '| `${entry.verificationResult.name}` '
         '| `${entry.durationMs} ms` '
         '| `${entry.toolCallCount}` '
@@ -354,7 +451,14 @@ final class PersonalEvalReplayRunArtifact {
 final class PersonalEvalReplayCaseArtifact {
   const PersonalEvalReplayCaseArtifact({
     required this.caseId,
+    required this.trialId,
+    required this.executionOrder,
+    required this.startedAt,
     required this.title,
+    required this.origin,
+    required this.split,
+    required this.tier,
+    required this.promptStyle,
     required this.logPath,
     required this.verificationResult,
     required this.durationMs,
@@ -366,7 +470,14 @@ final class PersonalEvalReplayCaseArtifact {
   });
 
   final String caseId;
+  final String trialId;
+  final int executionOrder;
+  final DateTime? startedAt;
   final String title;
+  final String origin;
+  final String split;
+  final int? tier;
+  final String? promptStyle;
   final String logPath;
   final PersonalEvalVerificationResult verificationResult;
   final int durationMs;
@@ -379,12 +490,21 @@ final class PersonalEvalReplayCaseArtifact {
   factory PersonalEvalReplayCaseArtifact.fromSummary({
     required PersonalEvalReplayCaseManifest manifest,
     required File logFile,
+    required String trialId,
+    required int executionOrder,
     required PersonalEvalVerificationResult verificationResult,
     required CavernoLlmSessionLogSummary summary,
   }) {
     return PersonalEvalReplayCaseArtifact(
       caseId: manifest.caseId,
+      trialId: trialId,
+      executionOrder: executionOrder,
+      startedAt: _startedAt(summary),
       title: manifest.title,
+      origin: manifest.origin,
+      split: manifest.split,
+      tier: manifest.tier,
+      promptStyle: manifest.promptStyle,
       logPath: logFile.path,
       verificationResult: verificationResult,
       durationMs: _totalDurationMs(summary),
@@ -401,7 +521,14 @@ final class PersonalEvalReplayCaseArtifact {
   Map<String, dynamic> toJson() {
     return {
       'caseId': caseId,
+      'trialId': trialId,
+      'executionOrder': executionOrder,
+      if (startedAt != null) 'startedAt': startedAt!.toIso8601String(),
       'title': title,
+      'origin': origin,
+      'split': split,
+      if (tier != null) 'tier': tier,
+      if (promptStyle != null) 'promptStyle': promptStyle,
       'logPath': logPath,
       'verificationResult': verificationResult.name,
       'durationMs': durationMs,
@@ -414,6 +541,18 @@ final class PersonalEvalReplayCaseArtifact {
   }
 }
 
+DateTime? _startedAt(CavernoLlmSessionLogSummary summary) {
+  DateTime? earliest;
+  for (final entry in summary.entries) {
+    if (entry.isMemoryExtraction || entry.isAutoReview) continue;
+    final parsed = DateTime.tryParse(entry.startedAt ?? '');
+    if (parsed != null && (earliest == null || parsed.isBefore(earliest))) {
+      earliest = parsed;
+    }
+  }
+  return earliest;
+}
+
 final class PersonalEvalReplayCaseManifest {
   const PersonalEvalReplayCaseManifest({
     required this.path,
@@ -421,6 +560,10 @@ final class PersonalEvalReplayCaseManifest {
     required this.title,
     required this.readiness,
     required this.expectedVerificationResult,
+    required this.origin,
+    required this.split,
+    required this.tier,
+    required this.promptStyle,
   });
 
   final String path;
@@ -428,6 +571,10 @@ final class PersonalEvalReplayCaseManifest {
   final String title;
   final String readiness;
   final PersonalEvalVerificationResult expectedVerificationResult;
+  final String origin;
+  final String split;
+  final int? tier;
+  final String? promptStyle;
 
   factory PersonalEvalReplayCaseManifest.fromJson(
     Map<String, dynamic> json, {
@@ -444,14 +591,42 @@ final class PersonalEvalReplayCaseManifest {
     if (task == null || verificationResult == null) {
       throw FormatException('Incomplete personal eval manifest in $path.');
     }
+    final origin = _asString(json['origin']) ?? 'recorded';
+    if (origin != 'recorded' && origin != 'authored') {
+      throw FormatException('Invalid personal eval origin in $path.');
+    }
+    final split = _asString(json['split']) ?? 'heldIn';
+    if (split != 'heldIn' && split != 'heldOut') {
+      throw FormatException('Invalid personal eval split in $path.');
+    }
     return PersonalEvalReplayCaseManifest(
       path: path,
       caseId: _requiredString(json, 'caseId', path),
       title: _requiredString(json, 'title', path),
       readiness: _asString(json['readiness']) ?? 'unknown',
       expectedVerificationResult: verificationResult,
+      origin: origin,
+      split: split,
+      tier: _optionalTier(json['tier'], path),
+      promptStyle: _optionalPromptStyle(json['promptStyle'], path),
     );
   }
+}
+
+int? _optionalTier(Object? value, String path) {
+  if (value == null) return null;
+  if (value is! int || value < 1 || value > 3) {
+    throw FormatException('Invalid personal eval tier in $path.');
+  }
+  return value;
+}
+
+String? _optionalPromptStyle(Object? value, String path) {
+  if (value == null) return null;
+  if (value != 'guided' && value != 'unguided') {
+    throw FormatException('Invalid personal eval promptStyle in $path.');
+  }
+  return value as String;
 }
 
 int _totalDurationMs(CavernoLlmSessionLogSummary summary) {

@@ -34,6 +34,31 @@ abstract interface class PersonalEvalReplayTurnDriver {
   Future<PersonalEvalReplayTurnResult> drive(PersonalEvalCase evalCase);
 }
 
+/// How a verification result is read when the turn itself threw.
+///
+/// Verification still runs, because a turn can throw after the candidate has
+/// already changed the workspace and that partial work may genuinely pass. But
+/// a `failed` is refused: the turn never finished, so the failure could equally
+/// be the endpoint's. The 2026-08-12 27B/35B pilot is the case in point -- a
+/// proxy returning 500 produced three task-level "model failures" on tasks the
+/// same model had solved in its other trial, and those three drove the entire
+/// reported effect.
+///
+/// Deliberately asymmetric: demonstrable success is credited, manufactured
+/// failure is not. `turnError` is only ever set by the driver's catch, so this
+/// keys off "the turn did not complete" rather than the message text.
+PersonalEvalVerificationResult resultAfterTurnError({
+  required String? turnError,
+  required PersonalEvalVerificationResult verificationResult,
+}) {
+  if (turnError == null) {
+    return verificationResult;
+  }
+  return verificationResult == PersonalEvalVerificationResult.failed
+      ? PersonalEvalVerificationResult.inconclusive
+      : verificationResult;
+}
+
 /// LL19: the live [PersonalEvalCaseRunner]. Composes a [PersonalEvalReplayTurnDriver]
 /// (run the candidate model through the case) with a [PersonalEvalVerificationRunner]
 /// (run the recorded verification command), producing the
@@ -84,7 +109,10 @@ class LivePersonalEvalCaseRunner implements PersonalEvalCaseRunner {
     );
 
     return PersonalEvalCaseRunOutcome(
-      verificationResult: verification.result,
+      verificationResult: resultAfterTurnError(
+        turnError: turn.error,
+        verificationResult: verification.result,
+      ),
       sessionLogContents: turn.logContents,
       logPath: turn.logPath,
       // Surface the turn's soft error first; otherwise carry any verification

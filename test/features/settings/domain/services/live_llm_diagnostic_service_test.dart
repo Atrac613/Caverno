@@ -8,6 +8,7 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_service.dart';
+import 'package:caverno/features/settings/domain/services/model_capability_profile_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -66,7 +67,35 @@ void main() {
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.passed)
           .length,
-      8,
+      12,
+    );
+    expect(
+      _result(report, 'streaming_response').status,
+      LiveLlmDiagnosticStatus.passed,
+    );
+    expect(report.streamingMetrics, isNotNull);
+    expect(report.streamingMetrics!.completionTokens, 40);
+    expect(report.streamingMetrics!.chunkCount, 2);
+    expect(
+      _result(report, 'multi_round_tool_loop').status,
+      LiveLlmDiagnosticStatus.passed,
+    );
+    expect(report.multiRoundToolLoopMetrics, isNotNull);
+    expect(report.multiRoundToolLoopMetrics!.modelTurnCount, 3);
+    expect(report.multiRoundToolLoopMetrics!.toolCallCount, 2);
+    expect(report.multiRoundToolLoopMetrics!.successfulToolExecutionCount, 2);
+    expect(report.multiRoundToolLoopMetrics!.taskCompleted, isTrue);
+    expect(
+      _result(report, 'vision_attachment').status,
+      LiveLlmDiagnosticStatus.passed,
+    );
+    expect(
+      _result(report, 'vision_attachment').details,
+      contains('No-image control: 1/4'),
+    );
+    expect(
+      _result(report, 'vision_tool_observation').status,
+      LiveLlmDiagnosticStatus.passed,
     );
     expect(
       report.results
@@ -116,7 +145,9 @@ void main() {
       probeIds: LiveLlmDiagnosticService.modelCapabilityProbeIds,
     );
 
-    expect(dataSource.requestedModels, List.filled(26, 'test-model'));
+    // 27 pre-vision requests (including streaming) plus the vision block: two
+    // attachment arms and one tool-observation request.
+    expect(dataSource.requestedModels, List.filled(30, 'test-model'));
     expect(
       report.samplerCalibrationTrials
           .map((trial) => trial.requestClass)
@@ -169,7 +200,8 @@ void main() {
       expect(report.baseUrl, 'apple-foundation-models://local');
       expect(report.model, AppSettings.appleFoundationModelsModelId);
       expect(dataSource.requestedModels, [
-        for (var i = 0; i < 9; i += 1) AppSettings.appleFoundationModelsModelId,
+        for (var i = 0; i < 10; i += 1)
+          AppSettings.appleFoundationModelsModelId,
       ]);
       expect(dataSource.toolResultFollowUpCount, 0);
       expect(
@@ -284,6 +316,182 @@ void main() {
       );
     },
   );
+
+  test('vision probe sends the image on both production shapes', () async {
+    final dataSource = _VisionRecordingDataSource();
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: dataSource,
+      mcpToolService: McpToolService(),
+    );
+
+    await service.run(
+      probeIds: const {'vision_attachment', 'vision_tool_observation'},
+    );
+
+    // The attachment arm carries the image on the user message; the control
+    // arm asks the same question without one.
+    expect(dataSource.attachmentArmImages, [isNotNull, isNull]);
+    expect(dataSource.attachmentMimeTypes.first, 'image/png');
+    // The observation arm delivers it inside the tool result, the way
+    // computer-use returns a screenshot.
+    expect(dataSource.toolResultImageCount, 1);
+  });
+
+  test(
+    'vision probe treats a matching control arm as an ignored image',
+    () async {
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false),
+        chatDataSource: _VisionGuessingDataSource(),
+        mcpToolService: McpToolService(),
+      );
+
+      final report = await service.run(probeIds: const {'vision_attachment'});
+      final result = _result(report, 'vision_attachment');
+
+      expect(result.status, LiveLlmDiagnosticStatus.failed);
+      expect(result.details, contains('model_ignored_the_image'));
+      expect(
+        ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+          report: report,
+          provider: LlmProvider.openAiCompatible,
+        ).visionSupport,
+        ModelVisionSupport.ignored,
+      );
+    },
+  );
+
+  test('vision probe classifies a rejected image request', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _VisionRejectingDataSource(),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: const {'vision_attachment'});
+    final result = _result(report, 'vision_attachment');
+
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.details, contains('endpoint_rejected'));
+    expect(
+      ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+        report: report,
+        provider: LlmProvider.openAiCompatible,
+      ).visionSupport,
+      ModelVisionSupport.rejected,
+    );
+  });
+
+  test('vision probes are not applicable to Apple Foundation Models', () async {
+    final dataSource = _VisionRecordingDataSource();
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(
+        mcpEnabled: false,
+        llmProvider: LlmProvider.appleFoundationModels,
+      ),
+      chatDataSource: dataSource,
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(
+      probeIds: const {'vision_attachment', 'vision_tool_observation'},
+    );
+
+    expect(
+      _result(report, 'vision_attachment').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+    expect(
+      _result(report, 'vision_tool_observation').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+    // The provider drops images at the datasource, so asking would measure
+    // Caverno's own bridge rather than the model.
+    expect(dataSource.attachmentArmImages, isEmpty);
+    expect(
+      ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+        report: report,
+        provider: LlmProvider.appleFoundationModels,
+      ).visionSupport,
+      ModelVisionSupport.unknown,
+    );
+  });
+
+  test('multi-round probe rejects extra calls on the first turn', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: _ExtraFirstRoundCallDataSource(),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: const {'multi_round_tool_loop'});
+    final result = _result(report, 'multi_round_tool_loop');
+
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.summary, contains('exactly one tool_search'));
+    expect(result.toolCalls, ['tool_search', 'get_current_datetime']);
+    expect(report.multiRoundToolLoopMetrics, isNotNull);
+    expect(report.multiRoundToolLoopMetrics!.modelTurnCount, 1);
+    expect(report.multiRoundToolLoopMetrics!.toolCallCount, 2);
+    expect(report.multiRoundToolLoopMetrics!.successfulToolExecutionCount, 0);
+    expect(report.multiRoundToolLoopMetrics!.taskCompleted, isFalse);
+  });
+
+  test('multi-round probe distinguishes a skipped search', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: _SkippedSearchDataSource(),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: const {'multi_round_tool_loop'});
+    final result = _result(report, 'multi_round_tool_loop');
+
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.summary, contains('exactly one tool_search'));
+    expect(result.toolCalls, isEmpty);
+    expect(report.multiRoundToolLoopMetrics!.modelTurnCount, 1);
+    expect(report.multiRoundToolLoopMetrics!.toolCallCount, 0);
+    expect(report.multiRoundToolLoopMetrics!.successfulToolExecutionCount, 0);
+  });
+
+  test('multi-round probe distinguishes a skipped datetime call', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: _SkippedDatetimeDataSource(),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: const {'multi_round_tool_loop'});
+    final result = _result(report, 'multi_round_tool_loop');
+
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.summary, contains('exactly one datetime tool call'));
+    expect(result.toolCalls, ['tool_search']);
+    expect(report.multiRoundToolLoopMetrics!.modelTurnCount, 2);
+    expect(report.multiRoundToolLoopMetrics!.toolCallCount, 1);
+    expect(report.multiRoundToolLoopMetrics!.successfulToolExecutionCount, 1);
+  });
+
+  test('multi-round probe warns when the final marker is missing', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: _MissingFinalMarkerDataSource(),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: const {'multi_round_tool_loop'});
+    final result = _result(report, 'multi_round_tool_loop');
+
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(result.summary, contains('did not preserve its contract'));
+    expect(result.details, contains('Marker copied: false'));
+    expect(report.multiRoundToolLoopMetrics!.modelTurnCount, 3);
+    expect(report.multiRoundToolLoopMetrics!.toolCallCount, 2);
+    expect(report.multiRoundToolLoopMetrics!.successfulToolExecutionCount, 2);
+    expect(report.multiRoundToolLoopMetrics!.taskCompleted, isFalse);
+  });
 }
 
 AppSettings _settings({
@@ -392,13 +600,29 @@ class _FakeDiagnosticDataSource implements ChatDataSource {
         finishReason: 'stop',
       );
     }
+    if (user.contains('four equal quadrants')) {
+      // Stands in for a vision-capable model: right only when the image is
+      // actually attached, so the control arm measures a guess.
+      return ChatCompletionResult(
+        content: messages.last.imageBase64 == null
+            ? 'red, green, blue, yellow'
+            : 'yellow, blue, red, green',
+        finishReason: 'stop',
+      );
+    }
     if (user.contains('tool catalog search tool')) {
       return _toolCall('tool_search', {
         'query': 'delegate focused sub-task child agent',
         'max_results': 8,
       });
     }
-    if (user.contains('spawn_subagent tool call')) {
+    if (user.contains('Find the available tool that reports')) {
+      return _toolCall('tool_search', {
+        'query': 'get_current_datetime current date timezone',
+        'max_results': 8,
+      });
+    }
+    if (user.contains('Delegate a sub-task to a subagent')) {
       return _toolCall('spawn_subagent', {
         'description': 'Diagnostic subagent marker summary',
         'prompt': 'Summarize the marker CAVERNO_SUBAGENT_DIAGNOSTIC and stop.',
@@ -459,10 +683,34 @@ class _FakeDiagnosticDataSource implements ChatDataSource {
     int? maxTokens,
   }) async {
     requestedModels.add(model);
-    toolResultFollowUpCount += 1;
-    final payload =
-        jsonDecode(toolResults.single.result) as Map<String, dynamic>;
+    final toolResult = toolResults.single;
+    final payload = jsonDecode(toolResult.result) as Map<String, dynamic>;
+    if (payload['imageBase64'] is String) {
+      return ChatCompletionResult(
+        content: 'yellow, blue, red, green',
+        finishReason: 'stop',
+      );
+    }
+    if (toolResult.name == 'tool_search') {
+      return _toolCall('get_current_datetime', const <String, dynamic>{});
+    }
     final relativeDates = payload['relative_dates'] as Map<String, dynamic>;
+    if (messages.last.content.contains('CAVERNO_MULTI_ROUND_LOOP_OK')) {
+      return ChatCompletionResult(
+        content: jsonEncode({
+          'marker': 'CAVERNO_MULTI_ROUND_LOOP_OK',
+          'today': relativeDates['today'],
+          'timezone': payload['timezone'],
+        }),
+        finishReason: 'stop',
+        usage: const TokenUsage(
+          promptTokens: 10,
+          completionTokens: 5,
+          totalTokens: 15,
+        ),
+      );
+    }
+    toolResultFollowUpCount += 1;
     return ChatCompletionResult(
       content: jsonEncode({
         'probe': 'datetime_tool_result',
@@ -481,7 +729,17 @@ class _FakeDiagnosticDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
-    throw UnimplementedError();
+    requestedModels.add(model);
+    final lines = [for (var value = 1; value <= 40; value += 1) '$value\n'];
+    return StreamedChatCompletion.fromStream(
+      Stream.fromIterable([lines.take(20).join(), lines.skip(20).join()]),
+      finishReason: 'stop',
+      usage: const TokenUsage(
+        promptTokens: 12,
+        completionTokens: 40,
+        totalTokens: 52,
+      ),
+    );
   }
 
   @override
@@ -524,6 +782,246 @@ class _FakeDiagnosticDataSource implements ChatDataSource {
         ToolCallInfo(id: 'call-$name', name: name, arguments: arguments),
       ],
       finishReason: 'tool_calls',
+    );
+  }
+}
+
+class _ExtraFirstRoundCallDataSource extends _FakeDiagnosticDataSource {
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    if (messages.last.content.contains(
+      'Find the available tool that reports',
+    )) {
+      return ChatCompletionResult(
+        content: '',
+        toolCalls: [
+          ToolCallInfo(
+            id: 'call-search',
+            name: 'tool_search',
+            arguments: {'query': 'get_current_datetime'},
+          ),
+          ToolCallInfo(
+            id: 'call-date',
+            name: 'get_current_datetime',
+            arguments: <String, dynamic>{},
+          ),
+        ],
+        finishReason: 'tool_calls',
+      );
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+class _SkippedSearchDataSource extends _FakeDiagnosticDataSource {
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    if (messages.last.content.contains(
+      'Find the available tool that reports',
+    )) {
+      return ChatCompletionResult(
+        content: '{"marker":"CAVERNO_MULTI_ROUND_LOOP_OK"}',
+        finishReason: 'stop',
+      );
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+class _SkippedDatetimeDataSource extends _FakeDiagnosticDataSource {
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    if (toolResults.single.name == 'tool_search') {
+      return ChatCompletionResult(
+        content: '{"marker":"CAVERNO_MULTI_ROUND_LOOP_OK"}',
+        finishReason: 'stop',
+      );
+    }
+    return super.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+class _MissingFinalMarkerDataSource extends _FakeDiagnosticDataSource {
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    if (toolResults.single.name == 'get_current_datetime' &&
+        (tools == null || tools.isEmpty)) {
+      final payload =
+          jsonDecode(toolResults.single.result) as Map<String, dynamic>;
+      final relativeDates = payload['relative_dates'] as Map<String, dynamic>;
+      return ChatCompletionResult(
+        content: jsonEncode({
+          'today': relativeDates['today'],
+          'timezone': payload['timezone'],
+        }),
+        finishReason: 'stop',
+      );
+    }
+    return super.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+/// Records how the image reached the model, so the probe is verified against
+/// the real message shapes rather than against its own grading.
+class _VisionRecordingDataSource extends _FakeDiagnosticDataSource {
+  final List<String?> attachmentArmImages = [];
+  final List<String?> attachmentMimeTypes = [];
+  int toolResultImageCount = 0;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    if (messages.last.content.contains('four equal quadrants')) {
+      attachmentArmImages.add(messages.last.imageBase64);
+      attachmentMimeTypes.add(messages.last.imageMimeType);
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    final payload =
+        jsonDecode(toolResults.single.result) as Map<String, dynamic>;
+    if (payload['imageBase64'] is String) {
+      toolResultImageCount += 1;
+    }
+    return super.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+/// Answers the quadrant question identically with and without the image: the
+/// shape of a model that never looked but guessed well.
+class _VisionGuessingDataSource extends _FakeDiagnosticDataSource {
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    if (messages.last.content.contains('four equal quadrants')) {
+      requestedModels.add(model);
+      return ChatCompletionResult(
+        content: 'yellow, blue, red, green',
+        finishReason: 'stop',
+      );
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+/// Refuses any request carrying image content, the way a text-only endpoint
+/// answers a multimodal content part.
+class _VisionRejectingDataSource extends _FakeDiagnosticDataSource {
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    if (messages.last.imageBase64 != null) {
+      throw Exception(
+        'HTTP 400: this model does not support image content parts',
+      );
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
     );
   }
 }

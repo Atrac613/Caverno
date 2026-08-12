@@ -20,9 +20,13 @@ void main() {
     expect(runner, contains('invalidCount'));
     expect(runner, contains('unverifiableCount'));
     expect(runner, contains('matchesExpected'));
+    expect(runner, contains('mechanicalVerificationPassed'));
+    expect(runner, contains('metrics.get("totalCount") != 2'));
     expect(canary, contains('private_scratch'));
     expect(canary, contains("'write_file', 'edit_file', 'delete_file'"));
     expect(canary, contains('production LL13 delegate'));
     expect(canary, contains('controlled_live_canary'));
+    expect(canary, contains('write_tools_disabled_mechanically_green'));
+    expect(canary, contains('expect(broken.verifiedGreen, isTrue)'));
   });
 }

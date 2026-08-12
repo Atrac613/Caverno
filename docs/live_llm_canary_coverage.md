@@ -12,6 +12,63 @@ settings, or feature-specific execution behavior.
 | Chat | `tool/run_chat_live_llm_canary.sh`, `tool/run_chat_background_process_live_canary.sh`, `tool/run_tool_result_budget_live_canary.sh` | Plain chat streaming, memory extraction JSON, background process lifecycle (including `process_start`, repeated `process_wait`, observed running-state progress reporting, and zero-exit completion), content-embedded tool-call execution, incomplete inline tool-call recovery, assistant-authored `tool_result` rejection, oversized tool-result compaction retry, final marker extraction, subagent delegation via spawn_subagent (sync, child tool use, background result recovery) | Native tool-role compatibility, broad multi-turn continuity beyond focused parser recovery, and routine/cleanup-safety behavior beyond dedicated focused flows | Keep the chat canary suite in every model switch baseline; use `docs/long_running_process_mvp_tasks.md` when process tooling, cleanup behavior, or background-command safety changes |
 | Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_suggestion_live_canary.sh`, `tool/run_coding_todo_app_mvp_live_canary.sh`, `tool/run_coding_todo_app_minimal_prompt_live_canary.sh`, `tool/run_coding_word_frequency_live_canary.sh`, `tool/run_coding_markdown_toc_live_canary.sh`, `tool/run_coding_markdown_toc_exact_short_live_canary.sh`, `tool/run_coding_expense_tracker_live_canary.sh`, `tool/run_coding_weather_code_live_canary.sh`, `tool/run_coding_overwrite_transparency_live_canary.sh`, `tool/run_coding_output_feedback_live_canary.sh`, `tool/run_coding_goal_live_canary.sh`, `tool/run_coding_goal_live_edit_canary.sh`, `tool/run_coding_diagnostic_feedback_live_canary.sh`, `tool/run_coding_verification_feedback_live_canary.sh`, `tool/run_turn_steering_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal suggestion artifact preservation, Dart-pinned MVP assembly covering CRUD persistence, deterministic text processing, Markdown structure, exact money aggregation, and CSV export, Open-Meteo WMO weather-code interpretation across saved reports, final answers, and memory extraction, write_file existing-file update transparency in final answers, zero-exit command output feedback and artifact repair, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, completed/disabled goal prompt suppression, negative-completion guard, real coding-goal file edit with local test execution, red-green repair after observing a failing fixture test with exact-short TODO and Markdown TOC prompts, two-file coding-goal edit coordination, package-like parser repair without test mutation, file create/read/update/delete lifecycle with final filesystem verification, Git init/commit/revert lifecycle with final clean-status verification, mid-turn interruption redirecting a running turn against a queued-message control arm, repeated-blocker auto-blocking, Dart analyzer diagnostic feedback after a broken edit, Dart test feedback after a premature completion claim with failing tests, report quality | Larger native coding-mode refactors and broader multi-file suites are still covered mainly through Plan Mode | Keep PM5 as baseline; run the focused MVP, coding-goal, weather-code, overwrite-transparency, output-feedback, diagnostic-feedback, and verification-feedback canaries after changing goal state, coding prompts, budget handling, tool execution, tool-result interpretation, diagnostic or verification feedback, command output guardrails, file/Git side effects, or completion/blocker inference |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
+| Capability benchmark (LL39) | `tool/run_live_llm_benchmark_canary.sh` | The whole `LiveLlmDiagnosticService` suite against a real endpoint: instruction contract, production streaming path with TTFT and guarded decode rate, exact preservation, both vision message shapes with the no-image control arm, tool call, goal-update fidelity, tool-result integration, a sequential multi-round loop, harness selection, tool search, subagent, remote MCP exposure, and the LL16 sampler trials — scored with `cavernobench` and written to `benchmark_run.json` | Edit format, `response_format`, embeddings, and effective context are not probed yet | Run after changing any probe or the scoring table, and before trusting a new model's stored profile. Use `CAVERNO_BENCHMARK_CANARY_REPEAT_COUNT` to measure the run-to-run spread in one command |
+
+## LL39 Capability Benchmark Canary
+
+Runs the in-app diagnostic headlessly and writes its scored report, so the
+probes can be validated against a real model and repeats become scriptable:
+
+```bash
+export CAVERNO_LLM_BASE_URL=http://127.0.0.1:1234/v1
+export CAVERNO_LLM_API_KEY=no-key
+export CAVERNO_LLM_MODEL=qwen3.6-27b-mtp-vision
+CAVERNO_BENCHMARK_CANARY_REPEAT_COUNT=3 tool/run_live_llm_benchmark_canary.sh
+```
+
+The artifact lands at
+`build/integration_test_reports/live_llm_benchmark_canary_<timestamp>/benchmark_run.json`
+and carries each run's full report plus the min/max/spread across repeats. That
+spread is the same noise floor the in-app history derives from stored profile
+revisions — this measures it in one command instead of over several nights of
+unattended calibration.
+
+The streaming block reports TTFT, total elapsed time, completion tokens, and
+chunk count in physical units. Decode rate is present only when incremental
+delivery spans a meaningful decode window. A single chunk, or at least 20
+tokens released within a sub-100 ms terminal burst occupying under 10% of the
+request, is marked `likelyBuffered`; in that case the report suppresses tok/s
+instead of mislabeling a gateway's queue-drain rate as model throughput.
+
+The multi-round block reports model turns, tool calls, successful tool
+executions, prompt/completion/total tokens, elapsed time, and task completion.
+It starts with only `tool_search`, executes the discovered local
+`get_current_datetime` tool on the next turn, and validates the final JSON on
+the third turn. These physical measurements remain outside the weighted score.
+Run it as a focused passing gate with:
+
+```bash
+CAVERNO_BENCHMARK_CANARY_PROBE_IDS=multi_round_tool_loop \
+CAVERNO_BENCHMARK_CANARY_REQUIRED_PROBE_IDS=multi_round_tool_loop \
+CAVERNO_BENCHMARK_CANARY_MIN_POINTS=80 \
+tool/run_live_llm_benchmark_canary.sh
+```
+
+It measures rather than gates: a weak model produces a low score, not a failed
+canary. What fails the canary is a run that measured nothing — a probe left
+unfinished, or every scored probe skipped. Opt into gating with
+`CAVERNO_BENCHMARK_CANARY_MIN_POINTS`, and pin the probes that must not skip
+with `CAVERNO_BENCHMARK_CANARY_REQUIRED_PROBE_IDS` (for example
+`vision_attachment,vision_tool_observation` when validating vision support).
+
+**LAN endpoints need a loopback tunnel.** The canary runs under
+`flutter_tester`, which macOS Local Network Privacy blocks from reaching a LAN
+address directly; a blocked connection looks exactly like a model that failed
+every probe. Forward the port first:
+
+```bash
+ssh -N -L 1234:192.168.100.241:1234 <host>
+```
 
 ## Qwen3.6-35B-A3B Main LLM Gate
 
@@ -419,6 +476,140 @@ allowed-warning, compaction-retry, and analyzer feedback increases are recorded
 as watch signals instead of hard failures.
 
 ## Latest Full-Surface Evidence
+
+### 2026-08-11: `qwen/qwen3-coder-next` Multi-Round Focused Validation
+
+- Endpoint: `http://127.0.0.1:1234/v1`
+- Model: `qwen/qwen3-coder-next` (loaded in LM Studio)
+- API key: `no-key`
+- Build commit: `aca3055b`
+- Selected and required probe: `multi_round_tool_loop`
+- Outcome: **Passed**, earning 80/80 attempted points under `cavernobench` v4.
+
+| Measurement | Result |
+|-------------|--------|
+| Model turns | 3 |
+| Tool calls | 2: `tool_search`, then `get_current_datetime` |
+| Successful tool executions | 2 |
+| Final contract | Marker, date, timezone, and no-extra-call checks all passed (6/6 total checks) |
+| Token usage | 2,755 prompt + 92 completion = 2,847 total |
+| Probe elapsed | 188,327 ms |
+
+Artifact:
+`build/integration_test_reports/live_llm_benchmark_canary_1786444702/benchmark_run.json`
+
+This focused run proves the new sequential path against a second real model.
+The reference endpoint was restored afterward and the full v4 run below
+completed; v3 and v4 scores still remain separate histories because they
+measure different suite definitions.
+
+### 2026-08-11: `qwen3.6-35b-a3b-vision` LL39 Benchmark Canary Validation
+
+- Endpoint: `http://192.168.100.241:1234/v1` via a loopback relay on
+  `http://127.0.0.1:18234/v1`
+- Model: `qwen3.6-35b-a3b-vision` (loaded through the existing control API;
+  warmed with a 4-token request first)
+- API key: `no-key`
+- Build commit: `820eb01b`
+- Streaming slice commit: `13bf7326`
+- Multi-round probe commit: `2dea8eb9`
+- `cavernobench` v4 and UI commit: `aca3055b`
+- Command: `tool/run_live_llm_benchmark_canary.sh`
+- Scope note: first live run of the LL39 benchmark canary. One validation run
+  with the vision probes pinned as required, five repeats to measure the
+  run-to-run spread, then a probe fix and three confirming repeats, followed by
+  one full-suite v3 run after adding streaming, then one full-suite v4 run after
+  adding the multi-round probe.
+- Latest outcome: **955/1000** under v4, which is every point the run could
+  attempt. The earlier v3 outcome was 950/1000. The first
+  six runs scored 920; the missing 30 were a defect in the subagent probe's own
+  prompt, not the model.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Benchmark harness | Canary runs the diagnostic headlessly | Passed | 11/11 runs across the validation series, artifact written each time | Warm full suites took ~24–29 s; the final v3 run took 53 s because the requested model had to reload. Offline smoke had already proven the artifact path; these runs prove it end to end against a real endpoint. |
+| Conformance score | `cavernobench` v4 | 955/1000 after adding multi-round (950/1000 under v3) | attempted 955, coverage 0.955 | The 45 unattempted points are the Foundation Models matrix (30) and remote MCP exposure (15), both correctly excluded rather than scored as failures. Multi-round rebalanced the fixed 1000-point table rather than moving the denominator. The model earns **every attempted point** — direct evidence that the bounded tier is saturated on this local 35B model, which is what the unbounded capability tier exists for. |
+| Streaming path | Production `streamChatCompletion` plus terminal metadata | Passed | sequence 40/40, 110 chunks, `finishReason=stop`, 222 prompt + 111 completion tokens | The v4 run measured 934 ms TTFT and 960 ms total. The 111 tokens arrived in the final 26 ms, so the report correctly marked `likelyBuffered=true` and withheld a misleading queue-drain rate. This is a measured provider limitation, not a probe failure. |
+| Multi-round tool loop | Sequential native tool-result continuations | Passed | `tool_search` then `get_current_datetime`, followed by final JSON; 6/6 checks | 3 model turns, 2 successful tool executions, 3,176 prompt + 106 completion = 3,282 tokens, and 2,985 ms elapsed. The final answer preserved the marker, date, and timezone without an extra call. |
+| Vision — attachment | Control arm separates reading from guessing | Passed | with image 4/4 in order, no-image control 1/4 (`black, white, red, blue`) | The control arm earned its cost: without it the 4/4 would have been unfalsifiable. The model guessed one colour by luck, well below the image arm, so `model_ignored_the_image` correctly did not fire. |
+| Vision — tool observation | computer-use screenshot message shape | Passed | 4/4 in order | Both production image paths work on this model. |
+| Subagent contract | `spawn_subagent` emitted as a tool call | Failed 6/6, then **Passed 3/3 after fixing the probe** | before: `toolCalls: null` with the argument object as bare JSON; after: `spawn_subagent` with `description` / `promptMarker` / `background` all true | **The probe was measuring its own wording.** A three-way live A/B isolated it: the old prompt (`For diagnostics only, emit a spawn_subagent tool call`) with the subagent tools produced no call; *natural delegation phrasing* with the same tools produced a native call; the *same meta-framing* with `get_current_datetime` also produced a native call. Neither the tool nor the phrasing alone was responsible — only the conjunction, where asking a model to "emit a tool call" for a delegation tool invites it to describe the call instead of making it. Production never phrases a request that way, so the probe now asks for the delegation task. |
+| Sampler stability | LL16 trials | 32/32 in every run | 160/160 across five repeats | Stable at every calibration temperature. |
+| Run-to-run spread | Noise floor | **0 points**, before and after the fix | `points=[920, 920, 920, 920, 920]`, then `points=[950, 950, 950]` | Scored probes run at temperature 0 and this endpoint is deterministic. Consequence for LL39's regression rule: with a measured spread of 0, *any* drop clears the threshold — which is the intended reading, since the smallest possible drop is a probe changing status. |
+| Cost | Physical units for the capability tier | 25,889 prompt + 565 completion = 26,454 tokens in the v4 run | scored probes only; sampler trials do not record usage | The multi-round block accounts for 3,282 of these tokens and remains outside the weighted score. |
+
+Artifacts:
+
+- Validation run:
+  `build/integration_test_reports/benchmark_canary_live_validation_1786430145/benchmark_run.json`
+- Five-repeat spread run:
+  `build/integration_test_reports/benchmark_canary_spread_1786430222/benchmark_run.json`
+- Three-repeat confirmation after the subagent probe fix:
+  `build/integration_test_reports/benchmark_canary_subagent_fix_1786430864/benchmark_run.json`
+- Full suite v3 validation with streaming:
+  `build/integration_test_reports/live_llm_benchmark_canary_1786432608/benchmark_run.json`
+- Full suite v4 validation with multi-round:
+  `build/integration_test_reports/benchmark_canary_v4_full_reference_1786449223/benchmark_run.json`
+
+Before the v4 run, the long-lived router backend on port 12340 remained alive
+after its model instances had exited and `/v1/models` stopped responding. A
+normal TERM did not complete, so the exact backend PID was stopped and the
+existing `qwen36-router-start.sh` restarted it; the healthy proxy and control
+services were left in place. The 35B model then loaded through `/switch/35b`, a
+four-token warm-up passed, and the full canary completed in 28,788 ms. The
+temporary loopback SSH tunnel was stopped after artifact collection.
+
+### 2026-08-11: `qwen3.6-27b-vision` Full-Suite Comparison And Fixture Correction
+
+The same reference host, loopback route, v4 suite, required probes, and
+955-point floor were reused after switching the existing control service from
+35B to `qwen3.6-27b-vision`. The first run completed all 46 requests but scored
+**890/1000** from 955 attempted points. The entire 65-point gap came from
+`vision_attachment`; every other attempted probe passed, including the
+two-round tool loop and the tool-observation vision path.
+
+| Measure | 27B | 35B reference | Interpretation |
+|---------|-----|---------------|----------------|
+| Conformance | 890/1000 before fixture correction; **955/1000 after** | 955/1000 | The apparent 65-point model gap disappeared when the attachment fixture stopped rewarding the conventional blind guess. Both models earn every attempted point. |
+| Full run | 84,069 ms before; 84,866 ms after | 28,750 ms | Both 27B runs took about 2.95 times as long as the 35B reference under the same suite. |
+| Streaming | 3,715 ms TTFT; 3,741 ms total | 934 ms TTFT; 960 ms total | Both runs delivered 111 completion tokens in a buffered terminal burst; decode rate remains unavailable. |
+| Multi-round | 6,934 ms; 3 turns; 2/2 tool executions; 2,936 tokens | 2,985 ms; 3 turns; 2/2 tool executions; 3,282 tokens | The 27B model completed the exact `tool_search` then `get_current_datetime` contract, but took 2.32 times as long. |
+| Scored-probe usage | 26,109 tokens | 26,454 tokens | Token volume was comparable, so the wall-clock difference is not explained by a larger 27B transcript. |
+
+The original attachment image arm itself returned all four correct colors. The
+no-image control also guessed the same conventional
+`red, green, blue, yellow` order, so the strict control rule classified the
+result as `model_ignored_the_image`. An isolated three-repeat run reproduced
+that exact pairing 3/3 times and scored `[0, 0, 0]`. Because the
+tool-observation image path passed 4/4, this was evidence that the predictable
+fixture could not distinguish reading from guessing, not evidence that the
+model lacked vision.
+
+The fixture now keeps the same four solid colors but shuffles their reading
+order to `yellow, blue, red, green`. This changes neither image complexity nor
+the answer vocabulary; it only removes the conventional ordering prior. The
+27B model then read the image 4/4 while its no-image answer remained the old
+sequence and scored 1/4. The focused probe earned 65 points in all three
+repeats, and the subsequent full suite earned **955/1000** with all 955
+attempted points passing. The corrected run measured 3,817 ms TTFT, 84,866 ms
+overall, and 7,302 ms for the successful three-turn multi-round loop.
+
+Artifacts:
+
+- Full-suite comparison:
+  `build/integration_test_reports/benchmark_canary_v4_full_27b_reference_1786449582/benchmark_run.json`
+- Three-repeat attachment check:
+  `build/integration_test_reports/benchmark_canary_v4_27b_vision_attachment_repeat_1786449731/benchmark_run.json`
+- Three-repeat check after shuffling the fixture:
+  `build/integration_test_reports/benchmark_canary_v4_27b_shuffled_vision_repeat_1786450375/benchmark_run.json`
+- Full suite after shuffling the fixture:
+  `build/integration_test_reports/benchmark_canary_v4_full_27b_shuffled_vision_1786450406/benchmark_run.json`
+
+Probe-design lesson from this run: a probe prompt that describes the *mechanism*
+("emit a tool call") instead of asking for the *task* can measure its own
+framing. The multi-round probe therefore asks for the production-shaped task
+rather than asking the model to emit calls. The remaining edit-format probe
+must follow the same rule or it will report harness wording as model capability.
 
 ### 2026-07-14: `qwen3.6-27b-vision` Markdown TOC Adaptive Pass
 

@@ -1,0 +1,59 @@
+{
+  "schemaName": "caverno_personal_eval_experiment_protocol",
+  "schemaVersion": 2,
+  "label": "27B versus 35B mixed-task repeatability probe",
+  "studyIntent": "corpus_design",
+  "incumbent": {
+    "model": "qwen3.6-35b-a3b-vision",
+    "baseUrl": "http://127.0.0.1:18234/v1",
+    "samplerSettings": {
+      "temperature": 0.2,
+      "topP": 0.95,
+      "maxTokens": 8192
+    },
+    "warmup": {
+      "completed": true,
+      "iterations": 1
+    }
+  },
+  "candidate": {
+    "model": "qwen3.6-27b-vision",
+    "baseUrl": "http://127.0.0.1:18234/v1",
+    "samplerSettings": {
+      "temperature": 0.2,
+      "topP": 0.95,
+      "maxTokens": 8192
+    },
+    "warmup": {
+      "completed": true,
+      "iterations": 1
+    }
+  },
+  "executionBudget": {
+    "maxDurationMs": 900000,
+    "maxTurns": 24,
+    "maxToolCalls": 100
+  },
+  "trialOrders": [
+    {
+      "caseId": "authored_datekit_rebuild_parse",
+      "trialId": "trial-3",
+      "first": "incumbent"
+    },
+    {
+      "caseId": "authored_datekit_rebuild_parse",
+      "trialId": "trial-4",
+      "first": "candidate"
+    },
+    {
+      "caseId": "authored_taskflow_rebuild_state_and_budget",
+      "trialId": "trial-3",
+      "first": "incumbent"
+    },
+    {
+      "caseId": "authored_taskflow_rebuild_state_and_budget",
+      "trialId": "trial-4",
+      "first": "candidate"
+    }
+  ]
+}

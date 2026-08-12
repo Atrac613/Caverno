@@ -1190,7 +1190,7 @@ as String,
 /// @nodoc
 mixin _$ModelCapabilityProfile {
 
- String get id;@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider get provider; String get baseUrl; String get model;@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle get toolCallStyle;@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport get structuredOutputSupport;@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity get goalUpdateFidelity;@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference get editFormatPreference; int get usableContextTokens; DateTime? get probedAt; String get probeSummary; Map<String, String> get probeMetadata;
+ String get id;@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider get provider; String get baseUrl; String get model;@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle get toolCallStyle;@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport get structuredOutputSupport;@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity get goalUpdateFidelity;@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference get editFormatPreference;@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport get visionSupport; int get usableContextTokens; DateTime? get probedAt; String get probeSummary; Map<String, String> get probeMetadata;
 /// Create a copy of ModelCapabilityProfile
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1203,16 +1203,16 @@ $ModelCapabilityProfileCopyWith<ModelCapabilityProfile> get copyWith => _$ModelC
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other.probeMetadata, probeMetadata));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other.probeMetadata, probeMetadata));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,usableContextTokens,probedAt,probeSummary,const DeepCollectionEquality().hash(probeMetadata));
+int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,usableContextTokens,probedAt,probeSummary,const DeepCollectionEquality().hash(probeMetadata));
 
 @override
 String toString() {
-  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, usableContextTokens: $usableContextTokens, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
+  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, usableContextTokens: $usableContextTokens, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
 }
 
 
@@ -1223,7 +1223,7 @@ abstract mixin class $ModelCapabilityProfileCopyWith<$Res>  {
   factory $ModelCapabilityProfileCopyWith(ModelCapabilityProfile value, $Res Function(ModelCapabilityProfile) _then) = _$ModelCapabilityProfileCopyWithImpl;
 @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference, int usableContextTokens, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
+ String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport, int usableContextTokens, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
 });
 
 
@@ -1240,7 +1240,7 @@ class _$ModelCapabilityProfileCopyWithImpl<$Res>
 
 /// Create a copy of ModelCapabilityProfile
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? usableContextTokens = null,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? usableContextTokens = null,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,provider: null == provider ? _self.provider : provider // ignore: cast_nullable_to_non_nullable
@@ -1250,7 +1250,8 @@ as String,toolCallStyle: null == toolCallStyle ? _self.toolCallStyle : toolCallS
 as ModelToolCallStyle,structuredOutputSupport: null == structuredOutputSupport ? _self.structuredOutputSupport : structuredOutputSupport // ignore: cast_nullable_to_non_nullable
 as ModelStructuredOutputSupport,goalUpdateFidelity: null == goalUpdateFidelity ? _self.goalUpdateFidelity : goalUpdateFidelity // ignore: cast_nullable_to_non_nullable
 as ModelGoalUpdateFidelity,editFormatPreference: null == editFormatPreference ? _self.editFormatPreference : editFormatPreference // ignore: cast_nullable_to_non_nullable
-as ModelEditFormatPreference,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
+as ModelEditFormatPreference,visionSupport: null == visionSupport ? _self.visionSupport : visionSupport // ignore: cast_nullable_to_non_nullable
+as ModelVisionSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
 as int,probedAt: freezed == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,probeSummary: null == probeSummary ? _self.probeSummary : probeSummary // ignore: cast_nullable_to_non_nullable
 as String,probeMetadata: null == probeMetadata ? _self.probeMetadata : probeMetadata // ignore: cast_nullable_to_non_nullable
@@ -1339,10 +1340,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfile() when $default != null:
-return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
   return orElse();
 
 }
@@ -1360,10 +1361,10 @@ return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCall
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)  $default,) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfile():
-return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1380,10 +1381,10 @@ return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCall
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfile() when $default != null:
-return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
   return null;
 
 }
@@ -1395,7 +1396,7 @@ return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCall
 @JsonSerializable()
 
 class _ModelCapabilityProfile extends ModelCapabilityProfile {
-  const _ModelCapabilityProfile({required this.id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.provider = LlmProvider.openAiCompatible, this.baseUrl = '', required this.model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) this.toolCallStyle = ModelToolCallStyle.unknown, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) this.structuredOutputSupport = ModelStructuredOutputSupport.unknown, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) this.goalUpdateFidelity = ModelGoalUpdateFidelity.unknown, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) this.editFormatPreference = ModelEditFormatPreference.unknown, this.usableContextTokens = 0, this.probedAt, this.probeSummary = '', final  Map<String, String> probeMetadata = const <String, String>{}}): _probeMetadata = probeMetadata,super._();
+  const _ModelCapabilityProfile({required this.id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.provider = LlmProvider.openAiCompatible, this.baseUrl = '', required this.model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) this.toolCallStyle = ModelToolCallStyle.unknown, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) this.structuredOutputSupport = ModelStructuredOutputSupport.unknown, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) this.goalUpdateFidelity = ModelGoalUpdateFidelity.unknown, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) this.editFormatPreference = ModelEditFormatPreference.unknown, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown) this.visionSupport = ModelVisionSupport.unknown, this.usableContextTokens = 0, this.probedAt, this.probeSummary = '', final  Map<String, String> probeMetadata = const <String, String>{}}): _probeMetadata = probeMetadata,super._();
   factory _ModelCapabilityProfile.fromJson(Map<String, dynamic> json) => _$ModelCapabilityProfileFromJson(json);
 
 @override final  String id;
@@ -1406,6 +1407,7 @@ class _ModelCapabilityProfile extends ModelCapabilityProfile {
 @override@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) final  ModelStructuredOutputSupport structuredOutputSupport;
 @override@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) final  ModelGoalUpdateFidelity goalUpdateFidelity;
 @override@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) final  ModelEditFormatPreference editFormatPreference;
+@override@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) final  ModelVisionSupport visionSupport;
 @override@JsonKey() final  int usableContextTokens;
 @override final  DateTime? probedAt;
 @override@JsonKey() final  String probeSummary;
@@ -1430,16 +1432,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other._probeMetadata, _probeMetadata));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other._probeMetadata, _probeMetadata));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,usableContextTokens,probedAt,probeSummary,const DeepCollectionEquality().hash(_probeMetadata));
+int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,usableContextTokens,probedAt,probeSummary,const DeepCollectionEquality().hash(_probeMetadata));
 
 @override
 String toString() {
-  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, usableContextTokens: $usableContextTokens, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
+  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, usableContextTokens: $usableContextTokens, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
 }
 
 
@@ -1450,7 +1452,7 @@ abstract mixin class _$ModelCapabilityProfileCopyWith<$Res> implements $ModelCap
   factory _$ModelCapabilityProfileCopyWith(_ModelCapabilityProfile value, $Res Function(_ModelCapabilityProfile) _then) = __$ModelCapabilityProfileCopyWithImpl;
 @override @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference, int usableContextTokens, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
+ String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport, int usableContextTokens, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
 });
 
 
@@ -1467,7 +1469,7 @@ class __$ModelCapabilityProfileCopyWithImpl<$Res>
 
 /// Create a copy of ModelCapabilityProfile
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? usableContextTokens = null,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? usableContextTokens = null,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
   return _then(_ModelCapabilityProfile(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,provider: null == provider ? _self.provider : provider // ignore: cast_nullable_to_non_nullable
@@ -1477,7 +1479,8 @@ as String,toolCallStyle: null == toolCallStyle ? _self.toolCallStyle : toolCallS
 as ModelToolCallStyle,structuredOutputSupport: null == structuredOutputSupport ? _self.structuredOutputSupport : structuredOutputSupport // ignore: cast_nullable_to_non_nullable
 as ModelStructuredOutputSupport,goalUpdateFidelity: null == goalUpdateFidelity ? _self.goalUpdateFidelity : goalUpdateFidelity // ignore: cast_nullable_to_non_nullable
 as ModelGoalUpdateFidelity,editFormatPreference: null == editFormatPreference ? _self.editFormatPreference : editFormatPreference // ignore: cast_nullable_to_non_nullable
-as ModelEditFormatPreference,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
+as ModelEditFormatPreference,visionSupport: null == visionSupport ? _self.visionSupport : visionSupport // ignore: cast_nullable_to_non_nullable
+as ModelVisionSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
 as int,probedAt: freezed == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,probeSummary: null == probeSummary ? _self.probeSummary : probeSummary // ignore: cast_nullable_to_non_nullable
 as String,probeMetadata: null == probeMetadata ? _self._probeMetadata : probeMetadata // ignore: cast_nullable_to_non_nullable
@@ -1799,7 +1802,23 @@ as GoalCompletionPolicy,
 /// @nodoc
 mixin _$ModelCapabilityProfileRevision {
 
- String get profileId; DateTime get probedAt;@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle get toolCallStyle;@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport get structuredOutputSupport;@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity get goalUpdateFidelity;@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference get editFormatPreference; int get usableContextTokens; String get probeSummary;/// How this revision was triggered. Known values: 'initial', 'idle_re_probe',
+ String get profileId; DateTime get probedAt;@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle get toolCallStyle;@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport get structuredOutputSupport;@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity get goalUpdateFidelity;@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference get editFormatPreference;@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport get visionSupport; int get usableContextTokens; String get probeSummary;/// LL39 bounded conformance score for this revision, and the suite that
+/// produced it. Null means the revision predates the benchmark or came from
+/// a path that does not score (a settings import, a bounded re-probe with
+/// no scored probes) — which is not the same as scoring zero, so a missing
+/// value must never read as a regression.
+///
+/// Kept on the revision, not only on the profile: the profile is
+/// overwritten by every run, so without this the score has no history and
+/// nothing can be compared.
+ int? get benchmarkPoints; int? get benchmarkAttemptedPoints; int? get benchmarkMaxPoints;/// Suite identity, e.g. `cavernobench-v2`. Two suite versions are not
+/// comparable, so history is partitioned by this before any delta.
+ String get benchmarkSuite;/// True when this revision's score dropped by more than the spread measured
+/// across earlier same-suite revisions. Separate from
+/// [capabilityChangeDetected] because the diagnosis differs: an enum flip
+/// says a capability appeared or vanished, while this says every capability
+/// still reports the same but the model got measurably worse.
+ bool get benchmarkRegressionDetected;/// How this revision was triggered. Known values: 'initial', 'idle_re_probe',
 /// 'calibrate', 'manual', 'probe'.
  String get source;/// True when any key capability field changed vs the immediately preceding
 /// revision for the same [profileId] — a heuristic for GGUF/weight swaps.
@@ -1816,16 +1835,16 @@ $ModelCapabilityProfileRevisionCopyWith<ModelCapabilityProfileRevision> get copy
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelCapabilityProfileRevision&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&(identical(other.source, source) || other.source == source)&&(identical(other.capabilityChangeDetected, capabilityChangeDetected) || other.capabilityChangeDetected == capabilityChangeDetected));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelCapabilityProfileRevision&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&(identical(other.benchmarkPoints, benchmarkPoints) || other.benchmarkPoints == benchmarkPoints)&&(identical(other.benchmarkAttemptedPoints, benchmarkAttemptedPoints) || other.benchmarkAttemptedPoints == benchmarkAttemptedPoints)&&(identical(other.benchmarkMaxPoints, benchmarkMaxPoints) || other.benchmarkMaxPoints == benchmarkMaxPoints)&&(identical(other.benchmarkSuite, benchmarkSuite) || other.benchmarkSuite == benchmarkSuite)&&(identical(other.benchmarkRegressionDetected, benchmarkRegressionDetected) || other.benchmarkRegressionDetected == benchmarkRegressionDetected)&&(identical(other.source, source) || other.source == source)&&(identical(other.capabilityChangeDetected, capabilityChangeDetected) || other.capabilityChangeDetected == capabilityChangeDetected));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,profileId,probedAt,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,usableContextTokens,probeSummary,source,capabilityChangeDetected);
+int get hashCode => Object.hash(runtimeType,profileId,probedAt,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,usableContextTokens,probeSummary,benchmarkPoints,benchmarkAttemptedPoints,benchmarkMaxPoints,benchmarkSuite,benchmarkRegressionDetected,source,capabilityChangeDetected);
 
 @override
 String toString() {
-  return 'ModelCapabilityProfileRevision(profileId: $profileId, probedAt: $probedAt, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, usableContextTokens: $usableContextTokens, probeSummary: $probeSummary, source: $source, capabilityChangeDetected: $capabilityChangeDetected)';
+  return 'ModelCapabilityProfileRevision(profileId: $profileId, probedAt: $probedAt, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, usableContextTokens: $usableContextTokens, probeSummary: $probeSummary, benchmarkPoints: $benchmarkPoints, benchmarkAttemptedPoints: $benchmarkAttemptedPoints, benchmarkMaxPoints: $benchmarkMaxPoints, benchmarkSuite: $benchmarkSuite, benchmarkRegressionDetected: $benchmarkRegressionDetected, source: $source, capabilityChangeDetected: $capabilityChangeDetected)';
 }
 
 
@@ -1836,7 +1855,7 @@ abstract mixin class $ModelCapabilityProfileRevisionCopyWith<$Res>  {
   factory $ModelCapabilityProfileRevisionCopyWith(ModelCapabilityProfileRevision value, $Res Function(ModelCapabilityProfileRevision) _then) = _$ModelCapabilityProfileRevisionCopyWithImpl;
 @useResult
 $Res call({
- String profileId, DateTime probedAt,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference, int usableContextTokens, String probeSummary, String source, bool capabilityChangeDetected
+ String profileId, DateTime probedAt,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport, int usableContextTokens, String probeSummary, int? benchmarkPoints, int? benchmarkAttemptedPoints, int? benchmarkMaxPoints, String benchmarkSuite, bool benchmarkRegressionDetected, String source, bool capabilityChangeDetected
 });
 
 
@@ -1853,7 +1872,7 @@ class _$ModelCapabilityProfileRevisionCopyWithImpl<$Res>
 
 /// Create a copy of ModelCapabilityProfileRevision
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? profileId = null,Object? probedAt = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? usableContextTokens = null,Object? probeSummary = null,Object? source = null,Object? capabilityChangeDetected = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? profileId = null,Object? probedAt = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? usableContextTokens = null,Object? probeSummary = null,Object? benchmarkPoints = freezed,Object? benchmarkAttemptedPoints = freezed,Object? benchmarkMaxPoints = freezed,Object? benchmarkSuite = null,Object? benchmarkRegressionDetected = null,Object? source = null,Object? capabilityChangeDetected = null,}) {
   return _then(_self.copyWith(
 profileId: null == profileId ? _self.profileId : profileId // ignore: cast_nullable_to_non_nullable
 as String,probedAt: null == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
@@ -1861,9 +1880,15 @@ as DateTime,toolCallStyle: null == toolCallStyle ? _self.toolCallStyle : toolCal
 as ModelToolCallStyle,structuredOutputSupport: null == structuredOutputSupport ? _self.structuredOutputSupport : structuredOutputSupport // ignore: cast_nullable_to_non_nullable
 as ModelStructuredOutputSupport,goalUpdateFidelity: null == goalUpdateFidelity ? _self.goalUpdateFidelity : goalUpdateFidelity // ignore: cast_nullable_to_non_nullable
 as ModelGoalUpdateFidelity,editFormatPreference: null == editFormatPreference ? _self.editFormatPreference : editFormatPreference // ignore: cast_nullable_to_non_nullable
-as ModelEditFormatPreference,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
+as ModelEditFormatPreference,visionSupport: null == visionSupport ? _self.visionSupport : visionSupport // ignore: cast_nullable_to_non_nullable
+as ModelVisionSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
 as int,probeSummary: null == probeSummary ? _self.probeSummary : probeSummary // ignore: cast_nullable_to_non_nullable
-as String,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
+as String,benchmarkPoints: freezed == benchmarkPoints ? _self.benchmarkPoints : benchmarkPoints // ignore: cast_nullable_to_non_nullable
+as int?,benchmarkAttemptedPoints: freezed == benchmarkAttemptedPoints ? _self.benchmarkAttemptedPoints : benchmarkAttemptedPoints // ignore: cast_nullable_to_non_nullable
+as int?,benchmarkMaxPoints: freezed == benchmarkMaxPoints ? _self.benchmarkMaxPoints : benchmarkMaxPoints // ignore: cast_nullable_to_non_nullable
+as int?,benchmarkSuite: null == benchmarkSuite ? _self.benchmarkSuite : benchmarkSuite // ignore: cast_nullable_to_non_nullable
+as String,benchmarkRegressionDetected: null == benchmarkRegressionDetected ? _self.benchmarkRegressionDetected : benchmarkRegressionDetected // ignore: cast_nullable_to_non_nullable
+as bool,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
 as String,capabilityChangeDetected: null == capabilityChangeDetected ? _self.capabilityChangeDetected : capabilityChangeDetected // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
@@ -1950,10 +1975,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String profileId,  DateTime probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference,  int usableContextTokens,  String probeSummary,  String source,  bool capabilityChangeDetected)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String profileId,  DateTime probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport,  int usableContextTokens,  String probeSummary,  int? benchmarkPoints,  int? benchmarkAttemptedPoints,  int? benchmarkMaxPoints,  String benchmarkSuite,  bool benchmarkRegressionDetected,  String source,  bool capabilityChangeDetected)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfileRevision() when $default != null:
-return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.usableContextTokens,_that.probeSummary,_that.source,_that.capabilityChangeDetected);case _:
+return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.usableContextTokens,_that.probeSummary,_that.benchmarkPoints,_that.benchmarkAttemptedPoints,_that.benchmarkMaxPoints,_that.benchmarkSuite,_that.benchmarkRegressionDetected,_that.source,_that.capabilityChangeDetected);case _:
   return orElse();
 
 }
@@ -1971,10 +1996,10 @@ return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structu
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String profileId,  DateTime probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference,  int usableContextTokens,  String probeSummary,  String source,  bool capabilityChangeDetected)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String profileId,  DateTime probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport,  int usableContextTokens,  String probeSummary,  int? benchmarkPoints,  int? benchmarkAttemptedPoints,  int? benchmarkMaxPoints,  String benchmarkSuite,  bool benchmarkRegressionDetected,  String source,  bool capabilityChangeDetected)  $default,) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfileRevision():
-return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.usableContextTokens,_that.probeSummary,_that.source,_that.capabilityChangeDetected);case _:
+return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.usableContextTokens,_that.probeSummary,_that.benchmarkPoints,_that.benchmarkAttemptedPoints,_that.benchmarkMaxPoints,_that.benchmarkSuite,_that.benchmarkRegressionDetected,_that.source,_that.capabilityChangeDetected);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1991,10 +2016,10 @@ return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structu
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String profileId,  DateTime probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference,  int usableContextTokens,  String probeSummary,  String source,  bool capabilityChangeDetected)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String profileId,  DateTime probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport,  int usableContextTokens,  String probeSummary,  int? benchmarkPoints,  int? benchmarkAttemptedPoints,  int? benchmarkMaxPoints,  String benchmarkSuite,  bool benchmarkRegressionDetected,  String source,  bool capabilityChangeDetected)?  $default,) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfileRevision() when $default != null:
-return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.usableContextTokens,_that.probeSummary,_that.source,_that.capabilityChangeDetected);case _:
+return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.usableContextTokens,_that.probeSummary,_that.benchmarkPoints,_that.benchmarkAttemptedPoints,_that.benchmarkMaxPoints,_that.benchmarkSuite,_that.benchmarkRegressionDetected,_that.source,_that.capabilityChangeDetected);case _:
   return null;
 
 }
@@ -2006,7 +2031,7 @@ return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structu
 @JsonSerializable()
 
 class _ModelCapabilityProfileRevision extends ModelCapabilityProfileRevision {
-  const _ModelCapabilityProfileRevision({required this.profileId, required this.probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) required this.toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) required this.structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) this.goalUpdateFidelity = ModelGoalUpdateFidelity.unknown, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) required this.editFormatPreference, required this.usableContextTokens, this.probeSummary = '', this.source = 'probe', this.capabilityChangeDetected = false}): super._();
+  const _ModelCapabilityProfileRevision({required this.profileId, required this.probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) required this.toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) required this.structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) this.goalUpdateFidelity = ModelGoalUpdateFidelity.unknown, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) required this.editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown) this.visionSupport = ModelVisionSupport.unknown, required this.usableContextTokens, this.probeSummary = '', this.benchmarkPoints, this.benchmarkAttemptedPoints, this.benchmarkMaxPoints, this.benchmarkSuite = '', this.benchmarkRegressionDetected = false, this.source = 'probe', this.capabilityChangeDetected = false}): super._();
   factory _ModelCapabilityProfileRevision.fromJson(Map<String, dynamic> json) => _$ModelCapabilityProfileRevisionFromJson(json);
 
 @override final  String profileId;
@@ -2015,8 +2040,30 @@ class _ModelCapabilityProfileRevision extends ModelCapabilityProfileRevision {
 @override@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) final  ModelStructuredOutputSupport structuredOutputSupport;
 @override@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) final  ModelGoalUpdateFidelity goalUpdateFidelity;
 @override@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) final  ModelEditFormatPreference editFormatPreference;
+@override@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) final  ModelVisionSupport visionSupport;
 @override final  int usableContextTokens;
 @override@JsonKey() final  String probeSummary;
+/// LL39 bounded conformance score for this revision, and the suite that
+/// produced it. Null means the revision predates the benchmark or came from
+/// a path that does not score (a settings import, a bounded re-probe with
+/// no scored probes) — which is not the same as scoring zero, so a missing
+/// value must never read as a regression.
+///
+/// Kept on the revision, not only on the profile: the profile is
+/// overwritten by every run, so without this the score has no history and
+/// nothing can be compared.
+@override final  int? benchmarkPoints;
+@override final  int? benchmarkAttemptedPoints;
+@override final  int? benchmarkMaxPoints;
+/// Suite identity, e.g. `cavernobench-v2`. Two suite versions are not
+/// comparable, so history is partitioned by this before any delta.
+@override@JsonKey() final  String benchmarkSuite;
+/// True when this revision's score dropped by more than the spread measured
+/// across earlier same-suite revisions. Separate from
+/// [capabilityChangeDetected] because the diagnosis differs: an enum flip
+/// says a capability appeared or vanished, while this says every capability
+/// still reports the same but the model got measurably worse.
+@override@JsonKey() final  bool benchmarkRegressionDetected;
 /// How this revision was triggered. Known values: 'initial', 'idle_re_probe',
 /// 'calibrate', 'manual', 'probe'.
 @override@JsonKey() final  String source;
@@ -2037,16 +2084,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelCapabilityProfileRevision&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&(identical(other.source, source) || other.source == source)&&(identical(other.capabilityChangeDetected, capabilityChangeDetected) || other.capabilityChangeDetected == capabilityChangeDetected));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelCapabilityProfileRevision&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&(identical(other.benchmarkPoints, benchmarkPoints) || other.benchmarkPoints == benchmarkPoints)&&(identical(other.benchmarkAttemptedPoints, benchmarkAttemptedPoints) || other.benchmarkAttemptedPoints == benchmarkAttemptedPoints)&&(identical(other.benchmarkMaxPoints, benchmarkMaxPoints) || other.benchmarkMaxPoints == benchmarkMaxPoints)&&(identical(other.benchmarkSuite, benchmarkSuite) || other.benchmarkSuite == benchmarkSuite)&&(identical(other.benchmarkRegressionDetected, benchmarkRegressionDetected) || other.benchmarkRegressionDetected == benchmarkRegressionDetected)&&(identical(other.source, source) || other.source == source)&&(identical(other.capabilityChangeDetected, capabilityChangeDetected) || other.capabilityChangeDetected == capabilityChangeDetected));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,profileId,probedAt,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,usableContextTokens,probeSummary,source,capabilityChangeDetected);
+int get hashCode => Object.hash(runtimeType,profileId,probedAt,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,usableContextTokens,probeSummary,benchmarkPoints,benchmarkAttemptedPoints,benchmarkMaxPoints,benchmarkSuite,benchmarkRegressionDetected,source,capabilityChangeDetected);
 
 @override
 String toString() {
-  return 'ModelCapabilityProfileRevision(profileId: $profileId, probedAt: $probedAt, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, usableContextTokens: $usableContextTokens, probeSummary: $probeSummary, source: $source, capabilityChangeDetected: $capabilityChangeDetected)';
+  return 'ModelCapabilityProfileRevision(profileId: $profileId, probedAt: $probedAt, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, usableContextTokens: $usableContextTokens, probeSummary: $probeSummary, benchmarkPoints: $benchmarkPoints, benchmarkAttemptedPoints: $benchmarkAttemptedPoints, benchmarkMaxPoints: $benchmarkMaxPoints, benchmarkSuite: $benchmarkSuite, benchmarkRegressionDetected: $benchmarkRegressionDetected, source: $source, capabilityChangeDetected: $capabilityChangeDetected)';
 }
 
 
@@ -2057,7 +2104,7 @@ abstract mixin class _$ModelCapabilityProfileRevisionCopyWith<$Res> implements $
   factory _$ModelCapabilityProfileRevisionCopyWith(_ModelCapabilityProfileRevision value, $Res Function(_ModelCapabilityProfileRevision) _then) = __$ModelCapabilityProfileRevisionCopyWithImpl;
 @override @useResult
 $Res call({
- String profileId, DateTime probedAt,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference, int usableContextTokens, String probeSummary, String source, bool capabilityChangeDetected
+ String profileId, DateTime probedAt,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport, int usableContextTokens, String probeSummary, int? benchmarkPoints, int? benchmarkAttemptedPoints, int? benchmarkMaxPoints, String benchmarkSuite, bool benchmarkRegressionDetected, String source, bool capabilityChangeDetected
 });
 
 
@@ -2074,7 +2121,7 @@ class __$ModelCapabilityProfileRevisionCopyWithImpl<$Res>
 
 /// Create a copy of ModelCapabilityProfileRevision
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? profileId = null,Object? probedAt = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? usableContextTokens = null,Object? probeSummary = null,Object? source = null,Object? capabilityChangeDetected = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? profileId = null,Object? probedAt = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? usableContextTokens = null,Object? probeSummary = null,Object? benchmarkPoints = freezed,Object? benchmarkAttemptedPoints = freezed,Object? benchmarkMaxPoints = freezed,Object? benchmarkSuite = null,Object? benchmarkRegressionDetected = null,Object? source = null,Object? capabilityChangeDetected = null,}) {
   return _then(_ModelCapabilityProfileRevision(
 profileId: null == profileId ? _self.profileId : profileId // ignore: cast_nullable_to_non_nullable
 as String,probedAt: null == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
@@ -2082,9 +2129,15 @@ as DateTime,toolCallStyle: null == toolCallStyle ? _self.toolCallStyle : toolCal
 as ModelToolCallStyle,structuredOutputSupport: null == structuredOutputSupport ? _self.structuredOutputSupport : structuredOutputSupport // ignore: cast_nullable_to_non_nullable
 as ModelStructuredOutputSupport,goalUpdateFidelity: null == goalUpdateFidelity ? _self.goalUpdateFidelity : goalUpdateFidelity // ignore: cast_nullable_to_non_nullable
 as ModelGoalUpdateFidelity,editFormatPreference: null == editFormatPreference ? _self.editFormatPreference : editFormatPreference // ignore: cast_nullable_to_non_nullable
-as ModelEditFormatPreference,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
+as ModelEditFormatPreference,visionSupport: null == visionSupport ? _self.visionSupport : visionSupport // ignore: cast_nullable_to_non_nullable
+as ModelVisionSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
 as int,probeSummary: null == probeSummary ? _self.probeSummary : probeSummary // ignore: cast_nullable_to_non_nullable
-as String,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
+as String,benchmarkPoints: freezed == benchmarkPoints ? _self.benchmarkPoints : benchmarkPoints // ignore: cast_nullable_to_non_nullable
+as int?,benchmarkAttemptedPoints: freezed == benchmarkAttemptedPoints ? _self.benchmarkAttemptedPoints : benchmarkAttemptedPoints // ignore: cast_nullable_to_non_nullable
+as int?,benchmarkMaxPoints: freezed == benchmarkMaxPoints ? _self.benchmarkMaxPoints : benchmarkMaxPoints // ignore: cast_nullable_to_non_nullable
+as int?,benchmarkSuite: null == benchmarkSuite ? _self.benchmarkSuite : benchmarkSuite // ignore: cast_nullable_to_non_nullable
+as String,benchmarkRegressionDetected: null == benchmarkRegressionDetected ? _self.benchmarkRegressionDetected : benchmarkRegressionDetected // ignore: cast_nullable_to_non_nullable
+as bool,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
 as String,capabilityChangeDetected: null == capabilityChangeDetected ? _self.capabilityChangeDetected : capabilityChangeDetected // ignore: cast_nullable_to_non_nullable
 as bool,
   ));

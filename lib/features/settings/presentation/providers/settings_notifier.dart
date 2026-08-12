@@ -12,6 +12,7 @@ import '../../data/settings_qr_service.dart';
 import '../../data/settings_repository.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/services/llm_sampler_runtime_feedback_service.dart';
+import '../../domain/services/model_benchmark_history.dart';
 import '../../domain/services/local_command_permission_service.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
@@ -314,10 +315,27 @@ class SettingsNotifier extends Notifier<AppSettings> {
     final capabilityChangeDetected =
         prev != null && _hasCapabilityChanged(profile, prev);
 
+    // LL39: a score can fall far while every enum axis still reports the same
+    // — a quantization swap or a server config change. That is invisible to
+    // _hasCapabilityChanged, so it is judged separately against the spread
+    // measured from stored history.
+    final candidateSuite = profile.probeMetadata['benchmarkSuite'] ?? '';
+    final candidatePoints = int.tryParse(
+      profile.probeMetadata['benchmarkPoints']?.trim() ?? '',
+    );
+    final benchmarkRegressionDetected = candidateSuite.isEmpty
+        ? false
+        : ModelBenchmarkHistory.forProfile(
+            revisions: existing,
+            profileId: profile.computedId,
+            suite: candidateSuite,
+          ).regressionFor(candidatePoints);
+
     final newRevision = ModelCapabilityProfileRevision.fromProfile(
       profile,
       source: source,
       capabilityChangeDetected: capabilityChangeDetected,
+      benchmarkRegressionDetected: benchmarkRegressionDetected,
     );
 
     // Partition: revisions for this profile vs all others.
@@ -349,6 +367,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
     }
     if (profile.goalUpdateFidelity != prev.goalUpdateFidelity) return true;
     if (profile.editFormatPreference != prev.editFormatPreference) return true;
+    if (profile.visionSupport != prev.visionSupport) return true;
     // Flag context-token drift beyond 20% in either direction.
     if (prev.usableContextTokens > 0 && profile.usableContextTokens > 0) {
       final ratio = profile.usableContextTokens / prev.usableContextTokens;

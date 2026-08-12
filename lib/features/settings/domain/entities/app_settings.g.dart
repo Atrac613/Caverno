@@ -219,6 +219,13 @@ _ModelCapabilityProfile _$ModelCapabilityProfileFromJson(
         unknownValue: ModelEditFormatPreference.unknown,
       ) ??
       ModelEditFormatPreference.unknown,
+  visionSupport:
+      $enumDecodeNullable(
+        _$ModelVisionSupportEnumMap,
+        json['visionSupport'],
+        unknownValue: ModelVisionSupport.unknown,
+      ) ??
+      ModelVisionSupport.unknown,
   usableContextTokens: (json['usableContextTokens'] as num?)?.toInt() ?? 0,
   probedAt: json['probedAt'] == null
       ? null
@@ -245,6 +252,7 @@ Map<String, dynamic> _$ModelCapabilityProfileToJson(
       _$ModelGoalUpdateFidelityEnumMap[instance.goalUpdateFidelity]!,
   'editFormatPreference':
       _$ModelEditFormatPreferenceEnumMap[instance.editFormatPreference]!,
+  'visionSupport': _$ModelVisionSupportEnumMap[instance.visionSupport]!,
   'usableContextTokens': instance.usableContextTokens,
   'probedAt': instance.probedAt?.toIso8601String(),
   'probeSummary': instance.probeSummary,
@@ -281,6 +289,14 @@ const _$ModelEditFormatPreferenceEnumMap = {
   ModelEditFormatPreference.wholeFile: 'wholeFile',
   ModelEditFormatPreference.searchReplace: 'searchReplace',
   ModelEditFormatPreference.unifiedDiff: 'unifiedDiff',
+};
+
+const _$ModelVisionSupportEnumMap = {
+  ModelVisionSupport.unknown: 'unknown',
+  ModelVisionSupport.rejected: 'rejected',
+  ModelVisionSupport.ignored: 'ignored',
+  ModelVisionSupport.basic: 'basic',
+  ModelVisionSupport.reliable: 'reliable',
 };
 
 _ModelHarnessConfig _$ModelHarnessConfigFromJson(Map<String, dynamic> json) =>
@@ -368,8 +384,21 @@ _ModelCapabilityProfileRevision _$ModelCapabilityProfileRevisionFromJson(
     json['editFormatPreference'],
     unknownValue: ModelEditFormatPreference.unknown,
   ),
+  visionSupport:
+      $enumDecodeNullable(
+        _$ModelVisionSupportEnumMap,
+        json['visionSupport'],
+        unknownValue: ModelVisionSupport.unknown,
+      ) ??
+      ModelVisionSupport.unknown,
   usableContextTokens: (json['usableContextTokens'] as num).toInt(),
   probeSummary: json['probeSummary'] as String? ?? '',
+  benchmarkPoints: (json['benchmarkPoints'] as num?)?.toInt(),
+  benchmarkAttemptedPoints: (json['benchmarkAttemptedPoints'] as num?)?.toInt(),
+  benchmarkMaxPoints: (json['benchmarkMaxPoints'] as num?)?.toInt(),
+  benchmarkSuite: json['benchmarkSuite'] as String? ?? '',
+  benchmarkRegressionDetected:
+      json['benchmarkRegressionDetected'] as bool? ?? false,
   source: json['source'] as String? ?? 'probe',
   capabilityChangeDetected: json['capabilityChangeDetected'] as bool? ?? false,
 );
@@ -386,8 +415,14 @@ Map<String, dynamic> _$ModelCapabilityProfileRevisionToJson(
       _$ModelGoalUpdateFidelityEnumMap[instance.goalUpdateFidelity]!,
   'editFormatPreference':
       _$ModelEditFormatPreferenceEnumMap[instance.editFormatPreference]!,
+  'visionSupport': _$ModelVisionSupportEnumMap[instance.visionSupport]!,
   'usableContextTokens': instance.usableContextTokens,
   'probeSummary': instance.probeSummary,
+  'benchmarkPoints': instance.benchmarkPoints,
+  'benchmarkAttemptedPoints': instance.benchmarkAttemptedPoints,
+  'benchmarkMaxPoints': instance.benchmarkMaxPoints,
+  'benchmarkSuite': instance.benchmarkSuite,
+  'benchmarkRegressionDetected': instance.benchmarkRegressionDetected,
   'source': instance.source,
   'capabilityChangeDetected': instance.capabilityChangeDetected,
 };

@@ -17,6 +17,26 @@ enum PersonalEvalCaseSplit { heldIn, heldOut }
 /// Readiness of a recorded case, matching the CLI manifest readiness values.
 enum PersonalEvalCaseReadiness { ready, reviewRecommended, blocked }
 
+/// Where a case came from.
+///
+/// The two are not interchangeable evidence and must never be reported as if
+/// they were. A `recorded` case is a real task this user actually ran, so it
+/// carries representativeness. An `authored` case is a task written against a
+/// committed fixture: reproducible and available immediately, but it measures
+/// coding capability in general, not this user's work. The 2026-08-12 corpus
+/// inventory found roughly two distinct recorded coding tasks against a
+/// requirement of twenty, so an authored corpus carries the comparison until
+/// recorded cases accumulate — which only stays honest if the origin travels
+/// with the case.
+enum PersonalEvalCaseOrigin { recorded, authored }
+
+/// Prompt localization used by the authored capability corpus.
+///
+/// Recorded and legacy cases remain [unclassified]. The distinction is kept
+/// separate from difficulty because removing file and behavior hints changed
+/// turns but did not explain the observed outcome divergence.
+enum PersonalEvalPromptStyle { unclassified, guided, unguided }
+
 /// LL19: an in-app personal eval case (docs/local_llm_agent_roadmap.md).
 ///
 /// Represents a recorded real task that can be replayed to score a candidate
@@ -42,6 +62,21 @@ abstract class PersonalEvalCase with _$PersonalEvalCase {
     @JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn)
     @Default(PersonalEvalCaseSplit.heldIn)
     PersonalEvalCaseSplit split,
+    @JsonKey(unknownEnumValue: PersonalEvalCaseOrigin.recorded)
+    @Default(PersonalEvalCaseOrigin.recorded)
+    PersonalEvalCaseOrigin origin,
+    @Default(0) int tier,
+    @JsonKey(unknownEnumValue: PersonalEvalPromptStyle.unclassified)
+    @Default(PersonalEvalPromptStyle.unclassified)
+    PersonalEvalPromptStyle promptStyle,
+
+    /// Fixture directory an authored case runs in, relative to the repository
+    /// root. Empty for recorded cases, which replay against [repoStateRef].
+    ///
+    /// Authored cases must never run in the user's working tree: LL19 has not
+    /// shipped worktree isolation yet, so a replay edits whatever directory it
+    /// is given.
+    @Default('') String fixtureDirectory,
     @Default(false) bool consentGranted,
     DateTime? consentedAt,
     @Default('') String sessionLogPath,
@@ -61,16 +96,42 @@ abstract class PersonalEvalCase with _$PersonalEvalCase {
   bool get hasVerificationCommand =>
       verificationCommand != null && verificationCommand!.trim().isNotEmpty;
 
-  /// Cases are local-only and excluded from any export by default.
-  bool get excludedFromExport => true;
+  bool get isAuthored => origin == PersonalEvalCaseOrigin.authored;
+
+  String get normalizedFixtureDirectory => fixtureDirectory.trim();
+
+  int? get classifiedTier => tier >= 1 && tier <= 3 ? tier : null;
+
+  bool get hasClassifiedPromptStyle =>
+      promptStyle != PersonalEvalPromptStyle.unclassified;
+
+  /// Recorded cases are the user's own work and never leave the machine.
+  /// Authored cases are committed fixture tasks with no private content, so
+  /// excluding them from export would only make the corpus unshareable.
+  bool get excludedFromExport => !isAuthored;
 
   /// Mirrors the CLI manifest readiness: a case is blocked without consent or
   /// the required task fields, review-recommended when it has no reproducible
   /// verification command, and ready otherwise.
+  ///
+  /// Authored cases are judged on reproducibility instead of consent. There is
+  /// no user data to consent to, and their repository state is the committed
+  /// fixture rather than a recorded ref — but a missing fixture directory
+  /// blocks them, because a replay with nowhere to run would edit whatever
+  /// working tree it was handed.
   PersonalEvalCaseReadiness get readiness {
-    if (!consentGranted ||
-        normalizedPrompt.isEmpty ||
-        normalizedRepoStateRef.isEmpty) {
+    if (normalizedPrompt.isEmpty) {
+      return PersonalEvalCaseReadiness.blocked;
+    }
+    if (isAuthored) {
+      if (normalizedFixtureDirectory.isEmpty) {
+        return PersonalEvalCaseReadiness.blocked;
+      }
+      return hasVerificationCommand
+          ? PersonalEvalCaseReadiness.ready
+          : PersonalEvalCaseReadiness.reviewRecommended;
+    }
+    if (!consentGranted || normalizedRepoStateRef.isEmpty) {
       return PersonalEvalCaseReadiness.blocked;
     }
     if (!hasVerificationCommand) {
@@ -92,9 +153,17 @@ abstract class PersonalEvalCase with _$PersonalEvalCase {
       'title': title,
       'readiness': _readinessJsonValue(readiness),
       'split': split.name,
+      // Origin travels with every artifact: a report that mixes authored and
+      // recorded evidence without saying so would read as representative of
+      // the user's work when it is not.
+      'origin': origin.name,
+      if (classifiedTier != null) 'tier': classifiedTier,
+      if (hasClassifiedPromptStyle) 'promptStyle': promptStyle.name,
       'task': <String, dynamic>{
         'prompt': normalizedPrompt,
         'repoStateRef': normalizedRepoStateRef,
+        if (normalizedFixtureDirectory.isNotEmpty)
+          'fixtureDirectory': normalizedFixtureDirectory,
         if (hasVerificationCommand)
           'verificationCommand': verificationCommand!.trim(),
         'verificationResult': verificationResult.name,
@@ -108,12 +177,14 @@ abstract class PersonalEvalCase with _$PersonalEvalCase {
       'consent': <String, dynamic>{
         'explicitUserConsent': consentGranted,
         'recordedAt': (consentedAt ?? generatedAt).toUtc().toIso8601String(),
-        'scope': 'personal_eval_case_recording',
+        'scope': isAuthored
+            ? 'personal_eval_authored_fixture_task'
+            : 'personal_eval_case_recording',
       },
-      'privacy': const <String, dynamic>{
-        'localOnly': true,
+      'privacy': <String, dynamic>{
+        'localOnly': !isAuthored,
         'anonymization': 'none',
-        'exportPolicy': 'excluded_by_default',
+        'exportPolicy': isAuthored ? 'shareable' : 'excluded_by_default',
       },
     };
   }

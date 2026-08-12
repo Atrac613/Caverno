@@ -34,6 +34,34 @@ void main() {
       expect(rev.capabilityChangeDetected, isFalse);
     });
 
+    test('carries the benchmark score out of probe metadata', () {
+      final rev = ModelCapabilityProfileRevision.fromProfile(
+        profile.copyWith(
+          probeMetadata: const {
+            'benchmarkSuite': 'cavernobench-v2',
+            'benchmarkPoints': '812',
+            'benchmarkAttemptedPoints': '940',
+            'benchmarkMaxPoints': '1000',
+          },
+        ),
+      );
+
+      expect(rev.hasBenchmarkScore, isTrue);
+      expect(rev.benchmarkPoints, 812);
+      expect(rev.benchmarkAttemptedPoints, 940);
+      expect(rev.benchmarkMaxPoints, 1000);
+      expect(rev.benchmarkSuite, 'cavernobench-v2');
+    });
+
+    test('an unscored profile records no score rather than zero', () {
+      final rev = ModelCapabilityProfileRevision.fromProfile(profile);
+
+      // Zero would read as a total collapse in the next regression check.
+      expect(rev.hasBenchmarkScore, isFalse);
+      expect(rev.benchmarkPoints, isNull);
+      expect(rev.benchmarkSuite, isEmpty);
+    });
+
     test('round-trips through JSON', () {
       final original = ModelCapabilityProfileRevision.fromProfile(
         profile,

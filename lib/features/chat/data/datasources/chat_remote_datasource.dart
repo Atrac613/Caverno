@@ -39,6 +39,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     ModelUsageSink? usageSink,
     String endpointId = '',
     String? Function()? usageLabelResolver,
+    this.defaultTopP,
   }) : _requestFallback = ChatCompletionRequestFallback(reasoningEffort),
        _telemetry = ChatResponseTelemetry(
          usageSink: usageSink,
@@ -56,6 +57,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
   final OpenAIClient _client;
   final ChatCompletionRequestFallback _requestFallback;
   final ChatResponseTelemetry _telemetry;
+  final double? defaultTopP;
 
   static const _responseNormalizer = ChatCompletionResponseNormalizer();
   static const _logger = ChatRequestLogger();
@@ -189,6 +191,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
               model: modelId,
               messages: formattedMessages,
               temperature: _requestFallback.temperatureForRequest(temperature),
+              topP: defaultTopP,
               maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
               maxCompletionTokens: _requestFallback
                   .maxCompletionTokensForRequest(maxTokens),
@@ -342,6 +345,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
               model: modelId,
               messages: formattedMessages,
               temperature: _requestFallback.temperatureForRequest(temperature),
+              topP: defaultTopP,
               maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
               maxCompletionTokens: _requestFallback
                   .maxCompletionTokensForRequest(maxTokens),
@@ -520,6 +524,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         model: modelId,
         messages: formattedMessages,
         temperature: _requestFallback.temperatureForRequest(temperature),
+        topP: defaultTopP,
         maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
         maxCompletionTokens: _requestFallback.maxCompletionTokensForRequest(
           maxTokens,
@@ -670,6 +675,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
             model: modelId,
             messages: formattedMessages,
             temperature: _requestFallback.temperatureForRequest(temperature),
+            topP: defaultTopP,
             maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
             maxCompletionTokens: _requestFallback.maxCompletionTokensForRequest(
               maxTokens,
@@ -884,6 +890,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         model: modelId,
         messages: formattedMessages,
         temperature: _requestFallback.temperatureForRequest(temperature),
+        topP: defaultTopP,
         maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
         maxCompletionTokens: _requestFallback.maxCompletionTokensForRequest(
           maxTokens,
@@ -1124,18 +1131,11 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
   }
 
   Map<String, dynamic>? _tryDecodeToolResultJson(String value) {
-    final trimmed = value.trim();
-    if (!trimmed.startsWith('{')) {
-      return null;
-    }
     try {
-      final decoded = dart_convert.jsonDecode(trimmed);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
+      final decoded = dart_convert.jsonDecode(value.trim());
+      return decoded is Map<String, dynamic> ? decoded : null;
     } catch (_) {
       return null;
     }
-    return null;
   }
 }

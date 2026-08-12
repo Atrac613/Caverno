@@ -34,6 +34,8 @@ class PersonalEvalChatReplayTurnDriver implements PersonalEvalReplayTurnDriver {
     String runId = '',
     double temperature = 0.2,
     int maxTokens = 4096,
+    int? maxTurns,
+    int? maxToolCalls,
     String systemPromptSuffix = '',
     DateTime Function() now = DateTime.now,
   }) : _dataSource = dataSource,
@@ -42,7 +44,13 @@ class PersonalEvalChatReplayTurnDriver implements PersonalEvalReplayTurnDriver {
        _workingDirectory = workingDirectory,
        _toolDefinitions = toolDefinitions,
        _dispatchToolCall = dispatchToolCall,
-       _toolRunner = toolRunner ?? RoutineToolRunner(dataSource: dataSource),
+       _toolRunner =
+           toolRunner ??
+           RoutineToolRunner(
+             dataSource: dataSource,
+             maxTurns: maxTurns,
+             maxToolCalls: maxToolCalls,
+           ),
        _runId = runId,
        _temperature = temperature,
        _maxTokens = maxTokens,

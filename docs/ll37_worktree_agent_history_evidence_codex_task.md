@@ -79,8 +79,32 @@ tool/codex_verify.sh --test test/tool/ll37_worktree_agent_history_export_test.da
   `qwen3.6-35b-a3b-vision` recorded one verified changed file for candidate A,
   no changed files and a failing verifier for candidate B, and LL37 verdicts
   matching 2/2 at confidence 1.0 with zero invalid or unverifiable outputs.
-- Risks or follow-ups: The broken arm is deliberately recorded as
+- Historical risks or follow-ups: The broken arm is deliberately recorded as
   `controlled_live_canary`, not organic task history. Together with the prior
   Routine pair the evidence inventory is two correct and two broken cases over
   two surfaces, still below the five-plus-five production gate. Add three
-  objective-distinct pairs before any panel wiring.
+  objective-distinct pairs before any panel wiring. This schema-v1 denominator
+  and follow-up count are superseded by the contract update below.
+
+## Mechanically-Green Contract Update
+
+- The original live pair remains historical schema-v1 harness evidence. Its
+  broken arm had `verifiedGreen: false`, so it does not represent LL37's target
+  population of green verification commands with an unmet objective.
+- Case schema v2 now records `mechanicalVerificationPassed` independently from
+  `expectedVerdict`. The LL13 exporter requires both tasks to be completed with
+  `verifiedGreen: true`, and writes `verificationResult: passed` for both
+  manifests rather than deriving that field from the expected objective label.
+- The controlled canary now uses a shared syntax-only command that passes for
+  both arms. Its independent acceptance criterion requires changed-file
+  evidence containing the exact objective implementation; the write-disabled
+  control therefore remains mechanically green while objectively refutable.
+- Schema-v1 Routine and LL13 cases remain readable and scoreable but no longer
+  count toward the production fidelity denominator. A fresh consented schema-v2
+  pair is required before eligible inventory is non-zero again.
+- The first consented schema-v2 live pair completed on
+  `qwen3.6-35b-a3b-vision`: both task arms were mechanically green, the verifier
+  matched `not_refuted` and `refuted` at confidence 1.0, and invalid and
+  unverifiable counts were zero. The production denominator is now one correct
+  and one broken case in one objective pair on the LL13 surface. The gate
+  remains `no_go_insufficient_eligible_sample`.

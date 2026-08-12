@@ -17,7 +17,7 @@ Usage: tool/run_personal_eval_suite_pipeline.sh --manifest PATH [--manifest PATH
   --incumbent-case-log CASE_ID=PATH --candidate-case-log CASE_ID=PATH \\
   --incumbent-verification-result CASE_ID=passed|failed|inconclusive \\
   --candidate-verification-result CASE_ID=passed|failed|inconclusive \\
-  [--out-dir PATH] [--label LABEL] [pipeline options...]
+  --protocol PATH [--out-dir PATH] [--label LABEL] [pipeline options...]
 
 Environment:
   CAVERNO_PERSONAL_EVAL_SUITE_REPORT_ROOT   Default report root.
@@ -86,6 +86,8 @@ echo
 echo "Personal eval suite artifacts"
 echo "  Incumbent replay: ${effective_out_dir}/incumbent_replay_run.json"
 echo "  Candidate replay: ${effective_out_dir}/candidate_replay_run.json"
+echo "  Protocol JSON: ${effective_out_dir}/personal_eval_experiment_protocol.json (when --protocol is provided)"
+echo "  Protocol Markdown: ${effective_out_dir}/personal_eval_experiment_protocol.md (when --protocol is provided)"
 echo "  Report JSON: ${effective_out_dir}/personal_eval_suite_report.json"
 echo "  Report Markdown: ${effective_out_dir}/personal_eval_suite_report.md"
 echo "  Profile handoff JSON: ${effective_out_dir}/personal_eval_profile_handoff.json"

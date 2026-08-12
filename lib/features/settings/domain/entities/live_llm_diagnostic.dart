@@ -68,6 +68,8 @@ class LiveLlmDiagnosticProbeResult {
     this.toolCalls = const <String>[],
     this.elapsed = Duration.zero,
     this.usage = LiveLlmDiagnosticTokenUsage.zero,
+    this.passedChecks = 0,
+    this.totalChecks = 0,
   });
 
   final String id;
@@ -79,6 +81,15 @@ class LiveLlmDiagnosticProbeResult {
   final Duration elapsed;
   final LiveLlmDiagnosticTokenUsage usage;
 
+  /// Sub-checks a multi-case probe passed, when it has any. LL39 scores a
+  /// `warning` at this ratio: a probe that preserved two of three exact values
+  /// used to be worth exactly as much as one that preserved none.
+  final int passedChecks;
+
+  /// Sub-checks a multi-case probe ran. Zero means the probe is single-shot
+  /// and a `warning` falls back to flat partial credit.
+  final int totalChecks;
+
   LiveLlmDiagnosticProbeResult copyWith({
     LiveLlmDiagnosticStatus? status,
     String? summary,
@@ -87,6 +98,8 @@ class LiveLlmDiagnosticProbeResult {
     List<String>? toolCalls,
     Duration? elapsed,
     LiveLlmDiagnosticTokenUsage? usage,
+    int? passedChecks,
+    int? totalChecks,
   }) {
     return LiveLlmDiagnosticProbeResult(
       id: id,
@@ -97,6 +110,8 @@ class LiveLlmDiagnosticProbeResult {
       toolCalls: toolCalls ?? this.toolCalls,
       elapsed: elapsed ?? this.elapsed,
       usage: usage ?? this.usage,
+      passedChecks: passedChecks ?? this.passedChecks,
+      totalChecks: totalChecks ?? this.totalChecks,
     );
   }
 
@@ -109,6 +124,8 @@ class LiveLlmDiagnosticProbeResult {
     if (toolCalls.isNotEmpty) 'toolCalls': toolCalls,
     'elapsedMs': elapsed.inMilliseconds,
     'usage': usage.toJson(),
+    if (totalChecks > 0) 'passedChecks': passedChecks,
+    if (totalChecks > 0) 'totalChecks': totalChecks,
   };
 }
 
@@ -185,6 +202,121 @@ class LiveLlmDiagnosticSamplerTrial {
   };
 }
 
+/// LL39 unbounded capability tier: what the streaming path actually cost.
+///
+/// Physical units only, never weighted points. Conformance saturates — a
+/// capable model earns every attempted point — so the figures that keep
+/// ranking models after that must carry their own units and no denominator,
+/// which is what makes them comparable across suite versions and across years.
+///
+/// A response can contain many protocol chunks and still be buffered upstream,
+/// then released as one short burst near the end. Such a run remains useful as
+/// conformance evidence, but cannot honestly report model decode throughput.
+class LiveLlmDiagnosticStreamingMetrics {
+  const LiveLlmDiagnosticStreamingMetrics({
+    required this.timeToFirstToken,
+    required this.totalElapsed,
+    required this.completionTokens,
+    required this.chunkCount,
+    this.finishReason = '',
+  });
+
+  final Duration timeToFirstToken;
+  final Duration totalElapsed;
+  final int completionTokens;
+  final int chunkCount;
+  final String finishReason;
+
+  Duration get decodeWindow => totalElapsed - timeToFirstToken;
+
+  /// Whether the observed delivery shape cannot support a decode-rate claim.
+  ///
+  /// A single chunk is unambiguously buffered. The second arm catches gateways
+  /// that preserve every SSE event but queue them until generation is complete:
+  /// at least 20 tokens arrive within 100 ms and that burst occupies less than
+  /// 10% of the request. This avoids reporting the queue-drain speed as the
+  /// model's generation speed.
+  bool get isLikelyBuffered {
+    if (chunkCount <= 1) {
+      return true;
+    }
+    final decodeMicros = decodeWindow.inMicroseconds;
+    return completionTokens >= 20 &&
+        decodeMicros < const Duration(milliseconds: 100).inMicroseconds &&
+        decodeMicros * 10 < totalElapsed.inMicroseconds;
+  }
+
+  /// Tokens per second over the decode phase, excluding the wait for the first
+  /// token — prompt processing is a different cost and averaging it in would
+  /// make a long prompt look like a slow model.
+  ///
+  /// Null when the endpoint reported no completion tokens or the decode window
+  /// is too short to divide by.
+  double? get decodeTokensPerSecond {
+    final decodeMicros = decodeWindow.inMicroseconds;
+    if (completionTokens <= 0 || decodeMicros <= 0 || isLikelyBuffered) {
+      return null;
+    }
+    return completionTokens / (decodeMicros / Duration.microsecondsPerSecond);
+  }
+
+  Map<String, dynamic> toJson() => {
+    'timeToFirstTokenMs': timeToFirstToken.inMilliseconds,
+    'totalElapsedMs': totalElapsed.inMilliseconds,
+    'completionTokens': completionTokens,
+    'chunkCount': chunkCount,
+    'likelyBuffered': isLikelyBuffered,
+    if (finishReason.isNotEmpty) 'finishReason': finishReason,
+    if (decodeTokensPerSecond != null)
+      'decodeTokensPerSecond': double.parse(
+        decodeTokensPerSecond!.toStringAsFixed(2),
+      ),
+  };
+}
+
+/// LL39 unbounded capability tier: the physical cost of one sequential tool
+/// task.
+///
+/// This stays separate from weighted conformance points. A model can satisfy
+/// the compatibility contract while still needing more turns or tokens than a
+/// stronger model, and those quantities remain comparable without inventing a
+/// second denominator.
+class LiveLlmDiagnosticMultiRoundToolLoopMetrics {
+  const LiveLlmDiagnosticMultiRoundToolLoopMetrics({
+    required this.totalElapsed,
+    required this.modelTurnCount,
+    required this.toolCallCount,
+    required this.successfulToolExecutionCount,
+    required this.promptTokens,
+    required this.completionTokens,
+    required this.taskCompleted,
+  });
+
+  final Duration totalElapsed;
+  final int modelTurnCount;
+  final int toolCallCount;
+  final int successfulToolExecutionCount;
+  final int promptTokens;
+  final int completionTokens;
+
+  /// False preserves a partial measurement from an early-exit failure instead
+  /// of making the whole capability block disappear.
+  final bool taskCompleted;
+
+  int get totalTokens => promptTokens + completionTokens;
+
+  Map<String, dynamic> toJson() => {
+    'totalElapsedMs': totalElapsed.inMilliseconds,
+    'modelTurnCount': modelTurnCount,
+    'toolCallCount': toolCallCount,
+    'successfulToolExecutionCount': successfulToolExecutionCount,
+    'promptTokens': promptTokens,
+    'completionTokens': completionTokens,
+    'totalTokens': totalTokens,
+    'taskCompleted': taskCompleted,
+  };
+}
+
 class LiveLlmDiagnosticReport {
   const LiveLlmDiagnosticReport({
     required this.startedAt,
@@ -196,6 +328,8 @@ class LiveLlmDiagnosticReport {
     this.toolCatalog = LiveLlmDiagnosticToolCatalog.empty,
     this.results = const <LiveLlmDiagnosticProbeResult>[],
     this.samplerCalibrationTrials = const <LiveLlmDiagnosticSamplerTrial>[],
+    this.streamingMetrics,
+    this.multiRoundToolLoopMetrics,
   });
 
   final DateTime startedAt;
@@ -208,11 +342,21 @@ class LiveLlmDiagnosticReport {
   final List<LiveLlmDiagnosticProbeResult> results;
   final List<LiveLlmDiagnosticSamplerTrial> samplerCalibrationTrials;
 
+  /// Null until the streaming probe runs, and after a run where it was skipped
+  /// or threw. Absent means unmeasured, not zero.
+  final LiveLlmDiagnosticStreamingMetrics? streamingMetrics;
+
+  /// Null means this capability was not measured. A non-null incomplete value
+  /// retains the work spent before the loop failed.
+  final LiveLlmDiagnosticMultiRoundToolLoopMetrics? multiRoundToolLoopMetrics;
+
   LiveLlmDiagnosticReport copyWith({
     DateTime? finishedAt,
     LiveLlmDiagnosticToolCatalog? toolCatalog,
     List<LiveLlmDiagnosticProbeResult>? results,
     List<LiveLlmDiagnosticSamplerTrial>? samplerCalibrationTrials,
+    LiveLlmDiagnosticStreamingMetrics? streamingMetrics,
+    LiveLlmDiagnosticMultiRoundToolLoopMetrics? multiRoundToolLoopMetrics,
   }) {
     return LiveLlmDiagnosticReport(
       startedAt: startedAt,
@@ -225,6 +369,9 @@ class LiveLlmDiagnosticReport {
       results: results ?? this.results,
       samplerCalibrationTrials:
           samplerCalibrationTrials ?? this.samplerCalibrationTrials,
+      streamingMetrics: streamingMetrics ?? this.streamingMetrics,
+      multiRoundToolLoopMetrics:
+          multiRoundToolLoopMetrics ?? this.multiRoundToolLoopMetrics,
     );
   }
 
@@ -311,6 +458,9 @@ class LiveLlmDiagnosticReport {
     'overallStatus': overallStatus.label,
     'score': score,
     'toolCatalog': toolCatalog.toJson(),
+    if (streamingMetrics != null) 'streaming': streamingMetrics!.toJson(),
+    if (multiRoundToolLoopMetrics != null)
+      'multiRoundToolLoop': multiRoundToolLoopMetrics!.toJson(),
     'results': results.map((result) => result.toJson()).toList(),
     if (samplerCalibrationTrials.isNotEmpty)
       'samplerCalibrationTrials': samplerCalibrationTrials

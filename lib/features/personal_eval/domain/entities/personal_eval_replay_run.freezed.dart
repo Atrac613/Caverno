@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PersonalEvalReplayCaseResult {
 
- String get caseId; String get title;@JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn) PersonalEvalCaseSplit get split; String get logPath;@JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive) PersonalEvalVerificationResult get verificationResult; PersonalEvalSessionLogSummary get summary; String? get error;
+ String get caseId; String get trialId; int get executionOrder; String get title;@JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn) PersonalEvalCaseSplit get split;@JsonKey(unknownEnumValue: PersonalEvalCaseOrigin.recorded) PersonalEvalCaseOrigin get origin; int get tier;@JsonKey(unknownEnumValue: PersonalEvalPromptStyle.unclassified) PersonalEvalPromptStyle get promptStyle; String get logPath;@JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive) PersonalEvalVerificationResult get verificationResult; PersonalEvalSessionLogSummary get summary; String? get error;
 /// Create a copy of PersonalEvalReplayCaseResult
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $PersonalEvalReplayCaseResultCopyWith<PersonalEvalReplayCaseResult> get copyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PersonalEvalReplayCaseResult&&(identical(other.caseId, caseId) || other.caseId == caseId)&&(identical(other.title, title) || other.title == title)&&(identical(other.split, split) || other.split == split)&&(identical(other.logPath, logPath) || other.logPath == logPath)&&(identical(other.verificationResult, verificationResult) || other.verificationResult == verificationResult)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.error, error) || other.error == error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PersonalEvalReplayCaseResult&&(identical(other.caseId, caseId) || other.caseId == caseId)&&(identical(other.trialId, trialId) || other.trialId == trialId)&&(identical(other.executionOrder, executionOrder) || other.executionOrder == executionOrder)&&(identical(other.title, title) || other.title == title)&&(identical(other.split, split) || other.split == split)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.tier, tier) || other.tier == tier)&&(identical(other.promptStyle, promptStyle) || other.promptStyle == promptStyle)&&(identical(other.logPath, logPath) || other.logPath == logPath)&&(identical(other.verificationResult, verificationResult) || other.verificationResult == verificationResult)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.error, error) || other.error == error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,caseId,title,split,logPath,verificationResult,summary,error);
+int get hashCode => Object.hash(runtimeType,caseId,trialId,executionOrder,title,split,origin,tier,promptStyle,logPath,verificationResult,summary,error);
 
 @override
 String toString() {
-  return 'PersonalEvalReplayCaseResult(caseId: $caseId, title: $title, split: $split, logPath: $logPath, verificationResult: $verificationResult, summary: $summary, error: $error)';
+  return 'PersonalEvalReplayCaseResult(caseId: $caseId, trialId: $trialId, executionOrder: $executionOrder, title: $title, split: $split, origin: $origin, tier: $tier, promptStyle: $promptStyle, logPath: $logPath, verificationResult: $verificationResult, summary: $summary, error: $error)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $PersonalEvalReplayCaseResultCopyWith<$Res>  {
   factory $PersonalEvalReplayCaseResultCopyWith(PersonalEvalReplayCaseResult value, $Res Function(PersonalEvalReplayCaseResult) _then) = _$PersonalEvalReplayCaseResultCopyWithImpl;
 @useResult
 $Res call({
- String caseId, String title,@JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn) PersonalEvalCaseSplit split, String logPath,@JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive) PersonalEvalVerificationResult verificationResult, PersonalEvalSessionLogSummary summary, String? error
+ String caseId, String trialId, int executionOrder, String title,@JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn) PersonalEvalCaseSplit split,@JsonKey(unknownEnumValue: PersonalEvalCaseOrigin.recorded) PersonalEvalCaseOrigin origin, int tier,@JsonKey(unknownEnumValue: PersonalEvalPromptStyle.unclassified) PersonalEvalPromptStyle promptStyle, String logPath,@JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive) PersonalEvalVerificationResult verificationResult, PersonalEvalSessionLogSummary summary, String? error
 });
 
 
@@ -65,12 +65,17 @@ class _$PersonalEvalReplayCaseResultCopyWithImpl<$Res>
 
 /// Create a copy of PersonalEvalReplayCaseResult
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? caseId = null,Object? title = null,Object? split = null,Object? logPath = null,Object? verificationResult = null,Object? summary = null,Object? error = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? caseId = null,Object? trialId = null,Object? executionOrder = null,Object? title = null,Object? split = null,Object? origin = null,Object? tier = null,Object? promptStyle = null,Object? logPath = null,Object? verificationResult = null,Object? summary = null,Object? error = freezed,}) {
   return _then(_self.copyWith(
 caseId: null == caseId ? _self.caseId : caseId // ignore: cast_nullable_to_non_nullable
-as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
+as String,trialId: null == trialId ? _self.trialId : trialId // ignore: cast_nullable_to_non_nullable
+as String,executionOrder: null == executionOrder ? _self.executionOrder : executionOrder // ignore: cast_nullable_to_non_nullable
+as int,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,split: null == split ? _self.split : split // ignore: cast_nullable_to_non_nullable
-as PersonalEvalCaseSplit,logPath: null == logPath ? _self.logPath : logPath // ignore: cast_nullable_to_non_nullable
+as PersonalEvalCaseSplit,origin: null == origin ? _self.origin : origin // ignore: cast_nullable_to_non_nullable
+as PersonalEvalCaseOrigin,tier: null == tier ? _self.tier : tier // ignore: cast_nullable_to_non_nullable
+as int,promptStyle: null == promptStyle ? _self.promptStyle : promptStyle // ignore: cast_nullable_to_non_nullable
+as PersonalEvalPromptStyle,logPath: null == logPath ? _self.logPath : logPath // ignore: cast_nullable_to_non_nullable
 as String,verificationResult: null == verificationResult ? _self.verificationResult : verificationResult // ignore: cast_nullable_to_non_nullable
 as PersonalEvalVerificationResult,summary: null == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
 as PersonalEvalSessionLogSummary,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
@@ -168,10 +173,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String caseId,  String title, @JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn)  PersonalEvalCaseSplit split,  String logPath, @JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive)  PersonalEvalVerificationResult verificationResult,  PersonalEvalSessionLogSummary summary,  String? error)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String caseId,  String trialId,  int executionOrder,  String title, @JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn)  PersonalEvalCaseSplit split, @JsonKey(unknownEnumValue: PersonalEvalCaseOrigin.recorded)  PersonalEvalCaseOrigin origin,  int tier, @JsonKey(unknownEnumValue: PersonalEvalPromptStyle.unclassified)  PersonalEvalPromptStyle promptStyle,  String logPath, @JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive)  PersonalEvalVerificationResult verificationResult,  PersonalEvalSessionLogSummary summary,  String? error)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PersonalEvalReplayCaseResult() when $default != null:
-return $default(_that.caseId,_that.title,_that.split,_that.logPath,_that.verificationResult,_that.summary,_that.error);case _:
+return $default(_that.caseId,_that.trialId,_that.executionOrder,_that.title,_that.split,_that.origin,_that.tier,_that.promptStyle,_that.logPath,_that.verificationResult,_that.summary,_that.error);case _:
   return orElse();
 
 }
@@ -189,10 +194,10 @@ return $default(_that.caseId,_that.title,_that.split,_that.logPath,_that.verific
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String caseId,  String title, @JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn)  PersonalEvalCaseSplit split,  String logPath, @JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive)  PersonalEvalVerificationResult verificationResult,  PersonalEvalSessionLogSummary summary,  String? error)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String caseId,  String trialId,  int executionOrder,  String title, @JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn)  PersonalEvalCaseSplit split, @JsonKey(unknownEnumValue: PersonalEvalCaseOrigin.recorded)  PersonalEvalCaseOrigin origin,  int tier, @JsonKey(unknownEnumValue: PersonalEvalPromptStyle.unclassified)  PersonalEvalPromptStyle promptStyle,  String logPath, @JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive)  PersonalEvalVerificationResult verificationResult,  PersonalEvalSessionLogSummary summary,  String? error)  $default,) {final _that = this;
 switch (_that) {
 case _PersonalEvalReplayCaseResult():
-return $default(_that.caseId,_that.title,_that.split,_that.logPath,_that.verificationResult,_that.summary,_that.error);case _:
+return $default(_that.caseId,_that.trialId,_that.executionOrder,_that.title,_that.split,_that.origin,_that.tier,_that.promptStyle,_that.logPath,_that.verificationResult,_that.summary,_that.error);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -209,10 +214,10 @@ return $default(_that.caseId,_that.title,_that.split,_that.logPath,_that.verific
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String caseId,  String title, @JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn)  PersonalEvalCaseSplit split,  String logPath, @JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive)  PersonalEvalVerificationResult verificationResult,  PersonalEvalSessionLogSummary summary,  String? error)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String caseId,  String trialId,  int executionOrder,  String title, @JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn)  PersonalEvalCaseSplit split, @JsonKey(unknownEnumValue: PersonalEvalCaseOrigin.recorded)  PersonalEvalCaseOrigin origin,  int tier, @JsonKey(unknownEnumValue: PersonalEvalPromptStyle.unclassified)  PersonalEvalPromptStyle promptStyle,  String logPath, @JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive)  PersonalEvalVerificationResult verificationResult,  PersonalEvalSessionLogSummary summary,  String? error)?  $default,) {final _that = this;
 switch (_that) {
 case _PersonalEvalReplayCaseResult() when $default != null:
-return $default(_that.caseId,_that.title,_that.split,_that.logPath,_that.verificationResult,_that.summary,_that.error);case _:
+return $default(_that.caseId,_that.trialId,_that.executionOrder,_that.title,_that.split,_that.origin,_that.tier,_that.promptStyle,_that.logPath,_that.verificationResult,_that.summary,_that.error);case _:
   return null;
 
 }
@@ -224,12 +229,17 @@ return $default(_that.caseId,_that.title,_that.split,_that.logPath,_that.verific
 @JsonSerializable()
 
 class _PersonalEvalReplayCaseResult extends PersonalEvalReplayCaseResult {
-  const _PersonalEvalReplayCaseResult({required this.caseId, this.title = '', @JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn) this.split = PersonalEvalCaseSplit.heldIn, this.logPath = '', @JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive) this.verificationResult = PersonalEvalVerificationResult.inconclusive, this.summary = const PersonalEvalSessionLogSummary(), this.error}): super._();
+  const _PersonalEvalReplayCaseResult({required this.caseId, this.trialId = 'trial-1', this.executionOrder = 0, this.title = '', @JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn) this.split = PersonalEvalCaseSplit.heldIn, @JsonKey(unknownEnumValue: PersonalEvalCaseOrigin.recorded) this.origin = PersonalEvalCaseOrigin.recorded, this.tier = 0, @JsonKey(unknownEnumValue: PersonalEvalPromptStyle.unclassified) this.promptStyle = PersonalEvalPromptStyle.unclassified, this.logPath = '', @JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive) this.verificationResult = PersonalEvalVerificationResult.inconclusive, this.summary = const PersonalEvalSessionLogSummary(), this.error}): super._();
   factory _PersonalEvalReplayCaseResult.fromJson(Map<String, dynamic> json) => _$PersonalEvalReplayCaseResultFromJson(json);
 
 @override final  String caseId;
+@override@JsonKey() final  String trialId;
+@override@JsonKey() final  int executionOrder;
 @override@JsonKey() final  String title;
 @override@JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn) final  PersonalEvalCaseSplit split;
+@override@JsonKey(unknownEnumValue: PersonalEvalCaseOrigin.recorded) final  PersonalEvalCaseOrigin origin;
+@override@JsonKey() final  int tier;
+@override@JsonKey(unknownEnumValue: PersonalEvalPromptStyle.unclassified) final  PersonalEvalPromptStyle promptStyle;
 @override@JsonKey() final  String logPath;
 @override@JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive) final  PersonalEvalVerificationResult verificationResult;
 @override@JsonKey() final  PersonalEvalSessionLogSummary summary;
@@ -248,16 +258,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PersonalEvalReplayCaseResult&&(identical(other.caseId, caseId) || other.caseId == caseId)&&(identical(other.title, title) || other.title == title)&&(identical(other.split, split) || other.split == split)&&(identical(other.logPath, logPath) || other.logPath == logPath)&&(identical(other.verificationResult, verificationResult) || other.verificationResult == verificationResult)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.error, error) || other.error == error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PersonalEvalReplayCaseResult&&(identical(other.caseId, caseId) || other.caseId == caseId)&&(identical(other.trialId, trialId) || other.trialId == trialId)&&(identical(other.executionOrder, executionOrder) || other.executionOrder == executionOrder)&&(identical(other.title, title) || other.title == title)&&(identical(other.split, split) || other.split == split)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.tier, tier) || other.tier == tier)&&(identical(other.promptStyle, promptStyle) || other.promptStyle == promptStyle)&&(identical(other.logPath, logPath) || other.logPath == logPath)&&(identical(other.verificationResult, verificationResult) || other.verificationResult == verificationResult)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.error, error) || other.error == error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,caseId,title,split,logPath,verificationResult,summary,error);
+int get hashCode => Object.hash(runtimeType,caseId,trialId,executionOrder,title,split,origin,tier,promptStyle,logPath,verificationResult,summary,error);
 
 @override
 String toString() {
-  return 'PersonalEvalReplayCaseResult(caseId: $caseId, title: $title, split: $split, logPath: $logPath, verificationResult: $verificationResult, summary: $summary, error: $error)';
+  return 'PersonalEvalReplayCaseResult(caseId: $caseId, trialId: $trialId, executionOrder: $executionOrder, title: $title, split: $split, origin: $origin, tier: $tier, promptStyle: $promptStyle, logPath: $logPath, verificationResult: $verificationResult, summary: $summary, error: $error)';
 }
 
 
@@ -268,7 +278,7 @@ abstract mixin class _$PersonalEvalReplayCaseResultCopyWith<$Res> implements $Pe
   factory _$PersonalEvalReplayCaseResultCopyWith(_PersonalEvalReplayCaseResult value, $Res Function(_PersonalEvalReplayCaseResult) _then) = __$PersonalEvalReplayCaseResultCopyWithImpl;
 @override @useResult
 $Res call({
- String caseId, String title,@JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn) PersonalEvalCaseSplit split, String logPath,@JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive) PersonalEvalVerificationResult verificationResult, PersonalEvalSessionLogSummary summary, String? error
+ String caseId, String trialId, int executionOrder, String title,@JsonKey(unknownEnumValue: PersonalEvalCaseSplit.heldIn) PersonalEvalCaseSplit split,@JsonKey(unknownEnumValue: PersonalEvalCaseOrigin.recorded) PersonalEvalCaseOrigin origin, int tier,@JsonKey(unknownEnumValue: PersonalEvalPromptStyle.unclassified) PersonalEvalPromptStyle promptStyle, String logPath,@JsonKey(unknownEnumValue: PersonalEvalVerificationResult.inconclusive) PersonalEvalVerificationResult verificationResult, PersonalEvalSessionLogSummary summary, String? error
 });
 
 
@@ -285,12 +295,17 @@ class __$PersonalEvalReplayCaseResultCopyWithImpl<$Res>
 
 /// Create a copy of PersonalEvalReplayCaseResult
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? caseId = null,Object? title = null,Object? split = null,Object? logPath = null,Object? verificationResult = null,Object? summary = null,Object? error = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? caseId = null,Object? trialId = null,Object? executionOrder = null,Object? title = null,Object? split = null,Object? origin = null,Object? tier = null,Object? promptStyle = null,Object? logPath = null,Object? verificationResult = null,Object? summary = null,Object? error = freezed,}) {
   return _then(_PersonalEvalReplayCaseResult(
 caseId: null == caseId ? _self.caseId : caseId // ignore: cast_nullable_to_non_nullable
-as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
+as String,trialId: null == trialId ? _self.trialId : trialId // ignore: cast_nullable_to_non_nullable
+as String,executionOrder: null == executionOrder ? _self.executionOrder : executionOrder // ignore: cast_nullable_to_non_nullable
+as int,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,split: null == split ? _self.split : split // ignore: cast_nullable_to_non_nullable
-as PersonalEvalCaseSplit,logPath: null == logPath ? _self.logPath : logPath // ignore: cast_nullable_to_non_nullable
+as PersonalEvalCaseSplit,origin: null == origin ? _self.origin : origin // ignore: cast_nullable_to_non_nullable
+as PersonalEvalCaseOrigin,tier: null == tier ? _self.tier : tier // ignore: cast_nullable_to_non_nullable
+as int,promptStyle: null == promptStyle ? _self.promptStyle : promptStyle // ignore: cast_nullable_to_non_nullable
+as PersonalEvalPromptStyle,logPath: null == logPath ? _self.logPath : logPath // ignore: cast_nullable_to_non_nullable
 as String,verificationResult: null == verificationResult ? _self.verificationResult : verificationResult // ignore: cast_nullable_to_non_nullable
 as PersonalEvalVerificationResult,summary: null == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
 as PersonalEvalSessionLogSummary,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable

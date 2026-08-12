@@ -29,6 +29,7 @@ abstract class PersonalEvalSessionLogSummary
     @Default(<String, int>{}) Map<String, int> operationCounts,
     @Default(<String, int>{}) Map<String, int> finishReasonCounts,
     @Default(<String>[]) List<String> warningCodes,
+    @JsonKey(includeIfNull: false) DateTime? startedAt,
     @JsonKey(includeIfNull: false) int? finalAnswerLineNumber,
   }) = _PersonalEvalSessionLogSummary;
 
@@ -47,6 +48,7 @@ abstract class PersonalEvalSessionLogSummary
     var hasErrors = false;
     var hasLoopLimitPrompt = false;
     int? finalAnswerLineNumber;
+    DateTime? startedAt;
 
     final lines = const LineSplitter().convert(contents);
     for (var index = 0; index < lines.length; index += 1) {
@@ -82,6 +84,13 @@ abstract class PersonalEvalSessionLogSummary
       // auto-review calls are excluded (matches the offline parser).
       if (!isMemoryExtraction && !isAutoReview) {
         turnCount += 1;
+        final entryStartedAt = DateTime.tryParse(
+          _asString(decoded['startedAt']) ?? '',
+        );
+        if (entryStartedAt != null &&
+            (startedAt == null || entryStartedAt.isBefore(startedAt))) {
+          startedAt = entryStartedAt;
+        }
       }
 
       operationCounts.update(
@@ -129,6 +138,7 @@ abstract class PersonalEvalSessionLogSummary
       totalDurationMs: totalDurationMs,
       operationCounts: Map<String, int>.unmodifiable(operationCounts),
       finishReasonCounts: Map<String, int>.unmodifiable(finishReasonCounts),
+      startedAt: startedAt,
       finalAnswerLineNumber: finalAnswerLineNumber,
     );
   }

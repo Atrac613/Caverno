@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
+import '../../domain/services/live_llm_diagnostic_scoring.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
 import '../providers/live_llm_diagnostic_notifier.dart';
 import '../providers/settings_notifier.dart';
@@ -65,6 +66,14 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
             _EmptyState(isRunning: state.isRunning)
           else ...[
             _SummarySection(report: report),
+            if (report.streamingMetrics != null ||
+                report.multiRoundToolLoopMetrics != null) ...[
+              const SizedBox(height: 16),
+              _CapabilitySection(
+                streamingMetrics: report.streamingMetrics,
+                multiRoundMetrics: report.multiRoundToolLoopMetrics,
+              ),
+            ],
             const SizedBox(height: 16),
             _ToolCatalogSection(report: report),
             if (report.samplerCalibrationSummaries.isNotEmpty) ...[
@@ -87,7 +96,9 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
     BuildContext context,
     LiveLlmDiagnosticReport report,
   ) async {
-    final json = const JsonEncoder.withIndent('  ').convert(report.toJson());
+    final json = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(buildLiveLlmDiagnosticExport(report));
     await Clipboard.setData(ClipboardData(text: json));
     if (!context.mounted) {
       return;
@@ -371,6 +382,8 @@ class _SummarySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final score = LiveLlmDiagnosticScore.fromReport(report);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -387,9 +400,24 @@ class _SummarySection extends StatelessWidget {
               color: _statusColor(context, report.overallStatus),
             ),
             _MetricTile(
+              key: const ValueKey('live-llm-diag-score-tile'),
               icon: Icons.grade_outlined,
               label: 'settings.live_llm_diag_score'.tr(),
-              value: '${(report.score * 100).round()}%',
+              value: '${score.earnedPoints} / ${score.maxPoints}',
+            ),
+            _MetricTile(
+              key: const ValueKey('live-llm-diag-coverage-tile'),
+              icon: Icons.donut_large_outlined,
+              label: 'settings.live_llm_diag_coverage'.tr(),
+              value: '${(score.coverage * 100).round()}%',
+            ),
+            _MetricTile(
+              key: const ValueKey('live-llm-diag-stability-tile'),
+              icon: Icons.tune_outlined,
+              label: 'settings.live_llm_diag_stability'.tr(),
+              value: score.samplerAttempted
+                  ? '${score.samplerPassedCount}/${score.samplerTrialCount}'
+                  : '—',
             ),
             _MetricTile(
               icon: Icons.timer_outlined,
@@ -403,6 +431,135 @@ class _SummarySection extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 8),
+        Text(
+          'settings.live_llm_diag_score_explainer'.tr(
+            namedArgs: {
+              'suite': LiveLlmDiagnosticSuite.id,
+              'version': '${LiveLlmDiagnosticSuite.version}',
+              'attempted': '${score.attemptedPoints}',
+            },
+          ),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// LL39 unbounded tier. Deliberately shown as physical quantities next to the
+/// bounded score rather than merged into it: conformance saturates, and these
+/// are the figures that still separate two models when it does.
+class _CapabilitySection extends StatelessWidget {
+  const _CapabilitySection({this.streamingMetrics, this.multiRoundMetrics});
+
+  final LiveLlmDiagnosticStreamingMetrics? streamingMetrics;
+  final LiveLlmDiagnosticMultiRoundToolLoopMetrics? multiRoundMetrics;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final rate = streamingMetrics?.decodeTokensPerSecond;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(label: 'settings.live_llm_diag_capability'.tr()),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            if (streamingMetrics case final metrics?) ...[
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-ttft-tile'),
+                icon: Icons.bolt_outlined,
+                label: 'settings.live_llm_diag_ttft'.tr(),
+                value: '${metrics.timeToFirstToken.inMilliseconds} ms',
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-decode-tile'),
+                icon: Icons.speed_outlined,
+                label: 'settings.live_llm_diag_decode_rate'.tr(),
+                value: rate == null ? '—' : '${rate.toStringAsFixed(1)} tok/s',
+              ),
+              _MetricTile(
+                icon: Icons.numbers_outlined,
+                label: 'settings.live_llm_diag_completion_tokens'.tr(),
+                value: '${metrics.completionTokens}',
+              ),
+              _MetricTile(
+                icon: Icons.view_stream_outlined,
+                label: 'settings.live_llm_diag_chunks'.tr(),
+                value: '${metrics.chunkCount}',
+              ),
+            ],
+            if (multiRoundMetrics case final metrics?) ...[
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-loop-turns-tile'),
+                icon: Icons.repeat_outlined,
+                label: 'settings.live_llm_diag_loop_turns'.tr(),
+                value: '${metrics.modelTurnCount}',
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-loop-calls-tile'),
+                icon: Icons.call_split_outlined,
+                label: 'settings.live_llm_diag_loop_calls'.tr(),
+                value: '${metrics.toolCallCount}',
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-loop-executions-tile'),
+                icon: Icons.build_circle_outlined,
+                label: 'settings.live_llm_diag_loop_executions'.tr(),
+                value: '${metrics.successfulToolExecutionCount}',
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-loop-prompt-tokens-tile'),
+                icon: Icons.input_outlined,
+                label: 'settings.live_llm_diag_loop_prompt_tokens'.tr(),
+                value: '${metrics.promptTokens}',
+              ),
+              _MetricTile(
+                key: const ValueKey(
+                  'live-llm-diag-loop-completion-tokens-tile',
+                ),
+                icon: Icons.output_outlined,
+                label: 'settings.live_llm_diag_loop_completion_tokens'.tr(),
+                value: '${metrics.completionTokens}',
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-loop-total-tokens-tile'),
+                icon: Icons.numbers_outlined,
+                label: 'settings.live_llm_diag_loop_total_tokens'.tr(),
+                value: '${metrics.totalTokens}',
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-loop-elapsed-tile'),
+                icon: Icons.timer_outlined,
+                label: 'settings.live_llm_diag_loop_elapsed'.tr(),
+                value: '${metrics.totalElapsed.inMilliseconds} ms',
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-loop-completed-tile'),
+                icon: Icons.task_alt_outlined,
+                label: 'settings.live_llm_diag_loop_completed'.tr(),
+                value: metrics.taskCompleted
+                    ? 'settings.live_llm_diag_yes'.tr()
+                    : 'settings.live_llm_diag_no'.tr(),
+              ),
+            ],
+          ],
+        ),
+        if (streamingMetrics?.isLikelyBuffered ?? false) ...[
+          const SizedBox(height: 8),
+          Text(
+            'settings.live_llm_diag_buffered_stream'.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -550,8 +707,38 @@ class _SamplerCalibrationSummaryCard extends StatelessWidget {
   }
 }
 
+class _RevisionWarning extends StatelessWidget {
+  const _RevisionWarning({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.warning_amber_outlined,
+          size: 18,
+          color: theme.colorScheme.error,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            message,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _SamplerInfoChip extends StatelessWidget {
-  const _SamplerInfoChip({required this.label, required this.value});
+  const _SamplerInfoChip({super.key, required this.label, required this.value});
 
   final String label;
   final String value;
@@ -630,24 +817,17 @@ class _ProfileRevisionCard extends StatelessWidget {
             ),
             if (revision.capabilityChangeDetected) ...[
               const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.warning_amber_outlined,
-                    size: 18,
-                    color: theme.colorScheme.error,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'settings.live_llm_diag_profile_capability_change'.tr(),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  ),
-                ],
+              _RevisionWarning(
+                message: 'settings.live_llm_diag_profile_capability_change'
+                    .tr(),
+              ),
+            ],
+            if (revision.benchmarkRegressionDetected) ...[
+              const SizedBox(height: 8),
+              _RevisionWarning(
+                key: const ValueKey('live-llm-diag-benchmark-regression'),
+                message: 'settings.live_llm_diag_profile_benchmark_regression'
+                    .tr(),
               ),
             ],
             const SizedBox(height: 8),
@@ -655,6 +835,14 @@ class _ProfileRevisionCard extends StatelessWidget {
               spacing: 6,
               runSpacing: 6,
               children: [
+                if (revision.hasBenchmarkScore)
+                  _SamplerInfoChip(
+                    key: const ValueKey('live-llm-diag-revision-score'),
+                    label: 'settings.live_llm_diag_score'.tr(),
+                    value: revision.benchmarkMaxPoints == null
+                        ? '${revision.benchmarkPoints}'
+                        : '${revision.benchmarkPoints} / ${revision.benchmarkMaxPoints}',
+                  ),
                 _SamplerInfoChip(
                   label: 'settings.live_llm_diag_profile_tool_call_style'.tr(),
                   value: _enumName(revision.toolCallStyle),
@@ -671,6 +859,10 @@ class _ProfileRevisionCard extends StatelessWidget {
                 _SamplerInfoChip(
                   label: 'settings.live_llm_diag_profile_edit_format'.tr(),
                   value: _enumName(revision.editFormatPreference),
+                ),
+                _SamplerInfoChip(
+                  label: 'settings.live_llm_diag_profile_vision'.tr(),
+                  value: _enumName(revision.visionSupport),
                 ),
                 if (revision.usableContextTokens > 0)
                   _SamplerInfoChip(
@@ -866,6 +1058,7 @@ class _SectionTitle extends StatelessWidget {
 
 class _MetricTile extends StatelessWidget {
   const _MetricTile({
+    super.key,
     required this.icon,
     required this.label,
     required this.value,

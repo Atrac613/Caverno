@@ -35,6 +35,7 @@ void main() {
       entries: [
         _entry(
           operation: 'streamChatCompletionWithTools',
+          startedAt: '2026-06-14T00:00:00.000Z',
           finishReason: 'tool_calls',
           content: 'I will inspect the file.',
           toolCalls: [
@@ -47,6 +48,7 @@ void main() {
         ),
         _entry(
           operation: 'streamChatCompletion',
+          startedAt: '2026-06-14T00:00:00.000Z',
           finishReason: 'stream_end',
           content: 'Ping CLI complete.',
         ),
@@ -58,6 +60,7 @@ void main() {
       entries: [
         _entry(
           operation: 'streamChatCompletionWithTools',
+          startedAt: '2026-06-14T00:00:10.000Z',
           finishReason: 'tool_calls',
           content: 'I will inspect the file.',
           durationMs: 500,
@@ -71,6 +74,7 @@ void main() {
         ),
         _entry(
           operation: 'streamChatCompletion',
+          startedAt: '2026-06-14T00:00:10.000Z',
           finishReason: 'stream_end',
           content: 'Ping CLI complete.',
           durationMs: 500,
@@ -83,6 +87,7 @@ void main() {
       entries: [
         _entry(
           operation: 'streamChatCompletion',
+          startedAt: '2026-06-14T00:00:30.000Z',
           finishReason: 'stream_end',
           content: 'Weather CLI could not be completed.',
           durationMs: 3000,
@@ -95,6 +100,7 @@ void main() {
       entries: [
         _entry(
           operation: 'streamChatCompletion',
+          startedAt: '2026-06-14T00:00:20.000Z',
           finishReason: 'stream_end',
           content: 'Weather CLI complete.',
           durationMs: 1200,
@@ -102,6 +108,13 @@ void main() {
       ],
     );
     final outDir = Directory('${directory.path}/reports');
+    final protocolFile = _writeProtocol(
+      directory: directory,
+      trialOrders: [
+        {'caseId': 'ping-cli', 'trialId': 'trial-1', 'first': 'incumbent'},
+        {'caseId': 'weather-cli', 'trialId': 'trial-1', 'first': 'candidate'},
+      ],
+    );
 
     final result = await runPersonalEvalSuitePipeline(
       manifestFiles: manifests,
@@ -134,6 +147,7 @@ void main() {
       outDir: outDir,
       label: 'incumbent vs candidate',
       generatedAt: DateTime.utc(2026, 6, 14, 4, 5, 6),
+      protocolFile: protocolFile,
     );
 
     expect(result.incumbentRunFile.existsSync(), isTrue);
@@ -142,13 +156,22 @@ void main() {
     expect(result.reportMarkdownFile.existsSync(), isTrue);
     expect(result.profileHandoffJsonFile.existsSync(), isTrue);
     expect(result.profileHandoffMarkdownFile.existsSync(), isTrue);
+    expect(result.protocolJsonFile?.existsSync(), isTrue);
+    expect(result.protocolMarkdownFile?.existsSync(), isTrue);
     expect(result.incumbentRun.totalDurationMs, 5000);
     expect(result.candidateRun.totalDurationMs, 2200);
     expect(result.report.result, 'passed');
-    expect(result.report.recommendation, 'candidate_ready');
+    expect(result.report.recommendation, 'no_difference_established');
     expect(result.report.hardRegressionCount, 0);
     expect(result.report.improvementCount, greaterThan(0));
-    expect(result.profileHandoff.readyForProfileUpdate, isTrue);
+    // Fail-closed by design: an automated profile mutation should not proceed
+    // on a run that established no difference. The blocker names the reason so
+    // an operator can still override deliberately.
+    expect(result.profileHandoff.readyForProfileUpdate, isFalse);
+    expect(
+      result.profileHandoff.blockers,
+      contains(contains('no_difference_established')),
+    );
     expect(
       result.profileHandoff.target.profileId,
       'openAiCompatible|http://localhost:1235/v1|candidate-model',
@@ -164,12 +187,22 @@ void main() {
     expect(reportJson['generatedAt'], '2026-06-14T04:05:06.000Z');
     expect(reportJson['label'], 'incumbent vs candidate');
     expect(reportJson['result'], 'passed');
+    expect(
+      (reportJson['experimentProtocol']
+          as Map<String, dynamic>)['validationStatus'],
+      'validated',
+    );
+    expect(
+      (reportJson['experimentProtocol']
+          as Map<String, dynamic>)['validatedExecutionEventCount'],
+      4,
+    );
     final profileHandoffJson = _readJson(result.profileHandoffJsonFile);
     expect(
       profileHandoffJson['schemaName'],
       'caverno_personal_eval_profile_handoff',
     );
-    expect(profileHandoffJson['readyForProfileUpdate'], isTrue);
+    expect(profileHandoffJson['readyForProfileUpdate'], isFalse);
     expect(
       result.reportMarkdownFile.readAsStringSync(),
       contains('Personal Eval Suite Report'),
@@ -228,6 +261,118 @@ void main() {
     );
   });
 
+  test(
+    'rejects protocol model and observed execution order mismatches',
+    () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'personal-eval-suite-protocol-validation-test-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final manifest = _writeManifest(
+        directory: directory,
+        caseId: 'case-a',
+        title: 'Case A',
+        verificationResult: 'passed',
+        toolCallCount: 0,
+      );
+      final incumbentLog = _writeSessionLog(
+        directory: directory,
+        fileName: 'incumbent-case-a.jsonl',
+        entries: [
+          _entry(
+            operation: 'streamChatCompletion',
+            content: 'Done.',
+            startedAt: '2026-06-14T00:00:10.000Z',
+          ),
+        ],
+      );
+      final candidateLog = _writeSessionLog(
+        directory: directory,
+        fileName: 'candidate-case-a.jsonl',
+        entries: [
+          _entry(
+            operation: 'streamChatCompletion',
+            content: 'Done.',
+            startedAt: '2026-06-14T00:00:00.000Z',
+          ),
+        ],
+      );
+      final protocolFile = _writeProtocol(
+        directory: directory,
+        trialOrders: [
+          {'caseId': 'case-a', 'trialId': 'trial-1', 'first': 'incumbent'},
+        ],
+      );
+
+      Future<PersonalEvalSuitePipelineResult> run({
+        String candidateModel = 'candidate-model',
+        File? experimentProtocolFile,
+      }) {
+        return runPersonalEvalSuitePipeline(
+          manifestFiles: [manifest],
+          incumbent: PersonalEvalSuitePipelineRunInput(
+            label: 'incumbent',
+            caseLogFiles: {'case-a': incumbentLog},
+            verificationResults: {
+              'case-a': PersonalEvalVerificationResult.passed,
+            },
+            model: 'incumbent-model',
+            baseUrl: 'http://localhost:1234/v1',
+          ),
+          candidate: PersonalEvalSuitePipelineRunInput(
+            label: 'candidate',
+            caseLogFiles: {'case-a': candidateLog},
+            verificationResults: {
+              'case-a': PersonalEvalVerificationResult.passed,
+            },
+            model: candidateModel,
+            baseUrl: 'http://localhost:1235/v1',
+          ),
+          outDir: Directory('${directory.path}/reports-$candidateModel'),
+          protocolFile: experimentProtocolFile ?? protocolFile,
+        );
+      }
+
+      await expectLater(
+        run(candidateModel: 'wrong-model'),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('candidate model mismatch'),
+          ),
+        ),
+      );
+      final wrongTrialProtocol = _writeProtocol(
+        directory: directory,
+        fileName: 'wrong-trial-protocol.json',
+        trialOrders: [
+          {'caseId': 'case-b', 'trialId': 'trial-1', 'first': 'incumbent'},
+        ],
+      );
+      await expectLater(
+        run(experimentProtocolFile: wrongTrialProtocol),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('trial set mismatch'),
+          ),
+        ),
+      );
+      await expectLater(
+        run(),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('execution order mismatch'),
+          ),
+        ),
+      );
+    },
+  );
+
   test('parses CLI options', () {
     final options = PersonalEvalSuitePipelineOptions.parse([
       '--manifest',
@@ -258,6 +403,8 @@ void main() {
       'http://localhost:1234/v1',
       '--candidate-base-url',
       'http://localhost:1235/v1',
+      '--protocol',
+      'protocol.json',
     ]);
 
     expect(options, isNotNull);
@@ -273,7 +420,29 @@ void main() {
     expect(options?.label, 'suite check');
     expect(options?.incumbentModel, 'old-model');
     expect(options?.candidateModel, 'new-model');
+    expect(options?.protocolPath, 'protocol.json');
 
+    expect(
+      PersonalEvalSuitePipelineOptions.parse([
+        '--manifest',
+        'case-a.json',
+        '--incumbent-label',
+        'incumbent',
+        '--candidate-label',
+        'candidate',
+        '--incumbent-case-log',
+        'case-a=incumbent-a.jsonl',
+        '--candidate-case-log',
+        'case-a=candidate-a.jsonl',
+        '--incumbent-verification-result',
+        'case-a=passed',
+        '--candidate-verification-result',
+        'case-a=passed',
+        '--out-dir',
+        'reports',
+      ]),
+      isNull,
+    );
     expect(
       PersonalEvalSuitePipelineOptions.parse([
         '--manifest',
@@ -360,6 +529,7 @@ File _writeSessionLog({
 
 Map<String, Object?> _entry({
   required String operation,
+  String startedAt = '2026-06-14T00:00:00.000',
   String? finishReason,
   String content = '',
   int durationMs = 1000,
@@ -369,7 +539,7 @@ Map<String, Object?> _entry({
     'schemaName': 'caverno_llm_session_log_entry',
     'schemaVersion': 1,
     'timestamp': '2026-06-14T00:00:00.000',
-    'startedAt': '2026-06-14T00:00:00.000',
+    'startedAt': startedAt,
     'finishedAt': '2026-06-14T00:00:01.000',
     'durationMs': durationMs,
     'operation': operation,
@@ -389,6 +559,48 @@ Map<String, Object?> _entry({
       'toolCalls': toolCalls,
     },
   };
+}
+
+File _writeProtocol({
+  required Directory directory,
+  required List<Map<String, String>> trialOrders,
+  String fileName = 'protocol.json',
+}) {
+  final file = File('${directory.path}/$fileName');
+  file.writeAsStringSync(
+    jsonEncode({
+      'schemaName': 'caverno_personal_eval_experiment_protocol',
+      'schemaVersion': 2,
+      'label': 'Incumbent versus candidate',
+      'studyIntent': 'model_selection',
+      'decisionCriteria': {
+        'minimumEffectTaskCount': trialOrders
+            .map((order) => order['caseId'])
+            .toSet()
+            .length,
+        'minimumHeldOutEffectTaskCount': 0,
+      },
+      'incumbent': {
+        'model': 'incumbent-model',
+        'baseUrl': 'http://localhost:1234/v1',
+        'samplerSettings': {'temperature': 0.2, 'maxTokens': 4096},
+        'warmup': {'completed': true, 'iterations': 1},
+      },
+      'candidate': {
+        'model': 'candidate-model',
+        'baseUrl': 'http://localhost:1235/v1',
+        'samplerSettings': {'temperature': 0.2, 'maxTokens': 4096},
+        'warmup': {'completed': true, 'iterations': 1},
+      },
+      'executionBudget': {
+        'maxDurationMs': 10000,
+        'maxTurns': 10,
+        'maxToolCalls': 10,
+      },
+      'trialOrders': trialOrders,
+    }),
+  );
+  return file;
 }
 
 Map<String, Object?> _toolCall({

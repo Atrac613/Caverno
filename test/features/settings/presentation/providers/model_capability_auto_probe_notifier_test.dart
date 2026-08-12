@@ -48,7 +48,10 @@ void main() {
 
       final state = container.read(modelCapabilityAutoProbeNotifierProvider);
       expect(state.status, ModelCapabilityAutoProbeStatus.succeeded);
-      expect(dataSource.requestCount, 26);
+      // 27 pre-vision requests (including streaming) plus the two vision
+      // attachment arms. The tool-observation probe goes through a different
+      // datasource method, so it is not part of this count.
+      expect(dataSource.requestCount, 29);
       expect(
         state.report?.results
             .singleWhere((result) => result.id == 'exact_preservation')
@@ -286,7 +289,17 @@ class _InstructionOnlyDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
-    throw UnimplementedError();
+    requestCount += 1;
+    final content = [for (var value = 1; value <= 40; value += 1) '$value\n'];
+    return StreamedChatCompletion.fromStream(
+      Stream.value(content.join()),
+      finishReason: 'stop',
+      usage: const TokenUsage(
+        promptTokens: 12,
+        completionTokens: 40,
+        totalTokens: 52,
+      ),
+    );
   }
 
   @override

@@ -8,10 +8,11 @@ part 'll37_verifier_fidelity_report.dart';
 part 'll37_verifier_fidelity_transport.dart';
 
 const _caseSchemaName = 'caverno_ll37_verifier_fidelity_case';
-const _caseSchemaVersion = 1;
+const _legacyCaseSchemaVersion = 1;
+const _caseSchemaVersion = 2;
 const _manifestSchemaName = 'caverno_personal_eval_case_manifest';
 const _reportSchemaName = 'caverno_ll37_verifier_fidelity_report';
-const _reportSchemaVersion = 1;
+const _reportSchemaVersion = 3;
 
 typedef Ll37VerifierCompletion =
     Future<String> Function(Ll37VerifierPrompt prompt);
@@ -104,8 +105,48 @@ void validateLl37VerifierFidelityPairs(List<Ll37VerifierFidelityCase> cases) {
         'and one known-broken case.',
       );
     }
+    final first = entry.value.first;
+    if (entry.value.any((item) => item.sourceSurface != first.sourceSurface)) {
+      throw FormatException(
+        'LL37 pair ${entry.key} must use one source surface.',
+      );
+    }
+    if (entry.value.any(
+      (item) =>
+          item.mechanicalVerificationPassed !=
+          first.mechanicalVerificationPassed,
+    )) {
+      throw FormatException(
+        'LL37 pair ${entry.key} must share one mechanical verification '
+        'status.',
+      );
+    }
+    if (entry.value.any(
+      (item) =>
+          _ll37ObjectiveFingerprint(item) != _ll37ObjectiveFingerprint(first),
+    )) {
+      throw FormatException(
+        'LL37 pair ${entry.key} must share one objective and acceptance '
+        'contract.',
+      );
+    }
   }
 }
+
+String _ll37ObjectiveFingerprint(Ll37VerifierFidelityCase evalCase) {
+  final criteria =
+      evalCase.acceptanceCriteria
+          .map(_normalizeLl37EvidenceText)
+          .toList(growable: false)
+        ..sort();
+  return jsonEncode({
+    'objective': _normalizeLl37EvidenceText(evalCase.objective),
+    'acceptanceCriteria': criteria,
+  });
+}
+
+String _normalizeLl37EvidenceText(String value) =>
+    value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
 Ll37VerifierCompletion _completionForOptions(
   Ll37VerifierFidelityProbeOptions options,

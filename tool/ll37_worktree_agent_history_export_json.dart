@@ -13,7 +13,7 @@ Map<String, dynamic> _manifestJson({
   final taskId = _requiredString(task, 'id', 'worktree-agent task');
   return {
     'schemaName': _manifestSchemaName,
-    'schemaVersion': _schemaVersion,
+    'schemaVersion': _manifestSchemaVersion,
     'generatedAt': generatedAt.toIso8601String(),
     'caseId': caseId,
     'title': title,
@@ -27,7 +27,7 @@ Map<String, dynamic> _manifestJson({
       'verificationCommand': redactor.redact(
         _requiredString(task, 'verificationCommand', 'worktree-agent task'),
       ),
-      'verificationResult': expectedVerdict == 'refuted' ? 'failed' : 'passed',
+      'verificationResult': 'passed',
       'workspaceMode': 'coding',
     },
     'source': {
@@ -73,12 +73,13 @@ Map<String, dynamic> _caseJson({
 }) {
   return {
     'schemaName': _caseSchemaName,
-    'schemaVersion': _schemaVersion,
+    'schemaVersion': _caseSchemaVersion,
     'caseId': caseId,
     'pairId': pairId,
     'title': title,
     'sourceSurface': 'worktree_agent',
     'expectedVerdict': expectedVerdict,
+    'mechanicalVerificationPassed': true,
     'personalEvalManifestPath': manifestName,
     'acceptanceCriteria': acceptanceCriteria,
     'changedFiles': changedFiles,

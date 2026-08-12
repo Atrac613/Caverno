@@ -38,6 +38,11 @@ class LiveLlmDiagnosticService {
       descriptionKey: 'settings.live_llm_diag_probe_instruction_desc',
     ),
     LiveLlmDiagnosticProbeDefinition(
+      id: _streamingProbeId,
+      titleKey: 'settings.live_llm_diag_probe_streaming_title',
+      descriptionKey: 'settings.live_llm_diag_probe_streaming_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
       id: _exactPreservationProbeId,
       titleKey: 'settings.live_llm_diag_probe_exact_preservation_title',
       descriptionKey: 'settings.live_llm_diag_probe_exact_preservation_desc',
@@ -46,6 +51,16 @@ class LiveLlmDiagnosticService {
       id: _foundationModelsLanguageMatrixProbeId,
       titleKey: 'settings.live_llm_diag_probe_fm_language_matrix_title',
       descriptionKey: 'settings.live_llm_diag_probe_fm_language_matrix_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
+      id: _visionAttachmentProbeId,
+      titleKey: 'settings.live_llm_diag_probe_vision_attachment_title',
+      descriptionKey: 'settings.live_llm_diag_probe_vision_attachment_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
+      id: _visionToolObservationProbeId,
+      titleKey: 'settings.live_llm_diag_probe_vision_observation_title',
+      descriptionKey: 'settings.live_llm_diag_probe_vision_observation_desc',
     ),
     LiveLlmDiagnosticProbeDefinition(
       id: _narrowToolCallProbeId,
@@ -61,6 +76,11 @@ class LiveLlmDiagnosticService {
       id: _toolResultProbeId,
       titleKey: 'settings.live_llm_diag_probe_tool_result_title',
       descriptionKey: 'settings.live_llm_diag_probe_tool_result_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
+      id: _multiRoundToolLoopProbeId,
+      titleKey: 'settings.live_llm_diag_probe_multi_round_title',
+      descriptionKey: 'settings.live_llm_diag_probe_multi_round_desc',
     ),
     LiveLlmDiagnosticProbeDefinition(
       id: _initialHarnessProbeId,
@@ -85,24 +105,64 @@ class LiveLlmDiagnosticService {
   ];
 
   static const _instructionProbeId = 'instruction_echo';
+  static const _streamingProbeId = 'streaming_response';
   static const _exactPreservationProbeId = 'exact_preservation';
   static const _foundationModelsLanguageMatrixProbeId =
       'foundation_models_language_matrix';
+  static const _visionAttachmentProbeId = 'vision_attachment';
+  static const _visionToolObservationProbeId = 'vision_tool_observation';
   static const _narrowToolCallProbeId = 'narrow_tool_call';
   static const _goalUpdateFidelityProbeId = 'update_goal_fidelity';
   static const _toolResultProbeId = 'tool_result_integration';
+  static const _multiRoundToolLoopProbeId = 'multi_round_tool_loop';
   static const _initialHarnessProbeId = 'initial_harness_selection';
   static const _toolSearchProbeId = 'tool_search_catalog';
   static const _subagentProbeId = 'subagent_recognition';
   static const _remoteMcpProbeId = 'remote_mcp_exposure';
+  static const _multiRoundToolLoopMarker = 'CAVERNO_MULTI_ROUND_LOOP_OK';
+
+  /// The streaming probe asks for a run of integers rather than prose: the
+  /// content is verifiable without a judge, and it is long enough that the
+  /// decode rate means something. Phrased as the task ("list the integers"),
+  /// not as the mechanism ("stream me a response") — a probe that describes the
+  /// mechanism measures its own wording.
+  static const _streamingSequenceLength = 40;
+  static const _streamingProbePrompt =
+      'List every integer from 1 to 40 in order, one per line, with nothing '
+      'else on any line.';
 
   static const modelCapabilityProbeIds = <String>{
     _instructionProbeId,
+    _streamingProbeId,
+    _visionAttachmentProbeId,
+    _visionToolObservationProbeId,
     _narrowToolCallProbeId,
     _goalUpdateFidelityProbeId,
     _toolResultProbeId,
     _initialHarnessProbeId,
   };
+
+  /// A 64x64 PNG of four solid quadrants in a non-obvious reading order:
+  /// yellow, blue, red, green. The shuffled layout prevents a model from
+  /// passing by guessing the conventional red, green, blue, yellow sequence.
+  /// It is embedded so the probe stays byte-identical on every platform and in
+  /// tests. Solid colors also survive vision-tower downscaling.
+  static const _visionProbeImageBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAWElEQVR42u3RgQkAIAwDwQ'
+      'a6/8p1iqLC/QLhSM/UasnuQNfnAQAAAAAAAAAAAAAAAAAAAAAAAAAAANwAZHlh4gEAAAAA'
+      'AAAAAAAAAAAAAAAAAAAAAACAtzq7gAUBzMvYfAAAAABJRU5ErkJggg==';
+  static const _visionProbeImageMimeType = 'image/png';
+  static const _visionProbeExpectedColors = <String>[
+    'yellow',
+    'blue',
+    'red',
+    'green',
+  ];
+  static const _visionProbePrompt =
+      'The attached image is split into four equal quadrants, each a single '
+      'solid color. Reply with exactly the four color names in reading order '
+      '(top-left, top-right, bottom-left, bottom-right), lowercase, separated '
+      'by commas, and no other text.';
 
   static const _marker = 'CAVERNO_LIVE_DIAGNOSTIC';
   static const _foundationModelsEnglishMarker = 'CAVERNO_FM_LANG_EN';
@@ -125,6 +185,13 @@ class LiveLlmDiagnosticService {
   static const _exactToolResultValue = 'ZX-900_\u03b1 2026-06-12';
   static const _exactUrlValue =
       'https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def';
+
+  /// Vision outcome labels. Emitted into probe details so the profile builder
+  /// and a human reading the report classify a miss the same way.
+  static const _visionClassificationRejected = 'endpoint_rejected';
+  static const _visionClassificationIgnored = 'model_ignored_the_image';
+  static const _visionClassificationPartial = 'partially_read';
+  static const _visionClassificationRead = 'read_correctly';
   static const _diagnosticTemperature = 0.0;
   static const _diagnosticMaxTokens = 512;
   static const _samplerCalibrationTemperatures = <double>[0.0, 0.2, 0.4, 0.7];
@@ -172,6 +239,11 @@ class LiveLlmDiagnosticService {
       onReport: onReport,
       run: _runInstructionProbe,
     );
+    report = await _runStreamingProbe(
+      report: report,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+    );
     report = await _appendRoutineSamplerCalibrationTrials(
       report: report,
       capabilities: capabilities,
@@ -210,6 +282,11 @@ class LiveLlmDiagnosticService {
       );
       onReport?.call(report);
     }
+    report = await _runVisionProbes(
+      report: report,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+    );
     if (!capabilities.supportsAnyToolBridge) {
       report = _skipProviderUnsupportedToolProbes(
         report,
@@ -257,6 +334,12 @@ class LiveLlmDiagnosticService {
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
       run: () => _runToolResultProbe(catalogContext),
+    );
+    report = await _runMultiRoundToolLoopProbe(
+      report: report,
+      catalog: catalogContext,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
     );
     report = await _runSelectedProbe(
       report: report,
@@ -598,6 +681,161 @@ class LiveLlmDiagnosticService {
     );
   }
 
+  /// Exercises `streamChatCompletion` — the path the chat screen actually uses,
+  /// and the only one with incremental delivery, a reasoning-field fallback and
+  /// a `finish_reason` that can truncate. Every other probe goes through the
+  /// non-streaming call, so none of that was covered.
+  ///
+  /// It is also where the capability tier's two speed figures come from, which
+  /// is why the metrics are attached to the report rather than folded into the
+  /// probe's points.
+  Future<LiveLlmDiagnosticReport> _runStreamingProbe({
+    required LiveLlmDiagnosticReport report,
+    required Set<String>? selectedProbeIds,
+    required LiveLlmDiagnosticReportCallback? onReport,
+  }) async {
+    if (!_shouldRunProbe(_streamingProbeId, selectedProbeIds)) {
+      final updated = _skipProbe(
+        report,
+        _streamingProbeId,
+        'Skipped because this bounded diagnostic run did not request this probe.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+
+    final startedAt = DateTime.now();
+    var updated = report.withProbeResult(
+      const LiveLlmDiagnosticProbeResult(
+        id: _streamingProbeId,
+        status: LiveLlmDiagnosticStatus.running,
+        summary: 'Running...',
+      ),
+    );
+    onReport?.call(updated);
+
+    try {
+      final outcome = await _measureStreamingResponse();
+      updated = updated
+          .withProbeResult(
+            outcome.result.copyWith(
+              elapsed: DateTime.now().difference(startedAt),
+            ),
+          )
+          .copyWith(streamingMetrics: outcome.metrics);
+    } catch (error) {
+      updated = updated.withProbeResult(
+        LiveLlmDiagnosticProbeResult(
+          id: _streamingProbeId,
+          status: LiveLlmDiagnosticStatus.failed,
+          summary: 'The streaming request failed.',
+          details: error.toString(),
+          elapsed: DateTime.now().difference(startedAt),
+        ),
+      );
+    }
+    onReport?.call(updated);
+    return updated;
+  }
+
+  Future<_StreamingProbeOutcome> _measureStreamingResponse() async {
+    final buffer = StringBuffer();
+    var chunkCount = 0;
+    Duration? timeToFirstToken;
+    final stopwatch = Stopwatch()..start();
+
+    final streamed = chatDataSource.streamChatCompletion(
+      messages: _messages(user: _streamingProbePrompt),
+      model: _diagnosticModel,
+      temperature: _diagnosticTemperature,
+      maxTokens: _diagnosticMaxTokens,
+    );
+
+    await for (final chunk in streamed.stream) {
+      if (chunk.isEmpty) {
+        continue;
+      }
+      // First *content*, not first event: an endpoint that opens the stream
+      // with empty keep-alive frames would otherwise report a flattering TTFT.
+      timeToFirstToken ??= stopwatch.elapsed;
+      chunkCount += 1;
+      buffer.write(chunk);
+    }
+    final totalElapsed = stopwatch.elapsed;
+    final terminal = await streamed.terminal;
+
+    final content = buffer.toString();
+    final matched = _matchedIntegerSequence(content);
+    final metrics = LiveLlmDiagnosticStreamingMetrics(
+      timeToFirstToken: timeToFirstToken ?? totalElapsed,
+      totalElapsed: totalElapsed,
+      completionTokens: terminal.usage.completionTokens,
+      chunkCount: chunkCount,
+      finishReason: terminal.finishReason ?? '',
+    );
+
+    final truncated = terminal.finishReason == 'length';
+    final passed = matched == _streamingSequenceLength && !truncated;
+    final status = passed
+        ? LiveLlmDiagnosticStatus.passed
+        : matched > 0
+        ? LiveLlmDiagnosticStatus.warning
+        : LiveLlmDiagnosticStatus.failed;
+    final rate = metrics.decodeTokensPerSecond;
+
+    return _StreamingProbeOutcome(
+      metrics: metrics,
+      result: LiveLlmDiagnosticProbeResult(
+        id: _streamingProbeId,
+        status: status,
+        summary: passed
+            ? 'The model streamed the full sequence over the streaming path.'
+            : truncated
+            ? 'The stream was cut short by the token limit.'
+            : 'The streamed sequence was incomplete or out of order.',
+        details: [
+          'Matched in order: $matched/$_streamingSequenceLength',
+          'Chunks: $chunkCount',
+          'Finish reason: ${terminal.finishReason ?? "(none)"}',
+          'TTFT: ${metrics.timeToFirstToken.inMilliseconds} ms',
+          'Total: ${metrics.totalElapsed.inMilliseconds} ms',
+          if (rate != null) 'Decode: ${rate.toStringAsFixed(1)} tok/s',
+          if (metrics.isLikelyBuffered)
+            'Buffered delivery: the answer arrived in one chunk or a short '
+                'terminal burst, so decode rate is unavailable.',
+        ].join('\n'),
+        modelContent: _preview(content, maxChars: 400),
+        usage: LiveLlmDiagnosticTokenUsage(
+          promptTokens: terminal.usage.promptTokens,
+          completionTokens: terminal.usage.completionTokens,
+          totalTokens: terminal.usage.totalTokens,
+        ),
+        passedChecks: matched,
+        totalChecks: _streamingSequenceLength,
+      ),
+    );
+  }
+
+  /// Counts how many of 1..N appear as their own line, in order. Line-scoped on
+  /// purpose: a substring search would count the "1" inside "10".
+  int _matchedIntegerSequence(String content) {
+    var expected = 1;
+    for (final line in const LineSplitter().convert(content)) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) {
+        continue;
+      }
+      if (int.tryParse(trimmed) != expected) {
+        continue;
+      }
+      expected += 1;
+      if (expected > _streamingSequenceLength) {
+        break;
+      }
+    }
+    return expected - 1;
+  }
+
   Future<LiveLlmDiagnosticProbeResult> _runExactPreservationProbe() async {
     final directResult = await chatDataSource.createChatCompletion(
       messages: _messages(
@@ -697,6 +935,8 @@ class LiveLlmDiagnosticService {
           )
           .join('\n'),
       usage: _totalUsage([directResult, toolResult, urlResult]),
+      passedChecks: outcomes.length - failed.length,
+      totalChecks: outcomes.length,
     );
   }
 
@@ -753,6 +993,8 @@ class LiveLlmDiagnosticService {
                 '${outcome.label}: ${_preview(outcome.preview, maxChars: 240)}',
           )
           .join('\n'),
+      passedChecks: outcomes.length - failed.length,
+      totalChecks: outcomes.length,
     );
   }
 
@@ -814,6 +1056,239 @@ class LiveLlmDiagnosticService {
         },
       },
     };
+  }
+
+  /// LL39 vision block.
+  ///
+  /// Apple Foundation Models drops image parts at the datasource
+  /// (`_contentWithImageNotice`), so the model is never actually asked: that is
+  /// not applicable rather than a failure, and it must not be scored as one.
+  Future<LiveLlmDiagnosticReport> _runVisionProbes({
+    required LiveLlmDiagnosticReport report,
+    required Set<String>? selectedProbeIds,
+    required LiveLlmDiagnosticReportCallback? onReport,
+  }) async {
+    if (settings.llmProvider == LlmProvider.appleFoundationModels) {
+      var updated = report;
+      for (final probeId in const [
+        _visionAttachmentProbeId,
+        _visionToolObservationProbeId,
+      ]) {
+        updated = _skipProbe(
+          updated,
+          probeId,
+          'Skipped because Caverno does not send images to Apple Foundation Models.',
+          details:
+              'The Foundation Models datasource replaces an attached image '
+              'with a text notice, so this provider is never asked to read one.',
+        );
+      }
+      onReport?.call(updated);
+      return updated;
+    }
+
+    var updated = await _runSelectedProbe(
+      report: report,
+      probeId: _visionAttachmentProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: _runVisionAttachmentProbe,
+    );
+    updated = await _runSelectedProbe(
+      report: updated,
+      probeId: _visionToolObservationProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: _runVisionToolObservationProbe,
+    );
+    return updated;
+  }
+
+  /// Reads the image through the user-attachment path: a user message carrying
+  /// `imageBase64`, which `_formatMessages` turns into an image content part.
+  ///
+  /// Runs a no-image control arm as well. Without it a model that ignores image
+  /// content but guesses a plausible color list is indistinguishable from one
+  /// that actually looked; with it, "the control scored the same" is direct
+  /// evidence the image did not inform the answer.
+  Future<LiveLlmDiagnosticProbeResult> _runVisionAttachmentProbe() async {
+    final withImage = await _runVisionColorArm(attachImage: true);
+    final control = await _runVisionColorArm(attachImage: false);
+
+    if (withImage.rejected) {
+      return LiveLlmDiagnosticProbeResult(
+        id: _visionAttachmentProbeId,
+        status: LiveLlmDiagnosticStatus.failed,
+        summary: 'The endpoint rejected a request carrying image content.',
+        details:
+            'Classification: $_visionClassificationRejected\n${withImage.error}',
+        modelContent: _preview(withImage.content, maxChars: 400),
+      );
+    }
+
+    final matched = withImage.matchedColors;
+    final controlMatched = control.matchedColors;
+    // The control arm outranks the score. A model that answers just as well
+    // with no image did not read one, and a correct answer it could produce
+    // blind is not evidence of vision -- so this is checked before the
+    // all-four-colors pass.
+    final ignored = controlMatched >= matched;
+    final passed = !ignored && matched == _visionProbeExpectedColors.length;
+    final status = passed
+        ? LiveLlmDiagnosticStatus.passed
+        : ignored
+        ? LiveLlmDiagnosticStatus.failed
+        : LiveLlmDiagnosticStatus.warning;
+
+    return LiveLlmDiagnosticProbeResult(
+      id: _visionAttachmentProbeId,
+      status: status,
+      summary: passed
+          ? 'The model read every quadrant color from the attached image.'
+          : ignored
+          ? 'The no-image control arm scored the same, so the image was not used.'
+          : 'The model read the image only partially.',
+      details: [
+        'Classification: ${passed
+            ? _visionClassificationRead
+            : ignored
+            ? _visionClassificationIgnored
+            : _visionClassificationPartial}',
+        'Expected: ${_visionProbeExpectedColors.join(', ')}',
+        'With image: $matched/${_visionProbeExpectedColors.length} colors in order',
+        'No-image control: $controlMatched/${_visionProbeExpectedColors.length}',
+      ].join('\n'),
+      modelContent: [
+        'with_image: ${_preview(withImage.content, maxChars: 240)}',
+        'control: ${_preview(control.content, maxChars: 240)}',
+      ].join('\n'),
+      usage: _totalUsage([
+        if (withImage.result != null) withImage.result!,
+        if (control.result != null) control.result!,
+      ]),
+      passedChecks: matched,
+      totalChecks: _visionProbeExpectedColors.length,
+    );
+  }
+
+  Future<_VisionProbeArm> _runVisionColorArm({
+    required bool attachImage,
+  }) async {
+    final now = DateTime.now();
+    final messages = _messages(user: _visionProbePrompt);
+    if (attachImage) {
+      messages[messages.length - 1] = messages.last.copyWith(
+        imageBase64: _visionProbeImageBase64,
+        imageMimeType: _visionProbeImageMimeType,
+      );
+    } else {
+      // The control arm must ask the same question with no image, so a model
+      // that guesses is measured on the guess.
+      messages[messages.length - 1] = messages.last.copyWith(
+        content:
+            '$_visionProbePrompt\n'
+            '(No image is attached in this control request. Answer with your '
+            'best guess and no explanation.)',
+        timestamp: now,
+      );
+    }
+
+    try {
+      final result = await chatDataSource.createChatCompletion(
+        messages: messages,
+        model: _diagnosticModel,
+        temperature: _diagnosticTemperature,
+        maxTokens: _diagnosticMaxTokens,
+      );
+      return _VisionProbeArm(
+        result: result,
+        content: result.content.trim(),
+        matchedColors: _matchedQuadrantColors(result.content),
+      );
+    } catch (error) {
+      return _VisionProbeArm(
+        rejected: attachImage,
+        error: error.toString(),
+        content: '',
+        matchedColors: 0,
+      );
+    }
+  }
+
+  /// Reads the image through the computer-use path: a tool result whose JSON
+  /// carries `imageBase64`, which the datasource lifts into its own observation
+  /// message. Same picture, different message shape — an endpoint can support
+  /// one and not the other.
+  Future<LiveLlmDiagnosticProbeResult> _runVisionToolObservationProbe() async {
+    final messages = _messages(
+      user: 'A screen observation tool returned an image. $_visionProbePrompt',
+    );
+    try {
+      final result = await chatDataSource.createChatCompletionWithToolResults(
+        messages: messages,
+        toolResults: [
+          ToolResultInfo(
+            id: 'diagnostic-vision-observe-call',
+            name: 'diagnostic_vision_observe',
+            arguments: const {'region': 'full'},
+            result: jsonEncode({
+              'ok': true,
+              'coordinateSpace': 'screenshot_pixels',
+              'imageMimeType': _visionProbeImageMimeType,
+              'imageBase64': _visionProbeImageBase64,
+            }),
+          ),
+        ],
+        model: _diagnosticModel,
+        temperature: _diagnosticTemperature,
+        maxTokens: _diagnosticMaxTokens,
+      );
+      final matched = _matchedQuadrantColors(result.content);
+      final passed = matched == _visionProbeExpectedColors.length;
+      return LiveLlmDiagnosticProbeResult(
+        id: _visionToolObservationProbeId,
+        status: passed
+            ? LiveLlmDiagnosticStatus.passed
+            : matched > 0
+            ? LiveLlmDiagnosticStatus.warning
+            : LiveLlmDiagnosticStatus.failed,
+        summary: passed
+            ? 'The model read the image delivered as a tool observation.'
+            : 'The model did not read the tool-observation image correctly.',
+        details:
+            'Expected: ${_visionProbeExpectedColors.join(', ')}\n'
+            'Matched in order: $matched/${_visionProbeExpectedColors.length}',
+        modelContent: _preview(result.content, maxChars: 400),
+        usage: _usage(result),
+        passedChecks: matched,
+        totalChecks: _visionProbeExpectedColors.length,
+      );
+    } catch (error) {
+      return LiveLlmDiagnosticProbeResult(
+        id: _visionToolObservationProbeId,
+        status: LiveLlmDiagnosticStatus.failed,
+        summary: 'The endpoint rejected the tool-observation image request.',
+        details: 'Classification: $_visionClassificationRejected\n$error',
+      );
+    }
+  }
+
+  /// Counts leading quadrant colors named in the expected order. Order matters:
+  /// naming the right four colors in the wrong arrangement means the layout was
+  /// not actually read.
+  int _matchedQuadrantColors(String content) {
+    final normalized = content.toLowerCase();
+    var cursor = 0;
+    var matched = 0;
+    for (final color in _visionProbeExpectedColors) {
+      final index = normalized.indexOf(color, cursor);
+      if (index < 0) {
+        break;
+      }
+      cursor = index + color.length;
+      matched += 1;
+    }
+    return matched;
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runNarrowToolCallProbe(
@@ -1270,6 +1745,274 @@ class LiveLlmDiagnosticService {
     );
   }
 
+  Future<LiveLlmDiagnosticReport> _runMultiRoundToolLoopProbe({
+    required LiveLlmDiagnosticReport report,
+    required _ToolCatalogContext catalog,
+    required Set<String>? selectedProbeIds,
+    required LiveLlmDiagnosticReportCallback? onReport,
+  }) async {
+    if (!_shouldRunProbe(_multiRoundToolLoopProbeId, selectedProbeIds)) {
+      final updated = _skipProbe(
+        report,
+        _multiRoundToolLoopProbeId,
+        'Skipped because this bounded diagnostic run did not request this probe.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+
+    final startedAt = DateTime.now();
+    var updated = report.withProbeResult(
+      const LiveLlmDiagnosticProbeResult(
+        id: _multiRoundToolLoopProbeId,
+        status: LiveLlmDiagnosticStatus.running,
+        summary: 'Running...',
+      ),
+    );
+    onReport?.call(updated);
+
+    try {
+      final outcome = await _measureMultiRoundToolLoop(catalog);
+      updated = updated
+          .withProbeResult(
+            outcome.result.copyWith(
+              elapsed: DateTime.now().difference(startedAt),
+            ),
+          )
+          .copyWith(multiRoundToolLoopMetrics: outcome.metrics);
+    } catch (error) {
+      updated = updated.withProbeResult(
+        LiveLlmDiagnosticProbeResult(
+          id: _multiRoundToolLoopProbeId,
+          status: LiveLlmDiagnosticStatus.failed,
+          summary: 'The multi-round tool loop request failed.',
+          details: error.toString(),
+          elapsed: DateTime.now().difference(startedAt),
+        ),
+      );
+    }
+    onReport?.call(updated);
+    return updated;
+  }
+
+  Future<_MultiRoundToolLoopProbeOutcome> _measureMultiRoundToolLoop(
+    _ToolCatalogContext catalog,
+  ) async {
+    final service = mcpToolService;
+    final searchTool = _singleTool(
+      catalog.definitions,
+      ToolDefinitionSearchService.toolName,
+    );
+    final dateTool = _singleTool(catalog.definitions, 'get_current_datetime');
+    final stopwatch = Stopwatch()..start();
+    final modelResults = <ChatCompletionResult>[];
+    final observedToolNames = <String>[];
+    var toolCallCount = 0;
+    var successfulToolExecutionCount = 0;
+
+    _MultiRoundToolLoopProbeOutcome finish({
+      required LiveLlmDiagnosticStatus status,
+      required String summary,
+      String details = '',
+      String modelContent = '',
+      int passedChecks = 0,
+      int totalChecks = 3,
+    }) {
+      stopwatch.stop();
+      final usage = _totalUsage(modelResults);
+      return _MultiRoundToolLoopProbeOutcome(
+        result: LiveLlmDiagnosticProbeResult(
+          id: _multiRoundToolLoopProbeId,
+          status: status,
+          summary: summary,
+          details: details,
+          modelContent: _preview(modelContent),
+          toolCalls: List.unmodifiable(observedToolNames),
+          usage: usage,
+          passedChecks: passedChecks,
+          totalChecks: totalChecks,
+        ),
+        metrics: LiveLlmDiagnosticMultiRoundToolLoopMetrics(
+          totalElapsed: stopwatch.elapsed,
+          modelTurnCount: modelResults.length,
+          toolCallCount: toolCallCount,
+          successfulToolExecutionCount: successfulToolExecutionCount,
+          promptTokens: usage.promptTokens,
+          completionTokens: usage.completionTokens,
+          taskCompleted: status == LiveLlmDiagnosticStatus.passed,
+        ),
+      );
+    }
+
+    if (service == null || searchTool == null || dateTool == null) {
+      return finish(
+        status: LiveLlmDiagnosticStatus.skipped,
+        summary: 'The sequential local tools are not available.',
+      );
+    }
+
+    final messages = _messages(
+      user:
+          'Find the available tool that reports the current date and timezone, '
+          'use it, then return JSON with marker="$_multiRoundToolLoopMarker", '
+          'today copied from relative_dates.today, and timezone copied from '
+          'the datetime result.',
+    );
+    final searchRequest = await chatDataSource.createChatCompletion(
+      messages: messages,
+      // The datetime tool is intentionally absent. The model must discover it
+      // first, so a direct or parallel call cannot satisfy the probe.
+      tools: [searchTool],
+      model: _diagnosticModel,
+      temperature: _diagnosticTemperature,
+      maxTokens: _diagnosticMaxTokens,
+    );
+    modelResults.add(searchRequest);
+    final searchCalls = _toolCallsFromResult(searchRequest);
+    toolCallCount += searchCalls.length;
+    observedToolNames.addAll(searchCalls.map((call) => call.name));
+    if (searchCalls.length != 1 ||
+        searchCalls.single.name != ToolDefinitionSearchService.toolName) {
+      return finish(
+        status: LiveLlmDiagnosticStatus.failed,
+        summary: 'The first turn did not make exactly one tool_search call.',
+        details: 'Returned calls: ${observedToolNames.join(", ")}',
+        modelContent: searchRequest.content,
+      );
+    }
+
+    final searchCall = searchCalls.single;
+    final searchExecution = await service.executeTool(
+      name: searchCall.name,
+      arguments: searchCall.arguments,
+    );
+    if (!searchExecution.isSuccess) {
+      return finish(
+        status: LiveLlmDiagnosticStatus.failed,
+        summary: 'The local tool catalog search failed.',
+        details: searchExecution.errorMessage ?? searchExecution.result,
+      );
+    }
+    successfulToolExecutionCount += 1;
+    final searchResult = ToolResultInfo(
+      id: searchCall.id.isEmpty ? 'diagnostic-tool-search-call' : searchCall.id,
+      name: searchCall.name,
+      arguments: searchCall.arguments,
+      result: searchExecution.result,
+    );
+    final discovered =
+        ToolDefinitionSearchService.discoveredToolNamesFromResults([
+          searchResult,
+        ]);
+    if (!discovered.contains('get_current_datetime')) {
+      return finish(
+        status: LiveLlmDiagnosticStatus.failed,
+        summary: 'Tool search did not discover get_current_datetime.',
+        details: _preview(searchExecution.result, maxChars: 1200),
+        passedChecks: 1,
+      );
+    }
+
+    final dateRequest = await chatDataSource
+        .createChatCompletionWithToolResults(
+          messages: messages,
+          toolResults: [searchResult],
+          tools: [searchTool, dateTool],
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        );
+    modelResults.add(dateRequest);
+    final dateCalls = _toolCallsFromResult(dateRequest);
+    toolCallCount += dateCalls.length;
+    observedToolNames.addAll(dateCalls.map((call) => call.name));
+    if (dateCalls.length != 1 ||
+        dateCalls.single.name != 'get_current_datetime') {
+      return finish(
+        status: LiveLlmDiagnosticStatus.failed,
+        summary: 'The second turn did not make exactly one datetime tool call.',
+        details:
+            'Returned calls: ${dateCalls.map((call) => call.name).join(", ")}',
+        modelContent: dateRequest.content,
+        passedChecks: 1,
+      );
+    }
+
+    final dateCall = dateCalls.single;
+    final dateExecution = await service.executeTool(
+      name: dateCall.name,
+      arguments: dateCall.arguments,
+    );
+    if (!dateExecution.isSuccess) {
+      return finish(
+        status: LiveLlmDiagnosticStatus.failed,
+        summary: 'The local datetime tool failed.',
+        details: dateExecution.errorMessage ?? dateExecution.result,
+        passedChecks: 1,
+      );
+    }
+    successfulToolExecutionCount += 1;
+    final dateResult = ToolResultInfo(
+      id: dateCall.id.isEmpty ? 'diagnostic-datetime-call' : dateCall.id,
+      name: dateCall.name,
+      arguments: dateCall.arguments,
+      result: dateExecution.result,
+    );
+
+    final finalRequest = await chatDataSource
+        .createChatCompletionWithToolResults(
+          messages: messages,
+          toolResults: [dateResult],
+          tools: const <Map<String, dynamic>>[],
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        );
+    modelResults.add(finalRequest);
+    final finalCalls = _toolCallsFromResult(finalRequest);
+    toolCallCount += finalCalls.length;
+    observedToolNames.addAll(finalCalls.map((call) => call.name));
+
+    final expected = _tryDecodeJsonObject(dateExecution.result);
+    final relativeDates = expected?['relative_dates'];
+    final today = relativeDates is Map
+        ? relativeDates['today'] as String?
+        : null;
+    final timezone = expected?['timezone'] as String?;
+    final content = finalRequest.content.trim();
+    final decoded = _tryDecodeJsonObject(content);
+    final markerOk = decoded?['marker'] == _multiRoundToolLoopMarker;
+    final todayOk = today != null && decoded?['today'] == today;
+    final timezoneOk = timezone != null && decoded?['timezone'] == timezone;
+    final noExtraCalls = finalCalls.isEmpty;
+    final passed = markerOk && todayOk && timezoneOk && noExtraCalls;
+    return finish(
+      status: passed
+          ? LiveLlmDiagnosticStatus.passed
+          : LiveLlmDiagnosticStatus.warning,
+      summary: passed
+          ? 'The model completed two sequential tool rounds and the final answer.'
+          : 'The loop reached a final answer but did not preserve its contract.',
+      details: [
+        'Search discovered datetime: true',
+        'Marker copied: $markerOk',
+        'Today copied: $todayOk',
+        'Timezone copied: $timezoneOk',
+        'No extra final calls: $noExtraCalls',
+      ].join('\n'),
+      modelContent: content,
+      passedChecks:
+          2 +
+          [
+            markerOk,
+            todayOk,
+            timezoneOk,
+            noExtraCalls,
+          ].where((ok) => ok).length,
+      totalChecks: 6,
+    );
+  }
+
   Future<LiveLlmDiagnosticProbeResult> _runInitialHarnessProbe(
     _ToolCatalogContext catalog,
   ) async {
@@ -1400,12 +2143,20 @@ class LiveLlmDiagnosticService {
     if (subagentTools.isEmpty) {
       return _toolProbeUnavailable(_subagentProbeId);
     }
+    // Phrased as the delegation task production would ask for, not as a request
+    // to "emit a tool call". Measured 2026-08-11 on qwen3.6-35b-a3b-vision: the
+    // old meta-framing ("For diagnostics only, emit a spawn_subagent tool
+    // call") made the model print the argument object as message content in 5
+    // of 5 runs, while the same tools with this phrasing produce a native call
+    // and the same meta-framing with `get_current_datetime` also produces one.
+    // The probe was measuring its own wording. Nothing is executed either way —
+    // the result is only inspected — so the natural phrasing costs no safety.
     final result = await chatDataSource.createChatCompletion(
       messages: _messages(
         user:
-            'For diagnostics only, emit a spawn_subagent tool call with '
-            'background=true. The subagent prompt should ask it to summarize '
-            'the marker "$_subagentMarker". Do not answer in text.',
+            'Delegate a sub-task to a subagent and run it in the background so '
+            'you get a task id immediately: it should summarize the marker '
+            '"$_subagentMarker". Do not answer in text.',
       ),
       tools: subagentTools,
       model: _diagnosticModel,
@@ -1703,6 +2454,39 @@ class LiveLlmDiagnosticService {
     }
     return false;
   }
+}
+
+class _StreamingProbeOutcome {
+  const _StreamingProbeOutcome({required this.result, required this.metrics});
+
+  final LiveLlmDiagnosticProbeResult result;
+  final LiveLlmDiagnosticStreamingMetrics metrics;
+}
+
+class _MultiRoundToolLoopProbeOutcome {
+  const _MultiRoundToolLoopProbeOutcome({
+    required this.result,
+    required this.metrics,
+  });
+
+  final LiveLlmDiagnosticProbeResult result;
+  final LiveLlmDiagnosticMultiRoundToolLoopMetrics metrics;
+}
+
+class _VisionProbeArm {
+  const _VisionProbeArm({
+    required this.content,
+    required this.matchedColors,
+    this.result,
+    this.rejected = false,
+    this.error = '',
+  });
+
+  final ChatCompletionResult? result;
+  final String content;
+  final int matchedColors;
+  final bool rejected;
+  final String error;
 }
 
 class _ToolCatalogContext {

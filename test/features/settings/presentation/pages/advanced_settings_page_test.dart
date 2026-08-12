@@ -5,6 +5,7 @@ import 'package:caverno/core/services/macos_update_service.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/pages/advanced_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/debug_settings_page.dart';
+import 'package:caverno/features/settings/presentation/pages/live_llm_diagnostic_page.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -69,10 +70,33 @@ void main() {
 
     expect(find.byType(DebugSettingsPage), findsOneWidget);
     expect(find.text('Debug'), findsAtLeastNWidgets(1));
-    expect(find.text('macOS Updates'), findsOneWidget);
-    expect(find.text('Live LLM Diagnostics'), findsOneWidget);
     expect(find.text('Computer Use Smoke Sequence'), findsOneWidget);
     expect(find.text('Save LLM session logs'), findsOneWidget);
+    // Promoted out of Debug: macOS updates now live in General settings and
+    // Live LLM Diagnostics in Advanced settings.
+    expect(find.text('macOS Updates'), findsNothing);
+    expect(find.text('Live LLM Diagnostics'), findsNothing);
+  });
+
+  testWidgets('opens Live LLM Diagnostics from Advanced settings', (
+    tester,
+  ) async {
+    final prefs = await _setUpPreferences();
+    await _pumpPage(
+      tester,
+      prefs,
+      computerUseBuilder: (_) =>
+          const Scaffold(body: Center(child: Text('Computer Use destination'))),
+    );
+
+    expect(find.text('Live LLM Diagnostics'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('settings-menu-live-llm-diagnostics')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LiveLlmDiagnosticPage), findsOneWidget);
   });
 
   testWidgets('toggles LLM session logs from Debug settings', (tester) async {

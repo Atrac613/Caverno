@@ -253,7 +253,7 @@ bash tool/build_macos_sparkle_release.sh \
 Open Caverno and use:
 
 ```text
-Settings > Advanced > Debug > macOS Updates
+Settings > General > App Updates
 ```
 
 The row shows whether Sparkle is configured for the current build. The manual
