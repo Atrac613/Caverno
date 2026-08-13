@@ -90,6 +90,9 @@ $criteria
 
 ## Grounded evidence
 $groundedEvidence
+
+Treat explicit evidence limitations as hard constraints. Never infer that an
+external resource does not exist merely because local files do not mention it.
 '''
         .trimRight();
   }
@@ -142,7 +145,8 @@ Act as a rubric judge, not a verifier. Rank the candidate answers against the
 criteria and grounded evidence. Give special attention to concrete
 contradictions: disagreement is the most useful signal from independent
 candidates. Do not penalize a candidate merely because its endpoint could not
-enable hidden thinking.
+enable hidden thinking. Reject conclusions that contradict an explicit evidence
+limitation, including claims about an unverified external resource.
 
 Question:
 $question
@@ -221,7 +225,9 @@ Use the candidate indices shown above.
 Write the final answer to the original user question. The internal frame,
 evidence, candidates, and critique below are hidden working material. Do not
 describe the pipeline. Resolve contradictions when the evidence supports a
-choice; otherwise state the uncertainty plainly. Use tools only if one final
+choice; otherwise state the uncertainty plainly. Treat explicit evidence
+limitations as hard constraints, and never turn a local search miss into a
+claim that an external resource does not exist. Use tools only if one final
 read-only fact is essential.
 
 $partialNotice

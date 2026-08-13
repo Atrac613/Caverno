@@ -67,6 +67,13 @@ Model preamble.
       expect(prefix, isNot(contains('Focus on correctness.')));
       expect(prefix, isNot(contains('Focus on operational risk.')));
       expect(
+        prefix,
+        allOf(
+          contains('Treat explicit evidence limitations as hard constraints'),
+          contains('external resource does not exist merely because'),
+        ),
+      );
+      expect(
         correctnessPrompt.indexOf('## Candidate assignment'),
         prefix.length + 2,
       );

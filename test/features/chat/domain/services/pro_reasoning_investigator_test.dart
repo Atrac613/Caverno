@@ -123,6 +123,78 @@ void main() {
       expect(evidence, contains('supported behavior'));
     },
   );
+
+  test(
+    'marks linked sources unverified when web tools are unavailable',
+    () async {
+      final dataSource = _ScriptedInvestigationDataSource([
+        ChatCompletionResult(
+          content: 'No matching local files were found.',
+          finishReason: 'stop',
+        ),
+      ]);
+      final now = DateTime.utc(2026, 8, 13, 10);
+
+      final evidence = await ProReasoningInvestigator(clock: () => now)
+          .investigate(
+            dataSource: dataSource,
+            model: 'research-model',
+            question: 'Inspect https://example.com/model.',
+            frame: const ProReasoningFrame(
+              subQuestions: ['Does the linked model exist?'],
+              investigationSteps: ['Inspect the linked model'],
+              successCriteria: ['Verify the external source'],
+              requiresInvestigation: true,
+            ),
+            maxIterations: 1,
+            deadline: now.add(const Duration(minutes: 1)),
+            isCancelled: () => false,
+            toolDefinitions: [_definition('search_files')],
+            runTool: (_) async => throw StateError('No tool call expected'),
+          );
+
+      expect(
+        dataSource.calls.single.messages.last.content,
+        contains('External source verification status: unavailable'),
+      );
+      expect(evidence, contains('Local file results cannot establish'));
+      expect(evidence, contains('No matching local files were found.'));
+    },
+  );
+
+  test(
+    'omits the linked-source limitation when web search is available',
+    () async {
+      final dataSource = _ScriptedInvestigationDataSource([
+        ChatCompletionResult(content: 'Verified.', finishReason: 'stop'),
+      ]);
+      final now = DateTime.utc(2026, 8, 13, 10);
+
+      final evidence = await ProReasoningInvestigator(clock: () => now)
+          .investigate(
+            dataSource: dataSource,
+            model: 'research-model',
+            question: 'Inspect https://example.com/model.',
+            frame: const ProReasoningFrame(
+              subQuestions: ['Does the linked model exist?'],
+              investigationSteps: ['Inspect the linked model'],
+              successCriteria: ['Verify the external source'],
+              requiresInvestigation: true,
+            ),
+            maxIterations: 1,
+            deadline: now.add(const Duration(minutes: 1)),
+            isCancelled: () => false,
+            toolDefinitions: [_definition('web_search')],
+            runTool: (_) async => throw StateError('No tool call expected'),
+          );
+
+      expect(
+        dataSource.calls.single.messages.last.content,
+        isNot(contains('External source verification status: unavailable')),
+      );
+      expect(evidence, isNot(contains('Local file results cannot establish')));
+    },
+  );
 }
 
 Map<String, dynamic> _definition(String name, {bool external = false}) => {

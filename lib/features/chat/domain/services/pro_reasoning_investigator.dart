@@ -49,6 +49,12 @@ final class ProReasoningInvestigator {
     'list_directory',
   };
 
+  static const _externalVerificationUnavailable =
+      'External source verification status: unavailable. The question '
+      'contains an external URL, but no web_search or web_url_read tool is '
+      'available. Local file results cannot establish whether the linked '
+      'resource exists or what it contains. Treat those claims as unverified.';
+
   List<Map<String, dynamic>> readOnlyDefinitions(
     List<Map<String, dynamic>> definitions,
   ) {
@@ -76,6 +82,9 @@ final class ProReasoningInvestigator {
     ProReasoningInvestigationCallObserver? onLlmCall,
   }) async {
     final tools = readOnlyDefinitions(toolDefinitions);
+    final externalVerificationUnavailable =
+        _containsExternalUrl(question) &&
+        !_containsAnyDefinition(tools, const {'web_search', 'web_url_read'});
     final now = _clock();
     final messages = <Message>[
       Message(
@@ -90,13 +99,18 @@ final class ProReasoningInvestigator {
         id: 'pro_reasoning_investigation_user',
         role: MessageRole.user,
         timestamp: now,
-        content: promptBuilder.buildInvestigationPrompt(
-          question: question,
-          frame: frame,
-        ),
+        content: [
+          promptBuilder.buildInvestigationPrompt(
+            question: question,
+            frame: frame,
+          ),
+          if (externalVerificationUnavailable) _externalVerificationUnavailable,
+        ].join('\n\n'),
       ),
     ];
-    final evidence = <String>[];
+    final evidence = <String>[
+      if (externalVerificationUnavailable) _externalVerificationUnavailable,
+    ];
     final iterations = maxIterations < 0 ? 0 : maxIterations;
 
     for (var iteration = 0; iteration < iterations; iteration++) {
@@ -213,6 +227,16 @@ final class ProReasoningInvestigator {
     List<Map<String, dynamic>> definitions,
     String name,
   ) => definitions.any((definition) => _definitionName(definition) == name);
+
+  bool _containsAnyDefinition(
+    List<Map<String, dynamic>> definitions,
+    Set<String> names,
+  ) => definitions.any(
+    (definition) => names.contains(_definitionName(definition)),
+  );
+
+  bool _containsExternalUrl(String value) =>
+      RegExp(r'https?://[^\s<>()]+', caseSensitive: false).hasMatch(value);
 
   String _definitionName(Map<String, dynamic> definition) {
     final function = definition['function'];
