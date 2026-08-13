@@ -194,8 +194,43 @@ void main() {
 
         expect(result.reasoning, contains('Still working'));
         expect(result.hasUsableContent, isFalse);
+        expect(result.isTruncated, isTrue);
+        expect(result.hasCompleteUsableContent, isFalse);
         expect(result.exhaustedBudgetInReasoning, isTrue);
       },
     );
+
+    test('rejects partial visible content from a truncated result', () {
+      final result = SlotChatResult.fromResponseJson({
+        'choices': [
+          {
+            'message': {
+              'content': 'A table that ends halfway through |',
+              'reasoning_content': 'Finished planning the answer.',
+            },
+            'finish_reason': ' LENGTH ',
+          },
+        ],
+      });
+
+      expect(result.hasUsableContent, isTrue);
+      expect(result.isTruncated, isTrue);
+      expect(result.hasCompleteUsableContent, isFalse);
+      expect(result.exhaustedBudgetInReasoning, isFalse);
+    });
+
+    test('accepts visible content from a normally completed result', () {
+      final result = SlotChatResult.fromResponseJson({
+        'choices': [
+          {
+            'message': {'content': 'Complete answer.'},
+            'finish_reason': 'stop',
+          },
+        ],
+      });
+
+      expect(result.isTruncated, isFalse);
+      expect(result.hasCompleteUsableContent, isTrue);
+    });
   });
 }

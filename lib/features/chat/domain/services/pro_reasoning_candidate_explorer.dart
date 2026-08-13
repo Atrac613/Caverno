@@ -236,7 +236,7 @@ final class ProReasoningCandidateExplorer {
           );
           final candidateOutcome = outcome.single;
           final result = candidateOutcome.result;
-          if (result != null && result.hasUsableContent) {
+          if (result != null && result.hasCompleteUsableContent) {
             candidates.add(_toCandidate(probe, hostAssignments[index], result));
           }
           if (candidateOutcome.error is ProReasoningCandidateSkippedException) {
@@ -316,7 +316,7 @@ final class ProReasoningCandidateExplorer {
             maxTokens = budget;
           },
         );
-        if (!result.hasUsableContent) {
+        if (!result.hasCompleteUsableContent) {
           return (null, _clock().difference(startedAt));
         }
         return (
@@ -400,9 +400,7 @@ final class ProReasoningCandidateExplorer {
       slotId: slotId,
       maxTokens: _candidateMaxTokens,
     );
-    if (!initial.exhaustedBudgetInReasoning ||
-        isCancelled() ||
-        !_clock().isBefore(deadline)) {
+    if (!initial.isTruncated || isCancelled() || !_clock().isBefore(deadline)) {
       return initial;
     }
 

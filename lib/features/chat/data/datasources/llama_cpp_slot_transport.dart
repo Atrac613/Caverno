@@ -86,10 +86,12 @@ class SlotChatResult {
 
   bool get hasUsableContent => content.trim().isNotEmpty;
 
+  bool get isTruncated => finishReason?.trim().toLowerCase() == 'length';
+
+  bool get hasCompleteUsableContent => hasUsableContent && !isTruncated;
+
   bool get exhaustedBudgetInReasoning =>
-      !hasUsableContent &&
-      reasoning.trim().isNotEmpty &&
-      finishReason?.toLowerCase() == 'length';
+      !hasUsableContent && reasoning.trim().isNotEmpty && isTruncated;
 
   /// The slot the server actually served. llama.cpp echoes `id_slot`; when it
   /// does not, this falls back to the requested slot.

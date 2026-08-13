@@ -400,6 +400,48 @@ void main() {
     expect(observedAttempts, [(count: 2, maxTokens: 6000)]);
   });
 
+  test('retries partial visible content after a length result', () async {
+    final host = await _CandidateServer.start(
+      'host-a',
+      exhaustedCandidateAttempts: 1,
+      partialExhaustedCandidateContent: true,
+    );
+    addTearDown(host.close);
+    final explorer = ProReasoningCandidateExplorer(
+      endpoints: [_target('a', 'Host A', host.baseUrl)],
+    );
+
+    final result = await explorer.explore(
+      ProReasoningExploreRequest(
+        question: 'Choose a deployment strategy.',
+        frame: const ProReasoningFrame(
+          subQuestions: ['Correctness'],
+          investigationSteps: [],
+          successCriteria: ['Ground claims'],
+          requiresInvestigation: false,
+        ),
+        evidence: 'Measured evidence.',
+        candidateCount: 1,
+        deadline: DateTime.now().add(const Duration(seconds: 5)),
+        isCancelled: () => false,
+        onProgress:
+            ({
+              required completed,
+              required requested,
+              required endpointLabels,
+            }) {},
+      ),
+    );
+
+    expect(host.requests.map((request) => request['max_tokens']), [
+      32,
+      3000,
+      6000,
+    ]);
+    expect(result.candidates, hasLength(1));
+    expect(result.candidates.single.answer, contains('host-a answer'));
+  });
+
   test('drops a candidate after one exhausted-budget retry', () async {
     final host = await _CandidateServer.start(
       'host-a',
@@ -440,6 +482,47 @@ void main() {
     expect(result.candidates, isEmpty);
     expect(result.attemptedCandidateCount, 1);
   });
+
+  test('drops partial visible content after a second length result', () async {
+    final host = await _CandidateServer.start(
+      'host-a',
+      exhaustedCandidateAttempts: 2,
+      partialExhaustedCandidateContent: true,
+    );
+    addTearDown(host.close);
+    final explorer = ProReasoningCandidateExplorer(
+      endpoints: [_target('a', 'Host A', host.baseUrl)],
+    );
+
+    final result = await explorer.explore(
+      ProReasoningExploreRequest(
+        question: 'Choose a deployment strategy.',
+        frame: const ProReasoningFrame(
+          subQuestions: ['Correctness'],
+          investigationSteps: [],
+          successCriteria: ['Ground claims'],
+          requiresInvestigation: false,
+        ),
+        evidence: 'Measured evidence.',
+        candidateCount: 1,
+        deadline: DateTime.now().add(const Duration(seconds: 5)),
+        isCancelled: () => false,
+        onProgress:
+            ({
+              required completed,
+              required requested,
+              required endpointLabels,
+            }) {},
+      ),
+    );
+
+    expect(host.requests.map((request) => request['max_tokens']), [
+      32,
+      3000,
+      6000,
+    ]);
+    expect(result.candidates, isEmpty);
+  });
 }
 
 ProReasoningEndpointTarget _target(String id, String label, String baseUrl) =>
@@ -459,6 +542,7 @@ final class _CandidateServer {
     this.slotsSupported,
     this.modelState,
     this._remainingExhaustedCandidateAttempts,
+    this.partialExhaustedCandidateContent,
   );
 
   final HttpServer server;
@@ -467,6 +551,7 @@ final class _CandidateServer {
   final bool slotsSupported;
   final String modelState;
   int _remainingExhaustedCandidateAttempts;
+  final bool partialExhaustedCandidateContent;
   final List<Map<String, dynamic>> requests = [];
   final List<String> getPaths = [];
   final Completer<void> _releaseHeldRequest = Completer<void>();
@@ -482,6 +567,7 @@ final class _CandidateServer {
     bool slotsSupported = true,
     String modelState = 'loaded',
     int exhaustedCandidateAttempts = 0,
+    bool partialExhaustedCandidateContent = false,
   }) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final fixture = _CandidateServer._(
@@ -491,6 +577,7 @@ final class _CandidateServer {
       slotsSupported,
       modelState,
       exhaustedCandidateAttempts,
+      partialExhaustedCandidateContent,
     );
     fixture._subscription = server.listen(
       (request) => unawaited(fixture._handle(request)),
@@ -547,7 +634,9 @@ final class _CandidateServer {
             {
               'message': {
                 'content': exhaustCandidate
-                    ? ''
+                    ? partialExhaustedCandidateContent
+                          ? '$label partial answer |'
+                          : ''
                     : '$label answer ${body['seed']}',
                 'reasoning_content': '$label reasoning',
               },
