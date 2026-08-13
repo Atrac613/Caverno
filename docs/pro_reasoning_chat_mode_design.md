@@ -504,10 +504,10 @@ ratchets green.
    one conversation ID, Pro usage attribution, and no stage errors. The
    single-host repeat completed in 82.505 s with both candidates serialized on
    the one surviving endpoint. The runner now also includes a
-   `selected_endpoint` scenario that selects the secondary endpoint with
-   `selectedOnly` routing and verifies every candidate request uses only that
-   endpoint and its configured model; this added scenario still requires a live
-   consent-gated run.
+   `selected_endpoint` scenario passed 2026-08-13 against x.ai. The 95.615 s
+   run selected the secondary endpoint with `selectedOnly` routing, produced two
+   candidates exclusively on `grok-4.5`, completed all five stages, and recorded
+   no stage errors.
 5. **Live cancel canary passed 2026-08-13.** Stop was requested after the warm
    candidate while candidate 2 was in flight. The run attempted two candidates,
    retained one, skipped critique, and completed partial synthesis in 53.205 s
@@ -522,6 +522,8 @@ Live artifacts:
 
 - `build/integration_test_reports/pro_reasoning_live_canary_1786589936/`
   (multi-host).
+- `build/integration_test_reports/pro_reasoning_live_canary_1786620048/`
+  (selected x.ai endpoint only).
 - `build/integration_test_reports/pro_reasoning_live_canary_1786590203/`
   (single-host and cancellation).
 - `build/integration_test_reports/pro_reasoning_live_canary_1786590412/`
