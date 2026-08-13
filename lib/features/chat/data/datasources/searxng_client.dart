@@ -65,31 +65,26 @@ class SearxngClient {
     required String query,
     int maxResults = 5,
   }) async {
-    try {
-      final result = await search(query: query, maxResults: maxResults);
+    final result = await search(query: query, maxResults: maxResults);
 
-      if (result.results.isEmpty) {
-        return 'No search results found.';
-      }
-
-      final buffer = StringBuffer();
-      buffer.writeln('Search results for "$query":\n');
-
-      for (var i = 0; i < result.results.length; i++) {
-        final r = result.results[i];
-        buffer.writeln('${i + 1}. ${r.title}');
-        buffer.writeln('   URL: ${r.url}');
-        if (r.content.isNotEmpty) {
-          buffer.writeln('   ${r.content}');
-        }
-        buffer.writeln();
-      }
-
-      return buffer.toString();
-    } catch (e) {
-      appLog('[SearXNG] Error: $e');
-      return 'Search error: $e';
+    if (result.results.isEmpty) {
+      return 'No search results found.';
     }
+
+    final buffer = StringBuffer();
+    buffer.writeln('Search results for "$query":\n');
+
+    for (var i = 0; i < result.results.length; i++) {
+      final r = result.results[i];
+      buffer.writeln('${i + 1}. ${r.title}');
+      buffer.writeln('   URL: ${r.url}');
+      if (r.content.isNotEmpty) {
+        buffer.writeln('   ${r.content}');
+      }
+      buffer.writeln();
+    }
+
+    return buffer.toString();
   }
 }
 

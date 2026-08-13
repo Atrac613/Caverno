@@ -66,5 +66,25 @@ void main() {
 
       expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
     });
+
+    test('text search propagates an HTTP failure', () async {
+      serverSub = server.listen((request) async {
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
+      });
+
+      final client = SearxngClient(baseUrl: baseUrl);
+
+      await expectLater(
+        client.searchAsText(query: 'missing model'),
+        throwsA(
+          isA<Exception>().having(
+            (error) => error.toString(),
+            'message',
+            contains('SearXNG search failed: 404'),
+          ),
+        ),
+      );
+    });
   });
 }

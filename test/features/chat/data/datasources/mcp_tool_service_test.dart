@@ -3215,6 +3215,30 @@ BuildVersion: 23F79
       expect(names, contains('web_search'));
     });
 
+    test('reports a SearXNG HTTP failure as a failed tool result', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final subscription = server.listen((request) async {
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
+      });
+      addTearDown(subscription.cancel);
+      final service = McpToolService(
+        searxngClient: SearxngClient(
+          baseUrl: 'http://${server.address.host}:${server.port}',
+        ),
+      );
+
+      final result = await service.executeTool(
+        name: 'web_search',
+        arguments: const {'query': 'missing model'},
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(result.result, isEmpty);
+      expect(result.errorMessage, contains('SearXNG search failed: 404'));
+    });
+
     test('does not duplicate a remote canonical web search tool', () async {
       final service = McpToolService(
         mcpClients: [
