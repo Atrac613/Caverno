@@ -132,6 +132,31 @@ void main() {
     );
   });
 
+  test(
+    'legacy Pro endpoint pins default candidate routing to selected only',
+    () {
+      final legacy =
+          jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
+                as Map<String, dynamic>
+            ..remove('proReasoningCandidateRouting')
+            ..['proReasoningEndpointId'] = 'reasoning-endpoint';
+
+      final migrated = AppSettings.fromJson(legacy);
+
+      expect(
+        migrated.proReasoningCandidateRouting,
+        ProReasoningCandidateRouting.selectedOnly,
+      );
+
+      legacy['proReasoningCandidateRouting'] = 'mesh';
+      final explicitMesh = AppSettings.fromJson(legacy);
+      expect(
+        explicitMesh.proReasoningCandidateRouting,
+        ProReasoningCandidateRouting.mesh,
+      );
+    },
+  );
+
   test('defaults and persists semantic search settings', () {
     expect(AppSettings.defaults().enableSemanticSearch, isFalse);
     expect(AppSettings.defaults().embeddingsModel, '');

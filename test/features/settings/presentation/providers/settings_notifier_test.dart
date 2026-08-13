@@ -468,6 +468,39 @@ void main() {
   });
 
   test(
+    'selecting a Pro endpoint defaults candidates to that endpoint',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(settingsNotifierProvider.notifier);
+      await notifier.updateProReasoningCandidateRouting(
+        ProReasoningCandidateRouting.mesh,
+      );
+      await notifier.updateProReasoningEndpointId(' reasoning-endpoint ');
+
+      final settings = container.read(settingsNotifierProvider);
+      expect(settings.proReasoningEndpointId, 'reasoning-endpoint');
+      expect(
+        settings.proReasoningCandidateRouting,
+        ProReasoningCandidateRouting.selectedOnly,
+      );
+
+      await notifier.updateProReasoningCandidateRouting(
+        ProReasoningCandidateRouting.mesh,
+      );
+      expect(
+        container.read(settingsNotifierProvider).proReasoningCandidateRouting,
+        ProReasoningCandidateRouting.mesh,
+      );
+    },
+  );
+
+  test(
     'prefix-stable tool loop setting persists through the repository',
     () async {
       SharedPreferences.setMockInitialValues({});

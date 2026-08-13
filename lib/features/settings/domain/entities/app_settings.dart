@@ -1161,7 +1161,21 @@ abstract class AppSettings with _$AppSettings {
   static Map<String, dynamic> migrateLegacyJson(Map<String, dynamic> json) {
     var migrated = _migrateApprovalMode(json);
     migrated = _migrateUnifiedEndpoints(migrated);
+    migrated = _migrateProReasoningCandidateRouting(migrated);
     return migrated;
+  }
+
+  static Map<String, dynamic> _migrateProReasoningCandidateRouting(
+    Map<String, dynamic> json,
+  ) {
+    if (json.containsKey('proReasoningCandidateRouting')) return json;
+    final endpointId = json['proReasoningEndpointId']?.toString().trim() ?? '';
+    if (endpointId.isEmpty) return json;
+    return <String, dynamic>{
+      ...json,
+      'proReasoningCandidateRouting':
+          ProReasoningCandidateRouting.selectedOnly.name,
+    };
   }
 
   static Map<String, dynamic> _migrateApprovalMode(Map<String, dynamic> json) {

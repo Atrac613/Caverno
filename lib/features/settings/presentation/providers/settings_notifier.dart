@@ -310,7 +310,13 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> updateProReasoningEndpointId(String endpointId) async {
-    state = state.copyWith(proReasoningEndpointId: endpointId.trim());
+    final normalizedEndpointId = endpointId.trim();
+    state = state.copyWith(
+      proReasoningEndpointId: normalizedEndpointId,
+      proReasoningCandidateRouting: normalizedEndpointId.isEmpty
+          ? state.proReasoningCandidateRouting
+          : ProReasoningCandidateRouting.selectedOnly,
+    );
     await _repository.save(state);
   }
 
