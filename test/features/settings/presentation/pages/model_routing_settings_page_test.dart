@@ -143,12 +143,11 @@ void main() {
     await tester.tap(find.text('Reasoning host').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.byKey(const ValueKey('routing-pro-reasoning-candidates')),
+    expect(
+      find.text('Selected endpoint only'),
+      findsOneWidget,
+      reason: 'the automatic routing change must be visible immediately',
     );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Selected endpoint only').last);
-    await tester.pumpAndSettle();
 
     final element = tester.element(find.byType(ModelRoutingSettingsPage));
     final container = ProviderScope.containerOf(element);
