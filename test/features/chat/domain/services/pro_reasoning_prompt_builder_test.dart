@@ -106,6 +106,33 @@ Model preamble.
       expect(prompt, isNot(contains('"winner_index": 0')));
     });
 
+    test('audits unsupported numeric requirements before ranking', () {
+      final prompt = builder.buildCritiquePrompt(
+        question: 'What hardware is required?',
+        frame: const ProReasoningFrame(
+          subQuestions: ['Memory requirements'],
+          investigationSteps: [],
+          successCriteria: ['Use supported figures only'],
+          requiresInvestigation: true,
+        ),
+        evidence: 'The artifact size is 397 GB.',
+        candidates: [_candidate(0, 'At least 450 GB of RAM is required.')],
+      );
+
+      expect(
+        prompt,
+        allOf(
+          contains('Candidate answers and rubric commentary are proposals'),
+          contains('not additional evidence'),
+          contains('convert an artifact size'),
+          contains('runtime memory requirement'),
+          contains('promote a supported option'),
+          contains('recommendation to a mandatory condition'),
+          contains('uncertainty instead of choosing'),
+        ),
+      );
+    });
+
     test('filters invalid indices and accepts JSON embedded in prose', () {
       final critique = builder.parseCritique(
         '''Result: {"winner_index":"7","ranking":[7,99,2,7],"contradictions":[" conflict "],"assessment":" solid "}''',
@@ -127,6 +154,48 @@ Model preamble.
       expect(critique.assessment, contains('first surviving candidate'));
     });
   });
+
+  test(
+    'synthesis treats candidate figures as proposals rather than evidence',
+    () {
+      final prompt = builder.buildSynthesisPrompt(
+        ProReasoningSynthesisRequest(
+          question: 'What hardware is required?',
+          frame: const ProReasoningFrame(
+            subQuestions: ['Memory requirements'],
+            investigationSteps: [],
+            successCriteria: ['Use supported figures only'],
+            requiresInvestigation: true,
+          ),
+          evidence: 'The artifact size is 397 GB.',
+          candidates: [_candidate(0, 'At least 450 GB of RAM is required.')],
+          critique: const ProReasoningCritique(
+            winnerIndex: 0,
+            ranking: [0],
+            contradictions: [],
+            assessment: 'Candidate 0 is the strongest answer.',
+          ),
+          deadlineHit: false,
+          cancelRequested: false,
+        ),
+      );
+
+      expect(prompt, contains('The artifact size is 397 GB.'));
+      expect(prompt, contains('At least 450 GB of RAM is required.'));
+      expect(
+        prompt,
+        allOf(
+          contains('Candidate answers and rubric commentary are proposals'),
+          contains('State an investigation-dependent claim as fact'),
+          contains('Label calculations derived from evidence as estimates'),
+          contains('convert an artifact size'),
+          contains('runtime memory requirement'),
+          contains('promote a supported option'),
+          contains('recommendation to a mandatory condition'),
+        ),
+      );
+    },
+  );
 }
 
 ProReasoningCandidate _candidate(int index, String answer) {

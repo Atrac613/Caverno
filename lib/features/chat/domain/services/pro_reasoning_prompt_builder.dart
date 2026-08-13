@@ -5,6 +5,18 @@ import 'pro_reasoning_models.dart';
 final class ProReasoningPromptBuilder {
   const ProReasoningPromptBuilder();
 
+  static const _claimGroundingRules = '''
+When grounded evidence is present, audit every concrete factual claim,
+especially numbers, software versions, and minimum or recommended requirements.
+Candidate answers and rubric commentary are proposals, not additional evidence.
+State an investigation-dependent claim as fact only when the grounded evidence
+directly supports it. Label calculations derived from evidence as estimates and
+show their inputs. Never silently add a safety margin, convert an artifact size
+into a runtime memory requirement, or promote a supported option or
+recommendation to a mandatory condition. When sources conflict or omit a value,
+report that uncertainty instead of choosing or inventing a precise value.
+''';
+
   String buildFramePrompt(String question) =>
       '''
 You are framing one expensive, high-quality reasoning run. Decompose the user
@@ -154,6 +166,8 @@ candidates. Do not penalize a candidate merely because its endpoint could not
 enable hidden thinking. Reject conclusions that contradict an explicit evidence
 limitation, including claims about an unverified external resource.
 
+$_claimGroundingRules
+
 Question:
 $question
 
@@ -235,6 +249,8 @@ choice; otherwise state the uncertainty plainly. Treat explicit evidence
 limitations as hard constraints, and never turn a local search miss into a
 claim that an external resource does not exist. Use tools only if one final
 read-only fact is essential.
+
+$_claimGroundingRules
 
 $partialNotice
 
