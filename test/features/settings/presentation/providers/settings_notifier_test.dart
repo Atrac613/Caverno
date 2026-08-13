@@ -440,18 +440,29 @@ void main() {
     final notifier = container.read(settingsNotifierProvider.notifier);
     await notifier.updateProReasoningEnabled(true);
     await notifier.updateProReasoningDepth(ProReasoningDepth.max);
+    await notifier.updateProReasoningCandidateRouting(
+      ProReasoningCandidateRouting.selectedOnly,
+    );
     await notifier.updateProReasoningModel(' reasoning-model ');
     await notifier.updateProReasoningEndpointId(' reasoning-endpoint ');
 
     final settings = container.read(settingsNotifierProvider);
     expect(settings.proReasoningEnabled, isTrue);
     expect(settings.proReasoningDepth, ProReasoningDepth.max);
+    expect(
+      settings.proReasoningCandidateRouting,
+      ProReasoningCandidateRouting.selectedOnly,
+    );
     expect(settings.proReasoningModel, 'reasoning-model');
     expect(settings.proReasoningEndpointId, 'reasoning-endpoint');
 
     final reloaded = SettingsRepository(prefs).load();
     expect(reloaded.proReasoningEnabled, isTrue);
     expect(reloaded.proReasoningDepth, ProReasoningDepth.max);
+    expect(
+      reloaded.proReasoningCandidateRouting,
+      ProReasoningCandidateRouting.selectedOnly,
+    );
     expect(reloaded.proReasoningModel, 'reasoning-model');
     expect(reloaded.proReasoningEndpointId, 'reasoning-endpoint');
   });

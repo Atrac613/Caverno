@@ -495,6 +495,13 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
         unknownValue: ProReasoningDepth.deep,
       ) ??
       ProReasoningDepth.deep,
+  proReasoningCandidateRouting:
+      $enumDecodeNullable(
+        _$ProReasoningCandidateRoutingEnumMap,
+        json['proReasoningCandidateRouting'],
+        unknownValue: ProReasoningCandidateRouting.mesh,
+      ) ??
+      ProReasoningCandidateRouting.mesh,
   generalPrimaryModel: json['generalPrimaryModel'] as String? ?? '',
   codingPrimaryModel: json['codingPrimaryModel'] as String? ?? '',
   planPrimaryModel: json['planPrimaryModel'] as String? ?? '',
@@ -655,6 +662,9 @@ Map<String, dynamic> _$AppSettingsToJson(
       _$ReasoningEffortPreferenceEnumMap[instance.reasoningEffort]!,
   'proReasoningEnabled': instance.proReasoningEnabled,
   'proReasoningDepth': _$ProReasoningDepthEnumMap[instance.proReasoningDepth]!,
+  'proReasoningCandidateRouting':
+      _$ProReasoningCandidateRoutingEnumMap[instance
+          .proReasoningCandidateRouting]!,
   'generalPrimaryModel': instance.generalPrimaryModel,
   'codingPrimaryModel': instance.codingPrimaryModel,
   'planPrimaryModel': instance.planPrimaryModel,
@@ -746,6 +756,11 @@ const _$ProReasoningDepthEnumMap = {
   ProReasoningDepth.standard: 'standard',
   ProReasoningDepth.deep: 'deep',
   ProReasoningDepth.max: 'max',
+};
+
+const _$ProReasoningCandidateRoutingEnumMap = {
+  ProReasoningCandidateRouting.mesh: 'mesh',
+  ProReasoningCandidateRouting.selectedOnly: 'selectedOnly',
 };
 
 const _$AssistantModeEnumMap = {

@@ -237,10 +237,61 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             enabled: !isAppleProvider,
             onChanged: notifier.updateProReasoningEndpointId,
           ),
+          const SizedBox(height: 8),
+          _ProReasoningCandidateRoutingDropdown(
+            value: settings.proReasoningCandidateRouting,
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateProReasoningCandidateRouting,
+          ),
         ],
       ),
     );
   }
+}
+
+class _ProReasoningCandidateRoutingDropdown extends StatelessWidget {
+  const _ProReasoningCandidateRoutingDropdown({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final ProReasoningCandidateRouting value;
+  final bool enabled;
+  final ValueChanged<ProReasoningCandidateRouting> onChanged;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) => DropdownButtonFormField<ProReasoningCandidateRouting>(
+    key: const ValueKey('routing-pro-reasoning-candidates'),
+    initialValue: value,
+    decoration: InputDecoration(
+      labelText: 'settings.model_routing_pro_reasoning_candidates'.tr(),
+      helperText: 'settings.model_routing_pro_reasoning_candidates_desc'.tr(),
+      helperMaxLines: 3,
+      border: const OutlineInputBorder(),
+      isDense: true,
+    ),
+    items: ProReasoningCandidateRouting.values
+        .map(
+          (routing) => DropdownMenuItem(
+            value: routing,
+            child: Text(switch (routing) {
+              ProReasoningCandidateRouting.mesh =>
+                'settings.model_routing_pro_reasoning_candidates_mesh'.tr(),
+              ProReasoningCandidateRouting.selectedOnly =>
+                'settings.model_routing_pro_reasoning_candidates_selected'.tr(),
+            }),
+          ),
+        )
+        .toList(growable: false),
+    onChanged: enabled
+        ? (selected) {
+            if (selected != null) onChanged(selected);
+          }
+        : null,
+  );
 }
 
 /// LL8: assigns a role's secondary calls to a registered mesh endpoint. Hidden

@@ -91,12 +91,17 @@ void main() {
     final defaults = AppSettings.defaults();
     expect(defaults.proReasoningEnabled, isFalse);
     expect(defaults.proReasoningDepth, ProReasoningDepth.deep);
+    expect(
+      defaults.proReasoningCandidateRouting,
+      ProReasoningCandidateRouting.mesh,
+    );
     expect(defaults.proReasoningModel, isEmpty);
     expect(defaults.proReasoningEndpointId, isEmpty);
 
     final settings = defaults.copyWith(
       proReasoningEnabled: true,
       proReasoningDepth: ProReasoningDepth.max,
+      proReasoningCandidateRouting: ProReasoningCandidateRouting.selectedOnly,
       proReasoningModel: 'reasoning-model',
       proReasoningEndpointId: 'reasoning-endpoint',
     );
@@ -106,6 +111,10 @@ void main() {
 
     expect(decoded.proReasoningEnabled, isTrue);
     expect(decoded.proReasoningDepth, ProReasoningDepth.max);
+    expect(
+      decoded.proReasoningCandidateRouting,
+      ProReasoningCandidateRouting.selectedOnly,
+    );
     expect(decoded.proReasoningModel, 'reasoning-model');
     expect(decoded.proReasoningEndpointId, 'reasoning-endpoint');
 
@@ -114,6 +123,13 @@ void main() {
     unknownDepthJson['proReasoningDepth'] = 'future-depth';
     final unknownDepth = AppSettings.fromJson(unknownDepthJson);
     expect(unknownDepth.proReasoningDepth, ProReasoningDepth.deep);
+
+    unknownDepthJson['proReasoningCandidateRouting'] = 'future-routing';
+    final unknownRouting = AppSettings.fromJson(unknownDepthJson);
+    expect(
+      unknownRouting.proReasoningCandidateRouting,
+      ProReasoningCandidateRouting.mesh,
+    );
   });
 
   test('defaults and persists semantic search settings', () {

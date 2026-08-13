@@ -30,6 +30,8 @@ enum ReasoningEffortPreference { automatic, low, medium, high }
 
 enum ProReasoningDepth { standard, deep, max }
 
+enum ProReasoningCandidateRouting { mesh, selectedOnly }
+
 enum LlmProvider { openAiCompatible, appleFoundationModels }
 
 enum ModelToolCallStyle { unknown, nativeToolCalls, embeddedToolTags, none }
@@ -768,6 +770,9 @@ abstract class AppSettings with _$AppSettings {
     @JsonKey(unknownEnumValue: ProReasoningDepth.deep)
     @Default(ProReasoningDepth.deep)
     ProReasoningDepth proReasoningDepth,
+    @JsonKey(unknownEnumValue: ProReasoningCandidateRouting.mesh)
+    @Default(ProReasoningCandidateRouting.mesh)
+    ProReasoningCandidateRouting proReasoningCandidateRouting,
     // LL24 primary-turn routing. Empty strings preserve the active primary
     // model and endpoint. These are deliberately separate from LL1 secondary
     // roles such as plan drafting and memory extraction.

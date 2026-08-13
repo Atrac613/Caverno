@@ -143,12 +143,23 @@ void main() {
     await tester.tap(find.text('Reasoning host').last);
     await tester.pumpAndSettle();
 
+    await tester.tap(
+      find.byKey(const ValueKey('routing-pro-reasoning-candidates')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Selected endpoint only').last);
+    await tester.pumpAndSettle();
+
     final element = tester.element(find.byType(ModelRoutingSettingsPage));
     final container = ProviderScope.containerOf(element);
     final updated = container.read(settingsNotifierProvider);
     expect(updated.proReasoningModel, 'reasoning-model');
     expect(updated.proReasoningEndpointId, 'reasoning-endpoint');
     expect(updated.effectiveProReasoningModel, 'reasoning-model');
+    expect(
+      updated.proReasoningCandidateRouting,
+      ProReasoningCandidateRouting.selectedOnly,
+    );
   });
 
   testWidgets('assigning the planning model persists it in settings', (

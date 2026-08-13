@@ -270,6 +270,13 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateProReasoningCandidateRouting(
+    ProReasoningCandidateRouting routing,
+  ) async {
+    state = state.copyWith(proReasoningCandidateRouting: routing);
+    await _repository.save(state);
+  }
+
   Future<void> updateProReasoningModel(String model) async {
     state = state.copyWith(proReasoningModel: model.trim());
     await _repository.save(state);
