@@ -5,8 +5,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/data/datasources/llama_cpp_slot_discovery.dart';
+import 'package:caverno/features/chat/domain/services/pro_reasoning_candidate_endpoint_resolver.dart';
 import 'package:caverno/features/chat/domain/services/pro_reasoning_candidate_explorer.dart';
 import 'package:caverno/features/chat/domain/services/pro_reasoning_models.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 void main() {
   test(
@@ -196,6 +198,87 @@ void main() {
       expect(progress.first.completed, 0);
       expect(progress.first.labels, ['Host A', 'Host B']);
       expect(progress.last.completed, 4);
+    },
+  );
+
+  test(
+    'selected-only resolution sends candidates only to the selected endpoint',
+    () async {
+      final primary = await _CandidateServer.start('primary-host');
+      final selected = await _CandidateServer.start('selected-host');
+      addTearDown(primary.close);
+      addTearDown(selected.close);
+      final settings = AppSettings.defaults().copyWith(
+        baseUrl: primary.baseUrl,
+        apiKey: 'primary-key',
+        model: 'primary-model',
+        llmEndpoints: [
+          LlmEndpoint(
+            id: 'primary',
+            label: 'Primary host',
+            baseUrl: primary.baseUrl,
+            apiKey: 'primary-key',
+            model: 'primary-model',
+          ),
+          LlmEndpoint(
+            id: 'selected',
+            label: 'Selected host',
+            baseUrl: selected.baseUrl,
+            apiKey: 'selected-key',
+            model: 'selected-endpoint-model',
+          ),
+        ],
+        activeLlmEndpointId: 'primary',
+        proReasoningEndpointId: 'selected',
+        proReasoningModel: 'selected-role-model',
+        proReasoningCandidateRouting: ProReasoningCandidateRouting.selectedOnly,
+      );
+      final endpoints = const ProReasoningCandidateEndpointResolver().resolve(
+        settings: settings,
+        selectedEndpointOnly:
+            settings.proReasoningCandidateRouting ==
+            ProReasoningCandidateRouting.selectedOnly,
+      );
+      final explorer = ProReasoningCandidateExplorer(endpoints: endpoints);
+
+      final result = await explorer.explore(
+        ProReasoningExploreRequest(
+          question: 'Choose a deployment strategy.',
+          frame: const ProReasoningFrame(
+            subQuestions: ['Correctness'],
+            investigationSteps: [],
+            successCriteria: ['Ground claims'],
+            requiresInvestigation: false,
+          ),
+          evidence: 'Measured evidence.',
+          candidateCount: 2,
+          deadline: DateTime.now().add(const Duration(seconds: 5)),
+          isCancelled: () => false,
+          onProgress:
+              ({
+                required completed,
+                required requested,
+                required endpointLabels,
+              }) {},
+        ),
+      );
+
+      expect(endpoints.map((endpoint) => endpoint.endpointId), ['selected']);
+      expect(primary.getPaths, isEmpty);
+      expect(primary.requests, isEmpty);
+      expect(selected.requests, hasLength(3));
+      expect(selected.requests.map((request) => request['model']).toSet(), {
+        'selected-role-model',
+      });
+      expect(result.endpointLabels, ['Selected host']);
+      expect(result.candidates, hasLength(2));
+      expect(
+        result.candidates.map((candidate) => candidate.endpointId).toSet(),
+        {'selected'},
+      );
+      expect(result.candidates.map((candidate) => candidate.model).toSet(), {
+        'selected-role-model',
+      });
     },
   );
 
