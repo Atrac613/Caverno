@@ -34,6 +34,40 @@ void main() {
     expect(definitions, hasLength(7), reason: 'the source list is not mutated');
   });
 
+  test('prefers external MCP search over the built-in web fallback', () {
+    final definitions = [
+      _definition('web_search'),
+      _definition('search_web', external: true),
+      _definition('fetch_url', external: true),
+    ];
+
+    final filtered = investigator.readOnlyDefinitions(definitions);
+
+    expect(
+      filtered.map(
+        (definition) =>
+            (definition['function'] as Map<String, dynamic>)['name'],
+      ),
+      ['search_web', 'fetch_url'],
+    );
+    expect(definitions, hasLength(3), reason: 'the source list is not mutated');
+  });
+
+  test('keeps the built-in web fallback without external MCP search', () {
+    final filtered = investigator.readOnlyDefinitions([
+      _definition('web_search'),
+      _definition('fetch_url', external: true),
+    ]);
+
+    expect(
+      filtered.map(
+        (definition) =>
+            (definition['function'] as Map<String, dynamic>)['name'],
+      ),
+      ['web_search', 'fetch_url'],
+    );
+  });
+
   test(
     'dispatches only defined read-only calls and reports denials to the LLM',
     () async {

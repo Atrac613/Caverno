@@ -61,6 +61,11 @@ final class ProReasoningInvestigator {
     'search_web',
     'searxng_web_search',
   };
+  static const _externalSearchToolNames = <String>{
+    'web_search',
+    'search_web',
+    'searxng_web_search',
+  };
   static const _externalToolNames = _allowedExternalToolNames;
   static const _maxConsecutiveExternalFailureIterations = 2;
 
@@ -78,11 +83,19 @@ final class ProReasoningInvestigator {
   List<Map<String, dynamic>> readOnlyDefinitions(
     List<Map<String, dynamic>> definitions,
   ) {
+    final hasExternalSearch = definitions.any((definition) {
+      return definition[McpToolEntity.openAiExternalToolKey] == true &&
+          _externalSearchToolNames.contains(_definitionName(definition));
+    });
     return definitions
         .where((definition) {
           final name = _definitionName(definition);
-          if (definition[McpToolEntity.openAiExternalToolKey] == true &&
-              !_allowedExternalToolNames.contains(name)) {
+          final isExternal =
+              definition[McpToolEntity.openAiExternalToolKey] == true;
+          if (hasExternalSearch && name == 'web_search' && !isExternal) {
+            return false;
+          }
+          if (isExternal && !_allowedExternalToolNames.contains(name)) {
             return false;
           }
           return allowedToolNames.contains(name);
