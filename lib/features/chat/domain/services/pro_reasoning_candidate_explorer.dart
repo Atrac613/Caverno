@@ -130,8 +130,11 @@ final class ProReasoningCandidateExplorer {
         evidence: request.evidence,
       ),
     );
-    final warmResult = firstCandidate.$1;
-    final warmDuration = firstCandidate.$2;
+    final warmResult = firstCandidate.candidate;
+    final warmDuration = firstCandidate.duration;
+    final learnedInitialMaxTokens = <String, int>{
+      probes.first.target.endpointId: firstCandidate.nextInitialMaxTokens,
+    };
     if (warmDuration > Duration.zero) {
       final remaining = request.deadline.difference(_clock());
       final additionalCapacity =
@@ -175,6 +178,9 @@ final class ProReasoningCandidateExplorer {
       ProReasoningEndpointProbe probe,
       List<_CandidateAssignment> hostAssignments,
     ) async {
+      var initialMaxTokens =
+          learnedInitialMaxTokens[probe.target.endpointId] ??
+          _candidateMaxTokens;
       final transport = LlamaCppSlotTransport(
         baseUrl: probe.target.baseUrl,
         apiKey: probe.target.apiKey,
@@ -204,11 +210,13 @@ final class ProReasoningCandidateExplorer {
                     slotId: slotId,
                     deadline: request.deadline,
                     isCancelled: request.isCancelled,
+                    initialMaxTokens: initialMaxTokens,
                     onAttempt: (attempt, budget) {
                       attemptCount = attempt;
                       maxTokens = budget;
                     },
                   );
+                  initialMaxTokens = maxTokens;
                   return result;
                 } catch (caught) {
                   error = caught;
@@ -277,7 +285,14 @@ final class ProReasoningCandidateExplorer {
     }
   }
 
-  Future<(ProReasoningCandidate?, Duration)> _runWarmCandidate({
+  Future<
+    ({
+      ProReasoningCandidate? candidate,
+      Duration duration,
+      int nextInitialMaxTokens,
+    })
+  >
+  _runWarmCandidate({
     required ProReasoningEndpointProbe probe,
     required ProReasoningExploreRequest request,
     required _CandidateAssignment assignment,
@@ -311,21 +326,31 @@ final class ProReasoningCandidateExplorer {
           slotId: slotId,
           deadline: request.deadline,
           isCancelled: request.isCancelled,
+          initialMaxTokens: _candidateMaxTokens,
           onAttempt: (attempt, budget) {
             attemptCount = attempt;
             maxTokens = budget;
           },
         );
         if (!result.hasCompleteUsableContent) {
-          return (null, _clock().difference(startedAt));
+          return (
+            candidate: null,
+            duration: _projectedCandidateDuration(result, startedAt),
+            nextInitialMaxTokens: maxTokens,
+          );
         }
         return (
-          _toCandidate(probe, assignment, result),
-          _clock().difference(startedAt),
+          candidate: _toCandidate(probe, assignment, result),
+          duration: _projectedCandidateDuration(result, startedAt),
+          nextInitialMaxTokens: maxTokens,
         );
       } catch (caught) {
         error = caught;
-        return (null, _clock().difference(startedAt));
+        return (
+          candidate: null,
+          duration: _clock().difference(startedAt),
+          nextInitialMaxTokens: maxTokens,
+        );
       } finally {
         await onCandidateCall?.call(
           target: probe.target,
@@ -389,18 +414,22 @@ final class ProReasoningCandidateExplorer {
     required int? slotId,
     required DateTime deadline,
     required bool Function() isCancelled,
+    required int initialMaxTokens,
     required void Function(int attempt, int maxTokens) onAttempt,
   }) async {
-    onAttempt(1, _candidateMaxTokens);
+    onAttempt(1, initialMaxTokens);
     final initial = await _runCandidate(
       transport: transport,
       probe: probe,
       assignment: assignment,
       sharedPrefix: sharedPrefix,
       slotId: slotId,
-      maxTokens: _candidateMaxTokens,
+      maxTokens: initialMaxTokens,
     );
-    if (!initial.isTruncated || isCancelled() || !_clock().isBefore(deadline)) {
+    if (!initial.isTruncated ||
+        initialMaxTokens >= _reasoningBudgetRecoveryMaxTokens ||
+        isCancelled() ||
+        !_clock().isBefore(deadline)) {
       return initial;
     }
 
@@ -563,6 +592,16 @@ final class ProReasoningCandidateExplorer {
     final milliseconds = result.timings?.predictedMs;
     if (milliseconds == null || milliseconds < 0) return Duration.zero;
     return Duration(microseconds: (milliseconds * 1000).round());
+  }
+
+  Duration _projectedCandidateDuration(
+    SlotChatResult result,
+    DateTime startedAt,
+  ) {
+    final finalAttemptDuration = _durationFrom(result);
+    return finalAttemptDuration > Duration.zero
+        ? finalAttemptDuration
+        : _clock().difference(startedAt);
   }
 }
 

@@ -442,6 +442,114 @@ void main() {
     expect(result.candidates.single.answer, contains('host-a answer'));
   });
 
+  test('reuses a recovered warm budget for later candidates', () async {
+    final host = await _CandidateServer.start(
+      'host-a',
+      exhaustedCandidateAttempts: 1,
+      partialExhaustedCandidateContent: true,
+    );
+    addTearDown(host.close);
+    final observedAttempts = <({int count, int maxTokens})>[];
+    final explorer = ProReasoningCandidateExplorer(
+      endpoints: [_target('a', 'Host A', host.baseUrl)],
+      onCandidateCall:
+          ({
+            required target,
+            required candidateIndex,
+            required attemptCount,
+            required maxTokens,
+            required result,
+            required error,
+            required startedAt,
+            required finishedAt,
+          }) {
+            observedAttempts.add((count: attemptCount, maxTokens: maxTokens));
+          },
+    );
+
+    final result = await explorer.explore(
+      ProReasoningExploreRequest(
+        question: 'Choose a deployment strategy.',
+        frame: const ProReasoningFrame(
+          subQuestions: ['Correctness'],
+          investigationSteps: [],
+          successCriteria: ['Ground claims'],
+          requiresInvestigation: false,
+        ),
+        evidence: 'Measured evidence.',
+        candidateCount: 2,
+        deadline: DateTime.now().add(const Duration(seconds: 5)),
+        isCancelled: () => false,
+        onProgress:
+            ({
+              required completed,
+              required requested,
+              required endpointLabels,
+            }) {},
+      ),
+    );
+
+    expect(host.requests.map((request) => request['max_tokens']), [
+      32,
+      3000,
+      6000,
+      6000,
+    ]);
+    expect(observedAttempts, [
+      (count: 2, maxTokens: 6000),
+      (count: 1, maxTokens: 6000),
+    ]);
+    expect(result.candidates, hasLength(2));
+  });
+
+  test('keeps a recovered warm budget isolated to its endpoint', () async {
+    final hostA = await _CandidateServer.start(
+      'host-a',
+      exhaustedCandidateAttempts: 1,
+      partialExhaustedCandidateContent: true,
+    );
+    final hostB = await _CandidateServer.start('host-b');
+    addTearDown(hostA.close);
+    addTearDown(hostB.close);
+    final explorer = ProReasoningCandidateExplorer(
+      endpoints: [
+        _target('a', 'Host A', hostA.baseUrl),
+        _target('b', 'Host B', hostB.baseUrl),
+      ],
+    );
+
+    final result = await explorer.explore(
+      ProReasoningExploreRequest(
+        question: 'Choose a deployment strategy.',
+        frame: const ProReasoningFrame(
+          subQuestions: ['Correctness'],
+          investigationSteps: [],
+          successCriteria: ['Ground claims'],
+          requiresInvestigation: false,
+        ),
+        evidence: 'Measured evidence.',
+        candidateCount: 3,
+        deadline: DateTime.now().add(const Duration(seconds: 5)),
+        isCancelled: () => false,
+        onProgress:
+            ({
+              required completed,
+              required requested,
+              required endpointLabels,
+            }) {},
+      ),
+    );
+
+    expect(hostA.requests.map((request) => request['max_tokens']), [
+      32,
+      3000,
+      6000,
+      6000,
+    ]);
+    expect(hostB.requests.map((request) => request['max_tokens']), [32, 3000]);
+    expect(result.candidates, hasLength(3));
+  });
+
   test('drops a candidate after one exhausted-budget retry', () async {
     final host = await _CandidateServer.start(
       'host-a',
