@@ -381,8 +381,17 @@ class McpToolService extends McpToolServiceFacadeBase {
     // Use MCP tools when connected.
     if (status == McpConnectionStatus.connected && tools.isNotEmpty) {
       toolDefinitions.addAll(tools.map((tool) => tool.toOpenAiTool()));
-    } else if (searxngClient != null) {
-      // Fallback to the fixed SearXNG tool definition.
+    }
+
+    // A connected MCP server may expose only unrelated capabilities, such as
+    // filesystem tools. Keep the configured SearXNG fallback available unless
+    // the combined catalog already contains the canonical web search tool.
+    final hasWebSearch = toolDefinitions.any(
+      (definition) =>
+          ToolDefinitionSearchService.toolNameFromDefinition(definition) ==
+          'web_search',
+    );
+    if (searxngClient != null && !hasWebSearch) {
       _addIfEnabled(toolDefinitions, _mcpToolWebSearchToolFallback);
     }
 

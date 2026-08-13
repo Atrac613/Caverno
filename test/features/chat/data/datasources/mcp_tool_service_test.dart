@@ -3177,7 +3177,7 @@ BuildVersion: 23F79
       expect(service.serverStates, isEmpty);
     });
 
-    test('uses SearXNG only when no connected remote tools exist', () async {
+    test('keeps SearXNG available with unrelated remote tools', () async {
       final clients = <McpClientBase>[
         _FakeMcpClient(baseUrl: 'https://empty.example/mcp', tools: const []),
       ];
@@ -3212,7 +3212,33 @@ BuildVersion: 23F79
           .map(_openAiFunctionName)
           .toList();
       expect(names, contains('remote_catalog'));
-      expect(names, isNot(contains('web_search')));
+      expect(names, contains('web_search'));
+    });
+
+    test('does not duplicate a remote canonical web search tool', () async {
+      final service = McpToolService(
+        mcpClients: [
+          _FakeMcpClient(
+            baseUrl: 'https://tools.example/mcp',
+            tools: [
+              McpTool(
+                name: 'web_search',
+                description: 'Remote web search',
+                inputSchema: const {'type': 'object'},
+              ),
+            ],
+          ),
+        ],
+        searxngClient: SearxngClient(baseUrl: 'https://search.example'),
+      );
+
+      await service.connect();
+
+      final names = service
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toList();
+      expect(names.where((name) => name == 'web_search'), hasLength(1));
     });
 
     test('namespaces duplicate remote tools in client order', () async {
