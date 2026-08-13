@@ -24,6 +24,7 @@ import '../../domain/services/pro_reasoning_investigator.dart';
 import '../../domain/services/pro_reasoning_models.dart';
 import '../../domain/services/pro_reasoning_prompt_builder.dart';
 import '../../domain/services/pro_reasoning_run_coordinator.dart';
+import '../../domain/services/pro_reasoning_synthesis_recovery.dart';
 import '../../domain/services/secondary_completion_router.dart';
 import 'chat_notifier.dart';
 import 'conversations_notifier.dart';
@@ -520,7 +521,7 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
       model: route.selectedModel,
       fallbackModel: route.fallbackModel,
     );
-    late String answer;
+    late Message answer;
     late String completedModel;
     try {
       answer = await _runSynthesisAttempt(
@@ -560,14 +561,15 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
     await _recordSynthesis(
       context: context,
       request: request,
-      answer: answer,
+      answer: answer.content,
+      finishReason: answer.responseMetrics?.finishReason,
       model: completedModel,
       startedAt: startedAt,
       finishedAt: finishedAt,
     );
   }
 
-  Future<String> _runSynthesisAttempt({
+  Future<Message> _runSynthesisAttempt({
     required ProReasoningSynthesisRequest request,
     required String languageCode,
     required String targetConversationId,
@@ -600,13 +602,56 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
     final answers = _conversationMessages(targetConversationId)
         .where((message) => message.role == MessageRole.assistant)
         .skip(assistantCount)
-        .map((message) => message.content.trim())
-        .where((content) => content.isNotEmpty)
+        .where((message) => message.content.trim().isNotEmpty)
         .toList(growable: false);
     if (answers.isEmpty) {
       throw StateError('The Pro Reasoning synthesis returned no answer.');
     }
-    return answers.last;
+    final initial = answers.last;
+    const recovery = ProReasoningSynthesisRecovery();
+    if (!recovery.shouldContinue(initial)) return initial;
+
+    final continuationCount = _messageCount(
+      targetConversationId,
+      MessageRole.assistant,
+    );
+    final continuationOwner = await chatNotifier.sendHiddenPrompt(
+      ProReasoningSynthesisRecovery.continuationPrompt,
+      options: HiddenPromptLaunchOptions(
+        targetConversationId: targetConversationId,
+        dataSource: dataSource,
+        model: model,
+        usageRole: ModelUsageRole.proReasoning,
+      ),
+      languageCode: languageCode,
+      persistAssistantResponse: true,
+      allowedToolNames: const <String>{},
+    );
+    if (continuationOwner == null) return initial;
+    await chatNotifier.waitForTurnCompletion(continuationOwner);
+    final continuations = _conversationMessages(targetConversationId)
+        .where((message) => message.role == MessageRole.assistant)
+        .skip(continuationCount)
+        .where((message) => message.content.trim().isNotEmpty)
+        .toList(growable: false);
+    if (continuations.isEmpty) return initial;
+
+    final continuation = continuations.last;
+    final merged = recovery.merge(initial, continuation);
+    final messages = [..._conversationMessages(targetConversationId)];
+    final initialIndex = messages.indexWhere(
+      (message) => message.id == initial.id,
+    );
+    final continuationIndex = messages.indexWhere(
+      (message) => message.id == continuation.id,
+    );
+    if (initialIndex < 0 || continuationIndex < 0) return continuation;
+    messages[initialIndex] = merged;
+    messages.removeAt(continuationIndex);
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .updateConversationMessages(targetConversationId, messages);
+    return merged;
   }
 
   MeshSecondaryCompletionRunner<ChatDataSource> _buildMeshRunner(
@@ -664,6 +709,7 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
     required LlmSessionLogContext context,
     required ProReasoningSynthesisRequest request,
     required String answer,
+    required String? finishReason,
     required String model,
     required DateTime startedAt,
     required DateTime finishedAt,
@@ -686,7 +732,7 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
           finishedAt: finishedAt,
           response: LlmSessionLogResponse(
             content: answer,
-            finishReason: 'completed',
+            finishReason: finishReason,
           ),
         );
   }

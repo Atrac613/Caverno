@@ -18,4 +18,8 @@ class TruncationNotice {
     final trimmed = content.trimRight();
     return trimmed.isEmpty ? maxTokenNotice : '$trimmed\n\n$maxTokenNotice';
   }
+
+  /// Removes the notice before a recovered continuation is joined to it.
+  static String withoutMaxTokenNotice(String content) =>
+      content.replaceAll(maxTokenNotice, '').trimRight();
 }
