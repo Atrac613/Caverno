@@ -124,6 +124,8 @@ void main() {
             ({
               required target,
               required candidateIndex,
+              required attemptCount,
+              required maxTokens,
               required result,
               required error,
               required startedAt,
@@ -334,6 +336,110 @@ void main() {
       expect(result.attemptedCandidateCount, 2);
     },
   );
+
+  test('retries a thinking-only length result with a larger budget', () async {
+    final host = await _CandidateServer.start(
+      'host-a',
+      exhaustedCandidateAttempts: 1,
+    );
+    addTearDown(host.close);
+    final observedAttempts = <({int count, int maxTokens})>[];
+    final explorer = ProReasoningCandidateExplorer(
+      endpoints: [_target('a', 'Host A', host.baseUrl)],
+      onCandidateCall:
+          ({
+            required target,
+            required candidateIndex,
+            required attemptCount,
+            required maxTokens,
+            required result,
+            required error,
+            required startedAt,
+            required finishedAt,
+          }) {
+            observedAttempts.add((count: attemptCount, maxTokens: maxTokens));
+          },
+    );
+
+    final result = await explorer.explore(
+      ProReasoningExploreRequest(
+        question: 'Choose a deployment strategy.',
+        frame: const ProReasoningFrame(
+          subQuestions: ['Correctness'],
+          investigationSteps: [],
+          successCriteria: ['Ground claims'],
+          requiresInvestigation: false,
+        ),
+        evidence: 'Measured evidence.',
+        candidateCount: 1,
+        deadline: DateTime.now().add(const Duration(seconds: 5)),
+        isCancelled: () => false,
+        onProgress:
+            ({
+              required completed,
+              required requested,
+              required endpointLabels,
+            }) {},
+      ),
+    );
+
+    expect(host.requests.map((request) => request['max_tokens']), [
+      32,
+      3000,
+      6000,
+    ]);
+    final initialRequest = host.requests[1];
+    final recoveryRequest = host.requests[2];
+    expect(recoveryRequest['messages'], initialRequest['messages']);
+    expect(recoveryRequest['seed'], initialRequest['seed']);
+    expect(recoveryRequest['id_slot'], initialRequest['id_slot']);
+    expect(recoveryRequest['cache_prompt'], isTrue);
+    expect(result.candidates, hasLength(1));
+    expect(result.candidates.single.answer, contains('host-a answer'));
+    expect(result.attemptedCandidateCount, 1);
+    expect(observedAttempts, [(count: 2, maxTokens: 6000)]);
+  });
+
+  test('drops a candidate after one exhausted-budget retry', () async {
+    final host = await _CandidateServer.start(
+      'host-a',
+      exhaustedCandidateAttempts: 2,
+    );
+    addTearDown(host.close);
+    final explorer = ProReasoningCandidateExplorer(
+      endpoints: [_target('a', 'Host A', host.baseUrl)],
+    );
+
+    final result = await explorer.explore(
+      ProReasoningExploreRequest(
+        question: 'Choose a deployment strategy.',
+        frame: const ProReasoningFrame(
+          subQuestions: ['Correctness'],
+          investigationSteps: [],
+          successCriteria: ['Ground claims'],
+          requiresInvestigation: false,
+        ),
+        evidence: 'Measured evidence.',
+        candidateCount: 1,
+        deadline: DateTime.now().add(const Duration(seconds: 5)),
+        isCancelled: () => false,
+        onProgress:
+            ({
+              required completed,
+              required requested,
+              required endpointLabels,
+            }) {},
+      ),
+    );
+
+    expect(host.requests.map((request) => request['max_tokens']), [
+      32,
+      3000,
+      6000,
+    ]);
+    expect(result.candidates, isEmpty);
+    expect(result.attemptedCandidateCount, 1);
+  });
 }
 
 ProReasoningEndpointTarget _target(String id, String label, String baseUrl) =>
@@ -352,6 +458,7 @@ final class _CandidateServer {
     this.holdSecond,
     this.slotsSupported,
     this.modelState,
+    this._remainingExhaustedCandidateAttempts,
   );
 
   final HttpServer server;
@@ -359,6 +466,7 @@ final class _CandidateServer {
   final bool holdSecond;
   final bool slotsSupported;
   final String modelState;
+  int _remainingExhaustedCandidateAttempts;
   final List<Map<String, dynamic>> requests = [];
   final List<String> getPaths = [];
   final Completer<void> _releaseHeldRequest = Completer<void>();
@@ -373,6 +481,7 @@ final class _CandidateServer {
     bool holdSecond = false,
     bool slotsSupported = true,
     String modelState = 'loaded',
+    int exhaustedCandidateAttempts = 0,
   }) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final fixture = _CandidateServer._(
@@ -381,6 +490,7 @@ final class _CandidateServer {
       holdSecond,
       slotsSupported,
       modelState,
+      exhaustedCandidateAttempts,
     );
     fixture._subscription = server.listen(
       (request) => unawaited(fixture._handle(request)),
@@ -428,18 +538,26 @@ final class _CandidateServer {
       }
       await Future<void>.delayed(const Duration(milliseconds: 30));
       request.response.headers.contentType = ContentType.json;
+      final exhaustCandidate =
+          body['max_tokens'] != 32 && _remainingExhaustedCandidateAttempts > 0;
+      if (exhaustCandidate) _remainingExhaustedCandidateAttempts--;
       request.response.write(
         jsonEncode({
           'choices': [
             {
               'message': {
-                'content': '$label answer ${body['seed']}',
+                'content': exhaustCandidate
+                    ? ''
+                    : '$label answer ${body['seed']}',
                 'reasoning_content': '$label reasoning',
               },
-              'finish_reason': 'stop',
+              'finish_reason': exhaustCandidate ? 'length' : 'stop',
             },
           ],
-          'usage': {'prompt_tokens': 20, 'completion_tokens': 5},
+          'usage': {
+            'prompt_tokens': 20,
+            'completion_tokens': exhaustCandidate ? body['max_tokens'] : 5,
+          },
           'id_slot': body['id_slot'],
           'timings': {'predicted_ms': 12.5},
         }),

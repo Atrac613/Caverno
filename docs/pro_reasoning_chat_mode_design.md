@@ -93,8 +93,9 @@ Four further findings changed the plan:
 1. **Thinking mode needs a generous token budget.** At `max_tokens: 512` the
    model spent the entire budget reasoning and returned **empty content**. Stage
    3 must give candidates room (measured good at 3000) and must treat
-   "reasoning present, content empty, `finish_reason: length`" as a failed
-   candidate rather than a usable one.
+   "reasoning present, content empty, `finish_reason: length`" as an exhausted
+   candidate. The explorer retries that candidate once with a 6000-token
+   ceiling, then drops it if the retry still has no answer content.
 2. **The server is in router mode** (`model_path: none`, four models served via
    `--models-dir`). `GET /slots` returns **HTTP 400 "model name is missing from
    the request"**; `GET /slots?model=<name>` returns 200. LL40 closes this LL20
@@ -341,10 +342,14 @@ combined shape (`enable_thinking` + `seed` + `cache_prompt` + `id_slot` +
 (`GET /slots?model=<name>`), because a router-mode server answers the bare
 `GET /slots` with HTTP 400 and the substrate otherwise reports `unsupported`.
 
-Candidates must be given a generous `max_tokens` (3000 measured good). A
-candidate that comes back with reasoning but empty content and
-`finish_reason: length` spent its whole budget thinking and is **not** a usable
-candidate; treat it as failed rather than feeding an empty answer to stage 4.
+Candidates start with a generous `max_tokens` (3000 measured good). A candidate
+that comes back with reasoning but empty content and `finish_reason: length`
+spent its whole budget thinking and is **not** usable. Retry it once with 6000
+tokens while preserving the prompt, seed, and slot so prompt caching remains
+effective. If the retry is also exhausted, drop the candidate rather than
+feeding an empty answer to stage 4. Session logs record the logical candidate's
+attempt count and final token ceiling so recovery can be distinguished from an
+ordinary candidate call.
 
 ### 4.4 Critique — a judge, not a verifier
 

@@ -45,6 +45,8 @@ typedef ProReasoningCandidateCallObserver =
     FutureOr<void> Function({
       required ProReasoningEndpointTarget target,
       required int candidateIndex,
+      required int attemptCount,
+      required int maxTokens,
       required SlotChatResult? result,
       required Object? error,
       required DateTime startedAt,
@@ -73,6 +75,9 @@ final class ProReasoningCandidateExplorer {
   final ProReasoningCandidateCallObserver? onCandidateCall;
   final DateTime Function() _clock;
   final Set<LlamaCppSlotTransport> _activeTransports = {};
+
+  static const _candidateMaxTokens = 3000;
+  static const _reasoningBudgetRecoveryMaxTokens = 6000;
 
   Future<ProReasoningExploreResult> explore(
     ProReasoningExploreRequest request,
@@ -188,13 +193,21 @@ final class ProReasoningCandidateExplorer {
                 final startedAt = _clock();
                 SlotChatResult? result;
                 Object? error;
+                var attemptCount = 0;
+                var maxTokens = _candidateMaxTokens;
                 try {
-                  result = await _runCandidate(
+                  result = await _runCandidateWithRecovery(
                     transport: transport,
                     probe: probe,
                     assignment: assignment,
                     sharedPrefix: sharedPrefix,
                     slotId: slotId,
+                    deadline: request.deadline,
+                    isCancelled: request.isCancelled,
+                    onAttempt: (attempt, budget) {
+                      attemptCount = attempt;
+                      maxTokens = budget;
+                    },
                   );
                   return result;
                 } catch (caught) {
@@ -204,6 +217,8 @@ final class ProReasoningCandidateExplorer {
                   await onCandidateCall?.call(
                     target: probe.target,
                     candidateIndex: assignment.index,
+                    attemptCount: attemptCount,
+                    maxTokens: maxTokens,
                     result: result,
                     error: error,
                     startedAt: startedAt,
@@ -285,13 +300,21 @@ final class ProReasoningCandidateExplorer {
           : null;
       SlotChatResult? result;
       Object? error;
+      var attemptCount = 0;
+      var maxTokens = _candidateMaxTokens;
       try {
-        result = await _runCandidate(
+        result = await _runCandidateWithRecovery(
           transport: transport,
           probe: probe,
           assignment: assignment,
           sharedPrefix: sharedPrefix,
           slotId: slotId,
+          deadline: request.deadline,
+          isCancelled: request.isCancelled,
+          onAttempt: (attempt, budget) {
+            attemptCount = attempt;
+            maxTokens = budget;
+          },
         );
         if (!result.hasUsableContent) {
           return (null, _clock().difference(startedAt));
@@ -307,6 +330,8 @@ final class ProReasoningCandidateExplorer {
         await onCandidateCall?.call(
           target: probe.target,
           candidateIndex: assignment.index,
+          attemptCount: attemptCount,
+          maxTokens: maxTokens,
           result: result,
           error: error,
           startedAt: startedAt,
@@ -333,6 +358,7 @@ final class ProReasoningCandidateExplorer {
     required _CandidateAssignment assignment,
     required String sharedPrefix,
     required int? slotId,
+    required int maxTokens,
   }) => transport.createChatCompletion(
     model: probe.target.model,
     messages: <Map<String, dynamic>>[
@@ -345,7 +371,7 @@ final class ProReasoningCandidateExplorer {
       },
     ],
     temperature: assignment.temperature,
-    maxTokens: 3000,
+    maxTokens: maxTokens,
     idSlot: slotId,
     cachePrompt: true,
     chatTemplateKwargs: probe.thinkingOverrideSupported
@@ -354,6 +380,42 @@ final class ProReasoningCandidateExplorer {
     reasoningEffort: probe.thinkingOverrideSupported ? 'high' : null,
     seed: assignment.seed,
   );
+
+  Future<SlotChatResult> _runCandidateWithRecovery({
+    required LlamaCppSlotTransport transport,
+    required ProReasoningEndpointProbe probe,
+    required _CandidateAssignment assignment,
+    required String sharedPrefix,
+    required int? slotId,
+    required DateTime deadline,
+    required bool Function() isCancelled,
+    required void Function(int attempt, int maxTokens) onAttempt,
+  }) async {
+    onAttempt(1, _candidateMaxTokens);
+    final initial = await _runCandidate(
+      transport: transport,
+      probe: probe,
+      assignment: assignment,
+      sharedPrefix: sharedPrefix,
+      slotId: slotId,
+      maxTokens: _candidateMaxTokens,
+    );
+    if (!initial.exhaustedBudgetInReasoning ||
+        isCancelled() ||
+        !_clock().isBefore(deadline)) {
+      return initial;
+    }
+
+    onAttempt(2, _reasoningBudgetRecoveryMaxTokens);
+    return _runCandidate(
+      transport: transport,
+      probe: probe,
+      assignment: assignment,
+      sharedPrefix: sharedPrefix,
+      slotId: slotId,
+      maxTokens: _reasoningBudgetRecoveryMaxTokens,
+    );
+  }
 
   ProReasoningCandidate _toCandidate(
     ProReasoningEndpointProbe probe,
