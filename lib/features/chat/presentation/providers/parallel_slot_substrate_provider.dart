@@ -27,6 +27,7 @@ final llamaCppSlotDiscoveryProvider = Provider<LlamaCppSlotDiscovery?>((ref) {
   final discovery = LlamaCppSlotDiscovery(
     baseUrl: settings.baseUrl,
     apiKey: settings.apiKey,
+    model: settings.model,
   );
   ref.onDispose(discovery.close);
   return discovery;

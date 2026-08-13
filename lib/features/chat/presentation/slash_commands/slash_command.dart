@@ -7,6 +7,7 @@ enum SlashCommandAction {
   general,
   coding,
   plan,
+  pro,
   goal,
   cancel,
   feedback,

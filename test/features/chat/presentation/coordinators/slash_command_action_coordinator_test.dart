@@ -101,6 +101,11 @@ class _Harness {
           feedbackMessage: 'feedback-result',
         );
       },
+      startProReasoning: (question) {
+        proQuestion = question;
+        operations.add('pro');
+        return proStarts;
+      },
       enqueueWorktreeAgent: (request) async {
         enqueuedRequests.add(request);
         final error = enqueueError;
@@ -123,6 +128,8 @@ class _Harness {
   bool? goalStartsPrompt;
   Conversation? feedbackConversation;
   String? feedbackText;
+  String? proQuestion;
+  bool proStarts = true;
   Object? enqueueError;
   final enqueuedRequests = <WorktreeAgentTaskLaunchRequest>[];
   final runRequests = <WorktreeAgentTaskRunRequest>[];
@@ -283,6 +290,46 @@ void main() {
 
     expect(harness.operations, ['enter-plan']);
     expect(result.feedbackMessage, 'chat.slash_plan_started');
+  });
+
+  test('pro starts a one-shot chat run without returning a prompt', () async {
+    final harness = _Harness();
+
+    final result = await harness.handle(
+      SlashCommandAction.pro,
+      args: 'Compare both designs',
+    );
+
+    expect(harness.operations, ['pro']);
+    expect(harness.proQuestion, 'Compare both designs');
+    expect(result.clearInput, isTrue);
+    expect(result.promptToSend, isNull);
+    expect(result.feedbackMessage, 'chat.slash_pro_started');
+  });
+
+  test('pro retains input when unavailable or already busy', () async {
+    final coding = _Harness();
+    final codingResult = await coding.handle(
+      SlashCommandAction.pro,
+      args: 'Question',
+      context: _context(isCoding: true),
+    );
+    expect(codingResult.clearInput, isFalse);
+    expect(codingResult.feedbackMessage, 'chat.slash_pro_unavailable');
+    expect(coding.operations, isEmpty);
+
+    final missing = _Harness();
+    final missingResult = await missing.handle(SlashCommandAction.pro);
+    expect(missingResult.clearInput, isFalse);
+    expect(missingResult.feedbackMessage, 'chat.slash_pro_question_required');
+
+    final busy = _Harness()..proStarts = false;
+    final busyResult = await busy.handle(
+      SlashCommandAction.pro,
+      args: 'Question',
+    );
+    expect(busyResult.clearInput, isFalse);
+    expect(busyResult.feedbackMessage, 'chat.slash_pro_busy');
   });
 
   test('goal creates a first coding conversation before delegation', () async {

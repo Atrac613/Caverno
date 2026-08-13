@@ -59,6 +59,7 @@ void main() {
 
     test('built-in command names are reserved', () {
       expect(reservedSlashCommandNames, contains('goal'));
+      expect(reservedSlashCommandNames, contains('pro'));
       expect(reservedSlashCommandNames, contains('skill'));
       expect(reservedSlashCommandNames, contains('save-skill'));
     });

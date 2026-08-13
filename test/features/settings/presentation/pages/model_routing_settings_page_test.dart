@@ -41,8 +41,8 @@ void main() {
 
     expect(
       find.text('Default (main-model)'),
-      findsNWidgets(5),
-      reason: 'all five roles start on the main-model fallback',
+      findsNWidgets(6),
+      reason: 'all six roles start on the main-model fallback',
     );
 
     await tester.tap(
@@ -58,6 +58,51 @@ void main() {
     expect(updated.memoryExtractionModel, 'small-model');
     expect(updated.effectiveMemoryExtractionModel, 'small-model');
     expect(updated.effectiveSubagentModel, 'main-model');
+  });
+
+  testWidgets('assigning the Pro Reasoning route persists it in settings', (
+    tester,
+  ) async {
+    final settings = AppSettings.defaults().copyWith(
+      model: 'main-model',
+      llmEndpoints: const [
+        LlmEndpoint(
+          id: 'reasoning-endpoint',
+          label: 'Reasoning host',
+          baseUrl: 'http://reasoning.example/v1',
+          model: 'reasoning-default',
+        ),
+      ],
+    );
+
+    await _pumpModelRoutingPage(
+      tester,
+      settings: settings,
+      loadModels: () async => ['main-model', 'reasoning-model'],
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('model-routing-pro-reasoning')),
+      200,
+    );
+    await tester.tap(find.byKey(const ValueKey('model-routing-pro-reasoning')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('reasoning-model').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('endpoint-routing-pro-reasoning')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reasoning host').last);
+    await tester.pumpAndSettle();
+
+    final element = tester.element(find.byType(ModelRoutingSettingsPage));
+    final container = ProviderScope.containerOf(element);
+    final updated = container.read(settingsNotifierProvider);
+    expect(updated.proReasoningModel, 'reasoning-model');
+    expect(updated.proReasoningEndpointId, 'reasoning-endpoint');
+    expect(updated.effectiveProReasoningModel, 'reasoning-model');
   });
 
   testWidgets('assigning the planning model persists it in settings', (

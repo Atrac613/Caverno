@@ -487,11 +487,20 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
         unknownValue: ReasoningEffortPreference.automatic,
       ) ??
       ReasoningEffortPreference.automatic,
+  proReasoningEnabled: json['proReasoningEnabled'] as bool? ?? false,
+  proReasoningDepth:
+      $enumDecodeNullable(
+        _$ProReasoningDepthEnumMap,
+        json['proReasoningDepth'],
+        unknownValue: ProReasoningDepth.deep,
+      ) ??
+      ProReasoningDepth.deep,
   memoryExtractionModel: json['memoryExtractionModel'] as String? ?? '',
   subagentModel: json['subagentModel'] as String? ?? '',
   goalSuggestionModel: json['goalSuggestionModel'] as String? ?? '',
   approvalAutoReviewModel: json['approvalAutoReviewModel'] as String? ?? '',
   planningModel: json['planningModel'] as String? ?? '',
+  proReasoningModel: json['proReasoningModel'] as String? ?? '',
   memoryExtractionEndpointId:
       json['memoryExtractionEndpointId'] as String? ?? '',
   subagentEndpointId: json['subagentEndpointId'] as String? ?? '',
@@ -499,6 +508,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   approvalAutoReviewEndpointId:
       json['approvalAutoReviewEndpointId'] as String? ?? '',
   planningEndpointId: json['planningEndpointId'] as String? ?? '',
+  proReasoningEndpointId: json['proReasoningEndpointId'] as String? ?? '',
   googleChatWebhookUrl: json['googleChatWebhookUrl'] as String? ?? '',
   mcpUrl: json['mcpUrl'] as String? ?? '',
   mcpUrls:
@@ -637,16 +647,20 @@ Map<String, dynamic> _$AppSettingsToJson(
   'maxTokens': instance.maxTokens,
   'reasoningEffort':
       _$ReasoningEffortPreferenceEnumMap[instance.reasoningEffort]!,
+  'proReasoningEnabled': instance.proReasoningEnabled,
+  'proReasoningDepth': _$ProReasoningDepthEnumMap[instance.proReasoningDepth]!,
   'memoryExtractionModel': instance.memoryExtractionModel,
   'subagentModel': instance.subagentModel,
   'goalSuggestionModel': instance.goalSuggestionModel,
   'approvalAutoReviewModel': instance.approvalAutoReviewModel,
   'planningModel': instance.planningModel,
+  'proReasoningModel': instance.proReasoningModel,
   'memoryExtractionEndpointId': instance.memoryExtractionEndpointId,
   'subagentEndpointId': instance.subagentEndpointId,
   'goalSuggestionEndpointId': instance.goalSuggestionEndpointId,
   'approvalAutoReviewEndpointId': instance.approvalAutoReviewEndpointId,
   'planningEndpointId': instance.planningEndpointId,
+  'proReasoningEndpointId': instance.proReasoningEndpointId,
   'googleChatWebhookUrl': instance.googleChatWebhookUrl,
   'mcpUrl': instance.mcpUrl,
   'mcpUrls': instance.mcpUrls,
@@ -714,6 +728,12 @@ const _$ReasoningEffortPreferenceEnumMap = {
   ReasoningEffortPreference.low: 'low',
   ReasoningEffortPreference.medium: 'medium',
   ReasoningEffortPreference.high: 'high',
+};
+
+const _$ProReasoningDepthEnumMap = {
+  ProReasoningDepth.standard: 'standard',
+  ProReasoningDepth.deep: 'deep',
+  ProReasoningDepth.max: 'max',
 };
 
 const _$AssistantModeEnumMap = {

@@ -75,21 +75,29 @@ class LlamaCppSlotDiscovery {
   LlamaCppSlotDiscovery({
     required String baseUrl,
     required String apiKey,
+    String model = '',
     http.Client? client,
     Duration timeout = const Duration(seconds: 8),
   }) : _baseUrl = baseUrl,
        _apiKey = apiKey,
+       _model = model.trim(),
        _client = client ?? http.Client(),
        _timeout = timeout;
 
   final String _baseUrl;
   final String _apiKey;
+  final String _model;
   final http.Client _client;
   final Duration _timeout;
 
   /// `{nativeRoot}/slots`. The slots endpoint lives at the server root, not
   /// under the OpenAI `/v1` prefix, so the `/v1` suffix is stripped.
-  Uri get slotsUri => Uri.parse('${_nativeRoot()}/slots');
+  Uri get slotsUri {
+    final uri = Uri.parse('${_nativeRoot()}/slots');
+    return _model.isEmpty
+        ? uri
+        : uri.replace(queryParameters: <String, String>{'model': _model});
+  }
 
   Future<SlotInventory> discover() async {
     try {

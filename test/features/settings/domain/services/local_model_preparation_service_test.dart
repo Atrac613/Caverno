@@ -82,6 +82,8 @@ void main() {
         subagentEndpointId: meshEndpoint.id,
         approvalAutoReviewModel: 'mesh-review',
         approvalAutoReviewEndpointId: meshEndpoint.id,
+        proReasoningModel: 'mesh-reasoning',
+        proReasoningEndpointId: meshEndpoint.id,
       );
 
       final plan = service.buildRoleModelPlanForEndpoint(
@@ -104,12 +106,21 @@ void main() {
               state: LocalModelLifecycleState.unloaded,
               statusValue: 'unloaded',
             ),
+            LocalManagedModel(
+              id: 'mesh-reasoning',
+              state: LocalModelLifecycleState.unloaded,
+              statusValue: 'unloaded',
+            ),
           ],
         ),
       );
 
-      expect(plan.targetModelIds, ['mesh-subagent', 'mesh-review']);
-      expect(plan.loadableModelIds, ['mesh-subagent']);
+      expect(plan.targetModelIds, [
+        'mesh-subagent',
+        'mesh-review',
+        'mesh-reasoning',
+      ]);
+      expect(plan.loadableModelIds, ['mesh-subagent', 'mesh-reasoning']);
       expect(plan.readyModelIds, ['mesh-review']);
     });
   });

@@ -75,6 +75,9 @@ void main() {
           temperature: 0.0,
           maxTokens: 16,
           idSlot: 3,
+          chatTemplateKwargs: const {'enable_thinking': true},
+          reasoningEffort: 'high',
+          seed: 41,
         );
 
         // Request preserves the extension fields the typed SDK drops.
@@ -83,6 +86,9 @@ void main() {
         expect(sentBody['id_slot'], 3);
         expect(sentBody['cache_prompt'], isTrue);
         expect(sentBody['max_tokens'], 16);
+        expect(sentBody['chat_template_kwargs'], {'enable_thinking': true});
+        expect(sentBody['reasoning_effort'], 'high');
+        expect(sentBody['seed'], 41);
         expect(sentBody['stream'], isFalse);
         expect((sentBody['tools'] as List), hasLength(1));
 
@@ -170,5 +176,26 @@ void main() {
       }, requestedIdSlot: 5);
       expect(result.idSlot, 5);
     });
+
+    test(
+      'keeps reasoning content and detects an exhausted thinking budget',
+      () {
+        final result = SlotChatResult.fromResponseJson({
+          'choices': [
+            {
+              'message': {
+                'content': '',
+                'reasoning_content': 'Still working through the problem.',
+              },
+              'finish_reason': 'length',
+            },
+          ],
+        });
+
+        expect(result.reasoning, contains('Still working'));
+        expect(result.hasUsableContent, isFalse);
+        expect(result.exhaustedBudgetInReasoning, isTrue);
+      },
+    );
   });
 }

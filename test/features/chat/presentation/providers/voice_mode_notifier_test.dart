@@ -13,6 +13,7 @@ import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/hidden_prompt_launch_options.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/voice_mode_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -64,6 +65,7 @@ class _ControllableChatNotifier extends ChatNotifier {
   @override
   Future<ChatTurnOwner?> sendHiddenPrompt(
     String instruction, {
+    HiddenPromptLaunchOptions options = const HiddenPromptLaunchOptions(),
     bool isVoiceMode = false,
     String languageCode = 'en',
     bool persistAssistantResponse = false,

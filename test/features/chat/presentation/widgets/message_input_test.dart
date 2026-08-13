@@ -55,6 +55,7 @@ Future<SharedPreferences> _pumpMessageInput(
   WorktreeSessionSendHandler? onWorktreeSessionSend,
   List<SlashCommandDefinition> slashCommands = const <SlashCommandDefinition>[],
   SlashCommandHandler? onSlashCommand,
+  bool Function(String question)? onProReasoningSend,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     if (initialSettings != null)
@@ -102,6 +103,7 @@ Future<SharedPreferences> _pumpMessageInput(
                         onWorktreeSessionSend: onWorktreeSessionSend,
                         slashCommands: slashCommands,
                         onSlashCommand: onSlashCommand,
+                        onProReasoningSend: onProReasoningSend,
                       );
                     },
                   ),
@@ -191,6 +193,14 @@ void main() {
     expect(find.byIcon(Icons.record_voice_over), findsNothing);
     expect(find.byIcon(Icons.stop_circle), findsOneWidget);
     expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
+    expect(
+      tester
+          .widget<PopupMenuButton<String>>(
+            find.byKey(const ValueKey('pro-reasoning-mode-button')),
+          )
+          .enabled,
+      isFalse,
+    );
 
     await tester.enterText(find.byType(TextField), 'Queued question');
     await tester.pump();
@@ -600,6 +610,159 @@ void main() {
     );
     expect(storedSettings.reasoningEffort, ReasoningEffortPreference.high);
     expect(find.byTooltip('Reasoning effort: High'), findsOneWidget);
+  });
+
+  testWidgets('persists Pro Reasoning depth from the chat composer', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final preferences = await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+    );
+
+    expect(
+      find.byKey(const ValueKey('pro-reasoning-mode-button')),
+      findsOneWidget,
+    );
+    expect(find.text('Pro'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('pro-reasoning-mode-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(CheckedPopupMenuItem<String>, 'Standard'),
+    );
+    await tester.pumpAndSettle();
+
+    final storedJson = preferences.getString('app_settings');
+    expect(storedJson, isNotNull);
+    final storedSettings = AppSettings.fromJson(
+      jsonDecode(storedJson!) as Map<String, dynamic>,
+    );
+    expect(storedSettings.proReasoningEnabled, isTrue);
+    expect(storedSettings.proReasoningDepth, ProReasoningDepth.standard);
+    expect(find.text('Pro: Standard'), findsOneWidget);
+  });
+
+  testWidgets('routes sticky Pro text without calling ordinary send', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+    final proQuestions = <String>[];
+    final ordinaryMessages = <String>[];
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      initialSettings: AppSettings.defaults().copyWith(
+        proReasoningEnabled: true,
+      ),
+      onSend: (message, _, _, _, _) => ordinaryMessages.add(message),
+      onProReasoningSend: (question) {
+        proQuestions.add(question);
+        return true;
+      },
+    );
+
+    await tester.enterText(find.byType(TextField), 'Compare the options');
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+
+    expect(proQuestions, ['Compare the options']);
+    expect(ordinaryMessages, isEmpty);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      isEmpty,
+    );
+  });
+
+  testWidgets('retains sticky Pro input and attachment when unsupported', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+    var proStarts = 0;
+    final imageBytes = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+    );
+
+    final previousDebugPrint = debugPrint;
+    try {
+      debugPrint = (String? message, {int? wrapWidth}) {};
+      await _pumpMessageInput(
+        tester,
+        isLoading: isLoading,
+        onCancel: () {},
+        initialSettings: AppSettings.defaults().copyWith(
+          proReasoningEnabled: true,
+        ),
+        droppedImageAttachment: MessageInputImageAttachment(
+          id: 41,
+          bytes: imageBytes,
+          mimeType: 'image/png',
+          filePath: 'evidence.png',
+        ),
+        onProReasoningSend: (_) {
+          proStarts += 1;
+          return true;
+        },
+      );
+      await _waitForImageAttachmentPreview(tester);
+    } finally {
+      debugPrint = previousDebugPrint;
+    }
+
+    await tester.enterText(find.byType(TextField), 'Use this evidence');
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+
+    expect(proStarts, 0);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      'Use this evidence',
+    );
+    expect(find.byIcon(Icons.close), findsOneWidget);
+    expect(
+      find.textContaining('does not support attachments yet'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('hides Pro Reasoning in coding and sends normally', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+    final ordinaryMessages = <String>[];
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      isCodingWorkspace: true,
+      initialSettings: AppSettings.defaults().copyWith(
+        proReasoningEnabled: true,
+      ),
+      onSend: (message, _, _, _, _) => ordinaryMessages.add(message),
+      onProReasoningSend: (_) => true,
+    );
+
+    expect(
+      find.byKey(const ValueKey('pro-reasoning-mode-button')),
+      findsNothing,
+    );
+    await tester.enterText(find.byType(TextField), 'Fix the issue');
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+    expect(ordinaryMessages, ['Fix the issue']);
   });
 
   testWidgets('hides empty coding goal controls inside the composer', (

@@ -22,7 +22,46 @@ class _DelayedFirstMessageSaveConversationsNotifier
   }
 }
 
-void registerChatNotifierPersistenceTests() {
+void registerChatNotifierPersistenceTests(
+  ChatNotifier Function() notifier,
+  StreamController<String> Function() controller,
+) {
+  test(
+    'sendHiddenPrompt persists visible user content but hides its instruction',
+    () async {
+      final chat = notifier();
+      final stream = controller();
+      final sendFuture = chat.sendHiddenPrompt(
+        'Hidden synthesis material.',
+        options: const HiddenPromptLaunchOptions(
+          visibleUserContent: 'What should I choose?',
+        ),
+        persistAssistantResponse: true,
+      );
+      await pumpEventQueue();
+
+      expect(chat.state.messages, hasLength(2));
+      expect(chat.state.messages.first.content, 'What should I choose?');
+      expect(
+        chat.state.messages.any(
+          (message) => message.content == 'Hidden synthesis material.',
+        ),
+        isFalse,
+      );
+
+      stream.add('Choose option A.');
+      await stream.close();
+      await pumpEventQueue();
+      final owner = await sendFuture;
+      await chat.waitForTurnCompletion(owner!);
+
+      expect(chat.state.messages.map((message) => message.content), [
+        'What should I choose?',
+        'Choose option A.',
+      ]);
+    },
+  );
+
   test(
     'sendMessage keeps final assistant response when initial save completes late',
     () async {

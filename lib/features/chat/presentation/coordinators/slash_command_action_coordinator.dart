@@ -11,6 +11,7 @@ import '../providers/worktree_agent_task_orchestrator.dart';
 import '../slash_commands/slash_command.dart';
 import '../slash_commands/slash_command_catalog.dart';
 import '../slash_commands/slash_command_prompt_template.dart';
+import 'slash_command_result_builders.dart';
 
 typedef GoalSlashCommandHandler =
     Future<SlashCommandExecutionResult> Function(
@@ -69,6 +70,7 @@ final class SlashCommandActionCoordinator {
     showHelp,
     required GoalSlashCommandHandler handleGoal,
     required FeedbackSlashCommandHandler submitFeedback,
+    required ProReasoningSlashCommandHandler startProReasoning,
     required Future<WorktreeAgentTaskLaunchResult> Function(
       WorktreeAgentTaskLaunchRequest request,
     )
@@ -85,19 +87,19 @@ final class SlashCommandActionCoordinator {
        _showHelp = showHelp,
        _handleGoal = handleGoal,
        _submitFeedback = submitFeedback,
+       _startProReasoning = startProReasoning,
        _enqueueWorktreeAgent = enqueueWorktreeAgent,
        _startReadyWorktreeAgents = startReadyWorktreeAgents,
        _text = text;
 
   final ConversationsNotifier _conversationsNotifier;
-  final void Function() _clearMessages;
-  final void Function() _cancelStreaming;
-  final void Function() _dismissPlanProposal;
+  final void Function() _clearMessages, _cancelStreaming;
+  final void Function() _dismissPlanProposal, _leaveDashboard;
   final Future<void> Function(AssistantMode mode) _updateAssistantMode;
-  final void Function() _leaveDashboard;
   final Future<void> Function(List<SlashCommandDefinition> commands) _showHelp;
   final GoalSlashCommandHandler _handleGoal;
   final FeedbackSlashCommandHandler _submitFeedback;
+  final ProReasoningSlashCommandHandler _startProReasoning;
   final Future<WorktreeAgentTaskLaunchResult> Function(
     WorktreeAgentTaskLaunchRequest request,
   )
@@ -161,13 +163,13 @@ final class SlashCommandActionCoordinator {
           AssistantMode.general,
           commandContext: commandContext,
         );
-        return _modeChangedResult('settings.assistant_general');
+        return buildSlashModeChangedResult(_text, 'settings.assistant_general');
       case SlashCommandAction.coding:
         await _selectAssistantMode(
           AssistantMode.coding,
           commandContext: commandContext,
         );
-        return _modeChangedResult('settings.assistant_coding');
+        return buildSlashModeChangedResult(_text, 'settings.assistant_coding');
       case SlashCommandAction.plan:
         // enterPlanningSession starts the conversation on a brand-new thread.
         if (!commandContext.isCodingWorkspace) {
@@ -178,6 +180,13 @@ final class SlashCommandActionCoordinator {
         await _conversationsNotifier.enterPlanningSession();
         return SlashCommandExecutionResult(
           feedbackMessage: _text('chat.slash_plan_started'),
+        );
+      case SlashCommandAction.pro:
+        return buildProReasoningSlashCommandResult(
+          isCodingWorkspace: commandContext.isCodingWorkspace,
+          args: invocation.args,
+          startProReasoning: _startProReasoning,
+          text: _text,
         );
       case SlashCommandAction.goal:
         var goalConversation = commandContext.currentConversation;
@@ -252,15 +261,6 @@ final class SlashCommandActionCoordinator {
       _dismissPlanProposal();
     }
     await _updateAssistantMode(mode);
-  }
-
-  SlashCommandExecutionResult _modeChangedResult(String modeKey) {
-    return SlashCommandExecutionResult(
-      feedbackMessage: _text(
-        'chat.slash_mode_changed',
-        namedArgs: {'mode': _text(modeKey)},
-      ),
-    );
   }
 
   Future<SlashCommandExecutionResult> _handleWorktreeAgent(

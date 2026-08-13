@@ -3,6 +3,22 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierExecutionRuntime on ChatNotifier {
+  bool isConversationAwaitingApproval(String targetConversationId) =>
+      state.approvalRequiredConversationIds.contains(targetConversationId);
+
+  bool isConversationBusy(String targetConversationId) =>
+      chatStateReportsConversationBusy(
+        state: state,
+        targetConversationId: targetConversationId,
+        visibleConversationId: conversationId,
+      );
+
+  Future<void> waitForTurnCompletion(ChatTurnOwner owner) async {
+    while (ref.mounted && _activeResponseRegistry.containsOwner(owner)) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  }
+
   int get _runtimeEventGeneration => TurnGeneration.current ?? 0;
 
   void _finishStreamedCompletionInBackground(

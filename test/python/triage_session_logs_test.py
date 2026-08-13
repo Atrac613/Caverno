@@ -94,6 +94,26 @@ class TriageDiscoveryTest(unittest.TestCase):
 
 
 class TriageMarkerScoringTest(unittest.TestCase):
+    def test_pro_reasoning_inference_operations_ground_a_session(self):
+        entries = []
+        for operation in (
+            "pro_reasoning_frame",
+            "pro_reasoning_investigate",
+            "pro_reasoning_candidate",
+            "pro_reasoning_critique",
+            "pro_reasoning_synthesis",
+        ):
+            entry = _completion(
+                response={"finishReason": "stop", "content": "ok"}
+            )
+            entry["operation"] = operation
+            entries.append(entry)
+
+        row = _analyze(entries)
+
+        self.assertEqual(row["completions"], 5)
+        self.assertEqual(row["transport"], 0)
+
     def test_shadow_markers_are_not_transport_errors(self):
         row = _analyze(
             [

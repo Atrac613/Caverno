@@ -191,6 +191,7 @@ import '../../../settings/domain/services/local_command_permission_service.dart'
 import 'active_response_registry.dart';
 import 'chat_error_message_builder.dart';
 import 'chat_state.dart';
+import 'hidden_prompt_launch_options.dart';
 import 'chat_tool_execution_log_formatter.dart';
 import 'coding_projects_notifier.dart';
 import 'content_tool_turn_state_registry.dart';
@@ -733,7 +734,8 @@ class ChatNotifier extends Notifier<ChatState> {
     int generation,
     T Function() body, {
     String? requestLabel,
-  }) => ModelUsageRole.chat.runWith(
+    ModelUsageRole usageRole = ModelUsageRole.chat,
+  }) => usageRole.runWith(
     () => LlmSessionLogContext.run(
       _llmSessionLogContextForGeneration(
         generation,
@@ -1233,12 +1235,19 @@ class ChatNotifier extends Notifier<ChatState> {
         id: 'workflow_proposal_user',
         role: MessageRole.user,
         timestamp: now,
-        content: _buildWorkflowProposalRequest(
+        content: ConversationPlanningPromptService.buildWorkflowProposalRequest(
           currentConversation: currentConversation,
+          messages: currentConversation.messages,
           languageCode: languageCode,
-          researchContext: researchContext,
-          decisionAnswers: decisionAnswers,
+          project: _codingProjectForTurn(currentConversation),
+          researchContextBlock: researchContext.hasContent
+              ? researchContext.toPromptBlock()
+              : null,
+          selectedDecisionLines: decisionAnswers
+              .map((answer) => '${answer.question}: ${answer.optionLabel}')
+              .toList(growable: false),
           additionalPlanningContext: additionalPlanningContext,
+          executorProfile: PlanningExecutorProfile.fromSettings(_settings),
           compact: compact,
         ),
       ),
@@ -1263,13 +1272,18 @@ class ChatNotifier extends Notifier<ChatState> {
         id: 'task_proposal_user',
         role: MessageRole.user,
         timestamp: now,
-        content: _buildTaskProposalRequest(
+        content: ConversationPlanningPromptService.buildTaskProposalRequest(
           currentConversation: currentConversation,
+          messages: currentConversation.messages,
           languageCode: languageCode,
-          researchContext: researchContext,
+          project: _codingProjectForTurn(currentConversation),
+          researchContextBlock: researchContext.hasContent
+              ? researchContext.toPromptBlock()
+              : null,
           workflowStageOverride: workflowStageOverride,
           workflowSpecOverride: workflowSpecOverride,
           additionalPlanningContext: additionalPlanningContext,
+          executorProfile: PlanningExecutorProfile.fromSettings(_settings),
           compact: compact,
         ),
       ),
@@ -1809,56 +1823,6 @@ class ChatNotifier extends Notifier<ChatState> {
       return retryContext;
     }
     return '$normalizedContext\n$retryContext'.trim();
-  }
-
-  String _buildWorkflowProposalRequest({
-    required Conversation currentConversation,
-    required String languageCode,
-    PlanningResearchContext researchContext = const PlanningResearchContext(),
-    List<WorkflowPlanningDecisionAnswer> decisionAnswers = const [],
-    String? additionalPlanningContext,
-    bool compact = false,
-  }) {
-    return ConversationPlanningPromptService.buildWorkflowProposalRequest(
-      currentConversation: currentConversation,
-      messages: currentConversation.messages,
-      languageCode: languageCode,
-      project: _codingProjectForTurn(currentConversation),
-      researchContextBlock: researchContext.hasContent
-          ? researchContext.toPromptBlock()
-          : null,
-      selectedDecisionLines: decisionAnswers
-          .map((answer) => '${answer.question}: ${answer.optionLabel}')
-          .toList(growable: false),
-      additionalPlanningContext: additionalPlanningContext,
-      executorProfile: PlanningExecutorProfile.fromSettings(_settings),
-      compact: compact,
-    );
-  }
-
-  String _buildTaskProposalRequest({
-    required Conversation currentConversation,
-    required String languageCode,
-    PlanningResearchContext researchContext = const PlanningResearchContext(),
-    ConversationWorkflowStage? workflowStageOverride,
-    ConversationWorkflowSpec? workflowSpecOverride,
-    String? additionalPlanningContext,
-    bool compact = false,
-  }) {
-    return ConversationPlanningPromptService.buildTaskProposalRequest(
-      currentConversation: currentConversation,
-      messages: currentConversation.messages,
-      languageCode: languageCode,
-      project: _codingProjectForTurn(currentConversation),
-      researchContextBlock: researchContext.hasContent
-          ? researchContext.toPromptBlock()
-          : null,
-      workflowStageOverride: workflowStageOverride,
-      workflowSpecOverride: workflowSpecOverride,
-      additionalPlanningContext: additionalPlanningContext,
-      executorProfile: PlanningExecutorProfile.fromSettings(_settings),
-      compact: compact,
-    );
   }
 
   WorkflowTaskProposalDraft? _buildTaskProposalQualityGateFallback({
@@ -2421,9 +2385,6 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _isCurrentInteractionGeneration(int generation) =>
       ref.mounted && _activeResponseRegistry.isCurrentOrRegistered(generation);
 
-  bool isConversationAwaitingApproval(String targetConversationId) =>
-      state.approvalRequiredConversationIds.contains(targetConversationId);
-
   void _routeThreadState(String threadId, ChatState Function(ChatState) apply) {
     state = ThreadScopedChatState.routeToThread(
       byThread: _threadStates,
@@ -2433,13 +2394,6 @@ class ChatNotifier extends Notifier<ChatState> {
       apply: apply,
     );
   }
-
-  bool isConversationBusy(String targetConversationId) =>
-      chatStateReportsConversationBusy(
-        state: state,
-        targetConversationId: targetConversationId,
-        visibleConversationId: conversationId,
-      );
 
   bool get _hasActiveResponse => _activeResponseRegistry.hasActiveResponse;
 
@@ -2564,9 +2518,156 @@ class ChatNotifier extends Notifier<ChatState> {
     _syncBusyConversationIds();
   }
 
-  void _disposeAllParticipantTurnControls() {
-    for (final owner in _participantTurnControls.owners) {
-      _participantTurnControls.dispose(owner);
+  Future<ChatTurnOwner?> sendHiddenPrompt(
+    String instruction, {
+    HiddenPromptLaunchOptions options = const HiddenPromptLaunchOptions(),
+    bool isVoiceMode = false,
+    String languageCode = 'en',
+    bool persistAssistantResponse = false,
+    ToolResultCompletionEvidence? initialGoalCompletionEvidence,
+    bool replayVerifierImmediatelyAfterMutation = false,
+    bool verifierOnlyContinuation = false,
+    Set<String>? allowedToolNames,
+  }) async {
+    if (!ref.mounted) return null;
+    var ownerConversationId = options.targetConversationId?.trim() ?? '';
+    if (ownerConversationId.isNotEmpty &&
+        _conversationForId(ownerConversationId) == null) {
+      return null;
+    }
+    if (ownerConversationId.isEmpty) {
+      final hiddenConversation = ref
+          .read(conversationsNotifierProvider.notifier)
+          .ensureCurrentConversation();
+      if (hiddenConversation == null) return null;
+      ownerConversationId = hiddenConversation.id;
+      conversationId ??= ownerConversationId;
+    }
+    if (isConversationBusy(ownerConversationId)) return null;
+    _temporalReferenceContext = null;
+    _isVoiceMode = isVoiceMode;
+    _languageCode = languageCode;
+    final interactionGeneration = _beginInteractionGeneration();
+    final startedRuntime = await _startRuntimeTurn(
+      generation: interactionGeneration,
+      ownerConversationId: ownerConversationId,
+      hidden: true,
+      origin: ChatInteractionOrigin.local,
+      initialGoalCompletionEvidence:
+          initialGoalCompletionEvidence ?? const ToolResultCompletionEvidence(),
+    );
+    if (startedRuntime == null) return null;
+    final turnOwner = startedRuntime;
+    try {
+      _clearTurnDiffCapture();
+      final hiddenPrompt = Message(
+        id: _uuid.v4(),
+        content: instruction,
+        role: MessageRole.user,
+        timestamp: DateTime.now(),
+      );
+      final normalizedVisibleContent = options.visibleUserContent?.trim() ?? '';
+      final turnUserMessage = normalizedVisibleContent.isEmpty
+          ? hiddenPrompt
+          : Message(
+              id: _uuid.v4(),
+              content: normalizedVisibleContent,
+              role: MessageRole.user,
+              timestamp: DateTime.now(),
+            );
+      _hiddenPrompt = hiddenPrompt;
+      final assistantMessage = Message(
+        id: _uuid.v4(),
+        content: '',
+        role: MessageRole.assistant,
+        timestamp: DateTime.now(),
+        isStreaming: true,
+      );
+      final ownerMessages = ownerConversationId == conversationId
+          ? state.messages
+          : _conversationForId(ownerConversationId)?.messages ??
+                const <Message>[];
+      final responseMessages = [
+        ...ownerMessages,
+        if (normalizedVisibleContent.isNotEmpty) turnUserMessage,
+        assistantMessage,
+      ];
+      if (ownerConversationId == conversationId) {
+        state = state.copyWith(
+          messages: responseMessages,
+          isLoading: true,
+          error: null,
+        );
+      }
+      _trackActiveResponse(
+        interactionGeneration,
+        ownerConversationId,
+        turnUserMessage: turnUserMessage,
+        hiddenPrompt: hiddenPrompt,
+        persistHiddenPromptAssistantResponse: persistAssistantResponse,
+        ownerMessages: responseMessages,
+      );
+      if (normalizedVisibleContent.isNotEmpty) {
+        unawaited(
+          _messagePersistence.persistMessages(
+            ownerConversationId,
+            responseMessages.where((message) => !message.isStreaming).toList(),
+          ),
+        );
+        if (ownerConversationId == conversationId) {
+          _dispatchExternalToolHook(
+            'UserPromptSubmit',
+            userMessage: normalizedVisibleContent,
+          );
+        }
+      }
+      if (!_responseMetadata.start(turnOwner)) {
+        throw StateError('Response metadata state could not be initialized.');
+      }
+
+      _onSendStarted();
+      if (options.dataSource == null) {
+        await _preparePrimaryModelForPendingRouteIfNeeded();
+      }
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+        return turnOwner;
+      }
+
+      if (allowedToolNames?.isEmpty == true) {
+        _denyTools(interactionGeneration);
+        await _sendWithoutTools(
+          interactionGeneration: interactionGeneration,
+          options: options,
+        );
+      } else if (_mcpToolService != null &&
+          _settings.mcpEnabled &&
+          _supportsToolAwareRequests) {
+        appLog('[Tool] Sending hidden prompt in tool-aware mode');
+        await _sendWithTools(
+          interactionGeneration: interactionGeneration,
+          allowedToolNames: allowedToolNames,
+          replayVerifierImmediatelyAfterMutation:
+              replayVerifierImmediatelyAfterMutation,
+          verifierOnlyContinuation: verifierOnlyContinuation,
+        );
+      } else {
+        appLog('[Tool] Sending hidden prompt in normal mode');
+        _denyTools(interactionGeneration);
+        await _sendWithoutTools(
+          interactionGeneration: interactionGeneration,
+          options: options,
+        );
+      }
+      return turnOwner;
+    } catch (error) {
+      _failRuntimeTurn(
+        interactionGeneration,
+        code: 'hidden_prompt_failed',
+        message: error.toString(),
+      );
+      _turnToolResults.dispose(turnOwner);
+      _routeRuntimeStartFailure(ownerConversationId, error.toString());
+      return null;
     }
   }
 
@@ -3056,115 +3157,6 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     } finally {
       _queuedChatMessages.endDrain(owner);
-    }
-  }
-
-  Future<ChatTurnOwner?> sendHiddenPrompt(
-    String instruction, {
-    bool isVoiceMode = false,
-    String languageCode = 'en',
-    bool persistAssistantResponse = false,
-    ToolResultCompletionEvidence? initialGoalCompletionEvidence,
-    bool replayVerifierImmediatelyAfterMutation = false,
-    bool verifierOnlyContinuation = false,
-    Set<String>? allowedToolNames,
-  }) async {
-    if (!ref.mounted) return null;
-    if (conversationId == null) {
-      final hiddenConversation = ref
-          .read(conversationsNotifierProvider.notifier)
-          .ensureCurrentConversation();
-      if (hiddenConversation == null) return null;
-      conversationId = hiddenConversation.id;
-    }
-    _temporalReferenceContext = null;
-    _isVoiceMode = isVoiceMode;
-    _languageCode = languageCode;
-    final ownerConversationId = conversationId!;
-    final interactionGeneration = _beginInteractionGeneration();
-    final startedRuntime = await _startRuntimeTurn(
-      generation: interactionGeneration,
-      ownerConversationId: ownerConversationId,
-      hidden: true,
-      origin: ChatInteractionOrigin.local,
-      initialGoalCompletionEvidence:
-          initialGoalCompletionEvidence ?? const ToolResultCompletionEvidence(),
-    );
-    if (startedRuntime == null) return null;
-    final turnOwner = startedRuntime;
-    try {
-      _clearTurnDiffCapture();
-      final turnUserMessage = Message(
-        id: _uuid.v4(),
-        content: instruction,
-        role: MessageRole.user,
-        timestamp: DateTime.now(),
-      );
-      _hiddenPrompt = turnUserMessage;
-      final assistantMessage = Message(
-        id: _uuid.v4(),
-        content: '',
-        role: MessageRole.assistant,
-        timestamp: DateTime.now(),
-        isStreaming: true,
-      );
-      final ownerMessages = ownerConversationId == conversationId
-          ? state.messages
-          : _conversationForId(ownerConversationId)?.messages ??
-                const <Message>[];
-      final responseMessages = [...ownerMessages, assistantMessage];
-      if (ownerConversationId == conversationId) {
-        state = state.copyWith(
-          messages: responseMessages,
-          isLoading: true,
-          error: null,
-        );
-      }
-      _trackActiveResponse(
-        interactionGeneration,
-        ownerConversationId,
-        turnUserMessage: turnUserMessage,
-        hiddenPrompt: turnUserMessage,
-        persistHiddenPromptAssistantResponse: persistAssistantResponse,
-        ownerMessages: responseMessages,
-      );
-      if (!_responseMetadata.start(turnOwner)) {
-        throw StateError('Response metadata state could not be initialized.');
-      }
-
-      _onSendStarted();
-
-      await _preparePrimaryModelForPendingRouteIfNeeded();
-      if (!_isCurrentInteractionGeneration(interactionGeneration)) {
-        return turnOwner;
-      }
-
-      if (_mcpToolService != null &&
-          _settings.mcpEnabled &&
-          _supportsToolAwareRequests) {
-        appLog('[Tool] Sending hidden prompt in tool-aware mode');
-        await _sendWithTools(
-          interactionGeneration: interactionGeneration,
-          allowedToolNames: allowedToolNames,
-          replayVerifierImmediatelyAfterMutation:
-              replayVerifierImmediatelyAfterMutation,
-          verifierOnlyContinuation: verifierOnlyContinuation,
-        );
-      } else {
-        appLog('[Tool] Sending hidden prompt in normal mode');
-        _denyTools(interactionGeneration);
-        await _sendWithoutTools(interactionGeneration: interactionGeneration);
-      }
-      return turnOwner;
-    } catch (error) {
-      _failRuntimeTurn(
-        interactionGeneration,
-        code: 'hidden_prompt_failed',
-        message: error.toString(),
-      );
-      _turnToolResults.dispose(turnOwner);
-      _routeRuntimeStartFailure(ownerConversationId, error.toString());
-      return null;
     }
   }
 
@@ -3728,6 +3720,7 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<void> _sendWithoutTools({
     bool allowContextRetry = true,
     int? interactionGeneration,
+    HiddenPromptLaunchOptions? options,
   }) async {
     if (!ref.mounted) return;
     final generation = interactionGeneration ?? _interactionGeneration;
@@ -3738,12 +3731,15 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     try {
       _runWithLlmSessionLogContextForGeneration(generation, () {
-        final stream = _dataSource.streamChatCompletion(
-          messages: _prepareMessagesForLLM(interactionGeneration: generation),
-          model: _settings.model,
-          temperature: _assistantRequestTemperature,
-          maxTokens: _settings.maxTokens,
-        );
+        final stream = (options?.dataSource ?? _dataSource)
+            .streamChatCompletion(
+              messages: _prepareMessagesForLLM(
+                interactionGeneration: generation,
+              ),
+              model: options?.model ?? _settings.model,
+              temperature: _assistantRequestTemperature,
+              maxTokens: _settings.maxTokens,
+            );
 
         _turnStream.listen(
           turnOwner,
@@ -3765,6 +3761,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   () => _sendWithoutTools(
                     allowContextRetry: false,
                     interactionGeneration: generation,
+                    options: options,
                   ),
                   owner: turnOwner,
                 ).then((retried) {
@@ -3781,7 +3778,7 @@ class ChatNotifier extends Notifier<ChatState> {
           onDone: () =>
               _finishStreamedCompletionInBackground(turnOwner, stream.terminal),
         );
-      });
+      }, usageRole: options?.usageRole ?? ModelUsageRole.chat);
     } catch (e, stackTrace) {
       appLog('[ChatNotifier] _sendWithoutTools catch: ${e.runtimeType}: $e');
       appLog('[ChatNotifier] stackTrace: $stackTrace');
@@ -3791,6 +3788,7 @@ class ChatNotifier extends Notifier<ChatState> {
             () => _sendWithoutTools(
               allowContextRetry: false,
               interactionGeneration: generation,
+              options: options,
             ),
             owner: turnOwner,
           )) {

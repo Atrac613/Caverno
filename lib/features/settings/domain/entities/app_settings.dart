@@ -28,6 +28,8 @@ enum CodingVerificationTriggerPolicy { onCompletionClaim, onRequestOnly, off }
 
 enum ReasoningEffortPreference { automatic, low, medium, high }
 
+enum ProReasoningDepth { standard, deep, max }
+
 enum LlmProvider { openAiCompatible, appleFoundationModels }
 
 enum ModelToolCallStyle { unknown, nativeToolCalls, embeddedToolTags, none }
@@ -762,6 +764,10 @@ abstract class AppSettings with _$AppSettings {
     @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)
     @Default(ReasoningEffortPreference.automatic)
     ReasoningEffortPreference reasoningEffort,
+    @Default(false) bool proReasoningEnabled,
+    @JsonKey(unknownEnumValue: ProReasoningDepth.deep)
+    @Default(ProReasoningDepth.deep)
+    ProReasoningDepth proReasoningDepth,
     // Per-role model routing (LL1). Empty string means "use the main model".
     // Lets secondary LLM calls run on a smaller, faster local model.
     @Default('') String memoryExtractionModel,
@@ -772,6 +778,9 @@ abstract class AppSettings with _$AppSettings {
     // the other roles this usually wants a stronger model than the main one,
     // since the plan shapes the whole execution run.
     @Default('') String planningModel,
+    // Pro Reasoning coordinates multiple deliberation stages, so it can use a
+    // dedicated model independently from ordinary chat and plan drafting.
+    @Default('') String proReasoningModel,
     // LL8 per-role endpoint routing. Empty string means "use the primary
     // endpoint". A non-empty value is a LlmEndpoint id; an unreachable mesh
     // endpoint falls back to the primary at call time (MeshEndpointRouter).
@@ -780,6 +789,7 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String goalSuggestionEndpointId,
     @Default('') String approvalAutoReviewEndpointId,
     @Default('') String planningEndpointId,
+    @Default('') String proReasoningEndpointId,
     @Default('') String googleChatWebhookUrl,
     @Default('') String mcpUrl,
     @Default(<String>[]) List<String> mcpUrls,
@@ -983,6 +993,9 @@ abstract class AppSettings with _$AppSettings {
 
   String get effectivePlanningModel =>
       _resolveRoleModel(planningModel, planningEndpointId);
+
+  String get effectiveProReasoningModel =>
+      _resolveRoleModel(proReasoningModel, proReasoningEndpointId);
 
   String get normalizedFeedbackEndpointUrl => feedbackEndpointUrl.trim();
 
@@ -1219,6 +1232,7 @@ abstract class AppSettings with _$AppSettings {
       'goalSuggestionEndpointId',
       'approvalAutoReviewEndpointId',
       'planningEndpointId',
+      'proReasoningEndpointId',
     ]) {
       final currentId = migrated[field]?.toString();
       if (currentId != null && namedIdMapping.containsKey(currentId)) {

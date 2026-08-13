@@ -12,6 +12,7 @@ import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dar
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/hidden_prompt_launch_options.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -199,6 +200,7 @@ class _ValidationChatNotifier extends ChatNotifier {
   @override
   Future<ChatTurnOwner?> sendHiddenPrompt(
     String instruction, {
+    HiddenPromptLaunchOptions options = const HiddenPromptLaunchOptions(),
     bool isVoiceMode = false,
     String languageCode = 'en',
     bool persistAssistantResponse = false,

@@ -376,6 +376,7 @@ void main() {
     await notifier.updateSubagentModel('small-subagent-model');
     await notifier.updateGoalSuggestionModel('small-goal-model');
     await notifier.updateApprovalAutoReviewModel('small-review-model');
+    await notifier.updateProReasoningModel(' reasoning-model ');
 
     final settings = container.read(settingsNotifierProvider);
     expect(settings.memoryExtractionModel, 'small-memory-model');
@@ -386,12 +387,40 @@ void main() {
     expect(reloaded.subagentModel, 'small-subagent-model');
     expect(reloaded.goalSuggestionModel, 'small-goal-model');
     expect(reloaded.approvalAutoReviewModel, 'small-review-model');
+    expect(reloaded.proReasoningModel, 'reasoning-model');
 
     await notifier.updateSubagentModel('');
     expect(
       container.read(settingsNotifierProvider).effectiveSubagentModel,
       container.read(settingsNotifierProvider).model,
     );
+  });
+
+  test('Pro Reasoning settings persist through the repository', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(settingsNotifierProvider.notifier);
+    await notifier.updateProReasoningEnabled(true);
+    await notifier.updateProReasoningDepth(ProReasoningDepth.max);
+    await notifier.updateProReasoningModel(' reasoning-model ');
+    await notifier.updateProReasoningEndpointId(' reasoning-endpoint ');
+
+    final settings = container.read(settingsNotifierProvider);
+    expect(settings.proReasoningEnabled, isTrue);
+    expect(settings.proReasoningDepth, ProReasoningDepth.max);
+    expect(settings.proReasoningModel, 'reasoning-model');
+    expect(settings.proReasoningEndpointId, 'reasoning-endpoint');
+
+    final reloaded = SettingsRepository(prefs).load();
+    expect(reloaded.proReasoningEnabled, isTrue);
+    expect(reloaded.proReasoningDepth, ProReasoningDepth.max);
+    expect(reloaded.proReasoningModel, 'reasoning-model');
+    expect(reloaded.proReasoningEndpointId, 'reasoning-endpoint');
   });
 
   test(

@@ -54,6 +54,7 @@ import 'package:caverno/features/chat/domain/services/session_memory_service.dar
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/hidden_prompt_launch_options.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
@@ -141,7 +142,7 @@ void main() {
     }
   });
 
-  registerChatNotifierPersistenceTests();
+  registerChatNotifierPersistenceTests(() => notifier, () => controller);
   registerChatNotifierGitGuardrailTests();
   registerChatNotifierAskUserQuestionTests();
   registerChatNotifierTurnRollbackTests();
@@ -178,8 +179,7 @@ void main() {
       notice,
     );
 
-    // The original answer must remain visible (the chat log must not look
-    // wiped) and the correction must come first to frame it as unverified.
+    // The original answer stays visible and the correction comes first.
     expect(corrected, startsWith(notice));
     expect(corrected, contains(original));
 

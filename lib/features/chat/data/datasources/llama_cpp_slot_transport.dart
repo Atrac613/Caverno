@@ -71,6 +71,7 @@ class LlamaCppTimings {
 class SlotChatResult {
   const SlotChatResult({
     required this.content,
+    this.reasoning = '',
     required this.finishReason,
     this.idSlot,
     this.timings,
@@ -80,7 +81,15 @@ class SlotChatResult {
   });
 
   final String content;
+  final String reasoning;
   final String? finishReason;
+
+  bool get hasUsableContent => content.trim().isNotEmpty;
+
+  bool get exhaustedBudgetInReasoning =>
+      !hasUsableContent &&
+      reasoning.trim().isNotEmpty &&
+      finishReason?.toLowerCase() == 'length';
 
   /// The slot the server actually served. llama.cpp echoes `id_slot`; when it
   /// does not, this falls back to the requested slot.
@@ -108,6 +117,11 @@ class SlotChatResult {
       content: message?['content'] is String
           ? message!['content'] as String
           : '',
+      reasoning: switch (message?['reasoning_content'] ??
+          message?['reasoning']) {
+        final String value => value,
+        _ => '',
+      },
       finishReason: firstChoice?['finish_reason'] as String?,
       idSlot: _asInt(response['id_slot']) ?? requestedIdSlot,
       timings: timings == null ? null : LlamaCppTimings.fromJson(timings),
@@ -144,7 +158,7 @@ class LlamaCppSlotTransport {
     required String baseUrl,
     required String apiKey,
     http.Client? client,
-    Duration timeout = const Duration(seconds: 120),
+    Duration timeout = const Duration(minutes: 6),
   }) : _baseUrl = baseUrl,
        _apiKey = apiKey,
        _client = client ?? http.Client(),
@@ -169,6 +183,9 @@ class LlamaCppSlotTransport {
     int? maxTokens,
     int? idSlot,
     bool cachePrompt = true,
+    Map<String, dynamic>? chatTemplateKwargs,
+    String? reasoningEffort,
+    int? seed,
   }) async {
     final body = buildRequestBody(
       model: model,
@@ -178,6 +195,9 @@ class LlamaCppSlotTransport {
       maxTokens: maxTokens,
       idSlot: idSlot,
       cachePrompt: cachePrompt,
+      chatTemplateKwargs: chatTemplateKwargs,
+      reasoningEffort: reasoningEffort,
+      seed: seed,
     );
 
     final response = await _client
@@ -211,6 +231,9 @@ class LlamaCppSlotTransport {
     int? maxTokens,
     int? idSlot,
     bool cachePrompt = true,
+    Map<String, dynamic>? chatTemplateKwargs,
+    String? reasoningEffort,
+    int? seed,
   }) {
     return {
       'model': model,
@@ -220,6 +243,9 @@ class LlamaCppSlotTransport {
       'temperature': ?temperature,
       'max_tokens': ?maxTokens,
       'id_slot': ?idSlot,
+      'chat_template_kwargs': ?chatTemplateKwargs,
+      'reasoning_effort': ?reasoningEffort,
+      'seed': ?seed,
       if (tools != null && tools.isNotEmpty) 'tools': tools,
     };
   }

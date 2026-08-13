@@ -230,6 +230,21 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateProReasoningEnabled(bool enabled) async {
+    state = state.copyWith(proReasoningEnabled: enabled);
+    await _repository.save(state);
+  }
+
+  Future<void> updateProReasoningDepth(ProReasoningDepth depth) async {
+    state = state.copyWith(proReasoningDepth: depth);
+    await _repository.save(state);
+  }
+
+  Future<void> updateProReasoningModel(String model) async {
+    state = state.copyWith(proReasoningModel: model.trim());
+    await _repository.save(state);
+  }
+
   /// LL8: assign a role's secondary calls to a registered mesh endpoint. An
   /// empty id routes the role to the primary endpoint.
   Future<void> updateMemoryExtractionEndpointId(String endpointId) async {
@@ -254,6 +269,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> updatePlanningEndpointId(String endpointId) async {
     state = state.copyWith(planningEndpointId: endpointId.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updateProReasoningEndpointId(String endpointId) async {
+    state = state.copyWith(proReasoningEndpointId: endpointId.trim());
     await _repository.save(state);
   }
 

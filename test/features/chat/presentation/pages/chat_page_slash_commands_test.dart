@@ -20,6 +20,7 @@ import 'package:caverno/features/chat/presentation/providers/coding_projects_not
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/custom_slash_commands_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/feedback_submission_provider.dart';
+import 'package:caverno/features/chat/presentation/providers/pro_reasoning_run_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_git_worktree_preparer.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_executor.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_registry_notifier.dart';
@@ -110,6 +111,27 @@ class _SlashChatNotifier extends ChatNotifier {
   }) async {
     sentMessages.add(content);
     return null;
+  }
+}
+
+class _SlashProReasoningRunNotifier extends ProReasoningRunNotifier {
+  final List<String> questions = <String>[];
+  final List<ProReasoningDepth?> depths = <ProReasoningDepth?>[];
+  final List<String> languageCodes = <String>[];
+
+  @override
+  ProReasoningRunState build() => const ProReasoningRunState();
+
+  @override
+  Future<bool> start(
+    String question, {
+    ProReasoningDepth? depth,
+    String languageCode = 'en',
+  }) async {
+    questions.add(question);
+    depths.add(depth);
+    languageCodes.add(languageCode);
+    return true;
   }
 }
 
@@ -1615,6 +1637,42 @@ void main() {
     expect(chatNotifier.cancelCount, 1);
   });
 
+  testWidgets('/pro starts one-shot Pro Reasoning without ordinary send', (
+    tester,
+  ) async {
+    final conversation = _chatConversation(messages: const <Message>[]);
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.chat,
+        activeProjectId: null,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final proNotifier = _SlashProReasoningRunNotifier();
+    await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      proReasoningNotifier: proNotifier,
+      settings: AppSettings.defaults().copyWith(
+        proReasoningDepth: ProReasoningDepth.max,
+      ),
+    );
+
+    await _submitComposerText(tester, '/pro Compare the two designs');
+
+    expect(proNotifier.questions, ['Compare the two designs']);
+    expect(proNotifier.depths, [ProReasoningDepth.max]);
+    expect(proNotifier.languageCodes, ['en']);
+    expect(chatNotifier.sentMessages, isEmpty);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      isEmpty,
+    );
+  });
+
   testWidgets('/feedback uploads the current session log and feedback text', (
     tester,
   ) async {
@@ -1864,6 +1922,7 @@ Future<ProviderContainer> _pumpSlashChatPage(
   CodingEnvironmentProcessRunner? runProcess,
   WorktreeAgentGitWorktreePreparer? worktreeAgentPreparer,
   WorktreeAgentTaskExecutionDelegate? worktreeAgentDelegate,
+  _SlashProReasoningRunNotifier? proReasoningNotifier,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
   final preferences = await SharedPreferences.getInstance();
@@ -1894,6 +1953,8 @@ Future<ProviderContainer> _pumpSlashChatPage(
         () => codingProjectsNotifier ?? _SlashCodingProjectsNotifier(),
       ),
       chatNotifierProvider.overrideWith(() => chatNotifier),
+      if (proReasoningNotifier != null)
+        proReasoningRunProvider.overrideWith(() => proReasoningNotifier),
       routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
     ],
   );

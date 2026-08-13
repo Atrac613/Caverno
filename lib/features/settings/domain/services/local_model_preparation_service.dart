@@ -106,6 +106,8 @@ class LocalModelPreparationService {
         settings.approvalAutoReviewModel.trim(),
       if (settings.planningEndpointId.trim() == selectedEndpointId)
         settings.planningModel.trim(),
+      if (settings.proReasoningEndpointId.trim() == selectedEndpointId)
+        settings.proReasoningModel.trim(),
     ];
     final seen = <String>{};
     final result = <String>[];

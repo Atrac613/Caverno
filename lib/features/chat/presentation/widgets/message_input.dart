@@ -23,7 +23,9 @@ import '../../domain/entities/conversation_goal.dart';
 import 'conversation_goal_status_presentation.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../slash_commands/slash_command.dart';
+import 'message_input_control_labels.dart';
 import 'message_input_slash_suggestion_state.dart';
+import 'pro_reasoning_mode_button.dart';
 import 'voice_mode_overlay.dart';
 
 class MessageInputImageAttachment {
@@ -71,6 +73,7 @@ class MessageInput extends ConsumerStatefulWidget {
     this.onWorktreeSessionSend,
     this.slashCommands = const <SlashCommandDefinition>[],
     this.onSlashCommand,
+    this.onProReasoningSend,
     this.isFloating = false,
   });
 
@@ -119,6 +122,7 @@ class MessageInput extends ConsumerStatefulWidget {
   final WorktreeSessionSendHandler? onWorktreeSessionSend;
   final List<SlashCommandDefinition> slashCommands;
   final SlashCommandHandler? onSlashCommand;
+  final bool Function(String question)? onProReasoningSend;
   final bool isFloating;
 
   @override
@@ -1097,6 +1101,29 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       return;
     }
 
+    final proReasoningEnabled =
+        !widget.isCodingWorkspace &&
+        ref.read(settingsNotifierProvider).proReasoningEnabled &&
+        widget.onProReasoningSend != null;
+    if (proReasoningEnabled) {
+      if (_hasAttachment) {
+        _showSlashCommandFeedback(
+          'message.pro_reasoning_attachments_unsupported'.tr(),
+        );
+        _focusNode.requestFocus();
+        return;
+      }
+      if (!widget.onProReasoningSend!(finalText)) {
+        _showSlashCommandFeedback('message.pro_reasoning_busy'.tr());
+        _focusNode.requestFocus();
+        return;
+      }
+      _pushToHistory(text);
+      _controller.clear();
+      _focusNode.requestFocus();
+      return;
+    }
+
     String? imageBase64;
     if (_selectedImageBytes != null) {
       imageBase64 = base64Encode(_selectedImageBytes!);
@@ -1200,66 +1227,23 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     }
   }
 
-  String _assistantModeLabel(AssistantMode mode) {
-    return switch (mode) {
-      AssistantMode.general => 'settings.assistant_general'.tr(),
-      AssistantMode.coding => 'settings.assistant_coding'.tr(),
-      AssistantMode.plan => 'settings.assistant_plan'.tr(),
-    };
-  }
+  String _assistantModeLabel(AssistantMode mode) =>
+      messageInputAssistantModeLabel(mode);
 
-  String _reasoningEffortLabel(ReasoningEffortPreference value) {
-    return switch (value) {
-      ReasoningEffortPreference.automatic =>
-        'settings.reasoning_effort_automatic'.tr(),
-      ReasoningEffortPreference.low => 'settings.reasoning_effort_low'.tr(),
-      ReasoningEffortPreference.medium =>
-        'settings.reasoning_effort_medium'.tr(),
-      ReasoningEffortPreference.high => 'settings.reasoning_effort_high'.tr(),
-    };
-  }
+  String _reasoningEffortLabel(ReasoningEffortPreference value) =>
+      messageInputReasoningEffortLabel(value);
 
-  String _codingApprovalModeLabel(ToolApprovalMode mode) {
-    return switch (mode) {
-      ToolApprovalMode.defaultPermissions =>
-        'settings.coding_approval_default'.tr(),
-      ToolApprovalMode.autoReview =>
-        'settings.coding_approval_auto_review'.tr(),
-      ToolApprovalMode.fullAccess =>
-        'settings.coding_approval_full_access'.tr(),
-    };
-  }
+  String _codingApprovalModeLabel(ToolApprovalMode mode) =>
+      messageInputCodingApprovalLabel(mode);
 
-  String _codingApprovalModeDescription(ToolApprovalMode mode) {
-    return switch (mode) {
-      ToolApprovalMode.defaultPermissions =>
-        'settings.coding_approval_default_desc'.tr(),
-      ToolApprovalMode.autoReview =>
-        'settings.coding_approval_auto_review_desc'.tr(),
-      ToolApprovalMode.fullAccess =>
-        'settings.coding_approval_full_access_desc'.tr(),
-    };
-  }
+  String _codingApprovalModeDescription(ToolApprovalMode mode) =>
+      messageInputCodingApprovalDescription(mode);
 
-  String _chatApprovalModeLabel(ToolApprovalMode mode) {
-    return switch (mode) {
-      ToolApprovalMode.defaultPermissions =>
-        'settings.chat_approval_default'.tr(),
-      ToolApprovalMode.autoReview => 'settings.chat_approval_auto_review'.tr(),
-      ToolApprovalMode.fullAccess => 'settings.chat_approval_full_access'.tr(),
-    };
-  }
+  String _chatApprovalModeLabel(ToolApprovalMode mode) =>
+      messageInputChatApprovalLabel(mode);
 
-  String _chatApprovalModeDescription(ToolApprovalMode mode) {
-    return switch (mode) {
-      ToolApprovalMode.defaultPermissions =>
-        'settings.chat_approval_default_desc'.tr(),
-      ToolApprovalMode.autoReview =>
-        'settings.chat_approval_auto_review_desc'.tr(),
-      ToolApprovalMode.fullAccess =>
-        'settings.chat_approval_full_access_desc'.tr(),
-    };
-  }
+  String _chatApprovalModeDescription(ToolApprovalMode mode) =>
+      messageInputChatApprovalDescription(mode);
 
   String _worktreeModeLabel(MessageInputWorktreeMode mode) {
     return switch (mode) {
@@ -2190,6 +2174,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
+                              ],
+                              if (!widget.isCodingWorkspace) ...[
+                                ProReasoningModeButton(
+                                  enabled: !widget.isLoading,
+                                ),
+                                const SizedBox(width: 4),
                               ],
                               Opacity(
                                 opacity: widget.isLoading ? 0.6 : 1.0,

@@ -45,17 +45,18 @@ import '../../domain/services/conversation_execution_recovery_service.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
+import '../coordinators/chat_page_composer_runtime_coordinator.dart';
 import '../coordinators/chat_page_workspace_navigation_coordinator.dart';
 import '../coordinators/feedback_slash_command_coordinator.dart';
 import '../coordinators/goal_slash_command_coordinator.dart';
 import '../coordinators/plan_review_action_coordinator.dart';
-import '../coordinators/composer_assistant_mode_coordinator.dart';
 import '../coordinators/slash_command_action_coordinator.dart';
 import '../coordinators/workflow_editor_action_coordinator.dart';
 import '../coordinators/workflow_task_action_coordinator.dart';
 import '../coordinators/workflow_task_run_coordinator.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
+import '../providers/pro_reasoning_run_notifier.dart';
 import '../providers/coding_environment_snapshot_provider.dart';
 import '../providers/conversations_notifier.dart';
 import '../providers/coding_worktree_session_launcher.dart';
@@ -83,6 +84,7 @@ import '../widgets/worktree_agent_task_banner.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
 import '../widgets/participant_roster_bar.dart';
+import '../widgets/pro_reasoning_progress_card.dart';
 import '../widgets/chat_page_scaffold.dart';
 import '../widgets/chat_right_sidebar.dart';
 import '../widgets/tool_perimeter_summary.dart';
@@ -94,7 +96,6 @@ import '../widgets/chat_image_drop_target.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
 import '../widgets/session_log_details_section.dart';
-import '../widgets/slash_command_help_sheet.dart';
 import '../widgets/terminal/coding_terminal_dock.dart';
 import '../widgets/token_usage_indicator.dart';
 import '../widgets/plan/plan_document_approval_sheet.dart';
@@ -156,6 +157,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   static const double _browserPanelWidth = 480;
   static const double _compactBrowserPanelHeightFraction = 0.55;
   static const double _compactBrowserChatReserveHeight = 220;
+
+  ChatPageComposerRuntimeCoordinator get _composerRuntimeCoordinator =>
+      ChatPageComposerRuntimeCoordinator(
+        ref: ref,
+        leaveDashboard: _leaveDashboard,
+      );
 
   /// Reused browser webview preserves the live page while panes toggle.
   final GlobalKey _browserWebViewKey = GlobalKey();
@@ -347,27 +354,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     Map<String, String>? namedArgs,
   }) => key.tr(namedArgs: namedArgs);
 
-  Future<void> _selectAssistantModeFromComposer(
-    AssistantMode mode, {
-    required bool isCodingWorkspace,
-    required Conversation? currentConversation,
-  }) {
-    return ComposerAssistantModeCoordinator(
-      conversationsNotifier: ref.read(conversationsNotifierProvider.notifier),
-      updateAssistantMode: ref
-          .read(settingsNotifierProvider.notifier)
-          .updateAssistantMode,
-      dismissPlanProposal: ref
-          .read(chatNotifierProvider.notifier)
-          .dismissPlanProposal,
-    ).select(
-      mode,
-      isCodingWorkspace: isCodingWorkspace,
-      hasConversation: currentConversation != null,
-      isPlanningSession: currentConversation?.isPlanningSession ?? false,
-    );
-  }
-
   Future<SlashCommandExecutionResult> _handleSlashCommand(
     BuildContext context,
     SlashCommandInvocation invocation, {
@@ -385,13 +371,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final coordinator = SlashCommandActionCoordinator(
       conversationsNotifier: conversationsNotifier,
       clearMessages: chatNotifier.clearMessages,
-      cancelStreaming: chatNotifier.cancelStreaming,
+      cancelStreaming: _composerRuntimeCoordinator.cancelActiveResponse,
       dismissPlanProposal: chatNotifier.dismissPlanProposal,
       updateAssistantMode: ref
           .read(settingsNotifierProvider.notifier)
           .updateAssistantMode,
       leaveDashboard: _leaveDashboard,
-      showHelp: (commands) => _showSlashCommandHelp(context, commands),
+      showHelp: (commands) =>
+          _composerRuntimeCoordinator.showSlashCommandHelp(context, commands),
       handleGoal:
           (conversation, args, {required sendObjectiveAsInitialPrompt}) =>
               GoalSlashCommandCoordinator(
@@ -426,6 +413,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             currentConversation: conversation,
             feedbackText: feedbackText,
           ),
+      startProReasoning: (question) =>
+          _composerRuntimeCoordinator.startProReasoning(context, question),
       enqueueWorktreeAgent: ref.read(worktreeAgentTaskLauncherProvider).enqueue,
       startReadyWorktreeAgents: (request) async {
         await ref
@@ -443,20 +432,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         currentConversation: currentConversation,
         conversationsState: conversationsState,
         customPromptTemplates: customPromptTemplates,
-      ),
-    );
-  }
-
-  Future<void> _showSlashCommandHelp(
-    BuildContext context,
-    List<SlashCommandDefinition> commands,
-  ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SlashCommandHelpSheet(
-        title: 'chat.slash_commands_title'.tr(),
-        commands: commands,
       ),
     );
   }
@@ -624,6 +599,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatNotifierProvider);
+    final proReasoningState = ref.watch(proReasoningRunProvider);
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
     final conversationsState = ref.watch(conversationsNotifierProvider);
     final conversationsNotifier = ref.read(
@@ -683,6 +659,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final isCodingWorkspace =
         !isDashboardVisible &&
         conversationsState.activeWorkspaceMode == WorkspaceMode.coding;
+    final isComposerBusy = chatState.isLoading || proReasoningState.isRunning;
     final showChatApprovalMode =
         !isDashboardVisible &&
         !isCodingWorkspace &&
@@ -815,6 +792,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       originalImageMimeType,
     );
 
+    bool handleProReasoningSend(String question) =>
+        _composerRuntimeCoordinator.startProReasoning(context, question);
+
     void handleComposerInterrupt(
       String message,
       String? imageBase64,
@@ -833,15 +813,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     Widget buildMessageInput({bool floating = false}) {
       final input = MessageInput(
         onSend: handleComposerSend,
-        onInterrupt: handleComposerInterrupt,
-        onCancel: () => chatNotifier.cancelStreaming(),
-        isLoading: chatState.isLoading,
+        onInterrupt: proReasoningState.isRunning
+            ? null
+            : handleComposerInterrupt,
+        onCancel: _composerRuntimeCoordinator.cancelActiveResponse,
+        isLoading: isComposerBusy,
         assistantMode: effectiveAssistantMode,
-        onAssistantModeSelected: (mode) => _selectAssistantModeFromComposer(
-          mode,
-          isCodingWorkspace: isCodingWorkspace,
-          currentConversation: currentConversation,
-        ),
+        onAssistantModeSelected: (mode) =>
+            _composerRuntimeCoordinator.selectAssistantMode(
+              mode,
+              isCodingWorkspace: isCodingWorkspace,
+              currentConversation: currentConversation,
+            ),
         slashCommands: _buildSlashCommands(
           context,
           customSlashCommandTemplates,
@@ -849,13 +832,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         onSlashCommand: (invocation) => _handleSlashCommand(
           context,
           invocation,
-          isLoading: chatState.isLoading,
+          isLoading: isComposerBusy,
           isCodingWorkspace: isCodingWorkspace,
           activeProject: activeProject,
           currentConversation: currentConversation,
           conversationsState: conversationsState,
           customPromptTemplates: customSlashCommandTemplates,
         ),
+        onProReasoningSend: handleProReasoningSend,
         isCodingWorkspace: isCodingWorkspace,
         showChatApprovalMode: showChatApprovalMode,
         inputHintKey: isCodingWorkspace
@@ -898,9 +882,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             : null,
         isFloating: floating,
       );
+      final showProProgress = !isCodingWorkspace && proReasoningState.isRunning;
       if (currentConversation == null ||
           currentConversation.workspaceMode != WorkspaceMode.chat) {
-        return input;
+        if (!showProProgress) return input;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ProReasoningProgressCard(
+              progress: proReasoningState.progress,
+              onCancel: _composerRuntimeCoordinator.cancelActiveResponse,
+            ),
+            input,
+          ],
+        );
       }
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -914,7 +909,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               for (final message in currentConversation.messages)
                 if (message.participantId != null) message.participantId!,
             },
-            enabled: !chatState.isLoading,
+            enabled: !isComposerBusy,
             runtime: chatState.participantTurnRuntime,
             onStopRequested: chatNotifier.requestParticipantTurnStop,
             onContinueRequested: () {
@@ -928,6 +923,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               );
             },
           ),
+          if (showProProgress)
+            ProReasoningProgressCard(
+              progress: proReasoningState.progress,
+              onCancel: _composerRuntimeCoordinator.cancelActiveResponse,
+            ),
           input,
         ],
       );

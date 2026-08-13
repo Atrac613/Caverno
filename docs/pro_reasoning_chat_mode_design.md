@@ -1,6 +1,6 @@
 # Pro Reasoning Mode For Chat Workspace (LL40)
 
-Status: **design, not yet implemented** (2026-08-12)
+Status: **implemented and live-canary verified** (2026-08-13)
 Roadmap item: LL40 in `docs/local_llm_agent_roadmap.md`
 Related: LL7 (Best-of-N), LL20 (parallel slot substrate), LL26 (A0 mesh
 selection), LL27 (collaborative orchestration),
@@ -22,20 +22,22 @@ seconds, visibly, and cancellably.
 
 ## 2. What shapes the design
 
-### 2.1 The parallel substrate is already built, and unused
+### 2.1 The parallel substrate is built and now has a production consumer
 
 LL20 shipped `ParallelSlotExecutor`, `LlamaCppSlotDiscovery`, and
 `LlamaCppSlotTransport` in `lib/features/chat/data/datasources/`, plus providers
 in `parallel_slot_substrate_provider.dart`. Its own doc comment says it is "the
 substrate LL7 (Best-of-N) and LL13 (parallel worktrees) build on".
 
-Nothing in production consumes it. The only references outside the files
-themselves are the providers and their tests. This is finished, tested
-infrastructure waiting for a first caller.
+LL40 now consumes that substrate through `ProReasoningCandidateExplorer`. It is
+the first production path to use the slot discovery, raw transport, and executor
+together. Candidate work is parallelized across responding hosts, while each
+host is deliberately constrained to one in-flight candidate so multiple slots
+on one GPU are never mistaken for independent GPUs.
 
-It also already solves the degradation problem: `ParallelSlotExecutor.run()`
-falls back to sequential execution whenever fewer than two slots are assignable,
-so a single-slot or non-llama.cpp endpoint needs no special-casing.
+`ParallelSlotExecutor.run()` still supplies the sequential fallback for a
+single-slot or non-slot endpoint. LL40 additionally sets `maxConcurrency: 1`
+for every host queue to enforce the host-placement rule in §2.5.
 
 ### 2.2 This is LL26 (A0) pointed at chat instead of code
 
@@ -60,13 +62,13 @@ all five request shapes.
 
 The LAN llama.cpp host runs with `--reasoning off` and **ignores
 `reasoning_effort`**. The override that works there is
-`chat_template_kwargs: {"enable_thinking": true}`, and that string appears
-nowhere in the codebase. `openai_dart`'s typed `ChatCompletionCreateRequest`
-cannot carry it; `LlamaCppSlotTransport.buildRequestBody` is raw HTTP and can.
+`chat_template_kwargs: {"enable_thinking": true}`. `openai_dart`'s typed
+`ChatCompletionCreateRequest` cannot carry it; the implemented LL40 path now
+sends it through the raw HTTP `LlamaCppSlotTransport.buildRequestBody` surface.
 
 A "Pro" mode built only on `reasoningEffort` would therefore be visibly inert on
 the primary development endpoint. This assumption was load-bearing, so it was
-measured before any code was written — see §2.4.
+measured before implementation — see §2.4.
 
 ### 2.4 Measured baseline (2026-08-12)
 
@@ -95,11 +97,10 @@ Four further findings changed the plan:
    candidate rather than a usable one.
 2. **The server is in router mode** (`model_path: none`, four models served via
    `--models-dir`). `GET /slots` returns **HTTP 400 "model name is missing from
-   the request"**; `GET /slots?model=<name>` returns 200. `LlamaCppSlotDiscovery`
-   does not send the model parameter, so on any router-mode endpoint it silently
-   reports `unsupported`. **This is a real LL20 gap and should be fixed as part
-   of LL40.** It does not change the execution path chosen in §2.5 — this host
-   has one slot either way — but it is the difference between "one slot, known"
+   the request"**; `GET /slots?model=<name>` returns 200. LL40 closes this LL20
+   gap by passing the model to `LlamaCppSlotDiscovery`, which now emits the
+   query parameter. It does not change the execution path chosen in §2.5 — this
+   host has one slot either way — but it is the difference between "one slot, known"
    and "slots unknown, assume the worst", which the budget policy and the
    progress UI both read, and it is what makes a future `--parallel N` host work
    without a code change.
@@ -179,18 +180,21 @@ evidence, so the prefix stays byte-stable across candidates. That is a hard
 design requirement on the stage-3 prompt builder (§4.3), and it is the same
 prefix-stability principle as LL6/LL22.
 
-**Endpoint registrations go stale, so trust health, not config.** Measured
+**Endpoint registrations go stale, so trust a fresh preflight, not config.** Measured
 2026-08-12: of three registered LAN endpoints, `192.168.100.241` answered,
 while `.91` and `.78` timed out — their host had moved to `192.168.100.5`, which
 answers at the network level but had nothing listening on the LLM port. A run
-must therefore health-check at start and size itself to the endpoints that
-actually respond, never to the number configured. `EndpointHealthTracker` and
-`MeshEndpointRouter` already provide exactly this, including silent demotion to
-primary. The progress card must show **which endpoints a run is actually using**,
-so a silently single-host run is visible rather than just mysteriously slow.
+therefore performs its own live preflight over the active endpoint and every
+enabled additional endpoint. For each target it probes
+`GET /slots?model=<name>` and then sends a one-token completion; only targets
+whose completion succeeds enter the round-robin candidate pool. This is new
+run-local evidence, not a read of the existing LL8 health inventory. The
+progress card shows the labels of the targets that survived preflight, so a
+single-host degradation is visible rather than just mysteriously slow.
 
 Consequence: `proReasoningModel` / `proReasoningEndpointId` ship defaulting to
-empty, and candidate placement is decided per run from live health (§5).
+empty, and candidate placement is decided per run from that live preflight
+(§5).
 
 ### 2.6 Hosts are heterogeneous — probe capability, never assume it
 
@@ -244,6 +248,15 @@ Five rules follow, none of which the original design assumed:
    coordinator must carry a per-endpoint capability record instead of one global
    request shape.
 
+**Current implementation boundary.** The local implementation performs the
+availability and slot preflight in §2.5, then probes `enable_thinking` against
+the selected model. Candidate records distinguish whether thinking was
+requested from whether reasoning was observed. For LM Studio, the preflight
+consults `/api/v0/models` and omits a configured model that is not loaded rather
+than triggering a cold load. It does not yet discover context size or choose
+among multiple loaded models. Those placement refinements remain follow-up work
+informed by the completed live multi-host canary.
+
 ## 3. Trigger and scope
 
 - A **`Pro` toggle** in the chat composer, beside the existing reasoning-effort
@@ -263,28 +276,25 @@ non-streaming; stage 5 is the visible streamed answer.
 |---|---|---|---|
 | 1 | Frame | 1 | Decompose into sub-questions; define what a good answer must cover |
 | 2 | Investigate | ≤N tool iterations | Read-only tool loop gathering evidence |
-| 3 | Explore | N in parallel | N independent candidate answers, one per slot |
+| 3 | Explore | N across hosts | N independent candidates, round-robin across responding hosts and sequential within each host |
 | 4 | Critique | 1 | Rank candidates; surface contradictions between them |
 | 5 | Synthesize | 1 (streamed) | Final answer over evidence + top candidates |
 
 ### 4.1 Frame
 
-One low-temperature structured call producing sub-questions, an investigation
-list, and success criteria.
-
-Local models fumble JSON, and the codebase already has a hardened answer for
-that: the multi-attempt degradation ladder in
-`ChatNotifier._requestWorkflowProposalAttempt` (`chat_notifier.dart:1384`) —
-attempts parameterized by `(compact, maxTokens, minimalRetry)`, temperature
-pinned low, with parse failures fed back as retry context. Reuse that shape
-rather than inventing a new one.
+One low-temperature structured call produces sub-questions, an investigation
+list, and success criteria. `ProReasoningPromptBuilder.parseFrame` accepts direct,
+fenced, or embedded JSON and falls back to a deterministic frame when parsing
+fails. The implemented path makes one bounded call; it does not reuse the
+workflow proposal retry ladder.
 
 ### 4.2 Investigate
 
-A bounded read-only tool loop. Mirror `PlanningToolPolicy.enforce()`
-(`lib/features/chat/domain/services/planning_tool_policy.dart:19`) but
-chat-flavored: allow `web_search`, `web_url_read`, `read_file`, `grep`,
-`list_directory`; deny every mutation, shell, SSH, and BLE tool.
+A bounded read-only tool loop. `ProReasoningInvestigator` admits only
+`get_current_datetime`, `web_search`, `web_url_read`, `read_file`,
+`inspect_file`, `find_files`, `search_files`, and `list_directory`. It excludes
+mutation, shell, SSH, BLE, and externally registered MCP tools from both the
+advertised definitions and dispatch.
 
 Output renders as a prompt block in the style of
 `PlanningResearchContext.toPromptBlock()`
@@ -296,9 +306,13 @@ pure-reasoning questions do not pay for a research round-trip.
 
 ### 4.3 Explore — the candidate core
 
-Probe `GET /slots` through `LlamaCppSlotDiscovery`, then hand N
-`SlotCandidateRunner`s to `ParallelSlotExecutor.run()`. Each candidate calls
-`LlamaCppSlotTransport.createChatCompletion` pinned to its own slot.
+Preflight the active route and enabled additional endpoints with
+`LlamaCppSlotDiscovery`, using the target model, followed by a one-token
+completion. The explorer runs one warm candidate to measure duration, reduces N
+when the remaining deadline cannot fit the rest, then distributes the remaining
+candidates round-robin across targets that passed preflight. Each target uses
+`ParallelSlotExecutor.run(maxConcurrency: 1)`, so candidates stay sequential
+inside a host even when it advertises multiple slots.
 
 Candidates must be genuinely independent, not near-duplicates: each gets the
 same evidence but a **different assigned angle** drawn from stage 1's
@@ -316,17 +330,15 @@ test — so this belongs in a comment at the builder, and the round-trip test
 should assert the prefix is identical across candidate bodies.
 
 **This stage carries the `enable_thinking` fix.**
-`LlamaCppSlotTransport.buildRequestBody` gains three optional parameters —
+`LlamaCppSlotTransport.buildRequestBody` supports three optional parameters —
 `chatTemplateKwargs`, `reasoningEffort`, `seed` — each emitted only when
 non-null, so non-llama.cpp endpoints see a byte-identical body to today. The
 combined shape (`enable_thinking` + `seed` + `cache_prompt` + `id_slot` +
 `max_tokens: 3000`) was verified working against the real endpoint; see §2.4.
 
-**It also carries an LL20 fix.** `LlamaCppSlotDiscovery` must send the model
-name (`GET /slots?model=<name>`), because a router-mode server answers the bare
-`GET /slots` with HTTP 400 and the substrate then reports `unsupported` — making
-every caller silently sequential. This is the difference between the parallel
-stage being real and being decorative on the user's own endpoint.
+**It also carries an LL20 fix.** `LlamaCppSlotDiscovery` sends the model name
+(`GET /slots?model=<name>`), because a router-mode server answers the bare
+`GET /slots` with HTTP 400 and the substrate otherwise reports `unsupported`.
 
 Candidates must be given a generous `max_tokens` (3000 measured good). A
 candidate that comes back with reasoning but empty content and
@@ -354,15 +366,22 @@ error better than same-model disagreement.
 
 ### 4.5 Synthesize
 
-Dispatched through the existing public
-`ChatNotifier.sendHiddenPrompt(prompt, persistAssistantResponse: true)`
-(`chat_notifier.dart:3062`).
+Dispatched through the public `ChatNotifier.sendHiddenPrompt` boundary with
+`HiddenPromptLaunchOptions`: the visible question, owning conversation, Pro
+data source, model, and `ModelUsageRole.proReasoning` are captured explicitly.
 
 The synthesis prompt (evidence + top-K candidates + critique) stays hidden; the
-streamed answer is visible. Going through the ordinary send path means the final
-answer inherits streaming, `<think>` rendering via `ContentParser`, tool access
-for a last missing fact, session logging, and the normal turn lifecycle without
-any new code.
+original question and streamed answer are visible and persisted in the captured
+conversation. Going through the ordinary send path preserves streaming,
+`<think>` rendering via `ContentParser`, session logging, and the normal turn
+lifecycle. Synthesis deliberately sends no tools because investigated web or
+file evidence is untrusted input and must not gain mutation authority.
+
+This is also an explicit routing boundary: stage 5 uses the selected
+`proReasoningEndpointId` / `proReasoningModel`, records Pro usage attribution,
+and falls back through the primary chat data source when the selected endpoint
+fails. The captured conversation owner prevents a navigation change during
+stages 1-4 from moving the visible answer into another conversation.
 
 ## 5. Budget, degradation, cancellation
 
@@ -370,8 +389,8 @@ Three depth presets:
 
 Decode dominates: at the measured ~30 tok/s a candidate generating 3–6 K tokens
 of reasoning plus answer costs **~2–3.5 minutes**, and the shared-prefix cache
-saves prefill, not decode. The wall clock therefore depends on how many healthy
-hosts a run finds, so the preset fixes N and the *deadline* absorbs the
+saves prefill, not decode. The wall clock therefore depends on how many targets
+survive preflight, so the preset fixes N and the *deadline* absorbs the
 difference:
 
 | Preset | Candidates | Deadline | Investigate iterations |
@@ -380,17 +399,17 @@ difference:
 | Deep (default) | 3 | 10 min | 6 |
 | Max | 4 | 20 min | 10 |
 
-With H healthy hosts, stage 3 costs roughly `ceil(N / H) × candidate_time`, so
+With H responding hosts, stage 3 costs roughly `ceil(N / H) × candidate_time`, so
 Deep is ~3 min on three hosts and ~10 min on one. The deadlines above are sized
 for the **single-host worst case**, which means a healthy mesh simply finishes
 early rather than a degraded mesh blowing the budget.
 
 Two sizing rules:
 
-- **Placement is decided per run from live health**, not from configuration
-  (§2.5). Count responding endpoints at start, assign candidates round-robin
-  across them, and use multiple slots *within* a host only when that host reports
-  them — never by raising `--parallel` on a single-GPU host.
+- **Placement is decided per run from a live preflight**, not from configuration
+  or a previously collected health inventory (§2.5). Assign candidates
+  round-robin across responding targets and keep each host queue at one in-flight
+  candidate, regardless of how many slots it reports.
 - **N shrinks from observation, not prediction.** After candidate 1 returns, its
   measured duration says whether the rest fit; drop N rather than letting the
   deadline truncate mid-candidate.
@@ -402,38 +421,41 @@ Rules:
 - **The run must never fail the turn.** Worst case it degrades to a plain
   single-pass answer. A deep-think mode that can error out is worse than no deep
   think mode.
-- No parallel slots → `ParallelSlotExecutor` serializes on its own; if that
-  would blow the deadline, the budget policy reduces N to what fits.
-- Cancellation reuses the existing interaction-generation mechanism
-  (`chat_notifier_cancellation.dart`). Each stage re-checks generation before
-  proceeding, and a cancel mid-run still synthesizes from partial results when
-  at least one candidate exists.
+- A single responding host runs candidates sequentially; after the warm
+  candidate, the budget policy reduces N to what can still fit.
+- The Pro run owns a cancellation generation and signal. A cancel during stages
+  1–4 skips remaining internal work and dispatches synthesis with whatever was
+  collected, including the zero-candidate fallback. A cancel during stage 5
+  stops the active chat stream through `ChatNotifier.cancelStreaming()`.
 
 This follows `docs/execution_contract_design.md`'s surviving lesson: depth comes
 from structured stages under a budget, **not** from raising the tool-loop cap.
 
 ## 6. Model routing
 
-Add a `proReasoningModel` / `proReasoningEndpointId` role pair, mirroring
+The implementation adds a `proReasoningModel` / `proReasoningEndpointId` role
+pair, mirroring
 `planningModel` / `planningEndpointId` exactly (`app_settings.dart:694-711`,
 resolver `_resolveRoleModel` at `:1027`). Empty means "use the main model", so
 the feature is behavior-preserving by default.
 
-Add `ModelUsageRole.proReasoning`
+It also adds `ModelUsageRole.proReasoning`
 (`lib/features/chat/domain/entities/model_usage_role.dart:14`) and a row in
 `model_routing_settings_page.dart:144`.
 
-Stages 1, 4, and 5 route through `SecondaryCompletionRouter`, inheriting LL8
-health fallback. Stage 3 goes direct to the slot transport, because slot pinning
-requires the raw path.
+Stages 1, 2, 4, and 5 use the selected Pro endpoint and
+`effectiveProReasoningModel` through `SecondaryCompletionRouter`, with endpoint
+health tracking and primary fallback. Stage 3 directly preflights the selected
+target plus the enabled additional endpoints and uses each responding target's
+model through the slot transport.
 
 ## 7. Constraint: the file-size ratchet
 
 `test/quality/file_size_ratchet_test.dart` enforces non-increasing ceilings.
-Measured 2026-08-12:
+Measured after the implementation extraction on 2026-08-13:
 
-- `chat_notifier.dart`: **8984 / 8984 — zero headroom.**
-- Its library aggregate (primary + 35 part files): **19814 / 19840 — 26 lines.**
+- `chat_notifier.dart`: **8982 / 8984.**
+- Its library aggregate: **19818 / 19840.**
 
 Budgets "may only shrink"; the test's own doc comment forbids raising one to
 make it pass. Two consequences:
@@ -448,9 +470,12 @@ make it pass. Two consequences:
    `_buildTaskProposalRequest` (`:1839`), which only delegate to
    `ConversationPlanningPromptService`, and the `*ForTest` shims at `:2072-2109`.
 
-The design reaches ChatNotifier only through the **existing public**
-`sendHiddenPrompt`, so the expected touch is small — but budget for the
-extraction rather than discovering it at the end.
+The hidden-prompt launch options live in `hidden_prompt_launch_options.dart`.
+The virtual `ChatNotifier.sendHiddenPrompt` entry point remains in the main
+library so existing test doubles can override it; small participant-turn
+cleanup moved to the existing part file to pay for the target-conversation,
+route, completion-receipt, and visible-question boundary while keeping both
+ratchets green.
 
 ## 8. Verification
 
@@ -460,31 +485,55 @@ extraction rather than discovering it at the end.
    The check also surfaced the router-mode `/slots` gap, the one-slot reality,
    and the empty-content-on-small-max_tokens failure mode, all folded into the
    design above. Re-run `tool/` probes if the endpoint or model changes.
-2. **Unit tests** under `test/features/chat/domain/services/pro_reasoning_*`,
-   using plain `package:test` over the pure services with hand-written fakes
-   (the established pattern — see
-   `conversation_goal_auto_continue_policy_test.dart`). Cover: deadline expiry
-   skips to synthesis; zero successful candidates still produces an answer; N
-   reduction when slots < N; critique parse fallback.
-3. **Coordinator test** with a scripted fake transport asserting stage order,
-   slot assignment, and that a mid-run cancel still synthesizes from partials.
-4. `flutter analyze` and `flutter test` — the ratchet and the translation-parity
-   test (`test/widget_test.dart:8`) must both stay green.
-5. **End-to-end on the real endpoint**: a research-style question with Pro on;
-   confirm the progress card advances through all five stages, the answer
-   streams, and `~/.caverno/session_logs` carries the five operations with sane
-   timings. Re-run against `--parallel 1` (or a non-slot endpoint) to confirm
-   sequential degradation.
-6. **Cancel test**: start a Max-depth run, stop mid-stage-3, confirm a partial
-   answer appears rather than an error.
+2. **Implemented pure-service tests** under
+   `test/features/chat/domain/services/pro_reasoning_*` cover presets, tolerant
+   frame parsing and fallback, stable candidate prefixes, tool filtering and
+   dispatch, deadline and cancel synthesis, zero candidates, and candidate-host
+   scheduling with injected probes and local HTTP clients.
+3. **Focused static verification** covers the LL40 settings, domain services,
+   coordinator, widgets, hidden-prompt persistence, translation parity, and the
+   repository-wide file-size ratchets.
+4. **Live multi-host and single-host canaries passed 2026-08-13.** The
+   consent-gated runner is `tool/run_pro_reasoning_live_canary.sh`. A Standard
+   run over the loaded LM Studio model and the loaded LAN llama.cpp model
+   completed in 248.674 s with two candidates on two endpoint labels, all five
+   progress stages, one visible user message, one visible assistant response,
+   one conversation ID, Pro usage attribution, and no stage errors. The
+   single-host repeat completed in 82.505 s with both candidates serialized on
+   the one surviving endpoint.
+5. **Live cancel canary passed 2026-08-13.** Stop was requested after the warm
+   candidate while candidate 2 was in flight. The run attempted two candidates,
+   retained one, skipped critique, and completed partial synthesis in 53.205 s
+   with `cancelRequested: true` and no stage error.
+6. **Logging gate canary passed 2026-08-13.** With
+   `CAVERNO_SESSION_LOG_ENABLED=0`, the same five-stage visible turn completed in
+   64.868 s while writing zero `pro_reasoning_*` operations. Enabled runs wrote
+   frame, investigate, candidate, critique, synthesis, and summary entries under
+   the visible conversation ID.
+
+Live artifacts:
+
+- `build/integration_test_reports/pro_reasoning_live_canary_1786589936/`
+  (multi-host).
+- `build/integration_test_reports/pro_reasoning_live_canary_1786590203/`
+  (single-host and cancellation).
+- `build/integration_test_reports/pro_reasoning_live_canary_1786590412/`
+  (logging disabled).
+
+The first harness attempt under
+`pro_reasoning_live_canary_1786589893/` is not model evidence: Flutter's test
+HTTP override returned synthetic 400 responses before any endpoint request.
+The canary now restores the pre-test `HttpOverrides` value, matching existing
+live-canary practice.
 
 ## 9. Instrumentation
 
-Emit `LlmSessionLogStore` entries with `operation` values `pro_reasoning_frame`,
-`_investigate`, `_candidate`, `_critique`, `_synthesis`, plus a run-summary entry
-carrying stage timings, candidate count, slots used, deadline-hit flag, and
-winning candidate index. `tool/triage_session_logs.py` picks these up with no
-tool changes.
+The implementation emits `LlmSessionLogStore` entries with `operation` values
+`pro_reasoning_frame`, `_investigate`, `_candidate`, `_critique`, `_synthesis`,
+and `_summary`. The summary carries depth, stage timings, surviving and attempted
+candidate counts, endpoint labels, models, slot IDs, deadline/cancel flags,
+winning candidate index, synthesis dispatch state, and stage errors.
+`tool/triage_session_logs.py` explicitly recognizes the Pro operations.
 
 This also produces the first real dataset for the LL26/LL27 question the
 research doc parks as unanswerable without measurement: *does parallel

@@ -28,7 +28,10 @@ void main() {
       );
       expect(discovery, isNotNull);
       // /slots lives at the native root, not under /v1.
-      expect(discovery!.slotsUri.toString(), 'http://localhost:1234/slots');
+      expect(
+        discovery!.slotsUri.toString(),
+        'http://localhost:1234/slots?model=qwen3.6-27b-mtp-vision',
+      );
       expect(executor, isA<ParallelSlotExecutor>());
     },
   );

@@ -100,6 +100,11 @@ _COMPLETION_OPERATIONS = frozenset({
     "createChatCompletionWithToolResults",
     "streamChatCompletion",
     "streamChatCompletionWithTools",
+    "pro_reasoning_frame",
+    "pro_reasoning_investigate",
+    "pro_reasoning_candidate",
+    "pro_reasoning_critique",
+    "pro_reasoning_synthesis",
 })
 
 OVERSIZED_CONTENT_CHARS = 8000

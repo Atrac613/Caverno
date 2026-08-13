@@ -27,6 +27,7 @@ void main() {
         'general',
         'coding',
         'plan',
+        'pro',
         'goal',
         'cancel',
         'feedback',
@@ -40,10 +41,12 @@ void main() {
       ]);
       expect(commands.first.description, 'chat.slash_help_desc');
       expect(commands.first.enabledWhileLoading, isTrue);
-      expect(commands[7].enabledWhileLoading, isTrue);
+      expect(commands[8].enabledWhileLoading, isTrue);
       expect(commands[4].aliases, ['code']);
-      expect(commands[9].aliases, ['worktree', 'worktree-agent']);
-      expect(commands[9].argumentHint, '<task> [--run] [--verify <command>]');
+      expect(commands[6].argumentHint, '<question>');
+      expect(commands[6].requiresArguments, isTrue);
+      expect(commands[10].aliases, ['worktree', 'worktree-agent']);
+      expect(commands[10].argumentHint, '<task> [--run] [--verify <command>]');
       expect(commands.last.description, 'Custom description');
       expect(commands.last.aliases, ['mine']);
       expect(commands.last.promptTemplateId, 'custom-id');

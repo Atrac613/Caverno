@@ -53,6 +53,7 @@ void main() {
       final discovery = LlamaCppSlotDiscovery(
         baseUrl: 'http://localhost:1234/v1',
         apiKey: 'k',
+        model: 'qwen router/model',
         client: MockClient((request) async {
           requestedUri = request.url;
           requestedUserAgent = request.headers['User-Agent'];
@@ -68,7 +69,10 @@ void main() {
 
       final inventory = await discovery.discover();
 
-      expect(requestedUri.toString(), 'http://localhost:1234/slots');
+      expect(
+        requestedUri.toString(),
+        'http://localhost:1234/slots?model=qwen+router%2Fmodel',
+      );
       expect(requestedUserAgent, 'Caverno');
       expect(inventory.supported, isTrue);
       expect(inventory.slotCount, 2);

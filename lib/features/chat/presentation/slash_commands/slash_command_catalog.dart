@@ -1,6 +1,8 @@
 import 'slash_command.dart';
 import 'slash_command_prompt_template.dart';
 
+export 'slash_command_prompt_resolver.dart';
+
 typedef SlashCommandTextResolver =
     String Function(String key, {Map<String, String>? namedArgs});
 
@@ -42,6 +44,13 @@ List<SlashCommandDefinition> buildSlashCommandCatalog({
       description: text('chat.slash_plan_desc'),
     ),
     SlashCommandDefinition(
+      name: 'pro',
+      action: SlashCommandAction.pro,
+      description: text('chat.slash_pro_desc'),
+      argumentHint: '<question>',
+      argumentRequirement: SlashCommandArgumentRequirement.required,
+    ),
+    SlashCommandDefinition(
       name: 'goal',
       action: SlashCommandAction.goal,
       description: text('chat.slash_goal_desc'),
@@ -75,26 +84,4 @@ List<SlashCommandDefinition> buildSlashCommandCatalog({
       ),
     for (final template in customPromptTemplates) template.toDefinition(),
   ];
-}
-
-SlashCommandPromptTemplate? resolveSlashCommandPromptTemplate(
-  SlashCommandInvocation invocation,
-  List<SlashCommandPromptTemplate> customPromptTemplates,
-) {
-  final templateId =
-      invocation.definition.promptTemplateId ??
-      switch (invocation.definition.action) {
-        SlashCommandAction.review => 'review',
-        SlashCommandAction.fix => 'fix',
-        SlashCommandAction.explain => 'explain',
-        SlashCommandAction.test => 'test',
-        _ => null,
-      };
-  if (templateId == null) {
-    return null;
-  }
-  return findSlashCommandPromptTemplate(templateId, [
-    ...builtInSlashCommandPromptTemplates,
-    ...customPromptTemplates,
-  ]);
 }

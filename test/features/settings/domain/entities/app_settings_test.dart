@@ -86,6 +86,35 @@ void main() {
     expect(ReasoningEffortPreference.automatic.apiValue, isNull);
   });
 
+  test('defaults and persists Pro Reasoning preferences', () {
+    final defaults = AppSettings.defaults();
+    expect(defaults.proReasoningEnabled, isFalse);
+    expect(defaults.proReasoningDepth, ProReasoningDepth.deep);
+    expect(defaults.proReasoningModel, isEmpty);
+    expect(defaults.proReasoningEndpointId, isEmpty);
+
+    final settings = defaults.copyWith(
+      proReasoningEnabled: true,
+      proReasoningDepth: ProReasoningDepth.max,
+      proReasoningModel: 'reasoning-model',
+      proReasoningEndpointId: 'reasoning-endpoint',
+    );
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.proReasoningEnabled, isTrue);
+    expect(decoded.proReasoningDepth, ProReasoningDepth.max);
+    expect(decoded.proReasoningModel, 'reasoning-model');
+    expect(decoded.proReasoningEndpointId, 'reasoning-endpoint');
+
+    final unknownDepthJson =
+        jsonDecode(jsonEncode(defaults.toJson())) as Map<String, dynamic>;
+    unknownDepthJson['proReasoningDepth'] = 'future-depth';
+    final unknownDepth = AppSettings.fromJson(unknownDepthJson);
+    expect(unknownDepth.proReasoningDepth, ProReasoningDepth.deep);
+  });
+
   test('defaults and persists semantic search settings', () {
     expect(AppSettings.defaults().enableSemanticSearch, isFalse);
     expect(AppSettings.defaults().embeddingsModel, '');
@@ -154,6 +183,7 @@ void main() {
     final settings = AppSettings.defaults().copyWith(
       memoryExtractionEndpointId: 'http://10.0.0.5:1234/v1',
       subagentEndpointId: 'http://10.0.0.9:8080/v1',
+      proReasoningEndpointId: 'http://10.0.0.10:1234/v1',
     );
     final decoded = AppSettings.fromJson(
       jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
@@ -163,6 +193,7 @@ void main() {
     expect(decoded.subagentEndpointId, 'http://10.0.0.9:8080/v1');
     expect(decoded.goalSuggestionEndpointId, '');
     expect(decoded.approvalAutoReviewEndpointId, '');
+    expect(decoded.proReasoningEndpointId, 'http://10.0.0.10:1234/v1');
   });
 
   test('drops invalid endpoints on parse', () {
@@ -246,6 +277,7 @@ void main() {
     test('merges overlapping registries and remaps role pins', () {
       final json = legacyJson()
         ..['memoryExtractionEndpointId'] = 'legacy-mesh-id'
+        ..['proReasoningEndpointId'] = 'legacy-mesh-id'
         ..['llmEndpointProfiles'] = [
           {
             'id': 'profile-id',
@@ -273,6 +305,7 @@ void main() {
       expect(settings.llmEndpoints.single.apiKey, 'profile-key');
       expect(settings.llmEndpoints.single.enabled, isTrue);
       expect(settings.memoryExtractionEndpointId, 'profile-id');
+      expect(settings.proReasoningEndpointId, 'profile-id');
     });
 
     test('does not materialize the unified key without legacy keys', () {
@@ -764,6 +797,7 @@ void main() {
     expect(settings.effectiveSubagentModel, 'main-model');
     expect(settings.effectiveGoalSuggestionModel, 'main-model');
     expect(settings.effectiveApprovalAutoReviewModel, 'main-model');
+    expect(settings.effectiveProReasoningModel, 'main-model');
 
     final whitespaceOnly = settings.copyWith(memoryExtractionModel: '   ');
     expect(whitespaceOnly.effectiveMemoryExtractionModel, 'main-model');
@@ -777,11 +811,13 @@ void main() {
       temperature: 0.7,
       maxTokens: 4096,
       memoryExtractionModel: 'small-memory-model',
+      proReasoningModel: 'reasoning-model',
       subagentModel: 'small-subagent-model',
     );
 
     expect(settings.effectiveMemoryExtractionModel, 'small-memory-model');
     expect(settings.effectiveSubagentModel, 'small-subagent-model');
+    expect(settings.effectiveProReasoningModel, 'reasoning-model');
     // Unassigned roles still fall back to the main model.
     expect(settings.effectiveGoalSuggestionModel, 'main-model');
     expect(settings.effectiveApprovalAutoReviewModel, 'main-model');
@@ -795,6 +831,7 @@ void main() {
       temperature: 0.7,
       maxTokens: 4096,
       subagentEndpointId: 'mesh-endpoint',
+      proReasoningEndpointId: 'mesh-endpoint',
       llmEndpoints: [
         LlmEndpoint(
           id: 'mesh-endpoint',
@@ -805,6 +842,7 @@ void main() {
     );
 
     expect(settings.effectiveSubagentModel, 'mesh-model');
+    expect(settings.effectiveProReasoningModel, 'mesh-model');
   });
 
   test('a pinned endpoint without a model falls back to the primary', () {
@@ -876,6 +914,7 @@ void main() {
       temperature: 0.7,
       maxTokens: 4096,
       memoryExtractionModel: 'small-memory-model',
+      proReasoningModel: 'reasoning-model',
     );
 
     expect(
@@ -884,6 +923,10 @@ void main() {
     );
     expect(
       settings.effectiveSubagentModel,
+      AppSettings.appleFoundationModelsModelId,
+    );
+    expect(
+      settings.effectiveProReasoningModel,
       AppSettings.appleFoundationModelsModelId,
     );
   });
@@ -899,6 +942,10 @@ void main() {
       subagentModel: 'small-subagent-model',
       goalSuggestionModel: 'small-goal-model',
       approvalAutoReviewModel: 'small-review-model',
+      proReasoningEnabled: true,
+      proReasoningDepth: ProReasoningDepth.standard,
+      proReasoningModel: 'reasoning-model',
+      proReasoningEndpointId: 'reasoning-endpoint',
     );
 
     final decoded = AppSettings.fromJson(
@@ -908,6 +955,10 @@ void main() {
     expect(decoded.subagentModel, 'small-subagent-model');
     expect(decoded.goalSuggestionModel, 'small-goal-model');
     expect(decoded.approvalAutoReviewModel, 'small-review-model');
+    expect(decoded.proReasoningEnabled, isTrue);
+    expect(decoded.proReasoningDepth, ProReasoningDepth.standard);
+    expect(decoded.proReasoningModel, 'reasoning-model');
+    expect(decoded.proReasoningEndpointId, 'reasoning-endpoint');
 
     final legacy = AppSettings.fromJson({
       'baseUrl': 'http://localhost:1234/v1',
@@ -918,5 +969,8 @@ void main() {
     });
     expect(legacy.memoryExtractionModel, '');
     expect(legacy.effectiveMemoryExtractionModel, 'main-model');
+    expect(legacy.proReasoningEnabled, isFalse);
+    expect(legacy.proReasoningDepth, ProReasoningDepth.deep);
+    expect(legacy.effectiveProReasoningModel, 'main-model');
   });
 }

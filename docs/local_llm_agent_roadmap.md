@@ -176,7 +176,7 @@ structurally unmotivated to build:
 | Local LLM | LL37 | current | L | LL34, LL35, LL36 evidence, LL3, LL18, LL19 | Objective verification for **unattended runs only**: the N-way panel runs at idle via LL18 against goals completed by routines / overnight retry-until-green / LL13 agents, with the convergence controls that make it terminate — anti-ratchet, stall exit on repeated identical gaps, a run cap, and `none`/`contradiction`/`unverifiable` blocking classification. There is deliberately **no inline stage**: while a user is present, LL35's confirmation rung is both cheaper and more accurate than a local verifier, so nothing is added to the interactive turn. Only the LL19-measured fidelity gate is active: the production panel remains blocked until at least five correct and five known-broken cases from at least two unattended surfaces meet the false-refute and broken-recall thresholds. |
 | Local LLM | LL38 | done | S-M | LL31, LL33 | Mid-turn interruption (steering): an opt-in `interrupt: true` send joins the running turn instead of queueing behind it. Committed into the turn history at the top of `_prepareMessagesForLLM`, so every request path (native tools, content-tag tools, plain streaming) carries it without a per-site injection; rules in `TurnSteeringPolicy`, per-owner state in `TurnSteeringRegistry`, uncarried steers returned to `ThreadScopedMessageQueue` by the turn release scope. Ground-truth live canary with a queued control arm. |
 | Local LLM | LL39 | current | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
-| Local LLM | LL40 | next | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: an opt-in composer toggle (plus `/pro`) that spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the existing `sendHiddenPrompt` path. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
+| Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
@@ -2714,7 +2714,7 @@ Dependencies: LL3 (profiles), LL16 (sampler trials to score), LL21 (profile
 history to store scores in). Related: COMPAT1 / COMPAT2, MLIB3, LL12 / LL19.
 ### LL40: Pro Reasoning Mode (Chat Workspace)
 
-Status: `next`
+Status: `done` — implemented and live-canary verified 2026-08-13.
 
 Full design: `docs/pro_reasoning_chat_mode_design.md`.
 
@@ -2725,7 +2725,7 @@ Scope:
   read-only tool loop) → **explore** (N independent candidates in parallel) →
   **critique** (rank + surface contradictions) → **synthesize** (streamed
   answer). Stages 1-4 are internal; only stage 5 is visible.
-- Three depth presets (Standard 2 / Deep 3 / Max 5 candidates, 3 / 6 / 12 minute
+- Three depth presets (Standard 2 / Deep 3 / Max 4 candidates, 6 / 10 / 20 minute
   wall clocks). `AssistantMode` is deliberately **not** extended — the toggle is
   orthogonal, avoiding a new enum case across the 24 files that reference it.
 
@@ -2821,14 +2821,34 @@ Acceptance criteria:
   not assumed.
 - Each stage emits a `pro_reasoning_*` session-log operation plus a run summary
   (stage timings, candidates, slots used, deadline-hit, winner), so
-  `tool/triage_session_logs.py` scores it with no tool changes.
+  `tool/triage_session_logs.py` recognizes and scores the Pro operations.
+
+Live closure evidence (2026-08-13):
+- `pro_reasoning_live_canary_1786589936` completed a Standard run in 248.674 s
+  across the loaded local LM Studio model and the loaded LAN llama.cpp model.
+  It produced two candidates on two endpoint labels, traversed all five stages,
+  persisted one visible user question plus one assistant answer under one
+  conversation ID, attributed routed usage to `proReasoning`, and recorded no
+  stage errors.
+- `pro_reasoning_live_canary_1786590203` verified both degradation paths. The
+  single-host run serialized two candidates and completed in 82.505 s. The
+  cancellation run stopped candidate 2 after retaining candidate 1, skipped
+  critique, and completed partial synthesis in 53.205 s with no stage error.
+- `pro_reasoning_live_canary_1786590412` forced
+  `CAVERNO_SESSION_LOG_ENABLED=0`; the visible five-stage turn completed in
+  64.868 s and persisted zero Pro session-log operations.
+- The initial `pro_reasoning_live_canary_1786589893` failure was harness-only:
+  Flutter's test HTTP override synthesized HTTP 400 before any real request.
+  Restoring the original override fixed the harness; it is excluded from model
+  evidence.
 
 Constraint:
-- `chat_notifier.dart` is at its ratchet ceiling (8984/8984; library aggregate
-  19814/19840 as of 2026-08-12). Essentially all new code lives in
-  `domain/services/` and a `presentation/coordinators/` run coordinator, reaching
-  `ChatNotifier` only through the existing public `sendHiddenPrompt`. Any line
-  added to the notifier must be paid for by an extraction in the same change.
+- The implementation keeps the ratchets green by extracting the hidden-prompt
+  lifecycle: `chat_notifier.dart` is 8982/8984 and its library aggregate is
+  19818/19840 as of 2026-08-13. New orchestration lives in `domain/services/`
+  and presentation providers/coordinators; the extended public
+  `sendHiddenPrompt` boundary captures the target conversation, visible user
+  question, completion receipt, route, model, and usage role.
 
 Dependencies: LL8 (mesh endpoint routing + health), LL20 (slot substrate), LL1
 (role routing), LL7 (Best-of-N policy shape). Related: **LL26** — LL40 delivers

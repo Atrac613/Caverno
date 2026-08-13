@@ -15,6 +15,7 @@ enum ModelUsageRole {
   chat,
   memoryExtraction,
   planning,
+  proReasoning,
   goalSuggestion,
   approvalAutoReview,
   subagent,

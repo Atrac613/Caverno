@@ -7,6 +7,12 @@ typedef _ParticipantTurn = ({int generation, String ownerId});
 typedef _ParticipantTurnCompletion = ({String content, String? handoffId});
 
 extension ChatNotifierParticipantTurns on ChatNotifier {
+  void _disposeAllParticipantTurnControls() {
+    for (final owner in _participantTurnControls.owners) {
+      _participantTurnControls.dispose(owner);
+    }
+  }
+
   void requestParticipantTurnStop() {
     final ownerConversationId = conversationId;
     final runtime = state.participantTurnRuntime;
@@ -109,10 +115,7 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
         preferredParticipantId: paused.preferredParticipantId,
         lastSpeakerParticipantId: paused.lastSpeakerParticipantId,
       );
-      await _runParticipantTurnLoop(
-        turn: turn,
-        initialPlan: initialPlan,
-      );
+      await _runParticipantTurnLoop(turn: turn, initialPlan: initialPlan);
     } catch (error) {
       await _failParticipantTurn(turn, error);
     } finally {
@@ -166,10 +169,7 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
         );
         if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       }
-      await _runParticipantTurnLoop(
-        turn: turn,
-        initialPlan: initialPlan,
-      );
+      await _runParticipantTurnLoop(turn: turn, initialPlan: initialPlan);
     } catch (error) {
       await _failParticipantTurn(turn, error);
     }
@@ -266,14 +266,8 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
         ),
         includeRolePrompt: false,
       );
-      final participantToolSession = _participantToolSession(
-        turn,
-        participant,
-      );
-      final participantToolRuntime = _participantToolRuntime(
-        turn,
-        participant,
-      );
+      final participantToolSession = _participantToolSession(turn, participant);
+      final participantToolRuntime = _participantToolRuntime(turn, participant);
       final participantToolDefinitions = participantToolRuntime.definitionsFor(
         participantToolSession,
       );
@@ -677,29 +671,25 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
     bool? isLoading,
   }) {
     if (!_ownsParticipantTurn(turn)) return false;
-    _routeThreadState(
-      turn.ownerId,
-      (s) {
-        final projected = s.copyWith(
-          participantTurnRuntime: ParticipantTurnRuntime(
-            activeParticipantId: projection.activeParticipantId,
-            activeParticipantName: projection.activeParticipantName,
-            activeParticipantRoleLabel: projection.activeParticipantRoleLabel,
-            activeParticipantColorValue:
-                projection.activeParticipantColorValue,
-            currentRound: projection.currentRound,
-            maxRounds: projection.maxRounds,
-            multiRound: projection.multiRound,
-            stopRequested: projection.stopRequested,
-            paused: projection.paused,
-            activeToolName: projection.activeToolName,
-          ),
-        );
-        return isLoading == null
-            ? projected
-            : projected.copyWith(isLoading: isLoading);
-      },
-    );
+    _routeThreadState(turn.ownerId, (s) {
+      final projected = s.copyWith(
+        participantTurnRuntime: ParticipantTurnRuntime(
+          activeParticipantId: projection.activeParticipantId,
+          activeParticipantName: projection.activeParticipantName,
+          activeParticipantRoleLabel: projection.activeParticipantRoleLabel,
+          activeParticipantColorValue: projection.activeParticipantColorValue,
+          currentRound: projection.currentRound,
+          maxRounds: projection.maxRounds,
+          multiRound: projection.multiRound,
+          stopRequested: projection.stopRequested,
+          paused: projection.paused,
+          activeToolName: projection.activeToolName,
+        ),
+      );
+      return isLoading == null
+          ? projected
+          : projected.copyWith(isLoading: isLoading);
+    });
     return true;
   }
 
