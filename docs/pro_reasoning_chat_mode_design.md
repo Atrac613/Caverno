@@ -303,6 +303,10 @@ the investigation and mark the external claims unverified. When an external MCP
 search definition is present, the investigator omits the built-in `web_search`
 fallback so a broken local SearXNG instance cannot compete with the working
 external route. The fallback remains available when no external search exists.
+When collected evidence exceeds the stage budget, each record receives an
+equal share and retains both its beginning and end. This preserves later API
+results instead of letting an early large HTML response consume the entire
+candidate context.
 
 Output renders as a prompt block in the style of
 `PlanningResearchContext.toPromptBlock()`

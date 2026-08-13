@@ -68,6 +68,10 @@ final class ProReasoningInvestigator {
   };
   static const _externalToolNames = _allowedExternalToolNames;
   static const _maxConsecutiveExternalFailureIterations = 2;
+  static const _evidenceTruncationMarker =
+      '[Evidence compacted to the Pro Reasoning context budget.]';
+  static const _evidenceRecordTruncationMarker =
+      '\n[Middle of evidence record compacted.]\n';
 
   static const _externalVerificationUnavailable =
       'External source verification status: unavailable. The question '
@@ -241,7 +245,7 @@ final class ProReasoningInvestigator {
         evidence.add(_externalVerificationFailed);
         break;
       }
-      if (_renderEvidenceBlock(evidence).length >= maxEvidenceCharacters) {
+      if (_rawEvidenceLength(evidence) >= maxEvidenceCharacters) {
         break;
       }
     }
@@ -261,11 +265,50 @@ final class ProReasoningInvestigator {
   }
 
   String _renderEvidenceBlock(List<String> evidence) {
-    if (evidence.isEmpty) return '';
+    if (evidence.isEmpty || maxEvidenceCharacters <= 0) return '';
     final rendered = evidence.join('\n');
     if (rendered.length <= maxEvidenceCharacters) return rendered;
-    return '${rendered.substring(0, maxEvidenceCharacters).trimRight()}\n'
-        '[Evidence truncated to the Pro Reasoning context budget.]';
+
+    final markerBudget = _evidenceTruncationMarker.length + 1;
+    final separatorBudget = evidence.length - 1;
+    final recordBudget = maxEvidenceCharacters - markerBudget - separatorBudget;
+    if (recordBudget <= 0) {
+      return _evidenceTruncationMarker.substring(
+        0,
+        maxEvidenceCharacters.clamp(0, _evidenceTruncationMarker.length),
+      );
+    }
+    final perRecordBudget = recordBudget ~/ evidence.length;
+    var remainder = recordBudget % evidence.length;
+    final compacted = <String>[];
+    for (final record in evidence) {
+      final budget = perRecordBudget + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder--;
+      compacted.add(_compactEvidenceRecord(record, budget));
+    }
+    return '${compacted.join('\n')}\n$_evidenceTruncationMarker';
+  }
+
+  int _rawEvidenceLength(List<String> evidence) {
+    if (evidence.isEmpty) return 0;
+    return evidence.fold<int>(0, (total, record) => total + record.length) +
+        evidence.length -
+        1;
+  }
+
+  String _compactEvidenceRecord(String value, int maxCharacters) {
+    if (maxCharacters <= 0) return '';
+    if (value.length <= maxCharacters) return value;
+    if (maxCharacters <= _evidenceRecordTruncationMarker.length) {
+      return value.substring(0, maxCharacters);
+    }
+    final contentBudget =
+        maxCharacters - _evidenceRecordTruncationMarker.length;
+    final headBudget = (contentBudget + 1) ~/ 2;
+    final tailBudget = contentBudget - headBudget;
+    return '${value.substring(0, headBudget).trimRight()}'
+        '$_evidenceRecordTruncationMarker'
+        '${value.substring(value.length - tailBudget).trimLeft()}';
   }
 
   String _truncate(String value) {

@@ -349,6 +349,67 @@ void main() {
     );
     expect(evidence, contains('existence and contents as unverified'));
   });
+
+  test('compacts oversized evidence without starving later records', () async {
+    final dataSource = _ScriptedInvestigationDataSource([
+      ChatCompletionResult(
+        content: '',
+        finishReason: 'tool_calls',
+        toolCalls: [
+          ToolCallInfo(
+            id: 'first',
+            name: 'fetch_url',
+            arguments: {'url': 'https://example.com/first'},
+          ),
+          ToolCallInfo(
+            id: 'last',
+            name: 'fetch_url',
+            arguments: {'url': 'https://example.com/last'},
+          ),
+        ],
+      ),
+    ]);
+    final now = DateTime.utc(2026, 8, 13, 10);
+    const maxEvidenceCharacters = 500;
+
+    final evidence =
+        await ProReasoningInvestigator(
+          clock: () => now,
+          maxResultCharacters: 1000,
+          maxEvidenceCharacters: maxEvidenceCharacters,
+        ).investigate(
+          dataSource: dataSource,
+          model: 'research-model',
+          question: 'Compare two sources.',
+          frame: const ProReasoningFrame(
+            subQuestions: ['What does each source report?'],
+            investigationSteps: ['Read both sources'],
+            successCriteria: ['Preserve evidence from both sources'],
+            requiresInvestigation: true,
+          ),
+          maxIterations: 1,
+          deadline: now.add(const Duration(minutes: 1)),
+          isCancelled: () => false,
+          toolDefinitions: [_definition('fetch_url', external: true)],
+          runTool: (toolCall) async {
+            final label = (toolCall.arguments['url'] as String).split('/').last;
+            return McpToolResult(
+              toolName: toolCall.name,
+              result: '$label-HEAD-${'x' * 600}-$label-TAIL',
+              isSuccess: true,
+              isExternalMcpResult: true,
+            );
+          },
+        );
+
+    expect(evidence.length, lessThanOrEqualTo(maxEvidenceCharacters));
+    expect(evidence, contains('https://example.com/first'));
+    expect(evidence, contains('first-TAIL'));
+    expect(evidence, contains('https://example.com/last'));
+    expect(evidence, contains('last-TAIL'));
+    expect(evidence, contains('Middle of evidence record compacted'));
+    expect(evidence, contains('Evidence compacted'));
+  });
 }
 
 Map<String, dynamic> _definition(String name, {bool external = false}) => {
