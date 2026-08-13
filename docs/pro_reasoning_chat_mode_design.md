@@ -292,11 +292,14 @@ workflow proposal retry ladder.
 
 ### 4.2 Investigate
 
-A bounded read-only tool loop. `ProReasoningInvestigator` admits only
-`get_current_datetime`, `web_search`, `web_url_read`, `read_file`,
-`inspect_file`, `find_files`, `search_files`, and `list_directory`. It excludes
-mutation, shell, SSH, BLE, and externally registered MCP tools from both the
-advertised definitions and dispatch.
+A bounded read-only tool loop. `ProReasoningInvestigator` admits local
+inspection tools plus explicitly named web search and URL-read tools. External
+MCP definitions remain denied by default, with a narrow exception for
+`web_search`, `web_url_read`, `web_fetch`, `fetch_url`, `search_web`, and
+`searxng_web_search`. This gives Pro the same configured external search path
+used by normal chat without exposing mutation, shell, SSH, BLE, or arbitrary
+external MCP capabilities. Two consecutive failed web-verification rounds stop
+the investigation and mark the external claims unverified.
 
 Output renders as a prompt block in the style of
 `PlanningResearchContext.toPromptBlock()`

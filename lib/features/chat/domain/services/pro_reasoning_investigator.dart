@@ -42,6 +42,10 @@ final class ProReasoningInvestigator {
     'get_current_datetime',
     'web_search',
     'web_url_read',
+    'web_fetch',
+    'fetch_url',
+    'search_web',
+    'searxng_web_search',
     'read_file',
     'inspect_file',
     'find_files',
@@ -49,7 +53,15 @@ final class ProReasoningInvestigator {
     'list_directory',
   };
 
-  static const _externalToolNames = <String>{'web_search', 'web_url_read'};
+  static const _allowedExternalToolNames = <String>{
+    'web_search',
+    'web_url_read',
+    'web_fetch',
+    'fetch_url',
+    'search_web',
+    'searxng_web_search',
+  };
+  static const _externalToolNames = _allowedExternalToolNames;
   static const _maxConsecutiveExternalFailureIterations = 2;
 
   static const _externalVerificationUnavailable =
@@ -68,10 +80,12 @@ final class ProReasoningInvestigator {
   ) {
     return definitions
         .where((definition) {
-          if (definition[McpToolEntity.openAiExternalToolKey] == true) {
+          final name = _definitionName(definition);
+          if (definition[McpToolEntity.openAiExternalToolKey] == true &&
+              !_allowedExternalToolNames.contains(name)) {
             return false;
           }
-          return allowedToolNames.contains(_definitionName(definition));
+          return allowedToolNames.contains(name);
         })
         .map((definition) => Map<String, dynamic>.from(definition))
         .toList(growable: false);
@@ -92,7 +106,7 @@ final class ProReasoningInvestigator {
     final tools = readOnlyDefinitions(toolDefinitions);
     final externalVerificationUnavailable =
         _containsExternalUrl(question) &&
-        !_containsAnyDefinition(tools, const {'web_search', 'web_url_read'});
+        !_containsAnyDefinition(tools, _externalToolNames);
     final now = _clock();
     final messages = <Message>[
       Message(

@@ -10,30 +10,29 @@ import 'package:caverno/features/chat/domain/services/pro_reasoning_models.dart'
 void main() {
   const investigator = ProReasoningInvestigator();
 
-  test(
-    'filters mutation and external definitions from the research surface',
-    () {
-      final definitions = [
-        _definition('read_file'),
-        _definition('write_file'),
-        _definition('web_search', external: true),
-        <String, dynamic>{'type': 'function'},
-      ];
+  test('allows external web reads but filters other external definitions', () {
+    final definitions = [
+      _definition('read_file'),
+      _definition('write_file'),
+      _definition('web_search', external: true),
+      _definition('search_web', external: true),
+      _definition('fetch_url', external: true),
+      _definition('read_file', external: true),
+      <String, dynamic>{'type': 'function'},
+    ];
 
-      final filtered = investigator.readOnlyDefinitions(definitions);
+    final filtered = investigator.readOnlyDefinitions(definitions);
 
-      expect(filtered, hasLength(1));
-      expect(
-        (filtered.single['function'] as Map<String, dynamic>)['name'],
-        'read_file',
-      );
-      expect(
-        definitions,
-        hasLength(4),
-        reason: 'the source list is not mutated',
-      );
-    },
-  );
+    expect(filtered, hasLength(4));
+    expect(
+      filtered.map(
+        (definition) =>
+            (definition['function'] as Map<String, dynamic>)['name'],
+      ),
+      ['read_file', 'web_search', 'search_web', 'fetch_url'],
+    );
+    expect(definitions, hasLength(7), reason: 'the source list is not mutated');
+  });
 
   test(
     'dispatches only defined read-only calls and reports denials to the LLM',
@@ -81,7 +80,7 @@ void main() {
             toolDefinitions: [
               _definition('read_file'),
               _definition('write_file'),
-              _definition('web_search', external: true),
+              _definition('read_file', external: true),
             ],
             runTool: (toolCall) async {
               dispatched.add(toolCall.name);
@@ -123,6 +122,71 @@ void main() {
       expect(evidence, contains('supported behavior'));
     },
   );
+
+  test('dispatches external MCP search and URL-read tools', () async {
+    final dataSource = _ScriptedInvestigationDataSource([
+      ChatCompletionResult(
+        content: '',
+        finishReason: 'tool_calls',
+        toolCalls: [
+          ToolCallInfo(
+            id: 'search-1',
+            name: 'search_web',
+            arguments: {'query': 'model requirements'},
+          ),
+          ToolCallInfo(
+            id: 'fetch-1',
+            name: 'fetch_url',
+            arguments: {'url': 'https://example.com/model'},
+          ),
+        ],
+      ),
+      ChatCompletionResult(
+        content: 'The external sources confirm the requirements.',
+        finishReason: 'stop',
+      ),
+    ]);
+    final dispatched = <String>[];
+    final now = DateTime.utc(2026, 8, 13, 10);
+
+    final evidence = await ProReasoningInvestigator(clock: () => now)
+        .investigate(
+          dataSource: dataSource,
+          model: 'research-model',
+          question: 'Inspect https://example.com/model.',
+          frame: const ProReasoningFrame(
+            subQuestions: ['What does the source require?'],
+            investigationSteps: ['Search and inspect the source'],
+            successCriteria: ['Cite external evidence'],
+            requiresInvestigation: true,
+          ),
+          maxIterations: 2,
+          deadline: now.add(const Duration(minutes: 1)),
+          isCancelled: () => false,
+          toolDefinitions: [
+            _definition('search_web', external: true),
+            _definition('fetch_url', external: true),
+          ],
+          runTool: (toolCall) async {
+            dispatched.add(toolCall.name);
+            return McpToolResult(
+              toolName: toolCall.name,
+              result: '${toolCall.name} evidence',
+              isSuccess: true,
+              isExternalMcpResult: true,
+            );
+          },
+        );
+
+    expect(dispatched, ['search_web', 'fetch_url']);
+    expect(dataSource.calls.first.toolNames, ['search_web', 'fetch_url']);
+    expect(evidence, contains('search_web evidence'));
+    expect(evidence, contains('fetch_url evidence'));
+    expect(
+      evidence,
+      isNot(contains('External source verification status: unavailable')),
+    );
+  });
 
   test(
     'marks linked sources unverified when web tools are unavailable',
