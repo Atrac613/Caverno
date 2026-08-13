@@ -22,6 +22,34 @@ enum RoutineDeliveryStatus { notRequested, skipped, delivered, failed }
 enum RoutinePlanRevisionKind { draft, approved, restored }
 
 @freezed
+abstract class RoutineObjectiveEvidenceContract
+    with _$RoutineObjectiveEvidenceContract {
+  const factory RoutineObjectiveEvidenceContract({
+    required String objective,
+    @Default(<String>[]) List<String> acceptanceCriteria,
+    required String verificationCommand,
+    @Default('') String plan,
+  }) = _RoutineObjectiveEvidenceContract;
+
+  factory RoutineObjectiveEvidenceContract.fromJson(
+    Map<String, dynamic> json,
+  ) => _$RoutineObjectiveEvidenceContractFromJson(json);
+}
+
+@freezed
+abstract class RoutineRetryUntilGreenConfig
+    with _$RoutineRetryUntilGreenConfig {
+  const factory RoutineRetryUntilGreenConfig({
+    @Default(false) bool enabled,
+    @Default(3) int maxRounds,
+    @Default(2) int candidatesPerRound,
+  }) = _RoutineRetryUntilGreenConfig;
+
+  factory RoutineRetryUntilGreenConfig.fromJson(Map<String, dynamic> json) =>
+      _$RoutineRetryUntilGreenConfigFromJson(json);
+}
+
+@freezed
 abstract class RoutinePlanRevision with _$RoutinePlanRevision {
   const RoutinePlanRevision._();
 
@@ -209,6 +237,18 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     @Default('') String output,
     @Default('') String error,
     @Default(false) bool failureAcknowledged,
+    @Default('') String objective,
+    @Default(<String>[]) List<String> objectiveAcceptanceCriteria,
+    @Default('') String objectivePlan,
+    RoutineRunMechanicalVerification? mechanicalVerification,
+    @JsonKey(
+      fromJson: _routineRunChangedFilesFromJson,
+      toJson: _routineRunChangedFilesToJson,
+    )
+    @Default(<RoutineRunChangedFileEvidence>[])
+    List<RoutineRunChangedFileEvidence> changedFiles,
+    @Default(false) bool changedFileEvidenceTruncated,
+    @Default(<String>[]) List<String> implementationEvidence,
   }) = _RoutineRunRecord;
 
   factory RoutineRunRecord.fromJson(Map<String, dynamic> json) =>
@@ -240,6 +280,63 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     }
     return measured < 0 ? 0 : measured;
   }
+}
+
+@freezed
+abstract class RoutineRunMechanicalVerification
+    with _$RoutineRunMechanicalVerification {
+  const RoutineRunMechanicalVerification._();
+
+  const factory RoutineRunMechanicalVerification({
+    required String command,
+    required int exitCode,
+    @Default('') String output,
+  }) = _RoutineRunMechanicalVerification;
+
+  factory RoutineRunMechanicalVerification.fromJson(
+    Map<String, dynamic> json,
+  ) => _$RoutineRunMechanicalVerificationFromJson(json);
+
+  bool get passed => command.trim().isNotEmpty && exitCode == 0;
+}
+
+@freezed
+abstract class RoutineRunChangedFileEvidence
+    with _$RoutineRunChangedFileEvidence {
+  const factory RoutineRunChangedFileEvidence({
+    required String path,
+    required String content,
+    required int byteSize,
+    required String contentHash,
+    @Default(false) bool truncated,
+  }) = _RoutineRunChangedFileEvidence;
+
+  factory RoutineRunChangedFileEvidence.fromJson(Map<String, dynamic> json) =>
+      _$RoutineRunChangedFileEvidenceFromJson(json);
+}
+
+List<RoutineRunChangedFileEvidence> _routineRunChangedFilesFromJson(
+  List<dynamic>? json,
+) {
+  if (json == null) {
+    return const <RoutineRunChangedFileEvidence>[];
+  }
+  return json
+      .map((item) {
+        if (item is RoutineRunChangedFileEvidence) {
+          return item;
+        }
+        return RoutineRunChangedFileEvidence.fromJson(
+          Map<String, dynamic>.from(item as Map),
+        );
+      })
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _routineRunChangedFilesToJson(
+  List<RoutineRunChangedFileEvidence> files,
+) {
+  return files.map((file) => file.toJson()).toList(growable: false);
 }
 
 List<RoutineRunToolCall> _routineRunToolCallsFromJson(List<dynamic>? json) {
@@ -300,6 +397,8 @@ abstract class Routine with _$Routine {
     RoutineGoogleChatRule googleChatRule,
     @Default('') String workspaceDirectory,
     @Default(false) bool allowWorkspaceWrites,
+    RoutineObjectiveEvidenceContract? objectiveEvidenceContract,
+    RoutineRetryUntilGreenConfig? retryUntilGreenConfig,
     @JsonKey(
       fromJson: _routinePlanArtifactFromJson,
       toJson: _routinePlanArtifactToJson,

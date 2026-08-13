@@ -71,12 +71,14 @@ void main() {
       );
       final json = task.toJson()
         ..remove('changedFiles')
-        ..remove('changedFileEvidenceTruncated');
+        ..remove('changedFileEvidenceTruncated')
+        ..remove('objectiveAcceptanceCriteria');
 
       final restored = WorktreeAgentTask.fromJson(json);
 
       expect(restored.changedFiles, isEmpty);
       expect(restored.changedFileEvidenceTruncated, isFalse);
+      expect(restored.objectiveAcceptanceCriteria, isEmpty);
     });
 
     test('registerAssignment stores a planner-produced assignment', () async {

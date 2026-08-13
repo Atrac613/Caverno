@@ -46,7 +46,10 @@ void main() {
       expect(commands[6].argumentHint, '<question>');
       expect(commands[6].requiresArguments, isTrue);
       expect(commands[10].aliases, ['worktree', 'worktree-agent']);
-      expect(commands[10].argumentHint, '<task> [--run] [--verify <command>]');
+      expect(
+        commands[10].argumentHint,
+        '<task> [--accept <criterion>] [--run] [--verify <cmd>]',
+      );
       expect(commands.last.description, 'Custom description');
       expect(commands.last.aliases, ['mine']);
       expect(commands.last.promptTemplateId, 'custom-id');

@@ -75,7 +75,7 @@ List<SlashCommandDefinition> buildSlashCommandCatalog({
       action: SlashCommandAction.worktreeAgent,
       description: text('chat.slash_agent_desc'),
       aliases: const ['worktree', 'worktree-agent'],
-      argumentHint: '<task> [--run] [--verify <command>]',
+      argumentHint: '<task> [--accept <criterion>] [--run] [--verify <cmd>]',
       argumentRequirement: SlashCommandArgumentRequirement.required,
     ),
     for (final template in builtInSlashCommandPromptTemplates)

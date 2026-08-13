@@ -94,5 +94,6 @@ tool/codex_verify.sh \
   `no_go_insufficient_eligible_sample` with one eligible pair, one objective,
   and one source surface. The local artifact is under
   `build/integration_test_reports/ll37_worktree_agent_live_canary_1786546687/`.
-- Risks or follow-ups: Four more objective-distinct v2 pairs and an eligible
-  second unattended surface are still required before panel wiring.
+- Risks or follow-ups: The consented Routine v2 pair has now supplied the
+  second unattended surface. Three more objective-distinct v2 pairs are still
+  required before the combined ten-case decision run and panel wiring.

@@ -11,6 +11,11 @@
         "finishedAt": "2026-08-10T00:00:02.000Z",
         "status": "completed",
         "trigger": "scheduled",
+        "mechanicalVerification": {
+          "command": "dart tool/verify.dart",
+          "exitCode": 0,
+          "output": "State file syntax verification passed."
+        },
         "toolCalls": [
           {
             "name": "scan_state",
@@ -42,6 +47,11 @@
         "finishedAt": "2026-08-10T01:00:02.000Z",
         "status": "completed",
         "trigger": "scheduled",
+        "mechanicalVerification": {
+          "command": "dart tool/verify.dart",
+          "exitCode": 0,
+          "output": "State file syntax verification passed."
+        },
         "toolCalls": [
           {
             "name": "scan_state",

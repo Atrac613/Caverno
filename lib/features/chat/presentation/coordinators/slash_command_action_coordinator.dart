@@ -11,7 +11,11 @@ import '../providers/worktree_agent_task_orchestrator.dart';
 import '../slash_commands/slash_command.dart';
 import '../slash_commands/slash_command_catalog.dart';
 import '../slash_commands/slash_command_prompt_template.dart';
+import '../slash_commands/worktree_agent_command_args.dart';
 import 'slash_command_result_builders.dart';
+
+export '../slash_commands/worktree_agent_command_args.dart'
+    show worktreeAgentTaskTitle;
 
 typedef GoalSlashCommandHandler =
     Future<SlashCommandExecutionResult> Function(
@@ -42,20 +46,6 @@ final class SlashCommandActionContext {
   final Conversation? currentConversation;
   final ConversationsState conversationsState;
   final List<SlashCommandPromptTemplate> customPromptTemplates;
-}
-
-final class WorktreeAgentCommandArgs {
-  const WorktreeAgentCommandArgs({
-    required this.prompt,
-    this.verificationCommand = '',
-    this.hasVerificationMarker = false,
-    this.runAfterQueue = false,
-  });
-
-  final String prompt;
-  final String verificationCommand;
-  final bool hasVerificationMarker;
-  final bool runAfterQueue;
 }
 
 final class SlashCommandActionCoordinator {
@@ -285,6 +275,18 @@ final class SlashCommandActionCoordinator {
         feedbackMessage: _text('chat.slash_agent_verify_required'),
       );
     }
+    if (agentArgs.hasAcceptanceMarker &&
+        agentArgs.objectiveAcceptanceCriteria.isEmpty) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: _text('chat.slash_agent_acceptance_required'),
+      );
+    }
+    if (agentArgs.hasAcceptanceMarker &&
+        agentArgs.verificationCommand.isEmpty) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: _text('chat.slash_agent_acceptance_verify_required'),
+      );
+    }
     try {
       final result = await _enqueueWorktreeAgent(
         WorktreeAgentTaskLaunchRequest(
@@ -293,6 +295,7 @@ final class SlashCommandActionCoordinator {
           codingProjectId: activeProject.id,
           projectRootPath: activeProject.normalizedRootPath,
           verificationCommand: agentArgs.verificationCommand,
+          objectiveAcceptanceCriteria: agentArgs.objectiveAcceptanceCriteria,
         ),
       );
       if (agentArgs.runAfterQueue) {
@@ -325,40 +328,4 @@ final class SlashCommandActionCoordinator {
       );
     }
   }
-}
-
-WorktreeAgentCommandArgs parseWorktreeAgentCommandArgs(String args) {
-  final trimmed = args.trim();
-  final match = RegExp(r'(^|\s)--verify(?:\s+|$)').firstMatch(trimmed);
-  final verifyMarkerStart = match == null
-      ? trimmed.length
-      : match.start + (match.group(1)?.length ?? 0);
-  final prefix = trimmed.substring(0, verifyMarkerStart).trim();
-  final runMarker = RegExp(r'(^|\s)--run(?=\s|$)');
-  final runAfterQueue = runMarker.hasMatch(prefix);
-  final prompt = prefix.replaceFirst(runMarker, ' ').trim();
-  if (match == null) {
-    return WorktreeAgentCommandArgs(
-      prompt: prompt,
-      runAfterQueue: runAfterQueue,
-    );
-  }
-  return WorktreeAgentCommandArgs(
-    prompt: prompt,
-    verificationCommand: trimmed.substring(match.end).trim(),
-    hasVerificationMarker: true,
-    runAfterQueue: runAfterQueue,
-  );
-}
-
-String worktreeAgentTaskTitle(String prompt) {
-  final firstLine = prompt
-      .split(RegExp(r'\r?\n'))
-      .map((line) => line.trim())
-      .firstWhere((line) => line.isNotEmpty, orElse: () => 'Worktree agent');
-  const maxTitleLength = 80;
-  if (firstLine.length <= maxTitleLength) {
-    return firstLine;
-  }
-  return '${firstLine.substring(0, maxTitleLength - 3).trimRight()}...';
 }

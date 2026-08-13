@@ -173,7 +173,7 @@ structurally unmotivated to build:
 | Local LLM | LL34 | done | M | F2, F6, LL23, SEC2 | Structured tool-result envelope: `McpToolResult` carries producer-owned command, filesystem, diagnostic, process, and verification facts from direct first-party producers; typed-first consumers retain a measured lexical fallback for outcome-free third-party MCP results. Current-turn mutations back file claims, replay paths preserve outcomes, and LL23 supplies deterministic summary-first rendering. Fresh grounded coding canaries on the configured LAN model produced five typed shadow comparisons across raw-first and summary-first runs: three exit 1 and two exit 0, all `agree`, with no missing or disagreeing verdicts. The measured model completed the summary-first MVP canary while the application default remains off. |
 | Local LLM | LL35 | done | M | LL34, LL3, LL23 | Explicit goal-state tool with a real acknowledgement: lexical completion and blocker prose remain observable in shadow but cannot set terminal goal state; `update_goal(completed:/blocked_reason:/message:)` carries the harness's final mechanically reconciled verdict (accepted / still-open gaps / paused at cap), and structured saved-task completion remains authoritative. The bounded continuation selector prefers the typed active task, then the first unchecked `## Task checklist` item. `update_goal` fidelity is stored by the LL3 capability probe, LL23 declares a per-model `tool` / `tool_or_ask` / `ask` policy, and user confirmation resolves no-work or budget boundaries for models that cannot reliably close through the tool. |
 | Local LLM | LL36 | done | S-M | LL33, LL34, LL35 | **Instrument for LL37, as LL31 was for LL29/LL30** — Heuristic demotion and firing audit: every remaining lexical guard gets a stable pattern label, emits a LL33-style transform record on each firing, and is barred from setting terminal state; grounded verdicts measured the lexical paths before deletion. The goal-completion inference was removed, prose task progress is structurally advisory, and remaining compatibility fallbacks have explicit Go/No-Go evidence. |
-| Local LLM | LL37 | current | L | LL34, LL35, LL36 evidence, LL3, LL18, LL19 | Objective verification for **unattended runs only**: the N-way panel runs at idle via LL18 against goals completed by routines / overnight retry-until-green / LL13 agents, with the convergence controls that make it terminate — anti-ratchet, stall exit on repeated identical gaps, a run cap, and `none`/`contradiction`/`unverifiable` blocking classification. There is deliberately **no inline stage**: while a user is present, LL35's confirmation rung is both cheaper and more accurate than a local verifier, so nothing is added to the interactive turn. Only the LL19-measured fidelity gate is active: the production panel remains blocked until at least five correct and five known-broken cases from at least two unattended surfaces meet the false-refute and broken-recall thresholds. |
+| Local LLM | LL37 | done | L | LL34, LL35, LL36 evidence, LL3, LL18, LL19 | Objective verification for **unattended runs only**: the bounded route-diverse panel runs at idle via LL18 against goals completed by routines / overnight retry-until-green / LL13 agents, with deterministic convergence, anti-ratchet review, run caps, and `none`/`contradiction`/`unverifiable` blocking classification. There is deliberately **no inline stage**: while a user is present, LL35's confirmation rung is both cheaper and more accurate than a local verifier, so nothing is added to the interactive turn. Two measured routes passed the ten-case fidelity gate, and all three unattended source contracts now have fail-closed production paths. |
 | Local LLM | LL38 | done | S-M | LL31, LL33 | Mid-turn interruption (steering): an opt-in `interrupt: true` send joins the running turn instead of queueing behind it. Committed into the turn history at the top of `_prepareMessagesForLLM`, so every request path (native tools, content-tag tools, plain streaming) carries it without a per-site injection; rules in `TurnSteeringPolicy`, per-owner state in `TurnSteeringRegistry`, uncarried steers returned to `ThreadScopedMessageQueue` by the turn release scope. Ground-truth live canary with a queued control arm. |
 | Local LLM | LL39 | current | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
@@ -3213,11 +3213,14 @@ Local-first consequences that shaped these milestones:
   prefill latency to the user's turn (Thesis §3).
 - **A weak verifier's default must be the opposite of Grok's.** See LL37.
 
-Execution state — **LL34-LL36 complete; LL37 fidelity measurement current**.
+Execution state — **LL34-LL37 complete**.
 
-LL34-LL36 implementation and measurement gates are complete. LL37 has entered
-its LL19 fidelity-measurement gate; production idle-panel work remains blocked
-until that evidence is representative and passes the conservative thresholds.
+LL34-LL36 implementation and measurement gates are complete. LL37 passed its
+LL19 fidelity gate on two measured routes, runs the bounded route-diverse idle
+panel, and now exposes converged refutations through a deterministic reviewed
+boundary. LL13 candidates can cross that boundary into a distinct queued repair
+task only after explicit user confirmation. LL13, Routine, and
+retry-until-green now have complete fail-closed producer-to-source paths.
 
 The track splits by how well-founded each milestone is, and the ordering has to
 respect that split rather than the narrative order:
@@ -4043,7 +4046,7 @@ evidence for LL37 feasibility and future deletion decisions.
 
 ### LL37: Objective Verification (Idle Panel Only)
 
-Status: `current` (fidelity measurement only)
+Status: `done` (bounded route-diverse idle-panel implementation)
 
 Problem:
 - After LL34-LL36 the remaining question is the one no mechanical signal
@@ -4253,6 +4256,192 @@ Measurement start (2026-08-10):
   objective pair, and one LL13 surface. The gate remains
   `no_go_insufficient_eligible_sample`; four objective-distinct v2 pairs and a
   second eligible unattended surface remain before any panel wiring.
+- An explicitly authorized controlled Routine schema-v2 pair then completed on
+  `qwen3.6-35b-a3b-vision`. The correct arm used `write_file` and satisfied the
+  exact changed-file criterion. The write-disabled broken arm left the file in
+  its original state, but both arms passed the same syntax-only verification
+  command. The verifier matched both labels at confidence 1.0 with zero invalid
+  or unverifiable outputs. A combined probe over the LL13 and Routine pairs
+  matched all four cases and reported two eligible pairs, two distinct
+  objectives, and two unattended surfaces, with 0% false refutes and 100%
+  broken recall. The gate correctly remains
+  `no_go_insufficient_eligible_sample`; three more objective-distinct v2 pairs
+  remain before the combined ten-case decision run. No panel wiring is
+  justified yet.
+- The remaining evidence workflow is now implemented but has not recorded new
+  cases. Three closed Routine scenarios cover a boolean feature flag, an
+  integer retry limit, and a string display format. Each initial file passes
+  the same type-only mechanical check as its target while violating an exact
+  changed-file acceptance criterion. The consent-gated runner collects all
+  three pairs, requires four explicit accepted baseline case paths, and
+  enforces ten matching mechanically-green cases, five distinct objectives,
+  two surfaces, zero invalid/unverifiable output, the fidelity thresholds, and
+  the production `go` verdict. A fresh explicit consented execution is the next
+  evidence action; the current 2+2 denominator is unchanged until it succeeds.
+- The explicitly consented remaining-pairs run completed on
+  `qwen3.6-35b-a3b-vision`. The feature-flag and retry-limit pairs exported on
+  the first pass. The display-format broken arm initially exhausted its run cap
+  by calling irrelevant tools, so the controlled broken arm was narrowed to no
+  exposed built-ins and the runner gained non-destructive resume support. A
+  relative resume path then exposed a duplicated workspace join; canonicalizing
+  the run directory fixed it. The first complete ten-case probe still returned
+  `no_go_unreliable_output`: nine labels matched, but the display-format broken
+  case was conservatively `unverifiable` because an empty mutation list did not
+  reveal the current file value. That report and pair remain preserved under
+  the run artifact as `initial_no_go` and `initial_unverifiable`.
+- The weak verification capture was then corrected to report the observed
+  canonical JSON value while continuing to pass solely on field type. It does
+  not test the exact target value, so the objective criterion remains
+  independent from mechanical success. The replacement display-format pair and
+  final combined probe produced `go`: five correct and five broken eligible
+  cases, five distinct objectives, two unattended surfaces, 0% false refutes,
+  100% broken recall, zero invalid or unverifiable outputs, and ten matching
+  verdicts at confidence 1.0. The local artifact is under
+  `build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/`.
+  The fidelity prerequisite is satisfied. The next implementation slice may
+  wire only the smallest LL18-idle, bounded, non-mutating panel path; the no-
+  inline rule and convergence controls remain mandatory.
+- Idle panel slice 1 is implemented behind the existing LL18 scheduler as an
+  `objective_verify` maintenance stage after baseline eval. The domain service
+  accepts one unattended candidate, excludes attended and LL34-settled work,
+  issues at most one tool-free verifier request, enforces a 24,000-character
+  prompt cap and 768 output-token cap, records estimated input/output tokens,
+  honors gate cancellation, requires concrete findings for refutation, and
+  maps invalid or failed output to `unverifiable`. The stage evaluates only the
+  first candidate and keeps the complete report in run-local shared context;
+  no settings, worktree, history, or verdict store is mutated, and a structural
+  test prevents interactive chat code from importing the panel.
+- Idle panel slice 2 binds production execution to the exact accepted
+  schema-v3 evidence identity: OpenAI-compatible provider,
+  `http://192.168.100.241:1234/v1`, `qwen3.6-35b-a3b-vision`, the recorded gate
+  thresholds and counts, and report SHA-256
+  `c07819b6698dacc2f916f96eab2fdaa29230a63713cb7d7d80a5e12eefb86d3e`.
+  Provider, normalized endpoint, model, or evidence-threshold drift fails
+  closed, and the active route is rechecked immediately before the request.
+  The first read-only source adapter loads LL13 history directly from its
+  repository without registry recovery, persistence writes, worktree access,
+  or verifier replay. It admits only completed, mechanically green records
+  with explicit acceptance criteria and complete hash-consistent changed-file
+  evidence. LL13 now persists those criteria from
+  `/agent TASK --accept CRITERION --verify COMMAND`; legacy records default to
+  no criteria and stay ineligible rather than deriving an objective contract
+  from prompt prose. A session-local attempt ledger prevents duplicate votes,
+  while full verdicts remain run-local.
+- Idle panel slice 3 adds the reviewable verdict store prerequisite. Evaluated
+  verdicts persist as bounded schema-v1 projections with a 50-record cap;
+  skipped and cancelled reports do not persist, and a persistence failure fails
+  the maintenance stage. The projection includes objectives, criteria, changed
+  paths, implementation evidence, findings, blocking classification, measured
+  route/report identity, token/request counts, and timestamp, but omits changed-
+  file contents, raw prompts, and raw responses. Malformed or unknown records
+  are skipped without hiding valid neighbors, the debug page exposes the
+  history, and persisted candidate IDs suppress duplicate requests across app
+  restarts. LL37 stays `current`: the next narrow slice must define immutable
+  vote identity, a per-candidate vote cap, and deterministic aggregation and
+  stall rules before issuing multiple votes. Multiple verifier routes, retries,
+  and continuation nudges remain later work.
+- Idle panel slice 4 implements that bounded vote policy without parallel fan-
+  out. A schema-v2 record carries an immutable vote ID derived from candidate,
+  exact measured profile, accepted report SHA-256, and a one-based slot;
+  schema-v1 records migrate as slot one. One LL18 window still issues at most
+  one request, while later windows and app restarts advance through at most
+  three slots. Two matching blocking classifications converge early, repeated
+  normalized unverifiable evidence stalls at two, and a three-way split caps
+  as `unverifiable`. Terminal cohorts are excluded before a request, malformed
+  identities cannot persist, and diagnostics group votes with their aggregate
+  state. These serialized votes currently share the one accepted measured
+  route and are not claimed as route-independent N-way evidence. LL37 remains
+  `current`: next measure a second verifier route on the existing consented
+  corpus, then admit only a passing route to deterministic slot assignment.
+  Parallel fan-out, anti-ratchet continuation, strategist passes, and reviewed
+  continuation nudges remain later slices.
+- Idle panel slice 5 establishes route-independent evidence without parallel
+  fan-out. After explicit authorization, `qwen3.6-27b-vision` scored the
+  unchanged ten consented schema-v3 cases and matched all five correct and five
+  broken labels at confidence 1.0, with 0% false refutes, 100% broken recall,
+  zero invalid or unverifiable outputs, five objectives, and two unattended
+  surfaces. The committed JSON report SHA-256 is
+  `ddca603486332ddb0502c634c224cad06611be976650d31ad12c2bdeee587d16`.
+  The accepted roster is append-only: slot one remains the original 35B route
+  and slot two is the new 27B route. One LL18 window issues at most one vote;
+  later windows and restarts select the next route even when the interactive
+  model differs. Two agreeing routes converge, while disagreement caps as
+  `unverifiable` with no same-route tie-break. Provider or endpoint drift skips
+  before a request, persisted slot metadata must match the registered route,
+  schema-v1 records retain 35B slot-one meaning, and diagnostics group the two
+  models under one candidate aggregate. The default 35B model was restored
+  after measurement. LL37 remains `current`: the next slice must define and
+  test anti-ratchet handling plus the reviewed continuation/nudge boundary;
+  parallel fan-out, automatic retries, and strategist passes remain deferred.
+- Idle panel slice 6 implements the reviewed continuation boundary without
+  inferring permission to mutate work. A pure policy accepts only a terminal,
+  converged `refuted` aggregate with `contradiction` blocking and concrete
+  findings. It freezes the shared objective and ordered acceptance criteria,
+  deduplicates and deterministically sorts concrete gaps under content-derived
+  stable IDs, and renders a privacy-filtered anti-ratchet packet that excludes
+  changed-file contents, implementation-evidence bodies, raw prompts, and raw
+  verifier responses. Contract disagreement, split or unverifiable votes, and
+  refutations without concrete gaps require a user decision and expose no
+  repair action; `notRefuted` exposes no action. The idle-maintenance history
+  previews the exact packet and copies it only after an explicit button press.
+  Merely viewing the record creates no clipboard, task, persistence, model, or
+  worktree side effect, and a structural test keeps both the verifier panel and
+  continuation policy unreachable from interactive chat. LL37 stays `current`:
+  the next narrow slice is an explicit user-approved adapter that creates a new
+  LL13 repair task from the frozen packet without mutating or resuming the
+  completed source task. Automatic retries, parallel fan-out, and strategist
+  passes remain deferred.
+- Idle panel slice 7 implements that explicit LL13 approval adapter. The idle
+  review resolves the completed source task through a read-only repository
+  projection, then a pure adapter revalidates the exact
+  `worktree-agent:<task-id>` identity, mechanically-green terminal state,
+  normalized objective, ordered acceptance criteria, coding project, source
+  branch, and verification command. A content-derived assignment ID freezes the
+  candidate, objective, criteria, and sorted gap IDs and suppresses duplicate
+  queueing. The confirmation shows the objective, criteria, gap IDs,
+  verification command, source base branch, and source-immutability boundary.
+  Cancelling queues nothing; confirming revalidates current persisted state and
+  sends the exact privacy-filtered anti-ratchet packet through the existing
+  LL13 launcher as a distinct queued task based on the completed source branch.
+  It does not start the task, resume or mutate the source, call a model, or
+  write a worktree. Integration coverage exercises the real launcher, registry,
+  and repository and proves the source JSON remains unchanged. At this slice
+  boundary, production Routine and retry-until-green candidate/source adapters
+  remained next; automatic execution/retries, parallel fan-out, and strategist
+  passes stayed explicitly deferred.
+- Idle panel slice 8 completes the Routine and retry-until-green read-side
+  adapters. Routine history now round-trips an optional frozen objective,
+  ordered acceptance criteria, plan, successful mechanical verification,
+  content-hashed changed files, truncation state, and implementation evidence.
+  Retry reports round-trip the equivalent winner envelope plus completion time
+  and attended state through a bounded fail-closed repository. Both pure
+  adapters reject incomplete or legacy evidence, unsafe or duplicate paths,
+  byte/hash mismatches, non-green verification, attended work, residue risk,
+  inconsistent winner references, and reports that continued after finding a
+  winner. The maintenance source reads LL13, Routine, and retry history without
+  instantiating an execution notifier, inspecting a workspace, rerunning a
+  command, invoking a model, or writing persistence. The full gate passed 7,363
+  Flutter tests and 10 notification-relay tests. LL37 remains `current` for the
+  producer side: scheduled Routine execution must capture the complete
+  envelope, and the deferred LL7 retry-until-green Routine preset must persist
+  its winning report. Until then, incomplete and legacy sources stay excluded.
+- Idle panel slice 9 completes those producer paths. The Routine editor stores
+  an explicit objective, ordered acceptance criteria, verification command,
+  approved plan, and opt-in retry bounds. Scheduled execution runs the command
+  without a shell after rejecting control operators, captures only workspace-
+  contained typed file mutations, resolves symlinks, and stores bounded UTF-8
+  contents with byte sizes and SHA-256 hashes. Fresh approved plans supersede
+  stale contract plans in the frozen record. The LL7 retry preset uses file
+  checkpoints for each candidate, rolls back every failed candidate, preserves
+  the first green winner, and persists the equivalent bounded report. Missing
+  workspace tools fail closed instead of silently degrading to one normal run.
+  A production-path integration test proves that both new records reach the
+  read-only LL37 source without persistence side effects. The focused
+  producer-to-panel suite passed 100 tests; the full gate passed 7,371
+  Flutter/Dart tests and 10 notification-relay tests with all analyzers and
+  generated-file checks clean. LL37 is complete. Parallel fan-out, automatic
+  repair execution/retries, and strategist passes remain independently scoped
+  future enhancements.
 
 Source: Grok Build `session/goal_classifier.rs`,
 `session/templates/goal_verifier_prompt.md`, `goal_strategist_prompt.md`. The

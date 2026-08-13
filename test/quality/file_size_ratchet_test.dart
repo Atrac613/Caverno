@@ -299,7 +299,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/coordinators/goal_slash_command_coordinator.dart':
       239,
   'lib/features/chat/presentation/coordinators/slash_command_action_coordinator.dart':
-      364,
+      331,
   'lib/features/chat/presentation/coordinators/plan_review_action_coordinator.dart':
       198,
   'lib/features/chat/presentation/coordinators/workflow_editor_action_coordinator.dart':
@@ -335,6 +335,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/widgets/file_workspace_diff_parser.dart': 97,
   'lib/features/chat/presentation/slash_commands/slash_command_catalog.dart':
       100,
+  'lib/features/chat/presentation/slash_commands/worktree_agent_command_args.dart':
+      63,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1131,
   'lib/features/chat/data/datasources/mcp_tool_service_owner_facade.dart': 94,
   'lib/features/chat/data/datasources/mcp_tool_service_ssh_facade.dart': 14,

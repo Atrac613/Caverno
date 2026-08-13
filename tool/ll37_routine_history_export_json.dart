@@ -5,6 +5,7 @@ Map<String, dynamic> _manifestJson({
   required String title,
   required Map<String, dynamic> routine,
   required Map<String, dynamic> run,
+  required _MechanicalVerification mechanicalVerification,
   required String expectedVerdict,
   required DateTime generatedAt,
   required _RoutineEvidenceRedactor redactor,
@@ -13,7 +14,7 @@ Map<String, dynamic> _manifestJson({
   final runId = _requiredString(run, 'id', 'routine run');
   return {
     'schemaName': _manifestSchemaName,
-    'schemaVersion': _schemaVersion,
+    'schemaVersion': _manifestSchemaVersion,
     'generatedAt': generatedAt.toIso8601String(),
     'caseId': caseId,
     'title': title,
@@ -22,8 +23,8 @@ Map<String, dynamic> _manifestJson({
     'task': {
       'prompt': redactor.redact(_requiredString(routine, 'prompt', 'routine')),
       'repoStateRef': 'routine-history:$routineId:$runId',
-      'verificationCommand': 'routine_history_objective_audit',
-      'verificationResult': expectedVerdict == 'refuted' ? 'failed' : 'passed',
+      'verificationCommand': redactor.redact(mechanicalVerification.command),
+      'verificationResult': 'passed',
       'workspaceMode': 'routines',
     },
     'source': {
@@ -58,23 +59,28 @@ Map<String, dynamic> _caseJson({
   required List<String> acceptanceCriteria,
   required List<Map<String, dynamic>> changedFiles,
   required Map<String, dynamic> run,
+  required _MechanicalVerification mechanicalVerification,
   required _RoutineEvidenceRedactor redactor,
 }) {
   return {
     'schemaName': _caseSchemaName,
-    'schemaVersion': _schemaVersion,
+    'schemaVersion': _caseSchemaVersion,
     'caseId': caseId,
     'pairId': pairId,
     'title': title,
     'sourceSurface': 'routine',
     'expectedVerdict': expectedVerdict,
+    'mechanicalVerificationPassed': true,
     'personalEvalManifestPath': manifestName,
     'acceptanceCriteria': acceptanceCriteria,
     'changedFiles': changedFiles,
     'verificationEvidence': [
       {
-        'command': 'routine_history_objective_audit',
-        'exitCode': 0,
+        'command': redactor.redact(mechanicalVerification.command),
+        'exitCode': mechanicalVerification.exitCode,
+        'mechanicalOutput': _visibleOutput(
+          redactor.redact(mechanicalVerification.output),
+        ),
         'recordedStatus': _requiredString(run, 'status', 'routine run'),
         'trigger': _requiredString(run, 'trigger', 'routine run'),
         'toolCalls': _toolCalls(
@@ -100,25 +106,61 @@ Map<String, dynamic> _promptToolCall(
 
 List<Map<String, dynamic>> _changedFiles(
   Map<String, dynamic> run,
+  Map<String, dynamic> routine,
   _RoutineEvidenceRedactor redactor,
 ) {
   final files = <Map<String, dynamic>>[];
+  final seenPaths = <String>{};
+  final workspaceDirectory = _requiredString(
+    routine,
+    'workspaceDirectory',
+    'routine',
+  );
   for (final call in _toolCalls(run)) {
     if (_string(call['name']) != 'write_file') continue;
     final arguments = _decodeObject(
       _requiredString(call, 'arguments', 'write_file call'),
       'write_file arguments',
     );
-    final path = _string(arguments['path'])?.trim() ?? '';
+    final rawPath = _string(arguments['path'])?.trim() ?? '';
     final content = arguments['content'] ?? arguments['contents'];
-    if (path.isEmpty || content is! String) {
+    if (rawPath.isEmpty || content is! String) {
       throw const FormatException(
         'Captured write_file call lacks a path or string content.',
       );
     }
-    files.add({'path': path, 'content': redactor.redact(content)});
+    final normalizedPath = _workspaceRelativePath(
+      rawPath,
+      workspaceDirectory: workspaceDirectory,
+    );
+    if (!seenPaths.add(normalizedPath)) {
+      throw FormatException('Duplicate changed-file path: $normalizedPath.');
+    }
+    files.add({'path': normalizedPath, 'content': redactor.redact(content)});
   }
   return files;
+}
+
+String _workspaceRelativePath(
+  String rawPath, {
+  required String workspaceDirectory,
+}) {
+  final normalizedWorkspace = path.posix.normalize(
+    workspaceDirectory.replaceAll('\\', '/'),
+  );
+  final normalizedRawPath = path.posix.normalize(rawPath.replaceAll('\\', '/'));
+  final relativePath = path.posix.isAbsolute(normalizedRawPath)
+      ? path.posix.relative(normalizedRawPath, from: normalizedWorkspace)
+      : normalizedRawPath;
+  if (path.posix.isAbsolute(relativePath) ||
+      relativePath == '..' ||
+      relativePath.startsWith('../') ||
+      RegExp(r'^[A-Za-z]:/').hasMatch(relativePath)) {
+    throw FormatException(
+      'Changed-file path escapes the Routine workspace: $rawPath.',
+    );
+  }
+  return relativePath;
 }
 
 String _visibleOutput(String output) {

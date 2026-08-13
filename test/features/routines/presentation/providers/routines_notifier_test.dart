@@ -11,8 +11,10 @@ import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/routines/data/routine_repository.dart';
 import 'package:caverno/features/routines/data/routine_execution_service.dart';
+import 'package:caverno/features/routines/data/routine_retry_until_green_service.dart';
 import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/routines/presentation/providers/routines_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -44,6 +46,7 @@ void main() {
         ),
         if (executionService != null)
           routineExecutionServiceProvider.overrideWithValue(executionService),
+        routineRetryUntilGreenServiceProvider.overrideWithValue(null),
         if (notificationService != null)
           notificationServiceProvider.overrideWithValue(notificationService),
         if (googleChatDeliveryService != null)
@@ -67,6 +70,8 @@ void main() {
     DateTime? nextRunAt,
     DateTime? lastRunAt,
     List<RoutineRunRecord> runs = const [],
+    RoutineObjectiveEvidenceContract? objectiveEvidenceContract,
+    RoutineRetryUntilGreenConfig? retryUntilGreenConfig,
   }) {
     final now = DateTime(2026, 4, 21, 10);
     return Routine(
@@ -82,6 +87,8 @@ void main() {
       allowWorkspaceWrites: allowWorkspaceWrites,
       completionAction: completionAction,
       googleChatRule: googleChatRule,
+      objectiveEvidenceContract: objectiveEvidenceContract,
+      retryUntilGreenConfig: retryUntilGreenConfig,
       intervalValue: 1,
       intervalUnit: RoutineIntervalUnit.hours,
       nextRunAt: nextRunAt,
@@ -937,6 +944,44 @@ void main() {
     );
 
     test(
+      'scheduled retry fails closed when workspace tools are unavailable',
+      () async {
+        final executionService = _FakeRoutineExecutionService();
+        final dueRoutine = buildRoutine(
+          id: 'routine-retry',
+          name: 'Retry routine',
+          notifyOnCompletion: false,
+          nextRunAt: DateTime(2026, 4, 21, 9),
+          objectiveEvidenceContract: const RoutineObjectiveEvidenceContract(
+            objective: 'Produce a verified result.',
+            acceptanceCriteria: ['The result is correct.'],
+            verificationCommand: 'dart test',
+          ),
+          retryUntilGreenConfig: const RoutineRetryUntilGreenConfig(
+            enabled: true,
+          ),
+        );
+        final container = await createContainer(
+          initialRoutines: [dueRoutine],
+          executionService: executionService,
+        );
+        addTearDown(container.dispose);
+
+        await container
+            .read(routinesNotifierProvider.notifier)
+            .runDueRoutines();
+
+        final run = container
+            .read(routinesNotifierProvider.notifier)
+            .findRoutine(dueRoutine.id)
+            ?.latestRun;
+        expect(run?.status, RoutineRunStatus.failed);
+        expect(run?.error, contains('requires available workspace tools'));
+        expect(executionService.executedRoutineIds, isEmpty);
+      },
+    );
+
+    test(
       'scheduled runs skip notifications when disabled on the routine',
       () async {
         final notificationService = _FakeNotificationService();
@@ -1121,6 +1166,7 @@ class _FakeRoutineExecutionService extends RoutineExecutionService {
 
   final String? generatedPlanDraft;
   final List<String> generatedPlanRoutineIds = [];
+  final List<String> executedRoutineIds = [];
 
   @override
   Future<String> generatePlanDraft(Routine routine) async {
@@ -1132,7 +1178,9 @@ class _FakeRoutineExecutionService extends RoutineExecutionService {
   Future<RoutineRunRecord> execute(
     Routine routine, {
     RoutineRunTrigger trigger = RoutineRunTrigger.manual,
+    ChatTurnOwner? fileToolOwner,
   }) async {
+    executedRoutineIds.add(routine.id);
     return RoutineRunRecord(
       id: 'fake-run-${routine.id}',
       startedAt: DateTime(2026, 4, 21, 10),

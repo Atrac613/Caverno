@@ -6,6 +6,44 @@ part of 'routine.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_RoutineObjectiveEvidenceContract _$RoutineObjectiveEvidenceContractFromJson(
+  Map<String, dynamic> json,
+) => _RoutineObjectiveEvidenceContract(
+  objective: json['objective'] as String,
+  acceptanceCriteria:
+      (json['acceptanceCriteria'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ??
+      const <String>[],
+  verificationCommand: json['verificationCommand'] as String,
+  plan: json['plan'] as String? ?? '',
+);
+
+Map<String, dynamic> _$RoutineObjectiveEvidenceContractToJson(
+  _RoutineObjectiveEvidenceContract instance,
+) => <String, dynamic>{
+  'objective': instance.objective,
+  'acceptanceCriteria': instance.acceptanceCriteria,
+  'verificationCommand': instance.verificationCommand,
+  'plan': instance.plan,
+};
+
+_RoutineRetryUntilGreenConfig _$RoutineRetryUntilGreenConfigFromJson(
+  Map<String, dynamic> json,
+) => _RoutineRetryUntilGreenConfig(
+  enabled: json['enabled'] as bool? ?? false,
+  maxRounds: (json['maxRounds'] as num?)?.toInt() ?? 3,
+  candidatesPerRound: (json['candidatesPerRound'] as num?)?.toInt() ?? 2,
+);
+
+Map<String, dynamic> _$RoutineRetryUntilGreenConfigToJson(
+  _RoutineRetryUntilGreenConfig instance,
+) => <String, dynamic>{
+  'enabled': instance.enabled,
+  'maxRounds': instance.maxRounds,
+  'candidatesPerRound': instance.candidatesPerRound,
+};
+
 _RoutinePlanRevision _$RoutinePlanRevisionFromJson(Map<String, dynamic> json) =>
     _RoutinePlanRevision(
       markdown: json['markdown'] as String,
@@ -114,6 +152,28 @@ _RoutineRunRecord _$RoutineRunRecordFromJson(Map<String, dynamic> json) =>
       output: json['output'] as String? ?? '',
       error: json['error'] as String? ?? '',
       failureAcknowledged: json['failureAcknowledged'] as bool? ?? false,
+      objective: json['objective'] as String? ?? '',
+      objectiveAcceptanceCriteria:
+          (json['objectiveAcceptanceCriteria'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const <String>[],
+      objectivePlan: json['objectivePlan'] as String? ?? '',
+      mechanicalVerification: json['mechanicalVerification'] == null
+          ? null
+          : RoutineRunMechanicalVerification.fromJson(
+              json['mechanicalVerification'] as Map<String, dynamic>,
+            ),
+      changedFiles: json['changedFiles'] == null
+          ? const <RoutineRunChangedFileEvidence>[]
+          : _routineRunChangedFilesFromJson(json['changedFiles'] as List?),
+      changedFileEvidenceTruncated:
+          json['changedFileEvidenceTruncated'] as bool? ?? false,
+      implementationEvidence:
+          (json['implementationEvidence'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const <String>[],
     );
 
 Map<String, dynamic> _$RoutineRunRecordToJson(
@@ -139,6 +199,13 @@ Map<String, dynamic> _$RoutineRunRecordToJson(
   'output': instance.output,
   'error': instance.error,
   'failureAcknowledged': instance.failureAcknowledged,
+  'objective': instance.objective,
+  'objectiveAcceptanceCriteria': instance.objectiveAcceptanceCriteria,
+  'objectivePlan': instance.objectivePlan,
+  'mechanicalVerification': instance.mechanicalVerification,
+  'changedFiles': _routineRunChangedFilesToJson(instance.changedFiles),
+  'changedFileEvidenceTruncated': instance.changedFileEvidenceTruncated,
+  'implementationEvidence': instance.implementationEvidence,
 };
 
 const _$RoutineRunStatusEnumMap = {
@@ -156,6 +223,42 @@ const _$RoutineDeliveryStatusEnumMap = {
   RoutineDeliveryStatus.skipped: 'skipped',
   RoutineDeliveryStatus.delivered: 'delivered',
   RoutineDeliveryStatus.failed: 'failed',
+};
+
+_RoutineRunMechanicalVerification _$RoutineRunMechanicalVerificationFromJson(
+  Map<String, dynamic> json,
+) => _RoutineRunMechanicalVerification(
+  command: json['command'] as String,
+  exitCode: (json['exitCode'] as num).toInt(),
+  output: json['output'] as String? ?? '',
+);
+
+Map<String, dynamic> _$RoutineRunMechanicalVerificationToJson(
+  _RoutineRunMechanicalVerification instance,
+) => <String, dynamic>{
+  'command': instance.command,
+  'exitCode': instance.exitCode,
+  'output': instance.output,
+};
+
+_RoutineRunChangedFileEvidence _$RoutineRunChangedFileEvidenceFromJson(
+  Map<String, dynamic> json,
+) => _RoutineRunChangedFileEvidence(
+  path: json['path'] as String,
+  content: json['content'] as String,
+  byteSize: (json['byteSize'] as num).toInt(),
+  contentHash: json['contentHash'] as String,
+  truncated: json['truncated'] as bool? ?? false,
+);
+
+Map<String, dynamic> _$RoutineRunChangedFileEvidenceToJson(
+  _RoutineRunChangedFileEvidence instance,
+) => <String, dynamic>{
+  'path': instance.path,
+  'content': instance.content,
+  'byteSize': instance.byteSize,
+  'contentHash': instance.contentHash,
+  'truncated': instance.truncated,
 };
 
 _RoutineRunToolCall _$RoutineRunToolCallFromJson(Map<String, dynamic> json) =>
@@ -199,6 +302,16 @@ _Routine _$RoutineFromJson(Map<String, dynamic> json) => _Routine(
       RoutineGoogleChatRule.onFailure,
   workspaceDirectory: json['workspaceDirectory'] as String? ?? '',
   allowWorkspaceWrites: json['allowWorkspaceWrites'] as bool? ?? false,
+  objectiveEvidenceContract: json['objectiveEvidenceContract'] == null
+      ? null
+      : RoutineObjectiveEvidenceContract.fromJson(
+          json['objectiveEvidenceContract'] as Map<String, dynamic>,
+        ),
+  retryUntilGreenConfig: json['retryUntilGreenConfig'] == null
+      ? null
+      : RoutineRetryUntilGreenConfig.fromJson(
+          json['retryUntilGreenConfig'] as Map<String, dynamic>,
+        ),
   planArtifact: _routinePlanArtifactFromJson(
     json['planArtifact'] as Map<String, dynamic>?,
   ),
@@ -245,6 +358,8 @@ Map<String, dynamic> _$RoutineToJson(_Routine instance) => <String, dynamic>{
   'googleChatRule': _$RoutineGoogleChatRuleEnumMap[instance.googleChatRule]!,
   'workspaceDirectory': instance.workspaceDirectory,
   'allowWorkspaceWrites': instance.allowWorkspaceWrites,
+  'objectiveEvidenceContract': instance.objectiveEvidenceContract,
+  'retryUntilGreenConfig': instance.retryUntilGreenConfig,
   'planArtifact': _routinePlanArtifactToJson(instance.planArtifact),
   'intervalValue': instance.intervalValue,
   'intervalUnit': _$RoutineIntervalUnitEnumMap[instance.intervalUnit]!,

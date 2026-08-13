@@ -18,6 +18,7 @@ import '../../chat/data/datasources/mcp_tool_service.dart';
 import '../../chat/data/datasources/session_logging_chat_datasource.dart';
 import '../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../chat/domain/entities/message.dart';
+import '../../chat/domain/entities/chat_turn_owner.dart';
 import '../../chat/domain/entities/model_usage_role.dart';
 import '../../chat/domain/services/system_prompt_builder.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
@@ -30,6 +31,7 @@ import '../domain/services/routine_computer_use_action_allowlist.dart';
 import '../domain/services/routine_schedule_service.dart';
 import '../domain/services/routine_tool_policy.dart';
 import 'routine_tool_runner.dart';
+import 'routine_objective_evidence_collector.dart';
 
 final routineExecutionServiceProvider = Provider<RoutineExecutionService>((
   ref,
@@ -69,13 +71,16 @@ class RoutineExecutionService {
     RoutineToolRunner? toolRunner,
     RoutineProcessRunner? processRunner,
     AgentsMdLoader? agentsMdLoader,
+    RoutineObjectiveEvidenceCollector? objectiveEvidenceCollector,
   }) : _dataSource = dataSource,
        _googleChatDeliveryService = googleChatDeliveryService,
        _mcpToolService = mcpToolService,
        _toolRunner = toolRunner ?? RoutineToolRunner(dataSource: dataSource),
        _processRunner = processRunner ?? _defaultProcessRunner,
        _settings = settings,
-       _agentsMdLoader = agentsMdLoader;
+       _agentsMdLoader = agentsMdLoader,
+       _objectiveEvidenceCollector =
+           objectiveEvidenceCollector ?? RoutineObjectiveEvidenceCollector();
 
   static const String googleChatPostToolName = 'routine_google_chat_post';
   static const String _googleChatSourceLabel = 'Google Chat';
@@ -153,6 +158,7 @@ class RoutineExecutionService {
   final RoutineProcessRunner _processRunner;
   final AppSettings _settings;
   final AgentsMdLoader? _agentsMdLoader;
+  final RoutineObjectiveEvidenceCollector _objectiveEvidenceCollector;
   final Uuid _uuid = const Uuid();
   double get _routineRequestTemperature =>
       LlmRequestTemperaturePolicy.forSettings(_settings).routineTemperature;
@@ -171,6 +177,7 @@ class RoutineExecutionService {
   Future<RoutineRunRecord> execute(
     Routine routine, {
     RoutineRunTrigger trigger = RoutineRunTrigger.manual,
+    ChatTurnOwner? fileToolOwner,
   }) async {
     final startedAt = DateTime.now();
     final runId = _uuid.v4();
@@ -207,6 +214,7 @@ class RoutineExecutionService {
               messages: messages,
               routine: routine,
               allowedTools: allowedTools,
+              fileToolOwner: fileToolOwner,
             );
             final output = RoutineScheduleService.truncateOutput(
               executionResult.output,
@@ -226,6 +234,13 @@ class RoutineExecutionService {
             );
             final finishedAt = DateTime.now();
             final durationMs = finishedAt.difference(startedAt).inMilliseconds;
+            final objectiveEvidence = trigger == RoutineRunTrigger.scheduled
+                ? await _objectiveEvidenceCollector.collect(
+                    routine: routine,
+                    toolCalls: toolCalls,
+                    implementationOutput: visibleOutput,
+                  )
+                : null;
 
             if (visibleOutput.isEmpty) {
               final failureMessage = executionResult.wasTruncated
@@ -271,6 +286,22 @@ class RoutineExecutionService {
               toolSourceLabels: toolSourceLabels,
               preview: preview,
               output: output,
+              objective: objectiveEvidence == null
+                  ? ''
+                  : routine.objectiveEvidenceContract!.objective.trim(),
+              objectiveAcceptanceCriteria: objectiveEvidence == null
+                  ? const []
+                  : routine.objectiveEvidenceContract!.acceptanceCriteria,
+              objectivePlan: objectiveEvidence == null
+                  ? ''
+                  : (approvedPlan ?? routine.objectiveEvidenceContract!.plan)
+                        .trim(),
+              mechanicalVerification: objectiveEvidence?.verification,
+              changedFiles: objectiveEvidence?.changedFiles ?? const [],
+              changedFileEvidenceTruncated:
+                  objectiveEvidence?.changedFileEvidenceTruncated ?? false,
+              implementationEvidence:
+                  objectiveEvidence?.implementationEvidence ?? const [],
             );
           } catch (error) {
             final finishedAt = DateTime.now();
@@ -556,6 +587,7 @@ class RoutineExecutionService {
     required List<Message> messages,
     required Routine routine,
     required List<Map<String, dynamic>> allowedTools,
+    ChatTurnOwner? fileToolOwner,
   }) async {
     if (allowedTools.isEmpty) {
       final result = await _dataSource.createChatCompletion(
@@ -578,6 +610,7 @@ class RoutineExecutionService {
         toolCall,
         routine: routine,
         allowedToolNames: allowedToolNames,
+        fileToolOwner: fileToolOwner,
       ),
       model: _settings.model,
       temperature: _routineRequestTemperature,
@@ -706,6 +739,7 @@ class RoutineExecutionService {
     ToolCallInfo toolCall, {
     required Routine routine,
     required Set<String> allowedToolNames,
+    ChatTurnOwner? fileToolOwner,
   }) async {
     if (!allowedToolNames.contains(toolCall.name)) {
       if (RoutineToolPolicy.isComputerUseActionToolName(toolCall.name)) {
@@ -754,10 +788,18 @@ class RoutineExecutionService {
       return scopedArgumentsResult.deniedResult!;
     }
 
-    final result = await toolService.executeTool(
-      name: toolCall.name,
-      arguments: scopedArgumentsResult.arguments,
-    );
+    final result =
+        fileToolOwner != null &&
+            RoutineToolPolicy.isWorkspacePathToolName(toolCall.name)
+        ? await toolService.executeFileTool(
+            owner: fileToolOwner,
+            name: toolCall.name,
+            arguments: scopedArgumentsResult.arguments,
+          )
+        : await toolService.executeTool(
+            name: toolCall.name,
+            arguments: scopedArgumentsResult.arguments,
+          );
     if (computerUseAllowlistEntry != null) {
       _recordRoutineComputerUseAllowlistResult(
         toolCall: toolCall,

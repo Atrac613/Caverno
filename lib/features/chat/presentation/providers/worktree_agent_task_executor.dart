@@ -42,6 +42,9 @@ class WorktreeAgentTaskExecutionContext {
   String get endpointId => task.endpointId;
 
   String get verificationCommand => task.verificationCommand;
+
+  List<String> get objectiveAcceptanceCriteria =>
+      task.objectiveAcceptanceCriteria;
 }
 
 class WorktreeAgentTaskExecutionOutcome {
@@ -251,6 +254,11 @@ class WorktreeAgentLlmExecutionDelegate {
         'Assigned endpoint: ${context.endpointId}',
       if (context.verificationCommand.trim().isNotEmpty)
         'Verification command: ${context.verificationCommand}',
+      if (context.objectiveAcceptanceCriteria.isNotEmpty) ...[
+        'Objective acceptance criteria:',
+        for (final criterion in context.objectiveAcceptanceCriteria)
+          '- $criterion',
+      ],
       'Available tools: $tools',
       'Only inspect or modify files inside the assigned git worktree.',
       'Use relative paths from the worktree root when possible.',

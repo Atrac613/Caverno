@@ -165,6 +165,9 @@ void main() {
       final task = await _registerRunningTask(
         registry(),
         verificationCommand: 'fvm flutter test test/widget_test.dart',
+        objectiveAcceptanceCriteria: const [
+          'The widget remains stable across repeated runs.',
+        ],
       );
 
       final result = await executor().execute(task.id);
@@ -201,6 +204,11 @@ void main() {
         contains(
           'Verification command: fvm flutter test test/widget_test.dart',
         ),
+      );
+      expect(prompt, contains('Objective acceptance criteria:'));
+      expect(
+        prompt,
+        contains('- The widget remains stable across repeated runs.'),
       );
       expect(prompt, contains('Available tools: read_file, edit_file'));
       expect(prompt, isNot(contains('local_execute_command')));
@@ -422,6 +430,7 @@ ProviderContainer _containerWithDefaultDelegate(
 Future<WorktreeAgentTask> _registerRunningTask(
   WorktreeAgentTaskRegistryNotifier registry, {
   String verificationCommand = '',
+  List<String> objectiveAcceptanceCriteria = const <String>[],
 }) async {
   final task = await registry.registerTask(
     title: 'Fix test',
@@ -431,6 +440,7 @@ Future<WorktreeAgentTask> _registerRunningTask(
     checkpointLineageId: 'checkpoint-1',
     endpointId: 'mesh-1',
     verificationCommand: verificationCommand,
+    objectiveAcceptanceCriteria: objectiveAcceptanceCriteria,
   );
   await registry.markRunning(task.id);
   return task.copyWith(status: WorktreeAgentTaskStatus.running);

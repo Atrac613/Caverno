@@ -1,13 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as path;
+
 part 'll37_routine_history_export_json.dart';
 part 'll37_routine_history_export_support.dart';
 
 const _selectionSchemaName = 'caverno_ll37_routine_history_selection';
 const _caseSchemaName = 'caverno_ll37_verifier_fidelity_case';
 const _manifestSchemaName = 'caverno_personal_eval_case_manifest';
-const _schemaVersion = 1;
+const _selectionSchemaVersion = 1;
+const _caseSchemaVersion = 2;
+const _manifestSchemaVersion = 1;
 
 Future<void> main(List<String> args) async {
   try {
@@ -67,6 +71,19 @@ Future<Ll37RoutineHistoryExportResult> exportLl37RoutineHistoryEvidence({
   }
   _validateRun(correctRun, label: 'candidate A');
   _validateRun(brokenRun, label: 'candidate B');
+  final correctMechanical = _validatedMechanicalVerification(
+    correctRun,
+    label: 'candidate A',
+  );
+  final brokenMechanical = _validatedMechanicalVerification(
+    brokenRun,
+    label: 'candidate B',
+  );
+  if (correctMechanical.command != brokenMechanical.command) {
+    throw const FormatException(
+      'Routine evidence arms must use the same mechanical verification command.',
+    );
+  }
 
   final correctTools = _toolNames(correctRun);
   final brokenTools = _toolNames(brokenRun);
@@ -84,8 +101,15 @@ Future<Ll37RoutineHistoryExportResult> exportLl37RoutineHistoryEvidence({
     );
   }
 
-  final redactor = _RoutineEvidenceRedactor.fromRuns([correctRun, brokenRun]);
-  final correctFiles = _changedFiles(correctRun, redactor);
+  final redactor = _RoutineEvidenceRedactor.fromRuns(
+    [correctRun, brokenRun],
+    workspaceDirectory: _requiredString(
+      routine,
+      'workspaceDirectory',
+      'routine',
+    ),
+  );
+  final correctFiles = _changedFiles(correctRun, routine, redactor);
   if (correctFiles.isEmpty) {
     throw const FormatException(
       'Candidate A must contain a captured write_file mutation.',
@@ -97,6 +121,7 @@ Future<Ll37RoutineHistoryExportResult> exportLl37RoutineHistoryEvidence({
       title: 'Recorded routine candidate A',
       expectedVerdict: 'not_refuted',
       run: correctRun,
+      mechanicalVerification: correctMechanical,
       changedFiles: correctFiles,
     ),
     _ExportCandidate(
@@ -104,7 +129,8 @@ Future<Ll37RoutineHistoryExportResult> exportLl37RoutineHistoryEvidence({
       title: 'Recorded routine candidate B',
       expectedVerdict: 'refuted',
       run: brokenRun,
-      changedFiles: _changedFiles(brokenRun, redactor),
+      mechanicalVerification: brokenMechanical,
+      changedFiles: _changedFiles(brokenRun, routine, redactor),
     ),
   ];
   final timestamp = (generatedAt ?? DateTime.now()).toUtc();
@@ -132,6 +158,7 @@ Future<Ll37RoutineHistoryExportResult> exportLl37RoutineHistoryEvidence({
           title: candidate.title,
           routine: routine,
           run: candidate.run,
+          mechanicalVerification: candidate.mechanicalVerification,
           expectedVerdict: candidate.expectedVerdict,
           generatedAt: timestamp,
           redactor: redactor,
@@ -150,6 +177,7 @@ Future<Ll37RoutineHistoryExportResult> exportLl37RoutineHistoryEvidence({
               .toList(growable: false),
           changedFiles: candidate.changedFiles,
           run: candidate.run,
+          mechanicalVerification: candidate.mechanicalVerification,
           redactor: redactor,
         ),
       );

@@ -46,6 +46,8 @@ Future<String?> showRoutineEditor(
       googleChatRule: result.googleChatRule,
       workspaceDirectory: result.workspaceDirectory,
       allowWorkspaceWrites: result.allowWorkspaceWrites,
+      objectiveEvidenceContract: result.objectiveEvidenceContract,
+      retryUntilGreenConfig: result.retryUntilGreenConfig,
     );
     final created = ref
         .read(routinesNotifierProvider)
@@ -72,6 +74,8 @@ Future<String?> showRoutineEditor(
     googleChatRule: result.googleChatRule,
     workspaceDirectory: result.workspaceDirectory,
     allowWorkspaceWrites: result.allowWorkspaceWrites,
+    objectiveEvidenceContract: result.objectiveEvidenceContract,
+    retryUntilGreenConfig: result.retryUntilGreenConfig,
   );
   return null;
 }

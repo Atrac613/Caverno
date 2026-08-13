@@ -12,6 +12,7 @@ import 'package:caverno/features/chat/presentation/providers/worktree_agent_task
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_orchestrator.dart';
 import 'package:caverno/features/chat/presentation/slash_commands/slash_command.dart';
 import 'package:caverno/features/chat/presentation/slash_commands/slash_command_prompt_template.dart';
+import 'package:caverno/features/chat/presentation/slash_commands/worktree_agent_command_args.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final _now = DateTime(2026, 7, 17, 16);
@@ -449,6 +450,31 @@ void main() {
         missingVerifierResult.feedbackMessage,
         'chat.slash_agent_verify_required',
       );
+
+      final missingAcceptance = _Harness();
+      final missingAcceptanceResult = await missingAcceptance.handle(
+        SlashCommandAction.worktreeAgent,
+        args: 'Task --accept --verify dart test',
+        context: _context(isCoding: true, project: _project()),
+      );
+      expect(missingAcceptanceResult.clearInput, isFalse);
+      expect(
+        missingAcceptanceResult.feedbackMessage,
+        'chat.slash_agent_acceptance_required',
+      );
+
+      final acceptanceWithoutVerifier = _Harness();
+      final acceptanceWithoutVerifierResult = await acceptanceWithoutVerifier
+          .handle(
+            SlashCommandAction.worktreeAgent,
+            args: 'Task --accept output contains ready',
+            context: _context(isCoding: true, project: _project()),
+          );
+      expect(acceptanceWithoutVerifierResult.clearInput, isFalse);
+      expect(
+        acceptanceWithoutVerifierResult.feedbackMessage,
+        'chat.slash_agent_acceptance_verify_required',
+      );
     },
   );
 
@@ -457,7 +483,9 @@ void main() {
 
     final result = await harness.handle(
       SlashCommandAction.worktreeAgent,
-      args: 'Implement feature --verify fvm flutter test',
+      args:
+          'Implement feature --accept lib/feature.dart enables the feature '
+          '--verify fvm flutter test',
       context: _context(isCoding: true, project: _project()),
     );
 
@@ -467,6 +495,9 @@ void main() {
     expect(request.codingProjectId, 'project-1');
     expect(request.projectRootPath, '/repo');
     expect(request.verificationCommand, 'fvm flutter test');
+    expect(request.objectiveAcceptanceCriteria, [
+      'lib/feature.dart enables the feature',
+    ]);
     expect(harness.runRequests, isEmpty);
     expect(
       result.feedbackMessage,
@@ -562,6 +593,19 @@ void main() {
       expect(args.runAfterQueue, isTrue);
       expect(args.hasVerificationMarker, isTrue);
       expect(args.verificationCommand, 'fvm flutter test');
+    });
+
+    test('parses one objective criterion before the verifier command', () {
+      final args = parseWorktreeAgentCommandArgs(
+        'Fix runtime --accept output contains ready --run '
+        '--verify dart test',
+      );
+
+      expect(args.prompt, 'Fix runtime');
+      expect(args.objectiveAcceptanceCriteria, ['output contains ready']);
+      expect(args.hasAcceptanceMarker, isTrue);
+      expect(args.runAfterQueue, isTrue);
+      expect(args.verificationCommand, 'dart test');
     });
 
     test('keeps marker-like substrings as prompt text', () {

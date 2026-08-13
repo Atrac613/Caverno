@@ -1,9 +1,15 @@
 part of 'll37_routine_history_export.dart';
 
 final class _RoutineEvidenceRedactor {
-  _RoutineEvidenceRedactor._(this._identifierReplacements);
+  _RoutineEvidenceRedactor._(
+    this._identifierReplacements,
+    this._workspaceDirectory,
+  );
 
-  factory _RoutineEvidenceRedactor.fromRuns(List<Map<String, dynamic>> runs) {
+  factory _RoutineEvidenceRedactor.fromRuns(
+    List<Map<String, dynamic>> runs, {
+    required String workspaceDirectory,
+  }) {
     final source = jsonEncode(runs);
     final identifiers =
         _networkIdentifierPattern
@@ -25,7 +31,7 @@ final class _RoutineEvidenceRedactor {
       );
       replacements[identifier] = isMalformed ? '$base-malformed' : base;
     }
-    return _RoutineEvidenceRedactor._(replacements);
+    return _RoutineEvidenceRedactor._(replacements, workspaceDirectory);
   }
 
   static final _networkIdentifierPattern = RegExp(
@@ -36,9 +42,17 @@ final class _RoutineEvidenceRedactor {
   );
 
   final Map<String, String> _identifierReplacements;
+  final String _workspaceDirectory;
 
   String redact(String value) {
-    final withoutMacs = value.replaceAll(_macAddressPattern, '<redacted-mac>');
+    final withoutWorkspace = value.replaceAll(
+      _workspaceDirectory,
+      '<routine-workspace>',
+    );
+    final withoutMacs = withoutWorkspace.replaceAll(
+      _macAddressPattern,
+      '<redacted-mac>',
+    );
     return withoutMacs.replaceAllMapped(_networkIdentifierPattern, (match) {
       return _identifierReplacements[match.group(0)!] ?? '<redacted-host>';
     });
@@ -52,6 +66,44 @@ void _validateRun(Map<String, dynamic> run, {required String label}) {
   if (_string(run['trigger']) != 'scheduled') {
     throw FormatException('$label must be a scheduled unattended run.');
   }
+}
+
+_MechanicalVerification _validatedMechanicalVerification(
+  Map<String, dynamic> run, {
+  required String label,
+}) {
+  final raw = _object(
+    run['mechanicalVerification'],
+    '$label mechanical verification',
+  );
+  final command = _requiredString(
+    raw,
+    'command',
+    '$label mechanical verification',
+  );
+  final exitCode = raw['exitCode'];
+  if (exitCode is! int || exitCode != 0) {
+    throw FormatException(
+      '$label mechanical verification must record integer exitCode 0.',
+    );
+  }
+  return _MechanicalVerification(
+    command: command,
+    exitCode: exitCode,
+    output: _string(raw['output']) ?? '',
+  );
+}
+
+final class _MechanicalVerification {
+  const _MechanicalVerification({
+    required this.command,
+    required this.exitCode,
+    required this.output,
+  });
+
+  final String command;
+  final int exitCode;
+  final String output;
 }
 
 Set<String> _toolNames(Map<String, dynamic> run) => _toolCalls(run)
@@ -96,7 +148,7 @@ final class _RoutineHistorySelection {
     String path,
   ) {
     if (_string(json['schemaName']) != _selectionSchemaName ||
-        _integer(json['schemaVersion']) != _schemaVersion) {
+        _integer(json['schemaVersion']) != _selectionSchemaVersion) {
       throw FormatException('Invalid Routine history selection in $path.');
     }
     final consent = _object(json['consent'], 'selection consent');
@@ -137,6 +189,7 @@ final class _ExportCandidate {
     required this.title,
     required this.expectedVerdict,
     required this.run,
+    required this.mechanicalVerification,
     required this.changedFiles,
   });
 
@@ -144,6 +197,7 @@ final class _ExportCandidate {
   final String title;
   final String expectedVerdict;
   final Map<String, dynamic> run;
+  final _MechanicalVerification mechanicalVerification;
   final List<Map<String, dynamic>> changedFiles;
 }
 

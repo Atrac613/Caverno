@@ -1,6 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/assistant_mode.dart';
+import '../../../chat/data/repositories/worktree_agent_task_repository.dart';
+import '../../../chat/data/repositories/retry_until_green_report_repository.dart';
+import '../../../chat/domain/entities/message.dart';
+import '../../../chat/domain/entities/model_usage_role.dart';
 import '../../../chat/domain/services/kv_cache_warmup_service.dart';
 import '../../../chat/domain/services/repo_map_precompute_cache.dart';
 import '../../../chat/domain/services/system_prompt_builder.dart';
@@ -15,15 +19,24 @@ import '../../../settings/domain/services/model_benchmark_history.dart';
 import '../../../settings/presentation/providers/live_llm_diagnostic_notifier.dart';
 import '../../../settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../../routines/data/routine_repository.dart';
 import '../../data/model_edit_failure_trace_extractor.dart';
+import '../../domain/services/ll37_objective_verdict_projection_builder.dart';
 import '../../domain/services/callback_maintenance_stage.dart';
 import '../../domain/services/candidate_adoption_service.dart';
 import '../../domain/services/failure_trace_miner.dart';
 import '../../domain/services/harness_proposal_service.dart';
 import '../../domain/services/idle_maintenance_scheduler.dart';
+import '../../domain/services/ll37_objective_verification_panel.dart';
+import '../../domain/services/ll37_objective_vote_policy.dart';
+import '../../domain/services/ll37_retry_until_green_candidate_adapter.dart';
+import '../../domain/services/ll37_routine_candidate_adapter.dart';
+import '../../domain/services/ll37_verifier_fidelity_profile.dart';
+import '../../domain/services/ll37_worktree_agent_candidate_adapter.dart';
 import '../../domain/services/maintenance_pipeline.dart';
 import 'idle_maintenance_config_provider.dart';
 import 'idle_maintenance_environment_provider.dart';
+import 'll37_objective_verdict_history_notifier.dart';
 import 'maintenance_report_service_provider.dart';
 
 /// Shared-context key the propose stage sets with the [HarnessConfigProposal]
@@ -33,6 +46,148 @@ const maintenanceProposedCandidateKey = 'maintenance.proposedCandidate';
 /// Shared-context key the mine stage sets with the top [FailureCluster] for the
 /// propose stage to turn into a candidate edit.
 const maintenanceTopClusterKey = 'maintenance.topCluster';
+
+/// Run-local LL37 report produced by the idle-only objective verification
+/// stage. The verdict store persists a bounded review projection, while the
+/// complete report and its full candidate evidence remain inside this run.
+const maintenanceLl37ObjectiveVerificationReportKey =
+    'maintenance.ll37ObjectiveVerificationReport';
+
+/// Run-local aggregate after the latest persisted LL37 vote.
+const maintenanceLl37ObjectiveVoteAggregateKey =
+    'maintenance.ll37ObjectiveVoteAggregate';
+
+final maintenanceLl37VerifierFidelityRegistryProvider =
+    Provider<Ll37VerifierFidelityRegistry>((ref) {
+      return const Ll37VerifierFidelityRegistry();
+    });
+
+final maintenanceLl37EligibleVerifierProfilesProvider =
+    Provider<List<Ll37VerifierFidelityProfile>>((ref) {
+      final settings = ref.watch(settingsNotifierProvider);
+      return ref
+          .watch(maintenanceLl37VerifierFidelityRegistryProvider)
+          .eligibleProfiles(
+            provider: settings.llmProvider,
+            baseUrl: settings.baseUrl,
+          );
+    });
+
+final maintenanceLl37WorktreeAgentCandidateAdapterProvider =
+    Provider<Ll37WorktreeAgentCandidateAdapter>((ref) {
+      return const Ll37WorktreeAgentCandidateAdapter();
+    });
+
+final maintenanceLl37RoutineCandidateAdapterProvider =
+    Provider<Ll37RoutineCandidateAdapter>((ref) {
+      return const Ll37RoutineCandidateAdapter();
+    });
+
+final maintenanceLl37RetryUntilGreenCandidateAdapterProvider =
+    Provider<Ll37RetryUntilGreenCandidateAdapter>((ref) {
+      return const Ll37RetryUntilGreenCandidateAdapter();
+    });
+
+final maintenanceLl37ObjectiveAttemptLedgerProvider =
+    Provider<Ll37ObjectiveAttemptLedger>((ref) {
+      return Ll37ObjectiveAttemptLedger();
+    });
+
+final maintenanceLl37ObjectiveVerdictProjectionBuilderProvider =
+    Provider<Ll37ObjectiveVerdictProjectionBuilder>((ref) {
+      return const Ll37ObjectiveVerdictProjectionBuilder();
+    });
+
+final maintenanceLl37ObjectiveVotePolicyProvider =
+    Provider<Ll37ObjectiveVotePolicy>((ref) {
+      return const Ll37ObjectiveVotePolicy();
+    });
+
+/// Supplies a read-only projection of all complete unattended source history.
+/// Loading repositories does not instantiate execution notifiers, recover or
+/// resume work, inspect workspaces, rerun verification, or write persistence.
+final maintenanceLl37ObjectiveCandidateSourceProvider =
+    Provider<Future<List<Ll37ObjectiveCandidate>> Function()>((ref) {
+      return () async {
+        final candidates = <Ll37ObjectiveCandidate>[
+          ...ref
+              .read(maintenanceLl37WorktreeAgentCandidateAdapterProvider)
+              .adapt(ref.read(worktreeAgentTaskRepositoryProvider).loadAll()),
+          ...ref
+              .read(maintenanceLl37RoutineCandidateAdapterProvider)
+              .adapt(ref.read(routineRepositoryProvider).loadAll()),
+          ...ref
+              .read(maintenanceLl37RetryUntilGreenCandidateAdapterProvider)
+              .adapt(
+                ref.read(retryUntilGreenReportRepositoryProvider).loadAll(),
+              ),
+        ];
+        final seenIds = <String>{};
+        return List.unmodifiable(
+          candidates.where((candidate) => seenIds.add(candidate.id)),
+        );
+      };
+    });
+
+/// Fail-closed fidelity gate for a provider and endpoint with measured routes.
+final maintenanceLl37VerifierFidelityEligibleProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(maintenanceLl37EligibleVerifierProfilesProvider).isNotEmpty,
+);
+
+typedef Ll37ObjectiveVerificationPanelFactory =
+    Ll37ObjectiveVerificationPanel Function(
+      Ll37VerifierFidelityProfile profile,
+    );
+
+/// Builds a tool-free panel for one measured route and rechecks that route
+/// against live provider and endpoint settings immediately before the request.
+final maintenanceLl37ObjectiveVerificationPanelFactoryProvider =
+    Provider<Ll37ObjectiveVerificationPanelFactory>((ref) {
+      return (selectedProfile) => Ll37ObjectiveVerificationPanel(
+        complete: (prompt, maxOutputTokens) async {
+          final settings = ref.read(settingsNotifierProvider);
+          final eligibleProfiles = ref
+              .read(maintenanceLl37VerifierFidelityRegistryProvider)
+              .eligibleProfiles(
+                provider: settings.llmProvider,
+                baseUrl: settings.baseUrl,
+              );
+          final routeStillEligible = eligibleProfiles.any(
+            (profile) =>
+                profile.profileKey == selectedProfile.profileKey &&
+                profile.reportSha256.toLowerCase() ==
+                    selectedProfile.reportSha256.toLowerCase(),
+          );
+          if (!routeStillEligible) {
+            throw const Ll37ObjectiveVerifierPreconditionException(
+              'The selected verifier route is no longer eligible for the '
+              'active provider and endpoint.',
+            );
+          }
+          final now = DateTime.now();
+          final result = await ModelUsageRole.eval.runWith(
+            () => ref
+                .read(chatRemoteDataSourceProvider)
+                .createChatCompletion(
+                  messages: [
+                    Message(
+                      id: 'll37-idle-verifier-${now.microsecondsSinceEpoch}',
+                      content: prompt,
+                      role: MessageRole.user,
+                      timestamp: now,
+                    ),
+                  ],
+                  tools: const [],
+                  model: selectedProfile.model,
+                  temperature: 0,
+                  maxTokens: maxOutputTokens,
+                ),
+          );
+          return result.content;
+        },
+      );
+    });
 
 /// Extracts the instruction overrides from a [ModelHarnessConfig] as a single
 /// suffix suitable for appending to the replay system prompt. Used by the
@@ -158,6 +313,125 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
         context.shared['maintenance.evalNonRegressing'] = run.failedCount == 0;
         return MaintenanceStageOutcome.completed(
           'eval: ${run.passedCount}/${run.caseCount} passed',
+        );
+      },
+    ),
+    CallbackMaintenanceStage(
+      name: 'objective_verify',
+      body: (context) async {
+        final profiles = ref.read(
+          maintenanceLl37EligibleVerifierProfilesProvider,
+        );
+        if (profiles.isEmpty) {
+          return const MaintenanceStageOutcome.skipped(
+            'verifier fidelity profile is not eligible',
+          );
+        }
+        final routes = profiles
+            .map(
+              (profile) => Ll37ObjectiveVoteRoute(
+                verifierProfileKey: profile.profileKey,
+                fidelityReportSha256: profile.reportSha256,
+              ),
+            )
+            .toList(growable: false);
+        final candidates = await ref.read(
+          maintenanceLl37ObjectiveCandidateSourceProvider,
+        )();
+        if (candidates.isEmpty) {
+          return const MaintenanceStageOutcome.skipped(
+            'no unattended objective candidates',
+          );
+        }
+        final history = ref.read(ll37ObjectiveVerdictHistoryNotifierProvider);
+        final policy = ref.read(maintenanceLl37ObjectiveVotePolicyProvider);
+        final attemptLedger = ref.read(
+          maintenanceLl37ObjectiveAttemptLedgerProvider,
+        );
+        Ll37ObjectiveCandidate? candidate;
+        Ll37ObjectiveVotePlan? votePlan;
+        for (final item in candidates) {
+          final candidatePlan = policy.plan(
+            candidateId: item.id,
+            routes: routes,
+            history: history,
+          );
+          final voteId = candidatePlan.nextVoteId;
+          if (candidatePlan.shouldRequest &&
+              voteId != null &&
+              !attemptLedger.contains(voteId)) {
+            candidate = item;
+            votePlan = candidatePlan;
+            break;
+          }
+        }
+        if (candidate == null || votePlan == null) {
+          return const MaintenanceStageOutcome.skipped(
+            'no unattended objective candidates require another vote',
+          );
+        }
+        final voteId = votePlan.nextVoteId!;
+        final voteIndex = votePlan.nextVoteIndex!;
+        final nextRoute = votePlan.nextRoute!;
+        final profile = profiles.firstWhere(
+          (item) =>
+              item.profileKey == nextRoute.normalizedProfileKey &&
+              item.reportSha256.toLowerCase() ==
+                  nextRoute.normalizedReportSha256,
+        );
+        final firstAttempt = ref
+            .read(maintenanceLl37ObjectiveAttemptLedgerProvider)
+            .record(voteId);
+        if (!firstAttempt) {
+          return const MaintenanceStageOutcome.skipped(
+            'objective vote was already attempted this session',
+          );
+        }
+        final report = await ref
+            .read(maintenanceLl37ObjectiveVerificationPanelFactoryProvider)(
+              profile,
+            )
+            .evaluate(
+              candidate: candidate,
+              isCancelled: () => context.isCancelled,
+            );
+        context.shared[maintenanceLl37ObjectiveVerificationReportKey] = report;
+        if (report.status != Ll37ObjectivePanelStatus.evaluated) {
+          return MaintenanceStageOutcome.skipped(
+            'objective verification ${report.status.name}: ${report.detail}',
+          );
+        }
+        final record = ref
+            .read(maintenanceLl37ObjectiveVerdictProjectionBuilderProvider)
+            .build(
+              voteId: voteId,
+              voteIndex: voteIndex,
+              candidate: candidate,
+              report: report,
+              profile: profile,
+              recordedAt: context.now(),
+            );
+        await ref
+            .read(ll37ObjectiveVerdictHistoryNotifierProvider.notifier)
+            .record(record);
+        final aggregate = policy
+            .plan(
+              candidateId: candidate.id,
+              routes: routes,
+              history: ref.read(ll37ObjectiveVerdictHistoryNotifierProvider),
+            )
+            .aggregate;
+        context.shared[maintenanceLl37ObjectiveVoteAggregateKey] = aggregate;
+        final queued = candidates.length > 1
+            ? '; evaluated first of ${candidates.length}'
+            : '';
+        return MaintenanceStageOutcome.completed(
+          'objective vote $voteIndex/'
+          '${aggregate.maxVoteCount} ${report.verdict!.verdict.name}; '
+          'route ${profile.model}; '
+          'aggregate ${aggregate.status.name}/${aggregate.outcome.name}; '
+          'estimated tokens ${report.estimatedTotalTokens}; '
+          'persisted vote$queued',
         );
       },
     ),

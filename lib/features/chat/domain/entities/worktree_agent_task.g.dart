@@ -47,6 +47,11 @@ _WorktreeAgentTask _$WorktreeAgentTaskFromJson(Map<String, dynamic> json) =>
       checkpointLineageId: json['checkpointLineageId'] as String? ?? '',
       endpointId: json['endpointId'] as String? ?? '',
       verificationCommand: json['verificationCommand'] as String? ?? '',
+      objectiveAcceptanceCriteria:
+          (json['objectiveAcceptanceCriteria'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const <String>[],
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       startedAt: json['startedAt'] == null
@@ -86,6 +91,7 @@ Map<String, dynamic> _$WorktreeAgentTaskToJson(_WorktreeAgentTask instance) =>
       'checkpointLineageId': instance.checkpointLineageId,
       'endpointId': instance.endpointId,
       'verificationCommand': instance.verificationCommand,
+      'objectiveAcceptanceCriteria': instance.objectiveAcceptanceCriteria,
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
       'startedAt': instance.startedAt?.toIso8601String(),

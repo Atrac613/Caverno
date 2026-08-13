@@ -66,6 +66,19 @@ class BestOfNAttempt {
   /// residue in the working tree despite being non-winning.
   final String? discardError;
 
+  factory BestOfNAttempt.fromJson(Map<String, dynamic> json) {
+    return BestOfNAttempt(
+      index: json['index'] as int,
+      generated: json['generated'] as bool,
+      verified: json['verified'] as bool,
+      passed: json['passed'] as bool,
+      isWinner: json['isWinner'] as bool,
+      summary: json['summary'] as String?,
+      error: json['error'] as String?,
+      discardError: json['discardError'] as String?,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'index': index,
@@ -94,6 +107,19 @@ class BestOfNReport {
   /// remain in the working tree. The orchestrator should surface this loudly.
   bool get hasResidueRisk =>
       attempts.any((a) => !a.isWinner && a.discardError != null);
+
+  factory BestOfNReport.fromJson(Map<String, dynamic> json) {
+    final attempts = (json['attempts'] as List<dynamic>)
+        .map(
+          (item) =>
+              BestOfNAttempt.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
+        .toList(growable: false);
+    return BestOfNReport(
+      attempts: attempts,
+      winnerIndex: json['winnerIndex'] as int?,
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return {

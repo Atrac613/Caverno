@@ -23,6 +23,7 @@ class WorktreeAgentTaskLaunchRequest {
     this.checkpointLineageId = '',
     this.endpointId = '',
     this.verificationCommand = '',
+    this.objectiveAcceptanceCriteria = const <String>[],
     this.existingBranchNames = const <String>[],
     this.existingWorktreePaths = const <String>[],
   });
@@ -38,6 +39,7 @@ class WorktreeAgentTaskLaunchRequest {
   final String checkpointLineageId;
   final String endpointId;
   final String verificationCommand;
+  final List<String> objectiveAcceptanceCriteria;
   final Iterable<String> existingBranchNames;
   final Iterable<String> existingWorktreePaths;
 }
@@ -115,6 +117,7 @@ class WorktreeAgentTaskLauncher {
       checkpointLineageId: request.checkpointLineageId,
       endpointId: endpointId,
       verificationCommand: request.verificationCommand,
+      objectiveAcceptanceCriteria: request.objectiveAcceptanceCriteria,
       existingBranchNames: [
         ...gitReservations.branchNames,
         ...request.existingBranchNames,

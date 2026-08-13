@@ -19,6 +19,8 @@ class RoutineEditorResult {
     required this.googleChatRule,
     required this.workspaceDirectory,
     required this.allowWorkspaceWrites,
+    required this.objectiveEvidenceContract,
+    required this.retryUntilGreenConfig,
   });
 
   final String name;
@@ -34,6 +36,8 @@ class RoutineEditorResult {
   final RoutineGoogleChatRule googleChatRule;
   final String workspaceDirectory;
   final bool allowWorkspaceWrites;
+  final RoutineObjectiveEvidenceContract? objectiveEvidenceContract;
+  final RoutineRetryUntilGreenConfig? retryUntilGreenConfig;
 }
 
 class RoutineEditorSheet extends StatefulWidget {
@@ -51,6 +55,9 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
   late final TextEditingController _promptController;
   late final TextEditingController _intervalController;
   late final TextEditingController _workspaceDirectoryController;
+  late final TextEditingController _objectiveController;
+  late final TextEditingController _acceptanceCriteriaController;
+  late final TextEditingController _verificationCommandController;
   late RoutineIntervalUnit _intervalUnit;
   late RoutineScheduleMode _scheduleMode;
   late TimeOfDay _timeOfDay;
@@ -58,6 +65,8 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
   late bool _notifyOnCompletion;
   late bool _toolsEnabled;
   late bool _allowWorkspaceWrites;
+  late bool _captureObjectiveEvidence;
+  late bool _retryUntilGreen;
   late RoutineCompletionAction _completionAction;
   late RoutineGoogleChatRule _googleChatRule;
 
@@ -77,6 +86,16 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
     _workspaceDirectoryController = TextEditingController(
       text: initialRoutine?.workspaceDirectory ?? '',
     );
+    final evidence = initialRoutine?.objectiveEvidenceContract;
+    _objectiveController = TextEditingController(
+      text: evidence?.objective ?? '',
+    );
+    _acceptanceCriteriaController = TextEditingController(
+      text: evidence?.acceptanceCriteria.join('\n') ?? '',
+    );
+    _verificationCommandController = TextEditingController(
+      text: evidence?.verificationCommand ?? '',
+    );
     _intervalUnit = initialRoutine?.intervalUnit ?? RoutineIntervalUnit.hours;
     _scheduleMode =
         initialRoutine?.scheduleMode ?? RoutineScheduleMode.interval;
@@ -89,6 +108,8 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
     _notifyOnCompletion = initialRoutine?.notifyOnCompletion ?? true;
     _toolsEnabled = initialRoutine?.toolsEnabled ?? false;
     _allowWorkspaceWrites = initialRoutine?.allowWorkspaceWrites ?? false;
+    _captureObjectiveEvidence = evidence != null;
+    _retryUntilGreen = initialRoutine?.retryUntilGreenConfig?.enabled ?? false;
     _completionAction =
         initialRoutine?.completionAction ?? RoutineCompletionAction.none;
     _googleChatRule =
@@ -101,6 +122,9 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
     _promptController.dispose();
     _intervalController.dispose();
     _workspaceDirectoryController.dispose();
+    _objectiveController.dispose();
+    _acceptanceCriteriaController.dispose();
+    _verificationCommandController.dispose();
     super.dispose();
   }
 
@@ -321,6 +345,64 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                     },
                   ),
                 ],
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('routines.objective_evidence_label'.tr()),
+                  subtitle: Text('routines.objective_evidence_hint'.tr()),
+                  value: _captureObjectiveEvidence,
+                  onChanged: (value) {
+                    setState(() => _captureObjectiveEvidence = value);
+                  },
+                ),
+                if (_captureObjectiveEvidence) ...[
+                  TextFormField(
+                    controller: _objectiveController,
+                    decoration: InputDecoration(
+                      labelText: 'routines.objective_label'.tr(),
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: (value) => (value ?? '').trim().isEmpty
+                        ? 'routines.objective_required'.tr()
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _acceptanceCriteriaController,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      labelText: 'routines.acceptance_criteria_label'.tr(),
+                      helperText: 'routines.acceptance_criteria_hint'.tr(),
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: (value) =>
+                        (value ?? '')
+                            .split('\n')
+                            .every((line) => line.trim().isEmpty)
+                        ? 'routines.acceptance_criteria_required'.tr()
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _verificationCommandController,
+                    decoration: InputDecoration(
+                      labelText: 'routines.verification_command_label'.tr(),
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: (value) => (value ?? '').trim().isEmpty
+                        ? 'routines.verification_command_required'.tr()
+                        : null,
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('routines.retry_until_green_label'.tr()),
+                    subtitle: Text('routines.retry_until_green_hint'.tr()),
+                    value: _retryUntilGreen,
+                    onChanged: (value) {
+                      setState(() => _retryUntilGreen = value);
+                    },
+                  ),
+                ],
                 const SizedBox(height: 8),
                 DropdownButtonFormField<RoutineCompletionAction>(
                   initialValue: _completionAction,
@@ -481,6 +563,21 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
         googleChatRule: _googleChatRule,
         workspaceDirectory: _workspaceDirectoryController.text.trim(),
         allowWorkspaceWrites: _toolsEnabled && _allowWorkspaceWrites,
+        objectiveEvidenceContract: _captureObjectiveEvidence
+            ? RoutineObjectiveEvidenceContract(
+                objective: _objectiveController.text.trim(),
+                acceptanceCriteria: _acceptanceCriteriaController.text
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .where((line) => line.isNotEmpty)
+                    .toList(growable: false),
+                verificationCommand: _verificationCommandController.text.trim(),
+                plan: widget.initialRoutine?.freshApprovedPlanMarkdown ?? '',
+              )
+            : null,
+        retryUntilGreenConfig: _captureObjectiveEvidence && _retryUntilGreen
+            ? const RoutineRetryUntilGreenConfig(enabled: true)
+            : null,
       ),
     );
   }

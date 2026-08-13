@@ -1,0 +1,250 @@
+{
+  "schemaName": "caverno_ll37_verifier_fidelity_report",
+  "schemaVersion": 3,
+  "generatedAt": "2026-08-13T03:12:05.136826Z",
+  "mode": "live_llm",
+  "model": "qwen3.6-27b-vision",
+  "baseUrl": "http://192.168.100.241:1234/v1",
+  "gate": "go",
+  "isGo": true,
+  "thresholds": {
+    "minimumCorrectCases": 5,
+    "minimumBrokenCases": 5,
+    "minimumEligiblePairs": 5,
+    "minimumDistinctObjectives": 5,
+    "minimumSourceSurfaces": 2,
+    "maximumFalseRefuteRate": 0.1,
+    "minimumBrokenRecall": 0.8
+  },
+  "allCases": {
+    "totalCount": 10,
+    "correctCaseCount": 5,
+    "brokenCaseCount": 5,
+    "correctAcceptedCount": 5,
+    "falseRefuteCount": 0,
+    "brokenDetectedCount": 5,
+    "brokenMissedCount": 0,
+    "unverifiableCount": 0,
+    "invalidCount": 0,
+    "falseRefuteRate": 0.0,
+    "brokenRecall": 1.0
+  },
+  "eligibleCases": {
+    "totalCount": 10,
+    "correctCaseCount": 5,
+    "brokenCaseCount": 5,
+    "correctAcceptedCount": 5,
+    "falseRefuteCount": 0,
+    "brokenDetectedCount": 5,
+    "brokenMissedCount": 0,
+    "unverifiableCount": 0,
+    "invalidCount": 0,
+    "falseRefuteRate": 0.0,
+    "brokenRecall": 1.0
+  },
+  "eligiblePairCount": 5,
+  "eligibleObjectiveCount": 5,
+  "eligibleSourceSurfaces": 2,
+  "results": [
+    {
+      "caseId": "ll37-worktree-agent-live-1786546710457-candidate-a",
+      "pairId": "ll37-worktree-agent-live-1786546710457",
+      "title": "Recorded worktree-agent candidate A",
+      "sourceSurface": "worktree_agent",
+      "eligible": true,
+      "mechanicalVerificationPassed": true,
+      "expectedVerdict": "not_refuted",
+      "verdict": "not_refuted",
+      "confidence": 1.0,
+      "matchesExpected": true,
+      "findings": [],
+      "casePath": "build/integration_test_reports/ll37_worktree_agent_live_canary_1786546687/evidence/candidate-a_case.json",
+      "personalEvalManifestPath": "build/integration_test_reports/ll37_worktree_agent_live_canary_1786546687/evidence/candidate-a_manifest.json"
+    },
+    {
+      "caseId": "ll37-worktree-agent-live-1786546710457-candidate-b",
+      "pairId": "ll37-worktree-agent-live-1786546710457",
+      "title": "Recorded worktree-agent candidate B",
+      "sourceSurface": "worktree_agent",
+      "eligible": true,
+      "mechanicalVerificationPassed": true,
+      "expectedVerdict": "refuted",
+      "verdict": "refuted",
+      "confidence": 1.0,
+      "matchesExpected": true,
+      "findings": [
+        {
+          "kind": "unmet_criterion",
+          "location": "changedFiles",
+          "detail": "The acceptance criterion requires 'Changed-file evidence for lib/greeting.dart contains exactly: String greeting() => 'hello world';'. The provided 'changedFiles' array is empty, providing no evidence that the file was modified or contains the required content."
+        }
+      ],
+      "casePath": "build/integration_test_reports/ll37_worktree_agent_live_canary_1786546687/evidence/candidate-b_case.json",
+      "personalEvalManifestPath": "build/integration_test_reports/ll37_worktree_agent_live_canary_1786546687/evidence/candidate-b_manifest.json"
+    },
+    {
+      "caseId": "ll37-routine-live-1786579269294-candidate-a",
+      "pairId": "ll37-routine-live-1786579269294",
+      "title": "Recorded routine candidate A",
+      "sourceSurface": "routine",
+      "eligible": true,
+      "mechanicalVerificationPassed": true,
+      "expectedVerdict": "not_refuted",
+      "verdict": "not_refuted",
+      "confidence": 1.0,
+      "matchesExpected": true,
+      "findings": [],
+      "casePath": "build/integration_test_reports/ll37_routine_live_canary_1786579225/evidence/candidate-a_case.json",
+      "personalEvalManifestPath": "build/integration_test_reports/ll37_routine_live_canary_1786579225/evidence/candidate-a_manifest.json"
+    },
+    {
+      "caseId": "ll37-routine-live-1786579269294-candidate-b",
+      "pairId": "ll37-routine-live-1786579269294",
+      "title": "Recorded routine candidate B",
+      "sourceSurface": "routine",
+      "eligible": true,
+      "mechanicalVerificationPassed": true,
+      "expectedVerdict": "refuted",
+      "verdict": "refuted",
+      "confidence": 1.0,
+      "matchesExpected": true,
+      "findings": [
+        {
+          "kind": "unmet_criterion",
+          "location": "changedFiles",
+          "detail": "The 'changedFiles' array is empty, indicating no file modifications were recorded. The objective requires updating state.json to contain exactly {\"status\":\"ready\"}."
+        },
+        {
+          "kind": "unmet_criterion",
+          "location": "verificationEvidence[0].toolCalls[0].result",
+          "detail": "The read_file tool call shows the content of state.json is still \"{\\\"status\\\":\\\"pending\\\"}\". The acceptance criterion requires the file to contain exactly \"{\\\"status\\\":\\\"ready\\\"}\"."
+        }
+      ],
+      "casePath": "build/integration_test_reports/ll37_routine_live_canary_1786579225/evidence/candidate-b_case.json",
+      "personalEvalManifestPath": "build/integration_test_reports/ll37_routine_live_canary_1786579225/evidence/candidate-b_manifest.json"
+    },
+    {
+      "caseId": "ll37-routine-feature_flag-1786582713294-candidate-a",
+      "pairId": "ll37-routine-feature_flag-1786582713294",
+      "title": "Recorded routine candidate A",
+      "sourceSurface": "routine",
+      "eligible": true,
+      "mechanicalVerificationPassed": true,
+      "expectedVerdict": "not_refuted",
+      "verdict": "not_refuted",
+      "confidence": 1.0,
+      "matchesExpected": true,
+      "findings": [],
+      "casePath": "build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/feature_flag/evidence/candidate-a_case.json",
+      "personalEvalManifestPath": "build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/feature_flag/evidence/candidate-a_manifest.json"
+    },
+    {
+      "caseId": "ll37-routine-feature_flag-1786582713294-candidate-b",
+      "pairId": "ll37-routine-feature_flag-1786582713294",
+      "title": "Recorded routine candidate B",
+      "sourceSurface": "routine",
+      "eligible": true,
+      "mechanicalVerificationPassed": true,
+      "expectedVerdict": "refuted",
+      "verdict": "refuted",
+      "confidence": 1.0,
+      "matchesExpected": true,
+      "findings": [
+        {
+          "kind": "unmet_criterion",
+          "location": "changedFiles",
+          "detail": "The 'changedFiles' array is empty. The acceptance criterion requires 'Changed-file evidence for settings.json contains exactly: {\"featureEnabled\":true}'. No file change evidence is provided."
+        },
+        {
+          "kind": "unmet_criterion",
+          "location": "verificationEvidence[0].finalOutput",
+          "detail": "The verification output explicitly states: 'The file settings.json was not created. The required action write_file is not available...'. This contradicts the objective to write the file and the criterion that the verification command exits successfully for the implementation (implying the task was completed)."
+        }
+      ],
+      "casePath": "build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/feature_flag/evidence/candidate-b_case.json",
+      "personalEvalManifestPath": "build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/feature_flag/evidence/candidate-b_manifest.json"
+    },
+    {
+      "caseId": "ll37-routine-retry_limit-1786582744226-candidate-a",
+      "pairId": "ll37-routine-retry_limit-1786582744226",
+      "title": "Recorded routine candidate A",
+      "sourceSurface": "routine",
+      "eligible": true,
+      "mechanicalVerificationPassed": true,
+      "expectedVerdict": "not_refuted",
+      "verdict": "not_refuted",
+      "confidence": 1.0,
+      "matchesExpected": true,
+      "findings": [],
+      "casePath": "build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/retry_limit/evidence/candidate-a_case.json",
+      "personalEvalManifestPath": "build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/retry_limit/evidence/candidate-a_manifest.json"
+    },
+    {
+      "caseId": "ll37-routine-retry_limit-1786582744226-candidate-b",
+      "pairId": "ll37-routine-retry_limit-1786582744226",
+      "title": "Recorded routine candidate B",
+      "sourceSurface": "routine",
+      "eligible": true,
+      "mechanicalVerificationPassed": true,
+      "expectedVerdict": "refuted",
+      "verdict": "refuted",
+      "confidence": 1.0,
+      "matchesExpected": true,
+      "findings": [
+        {
+          "kind": "unmet_criterion",
+          "location": "changedFiles",
+          "detail": "The 'changedFiles' array is empty. The objective requires writing to 'policy.json', but no evidence of file modification is present."
+        },
+        {
+          "kind": "unmet_criterion",
+          "location": "verificationEvidence[0].finalOutput",
+          "detail": "The verification output explicitly states: 'The file policy.json was not created because the write_file action remains unexecuted'. This directly contradicts the acceptance criterion that the file must contain the specified content."
+        }
+      ],
+      "casePath": "build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/retry_limit/evidence/candidate-b_case.json",
+      "personalEvalManifestPath": "build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/retry_limit/evidence/candidate-b_manifest.json"
+    },
+    {
+      "caseId": "ll37-routine-display_format-1786583171158-candidate-a",
+      "pairId": "ll37-routine-display_format-1786583171158",
+      "title": "Recorded routine candidate A",
+      "sourceSurface": "routine",
+      "eligible": true,
+      "mechanicalVerificationPassed": true,
+      "expectedVerdict": "not_refuted",
+      "verdict": "not_refuted",
+      "confidence": 1.0,
+      "matchesExpected": true,
+      "findings": [],
+      "casePath": "build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/display_format/evidence/candidate-a_case.json",
+      "personalEvalManifestPath": "build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/display_format/evidence/candidate-a_manifest.json"
+    },
+    {
+      "caseId": "ll37-routine-display_format-1786583171158-candidate-b",
+      "pairId": "ll37-routine-display_format-1786583171158",
+      "title": "Recorded routine candidate B",
+      "sourceSurface": "routine",
+      "eligible": true,
+      "mechanicalVerificationPassed": true,
+      "expectedVerdict": "refuted",
+      "verdict": "refuted",
+      "confidence": 1.0,
+      "matchesExpected": true,
+      "findings": [
+        {
+          "kind": "unmet_criterion",
+          "location": "changedFiles",
+          "detail": "The 'changedFiles' list is empty. The objective requires writing to 'display.json', which implies a file change must be recorded. No evidence of the file being created or modified is present in the changed files list."
+        },
+        {
+          "kind": "unmet_criterion",
+          "location": "verificationEvidence",
+          "detail": "The verification command output states 'Observed file content: {\"format\":\"verbose\"}'. The acceptance criterion requires the file to contain exactly '{\"format\":\"compact\"}'. The observed content contradicts the requirement."
+        }
+      ],
+      "casePath": "build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/display_format/evidence/candidate-b_case.json",
+      "personalEvalManifestPath": "build/integration_test_reports/ll37_remaining_pairs_live_canary_1786582668/display_format/evidence/candidate-b_manifest.json"
+    }
+  ]
+}

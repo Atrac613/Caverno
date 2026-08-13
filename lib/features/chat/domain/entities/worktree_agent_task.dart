@@ -47,6 +47,7 @@ abstract class WorktreeAgentTask with _$WorktreeAgentTask {
     @Default('') String checkpointLineageId,
     @Default('') String endpointId,
     @Default('') String verificationCommand,
+    @Default(<String>[]) List<String> objectiveAcceptanceCriteria,
     required DateTime createdAt,
     required DateTime updatedAt,
     DateTime? startedAt,

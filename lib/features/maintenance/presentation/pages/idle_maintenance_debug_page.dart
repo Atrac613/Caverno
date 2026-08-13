@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/services/maintenance_pipeline.dart';
 import '../providers/manual_maintenance_run_notifier.dart';
+import '../widgets/ll37_objective_verdict_history_section.dart';
 import '../../../../core/theme/app_tokens.dart';
 
 /// LL18 debug aid: lets the user trigger the maintenance pipeline on demand
@@ -47,6 +48,8 @@ class IdleMaintenanceDebugPage extends ConsumerWidget {
             const SizedBox(height: 16),
             _ErrorBanner(error: state.error!),
           ],
+          const SizedBox(height: 16),
+          const Ll37ObjectiveVerdictHistorySection(),
           if (state.stageResults.isNotEmpty) ...[
             const SizedBox(height: 16),
             Text(
@@ -69,7 +72,10 @@ class IdleMaintenanceDebugPage extends ConsumerWidget {
                 padding: const EdgeInsets.all(12),
                 child: SelectableText(
                   formatted.body,
-                  style: const TextStyle(fontFamily: kMonoFontFamily, fontSize: 12),
+                  style: const TextStyle(
+                    fontFamily: kMonoFontFamily,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ),
@@ -111,9 +117,7 @@ class _RunButton extends StatelessWidget {
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
           const SizedBox(width: 12),
-          Expanded(
-            child: Text('settings.idle_maintenance_debug_running'.tr()),
-          ),
+          Expanded(child: Text('settings.idle_maintenance_debug_running'.tr())),
           TextButton(
             key: const ValueKey('idle-maintenance-debug-cancel'),
             onPressed: onCancel,
@@ -194,7 +198,10 @@ class _ErrorBanner extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.error_outline, color: theme.colorScheme.onErrorContainer),
+            Icon(
+              Icons.error_outline,
+              color: theme.colorScheme.onErrorContainer,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(

@@ -7,6 +7,7 @@ import '../../../../core/services/google_chat_delivery_service.dart';
 import '../../../../core/services/notification_providers.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/routine_execution_service.dart';
+import '../../data/routine_retry_until_green_service.dart';
 import '../../data/routine_repository.dart';
 import '../../domain/entities/routine.dart';
 import '../../domain/services/routine_completion_action_service.dart';
@@ -119,6 +120,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required RoutineGoogleChatRule googleChatRule,
     String workspaceDirectory = '',
     bool allowWorkspaceWrites = false,
+    RoutineObjectiveEvidenceContract? objectiveEvidenceContract,
+    RoutineRetryUntilGreenConfig? retryUntilGreenConfig,
   }) async {
     final prepared = _newRoutine(
       name: name,
@@ -134,6 +137,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       googleChatRule: googleChatRule,
       workspaceDirectory: workspaceDirectory,
       allowWorkspaceWrites: allowWorkspaceWrites,
+      objectiveEvidenceContract: objectiveEvidenceContract,
+      retryUntilGreenConfig: retryUntilGreenConfig,
     );
     await _withRoutineMutation(() => _persistLocalRoutine(prepared));
   }
@@ -293,6 +298,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required RoutineGoogleChatRule googleChatRule,
     String? workspaceDirectory,
     bool? allowWorkspaceWrites,
+    RoutineObjectiveEvidenceContract? objectiveEvidenceContract,
+    RoutineRetryUntilGreenConfig? retryUntilGreenConfig,
   }) async {
     final existing = _findRoutine(routineId);
     if (existing == null) {
@@ -310,6 +317,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       workspaceDirectory: workspaceDirectory ?? existing.workspaceDirectory,
       allowWorkspaceWrites:
           allowWorkspaceWrites ?? existing.allowWorkspaceWrites,
+      objectiveEvidenceContract: objectiveEvidenceContract,
+      retryUntilGreenConfig: retryUntilGreenConfig,
       intervalValue: RoutineScheduleService.normalizeIntervalValue(
         intervalValue,
       ),
@@ -548,8 +557,19 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       runningRoutineIds: {...state.runningRoutineIds, routineId},
     );
 
-    final executionService = ref.read(routineExecutionServiceProvider);
-    final runRecord = await executionService.execute(routine, trigger: trigger);
+    final retryConfig = routine.retryUntilGreenConfig;
+    final shouldRetry =
+        trigger == RoutineRunTrigger.scheduled && retryConfig?.enabled == true;
+    final retryService = shouldRetry
+        ? ref.read(routineRetryUntilGreenServiceProvider)
+        : null;
+    final runRecord = shouldRetry && retryService == null
+        ? _retryUnavailableRunRecord(trigger)
+        : retryService != null
+        ? (await retryService.run(routine)).runRecord
+        : await ref
+              .read(routineExecutionServiceProvider)
+              .execute(routine, trigger: trigger);
     final latestRoutine = _findRoutine(routineId);
 
     if (latestRoutine == null) {
@@ -596,6 +616,21 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     }
 
     return finalizedRunRecord;
+  }
+
+  RoutineRunRecord _retryUnavailableRunRecord(RoutineRunTrigger trigger) {
+    final now = DateTime.now();
+    const message =
+        'Routine retry-until-green requires available workspace tools.';
+    return RoutineRunRecord(
+      id: _uuid.v4(),
+      startedAt: now,
+      finishedAt: now,
+      status: RoutineRunStatus.failed,
+      trigger: trigger,
+      preview: message,
+      error: message,
+    );
   }
 
   Future<int> runDueRoutines({
@@ -736,6 +771,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required RoutineGoogleChatRule googleChatRule,
     required String workspaceDirectory,
     required bool allowWorkspaceWrites,
+    RoutineObjectiveEvidenceContract? objectiveEvidenceContract,
+    RoutineRetryUntilGreenConfig? retryUntilGreenConfig,
   }) {
     final now = DateTime.now();
     return _prepareRoutineForPersistence(
@@ -752,6 +789,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
         googleChatRule: googleChatRule,
         workspaceDirectory: workspaceDirectory,
         allowWorkspaceWrites: allowWorkspaceWrites,
+        objectiveEvidenceContract: objectiveEvidenceContract,
+        retryUntilGreenConfig: retryUntilGreenConfig,
         intervalValue: RoutineScheduleService.normalizeIntervalValue(
           intervalValue,
         ),

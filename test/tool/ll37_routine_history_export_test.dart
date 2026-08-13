@@ -37,11 +37,20 @@ void main() {
     expect(jsonEncode(candidateA.changedFiles), isNot(contains('192.168.')));
     expect(candidateB.changedFiles, isEmpty);
     expect(candidateA.sourceSurface, Ll37SourceSurface.routine);
+    expect(candidateA.schemaVersion, 2);
+    expect(candidateB.schemaVersion, 2);
+    expect(candidateA.mechanicalVerificationPassed, isTrue);
+    expect(candidateB.mechanicalVerificationPassed, isTrue);
+    expect(candidateA.isEligible, isTrue);
+    expect(candidateB.isEligible, isTrue);
 
     final candidateAJson =
         jsonDecode(await File(result.casePaths[0]).readAsString())
             as Map<String, dynamic>;
     final evidence = candidateAJson['verificationEvidence'] as List<dynamic>;
+    expect(candidateAJson['mechanicalVerificationPassed'], isTrue);
+    expect(jsonEncode(evidence), contains('dart tool/verify.dart'));
+    expect(jsonEncode(evidence), contains('syntax verification passed'));
     expect(jsonEncode(evidence), isNot(contains('Hidden reasoning')));
     expect(jsonEncode(evidence), contains('State saved'));
     expect(jsonEncode(evidence), isNot(contains('192.168.')));
@@ -57,6 +66,20 @@ void main() {
     expect(
       (manifest['consent'] as Map<String, dynamic>)['explicitUserConsent'],
       isTrue,
+    );
+    final manifestTask = manifest['task'] as Map<String, dynamic>;
+    expect(manifestTask['verificationCommand'], 'dart tool/verify.dart');
+    expect(manifestTask['verificationResult'], 'passed');
+    final brokenManifest =
+        jsonDecode(
+              await File(
+                '${evidenceDirectory.path}/candidate-b_manifest.json',
+              ).readAsString(),
+            )
+            as Map<String, dynamic>;
+    expect(
+      (brokenManifest['task'] as Map<String, dynamic>)['verificationResult'],
+      'passed',
     );
     final privacy = manifest['privacy'] as Map<String, dynamic>;
     expect(privacy['localOnly'], isTrue);
@@ -131,6 +154,68 @@ void main() {
     candidateB['toolCalls'] = candidateAToolCalls;
     await routinesFile.writeAsString(jsonEncode(routines));
 
+    await expectLater(_exportMutable(directory), throwsFormatException);
+  });
+
+  test('requires both arms to pass the same mechanical command', () async {
+    final directory = await _mutableFixtureDirectory();
+    addTearDown(() => directory.delete(recursive: true));
+    final routinesFile = File('${directory.path}/routines.json');
+    final routines =
+        jsonDecode(await routinesFile.readAsString()) as List<dynamic>;
+    final runs =
+        (routines.single as Map<String, dynamic>)['runs'] as List<dynamic>;
+    final candidateB = runs.last as Map<String, dynamic>;
+    final verification =
+        candidateB['mechanicalVerification'] as Map<String, dynamic>;
+
+    verification['exitCode'] = 1;
+    await routinesFile.writeAsString(jsonEncode(routines));
+    await expectLater(_exportMutable(directory), throwsFormatException);
+
+    verification['exitCode'] = 0;
+    verification['command'] = 'dart tool/other_verify.dart';
+    await routinesFile.writeAsString(jsonEncode(routines));
+    await expectLater(_exportMutable(directory), throwsFormatException);
+
+    candidateB.remove('mechanicalVerification');
+    await routinesFile.writeAsString(jsonEncode(routines));
+    await expectLater(_exportMutable(directory), throwsFormatException);
+  });
+
+  test('normalizes contained paths and rejects workspace escapes', () async {
+    final directory = await _mutableFixtureDirectory();
+    addTearDown(() => directory.delete(recursive: true));
+    final routinesFile = File('${directory.path}/routines.json');
+    final routines =
+        jsonDecode(await routinesFile.readAsString()) as List<dynamic>;
+    final routine = routines.single as Map<String, dynamic>;
+    final runs = routine['runs'] as List<dynamic>;
+    final candidateA = runs.first as Map<String, dynamic>;
+    final toolCalls = candidateA['toolCalls'] as List<dynamic>;
+    final writeCall =
+        toolCalls.firstWhere(
+              (item) => (item as Map<String, dynamic>)['name'] == 'write_file',
+            )
+            as Map<String, dynamic>;
+    final arguments =
+        jsonDecode(writeCall['arguments'] as String) as Map<String, dynamic>;
+    arguments['path'] = '/tmp/fixture/nested/state.json';
+    writeCall['arguments'] = jsonEncode(arguments);
+    await routinesFile.writeAsString(jsonEncode(routines));
+
+    final result = await _exportMutable(directory);
+    final candidate = await Ll37VerifierFidelityCase.load(
+      File(result.casePaths.first),
+    );
+    expect(candidate.changedFiles.single['path'], 'nested/state.json');
+    final payload = await File(result.casePaths.first).readAsString();
+    expect(payload, isNot(contains('/tmp/fixture')));
+
+    await Directory('${directory.path}/evidence').delete(recursive: true);
+    arguments['path'] = '/tmp/outside/state.json';
+    writeCall['arguments'] = jsonEncode(arguments);
+    await routinesFile.writeAsString(jsonEncode(routines));
     await expectLater(_exportMutable(directory), throwsFormatException);
   });
 

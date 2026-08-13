@@ -42,10 +42,11 @@ completed.
 | `lib/features/chat/presentation/providers/tool_approval_cache.dart` | 208 | Owner-keyed approval and denial reuse with normalized arguments |
 | `lib/features/chat/presentation/pages/chat_page.dart` | 2045 | Chat provider composition, dashboard and sidebar state, modals, input wiring, and plan UI |
 | `lib/features/chat/presentation/coordinators/chat_page_workspace_navigation_coordinator.dart` | 127 | Workspace, project, conversation, and assistant-mode routing |
-| `lib/features/chat/presentation/coordinators/slash_command_action_coordinator.dart` | 364 | Slash command loading policy, action dispatch, mode changes, conversation actions, and worktree queueing |
+| `lib/features/chat/presentation/coordinators/slash_command_action_coordinator.dart` | 331 | Slash command loading policy, action dispatch, mode changes, conversation actions, and worktree queueing |
 | `lib/features/chat/presentation/coordinators/goal_slash_command_coordinator.dart` | 243 | Goal slash lifecycle, status summaries, budgets, and auto-continuation state |
 | `lib/features/chat/presentation/coordinators/feedback_slash_command_coordinator.dart` | 95 | Feedback slash preconditions, session-log resolution, submission, and failures |
 | `lib/features/chat/presentation/slash_commands/slash_command_catalog.dart` | 100 | Built-in/custom command catalog and prompt-template resolution |
+| `lib/features/chat/presentation/slash_commands/worktree_agent_command_args.dart` | 63 | Worktree-agent slash argument parsing and task-title derivation |
 | `lib/features/chat/presentation/widgets/slash_command_help_sheet.dart` | 42 | Slash command help presentation |
 | `lib/features/chat/presentation/widgets/chat_page_scaffold.dart` | 87 | Compact and persistent ChatPage scaffold composition |
 | `lib/features/chat/presentation/widgets/chat_right_sidebar.dart` | 114 | Controlled right-sidebar tabs, widths, and split-pane layout |

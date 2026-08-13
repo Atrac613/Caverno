@@ -1,10 +1,15 @@
 import 'dart:io';
 
 import 'package:caverno/features/chat/data/repositories/coding_project_repository.dart';
+import 'package:caverno/features/chat/data/repositories/worktree_agent_task_repository.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
+import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_environment_snapshot_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_launcher.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_registry_notifier.dart';
+import 'package:caverno/features/maintenance/domain/services/ll37_approved_repair_task_adapter.dart';
+import 'package:caverno/features/maintenance/domain/services/ll37_objective_continuation_policy.dart';
+import 'package:caverno/features/maintenance/presentation/providers/ll37_approved_repair_task_provider.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,6 +54,9 @@ void main() {
         assignmentId: '01234567-89ab-cdef-0123-456789abcdef',
         checkpointLineageId: 'checkpoint-1',
         verificationCommand: 'fvm flutter test test/widget_test.dart',
+        objectiveAcceptanceCriteria: [
+          'The flaky widget behavior is corrected.',
+        ],
       ),
     );
 
@@ -69,9 +77,98 @@ void main() {
       result.task.verificationCommand,
       'fvm flutter test test/widget_test.dart',
     );
+    expect(result.plan.objectiveAcceptanceCriteria, [
+      'The flaky widget behavior is corrected.',
+    ]);
+    expect(result.task.objectiveAcceptanceCriteria, [
+      'The flaky widget behavior is corrected.',
+    ]);
     expect(
       container.read(worktreeAgentTaskRegistryNotifierProvider).tasks.single.id,
       result.task.id,
+    );
+  });
+
+  test('queues an approved LL37 repair as a distinct persisted task', () async {
+    container.dispose();
+    await _saveProjects(prefs, [
+      _project(
+        id: 'project-1',
+        name: 'caverno',
+        rootPath: '/Users/test/Workspace/caverno',
+      ),
+    ]);
+    container = _container(prefs, runProcess: _gitRunner());
+    final registry = container.read(
+      worktreeAgentTaskRegistryNotifierProvider.notifier,
+    );
+    final source = await registry.registerTask(
+      id: 'source-task',
+      title: 'Enable the feature flag',
+      prompt: 'Set the feature flag.',
+      codingProjectId: 'project-1',
+      branchName: 'feature/source-task',
+      worktreePath: '/Users/test/Workspace/caverno-worktrees/source/caverno',
+      verificationCommand: 'dart test',
+      objectiveAcceptanceCriteria: const ['The flag is true.'],
+    );
+    await registry.markCompleted(
+      source.id,
+      verifiedGreen: true,
+      verificationSummary: 'dart test passed',
+    );
+    final completedSource = container
+        .read(worktreeAgentTaskRegistryNotifierProvider)
+        .byId(source.id)!;
+    final sourceBefore = completedSource.toJson();
+    final continuation = Ll37ObjectiveContinuationReview(
+      status: Ll37ObjectiveContinuationStatus.repairReview,
+      candidateId: 'worktree-agent:${source.id}',
+      objective: 'Set the feature flag.',
+      acceptanceCriteria: const ['The flag is true.'],
+      gaps: const [
+        Ll37ObjectiveContinuationGap(
+          id: 'll37-gap-feature-flag',
+          kind: 'unmet_criterion',
+          location: 'config.json',
+          detail: 'The flag remains false.',
+        ),
+      ],
+      detail: 'Review the frozen repair scope.',
+      repairNudge: 'Repair only ll37-gap-feature-flag and run dart test.',
+    );
+    final approved = const Ll37ApprovedRepairTaskAdapter().review(
+      continuation: continuation,
+      sourceTask: completedSource,
+      existingTaskIds: container
+          .read(worktreeAgentTaskRegistryNotifierProvider)
+          .tasks
+          .map((task) => task.id),
+    );
+
+    final result = await launcher().enqueue(
+      ll37ApprovedRepairTaskLaunchRequest(approved.spec!),
+    );
+
+    final tasks = container.read(worktreeAgentTaskRegistryNotifierProvider);
+    expect(tasks.tasks, hasLength(2));
+    expect(tasks.byId(source.id)!.toJson(), sourceBefore);
+    expect(result.task.id, approved.spec!.assignmentId);
+    expect(result.task.id, isNot(source.id));
+    expect(result.task.status, WorktreeAgentTaskStatus.queued);
+    expect(result.task.baseBranch, completedSource.branchName);
+    expect(result.task.prompt, continuation.repairNudge);
+    expect(
+      result.task.verificationCommand,
+      completedSource.verificationCommand,
+    );
+    expect(
+      result.task.objectiveAcceptanceCriteria,
+      completedSource.objectiveAcceptanceCriteria,
+    );
+    expect(
+      WorktreeAgentTaskRepository(prefs).loadAll().map((task) => task.id),
+      containsAll([source.id, result.task.id]),
     );
   });
 

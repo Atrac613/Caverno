@@ -12,6 +12,7 @@ class WorktreeAgentAssignmentPlan {
     required this.checkpointLineageId,
     required this.endpointId,
     required this.verificationCommand,
+    this.objectiveAcceptanceCriteria = const <String>[],
   });
 
   final String title;
@@ -24,6 +25,7 @@ class WorktreeAgentAssignmentPlan {
   final String checkpointLineageId;
   final String endpointId;
   final String verificationCommand;
+  final List<String> objectiveAcceptanceCriteria;
 }
 
 class WorktreeAgentAssignmentPlanner {
@@ -44,6 +46,7 @@ class WorktreeAgentAssignmentPlanner {
     String checkpointLineageId = '',
     String endpointId = '',
     String verificationCommand = '',
+    Iterable<String> objectiveAcceptanceCriteria = const <String>[],
     Iterable<String> existingBranchNames = const <String>[],
     Iterable<String> existingWorktreePaths = const <String>[],
   }) {
@@ -94,6 +97,10 @@ class WorktreeAgentAssignmentPlanner {
       checkpointLineageId: checkpointLineageId.trim(),
       endpointId: endpointId.trim(),
       verificationCommand: verificationCommand.trim(),
+      objectiveAcceptanceCriteria: objectiveAcceptanceCriteria
+          .map((criterion) => criterion.trim())
+          .where((criterion) => criterion.isNotEmpty)
+          .toList(growable: false),
     );
   }
 

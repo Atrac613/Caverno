@@ -11,6 +11,7 @@ import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/routines/data/routine_execution_service.dart';
+import 'package:caverno/features/routines/data/routine_objective_evidence_collector.dart';
 import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/routines/domain/services/routine_computer_use_action_allowlist.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -653,6 +654,52 @@ void main() {
             .content;
         expect(systemPrompt, contains('Approved routine plan'));
         expect(systemPrompt, contains('Search for updates before answering.'));
+      },
+    );
+
+    test(
+      'freezes the fresh approved plan in scheduled objective evidence',
+      () async {
+        final workspace = await Directory.systemTemp.createTemp(
+          'routine-approved-plan-',
+        );
+        addTearDown(() => workspace.delete(recursive: true));
+        final baseRoutine = buildRoutine(workspaceDirectory: workspace.path);
+        final plannedRoutine = baseRoutine.copyWith(
+          objectiveEvidenceContract: const RoutineObjectiveEvidenceContract(
+            objective: 'Produce a verified result.',
+            acceptanceCriteria: ['The result is correct.'],
+            verificationCommand: 'dart test',
+            plan: 'Stale contract plan.',
+          ),
+          planArtifact: RoutinePlanArtifact(
+            approvedMarkdown: '# Approved Plan\n- Use the current approach.',
+            approvedSourceHash: baseRoutine.planSourceHash,
+            approvedAt: DateTime(2026, 4, 21, 10, 5),
+          ),
+        );
+        final service = RoutineExecutionService(
+          dataSource: _FakeChatDataSource(
+            plainResults: [
+              ChatCompletionResult(
+                content: 'Verified result.',
+                finishReason: 'stop',
+              ),
+            ],
+          ),
+          settings: AppSettings.defaults(),
+          objectiveEvidenceCollector: RoutineObjectiveEvidenceCollector(
+            commandRunner: (_, _, _) async => ProcessResult(1, 0, 'passed', ''),
+          ),
+        );
+
+        final record = await service.execute(
+          plannedRoutine,
+          trigger: RoutineRunTrigger.scheduled,
+        );
+
+        expect(record.objectivePlan, plannedRoutine.freshApprovedPlanMarkdown);
+        expect(record.objectivePlan, isNot(contains('Stale contract plan')));
       },
     );
 
