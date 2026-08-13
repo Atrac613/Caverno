@@ -18,6 +18,7 @@ import '../../data/datasources/llama_cpp_slot_transport.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/model_usage_role.dart';
+import '../../domain/services/pro_reasoning_candidate_endpoint_resolver.dart';
 import '../../domain/services/pro_reasoning_candidate_explorer.dart';
 import '../../domain/services/pro_reasoning_investigator.dart';
 import '../../domain/services/pro_reasoning_models.dart';
@@ -100,7 +101,12 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
     final meshRunner = _buildMeshRunner(settings);
     final route = _proRoute(settings);
     final toolService = ref.read(mcpToolServiceProvider);
-    final endpoints = _candidateEndpoints(settings);
+    final endpoints = const ProReasoningCandidateEndpointResolver().resolve(
+      settings: settings,
+      selectedEndpointOnly:
+          settings.proReasoningCandidateRouting ==
+          ProReasoningCandidateRouting.selectedOnly,
+    );
     final stageTimings = <String, int>{};
     final coordinator = ProReasoningRunCoordinator(
       runFrame: (question, deadline) => _runRouted(
@@ -201,6 +207,7 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
       await _recordRunSummary(
         context: context,
         depth: runDepth,
+        candidateRouting: settings.proReasoningCandidateRouting,
         result: result,
         stageTimings: stageTimings,
         error: failure,
@@ -680,50 +687,6 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
         );
   }
 
-  List<ProReasoningEndpointTarget> _candidateEndpoints(AppSettings settings) {
-    final targets = <ProReasoningEndpointTarget>[];
-    final seen = <String>{};
-    void add({
-      required String id,
-      required String label,
-      required String baseUrl,
-      required String apiKey,
-      required String model,
-    }) {
-      final normalized = LlmEndpoint.normalizeBaseUrl(baseUrl);
-      if (normalized.isEmpty || !seen.add(normalized.toLowerCase())) return;
-      targets.add(
-        ProReasoningEndpointTarget(
-          endpointId: id,
-          label: label,
-          baseUrl: normalized,
-          apiKey: apiKey,
-          model: model.trim().isEmpty
-              ? settings.effectiveProReasoningModel
-              : model.trim(),
-        ),
-      );
-    }
-
-    add(
-      id: settings.activeLlmEndpointId,
-      label: settings.activeLlmEndpoint?.displayLabel ?? settings.baseUrl,
-      baseUrl: settings.baseUrl,
-      apiKey: settings.apiKey,
-      model: settings.effectiveProReasoningModel,
-    );
-    for (final endpoint in settings.enabledAdditionalLlmEndpoints) {
-      add(
-        id: endpoint.id,
-        label: endpoint.displayLabel,
-        baseUrl: endpoint.normalizedBaseUrl,
-        apiKey: endpoint.apiKey,
-        model: endpoint.normalizedModel,
-      );
-    }
-    return targets;
-  }
-
   LlmSessionLogContext _logContextForConversation(Conversation conversation) =>
       LlmSessionLogContext(
         workspaceMode: WorkspaceMode.chat,
@@ -889,6 +852,7 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
   Future<void> _recordRunSummary({
     required LlmSessionLogContext context,
     required ProReasoningDepth depth,
+    required ProReasoningCandidateRouting candidateRouting,
     required ProReasoningRunResult? result,
     required Map<String, int> stageTimings,
     required Object? error,
@@ -897,6 +861,7 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
     final now = DateTime.now();
     final summary = <String, dynamic>{
       'depth': depth.name,
+      'candidateRouting': candidateRouting.name,
       'stageTimingsMs': stageTimings,
       if (result != null) ...{
         'candidates': result.exploreResult.candidates.length,

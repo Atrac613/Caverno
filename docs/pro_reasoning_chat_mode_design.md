@@ -194,7 +194,8 @@ single-host degradation is visible rather than just mysteriously slow.
 
 Consequence: `proReasoningModel` / `proReasoningEndpointId` ship defaulting to
 empty, and candidate placement is decided per run from that live preflight
-(§5).
+(§5). The selected Pro endpoint anchors the candidate pool and receives the Pro
+model override; other mesh hosts retain their own configured models.
 
 ### 2.6 Hosts are heterogeneous — probe capability, never assume it
 
@@ -445,9 +446,11 @@ It also adds `ModelUsageRole.proReasoning`
 
 Stages 1, 2, 4, and 5 use the selected Pro endpoint and
 `effectiveProReasoningModel` through `SecondaryCompletionRouter`, with endpoint
-health tracking and primary fallback. Stage 3 directly preflights the selected
-target plus the enabled additional endpoints and uses each responding target's
-model through the slot transport.
+health tracking and primary fallback. Stage 3 directly preflights a pool built
+from the selected target. `ProReasoningCandidateRouting.mesh` keeps the selected
+target first and adds enabled peers with their own configured models;
+`selectedOnly` restricts every candidate to the selected target. The default is
+`mesh` so existing multi-host latency and diversity behavior remains intact.
 
 ## 7. Constraint: the file-size ratchet
 
