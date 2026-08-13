@@ -122,6 +122,12 @@ ensemble or this assignment.
     required List<ProReasoningCandidate> candidates,
   }) {
     final criteria = frame.successCriteria.map((item) => '- $item').join('\n');
+    final candidateIndices = candidates
+        .map((candidate) => candidate.index)
+        .toList(growable: false);
+    final exampleWinner = candidateIndices.isEmpty
+        ? null
+        : candidateIndices.first;
     final renderedCandidates = candidates
         .map((candidate) {
           final thinking = candidate.thinkingObserved
@@ -161,8 +167,8 @@ $renderedCandidates
 
 Return one JSON object and no prose:
 {
-  "winner_index": 0,
-  "ranking": [0, 1],
+  "winner_index": ${jsonEncode(exampleWinner)},
+  "ranking": ${jsonEncode(candidateIndices)},
   "contradictions": ["..."],
   "assessment": "..."
 }

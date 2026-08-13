@@ -88,6 +88,24 @@ Model preamble.
       _candidate(7, 'Second answer'),
     ];
 
+    test('uses surviving candidate indices in the JSON response example', () {
+      final prompt = builder.buildCritiquePrompt(
+        question: 'Choose the best answer.',
+        frame: const ProReasoningFrame(
+          subQuestions: ['Which answer is grounded?'],
+          investigationSteps: [],
+          successCriteria: ['Use the evidence'],
+          requiresInvestigation: false,
+        ),
+        evidence: 'Measured fact.',
+        candidates: candidates,
+      );
+
+      expect(prompt, contains('"winner_index": 2'));
+      expect(prompt, contains('"ranking": [2,7]'));
+      expect(prompt, isNot(contains('"winner_index": 0')));
+    });
+
     test('filters invalid indices and accepts JSON embedded in prose', () {
       final critique = builder.parseCritique(
         '''Result: {"winner_index":"7","ranking":[7,99,2,7],"contradictions":[" conflict "],"assessment":" solid "}''',
