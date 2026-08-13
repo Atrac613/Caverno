@@ -19,7 +19,7 @@ fi
 REPORT_ROOT="${CAVERNO_PRO_REASONING_LIVE_CANARY_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}"
 RUN_DIR="${REPORT_ROOT}/pro_reasoning_live_canary_$(date +%s)"
 LOG_PATH="${RUN_DIR}/flutter_test.log"
-SCENARIOS="${CAVERNO_PRO_REASONING_SCENARIOS:-multi_host,single_host,cancel}"
+SCENARIOS="${CAVERNO_PRO_REASONING_SCENARIOS:-multi_host,selected_endpoint,single_host,cancel}"
 
 mkdir -p "${RUN_DIR}"
 cd "${ROOT_DIR}"

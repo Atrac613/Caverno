@@ -503,7 +503,11 @@ ratchets green.
    progress stages, one visible user message, one visible assistant response,
    one conversation ID, Pro usage attribution, and no stage errors. The
    single-host repeat completed in 82.505 s with both candidates serialized on
-   the one surviving endpoint.
+   the one surviving endpoint. The runner now also includes a
+   `selected_endpoint` scenario that selects the secondary endpoint with
+   `selectedOnly` routing and verifies every candidate request uses only that
+   endpoint and its configured model; this added scenario still requires a live
+   consent-gated run.
 5. **Live cancel canary passed 2026-08-13.** Stop was requested after the warm
    candidate while candidate 2 was in flight. The run attempted two candidates,
    retained one, skipped critique, and completed partial synthesis in 53.205 s

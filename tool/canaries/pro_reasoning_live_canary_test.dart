@@ -57,7 +57,7 @@ void main() {
       await artifactRoot.create(recursive: true);
       final requestedScenarios =
           (Platform.environment['CAVERNO_PRO_REASONING_SCENARIOS'] ??
-                  'multi_host,single_host,cancel')
+                  'multi_host,selected_endpoint,single_host,cancel')
               .split(',')
               .map((value) => value.trim())
               .where((value) => value.isNotEmpty)
@@ -67,6 +67,7 @@ void main() {
       for (final scenario in requestedScenarios) {
         if (!const {
           'multi_host',
+          'selected_endpoint',
           'single_host',
           'cancel',
           'logging_disabled',
@@ -102,8 +103,17 @@ Future<Map<String, dynamic>> _runScenario({
   required _ProLiveEnv env,
   required Directory artifactRoot,
 }) async {
-  final includeSecondary = scenario == 'multi_host';
-  final settings = env.settings(includeSecondary: includeSecondary);
+  final includeSecondary = const {
+    'multi_host',
+    'selected_endpoint',
+  }.contains(scenario);
+  final settings = env.settings(
+    includeSecondary: includeSecondary,
+    selectSecondary: scenario == 'selected_endpoint',
+    candidateRouting: scenario == 'selected_endpoint'
+        ? ProReasoningCandidateRouting.selectedOnly
+        : ProReasoningCandidateRouting.mesh,
+  );
   final logRoot = Directory('${artifactRoot.path}/$scenario/session_logs');
   final usageSink = _RecordingModelUsageSink();
   final container = _buildContainer(
@@ -240,11 +250,36 @@ Future<Map<String, dynamic>> _runScenario({
         .map((value) => value.toString())
         .toList(growable: false);
     final candidateCount = (summary['candidates'] as num?)?.toInt() ?? 0;
+    final candidateEntries = proEntries
+        .where((entry) => entry['operation'] == 'pro_reasoning_candidate')
+        .toList(growable: false);
 
     if (scenario == 'multi_host') {
       expect(summaryEndpoints.toSet().length, greaterThanOrEqualTo(2));
       expect(candidateCount, greaterThanOrEqualTo(2));
       expect(summary['cancelRequested'], isFalse);
+    } else if (scenario == 'selected_endpoint') {
+      expect(summary['candidateRouting'], 'selectedOnly');
+      expect(summaryEndpoints.toSet(), {env.secondary.label});
+      expect(candidateCount, greaterThanOrEqualTo(1));
+      expect(candidateEntries, isNotEmpty);
+      for (final entry in candidateEntries) {
+        final request = Map<String, dynamic>.from(entry['request'] as Map);
+        expect(request['model'], env.secondary.model);
+        final messages = (request['messages'] as List? ?? const [])
+            .whereType<Map>()
+            .map(Map<String, dynamic>.from)
+            .toList(growable: false);
+        final metadata = messages.firstWhere(
+          (message) =>
+              message['id'].toString().startsWith('pro_reasoning_candidate_'),
+        );
+        final decoded = Map<String, dynamic>.from(
+          jsonDecode(metadata['content'] as String) as Map,
+        );
+        expect(decoded['endpointId'], env.secondary.id);
+        expect(decoded['endpointLabel'], env.secondary.label);
+      }
     } else {
       expect(summaryEndpoints.toSet().length, 1);
     }
@@ -377,7 +412,12 @@ final class _ProLiveEnv {
     ),
   );
 
-  AppSettings settings({required bool includeSecondary}) {
+  AppSettings settings({
+    required bool includeSecondary,
+    bool selectSecondary = false,
+    ProReasoningCandidateRouting candidateRouting =
+        ProReasoningCandidateRouting.mesh,
+  }) {
     final endpoints = <LlmEndpoint>[
       primary.toSettings(),
       if (includeSecondary) secondary.toSettings(),
@@ -391,8 +431,9 @@ final class _ProLiveEnv {
       activeLlmEndpointId: primary.id,
       proReasoningEnabled: true,
       proReasoningDepth: ProReasoningDepth.standard,
-      proReasoningModel: primary.model,
-      proReasoningEndpointId: primary.id,
+      proReasoningCandidateRouting: candidateRouting,
+      proReasoningModel: selectSecondary ? secondary.model : primary.model,
+      proReasoningEndpointId: selectSecondary ? secondary.id : primary.id,
       temperature: 0.1,
       maxTokens: 2048,
       mcpEnabled: false,
