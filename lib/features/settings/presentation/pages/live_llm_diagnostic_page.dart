@@ -68,12 +68,14 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
             _SummarySection(report: report),
             if (report.streamingMetrics != null ||
                 report.multiRoundToolLoopMetrics != null ||
-                report.embeddingMetrics != null) ...[
+                report.embeddingMetrics != null ||
+                report.effectiveContextMetrics != null) ...[
               const SizedBox(height: 16),
               _CapabilitySection(
                 streamingMetrics: report.streamingMetrics,
                 multiRoundMetrics: report.multiRoundToolLoopMetrics,
                 embeddingMetrics: report.embeddingMetrics,
+                effectiveContextMetrics: report.effectiveContextMetrics,
               ),
             ],
             const SizedBox(height: 16),
@@ -459,11 +461,13 @@ class _CapabilitySection extends StatelessWidget {
     this.streamingMetrics,
     this.multiRoundMetrics,
     this.embeddingMetrics,
+    this.effectiveContextMetrics,
   });
 
   final LiveLlmDiagnosticStreamingMetrics? streamingMetrics;
   final LiveLlmDiagnosticMultiRoundToolLoopMetrics? multiRoundMetrics;
   final LiveLlmDiagnosticEmbeddingMetrics? embeddingMetrics;
+  final LiveLlmDiagnosticEffectiveContextMetrics? effectiveContextMetrics;
 
   @override
   Widget build(BuildContext context) {
@@ -586,6 +590,28 @@ class _CapabilitySection extends StatelessWidget {
                 icon: Icons.timer_outlined,
                 label: 'settings.live_llm_diag_embedding_elapsed'.tr(),
                 value: '${metrics.totalElapsed.inMilliseconds} ms',
+              ),
+            ],
+            if (effectiveContextMetrics case final metrics?) ...[
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-context-measured-tile'),
+                icon: Icons.compress_outlined,
+                label: 'settings.live_llm_diag_context_measured'.tr(),
+                value: '${metrics.maxSuccessfulPromptTokens} tok',
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-context-trials-tile'),
+                icon: Icons.stairs_outlined,
+                label: 'settings.live_llm_diag_context_trials'.tr(),
+                value: '${metrics.trials.length}',
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-context-ceiling-tile'),
+                icon: Icons.vertical_align_top_outlined,
+                label: 'settings.live_llm_diag_context_ceiling'.tr(),
+                value: metrics.reachedConfiguredMaximum
+                    ? 'settings.live_llm_diag_yes'.tr()
+                    : 'settings.live_llm_diag_no'.tr(),
               ),
             ],
           ],

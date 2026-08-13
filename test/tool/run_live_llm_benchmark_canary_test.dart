@@ -33,6 +33,8 @@ void main() {
       expect(script, contains('CAVERNO_LLM_API_KEY:?'));
       expect(script, contains('CAVERNO_LLM_MODEL:?'));
       expect(script, contains('CAVERNO_EMBEDDINGS_MODEL'));
+      expect(script, contains('CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS'));
+      expect(canary, contains('CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS'));
     });
 
     test('documents the loopback requirement for a LAN endpoint', () {
@@ -65,9 +67,11 @@ void main() {
       expect(canary, contains('if (floor != null)'));
     });
 
-    test('refuses to pass a run that measured nothing', () {
+    test('refuses to pass a run that attempted no diagnostic probe', () {
       // The blindness this guards against: every probe skipped, harness green.
-      expect(canary, contains('attempted no scored probe'));
+      expect(canary, contains('attempted no diagnostic probe'));
+      expect(canary, contains('probe.attempted'));
+      expect(canary, contains('run.score.samplerAttempted'));
       expect(canary, contains('left probes unfinished'));
       expect(canary, contains('CAVERNO_BENCHMARK_CANARY_REQUIRED_PROBE_IDS'));
     });

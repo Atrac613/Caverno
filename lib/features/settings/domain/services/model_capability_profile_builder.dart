@@ -7,10 +7,9 @@ import 'llm_sampler_preset_profile.dart';
 class ModelCapabilityProfileBuilder {
   const ModelCapabilityProfileBuilder._();
 
-  /// [usableContextTokens] is the endpoint-reported context window for the
-  /// probed model (llama.cpp `n_ctx`, LM Studio loaded context, Ollama
-  /// `num_ctx`, OpenAI `context_length`). Zero means the endpoint advertised
-  /// none; consumers must treat it as unmeasured rather than assume a default.
+  /// [usableContextTokens] is the advertised fallback for the probed model.
+  /// An opt-in LL39 effective-context measurement takes precedence when it
+  /// completed successfully. Zero means neither source measured a value.
   static ModelCapabilityProfile fromLiveDiagnosticReport({
     required LiveLlmDiagnosticReport report,
     required LlmProvider provider,
@@ -41,6 +40,17 @@ class ModelCapabilityProfileBuilder {
       'toolSearchEnabled': report.toolCatalog.toolSearchEnabled.toString(),
       for (final result in report.results)
         'probe.${result.id}.status': result.status.name,
+      if (report.effectiveContextMetrics case final metrics?) ...{
+        'effectiveContext.maxSuccessfulPromptTokens': metrics
+            .maxSuccessfulPromptTokens
+            .toString(),
+        'effectiveContext.configuredMaximumTokens': metrics
+            .configuredMaximumTokens
+            .toString(),
+        'effectiveContext.reachedConfiguredMaximum': metrics
+            .reachedConfiguredMaximum
+            .toString(),
+      },
     };
     final profile = ModelCapabilityProfile(
       id: '',
@@ -52,7 +62,10 @@ class ModelCapabilityProfileBuilder {
       goalUpdateFidelity: _goalUpdateFidelity(report),
       editFormatPreference: _editFormatPreference(report),
       visionSupport: _visionSupport(report),
-      usableContextTokens: usableContextTokens,
+      usableContextTokens: _effectiveContextTokens(
+        report,
+        advertisedTokens: usableContextTokens,
+      ),
       probedAt: report.finishedAt ?? report.startedAt,
       probeSummary:
           '${report.overallStatus.label}: '
@@ -63,6 +76,15 @@ class ModelCapabilityProfileBuilder {
       profile.normalizedForPersistence(),
       effectiveSamplerTrials,
     );
+  }
+
+  static int _effectiveContextTokens(
+    LiveLlmDiagnosticReport report, {
+    required int advertisedTokens,
+  }) {
+    final measured =
+        report.effectiveContextMetrics?.maxSuccessfulPromptTokens ?? 0;
+    return measured > 0 ? measured : advertisedTokens;
   }
 
   static ModelCapabilityProfile _applySamplerCalibration(

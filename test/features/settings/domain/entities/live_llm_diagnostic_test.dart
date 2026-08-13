@@ -3,6 +3,58 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 
 void main() {
+  test('serializes effective-context trials in physical units', () {
+    const metrics = LiveLlmDiagnosticEffectiveContextMetrics(
+      configuredMaximumTokens: 8192,
+      trials: [
+        LiveLlmDiagnosticContextTrial(
+          requestedApproximateTokens: 2048,
+          elapsed: Duration(milliseconds: 20),
+          passed: true,
+          promptTokens: 2110,
+        ),
+        LiveLlmDiagnosticContextTrial(
+          requestedApproximateTokens: 4096,
+          elapsed: Duration(milliseconds: 45),
+          passed: false,
+          failure: 'context overflow',
+        ),
+      ],
+    );
+    final report = LiveLlmDiagnosticReport(
+      startedAt: DateTime.utc(2026, 8, 14),
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'context-model',
+      demoMode: false,
+      mcpEnabled: false,
+      effectiveContextMetrics: metrics,
+    );
+
+    expect(metrics.maxSuccessfulPromptTokens, 2110);
+    expect(metrics.reachedConfiguredMaximum, isFalse);
+    expect(metrics.firstFailedApproximateTokens, 4096);
+    expect(report.toJson()['effectiveContext'], {
+      'configuredMaximumTokens': 8192,
+      'maxSuccessfulPromptTokens': 2110,
+      'reachedConfiguredMaximum': false,
+      'firstFailedApproximateTokens': 4096,
+      'trials': [
+        {
+          'requestedApproximateTokens': 2048,
+          'elapsedMs': 20,
+          'passed': true,
+          'promptTokens': 2110,
+        },
+        {
+          'requestedApproximateTokens': 4096,
+          'elapsedMs': 45,
+          'passed': false,
+          'failure': 'context overflow',
+        },
+      ],
+    });
+  });
+
   test('serializes embeddings capability metrics in physical units', () {
     const metrics = LiveLlmDiagnosticEmbeddingMetrics(
       totalElapsed: Duration(milliseconds: 42),

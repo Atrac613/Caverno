@@ -39,6 +39,7 @@ void main() {
           settings: env.settings,
           chatDataSource: env.createDataSource(),
           mcpToolService: McpToolService(),
+          effectiveContextMaxTokens: env.effectiveContextMaxTokens,
         );
         final startedAt = DateTime.now();
         final report = await service.run(probeIds: env.probeIds);
@@ -79,11 +80,17 @@ void main() {
 
         // A run where everything skipped is the failure mode a green canary
         // hides: it proves the harness started, not that it measured anything.
+        // Capability-only probes may intentionally carry zero conformance
+        // points, so use attempted probe state instead of the score denominator.
+        final attemptedProbeIds = run.score.probeScores
+            .where((probe) => probe.attempted)
+            .map((probe) => probe.id)
+            .toList(growable: false);
         expect(
-          run.score.attemptedPoints,
-          greaterThan(0),
+          attemptedProbeIds.isNotEmpty || run.score.samplerAttempted,
+          isTrue,
           reason:
-              'Run ${run.index} attempted no scored probe. Check MCP settings '
+              'Run ${run.index} attempted no diagnostic probe. Check MCP settings '
               'and the selected provider before trusting this as a pass.',
         );
 
@@ -137,6 +144,8 @@ File _writeArtifact(_BenchmarkCanaryEnv env, List<_BenchmarkCanaryRun> runs) {
     'model': env.settings.effectiveModel,
     if (env.settings.embeddingsModel.isNotEmpty)
       'embeddingsModel': env.settings.embeddingsModel,
+    if (env.effectiveContextMaxTokens > 0)
+      'effectiveContextMaxTokens': env.effectiveContextMaxTokens,
     'repeatCount': runs.length,
     // The spread across repeats is the whole reason this canary takes a repeat
     // count: it is the same noise floor the in-app history derives from stored
@@ -183,6 +192,7 @@ class _BenchmarkCanaryEnv {
     required this.probeIds,
     required this.requiredProbeIds,
     required this.minimumPoints,
+    required this.effectiveContextMaxTokens,
   });
 
   final AppSettings settings;
@@ -191,6 +201,7 @@ class _BenchmarkCanaryEnv {
   final Set<String>? probeIds;
   final Set<String> requiredProbeIds;
   final int? minimumPoints;
+  final int effectiveContextMaxTokens;
 
   static _BenchmarkCanaryEnv fromEnvironment() {
     final provider = _providerFromEnvironment();
@@ -227,6 +238,10 @@ class _BenchmarkCanaryEnv {
         Platform.environment['CAVERNO_BENCHMARK_CANARY_MIN_POINTS']?.trim() ??
             '',
       ),
+      effectiveContextMaxTokens: _boundedNonNegativeIntEnv(
+        'CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS',
+        maximum: 1048576,
+      ),
     );
   }
 
@@ -253,6 +268,16 @@ int _positiveIntEnv(String name, int fallback) {
   final parsed = int.tryParse(Platform.environment[name]?.trim() ?? '');
   if (parsed == null || parsed < 1) {
     return fallback;
+  }
+  return parsed;
+}
+
+int _boundedNonNegativeIntEnv(String name, {required int maximum}) {
+  final raw = Platform.environment[name]?.trim() ?? '';
+  if (raw.isEmpty) return 0;
+  final parsed = int.tryParse(raw);
+  if (parsed == null || parsed < 0 || parsed > maximum) {
+    throw StateError('$name must be between 0 and $maximum.');
   }
   return parsed;
 }

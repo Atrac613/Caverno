@@ -369,6 +369,74 @@ class LiveLlmDiagnosticEmbeddingMetrics {
   }
 }
 
+class LiveLlmDiagnosticContextTrial {
+  const LiveLlmDiagnosticContextTrial({
+    required this.requestedApproximateTokens,
+    required this.elapsed,
+    required this.passed,
+    this.promptTokens = 0,
+    this.failure = '',
+  });
+
+  final int requestedApproximateTokens;
+  final Duration elapsed;
+  final bool passed;
+  final int promptTokens;
+  final String failure;
+
+  Map<String, dynamic> toJson() => {
+    'requestedApproximateTokens': requestedApproximateTokens,
+    'elapsedMs': elapsed.inMilliseconds,
+    'passed': passed,
+    if (promptTokens > 0) 'promptTokens': promptTokens,
+    if (failure.isNotEmpty) 'failure': failure,
+  };
+}
+
+/// LL39 effective-context evidence in physical prompt-token units.
+///
+/// Only successful requests with endpoint-reported usage contribute to
+/// [maxSuccessfulPromptTokens]. The requested sizes are approximations used to
+/// build the ladder; they are never persisted as measured context capacity.
+class LiveLlmDiagnosticEffectiveContextMetrics {
+  const LiveLlmDiagnosticEffectiveContextMetrics({
+    required this.configuredMaximumTokens,
+    required this.trials,
+  });
+
+  final int configuredMaximumTokens;
+  final List<LiveLlmDiagnosticContextTrial> trials;
+
+  int get maxSuccessfulPromptTokens => trials
+      .where((trial) => trial.passed && trial.promptTokens > 0)
+      .fold<int>(
+        0,
+        (maximum, trial) =>
+            trial.promptTokens > maximum ? trial.promptTokens : maximum,
+      );
+
+  bool get reachedConfiguredMaximum =>
+      trials.isNotEmpty &&
+      trials.last.passed &&
+      trials.last.requestedApproximateTokens == configuredMaximumTokens;
+
+  int? get firstFailedApproximateTokens {
+    for (final trial in trials) {
+      if (!trial.passed) return trial.requestedApproximateTokens;
+    }
+    return null;
+  }
+
+  Map<String, dynamic> toJson() => {
+    'configuredMaximumTokens': configuredMaximumTokens,
+    'maxSuccessfulPromptTokens': maxSuccessfulPromptTokens,
+    'reachedConfiguredMaximum': reachedConfiguredMaximum,
+    if (firstFailedApproximateTokens != null)
+      'firstFailedApproximateTokens': firstFailedApproximateTokens,
+    'trials': trials.map((trial) => trial.toJson()).toList(growable: false),
+  };
+}
+
 class LiveLlmDiagnosticReport {
   const LiveLlmDiagnosticReport({
     required this.startedAt,
@@ -383,6 +451,7 @@ class LiveLlmDiagnosticReport {
     this.streamingMetrics,
     this.multiRoundToolLoopMetrics,
     this.embeddingMetrics,
+    this.effectiveContextMetrics,
   });
 
   final DateTime startedAt;
@@ -408,6 +477,9 @@ class LiveLlmDiagnosticReport {
   /// the failure can be inspected without conflating it with no endpoint.
   final LiveLlmDiagnosticEmbeddingMetrics? embeddingMetrics;
 
+  /// Null unless the expensive context ladder was explicitly enabled.
+  final LiveLlmDiagnosticEffectiveContextMetrics? effectiveContextMetrics;
+
   LiveLlmDiagnosticReport copyWith({
     DateTime? finishedAt,
     LiveLlmDiagnosticToolCatalog? toolCatalog,
@@ -416,6 +488,7 @@ class LiveLlmDiagnosticReport {
     LiveLlmDiagnosticStreamingMetrics? streamingMetrics,
     LiveLlmDiagnosticMultiRoundToolLoopMetrics? multiRoundToolLoopMetrics,
     LiveLlmDiagnosticEmbeddingMetrics? embeddingMetrics,
+    LiveLlmDiagnosticEffectiveContextMetrics? effectiveContextMetrics,
   }) {
     return LiveLlmDiagnosticReport(
       startedAt: startedAt,
@@ -432,6 +505,8 @@ class LiveLlmDiagnosticReport {
       multiRoundToolLoopMetrics:
           multiRoundToolLoopMetrics ?? this.multiRoundToolLoopMetrics,
       embeddingMetrics: embeddingMetrics ?? this.embeddingMetrics,
+      effectiveContextMetrics:
+          effectiveContextMetrics ?? this.effectiveContextMetrics,
     );
   }
 
@@ -522,6 +597,8 @@ class LiveLlmDiagnosticReport {
     if (multiRoundToolLoopMetrics != null)
       'multiRoundToolLoop': multiRoundToolLoopMetrics!.toJson(),
     if (embeddingMetrics != null) 'embeddings': embeddingMetrics!.toJson(),
+    if (effectiveContextMetrics != null)
+      'effectiveContext': effectiveContextMetrics!.toJson(),
     'results': results.map((result) => result.toJson()).toList(),
     if (samplerCalibrationTrials.isNotEmpty)
       'samplerCalibrationTrials': samplerCalibrationTrials

@@ -24,7 +24,8 @@ void main() {
       LiveLlmDiagnosticSuite.probePointsTotal +
           LiveLlmDiagnosticSuite.samplerStabilityPoints,
     );
-    expect(LiveLlmDiagnosticSuite.version, 7);
+    expect(LiveLlmDiagnosticSuite.version, 8);
+    expect(LiveLlmDiagnosticSuite.pointsFor('effective_context'), 0);
     expect(
       LiveLlmDiagnosticSuite.pointsFor('structured_output'),
       greaterThan(0),

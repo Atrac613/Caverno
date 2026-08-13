@@ -331,6 +331,54 @@ void main() {
     expect(find.text('42 ms'), findsOneWidget);
   });
 
+  testWidgets('shows effective-context measurements outside the score', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      settings: AppSettings.defaults(),
+      diagnosticState: LiveLlmDiagnosticState(
+        report: LiveLlmDiagnosticReport(
+          startedAt: DateTime.utc(2026, 8, 14),
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'context-model',
+          demoMode: false,
+          mcpEnabled: false,
+          effectiveContextMetrics:
+              const LiveLlmDiagnosticEffectiveContextMetrics(
+                configuredMaximumTokens: 8192,
+                trials: [
+                  LiveLlmDiagnosticContextTrial(
+                    requestedApproximateTokens: 4096,
+                    elapsed: Duration(milliseconds: 30),
+                    passed: true,
+                    promptTokens: 4200,
+                  ),
+                  LiveLlmDiagnosticContextTrial(
+                    requestedApproximateTokens: 8192,
+                    elapsed: Duration(milliseconds: 60),
+                    passed: true,
+                    promptTokens: 8300,
+                  ),
+                ],
+              ),
+        ),
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('live-llm-diag-context-measured-tile')),
+      400,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('Measured context'), findsOneWidget);
+    expect(find.text('8300 tok'), findsOneWidget);
+    expect(find.text('Context trials'), findsOneWidget);
+    expect(find.text('Reached ceiling'), findsOneWidget);
+    expect(find.text('Yes'), findsOneWidget);
+  });
+
   testWidgets('shows profile history empty state when no revisions', (
     tester,
   ) async {

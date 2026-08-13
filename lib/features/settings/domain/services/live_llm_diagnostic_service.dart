@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
@@ -21,6 +22,11 @@ import 'llm_sampler_preset_profile.dart';
 
 typedef LiveLlmDiagnosticReportCallback =
     void Function(LiveLlmDiagnosticReport report);
+typedef RunEffectiveContextTrial =
+    Future<ChatCompletionResult> Function(
+      int requestedApproximateTokens,
+      List<Message> messages,
+    );
 
 class LiveLlmDiagnosticService {
   LiveLlmDiagnosticService({
@@ -28,12 +34,16 @@ class LiveLlmDiagnosticService {
     required this.chatDataSource,
     required this.mcpToolService,
     this.embedTexts,
+    this.effectiveContextMaxTokens = 0,
+    this.runEffectiveContextTrial,
   });
 
   final AppSettings settings;
   final ChatDataSource chatDataSource;
   final McpToolService? mcpToolService;
   final EmbedTexts? embedTexts;
+  final int effectiveContextMaxTokens;
+  final RunEffectiveContextTrial? runEffectiveContextTrial;
 
   static const probeDefinitions = <LiveLlmDiagnosticProbeDefinition>[
     LiveLlmDiagnosticProbeDefinition(
@@ -65,6 +75,11 @@ class LiveLlmDiagnosticService {
       id: _embeddingsProbeId,
       titleKey: 'settings.live_llm_diag_probe_embeddings_title',
       descriptionKey: 'settings.live_llm_diag_probe_embeddings_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
+      id: _effectiveContextProbeId,
+      titleKey: 'settings.live_llm_diag_probe_effective_context_title',
+      descriptionKey: 'settings.live_llm_diag_probe_effective_context_desc',
     ),
     LiveLlmDiagnosticProbeDefinition(
       id: _foundationModelsLanguageMatrixProbeId,
@@ -129,6 +144,7 @@ class LiveLlmDiagnosticService {
   static const _exactPreservationProbeId = 'exact_preservation';
   static const _editFormatProbeId = 'edit_format_fidelity';
   static const _embeddingsProbeId = 'embeddings_capability';
+  static const _effectiveContextProbeId = 'effective_context';
   static const _foundationModelsLanguageMatrixProbeId =
       'foundation_models_language_matrix';
   static const _visionAttachmentProbeId = 'vision_attachment';
@@ -159,6 +175,7 @@ class LiveLlmDiagnosticService {
     _streamingProbeId,
     _editFormatProbeId,
     _embeddingsProbeId,
+    _effectiveContextProbeId,
     _visionAttachmentProbeId,
     _visionToolObservationProbeId,
     _narrowToolCallProbeId,
@@ -256,6 +273,8 @@ class LiveLlmDiagnosticService {
     'Database backups completed at midnight.',
   ];
   static const _embeddingSemanticMarginMinimum = 0.05;
+  static const _effectiveContextInitialTokens = 2048;
+  static const _effectiveContextHardMaximumTokens = 1048576;
 
   /// Vision outcome labels. Emitted into probe details so the profile builder
   /// and a human reading the report classify a miss the same way.
@@ -347,6 +366,11 @@ class LiveLlmDiagnosticService {
       run: _runEditFormatProbe,
     );
     report = await _runEmbeddingsProbe(
+      report: report,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+    );
+    report = await _runEffectiveContextProbe(
       report: report,
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
@@ -1475,6 +1499,186 @@ class LiveLlmDiagnosticService {
       metrics: metrics,
     );
   }
+
+  Future<LiveLlmDiagnosticReport> _runEffectiveContextProbe({
+    required LiveLlmDiagnosticReport report,
+    required Set<String>? selectedProbeIds,
+    required LiveLlmDiagnosticReportCallback? onReport,
+  }) async {
+    if (!_shouldRunProbe(_effectiveContextProbeId, selectedProbeIds)) {
+      final updated = _skipProbe(
+        report,
+        _effectiveContextProbeId,
+        'Skipped because this bounded diagnostic run did not request this probe.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+    if (effectiveContextMaxTokens <= 0) {
+      final updated = _skipProbe(
+        report,
+        _effectiveContextProbeId,
+        'Skipped because the expensive context ladder was not enabled.',
+        details:
+            'Use the headless canary with an explicit effective-context maximum '
+            'to opt in. Normal diagnostics never allocate long prompts.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+    if (settings.llmProvider == LlmProvider.appleFoundationModels) {
+      final updated = _skipProbe(
+        report,
+        _effectiveContextProbeId,
+        'Skipped because Foundation Models context limits are managed by the host API.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+
+    final maximum = math.min(
+      effectiveContextMaxTokens,
+      _effectiveContextHardMaximumTokens,
+    );
+    final startedAt = DateTime.now();
+    var updated = report.withProbeResult(
+      const LiveLlmDiagnosticProbeResult(
+        id: _effectiveContextProbeId,
+        status: LiveLlmDiagnosticStatus.running,
+        summary: 'Running...',
+      ),
+    );
+    onReport?.call(updated);
+
+    final trials = <LiveLlmDiagnosticContextTrial>[];
+    final completed = <ChatCompletionResult>[];
+    for (final target in _effectiveContextTargets(maximum)) {
+      final stopwatch = Stopwatch()..start();
+      try {
+        final result = await _executeEffectiveContextTrial(target);
+        completed.add(result);
+        stopwatch.stop();
+        final expected = _effectiveContextExpectedReply(target);
+        final recallPassed = result.content.trim() == expected;
+        final usageReported = result.usage.promptTokens > 0;
+        trials.add(
+          LiveLlmDiagnosticContextTrial(
+            requestedApproximateTokens: target,
+            elapsed: stopwatch.elapsed,
+            passed: recallPassed && usageReported,
+            promptTokens: result.usage.promptTokens,
+            failure: !recallPassed
+                ? 'The response did not reproduce both boundary markers.'
+                : !usageReported
+                ? 'The endpoint omitted prompt token usage.'
+                : '',
+          ),
+        );
+      } catch (error) {
+        stopwatch.stop();
+        trials.add(
+          LiveLlmDiagnosticContextTrial(
+            requestedApproximateTokens: target,
+            elapsed: stopwatch.elapsed,
+            passed: false,
+            failure: _preview('$error', maxChars: 300),
+          ),
+        );
+      }
+      if (!trials.last.passed) break;
+    }
+
+    final metrics = LiveLlmDiagnosticEffectiveContextMetrics(
+      configuredMaximumTokens: maximum,
+      trials: List.unmodifiable(trials),
+    );
+    final measured = metrics.maxSuccessfulPromptTokens;
+    final status = measured == 0
+        ? LiveLlmDiagnosticStatus.failed
+        : metrics.reachedConfiguredMaximum
+        ? LiveLlmDiagnosticStatus.passed
+        : LiveLlmDiagnosticStatus.warning;
+    final summary = measured == 0
+        ? 'The context ladder could not produce a measured successful request.'
+        : metrics.reachedConfiguredMaximum
+        ? 'The model preserved both boundary markers through the configured maximum.'
+        : 'The context ladder found a boundary above the last successful request.';
+    updated = updated
+        .withProbeResult(
+          LiveLlmDiagnosticProbeResult(
+            id: _effectiveContextProbeId,
+            status: status,
+            summary: summary,
+            details: [
+              'Measured prompt tokens: $measured',
+              'Configured approximate maximum: $maximum',
+              if (effectiveContextMaxTokens > maximum)
+                'Requested maximum was clamped to $_effectiveContextHardMaximumTokens tokens.',
+              for (final trial in trials)
+                '${trial.requestedApproximateTokens}: '
+                    '${trial.passed ? 'passed' : 'failed'}'
+                    '${trial.promptTokens > 0 ? ' (${trial.promptTokens} prompt tokens)' : ''}'
+                    '${trial.failure.isNotEmpty ? ' - ${trial.failure}' : ''}',
+            ].join('\n'),
+            passedChecks: trials.where((trial) => trial.passed).length,
+            totalChecks: trials.length,
+            metadata: {'maxSuccessfulPromptTokens': '$measured'},
+            usage: _totalUsage(completed),
+            elapsed: DateTime.now().difference(startedAt),
+          ),
+        )
+        .copyWith(effectiveContextMetrics: metrics);
+    onReport?.call(updated);
+    return updated;
+  }
+
+  List<int> _effectiveContextTargets(int maximum) {
+    if (maximum <= _effectiveContextInitialTokens) return [maximum];
+    final targets = <int>[];
+    var target = _effectiveContextInitialTokens;
+    while (target < maximum) {
+      targets.add(target);
+      target *= 2;
+    }
+    if (targets.isEmpty || targets.last != maximum) targets.add(maximum);
+    return targets;
+  }
+
+  Future<ChatCompletionResult> _executeEffectiveContextTrial(int target) {
+    final messages = _effectiveContextMessages(target);
+    final injected = runEffectiveContextTrial;
+    if (injected != null) return injected(target, messages);
+    return chatDataSource.createChatCompletion(
+      messages: messages,
+      model: _diagnosticModel,
+      temperature: _diagnosticTemperature,
+      maxTokens: 32,
+    );
+  }
+
+  List<Message> _effectiveContextMessages(int target) {
+    final begin = _effectiveContextBeginMarker(target);
+    final end = _effectiveContextEndMarker(target);
+    final fillerCount = math.max(1, target - 128);
+    final content = StringBuffer()
+      ..writeln(
+        'Read the DATA block. Reply with exactly its first and last data lines '
+        'separated by |, with no spaces or other text.',
+      )
+      ..writeln('DATA')
+      ..writeln(begin)
+      ..write(List.filled(fillerCount, 'pad').join(' '))
+      ..writeln()
+      ..writeln(end)
+      ..write('END DATA');
+    return _messages(user: content.toString());
+  }
+
+  String _effectiveContextExpectedReply(int target) =>
+      '${_effectiveContextBeginMarker(target)}|${_effectiveContextEndMarker(target)}';
+
+  String _effectiveContextBeginMarker(int target) => 'CTX_BEGIN_$target';
+  String _effectiveContextEndMarker(int target) => 'CTX_END_$target';
 
   Future<LiveLlmDiagnosticProbeResult>
   _runFoundationModelsLanguageMatrixProbe() async {

@@ -21,10 +21,11 @@ class LiveLlmDiagnosticSuite {
   /// maximum stays at [maxPoints]: a growing total would make every historical
   /// score look worse for free. v3 adds streaming; v4 adds the sequential
   /// multi-round tool-loop probe, each time rebalancing to the same maximum.
-  /// v5 adds edit-format fidelity, v6 adds embeddings capability, and v7 adds
-  /// structured output. Each keeps the denominator fixed by rebalancing
-  /// existing probe weights.
-  static const version = 7;
+  /// v5 adds edit-format fidelity, v6 adds embeddings capability, v7 adds
+  /// structured output, and v8 adds the opt-in effective-context capability.
+  /// The context probe is physical measurement only, so it carries zero
+  /// conformance points and does not distort the fixed denominator.
+  static const version = 8;
 
   /// Points per probe. Weighted by how much of Caverno's agent loop the probe
   /// actually stands for: the tool-result round trip and the first tool call
@@ -37,6 +38,7 @@ class LiveLlmDiagnosticSuite {
     'exact_preservation': 60,
     'edit_format_fidelity': 55,
     'embeddings_capability': 55,
+    'effective_context': 0,
     'foundation_models_language_matrix': 20,
     'vision_attachment': 50,
     'vision_tool_observation': 35,

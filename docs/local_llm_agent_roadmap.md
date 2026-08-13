@@ -2702,7 +2702,19 @@ Implementation status:
      in with `CAVERNO_EMBEDDINGS_MODEL`; otherwise the probe skips without
      penalty. Live endpoint evidence for v6 remains pending explicit data-export
      consent.
-  7. Effective context. This probe remains expensive and should stay opt-in.
+  7. ~~Effective context.~~ **Implemented** in `cavernobench` v8. The headless
+     canary opts in with `CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS`; normal
+     diagnostics skip before allocating a long prompt. A doubling ladder places
+     unique markers at both ends of each data block and stops on the first
+     rejection, marker miss, or missing usage. Only endpoint-reported
+     `prompt_tokens` from successful trials become the measured lower bound,
+     which takes precedence over advertised metadata in `usableContextTokens`.
+     The probe is an unbounded physical measurement with zero conformance
+     points, so the fixed 1,000-point denominator does not move. Deterministic
+     verification passed. A 2026-08-14 live canary against
+     `qwen3.6-27b-vision` measured successful boundary recall through 16,498
+     endpoint-reported prompt tokens, found the next boundary at the 32,768
+     approximate-token trial, and completed with main readiness ready.
   8. ~~`response_format` / `json_schema`.~~ **Shipped** in `cavernobench` v7.
      `ChatRemoteDataSource` now exposes an opt-in structured-output capability
      without widening every provider contract. The probe first asks for a

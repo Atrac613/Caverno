@@ -110,7 +110,7 @@ void main() {
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.skipped)
           .length,
-      3,
+      4,
     );
   });
 
@@ -370,6 +370,90 @@ void main() {
     expect(result.status, LiveLlmDiagnosticStatus.failed);
     expect(result.summary, contains('unusable vectors'));
     expect(report.embeddingMetrics, isNull);
+  });
+
+  test('measures effective context through an explicit token ladder', () async {
+    final requested = <int>[];
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+      effectiveContextMaxTokens: 8192,
+      runEffectiveContextTrial: (target, messages) async {
+        requested.add(target);
+        expect(messages.last.content, contains('CTX_BEGIN_$target'));
+        expect(messages.last.content, contains('CTX_END_$target'));
+        return ChatCompletionResult(
+          content: 'CTX_BEGIN_$target|CTX_END_$target',
+          finishReason: 'stop',
+          usage: TokenUsage(
+            promptTokens: target + 50,
+            completionTokens: 8,
+            totalTokens: target + 58,
+          ),
+        );
+      },
+    );
+
+    final report = await service.run(probeIds: {'effective_context'});
+    final result = _result(report, 'effective_context');
+
+    expect(requested, [2048, 4096, 8192]);
+    expect(result.status, LiveLlmDiagnosticStatus.passed);
+    expect(report.effectiveContextMetrics, isNotNull);
+    expect(report.effectiveContextMetrics!.maxSuccessfulPromptTokens, 8242);
+    expect(report.effectiveContextMetrics!.reachedConfiguredMaximum, isTrue);
+  });
+
+  test('stops the context ladder at the first failed boundary', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+      effectiveContextMaxTokens: 16384,
+      runEffectiveContextTrial: (target, _) async {
+        if (target >= 8192) throw StateError('context overflow');
+        return ChatCompletionResult(
+          content: 'CTX_BEGIN_$target|CTX_END_$target',
+          finishReason: 'stop',
+          usage: TokenUsage(
+            promptTokens: target + 40,
+            completionTokens: 8,
+            totalTokens: target + 48,
+          ),
+        );
+      },
+    );
+
+    final report = await service.run(probeIds: {'effective_context'});
+    final result = _result(report, 'effective_context');
+
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(report.effectiveContextMetrics!.trials, hasLength(3));
+    expect(report.effectiveContextMetrics!.maxSuccessfulPromptTokens, 4136);
+    expect(report.effectiveContextMetrics!.firstFailedApproximateTokens, 8192);
+  });
+
+  test('does not run the expensive context ladder without opt-in', () async {
+    var invoked = false;
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+      runEffectiveContextTrial: (_, _) async {
+        invoked = true;
+        return ChatCompletionResult(content: '', finishReason: 'stop');
+      },
+    );
+
+    final report = await service.run(probeIds: {'effective_context'});
+
+    expect(invoked, isFalse);
+    expect(
+      _result(report, 'effective_context').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+    expect(report.effectiveContextMetrics, isNull);
   });
 
   test(

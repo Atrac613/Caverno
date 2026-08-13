@@ -380,4 +380,47 @@ void main() {
       reason: 'an endpoint that advertises no context window stays unmeasured',
     );
   });
+
+  test('prefers measured effective context over the advertised window', () {
+    final report = LiveLlmDiagnosticReport(
+      startedAt: DateTime.utc(2026, 8, 14),
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'context-model',
+      demoMode: false,
+      mcpEnabled: false,
+      effectiveContextMetrics: const LiveLlmDiagnosticEffectiveContextMetrics(
+        configuredMaximumTokens: 16384,
+        trials: [
+          LiveLlmDiagnosticContextTrial(
+            requestedApproximateTokens: 8192,
+            elapsed: Duration(milliseconds: 50),
+            passed: true,
+            promptTokens: 8320,
+          ),
+          LiveLlmDiagnosticContextTrial(
+            requestedApproximateTokens: 16384,
+            elapsed: Duration(milliseconds: 90),
+            passed: false,
+            failure: 'context overflow',
+          ),
+        ],
+      ),
+    );
+
+    final profile = ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+      report: report,
+      provider: LlmProvider.openAiCompatible,
+      usableContextTokens: 32768,
+    );
+
+    expect(profile.usableContextTokens, 8320);
+    expect(
+      profile.probeMetadata['effectiveContext.maxSuccessfulPromptTokens'],
+      '8320',
+    );
+    expect(
+      profile.probeMetadata['effectiveContext.reachedConfiguredMaximum'],
+      'false',
+    );
+  });
 }
