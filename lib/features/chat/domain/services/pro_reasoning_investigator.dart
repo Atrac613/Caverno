@@ -49,11 +49,19 @@ final class ProReasoningInvestigator {
     'list_directory',
   };
 
+  static const _externalToolNames = <String>{'web_search', 'web_url_read'};
+  static const _maxConsecutiveExternalFailureIterations = 2;
+
   static const _externalVerificationUnavailable =
       'External source verification status: unavailable. The question '
       'contains an external URL, but no web_search or web_url_read tool is '
       'available. Local file results cannot establish whether the linked '
       'resource exists or what it contains. Treat those claims as unverified.';
+
+  static const _externalVerificationFailed =
+      'External source verification stopped after repeated tool failures. '
+      'Do not infer that a linked resource is missing from these failures; '
+      'treat its existence and contents as unverified.';
 
   List<Map<String, dynamic>> readOnlyDefinitions(
     List<Map<String, dynamic>> definitions,
@@ -112,6 +120,7 @@ final class ProReasoningInvestigator {
       if (externalVerificationUnavailable) _externalVerificationUnavailable,
     ];
     final iterations = maxIterations < 0 ? 0 : maxIterations;
+    var consecutiveExternalFailureIterations = 0;
 
     for (var iteration = 0; iteration < iterations; iteration++) {
       if (isCancelled() || !_clock().isBefore(deadline)) break;
@@ -143,6 +152,8 @@ final class ProReasoningInvestigator {
       }
 
       final feedback = <Map<String, dynamic>>[];
+      var attemptedExternalVerification = false;
+      var externalVerificationSucceeded = false;
       for (final toolCall in toolCalls) {
         if (isCancelled() || !_clock().isBefore(deadline)) break;
         if (!allowedToolNames.contains(toolCall.name) ||
@@ -164,6 +175,10 @@ final class ProReasoningInvestigator {
             isSuccess: false,
             errorMessage: error.toString(),
           );
+        }
+        if (_externalToolNames.contains(toolCall.name)) {
+          attemptedExternalVerification = true;
+          externalVerificationSucceeded |= toolResult.isSuccess;
         }
         final resultText = _truncate(toolResult.result);
         final record = <String, dynamic>{
@@ -189,6 +204,16 @@ final class ProReasoningInvestigator {
               '${jsonEncode(feedback)}',
         ),
       );
+      if (attemptedExternalVerification && !externalVerificationSucceeded) {
+        consecutiveExternalFailureIterations++;
+      } else {
+        consecutiveExternalFailureIterations = 0;
+      }
+      if (consecutiveExternalFailureIterations >=
+          _maxConsecutiveExternalFailureIterations) {
+        evidence.add(_externalVerificationFailed);
+        break;
+      }
       if (_renderEvidenceBlock(evidence).length >= maxEvidenceCharacters) {
         break;
       }

@@ -195,6 +195,62 @@ void main() {
       expect(evidence, isNot(contains('Local file results cannot establish')));
     },
   );
+
+  test('stops after repeated external verification failures', () async {
+    final toolCallResult = ChatCompletionResult(
+      content: '',
+      finishReason: 'tool_calls',
+      toolCalls: [
+        ToolCallInfo(
+          id: 'search',
+          name: 'web_search',
+          arguments: {'query': 'linked model'},
+        ),
+      ],
+    );
+    final dataSource = _ScriptedInvestigationDataSource([
+      toolCallResult,
+      toolCallResult,
+      toolCallResult,
+    ]);
+    final dispatched = <String>[];
+    final now = DateTime.utc(2026, 8, 13, 10);
+
+    final evidence = await ProReasoningInvestigator(clock: () => now)
+        .investigate(
+          dataSource: dataSource,
+          model: 'research-model',
+          question: 'Inspect https://example.com/model.',
+          frame: const ProReasoningFrame(
+            subQuestions: ['Does the linked model exist?'],
+            investigationSteps: ['Inspect the linked model'],
+            successCriteria: ['Verify the external source'],
+            requiresInvestigation: true,
+          ),
+          maxIterations: 10,
+          deadline: now.add(const Duration(minutes: 1)),
+          isCancelled: () => false,
+          toolDefinitions: [_definition('web_search')],
+          runTool: (toolCall) async {
+            dispatched.add(toolCall.name);
+            return McpToolResult(
+              toolName: toolCall.name,
+              result: '',
+              isSuccess: false,
+              errorMessage: 'SearXNG search failed: 404',
+            );
+          },
+        );
+
+    expect(dataSource.calls, hasLength(2));
+    expect(dispatched, ['web_search', 'web_search']);
+    expect(evidence, contains('SearXNG search failed: 404'));
+    expect(
+      evidence,
+      contains('Do not infer that a linked resource is missing'),
+    );
+    expect(evidence, contains('existence and contents as unverified'));
+  });
 }
 
 Map<String, dynamic> _definition(String name, {bool external = false}) => {
