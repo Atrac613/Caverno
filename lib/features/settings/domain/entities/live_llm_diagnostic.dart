@@ -70,6 +70,7 @@ class LiveLlmDiagnosticProbeResult {
     this.usage = LiveLlmDiagnosticTokenUsage.zero,
     this.passedChecks = 0,
     this.totalChecks = 0,
+    this.metadata = const <String, String>{},
   });
 
   final String id;
@@ -90,6 +91,11 @@ class LiveLlmDiagnosticProbeResult {
   /// and a `warning` falls back to flat partial credit.
   final int totalChecks;
 
+  /// Machine-readable probe findings consumed by capability-profile builders.
+  /// Human-readable explanations belong in [details]; consumers must not parse
+  /// localized or presentation-oriented prose to recover a capability value.
+  final Map<String, String> metadata;
+
   LiveLlmDiagnosticProbeResult copyWith({
     LiveLlmDiagnosticStatus? status,
     String? summary,
@@ -100,6 +106,7 @@ class LiveLlmDiagnosticProbeResult {
     LiveLlmDiagnosticTokenUsage? usage,
     int? passedChecks,
     int? totalChecks,
+    Map<String, String>? metadata,
   }) {
     return LiveLlmDiagnosticProbeResult(
       id: id,
@@ -112,6 +119,7 @@ class LiveLlmDiagnosticProbeResult {
       usage: usage ?? this.usage,
       passedChecks: passedChecks ?? this.passedChecks,
       totalChecks: totalChecks ?? this.totalChecks,
+      metadata: metadata ?? this.metadata,
     );
   }
 
@@ -126,6 +134,7 @@ class LiveLlmDiagnosticProbeResult {
     'usage': usage.toJson(),
     if (totalChecks > 0) 'passedChecks': passedChecks,
     if (totalChecks > 0) 'totalChecks': totalChecks,
+    if (metadata.isNotEmpty) 'metadata': metadata,
   };
 }
 
@@ -317,6 +326,49 @@ class LiveLlmDiagnosticMultiRoundToolLoopMetrics {
   };
 }
 
+/// LL39 embedding capability in physical units and direct vector comparisons.
+///
+/// Endpoint protocol acceptance belongs to COMPAT1. This block records what
+/// Caverno's production embeddings client actually received and whether the
+/// selected embedding model placed a semantic paraphrase closer than an
+/// unrelated sentence.
+class LiveLlmDiagnosticEmbeddingMetrics {
+  const LiveLlmDiagnosticEmbeddingMetrics({
+    required this.totalElapsed,
+    required this.inputCount,
+    required this.returnedVectorCount,
+    required this.dimension,
+    required this.model,
+    required this.similarCosine,
+    required this.unrelatedCosine,
+  });
+
+  final Duration totalElapsed;
+  final int inputCount;
+  final int returnedVectorCount;
+  final int dimension;
+  final String model;
+  final double similarCosine;
+  final double unrelatedCosine;
+
+  double get semanticMargin => similarCosine - unrelatedCosine;
+
+  Map<String, dynamic> toJson() => {
+    'totalElapsedMs': totalElapsed.inMilliseconds,
+    'inputCount': inputCount,
+    'returnedVectorCount': returnedVectorCount,
+    'dimension': dimension,
+    'model': model,
+    'similarCosine': _roundMetric(similarCosine),
+    'unrelatedCosine': _roundMetric(unrelatedCosine),
+    'semanticMargin': _roundMetric(semanticMargin),
+  };
+
+  static double _roundMetric(double value) {
+    return double.parse(value.toStringAsFixed(6));
+  }
+}
+
 class LiveLlmDiagnosticReport {
   const LiveLlmDiagnosticReport({
     required this.startedAt,
@@ -330,6 +382,7 @@ class LiveLlmDiagnosticReport {
     this.samplerCalibrationTrials = const <LiveLlmDiagnosticSamplerTrial>[],
     this.streamingMetrics,
     this.multiRoundToolLoopMetrics,
+    this.embeddingMetrics,
   });
 
   final DateTime startedAt;
@@ -350,6 +403,11 @@ class LiveLlmDiagnosticReport {
   /// retains the work spent before the loop failed.
   final LiveLlmDiagnosticMultiRoundToolLoopMetrics? multiRoundToolLoopMetrics;
 
+  /// Null means no embeddings model was configured or the capability was not
+  /// measured. A returned but semantically weak vector set remains present so
+  /// the failure can be inspected without conflating it with no endpoint.
+  final LiveLlmDiagnosticEmbeddingMetrics? embeddingMetrics;
+
   LiveLlmDiagnosticReport copyWith({
     DateTime? finishedAt,
     LiveLlmDiagnosticToolCatalog? toolCatalog,
@@ -357,6 +415,7 @@ class LiveLlmDiagnosticReport {
     List<LiveLlmDiagnosticSamplerTrial>? samplerCalibrationTrials,
     LiveLlmDiagnosticStreamingMetrics? streamingMetrics,
     LiveLlmDiagnosticMultiRoundToolLoopMetrics? multiRoundToolLoopMetrics,
+    LiveLlmDiagnosticEmbeddingMetrics? embeddingMetrics,
   }) {
     return LiveLlmDiagnosticReport(
       startedAt: startedAt,
@@ -372,6 +431,7 @@ class LiveLlmDiagnosticReport {
       streamingMetrics: streamingMetrics ?? this.streamingMetrics,
       multiRoundToolLoopMetrics:
           multiRoundToolLoopMetrics ?? this.multiRoundToolLoopMetrics,
+      embeddingMetrics: embeddingMetrics ?? this.embeddingMetrics,
     );
   }
 
@@ -461,6 +521,7 @@ class LiveLlmDiagnosticReport {
     if (streamingMetrics != null) 'streaming': streamingMetrics!.toJson(),
     if (multiRoundToolLoopMetrics != null)
       'multiRoundToolLoop': multiRoundToolLoopMetrics!.toJson(),
+    if (embeddingMetrics != null) 'embeddings': embeddingMetrics!.toJson(),
     'results': results.map((result) => result.toJson()).toList(),
     if (samplerCalibrationTrials.isNotEmpty)
       'samplerCalibrationTrials': samplerCalibrationTrials

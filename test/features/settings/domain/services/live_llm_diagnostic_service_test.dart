@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:caverno/core/services/apple_foundation_models_platform_client.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/data/datasources/embeddings_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -67,7 +68,15 @@ void main() {
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.passed)
           .length,
-      12,
+      14,
+    );
+    expect(
+      _result(report, 'edit_format_fidelity').metadata['editFormatPreference'],
+      'unifiedDiff',
+    );
+    expect(
+      _result(report, 'structured_output').metadata['structuredOutputSupport'],
+      'jsonSchema',
     );
     expect(
       _result(report, 'streaming_response').status,
@@ -101,7 +110,7 @@ void main() {
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.skipped)
           .length,
-      2,
+      3,
     );
   });
 
@@ -145,9 +154,11 @@ void main() {
       probeIds: LiveLlmDiagnosticService.modelCapabilityProbeIds,
     );
 
-    // 27 pre-vision requests (including streaming) plus the vision block: two
+    // 31 pre-vision requests (including structured output, streaming, and
+    // three edit formats) plus
+    // the vision block: two
     // attachment arms and one tool-observation request.
-    expect(dataSource.requestedModels, List.filled(30, 'test-model'));
+    expect(dataSource.requestedModels, List.filled(34, 'test-model'));
     expect(
       report.samplerCalibrationTrials
           .map((trial) => trial.requestClass)
@@ -157,6 +168,18 @@ void main() {
     expect(
       _result(report, 'instruction_echo').status,
       LiveLlmDiagnosticStatus.passed,
+    );
+    expect(
+      _result(report, 'structured_output').status,
+      LiveLlmDiagnosticStatus.passed,
+    );
+    expect(
+      _result(report, 'edit_format_fidelity').status,
+      LiveLlmDiagnosticStatus.passed,
+    );
+    expect(
+      _result(report, 'embeddings_capability').status,
+      LiveLlmDiagnosticStatus.skipped,
     );
     expect(
       _result(report, 'exact_preservation').status,
@@ -180,6 +203,175 @@ void main() {
     );
   });
 
+  test('selects the strongest exactly reproduced edit format', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _EditFormatDiagnosticDataSource({
+        ModelEditFormatPreference.wholeFile,
+        ModelEditFormatPreference.searchReplace,
+      }),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: {'edit_format_fidelity'});
+    final result = _result(report, 'edit_format_fidelity');
+
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(result.passedChecks, 2);
+    expect(result.totalChecks, 3);
+    expect(result.metadata['editFormatPreference'], 'searchReplace');
+  });
+
+  test('keeps edit format unknown when every exact contract fails', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _EditFormatDiagnosticDataSource(const {}),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: {'edit_format_fidelity'});
+    final result = _result(report, 'edit_format_fidelity');
+
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.metadata['editFormatPreference'], 'unknown');
+  });
+
+  test('prefers JSON Schema structured output when it is enforced', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: {'structured_output'});
+    final result = _result(report, 'structured_output');
+
+    expect(result.status, LiveLlmDiagnosticStatus.passed);
+    expect(result.passedChecks, 2);
+    expect(result.metadata['structuredOutputSupport'], 'jsonSchema');
+    expect(
+      ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+        report: report,
+        provider: LlmProvider.openAiCompatible,
+      ).structuredOutputSupport,
+      ModelStructuredOutputSupport.jsonSchema,
+    );
+  });
+
+  test('falls back to JSON object structured output', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(
+        structuredOutputSupport: ModelStructuredOutputSupport.jsonObject,
+      ),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: {'structured_output'});
+    final result = _result(report, 'structured_output');
+
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(result.passedChecks, 1);
+    expect(result.metadata['structuredOutputSupport'], 'jsonObject');
+    expect(result.details, contains('json_schema: request failed'));
+  });
+
+  test('records no structured output support when both modes fail', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(
+        structuredOutputSupport: ModelStructuredOutputSupport.none,
+      ),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: {'structured_output'});
+    final result = _result(report, 'structured_output');
+
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.passedChecks, 0);
+    expect(result.metadata['structuredOutputSupport'], 'none');
+  });
+
+  test('measures usable embeddings and semantic separation', () async {
+    late List<String> capturedInputs;
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false, embeddingsModel: 'qwen-embedding'),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+      embedTexts: (inputs) async {
+        capturedInputs = inputs;
+        return const EmbeddingsResult(
+          model: 'qwen-embedding',
+          vectors: [
+            [1, 0],
+            [0.9, 0.1],
+            [0, 1],
+          ],
+        );
+      },
+    );
+
+    final report = await service.run(probeIds: {'embeddings_capability'});
+    final result = _result(report, 'embeddings_capability');
+
+    expect(capturedInputs, hasLength(3));
+    expect(result.status, LiveLlmDiagnosticStatus.passed);
+    expect(report.embeddingMetrics, isNotNull);
+    expect(report.embeddingMetrics!.dimension, 2);
+    expect(report.embeddingMetrics!.returnedVectorCount, 3);
+    expect(report.embeddingMetrics!.semanticMargin, greaterThan(0.05));
+  });
+
+  test('warns when usable embeddings do not preserve semantic order', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false, embeddingsModel: 'weak-embedding'),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+      embedTexts: (_) async => const EmbeddingsResult(
+        model: 'weak-embedding',
+        vectors: [
+          [1, 0],
+          [0, 1],
+          [0.9, 0.1],
+        ],
+      ),
+    );
+
+    final report = await service.run(probeIds: {'embeddings_capability'});
+    final result = _result(report, 'embeddings_capability');
+
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(result.passedChecks, 1);
+    expect(report.embeddingMetrics, isNotNull);
+    expect(report.embeddingMetrics!.semanticMargin, lessThan(0));
+  });
+
+  test('rejects structurally invalid embedding vectors', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(
+        mcpEnabled: false,
+        embeddingsModel: 'broken-embedding',
+      ),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+      embedTexts: (_) async => const EmbeddingsResult(
+        model: 'broken-embedding',
+        vectors: [
+          [1, 0],
+          [1],
+        ],
+      ),
+    );
+
+    final report = await service.run(probeIds: {'embeddings_capability'});
+    final result = _result(report, 'embeddings_capability');
+
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.summary, contains('unusable vectors'));
+    expect(report.embeddingMetrics, isNull);
+  });
+
   test(
     'uses textual tool calls for Apple Foundation Models diagnostics',
     () async {
@@ -200,7 +392,7 @@ void main() {
       expect(report.baseUrl, 'apple-foundation-models://local');
       expect(report.model, AppSettings.appleFoundationModelsModelId);
       expect(dataSource.requestedModels, [
-        for (var i = 0; i < 10; i += 1)
+        for (var i = 0; i < 13; i += 1)
           AppSettings.appleFoundationModelsModelId,
       ]);
       expect(dataSource.toolResultFollowUpCount, 0);
@@ -499,11 +691,13 @@ AppSettings _settings({
   LlmProvider llmProvider = LlmProvider.openAiCompatible,
   String baseUrl = 'http://localhost:1234/v1',
   String model = 'test-model',
+  String embeddingsModel = '',
 }) {
   return AppSettings.defaults().copyWith(
     llmProvider: llmProvider,
     baseUrl: baseUrl,
     model: model,
+    embeddingsModel: embeddingsModel,
     mcpEnabled: mcpEnabled,
     mcpUrl: '',
     mcpUrls: const <String>[],
@@ -518,12 +712,44 @@ LiveLlmDiagnosticProbeResult _result(
   return report.results.singleWhere((result) => result.id == id);
 }
 
-class _FakeDiagnosticDataSource implements ChatDataSource {
-  _FakeDiagnosticDataSource({this.textToolCalls = false});
+class _FakeDiagnosticDataSource
+    implements ChatDataSource, StructuredOutputChatDataSource {
+  _FakeDiagnosticDataSource({
+    this.textToolCalls = false,
+    this.structuredOutputSupport = ModelStructuredOutputSupport.jsonSchema,
+  });
 
   final bool textToolCalls;
+  final ModelStructuredOutputSupport structuredOutputSupport;
   int toolResultFollowUpCount = 0;
   final List<String?> requestedModels = [];
+
+  @override
+  Future<ChatCompletionResult> createStructuredChatCompletion({
+    required List<Message> messages,
+    required StructuredOutputRequest responseFormat,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    requestedModels.add(model);
+    if (responseFormat.format == StructuredOutputFormat.jsonSchema) {
+      if (structuredOutputSupport != ModelStructuredOutputSupport.jsonSchema) {
+        throw StateError('json_schema unsupported');
+      }
+      return ChatCompletionResult(
+        content: '{"marker":"CAVERNO_SCHEMA_LOCKED_47","count":47}',
+        finishReason: 'stop',
+      );
+    }
+    if (structuredOutputSupport == ModelStructuredOutputSupport.none) {
+      throw StateError('json_object unsupported');
+    }
+    return ChatCompletionResult(
+      content: '{"marker":"CAVERNO_JSON_OBJECT_OK","count":47}',
+      finishReason: 'stop',
+    );
+  }
 
   @override
   Future<ChatCompletionResult> createChatCompletion({
@@ -558,6 +784,24 @@ class _FakeDiagnosticDataSource implements ChatDataSource {
       return ChatCompletionResult(
         content:
             '{"probe":"instruction_echo","status":"ok","marker":"CAVERNO_LIVE_DIAGNOSTIC"}',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('complete updated file contents')) {
+      return ChatCompletionResult(
+        content: _editFormatWholeFile,
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('one exact SEARCH/REPLACE block')) {
+      return ChatCompletionResult(
+        content: _editFormatSearchReplace,
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('one unified diff')) {
+      return ChatCompletionResult(
+        content: _editFormatUnifiedDiff,
         finishReason: 'stop',
       );
     }
@@ -782,6 +1026,74 @@ class _FakeDiagnosticDataSource implements ChatDataSource {
         ToolCallInfo(id: 'call-$name', name: name, arguments: arguments),
       ],
       finishReason: 'tool_calls',
+    );
+  }
+}
+
+const _editFormatWholeFile = '''String buildLabel(String name) {
+  final trimmed = name.trim();
+  return 'Welcome, \$trimmed!';
+}''';
+final _editFormatSearchReplace = [
+  '<<<<<<< SEARCH',
+  "  return 'Hello, \$trimmed!';",
+  '=======',
+  "  return 'Welcome, \$trimmed!';",
+  '>>>>>>> REPLACE',
+].join('\n');
+const _editFormatUnifiedDiff = '''--- a/lib/greeting.dart
++++ b/lib/greeting.dart
+@@ -1,4 +1,4 @@
+ String buildLabel(String name) {
+   final trimmed = name.trim();
+-  return 'Hello, \$trimmed!';
++  return 'Welcome, \$trimmed!';
+ }''';
+
+class _EditFormatDiagnosticDataSource extends _FakeDiagnosticDataSource {
+  _EditFormatDiagnosticDataSource(this.supported);
+
+  final Set<ModelEditFormatPreference> supported;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    final prompt = messages.last.content;
+    if (prompt.contains('complete updated file contents')) {
+      return ChatCompletionResult(
+        content: supported.contains(ModelEditFormatPreference.wholeFile)
+            ? _editFormatWholeFile
+            : 'I changed the greeting.',
+        finishReason: 'stop',
+      );
+    }
+    if (prompt.contains('one exact SEARCH/REPLACE block')) {
+      return ChatCompletionResult(
+        content: supported.contains(ModelEditFormatPreference.searchReplace)
+            ? _editFormatSearchReplace
+            : 'I changed the greeting.',
+        finishReason: 'stop',
+      );
+    }
+    if (prompt.contains('one unified diff')) {
+      return ChatCompletionResult(
+        content: supported.contains(ModelEditFormatPreference.unifiedDiff)
+            ? _editFormatUnifiedDiff
+            : 'I changed the greeting.',
+        finishReason: 'stop',
+      );
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
     );
   }
 }

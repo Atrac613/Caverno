@@ -50,7 +50,7 @@ class ModelCapabilityProfileBuilder {
       toolCallStyle: _toolCallStyle(report, provider),
       structuredOutputSupport: _structuredOutputSupport(report),
       goalUpdateFidelity: _goalUpdateFidelity(report),
-      editFormatPreference: ModelEditFormatPreference.unknown,
+      editFormatPreference: _editFormatPreference(report),
       visionSupport: _visionSupport(report),
       usableContextTokens: usableContextTokens,
       probedAt: report.finishedAt ?? report.startedAt,
@@ -145,18 +145,15 @@ class ModelCapabilityProfileBuilder {
   static ModelStructuredOutputSupport _structuredOutputSupport(
     LiveLlmDiagnosticReport report,
   ) {
-    final instruction = _result(report, 'instruction_echo');
-    if (instruction == null ||
-        instruction.status == LiveLlmDiagnosticStatus.skipped) {
+    final result = _result(report, 'structured_output');
+    if (result == null || result.status == LiveLlmDiagnosticStatus.skipped) {
       return ModelStructuredOutputSupport.unknown;
     }
-    if (instruction.status == LiveLlmDiagnosticStatus.passed) {
-      return ModelStructuredOutputSupport.jsonObject;
-    }
-    if (instruction.status == LiveLlmDiagnosticStatus.failed) {
-      return ModelStructuredOutputSupport.none;
-    }
-    return ModelStructuredOutputSupport.unknown;
+    final value = result.metadata['structuredOutputSupport'];
+    return ModelStructuredOutputSupport.values.firstWhere(
+      (support) => support.name == value,
+      orElse: () => ModelStructuredOutputSupport.unknown,
+    );
   }
 
   static ModelGoalUpdateFidelity _goalUpdateFidelity(
@@ -168,6 +165,22 @@ class ModelCapabilityProfileBuilder {
       LiveLlmDiagnosticStatus.failed => ModelGoalUpdateFidelity.unreliable,
       _ => ModelGoalUpdateFidelity.unknown,
     };
+  }
+
+  static ModelEditFormatPreference _editFormatPreference(
+    LiveLlmDiagnosticReport report,
+  ) {
+    final result = _result(report, 'edit_format_fidelity');
+    if (result == null ||
+        result.status == LiveLlmDiagnosticStatus.failed ||
+        result.status == LiveLlmDiagnosticStatus.skipped) {
+      return ModelEditFormatPreference.unknown;
+    }
+    final value = result.metadata['editFormatPreference'];
+    return ModelEditFormatPreference.values.firstWhere(
+      (preference) => preference.name == value,
+      orElse: () => ModelEditFormatPreference.unknown,
+    );
   }
 
   /// LL39 vision axis, derived from the two production message shapes.

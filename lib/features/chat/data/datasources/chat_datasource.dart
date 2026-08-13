@@ -129,6 +129,38 @@ abstract interface class FinishReasonAware {
   String? get lastFinishReason;
 }
 
+enum StructuredOutputFormat { jsonSchema, jsonObject }
+
+class StructuredOutputRequest {
+  const StructuredOutputRequest.jsonSchema({
+    required this.name,
+    required this.schema,
+  }) : format = StructuredOutputFormat.jsonSchema;
+
+  const StructuredOutputRequest.jsonObject()
+    : format = StructuredOutputFormat.jsonObject,
+      name = '',
+      schema = const <String, dynamic>{};
+
+  final StructuredOutputFormat format;
+  final String name;
+  final Map<String, dynamic> schema;
+}
+
+/// Opt-in chat-completions capability for OpenAI-compatible structured output.
+///
+/// This stays separate from [ChatDataSource] because local and demo providers
+/// do not necessarily expose the `response_format` request field.
+abstract interface class StructuredOutputChatDataSource {
+  Future<ChatCompletionResult> createStructuredChatCompletion({
+    required List<Message> messages,
+    required StructuredOutputRequest responseFormat,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  });
+}
+
 /// Abstract interface for chat data sources.
 ///
 /// Both [ChatRemoteDataSource] (real API) and [DemoDataSource] implement this.

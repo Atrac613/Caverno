@@ -32,6 +32,7 @@ void main() {
       expect(script, contains('CAVERNO_LLM_BASE_URL:?'));
       expect(script, contains('CAVERNO_LLM_API_KEY:?'));
       expect(script, contains('CAVERNO_LLM_MODEL:?'));
+      expect(script, contains('CAVERNO_EMBEDDINGS_MODEL'));
     });
 
     test('documents the loopback requirement for a LAN endpoint', () {

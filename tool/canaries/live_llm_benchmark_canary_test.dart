@@ -135,6 +135,8 @@ File _writeArtifact(_BenchmarkCanaryEnv env, List<_BenchmarkCanaryRun> runs) {
     'generatedAt': DateTime.now().toIso8601String(),
     'baseUrl': env.settings.baseUrl,
     'model': env.settings.effectiveModel,
+    if (env.settings.embeddingsModel.isNotEmpty)
+      'embeddingsModel': env.settings.embeddingsModel,
     'repeatCount': runs.length,
     // The spread across repeats is the whole reason this canary takes a repeat
     // count: it is the same noise floor the in-app history derives from stored
@@ -207,6 +209,8 @@ class _BenchmarkCanaryEnv {
             ? ''
             : (Platform.environment['CAVERNO_LLM_API_KEY'] ?? ''),
         model: model,
+        embeddingsModel:
+            Platform.environment['CAVERNO_EMBEDDINGS_MODEL']?.trim() ?? '',
         demoMode: false,
         mcpEnabled: true,
         mcpUrl: '',

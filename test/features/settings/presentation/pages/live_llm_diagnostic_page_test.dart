@@ -289,6 +289,48 @@ void main() {
     expect(find.text('Yes'), findsOneWidget);
   });
 
+  testWidgets('shows embeddings physical measurements outside the score', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      settings: AppSettings.defaults(),
+      diagnosticState: LiveLlmDiagnosticState(
+        report: LiveLlmDiagnosticReport(
+          startedAt: DateTime.utc(2026, 8, 13),
+          finishedAt: DateTime.utc(2026, 8, 13, 0, 0, 1),
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'chat-model',
+          demoMode: false,
+          mcpEnabled: false,
+          embeddingMetrics: const LiveLlmDiagnosticEmbeddingMetrics(
+            totalElapsed: Duration(milliseconds: 42),
+            inputCount: 3,
+            returnedVectorCount: 3,
+            dimension: 2048,
+            model: 'qwen-embedding',
+            similarCosine: 0.91,
+            unrelatedCosine: 0.22,
+          ),
+        ),
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('live-llm-diag-embedding-model-tile')),
+      400,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('Embedding model'), findsOneWidget);
+    expect(find.text('qwen-embedding'), findsOneWidget);
+    expect(find.text('Embedding dimension'), findsOneWidget);
+    expect(find.text('2048'), findsOneWidget);
+    expect(find.text('3 / 3'), findsOneWidget);
+    expect(find.text('0.690'), findsOneWidget);
+    expect(find.text('42 ms'), findsOneWidget);
+  });
+
   testWidgets('shows profile history empty state when no revisions', (
     tester,
   ) async {

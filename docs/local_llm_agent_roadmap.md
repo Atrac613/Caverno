@@ -2684,9 +2684,35 @@ Implementation status:
      turns-to-completion becomes measurable. Validated live on
      `qwen3.6-35b-a3b-vision`: 3 model turns, 2 successful tool executions,
      3,282 tokens, 2,985 ms.
-  5. Edit-format fidelity, embeddings, effective context.
-  6. `response_format` / `json_schema`. Cheap, but it widens the saturating
-     tier, so it now sorts last despite costing one request.
+  5. ~~Edit-format fidelity.~~ **Shipped** in `cavernobench` v5. The probe asks
+     for the same bounded Dart change as whole-file, exact SEARCH/REPLACE, and
+     unified-diff output, grades each response mechanically without applying
+     it, and records the strongest reliable format as machine-readable probe
+     metadata. `ModelCapabilityProfileBuilder` now populates every
+     `ModelEditFormatPreference` branch from live evidence instead of always
+     returning `unknown`. Partial format support earns proportional credit,
+     and the fixed maximum remains 1,000 after rebalancing.
+  6. ~~Embeddings.~~ **Shipped** in `cavernobench` v6. The probe reuses LL5's
+     production `EmbeddingsClient` and sends an anchor, paraphrase, and
+     unrelated control in one request. It rejects missing, non-finite, zero,
+     or unequal-width vectors, then records request latency, model identity,
+     vector count, dimension, both cosine similarities, and their semantic
+     margin as physical units outside the score. A structurally valid but weak
+     semantic margin remains inspectable as a warning. The headless canary opts
+     in with `CAVERNO_EMBEDDINGS_MODEL`; otherwise the probe skips without
+     penalty. Live endpoint evidence for v6 remains pending explicit data-export
+     consent.
+  7. Effective context. This probe remains expensive and should stay opt-in.
+  8. ~~`response_format` / `json_schema`.~~ **Shipped** in `cavernobench` v7.
+     `ChatRemoteDataSource` now exposes an opt-in structured-output capability
+     without widening every provider contract. The probe first asks for a
+     strict schema whose keys and constants appear only in `response_format`,
+     then falls back to `json_object` after a rejected or violated schema
+     request. Machine-readable evidence maps `jsonSchema`, `jsonObject`, and
+     `none` directly into `ModelCapabilityProfile`, making every consumer branch
+     reachable from a live run. Apple Foundation Models and incapable wrapper
+     datasources skip without penalty. Live endpoint evidence for v7 remains
+     pending explicit data-export consent.
 
 Cost note:
 - The suite is already ~43 requests; the additions roughly reach ~55, and

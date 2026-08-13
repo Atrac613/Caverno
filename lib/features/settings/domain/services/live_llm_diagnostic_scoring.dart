@@ -21,25 +21,31 @@ class LiveLlmDiagnosticSuite {
   /// maximum stays at [maxPoints]: a growing total would make every historical
   /// score look worse for free. v3 adds streaming; v4 adds the sequential
   /// multi-round tool-loop probe, each time rebalancing to the same maximum.
-  static const version = 4;
+  /// v5 adds edit-format fidelity, v6 adds embeddings capability, and v7 adds
+  /// structured output. Each keeps the denominator fixed by rebalancing
+  /// existing probe weights.
+  static const version = 7;
 
   /// Points per probe. Weighted by how much of Caverno's agent loop the probe
   /// actually stands for: the tool-result round trip and the first tool call
   /// carry a turn, while remote MCP exposure only reports what the environment
   /// loaded.
   static const probePoints = <String, int>{
-    'instruction_echo': 60,
-    'streaming_response': 65,
-    'exact_preservation': 75,
-    'foundation_models_language_matrix': 30,
-    'vision_attachment': 65,
-    'vision_tool_observation': 45,
-    'narrow_tool_call': 80,
-    'update_goal_fidelity': 70,
-    'tool_result_integration': 90,
-    'multi_round_tool_loop': 80,
-    'initial_harness_selection': 60,
-    'tool_search_catalog': 40,
+    'instruction_echo': 40,
+    'structured_output': 50,
+    'streaming_response': 50,
+    'exact_preservation': 60,
+    'edit_format_fidelity': 55,
+    'embeddings_capability': 55,
+    'foundation_models_language_matrix': 20,
+    'vision_attachment': 50,
+    'vision_tool_observation': 35,
+    'narrow_tool_call': 65,
+    'update_goal_fidelity': 60,
+    'tool_result_integration': 75,
+    'multi_round_tool_loop': 65,
+    'initial_harness_selection': 45,
+    'tool_search_catalog': 35,
     'subagent_recognition': 25,
     'remote_mcp_exposure': 15,
   };

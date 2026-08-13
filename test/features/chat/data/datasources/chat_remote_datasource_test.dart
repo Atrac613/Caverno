@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:flutter/foundation.dart';
@@ -67,6 +68,70 @@ void main() {
     );
 
     expect(requestBody?['top_p'], 0.95);
+  });
+
+  test('serializes JSON Schema response formatting', () async {
+    Map<String, dynamic>? requestBody;
+    final client = MockClient((request) async {
+      requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          'id': 'completion-structured',
+          'object': 'chat.completion',
+          'created': 0,
+          'model': 'test-model',
+          'choices': [
+            {
+              'index': 0,
+              'message': {
+                'role': 'assistant',
+                'content': '{"marker":"LOCKED"}',
+              },
+              'finish_reason': 'stop',
+            },
+          ],
+        }),
+        200,
+        headers: const {'content-type': 'application/json'},
+      );
+    });
+    final structuredDataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      httpClient: client,
+    );
+
+    await structuredDataSource.createStructuredChatCompletion(
+      messages: [_userMessage()],
+      responseFormat: const StructuredOutputRequest.jsonSchema(
+        name: 'diagnostic',
+        schema: {
+          'type': 'object',
+          'properties': {
+            'marker': {'type': 'string', 'const': 'LOCKED'},
+          },
+          'required': ['marker'],
+          'additionalProperties': false,
+        },
+      ),
+      model: 'test-model',
+    );
+
+    expect(requestBody?['response_format'], {
+      'type': 'json_schema',
+      'json_schema': {
+        'name': 'diagnostic',
+        'schema': {
+          'type': 'object',
+          'properties': {
+            'marker': {'type': 'string', 'const': 'LOCKED'},
+          },
+          'required': ['marker'],
+          'additionalProperties': false,
+        },
+        'strict': true,
+      },
+    });
   });
 
   test('returns null when the error does not include recoverable raw text', () {

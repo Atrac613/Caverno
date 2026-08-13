@@ -3,6 +3,54 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 
 void main() {
+  test('serializes embeddings capability metrics in physical units', () {
+    const metrics = LiveLlmDiagnosticEmbeddingMetrics(
+      totalElapsed: Duration(milliseconds: 42),
+      inputCount: 3,
+      returnedVectorCount: 3,
+      dimension: 2048,
+      model: 'qwen-embedding',
+      similarCosine: 0.91,
+      unrelatedCosine: 0.22,
+    );
+    final report = LiveLlmDiagnosticReport(
+      startedAt: DateTime.utc(2026, 8, 13),
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'chat-model',
+      demoMode: false,
+      mcpEnabled: false,
+      embeddingMetrics: metrics,
+    );
+
+    expect(metrics.semanticMargin, closeTo(0.69, 1e-9));
+    expect(report.toJson()['embeddings'], {
+      'totalElapsedMs': 42,
+      'inputCount': 3,
+      'returnedVectorCount': 3,
+      'dimension': 2048,
+      'model': 'qwen-embedding',
+      'similarCosine': 0.91,
+      'unrelatedCosine': 0.22,
+      'semanticMargin': 0.69,
+    });
+  });
+
+  test('serializes machine-readable probe metadata', () {
+    const result = LiveLlmDiagnosticProbeResult(
+      id: 'edit_format_fidelity',
+      status: LiveLlmDiagnosticStatus.warning,
+      summary: 'One format passed.',
+      passedChecks: 1,
+      totalChecks: 3,
+      metadata: {'editFormatPreference': 'wholeFile'},
+    );
+
+    expect(result.toJson()['metadata'], {'editFormatPreference': 'wholeFile'});
+    expect(result.copyWith(status: LiveLlmDiagnosticStatus.passed).metadata, {
+      'editFormatPreference': 'wholeFile',
+    });
+  });
+
   test('serializes completed multi-round tool-loop measurements', () {
     const metrics = LiveLlmDiagnosticMultiRoundToolLoopMetrics(
       totalElapsed: Duration(milliseconds: 1450),

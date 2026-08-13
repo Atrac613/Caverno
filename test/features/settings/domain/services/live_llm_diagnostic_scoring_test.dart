@@ -24,9 +24,13 @@ void main() {
       LiveLlmDiagnosticSuite.probePointsTotal +
           LiveLlmDiagnosticSuite.samplerStabilityPoints,
     );
-    expect(LiveLlmDiagnosticSuite.version, 4);
+    expect(LiveLlmDiagnosticSuite.version, 7);
     expect(
-      LiveLlmDiagnosticSuite.pointsFor('multi_round_tool_loop'),
+      LiveLlmDiagnosticSuite.pointsFor('structured_output'),
+      greaterThan(0),
+    );
+    expect(
+      LiveLlmDiagnosticSuite.pointsFor('embeddings_capability'),
       greaterThan(0),
     );
   });

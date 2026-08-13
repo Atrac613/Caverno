@@ -48,6 +48,9 @@ echo "  Canary: ${CANARY_NAME}"
 echo "  Provider: ${LLM_PROVIDER}"
 echo "  Base URL: ${CAVERNO_LLM_BASE_URL}"
 echo "  Model: ${CAVERNO_LLM_MODEL}"
+if [[ -n "${CAVERNO_EMBEDDINGS_MODEL:-}" ]]; then
+  echo "  Embeddings model: ${CAVERNO_EMBEDDINGS_MODEL}"
+fi
 echo "  Repeats: ${REPEAT_COUNT}"
 echo "  Report directory: ${RUN_DIR}"
 
@@ -71,6 +74,7 @@ CAVERNO_LLM_PROVIDER="${LLM_PROVIDER}" \
 CAVERNO_LLM_BASE_URL="${CAVERNO_LLM_BASE_URL}" \
 CAVERNO_LLM_API_KEY="${CAVERNO_LLM_API_KEY}" \
 CAVERNO_LLM_MODEL="${CAVERNO_LLM_MODEL}" \
+CAVERNO_EMBEDDINGS_MODEL="${CAVERNO_EMBEDDINGS_MODEL:-}" \
 "${FLUTTER_TEST_COMMAND[@]}" > "${LOG_PATH}" 2>&1
 TEST_STATUS=$?
 set -e

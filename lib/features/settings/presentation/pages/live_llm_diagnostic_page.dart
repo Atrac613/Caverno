@@ -67,11 +67,13 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
           else ...[
             _SummarySection(report: report),
             if (report.streamingMetrics != null ||
-                report.multiRoundToolLoopMetrics != null) ...[
+                report.multiRoundToolLoopMetrics != null ||
+                report.embeddingMetrics != null) ...[
               const SizedBox(height: 16),
               _CapabilitySection(
                 streamingMetrics: report.streamingMetrics,
                 multiRoundMetrics: report.multiRoundToolLoopMetrics,
+                embeddingMetrics: report.embeddingMetrics,
               ),
             ],
             const SizedBox(height: 16),
@@ -453,10 +455,15 @@ class _SummarySection extends StatelessWidget {
 /// bounded score rather than merged into it: conformance saturates, and these
 /// are the figures that still separate two models when it does.
 class _CapabilitySection extends StatelessWidget {
-  const _CapabilitySection({this.streamingMetrics, this.multiRoundMetrics});
+  const _CapabilitySection({
+    this.streamingMetrics,
+    this.multiRoundMetrics,
+    this.embeddingMetrics,
+  });
 
   final LiveLlmDiagnosticStreamingMetrics? streamingMetrics;
   final LiveLlmDiagnosticMultiRoundToolLoopMetrics? multiRoundMetrics;
+  final LiveLlmDiagnosticEmbeddingMetrics? embeddingMetrics;
 
   @override
   Widget build(BuildContext context) {
@@ -547,6 +554,38 @@ class _CapabilitySection extends StatelessWidget {
                 value: metrics.taskCompleted
                     ? 'settings.live_llm_diag_yes'.tr()
                     : 'settings.live_llm_diag_no'.tr(),
+              ),
+            ],
+            if (embeddingMetrics case final metrics?) ...[
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-embedding-model-tile'),
+                icon: Icons.hub_outlined,
+                label: 'settings.live_llm_diag_embedding_model'.tr(),
+                value: metrics.model,
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-embedding-dimension-tile'),
+                icon: Icons.straighten_outlined,
+                label: 'settings.live_llm_diag_embedding_dimension'.tr(),
+                value: '${metrics.dimension}',
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-embedding-vectors-tile'),
+                icon: Icons.data_array_outlined,
+                label: 'settings.live_llm_diag_embedding_vectors'.tr(),
+                value: '${metrics.returnedVectorCount} / ${metrics.inputCount}',
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-embedding-margin-tile'),
+                icon: Icons.compare_arrows_outlined,
+                label: 'settings.live_llm_diag_embedding_margin'.tr(),
+                value: metrics.semanticMargin.toStringAsFixed(3),
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-embedding-elapsed-tile'),
+                icon: Icons.timer_outlined,
+                label: 'settings.live_llm_diag_embedding_elapsed'.tr(),
+                value: '${metrics.totalElapsed.inMilliseconds} ms',
               ),
             ],
           ],

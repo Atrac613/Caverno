@@ -29,7 +29,11 @@ export 'chat_datasource.dart'
         StreamWithToolsResult,
         StreamedChatCompletion;
 
-class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
+class ChatRemoteDataSource
+    implements
+        ChatDataSource,
+        FinishReasonAware,
+        StructuredOutputChatDataSource {
   ChatRemoteDataSource({
     String? baseUrl,
     String? apiKey,
@@ -433,7 +437,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         completer.complete(completion);
         _telemetry.publishRequest(
           modelId: modelId,
-        attribution: attribution,
+          attribution: attribution,
           metadata: ChatCompletionTerminalMetadata(
             finishReason: finishReason,
             usage: usage,
@@ -456,7 +460,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
           completer.complete(completion);
           _telemetry.publishRequest(
             modelId: modelId,
-        attribution: attribution,
+            attribution: attribution,
             metadata: ChatCompletionTerminalMetadata(
               finishReason: recovered.finishReason,
               usage: usage,
@@ -495,6 +499,42 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
     String? model,
     double? temperature,
     int? maxTokens,
+  }) => _createChatCompletion(
+    messages: messages,
+    tools: tools,
+    model: model,
+    temperature: temperature,
+    maxTokens: maxTokens,
+  );
+
+  @override
+  Future<ChatCompletionResult> createStructuredChatCompletion({
+    required List<Message> messages,
+    required StructuredOutputRequest responseFormat,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) => _createChatCompletion(
+    messages: messages,
+    model: model,
+    temperature: temperature,
+    maxTokens: maxTokens,
+    responseFormat: switch (responseFormat.format) {
+      StructuredOutputFormat.jsonSchema => ResponseFormat.jsonSchema(
+        name: responseFormat.name,
+        schema: responseFormat.schema,
+      ),
+      StructuredOutputFormat.jsonObject => ResponseFormat.jsonObject(),
+    },
+  );
+
+  Future<ChatCompletionResult> _createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+    ResponseFormat? responseFormat,
   }) async {
     _resetResponseTelemetry();
     // Strip images from history if the latest user message has no image
@@ -530,6 +570,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
           maxTokens,
         ),
         tools: _buildTools(tools),
+        responseFormat: responseFormat,
         reasoningEffort: _requestFallback.reasoningEffortForRequest(
           includeReasoning,
         ),
@@ -590,7 +631,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         appLog('[LLM] Recovered raw text response after create parse failure');
         _telemetry.publishRequest(
           modelId: modelId,
-        attribution: attribution,
+          attribution: attribution,
           metadata: ChatCompletionTerminalMetadata(
             finishReason: recovered.finishReason,
             usage: lastUsage,
@@ -607,10 +648,10 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       appLog('[LLM] createChatCompletion error: ${e.runtimeType}: $e');
       appLog('[LLM] stackTrace: $stackTrace');
       _telemetry.publishFailure(
-          modelId: modelId,
-          timer: timer,
-          attribution: attribution,
-        );
+        modelId: modelId,
+        timer: timer,
+        attribution: attribution,
+      );
       rethrow;
     }
   }
@@ -761,7 +802,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         yield recoveredText;
         _telemetry.publishRequest(
           modelId: modelId,
-        attribution: attribution,
+          attribution: attribution,
           metadata: ChatCompletionTerminalMetadata(
             finishReason: lastFinishReason,
             usage: lastUsage,
@@ -773,10 +814,10 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       appLog('[LLM] streamWithToolResult error: ${e.runtimeType}: $e');
       appLog('[LLM] stackTrace: $stackTrace');
       _telemetry.publishFailure(
-          modelId: modelId,
-          timer: timer,
-          attribution: attribution,
-        );
+        modelId: modelId,
+        timer: timer,
+        attribution: attribution,
+      );
       rethrow;
     }
   }
@@ -960,7 +1001,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         );
         _telemetry.publishRequest(
           modelId: modelId,
-        attribution: attribution,
+          attribution: attribution,
           metadata: ChatCompletionTerminalMetadata(
             finishReason: recovered.finishReason,
             usage: lastUsage,
@@ -979,10 +1020,10 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       );
       appLog('[LLM] stackTrace: $stackTrace');
       _telemetry.publishFailure(
-          modelId: modelId,
-          timer: timer,
-          attribution: attribution,
-        );
+        modelId: modelId,
+        timer: timer,
+        attribution: attribution,
+      );
       rethrow;
     }
   }

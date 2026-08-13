@@ -5,6 +5,8 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../../../../core/services/apple_foundation_models_platform_client.dart';
 import '../../../chat/data/datasources/chat_datasource.dart';
+import '../../../chat/data/datasources/embeddings_client.dart';
+import '../../../chat/data/datasources/embeddings_math.dart';
 import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
 import '../../../chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
@@ -25,17 +27,24 @@ class LiveLlmDiagnosticService {
     required this.settings,
     required this.chatDataSource,
     required this.mcpToolService,
+    this.embedTexts,
   });
 
   final AppSettings settings;
   final ChatDataSource chatDataSource;
   final McpToolService? mcpToolService;
+  final EmbedTexts? embedTexts;
 
   static const probeDefinitions = <LiveLlmDiagnosticProbeDefinition>[
     LiveLlmDiagnosticProbeDefinition(
       id: _instructionProbeId,
       titleKey: 'settings.live_llm_diag_probe_instruction_title',
       descriptionKey: 'settings.live_llm_diag_probe_instruction_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
+      id: _structuredOutputProbeId,
+      titleKey: 'settings.live_llm_diag_probe_structured_output_title',
+      descriptionKey: 'settings.live_llm_diag_probe_structured_output_desc',
     ),
     LiveLlmDiagnosticProbeDefinition(
       id: _streamingProbeId,
@@ -46,6 +55,16 @@ class LiveLlmDiagnosticService {
       id: _exactPreservationProbeId,
       titleKey: 'settings.live_llm_diag_probe_exact_preservation_title',
       descriptionKey: 'settings.live_llm_diag_probe_exact_preservation_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
+      id: _editFormatProbeId,
+      titleKey: 'settings.live_llm_diag_probe_edit_format_title',
+      descriptionKey: 'settings.live_llm_diag_probe_edit_format_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
+      id: _embeddingsProbeId,
+      titleKey: 'settings.live_llm_diag_probe_embeddings_title',
+      descriptionKey: 'settings.live_llm_diag_probe_embeddings_desc',
     ),
     LiveLlmDiagnosticProbeDefinition(
       id: _foundationModelsLanguageMatrixProbeId,
@@ -105,8 +124,11 @@ class LiveLlmDiagnosticService {
   ];
 
   static const _instructionProbeId = 'instruction_echo';
+  static const _structuredOutputProbeId = 'structured_output';
   static const _streamingProbeId = 'streaming_response';
   static const _exactPreservationProbeId = 'exact_preservation';
+  static const _editFormatProbeId = 'edit_format_fidelity';
+  static const _embeddingsProbeId = 'embeddings_capability';
   static const _foundationModelsLanguageMatrixProbeId =
       'foundation_models_language_matrix';
   static const _visionAttachmentProbeId = 'vision_attachment';
@@ -133,7 +155,10 @@ class LiveLlmDiagnosticService {
 
   static const modelCapabilityProbeIds = <String>{
     _instructionProbeId,
+    _structuredOutputProbeId,
     _streamingProbeId,
+    _editFormatProbeId,
+    _embeddingsProbeId,
     _visionAttachmentProbeId,
     _visionToolObservationProbeId,
     _narrowToolCallProbeId,
@@ -165,6 +190,21 @@ class LiveLlmDiagnosticService {
       'by commas, and no other text.';
 
   static const _marker = 'CAVERNO_LIVE_DIAGNOSTIC';
+  static const structuredOutputSupportMetadataKey = 'structuredOutputSupport';
+  static const _structuredOutputSchemaMarker = 'CAVERNO_SCHEMA_LOCKED_47';
+  static const _structuredOutputObjectMarker = 'CAVERNO_JSON_OBJECT_OK';
+  static const _structuredOutputSchema = <String, dynamic>{
+    'type': 'object',
+    'properties': <String, dynamic>{
+      'marker': <String, dynamic>{
+        'type': 'string',
+        'const': _structuredOutputSchemaMarker,
+      },
+      'count': <String, dynamic>{'type': 'integer', 'const': 47},
+    },
+    'required': <String>['marker', 'count'],
+    'additionalProperties': false,
+  };
   static const _foundationModelsEnglishMarker = 'CAVERNO_FM_LANG_EN';
   static const _foundationModelsJapaneseMarker = 'CAVERNO_FM_LANG_JA';
   static const _foundationModelsToolBridgeMarker = 'CAVERNO_FM_LANG_TOOL';
@@ -185,6 +225,37 @@ class LiveLlmDiagnosticService {
   static const _exactToolResultValue = 'ZX-900_\u03b1 2026-06-12';
   static const _exactUrlValue =
       'https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def';
+  static const editFormatPreferenceMetadataKey = 'editFormatPreference';
+  static const _editFormatPath = 'lib/greeting.dart';
+  static const _editFormatOriginal = '''String buildLabel(String name) {
+  final trimmed = name.trim();
+  return 'Hello, \$trimmed!';
+}''';
+  static const _editFormatUpdated = '''String buildLabel(String name) {
+  final trimmed = name.trim();
+  return 'Welcome, \$trimmed!';
+}''';
+  static final _editFormatSearchReplace = [
+    '<<<<<<< SEARCH',
+    "  return 'Hello, \$trimmed!';",
+    '=======',
+    "  return 'Welcome, \$trimmed!';",
+    '>>>>>>> REPLACE',
+  ].join('\n');
+  static const _editFormatUnifiedDiff = '''--- a/lib/greeting.dart
++++ b/lib/greeting.dart
+@@ -1,4 +1,4 @@
+ String buildLabel(String name) {
+   final trimmed = name.trim();
+-  return 'Hello, \$trimmed!';
++  return 'Welcome, \$trimmed!';
+ }''';
+  static const _embeddingInputs = <String>[
+    'A cat rests on a warm windowsill.',
+    'The kitten is sleeping beside a sunny window.',
+    'Database backups completed at midnight.',
+  ];
+  static const _embeddingSemanticMarginMinimum = 0.05;
 
   /// Vision outcome labels. Emitted into probe details so the profile builder
   /// and a human reading the report classify a miss the same way.
@@ -239,6 +310,11 @@ class LiveLlmDiagnosticService {
       onReport: onReport,
       run: _runInstructionProbe,
     );
+    report = await _runStructuredOutputProbe(
+      report: report,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+    );
     report = await _runStreamingProbe(
       report: report,
       selectedProbeIds: selectedProbeIds,
@@ -262,6 +338,18 @@ class LiveLlmDiagnosticService {
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
       run: _runExactPreservationProbe,
+    );
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _editFormatProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: _runEditFormatProbe,
+    );
+    report = await _runEmbeddingsProbe(
+      report: report,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
     );
     if (settings.llmProvider == LlmProvider.appleFoundationModels) {
       report = await _runSelectedProbe(
@@ -681,6 +769,166 @@ class LiveLlmDiagnosticService {
     );
   }
 
+  Future<LiveLlmDiagnosticReport> _runStructuredOutputProbe({
+    required LiveLlmDiagnosticReport report,
+    required Set<String>? selectedProbeIds,
+    required LiveLlmDiagnosticReportCallback? onReport,
+  }) async {
+    if (!_shouldRunProbe(_structuredOutputProbeId, selectedProbeIds)) {
+      final updated = _skipProbe(
+        report,
+        _structuredOutputProbeId,
+        'Skipped because this bounded diagnostic run did not request this probe.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+    if (settings.llmProvider == LlmProvider.appleFoundationModels) {
+      final updated = _skipProbe(
+        report,
+        _structuredOutputProbeId,
+        'Skipped because Apple Foundation Models does not expose response_format.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+    final dataSource = chatDataSource;
+    if (dataSource is! StructuredOutputChatDataSource) {
+      final updated = _skipProbe(
+        report,
+        _structuredOutputProbeId,
+        'Skipped because this datasource cannot send response_format.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+    final structuredDataSource = dataSource as StructuredOutputChatDataSource;
+
+    final startedAt = DateTime.now();
+    var updated = report.withProbeResult(
+      const LiveLlmDiagnosticProbeResult(
+        id: _structuredOutputProbeId,
+        status: LiveLlmDiagnosticStatus.running,
+        summary: 'Running...',
+      ),
+    );
+    onReport?.call(updated);
+
+    final completed = <ChatCompletionResult>[];
+    String schemaDetail;
+    try {
+      final schemaResult = await structuredDataSource
+          .createStructuredChatCompletion(
+            messages: _messages(
+              user:
+                  'Produce one diagnostic object that follows the supplied response '
+                  'schema. Do not add markdown or explanatory text.',
+            ),
+            responseFormat: const StructuredOutputRequest.jsonSchema(
+              name: 'caverno_live_diagnostic',
+              schema: _structuredOutputSchema,
+            ),
+            model: _diagnosticModel,
+            temperature: _diagnosticTemperature,
+            maxTokens: _diagnosticMaxTokens,
+          );
+      completed.add(schemaResult);
+      final decoded = _tryDecodeJsonObject(schemaResult.content);
+      final schemaPassed =
+          decoded?.length == 2 &&
+          decoded?['marker'] == _structuredOutputSchemaMarker &&
+          decoded?['count'] == 47;
+      if (schemaPassed) {
+        updated = updated.withProbeResult(
+          LiveLlmDiagnosticProbeResult(
+            id: _structuredOutputProbeId,
+            status: LiveLlmDiagnosticStatus.passed,
+            summary:
+                'The endpoint and model enforced the supplied JSON schema.',
+            details: 'json_schema: passed\njson_object fallback: not needed',
+            modelContent: _preview(schemaResult.content),
+            usage: _usage(schemaResult),
+            passedChecks: 2,
+            totalChecks: 2,
+            metadata: const {structuredOutputSupportMetadataKey: 'jsonSchema'},
+            elapsed: DateTime.now().difference(startedAt),
+          ),
+        );
+        onReport?.call(updated);
+        return updated;
+      }
+      schemaDetail =
+          'json_schema: request completed but the response violated the schema';
+    } catch (error) {
+      schemaDetail = 'json_schema: request failed (${_preview('$error')})';
+    }
+
+    try {
+      final objectResult = await structuredDataSource
+          .createStructuredChatCompletion(
+            messages: _messages(
+              user:
+                  'Return one JSON object with exactly these two fields and no '
+                  'markdown: {"marker":"$_structuredOutputObjectMarker","count":47}',
+            ),
+            responseFormat: const StructuredOutputRequest.jsonObject(),
+            model: _diagnosticModel,
+            temperature: _diagnosticTemperature,
+            maxTokens: _diagnosticMaxTokens,
+          );
+      completed.add(objectResult);
+      final decoded = _tryDecodeJsonObject(objectResult.content);
+      final objectPassed =
+          decoded?.length == 2 &&
+          decoded?['marker'] == _structuredOutputObjectMarker &&
+          decoded?['count'] == 47;
+      updated = updated.withProbeResult(
+        LiveLlmDiagnosticProbeResult(
+          id: _structuredOutputProbeId,
+          status: objectPassed
+              ? LiveLlmDiagnosticStatus.warning
+              : LiveLlmDiagnosticStatus.failed,
+          summary: objectPassed
+              ? 'JSON object mode worked, but JSON Schema mode did not.'
+              : 'Neither structured-output mode preserved its contract.',
+          details: [
+            schemaDetail,
+            'json_object: ${objectPassed ? 'passed' : 'response violated the contract'}',
+          ].join('\n'),
+          modelContent: _preview(objectResult.content),
+          usage: _totalUsage(completed),
+          passedChecks: objectPassed ? 1 : 0,
+          totalChecks: 2,
+          metadata: {
+            structuredOutputSupportMetadataKey: objectPassed
+                ? 'jsonObject'
+                : 'none',
+          },
+          elapsed: DateTime.now().difference(startedAt),
+        ),
+      );
+    } catch (error) {
+      updated = updated.withProbeResult(
+        LiveLlmDiagnosticProbeResult(
+          id: _structuredOutputProbeId,
+          status: LiveLlmDiagnosticStatus.failed,
+          summary: 'Neither structured-output request mode was usable.',
+          details: [
+            schemaDetail,
+            'json_object: request failed (${_preview('$error')})',
+          ].join('\n'),
+          usage: _totalUsage(completed),
+          passedChecks: 0,
+          totalChecks: 2,
+          metadata: const {structuredOutputSupportMetadataKey: 'none'},
+          elapsed: DateTime.now().difference(startedAt),
+        ),
+      );
+    }
+    onReport?.call(updated);
+    return updated;
+  }
+
   /// Exercises `streamChatCompletion` — the path the chat screen actually uses,
   /// and the only one with incremental delivery, a reasoning-field fallback and
   /// a `finish_reason` that can truncate. Every other probe goes through the
@@ -937,6 +1185,294 @@ class LiveLlmDiagnosticService {
       usage: _totalUsage([directResult, toolResult, urlResult]),
       passedChecks: outcomes.length - failed.length,
       totalChecks: outcomes.length,
+    );
+  }
+
+  Future<LiveLlmDiagnosticProbeResult> _runEditFormatProbe() async {
+    final cases = <_EditFormatProbeCase>[
+      const _EditFormatProbeCase(
+        preference: ModelEditFormatPreference.wholeFile,
+        instruction:
+            'Return the complete updated file contents with no markdown fence.',
+        expected: _editFormatUpdated,
+      ),
+      _EditFormatProbeCase(
+        preference: ModelEditFormatPreference.searchReplace,
+        instruction:
+            'Return one exact SEARCH/REPLACE block using the markers '
+            '<<<<<<< SEARCH, =======, and >>>>>>> REPLACE. Include only the '
+            'changed line in each side and no markdown fence.',
+        expected: _editFormatSearchReplace,
+      ),
+      const _EditFormatProbeCase(
+        preference: ModelEditFormatPreference.unifiedDiff,
+        instruction:
+            'Return one unified diff for lib/greeting.dart with three context '
+            'lines and no markdown fence.',
+        expected: _editFormatUnifiedDiff,
+      ),
+    ];
+    final outcomes = <_EditFormatProbeOutcome>[];
+    for (final testCase in cases) {
+      final result = await chatDataSource.createChatCompletion(
+        messages: _messages(
+          user:
+              'Update the greeting from Hello to Welcome without changing any '
+              'other text. The current $_editFormatPath contents are:\n\n'
+              '$_editFormatOriginal\n\n${testCase.instruction}',
+        ),
+        model: _diagnosticModel,
+        temperature: _diagnosticTemperature,
+        maxTokens: _diagnosticMaxTokens,
+      );
+      final normalized = _stripSingleCodeFence(result.content);
+      outcomes.add(
+        _EditFormatProbeOutcome(
+          preference: testCase.preference,
+          passed: normalized == testCase.expected,
+          content: result.content,
+          usage: _usage(result),
+        ),
+      );
+    }
+
+    final passed = outcomes.where((outcome) => outcome.passed).toList();
+    final preference = _preferredEditFormat(passed);
+    final status = passed.length == outcomes.length
+        ? LiveLlmDiagnosticStatus.passed
+        : passed.isNotEmpty
+        ? LiveLlmDiagnosticStatus.warning
+        : LiveLlmDiagnosticStatus.failed;
+    return LiveLlmDiagnosticProbeResult(
+      id: _editFormatProbeId,
+      status: status,
+      summary: preference == ModelEditFormatPreference.unknown
+          ? 'The model did not reproduce any supported edit format exactly.'
+          : 'The model reliably produced ${preference.name} edits.',
+      details: outcomes
+          .map(
+            (outcome) =>
+                '${outcome.preference.name}: ${outcome.passed ? 'passed' : 'failed'}',
+          )
+          .join('\n'),
+      modelContent: outcomes
+          .map(
+            (outcome) =>
+                '${outcome.preference.name}: ${_preview(outcome.content, maxChars: 360)}',
+          )
+          .join('\n\n'),
+      usage: _sumDiagnosticUsage(outcomes.map((outcome) => outcome.usage)),
+      passedChecks: passed.length,
+      totalChecks: outcomes.length,
+      metadata: {editFormatPreferenceMetadataKey: preference.name},
+    );
+  }
+
+  ModelEditFormatPreference _preferredEditFormat(
+    List<_EditFormatProbeOutcome> passed,
+  ) {
+    for (final preference in const [
+      ModelEditFormatPreference.unifiedDiff,
+      ModelEditFormatPreference.searchReplace,
+      ModelEditFormatPreference.wholeFile,
+    ]) {
+      if (passed.any((outcome) => outcome.preference == preference)) {
+        return preference;
+      }
+    }
+    return ModelEditFormatPreference.unknown;
+  }
+
+  String _stripSingleCodeFence(String content) {
+    final normalized = content.replaceAll('\r\n', '\n').trim();
+    final match = RegExp(
+      r'^```(?:dart|diff)?\s*\n([\s\S]*?)\n```$',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+    return (match?.group(1) ?? normalized).trim();
+  }
+
+  Future<LiveLlmDiagnosticReport> _runEmbeddingsProbe({
+    required LiveLlmDiagnosticReport report,
+    required Set<String>? selectedProbeIds,
+    required LiveLlmDiagnosticReportCallback? onReport,
+  }) async {
+    if (!_shouldRunProbe(_embeddingsProbeId, selectedProbeIds)) {
+      final updated = _skipProbe(
+        report,
+        _embeddingsProbeId,
+        'Skipped because this bounded diagnostic run did not request this probe.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+    if (settings.llmProvider == LlmProvider.appleFoundationModels) {
+      final updated = _skipProbe(
+        report,
+        _embeddingsProbeId,
+        'Skipped because Apple Foundation Models does not expose embeddings.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+    final model = settings.embeddingsModel.trim();
+    if (model.isEmpty) {
+      final updated = _skipProbe(
+        report,
+        _embeddingsProbeId,
+        'Skipped because no embeddings model is configured.',
+        details:
+            'Choose an embeddings model in General settings to measure the '
+            'production LL5 semantic-search path.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+
+    final startedAt = DateTime.now();
+    var updated = report.withProbeResult(
+      const LiveLlmDiagnosticProbeResult(
+        id: _embeddingsProbeId,
+        status: LiveLlmDiagnosticStatus.running,
+        summary: 'Running...',
+      ),
+    );
+    onReport?.call(updated);
+    try {
+      final stopwatch = Stopwatch()..start();
+      final result = await _embed(_embeddingInputs, model: model);
+      stopwatch.stop();
+      if (result == null) {
+        updated = updated.withProbeResult(
+          LiveLlmDiagnosticProbeResult(
+            id: _embeddingsProbeId,
+            status: LiveLlmDiagnosticStatus.failed,
+            summary: 'The production embeddings client returned no vectors.',
+            details:
+                'The configured endpoint/model pair was unavailable or returned '
+                'an unsupported response. Run COMPAT1 to classify the protocol '
+                'failure separately.',
+            elapsed: DateTime.now().difference(startedAt),
+          ),
+        );
+        onReport?.call(updated);
+        return updated;
+      }
+
+      final outcome = _evaluateEmbeddings(result, stopwatch.elapsed);
+      updated = updated
+          .withProbeResult(
+            outcome.result.copyWith(
+              elapsed: DateTime.now().difference(startedAt),
+            ),
+          )
+          .copyWith(embeddingMetrics: outcome.metrics);
+    } catch (error) {
+      updated = updated.withProbeResult(
+        LiveLlmDiagnosticProbeResult(
+          id: _embeddingsProbeId,
+          status: LiveLlmDiagnosticStatus.failed,
+          summary: 'The embeddings capability probe failed with an exception.',
+          details: error.toString(),
+          elapsed: DateTime.now().difference(startedAt),
+        ),
+      );
+    }
+    onReport?.call(updated);
+    return updated;
+  }
+
+  Future<EmbeddingsResult?> _embed(
+    List<String> inputs, {
+    required String model,
+  }) async {
+    final injected = embedTexts;
+    if (injected != null) {
+      return injected(inputs);
+    }
+    final client = EmbeddingsClient(
+      baseUrl: settings.baseUrl,
+      apiKey: settings.apiKey,
+    );
+    try {
+      return await client.embed(inputs: inputs, model: model);
+    } finally {
+      client.close();
+    }
+  }
+
+  _EmbeddingProbeOutcome _evaluateEmbeddings(
+    EmbeddingsResult result,
+    Duration elapsed,
+  ) {
+    final vectors = result.vectors;
+    final dimensions = vectors.map((vector) => vector.length).toSet();
+    final structurallyValid =
+        vectors.length == _embeddingInputs.length &&
+        dimensions.length == 1 &&
+        dimensions.first > 0 &&
+        vectors.every(
+          (vector) =>
+              vector.every((value) => value.isFinite) &&
+              vector.any((value) => value != 0),
+        );
+    if (!structurallyValid) {
+      return _EmbeddingProbeOutcome(
+        result: LiveLlmDiagnosticProbeResult(
+          id: _embeddingsProbeId,
+          status: LiveLlmDiagnosticStatus.failed,
+          summary: 'The embeddings response contained unusable vectors.',
+          details:
+              'Expected ${_embeddingInputs.length} finite, non-zero, equal-width '
+              'vectors; received ${vectors.length} with dimensions '
+              '${dimensions.toList()}.',
+          passedChecks: 0,
+          totalChecks: 2,
+        ),
+      );
+    }
+
+    final similarCosine = EmbeddingsMath.cosineSimilarity(
+      vectors[0],
+      vectors[1],
+    );
+    final unrelatedCosine = EmbeddingsMath.cosineSimilarity(
+      vectors[0],
+      vectors[2],
+    );
+    final metrics = LiveLlmDiagnosticEmbeddingMetrics(
+      totalElapsed: elapsed,
+      inputCount: _embeddingInputs.length,
+      returnedVectorCount: vectors.length,
+      dimension: vectors.first.length,
+      model: result.model,
+      similarCosine: similarCosine,
+      unrelatedCosine: unrelatedCosine,
+    );
+    final semanticPass =
+        metrics.semanticMargin >= _embeddingSemanticMarginMinimum;
+    return _EmbeddingProbeOutcome(
+      result: LiveLlmDiagnosticProbeResult(
+        id: _embeddingsProbeId,
+        status: semanticPass
+            ? LiveLlmDiagnosticStatus.passed
+            : LiveLlmDiagnosticStatus.warning,
+        summary: semanticPass
+            ? 'The embedding model returned usable, semantically separated vectors.'
+            : 'The vectors were usable but did not separate the paraphrase from the control.',
+        details: [
+          'Model: ${result.model}',
+          'Vectors: ${vectors.length} x ${vectors.first.length}',
+          'Similar cosine: ${similarCosine.toStringAsFixed(6)}',
+          'Unrelated cosine: ${unrelatedCosine.toStringAsFixed(6)}',
+          'Semantic margin: ${metrics.semanticMargin.toStringAsFixed(6)} '
+              '(required >= ${_embeddingSemanticMarginMinimum.toStringAsFixed(2)})',
+        ].join('\n'),
+        passedChecks: semanticPass ? 2 : 1,
+        totalChecks: 2,
+        metadata: {'embeddingModel': result.model},
+      ),
+      metrics: metrics,
     );
   }
 
@@ -2377,6 +2913,24 @@ class LiveLlmDiagnosticService {
     );
   }
 
+  LiveLlmDiagnosticTokenUsage _sumDiagnosticUsage(
+    Iterable<LiveLlmDiagnosticTokenUsage> usages,
+  ) {
+    var promptTokens = 0;
+    var completionTokens = 0;
+    var totalTokens = 0;
+    for (final usage in usages) {
+      promptTokens += usage.promptTokens;
+      completionTokens += usage.completionTokens;
+      totalTokens += usage.totalTokens;
+    }
+    return LiveLlmDiagnosticTokenUsage(
+      promptTokens: promptTokens,
+      completionTokens: completionTokens,
+      totalTokens: totalTokens,
+    );
+  }
+
   String _formatExactPreservationDetail(
     _ExactPreservationProbeOutcome outcome,
   ) {
@@ -2531,6 +3085,39 @@ class _ExactPreservationProbeOutcome {
   final String actual;
 
   bool get passed => actual == expected;
+}
+
+class _EditFormatProbeCase {
+  const _EditFormatProbeCase({
+    required this.preference,
+    required this.instruction,
+    required this.expected,
+  });
+
+  final ModelEditFormatPreference preference;
+  final String instruction;
+  final String expected;
+}
+
+class _EditFormatProbeOutcome {
+  const _EditFormatProbeOutcome({
+    required this.preference,
+    required this.passed,
+    required this.content,
+    required this.usage,
+  });
+
+  final ModelEditFormatPreference preference;
+  final bool passed;
+  final String content;
+  final LiveLlmDiagnosticTokenUsage usage;
+}
+
+class _EmbeddingProbeOutcome {
+  const _EmbeddingProbeOutcome({required this.result, this.metrics});
+
+  final LiveLlmDiagnosticProbeResult result;
+  final LiveLlmDiagnosticEmbeddingMetrics? metrics;
 }
 
 class _FoundationModelsLanguageProbeOutcome {

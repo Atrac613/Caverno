@@ -26,6 +26,12 @@ void main() {
           summary: 'JSON ok.',
         ),
         LiveLlmDiagnosticProbeResult(
+          id: 'structured_output',
+          status: LiveLlmDiagnosticStatus.warning,
+          summary: 'JSON object mode worked.',
+          metadata: {'structuredOutputSupport': 'jsonObject'},
+        ),
+        LiveLlmDiagnosticProbeResult(
           id: 'narrow_tool_call',
           status: LiveLlmDiagnosticStatus.passed,
           summary: 'Tool call ok.',
@@ -88,7 +94,7 @@ void main() {
     expect(profile.toolCallStyle, ModelToolCallStyle.embeddedToolTags);
     expect(
       profile.structuredOutputSupport,
-      ModelStructuredOutputSupport.jsonObject,
+      ModelStructuredOutputSupport.unknown,
     );
   });
 
@@ -124,6 +130,91 @@ void main() {
       ModelStructuredOutputSupport.unknown,
     );
     expect(profile.goalUpdateFidelity, ModelGoalUpdateFidelity.unknown);
+  });
+
+  for (final preference in ModelEditFormatPreference.values) {
+    test('maps ${preference.name} edit-format probe evidence', () {
+      final measured = preference != ModelEditFormatPreference.unknown;
+      final report = LiveLlmDiagnosticReport(
+        startedAt: DateTime.utc(2026, 8, 13),
+        baseUrl: 'http://localhost:1234/v1',
+        model: 'edit-model',
+        demoMode: false,
+        mcpEnabled: false,
+        results: [
+          LiveLlmDiagnosticProbeResult(
+            id: 'edit_format_fidelity',
+            status: measured
+                ? LiveLlmDiagnosticStatus.warning
+                : LiveLlmDiagnosticStatus.failed,
+            summary: 'Edit format result.',
+            metadata: {'editFormatPreference': preference.name},
+          ),
+        ],
+      );
+
+      final profile = ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+        report: report,
+        provider: LlmProvider.openAiCompatible,
+      );
+
+      expect(profile.editFormatPreference, preference);
+    });
+  }
+
+  for (final support in ModelStructuredOutputSupport.values) {
+    test('maps ${support.name} structured-output probe evidence', () {
+      final report = LiveLlmDiagnosticReport(
+        startedAt: DateTime.utc(2026, 8, 13),
+        baseUrl: 'http://localhost:1234/v1',
+        model: 'structured-model',
+        demoMode: false,
+        mcpEnabled: false,
+        results: [
+          LiveLlmDiagnosticProbeResult(
+            id: 'structured_output',
+            status: support == ModelStructuredOutputSupport.unknown
+                ? LiveLlmDiagnosticStatus.skipped
+                : LiveLlmDiagnosticStatus.warning,
+            summary: 'Structured output result.',
+            metadata: {'structuredOutputSupport': support.name},
+          ),
+        ],
+      );
+
+      final profile = ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+        report: report,
+        provider: LlmProvider.openAiCompatible,
+      );
+
+      expect(profile.structuredOutputSupport, support);
+    });
+  }
+
+  test('rejects unknown edit-format metadata values', () {
+    final report = LiveLlmDiagnosticReport(
+      startedAt: DateTime.utc(2026, 8, 13),
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'edit-model',
+      demoMode: false,
+      mcpEnabled: false,
+      results: const [
+        LiveLlmDiagnosticProbeResult(
+          id: 'edit_format_fidelity',
+          status: LiveLlmDiagnosticStatus.passed,
+          summary: 'Edit format result.',
+          metadata: {'editFormatPreference': 'futureFormat'},
+        ),
+      ],
+    );
+
+    expect(
+      ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+        report: report,
+        provider: LlmProvider.openAiCompatible,
+      ).editFormatPreference,
+      ModelEditFormatPreference.unknown,
+    );
   });
 
   test('stores sampler calibration selections in profile metadata', () {
