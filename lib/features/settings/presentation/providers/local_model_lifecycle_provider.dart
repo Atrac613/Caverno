@@ -102,6 +102,28 @@ final primaryModelPreparationServiceProvider =
       );
     });
 
+typedef PrimaryModelPreparationServiceFactory =
+    PrimaryModelPreparationService Function(
+      LocalModelLifecycleEndpointConfig endpoint,
+    );
+
+final primaryModelPreparationServiceFactoryProvider =
+    Provider<PrimaryModelPreparationServiceFactory>((ref) {
+      final primaryService = ref.watch(primaryModelPreparationServiceProvider);
+      final dataSourceFactory = ref.watch(
+        localModelLifecycleDataSourceFactoryProvider,
+      );
+      return (endpoint) {
+        if (endpoint.isPrimary) return primaryService;
+        final dataSource = dataSourceFactory(endpoint);
+        return PrimaryModelPreparationService(
+          listManagedModels: dataSource.listManagedModels,
+          unloadManagedModel: dataSource.unloadManagedModel,
+          loadManagedModel: dataSource.loadManagedModel,
+        );
+      };
+    });
+
 final localStackRecommendationServiceProvider =
     Provider<LocalStackRecommendationService>((ref) {
       return const LocalStackRecommendationService();

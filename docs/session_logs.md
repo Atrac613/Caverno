@@ -58,7 +58,8 @@ Each line is one JSON object with schema name
   The field is absent when no producer set a label.
 - Response content, finish reason, tool calls, token usage, or error details
 - Turn-level markers such as `turn_exit`, `goal_auto_continue`,
-  `goal_completion_shadow`, `execution_shadow`, and `tool_outcome_shadow`,
+  `primary_model_route`, `goal_completion_shadow`, `execution_shadow`, and
+  `tool_outcome_shadow`,
   which make non-request decisions visible in the same JSONL timeline as model
   calls.
   `turn_exit.guardDecisions` records metadata-
@@ -79,6 +80,11 @@ Each line is one JSON object with schema name
   structured task state, and explicit user confirmation own terminal status;
   lexical completion is retained only for this comparison. Older
   disagreement-only markers can omit `agreement`.
+  `primary_model_route` records the immutable LL24 route selected at the turn
+  boundary: turn id, resolved assistant mode, endpoint id, model, route reason,
+  and whether the assignment was demoted to the primary endpoint. It contains
+  no prompt or response content and obeys the same settings and environment
+  logging gates as request entries.
 
 ## Sensitivity
 

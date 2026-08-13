@@ -109,7 +109,7 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       final initialPlan = const ParticipantTurnPlanner().start(
         owner: owner,
         participants: participants,
-        primaryModel: _settings.effectiveModel,
+        primaryModel: _primaryModelForGeneration(turn.generation),
         config: paused.config,
         cursor: cursor,
         preferredParticipantId: paused.preferredParticipantId,
@@ -159,7 +159,7 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       final initialPlan = const ParticipantTurnPlanner().start(
         owner: owner,
         participants: currentConversation.participants,
-        primaryModel: _settings.effectiveModel,
+        primaryModel: _primaryModelForGeneration(interactionGeneration),
         config: currentConversation.participantTurnConfig,
       );
       if (initialPlan.participantsChanged) {
@@ -250,7 +250,7 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
         );
       }
       final model = participant.model.trim().isEmpty
-          ? _settings.effectiveModel
+          ? _primaryModelForGeneration(turn.generation)
           : participant.model.trim();
       const coordinator = ParticipantTurnCoordinator();
       final participantRolePrompt = coordinator.buildRolePromptForParticipant(
@@ -289,13 +289,15 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       final terminalMetadata = await LlmSessionLogContext.run(
         participantLogContext,
         () => _participantCompletionRunner.stream(
-          primary: _dataSource,
+          primary: _primaryDataSourceForGeneration(turn.generation),
           settings: _settings,
           request: ParticipantCompletionRequest(
             participant: participant,
             messages: promptMessages,
             model: model,
-            temperature: _assistantRequestTemperature,
+            temperature: _primaryAssistantTemperatureForGeneration(
+              turn.generation,
+            ),
             maxTokens: _settings.maxTokens,
             toolDefinitions: participantToolDefinitions,
             executeToolCall: participantToolDefinitions.isEmpty

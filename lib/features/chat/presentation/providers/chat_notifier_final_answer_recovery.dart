@@ -51,10 +51,12 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
         'reason=${reason.logToken}, maxTokens=$retryMaxTokens',
       );
       try {
-        return await _dataSource.createChatCompletion(
+        return await _primaryDataSourceForGeneration(
+          interactionGeneration,
+        ).createChatCompletion(
           messages: retryMessages,
           tools: const <Map<String, dynamic>>[],
-          model: _settings.model,
+          model: _primaryModelForGeneration(interactionGeneration),
           temperature: FinalAnswerRecoveryPolicy.retryTemperature,
           maxTokens: retryMaxTokens,
         );
@@ -93,19 +95,25 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
               _lastMessageContentForGeneration(interactionGeneration) ?? '';
           _appendToLastMessageForGeneration(interactionGeneration, '<think>');
 
-          final dataSource = _dataSource;
+          final dataSource = _primaryDataSourceForGeneration(
+            interactionGeneration,
+          );
           final stream = dataSource is SessionLoggingChatDataSource
               ? dataSource.streamChatCompletionWithStructuredToolResults(
                   messages: messagesForLLM,
                   toolResults: toolResults,
-                  model: _settings.model,
-                  temperature: _assistantRequestTemperature,
+                  model: _primaryModelForGeneration(interactionGeneration),
+                  temperature: _primaryAssistantTemperatureForGeneration(
+                    interactionGeneration,
+                  ),
                   maxTokens: _settings.maxTokens,
                 )
               : dataSource.streamChatCompletion(
                   messages: messagesForLLM,
-                  model: _settings.model,
-                  temperature: _assistantRequestTemperature,
+                  model: _primaryModelForGeneration(interactionGeneration),
+                  temperature: _primaryAssistantTemperatureForGeneration(
+                    interactionGeneration,
+                  ),
                   maxTokens: _settings.maxTokens,
                 );
 
@@ -265,6 +273,7 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
       final hasToolResultBudget = _hasAdditionalCompactToolResultBudget(
         toolResults,
         protectedPaths: protectedPaths,
+        interactionGeneration: interactionGeneration,
       );
       if (!ConversationCompactionService.isContextLengthError(
             error.toString(),

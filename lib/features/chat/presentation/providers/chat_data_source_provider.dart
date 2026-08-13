@@ -30,3 +30,28 @@ final chatRemoteDataSourceProvider = Provider<ChatDataSource>((ref) {
     usageLabelResolver: () => LlmSessionLogContext.current?.requestLabel,
   );
 });
+
+typedef PrimaryRouteEndpointDataSourceFactory =
+    ChatDataSource Function({
+      required String baseUrl,
+      required String apiKey,
+      required String endpointId,
+    });
+
+final primaryRouteEndpointDataSourceFactoryProvider =
+    Provider<PrimaryRouteEndpointDataSourceFactory>((ref) {
+      final settings = ref.watch(settingsNotifierProvider);
+      final usageSink = ref.watch(modelUsageSinkProvider);
+      return ({
+        required String baseUrl,
+        required String apiKey,
+        required String endpointId,
+      }) => ChatRemoteDataSource(
+        baseUrl: baseUrl,
+        apiKey: apiKey,
+        reasoningEffort: settings.reasoningEffort.apiValue,
+        usageSink: usageSink,
+        endpointId: endpointId,
+        usageLabelResolver: () => LlmSessionLogContext.current?.requestLabel,
+      );
+    });

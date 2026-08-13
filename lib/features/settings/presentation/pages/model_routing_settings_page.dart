@@ -2,11 +2,12 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/types/assistant_mode.dart';
 import '../../domain/entities/app_settings.dart';
 import '../providers/model_list_provider.dart';
 import '../providers/settings_notifier.dart';
 
-/// Per-role model routing (LL1, docs/local_llm_agent_roadmap.md).
+/// Primary-turn (LL24) and per-role (LL1) model routing.
 ///
 /// Secondary LLM calls (memory extraction, subagents, goal suggestions, tool
 /// approval auto-review) can run on a smaller, faster model than the main
@@ -68,6 +69,66 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
               ),
             ),
           ],
+          const SizedBox(height: 24),
+          _RoleModelDropdown(
+            fieldKey: const ValueKey('model-routing-primary-general'),
+            label: 'settings.model_routing_primary_general'.tr(),
+            helper: 'settings.model_routing_primary_general_desc'.tr(),
+            value: settings.generalPrimaryModel,
+            effectiveDefaultModel: settings.effectivePrimaryModelFor(
+              AssistantMode.general,
+            ),
+            asyncModels: modelsFor(settings.generalPrimaryEndpointId),
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateGeneralPrimaryModel,
+          ),
+          _RoleEndpointDropdown(
+            fieldKey: const ValueKey('endpoint-routing-primary-general'),
+            value: settings.generalPrimaryEndpointId,
+            endpoints: settings.enabledLlmEndpoints,
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateGeneralPrimaryEndpointId,
+          ),
+          const SizedBox(height: 16),
+          _RoleModelDropdown(
+            fieldKey: const ValueKey('model-routing-primary-coding'),
+            label: 'settings.model_routing_primary_coding'.tr(),
+            helper: 'settings.model_routing_primary_coding_desc'.tr(),
+            value: settings.codingPrimaryModel,
+            effectiveDefaultModel: settings.effectivePrimaryModelFor(
+              AssistantMode.coding,
+            ),
+            asyncModels: modelsFor(settings.codingPrimaryEndpointId),
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateCodingPrimaryModel,
+          ),
+          _RoleEndpointDropdown(
+            fieldKey: const ValueKey('endpoint-routing-primary-coding'),
+            value: settings.codingPrimaryEndpointId,
+            endpoints: settings.enabledLlmEndpoints,
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateCodingPrimaryEndpointId,
+          ),
+          const SizedBox(height: 16),
+          _RoleModelDropdown(
+            fieldKey: const ValueKey('model-routing-primary-plan'),
+            label: 'settings.model_routing_primary_plan'.tr(),
+            helper: 'settings.model_routing_primary_plan_desc'.tr(),
+            value: settings.planPrimaryModel,
+            effectiveDefaultModel: settings.effectivePrimaryModelFor(
+              AssistantMode.plan,
+            ),
+            asyncModels: modelsFor(settings.planPrimaryEndpointId),
+            enabled: !isAppleProvider,
+            onChanged: notifier.updatePlanPrimaryModel,
+          ),
+          _RoleEndpointDropdown(
+            fieldKey: const ValueKey('endpoint-routing-primary-plan'),
+            value: settings.planPrimaryEndpointId,
+            endpoints: settings.enabledLlmEndpoints,
+            enabled: !isAppleProvider,
+            onChanged: notifier.updatePlanPrimaryEndpointId,
+          ),
           const SizedBox(height: 24),
           _RoleModelDropdown(
             fieldKey: const ValueKey('model-routing-memory-extraction'),

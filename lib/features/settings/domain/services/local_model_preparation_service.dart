@@ -96,6 +96,12 @@ class LocalModelPreparationService {
 
     final selectedEndpointId = endpointId.trim();
     final ordered = <String>[
+      if (settings.generalPrimaryEndpointId.trim() == selectedEndpointId)
+        settings.generalPrimaryModel.trim(),
+      if (settings.codingPrimaryEndpointId.trim() == selectedEndpointId)
+        settings.codingPrimaryModel.trim(),
+      if (settings.planPrimaryEndpointId.trim() == selectedEndpointId)
+        settings.planPrimaryModel.trim(),
       if (settings.memoryExtractionEndpointId.trim() == selectedEndpointId)
         settings.memoryExtractionModel.trim(),
       if (settings.subagentEndpointId.trim() == selectedEndpointId)

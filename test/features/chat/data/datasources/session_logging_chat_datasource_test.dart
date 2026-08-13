@@ -187,6 +187,49 @@ void main() {
       });
     });
 
+    test(
+      'recordPrimaryModelRoute appends content-free route evidence',
+      () async {
+        final store = LlmSessionLogStore(
+          rootDirectoryProvider: () async => tempDir,
+        );
+        const context = LlmSessionLogContext(
+          workspaceMode: WorkspaceMode.coding,
+          sessionId: 'conversation/ll24',
+        );
+
+        await store.recordPrimaryModelRoute(
+          context: context,
+          turnId: 'gen-24',
+          assistantMode: 'coding',
+          endpointId: 'quality-host',
+          model: 'quality-model',
+          reason: 'explicitEndpointModel',
+          demotedToPrimary: false,
+          at: DateTime(2026, 8, 13, 12),
+        );
+
+        final decoded =
+            jsonDecode(
+                  (await (await store.fileForContext(
+                    context,
+                  )).readAsLines()).single,
+                )
+                as Map<String, dynamic>;
+        expect(decoded['operation'], 'primary_model_route');
+        expect(decoded['primaryModelRoute'], {
+          'turnId': 'gen-24',
+          'assistantMode': 'coding',
+          'endpointId': 'quality-host',
+          'model': 'quality-model',
+          'reason': 'explicitEndpointModel',
+          'demotedToPrimary': false,
+        });
+        expect(decoded.containsKey('request'), isFalse);
+        expect(decoded.containsKey('response'), isFalse);
+      },
+    );
+
     test('recordGoalAutoContinue appends a triage marker', () async {
       final store = LlmSessionLogStore(
         rootDirectoryProvider: () async => tempDir,

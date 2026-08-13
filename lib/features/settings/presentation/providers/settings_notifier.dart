@@ -63,6 +63,36 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateGeneralPrimaryModel(String model) async {
+    state = state.copyWith(generalPrimaryModel: model.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updateCodingPrimaryModel(String model) async {
+    state = state.copyWith(codingPrimaryModel: model.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updatePlanPrimaryModel(String model) async {
+    state = state.copyWith(planPrimaryModel: model.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updateGeneralPrimaryEndpointId(String endpointId) async {
+    state = state.copyWith(generalPrimaryEndpointId: endpointId.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updateCodingPrimaryEndpointId(String endpointId) async {
+    state = state.copyWith(codingPrimaryEndpointId: endpointId.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updatePlanPrimaryEndpointId(String endpointId) async {
+    state = state.copyWith(planPrimaryEndpointId: endpointId.trim());
+    await _repository.save(state);
+  }
+
   Future<void> updateApiKey(String apiKey) async {
     state = state.copyWith(apiKey: apiKey).withNormalizedLlmEndpoints();
     await _repository.save(state);

@@ -9,6 +9,7 @@ void main() {
 
     test('plans explicit primary role models without duplicates', () {
       final settings = AppSettings.defaults().copyWith(
+        codingPrimaryModel: 'primary-quality',
         memoryExtractionModel: 'small-model',
         subagentModel: 'small-model',
         goalSuggestionModel: 'mesh-model',
@@ -20,6 +21,11 @@ void main() {
         settings: settings,
         catalog: const LocalModelLifecycleCatalog.supported(
           models: [
+            LocalManagedModel(
+              id: 'primary-quality',
+              state: LocalModelLifecycleState.unloaded,
+              statusValue: 'unloaded',
+            ),
             LocalManagedModel(
               id: 'small-model',
               state: LocalModelLifecycleState.unloaded,
@@ -39,8 +45,12 @@ void main() {
         ),
       );
 
-      expect(plan.targetModelIds, ['small-model', 'review-model']);
-      expect(plan.loadableModelIds, ['small-model']);
+      expect(plan.targetModelIds, [
+        'primary-quality',
+        'small-model',
+        'review-model',
+      ]);
+      expect(plan.loadableModelIds, ['primary-quality', 'small-model']);
       expect(plan.readyModelIds, ['review-model']);
       expect(plan.missingModelIds, isEmpty);
     });
@@ -77,6 +87,8 @@ void main() {
       ).normalizedForPersistence();
       final settings = AppSettings.defaults().copyWith(
         llmEndpoints: [meshEndpoint],
+        codingPrimaryModel: 'mesh-primary',
+        codingPrimaryEndpointId: meshEndpoint.id,
         memoryExtractionModel: 'primary-small',
         subagentModel: 'mesh-subagent',
         subagentEndpointId: meshEndpoint.id,
@@ -91,6 +103,11 @@ void main() {
         endpointId: meshEndpoint.id,
         catalog: const LocalModelLifecycleCatalog.supported(
           models: [
+            LocalManagedModel(
+              id: 'mesh-primary',
+              state: LocalModelLifecycleState.loaded,
+              statusValue: 'loaded',
+            ),
             LocalManagedModel(
               id: 'mesh-subagent',
               state: LocalModelLifecycleState.unloaded,
@@ -116,12 +133,13 @@ void main() {
       );
 
       expect(plan.targetModelIds, [
+        'mesh-primary',
         'mesh-subagent',
         'mesh-review',
         'mesh-reasoning',
       ]);
       expect(plan.loadableModelIds, ['mesh-subagent', 'mesh-reasoning']);
-      expect(plan.readyModelIds, ['mesh-review']);
+      expect(plan.readyModelIds, ['mesh-primary', 'mesh-review']);
     });
   });
 }

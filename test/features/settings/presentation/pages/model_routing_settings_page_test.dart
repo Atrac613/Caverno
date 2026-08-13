@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/pages/model_routing_settings_page.dart';
 import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
@@ -41,8 +42,8 @@ void main() {
 
     expect(
       find.text('Default (main-model)'),
-      findsNWidgets(6),
-      reason: 'all six roles start on the main-model fallback',
+      findsNWidgets(9),
+      reason: 'all primary modes and secondary roles use the fallback',
     );
 
     await tester.tap(
@@ -58,6 +59,51 @@ void main() {
     expect(updated.memoryExtractionModel, 'small-model');
     expect(updated.effectiveMemoryExtractionModel, 'small-model');
     expect(updated.effectiveSubagentModel, 'main-model');
+  });
+
+  testWidgets('assigning a coding primary route persists it in settings', (
+    tester,
+  ) async {
+    final settings = AppSettings.defaults().copyWith(
+      model: 'main-model',
+      llmEndpoints: const [
+        LlmEndpoint(
+          id: 'quality-host',
+          label: 'Quality host',
+          baseUrl: 'http://quality.example/v1',
+          model: 'quality-default',
+        ),
+      ],
+    );
+
+    await _pumpModelRoutingPage(
+      tester,
+      settings: settings,
+      loadModels: () async => ['main-model', 'quality-model'],
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('model-routing-primary-coding')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('quality-model').last);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('endpoint-routing-primary-coding')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Quality host').last);
+    await tester.pumpAndSettle();
+
+    final element = tester.element(find.byType(ModelRoutingSettingsPage));
+    final container = ProviderScope.containerOf(element);
+    final updated = container.read(settingsNotifierProvider);
+    expect(updated.codingPrimaryModel, 'quality-model');
+    expect(updated.codingPrimaryEndpointId, 'quality-host');
+    expect(
+      updated.effectivePrimaryModelFor(AssistantMode.coding),
+      'quality-model',
+    );
   });
 
   testWidgets('assigning the Pro Reasoning route persists it in settings', (

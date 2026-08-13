@@ -500,6 +500,43 @@ class LlmSessionLogStore {
     }
   }
 
+  /// Append the immutable LL24 route captured for one primary conversation
+  /// turn. The marker carries no prompt or response content.
+  Future<void> recordPrimaryModelRoute({
+    required LlmSessionLogContext? context,
+    required String turnId,
+    required String assistantMode,
+    required String endpointId,
+    required String model,
+    required String reason,
+    required bool demotedToPrimary,
+    required DateTime at,
+  }) async {
+    try {
+      final effectiveContext = context ?? _fallbackContext();
+      final entry = {
+        'schemaName': schemaName,
+        'schemaVersion': schemaVersion,
+        'timestamp': _utcTimestamp(at),
+        'build': BuildInfo.toJson(),
+        'context': effectiveContext.toJson(),
+        'operation': 'primary_model_route',
+        'primaryModelRoute': {
+          'turnId': turnId,
+          'assistantMode': assistantMode,
+          'endpointId': endpointId,
+          'model': model,
+          'reason': reason,
+          'demotedToPrimary': demotedToPrimary,
+        },
+      };
+      final line = '${jsonEncode(_redactValue(entry))}\n';
+      await _appendLine(context: effectiveContext, line: line, at: at);
+    } catch (error) {
+      appLog('[SessionLog] Failed to write primary-route entry: $error');
+    }
+  }
+
   /// Append a structured goal auto-continuation decision.
   ///
   /// This sits next to `turn_exit` entries so live/debug triage can prove that

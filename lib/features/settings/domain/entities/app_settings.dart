@@ -768,6 +768,15 @@ abstract class AppSettings with _$AppSettings {
     @JsonKey(unknownEnumValue: ProReasoningDepth.deep)
     @Default(ProReasoningDepth.deep)
     ProReasoningDepth proReasoningDepth,
+    // LL24 primary-turn routing. Empty strings preserve the active primary
+    // model and endpoint. These are deliberately separate from LL1 secondary
+    // roles such as plan drafting and memory extraction.
+    @Default('') String generalPrimaryModel,
+    @Default('') String codingPrimaryModel,
+    @Default('') String planPrimaryModel,
+    @Default('') String generalPrimaryEndpointId,
+    @Default('') String codingPrimaryEndpointId,
+    @Default('') String planPrimaryEndpointId,
     // Per-role model routing (LL1). Empty string means "use the main model".
     // Lets secondary LLM calls run on a smaller, faster local model.
     @Default('') String memoryExtractionModel,
@@ -996,6 +1005,23 @@ abstract class AppSettings with _$AppSettings {
 
   String get effectiveProReasoningModel =>
       _resolveRoleModel(proReasoningModel, proReasoningEndpointId);
+
+  String primaryModelOverrideFor(AssistantMode mode) => switch (mode) {
+    AssistantMode.general => generalPrimaryModel,
+    AssistantMode.coding => codingPrimaryModel,
+    AssistantMode.plan => planPrimaryModel,
+  };
+
+  String primaryEndpointIdFor(AssistantMode mode) => switch (mode) {
+    AssistantMode.general => generalPrimaryEndpointId,
+    AssistantMode.coding => codingPrimaryEndpointId,
+    AssistantMode.plan => planPrimaryEndpointId,
+  };
+
+  String effectivePrimaryModelFor(AssistantMode mode) => _resolveRoleModel(
+    primaryModelOverrideFor(mode),
+    primaryEndpointIdFor(mode),
+  );
 
   String get normalizedFeedbackEndpointUrl => feedbackEndpointUrl.trim();
 
@@ -1227,6 +1253,9 @@ abstract class AppSettings with _$AppSettings {
 
     migrated['llmEndpoints'] = endpoints;
     for (final field in const <String>[
+      'generalPrimaryEndpointId',
+      'codingPrimaryEndpointId',
+      'planPrimaryEndpointId',
       'memoryExtractionEndpointId',
       'subagentEndpointId',
       'goalSuggestionEndpointId',

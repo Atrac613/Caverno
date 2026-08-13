@@ -160,7 +160,7 @@ structurally unmotivated to build:
 | Local LLM | LL21 | done | M | LL3, LL18 | Continuous idle re-probing and profile history: full (non-bounded) probe on idle, time-series profile versions, model-drift / quant-swap detection. |
 | Local LLM | LL22 | done | M | LL4, LL6, LL18 | Idle warm-up and precompute: precompute repo map / embeddings and warm the KV cache so the first morning turn is instant. |
 | Local LLM | LL23 | done | M | LL3, LL6 | Declared per-model harness config: instruction surfaces (bootstrap/verify/recovery) and runtime control policy (loop caps, recovery middleware) as a mutable schema LL17 edits. Focused coding-goal repeat canary is green; broad main-gate PM5 still blocks on saved-validation command preservation and active-task target-scope drift. |
-| Local LLM | LL24 | next | S-M | LL1, LL8, LL23 | Task-based primary-model routing: select the main conversation model by assistant mode (for example plan/coding → quality-preferred assignment, general → fast/default assignment) through a single re-invokable route decision, reusing the LL1/LL8 endpoint resolver and the model-keyed LL3/LL23 profiles. |
+| Local LLM | LL24 | done | S-M | LL1, LL8, LL23 | Task-based primary-model routing: select the main conversation model by assistant mode (for example plan/coding → quality-preferred assignment, general → fast/default assignment) through a single re-invokable route decision, reusing the LL1/LL8 endpoint resolver and the model-keyed LL3/LL23 profiles. |
 | Local LLM | LL25 | later | M | LL24, LL7 | Auto difficulty routing: decide the primary model automatically — preferred shape is cascade escalation (answer with the fast/default model, escalate to the quality-preferred model on verification failure or tool-loop stall) over a per-turn classifier, with each route + escalation decision logged for tuning. |
 | Local LLM | LL26 | later | S-M | LL7, LL8, LL20 | Parallel Best-of-N candidate selection across the mesh (A0): generate candidates concurrently on resident endpoints (PC1/PC2) via LL20 slots over the LL8 mesh, then keep the verifier-passed candidate (LL7). A latency-neutral selection ensemble; concretizes the Best-of-N half of LL8's deferred fan-out. High-confidence and cheap, but sequenced after LL24. |
 | Local LLM | LL27 | later | L | LL26, LL12, LL19, LL1 | Collaborative multi-model orchestration over the mesh: layered aggregation (Mixture-of-Agents), role conductor, and debate so resident models cooperate on one turn. Guiding thesis: a Trinity-style role conductor (small coordinator → Thinker/Worker/Verifier on resident workers). Future research challenge, gated by the LL12/LL19 eval harness on "beats the best currently validated single-model path including latency". |
@@ -2237,7 +2237,7 @@ Implementation status:
 
 ### LL24: Task-Based Primary-Model Routing
 
-Status: `next`
+Status: `done`
 
 Scope:
 - Route the *primary* conversation turn (today LL1 only routes secondary roles) to

@@ -194,6 +194,7 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
       // still unanswered, so it goes back to the queue the turn took it from.
       ..register('turnSteering', () => _returnUncarriedTurnSteering(owner))
       ..register('turnEnd', () => _turnEnd.dispose(owner))
+      ..register('primaryModelRoute', () => _releasePrimaryTurnRoute(owner))
       ..register(
         'goalCompletionEvidence',
         () => _goalCompletionEvidence.dispose(owner),

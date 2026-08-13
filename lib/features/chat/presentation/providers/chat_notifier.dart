@@ -43,7 +43,6 @@ import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/llm_provider_capabilities.dart';
 import '../../../settings/domain/services/llm_request_temperature_policy.dart';
 import '../../../settings/domain/services/external_tool_hook_service.dart';
-import '../../../settings/domain/services/primary_model_preparation_service.dart';
 import '../../../settings/presentation/providers/local_model_lifecycle_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/ask_user_question_runtime_adapter.dart';
@@ -74,6 +73,7 @@ import '../../data/datasources/session_logging_chat_datasource.dart';
 import 'chat_data_source_provider.dart';
 import 'goal_update_notifier_runtime_coordinator.dart';
 import 'python_script_approval_cache_runtime_adapter.dart';
+import 'primary_turn_route_runtime.dart';
 
 export 'chat_data_source_provider.dart' show chatRemoteDataSourceProvider;
 import '../../domain/entities/chat_turn_owner.dart';
@@ -316,16 +316,6 @@ final class _WorkflowProposalCancelled implements Exception {
   String toString() => 'workflow proposal generation was cancelled';
 }
 
-final class _PendingPrimaryModelPreparation {
-  const _PendingPrimaryModelPreparation({
-    required this.key,
-    this.previousModelId,
-  });
-
-  final String key;
-  final String? previousModelId;
-}
-
 class ChatNotifier extends Notifier<ChatState> {
   late CavernoExecutionRuntime _executionRuntime;
   late ChatDataSource _dataSource;
@@ -335,7 +325,6 @@ class ChatNotifier extends Notifier<ChatState> {
   late SessionMemoryService _memoryService;
   late AppSettings _settings;
   bool _hasLoadedSettings = false;
-  _PendingPrimaryModelPreparation? _pendingPrimaryModelPreparation;
   late CodingDiagnosticFeedbackService _codingDiagnosticFeedbackService;
   late CodingVerificationFeedbackService _codingVerificationFeedbackService;
   late BackgroundProcessMonitorService _backgroundProcessMonitorService;
@@ -400,16 +389,6 @@ class ChatNotifier extends Notifier<ChatState> {
   DateTime? _activeTurnStartedAt;
   double get _agenticRequestTemperature =>
       LlmRequestTemperaturePolicy.forSettings(_settings).agenticTemperature;
-  double get _assistantRequestTemperature =>
-      LlmRequestTemperaturePolicy.forSettings(
-        _settings,
-      ).temperatureForAssistantMode(
-        _resolveAssistantMode(
-          currentConversation: ref
-              .read(conversationsNotifierProvider)
-              .currentConversation,
-        ),
-      );
   static const int _maxRepeatedCodingVerificationRepairAttempts = 2;
   static const int _maxNarratedTranscriptRepairAttempts = 2;
   @override
@@ -562,102 +541,6 @@ class ChatNotifier extends Notifier<ChatState> {
 
   void _onSendStarted() {
     ref.read(backgroundTaskServiceProvider).beginBackgroundTask();
-  }
-
-  String _primaryModelPreparationKey(AppSettings settings) {
-    return [
-      settings.llmProvider.name,
-      settings.baseUrl.trim(),
-      settings.model.trim(),
-    ].join('|');
-  }
-
-  Future<void> _preparePrimaryModelForPendingRouteIfNeeded() async {
-    final pending = _pendingPrimaryModelPreparation;
-    if (pending == null) {
-      return;
-    }
-    final settings = _settings;
-    if (pending.key != _primaryModelPreparationKey(settings)) {
-      _pendingPrimaryModelPreparation = null;
-      return;
-    }
-    if (settings.demoMode ||
-        settings.llmProvider != LlmProvider.openAiCompatible ||
-        settings.model.trim().isEmpty) {
-      _pendingPrimaryModelPreparation = null;
-      return;
-    }
-
-    // Bounded: an unanswered load/unload stalled the turn before the runtime.
-    appLog('[LL9] Primary model auto-prepare started: ${settings.model}');
-    try {
-      final outcome = await ref
-          .read(primaryModelPreparationServiceProvider)
-          .preparePrimaryModel(
-            settings: settings,
-            previousPrimaryModelId: pending.previousModelId,
-            refreshCatalog: true,
-          )
-          .timeout(const Duration(seconds: 60));
-      _logPrimaryModelPreparationOutcome(outcome);
-    } on Object catch (error, stackTrace) {
-      appLog(
-        '[LL9] Primary model auto-prepare failed: '
-        '${error.runtimeType}: $error',
-      );
-      appLog('[LL9] stackTrace: $stackTrace');
-    } finally {
-      if (_pendingPrimaryModelPreparation == pending) {
-        _pendingPrimaryModelPreparation = null;
-      }
-    }
-  }
-
-  void _logPrimaryModelPreparationOutcome(
-    PrimaryModelPreparationOutcome outcome,
-  ) {
-    final previousModelId = outcome.previousModelId;
-    final unloadResult = outcome.unloadActionResult;
-    if (previousModelId != null && unloadResult != null) {
-      appLog(
-        '[LL9] Previous primary model "$previousModelId" unload result: '
-        'supported=${unloadResult.supported}, '
-        'succeeded=${unloadResult.succeeded}, message=${unloadResult.message}',
-      );
-      if (outcome.previousModelUnloadConfirmed) {
-        appLog(
-          '[LL9] Previous primary model "$previousModelId" confirmed '
-          'unloaded before preparing "${outcome.modelId}".',
-        );
-      }
-    }
-
-    switch (outcome.status) {
-      case PrimaryModelPreparationStatus.loadStarted:
-        appLog(
-          '[LL9] Primary model "${outcome.modelId}" load requested: '
-          '${outcome.message}',
-        );
-      case PrimaryModelPreparationStatus.inProgress:
-        appLog('[LL9] Primary model "${outcome.modelId}" is already loading.');
-      case PrimaryModelPreparationStatus.missing:
-        appLog(
-          '[LL9] Primary model "${outcome.modelId}" is not in the managed '
-          'model catalog; continuing without a lifecycle load.',
-        );
-      case PrimaryModelPreparationStatus.unsupported:
-        appLog('[LL9] Primary model auto-prepare skipped: ${outcome.message}');
-      case PrimaryModelPreparationStatus.failed:
-        appLog(
-          '[LL9] Primary model "${outcome.modelId}" preparation failed: '
-          '${outcome.message}',
-        );
-      case PrimaryModelPreparationStatus.ready:
-      case PrimaryModelPreparationStatus.skipped:
-      case PrimaryModelPreparationStatus.loadRequired:
-        break;
-    }
   }
 
   void _onResponseCompleted(String content) {
@@ -2626,9 +2509,6 @@ class ChatNotifier extends Notifier<ChatState> {
       }
 
       _onSendStarted();
-      if (options.dataSource == null) {
-        await _preparePrimaryModelForPendingRouteIfNeeded();
-      }
       if (!_isCurrentInteractionGeneration(interactionGeneration)) {
         return turnOwner;
       }
@@ -2953,7 +2833,11 @@ class ChatNotifier extends Notifier<ChatState> {
         return turnOwner;
       }
       currentConversation = _conversationForId(effectiveOwner);
-      await _preparePrimaryModelForPendingRouteIfNeeded();
+      await _capturePrimaryTurnRoute(
+        owner: startedRuntime,
+        conversation: currentConversation,
+        bypassPlanMode: bypassPlanMode,
+      );
       if (!_isCurrentInteractionGeneration(interactionGeneration)) {
         return turnOwner;
       }
@@ -3731,15 +3615,19 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     try {
       _runWithLlmSessionLogContextForGeneration(generation, () {
-        final stream = (options?.dataSource ?? _dataSource)
-            .streamChatCompletion(
-              messages: _prepareMessagesForLLM(
-                interactionGeneration: generation,
-              ),
-              model: options?.model ?? _settings.model,
-              temperature: _assistantRequestTemperature,
-              maxTokens: _settings.maxTokens,
-            );
+        final stream =
+            (options?.dataSource ?? _primaryDataSourceForGeneration(generation))
+                .streamChatCompletion(
+                  messages: _prepareMessagesForLLM(
+                    interactionGeneration: generation,
+                  ),
+                  model:
+                      options?.model ?? _primaryModelForGeneration(generation),
+                  temperature: _primaryAssistantTemperatureForGeneration(
+                    generation,
+                  ),
+                  maxTokens: _settings.maxTokens,
+                );
 
         _turnStream.listen(
           turnOwner,
@@ -3819,12 +3707,15 @@ class ChatNotifier extends Notifier<ChatState> {
         );
         messages.add(_embeddedToolTagFallbackInstructionMessage());
 
-        final stream = _dataSource.streamChatCompletion(
-          messages: messages,
-          model: _settings.model,
-          temperature: _agenticRequestTemperature,
-          maxTokens: _settings.maxTokens,
-        );
+        final stream = _primaryDataSourceForGeneration(interactionGeneration)
+            .streamChatCompletion(
+              messages: messages,
+              model: _primaryModelForGeneration(interactionGeneration),
+              temperature: _primaryAgenticTemperatureForGeneration(
+                interactionGeneration,
+              ),
+              maxTokens: _settings.maxTokens,
+            );
 
         _turnStream.listen(
           turnOwner,
@@ -3971,20 +3862,23 @@ class ChatNotifier extends Notifier<ChatState> {
       final result = await _runWithLlmSessionLogContextForGeneration(
         interactionGeneration,
         requestLabel: logLabel,
-        () => _dataSource.createChatCompletionWithToolResults(
-          messages: buildMessages(forceCompaction),
-          toolResults: _budgetToolResultsForPrompt(
-            toolResults,
-            mode: budgetMode,
-            protectedPaths: protectedPaths,
-            observationOwner: observationOwner,
-          ),
-          assistantContent: assistantContent,
-          tools: tools,
-          model: _settings.model,
-          temperature: _agenticRequestTemperature,
-          maxTokens: _settings.maxTokens,
-        ),
+        () => _primaryDataSourceForGeneration(interactionGeneration)
+            .createChatCompletionWithToolResults(
+              messages: buildMessages(forceCompaction),
+              toolResults: _budgetToolResultsForPrompt(
+                toolResults,
+                mode: budgetMode,
+                protectedPaths: protectedPaths,
+                observationOwner: observationOwner,
+              ),
+              assistantContent: assistantContent,
+              tools: tools,
+              model: _primaryModelForGeneration(interactionGeneration),
+              temperature: _primaryAgenticTemperatureForGeneration(
+                interactionGeneration,
+              ),
+              maxTokens: _settings.maxTokens,
+            ),
       );
       final owner = _turnOwnerForGeneration(interactionGeneration);
       if (owner != null) {
@@ -4005,6 +3899,7 @@ class ChatNotifier extends Notifier<ChatState> {
       final hasToolResultBudget = _hasAdditionalCompactToolResultBudget(
         toolResults,
         protectedPaths: protectedPaths,
+        interactionGeneration: interactionGeneration,
       );
       if (!ConversationCompactionService.isContextLengthError(
             error.toString(),
@@ -4108,16 +4003,17 @@ class ChatNotifier extends Notifier<ChatState> {
       final streamResult = _runWithLlmSessionLogContextForGeneration(
         generation,
         requestLabel: 'turn opening request',
-        () => _dataSource.streamChatCompletionWithTools(
-          messages: _prepareMessagesForLLM(
-            toolDefinitionsOverride: initialToolSelection.toolDefinitions,
-            interactionGeneration: generation,
-          ),
-          tools: initialToolSelection.toolDefinitions,
-          model: _settings.model,
-          temperature: _agenticRequestTemperature,
-          maxTokens: _settings.maxTokens,
-        ),
+        () => _primaryDataSourceForGeneration(generation)
+            .streamChatCompletionWithTools(
+              messages: _prepareMessagesForLLM(
+                toolDefinitionsOverride: initialToolSelection.toolDefinitions,
+                interactionGeneration: generation,
+              ),
+              tools: initialToolSelection.toolDefinitions,
+              model: _primaryModelForGeneration(generation),
+              temperature: _primaryAgenticTemperatureForGeneration(generation),
+              maxTokens: _settings.maxTokens,
+            ),
       );
 
       await for (final chunk in streamResult.stream) {
@@ -4532,8 +4428,10 @@ class ChatNotifier extends Notifier<ChatState> {
 
   bool get _supportsToolAwareRequests => true;
 
-  bool get _summaryFirstToolResultsEnabled =>
-      _settings.effectiveModelHarnessConfig?.summaryFirstToolResultsEnabled ??
+  bool _summaryFirstToolResultsEnabled(int? generation) =>
+      _primaryHarnessConfigForGeneration(
+        generation,
+      )?.summaryFirstToolResultsEnabled ??
       false;
 
   List<ToolResultInfo> _budgetToolResultsForPrompt(
@@ -4548,7 +4446,9 @@ class ChatNotifier extends Notifier<ChatState> {
       protectedPaths: mode == ToolResultPromptBudgetMode.compact
           ? protectedPaths
           : const <String>{},
-      summaryFirst: _summaryFirstToolResultsEnabled,
+      summaryFirst: _summaryFirstToolResultsEnabled(
+        observationOwner?.interactionGeneration,
+      ),
     );
     if (observationOwner != null) {
       _updateContextSurgeryObservation(
@@ -4562,10 +4462,11 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _hasAdditionalCompactToolResultBudget(
     List<ToolResultInfo> toolResults, {
     required Set<String> protectedPaths,
+    required int interactionGeneration,
   }) => ToolResultPromptBuilder.hasAdditionalCompactBudgetReduction(
     toolResults,
     protectedPaths: protectedPaths,
-    summaryFirst: _summaryFirstToolResultsEnabled,
+    summaryFirst: _summaryFirstToolResultsEnabled(interactionGeneration),
   );
 
   /// Resolves only the registered owner; visible state is unsafe for an
@@ -5483,7 +5384,9 @@ class ChatNotifier extends Notifier<ChatState> {
     var currentToolCalls = toolCalls;
     var currentAssistantContent = assistantContent;
     var maxIterations =
-        _settings.effectiveModelHarnessConfig?.resolveToolLoopMaxIterations(
+        _primaryHarnessConfigForGeneration(
+          interactionGeneration,
+        )?.resolveToolLoopMaxIterations(
           PlanningExecutorProfile.defaultToolLoopMaxIterations,
         ) ??
         PlanningExecutorProfile.defaultToolLoopMaxIterations;
@@ -8746,22 +8649,32 @@ class ChatNotifier extends Notifier<ChatState> {
         late final Stream<String> stream;
         late final Future<ChatCompletionTerminalMetadata> terminal;
         if (continuationToolDefinitions == null) {
-          final completion = _dataSource.streamChatCompletion(
-            messages: messagesForLLM,
-            model: _settings.model,
-            temperature: _assistantRequestTemperature,
-            maxTokens: _settings.maxTokens,
-          );
+          final completion =
+              _primaryDataSourceForGeneration(
+                interactionGeneration,
+              ).streamChatCompletion(
+                messages: messagesForLLM,
+                model: _primaryModelForGeneration(interactionGeneration),
+                temperature: _primaryAssistantTemperatureForGeneration(
+                  interactionGeneration,
+                ),
+                maxTokens: _settings.maxTokens,
+              );
           stream = completion;
           terminal = completion.terminal;
         } else {
-          final completion = _dataSource.streamChatCompletionWithTools(
-            messages: messagesForLLM,
-            tools: continuationToolDefinitions,
-            model: _settings.model,
-            temperature: _agenticRequestTemperature,
-            maxTokens: _settings.maxTokens,
-          );
+          final completion =
+              _primaryDataSourceForGeneration(
+                interactionGeneration,
+              ).streamChatCompletionWithTools(
+                messages: messagesForLLM,
+                tools: continuationToolDefinitions,
+                model: _primaryModelForGeneration(interactionGeneration),
+                temperature: _primaryAgenticTemperatureForGeneration(
+                  interactionGeneration,
+                ),
+                maxTokens: _settings.maxTokens,
+              );
           stream = completion.stream;
           terminal = _responseMetadata.terminalFor(completion.completion);
         }
@@ -8827,12 +8740,15 @@ class ChatNotifier extends Notifier<ChatState> {
     try {
       final result = await _runWithLlmSessionLogContextForGeneration(
         interactionGeneration,
-        () => _dataSource.createChatCompletion(
-          messages: messagesForLLM,
-          model: _settings.model,
-          temperature: _assistantRequestTemperature,
-          maxTokens: _settings.maxTokens,
-        ),
+        () => _primaryDataSourceForGeneration(interactionGeneration)
+            .createChatCompletion(
+              messages: messagesForLLM,
+              model: _primaryModelForGeneration(interactionGeneration),
+              temperature: _primaryAssistantTemperatureForGeneration(
+                interactionGeneration,
+              ),
+              maxTokens: _settings.maxTokens,
+            ),
       );
 
       final ownerMessages = _activeResponseRegistry.messagesForOwner(turnOwner);

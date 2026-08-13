@@ -90,7 +90,11 @@ extension ChatNotifierPromptContext on ChatNotifier {
       participantRolePrompt: participantRolePrompt,
       projectName: activeCodingProject?.name,
       projectRootPath: projectRoot,
-      repoMapContext: _repoMap(resolvedAssistantMode, projectRoot),
+      repoMapContext: _repoMap(
+        resolvedAssistantMode,
+        projectRoot,
+        ownerSnapshot?.owner.interactionGeneration,
+      ),
       goal: currentConversation?.goal,
       workflowStage:
           currentConversation?.workflowStage ?? ConversationWorkflowStage.idle,
@@ -103,8 +107,12 @@ extension ChatNotifierPromptContext on ChatNotifier {
       hasPythonInputAttachment:
           toolNames.contains('run_python_script') &&
           (ownerSnapshot?.hasAttachments ?? false),
-      modelCapabilityProfile: _settings.effectiveModelCapabilityProfile,
-      modelHarnessConfig: _settings.effectiveModelHarnessConfig,
+      modelCapabilityProfile: _primaryCapabilityProfileForGeneration(
+        ownerSnapshot?.owner.interactionGeneration,
+      ),
+      modelHarnessConfig: _primaryHarnessConfigForGeneration(
+        ownerSnapshot?.owner.interactionGeneration,
+      ),
     );
     // Only a registered turn has an owner. Fabricating one from the visible
     // conversation used generation 0, which ChatTurnOwner rejects outright, so
@@ -257,7 +265,11 @@ extension ChatNotifierPromptContext on ChatNotifier {
     return ref.read(agentsMdLoaderProvider).loadForProject(projectRoot);
   }
 
-  String? _repoMap(AssistantMode assistantMode, String? projectRoot) {
+  String? _repoMap(
+    AssistantMode assistantMode,
+    String? projectRoot,
+    int? interactionGeneration,
+  ) {
     if (assistantMode == AssistantMode.general) return null;
     final lspSymbolEntries = ref
         .read(repoMapLspSymbolCacheProvider)
@@ -268,8 +280,9 @@ extension ChatNotifierPromptContext on ChatNotifier {
         .read(repoMapPrecomputeCacheProvider)
         .getOrBuild(
           rootPath: projectRoot,
-          usableContextTokens:
-              _settings.effectiveModelCapabilityProfile?.usableContextTokens,
+          usableContextTokens: _primaryCapabilityProfileForGeneration(
+            interactionGeneration,
+          )?.usableContextTokens,
           lspSymbolEntries: lspSymbolEntries,
         );
   }

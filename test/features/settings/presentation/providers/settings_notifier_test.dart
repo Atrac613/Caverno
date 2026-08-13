@@ -396,6 +396,39 @@ void main() {
     );
   });
 
+  test('primary turn routing updates persist through the repository', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(settingsNotifierProvider.notifier);
+    await notifier.updateGeneralPrimaryModel(' fast-model ');
+    await notifier.updateCodingPrimaryModel(' quality-model ');
+    await notifier.updatePlanPrimaryModel(' planner-model ');
+    await notifier.updateGeneralPrimaryEndpointId(' fast-host ');
+    await notifier.updateCodingPrimaryEndpointId(' quality-host ');
+    await notifier.updatePlanPrimaryEndpointId(' quality-host ');
+
+    final settings = container.read(settingsNotifierProvider);
+    expect(settings.generalPrimaryModel, 'fast-model');
+    expect(settings.codingPrimaryModel, 'quality-model');
+    expect(settings.planPrimaryModel, 'planner-model');
+    expect(settings.generalPrimaryEndpointId, 'fast-host');
+    expect(settings.codingPrimaryEndpointId, 'quality-host');
+    expect(settings.planPrimaryEndpointId, 'quality-host');
+
+    final reloaded = SettingsRepository(prefs).load();
+    expect(reloaded.generalPrimaryModel, 'fast-model');
+    expect(reloaded.codingPrimaryModel, 'quality-model');
+    expect(reloaded.planPrimaryModel, 'planner-model');
+    expect(reloaded.generalPrimaryEndpointId, 'fast-host');
+    expect(reloaded.codingPrimaryEndpointId, 'quality-host');
+    expect(reloaded.planPrimaryEndpointId, 'quality-host');
+  });
+
   test('Pro Reasoning settings persist through the repository', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();

@@ -29,6 +29,9 @@ const Map<String, String> _ownerReleaseContract = {
   // unanswered work, so teardown hands it back to the queue.
   'turnSteering': '()=>_returnUncarriedTurnSteering(owner)',
   'turnEnd': '()=>_turnEnd.dispose(owner)',
+  // The primary route is immutable for one owner and must not survive turn
+  // terminalization or leak its endpoint/model into a later generation.
+  'primaryModelRoute': '()=>_releasePrimaryTurnRoute(owner)',
   'goalCompletionEvidence': '()=>_goalCompletionEvidence.dispose(owner)',
   // Moved here from the generation-keyed destructor, which reached them by
   // looking the owner back up. The pause guard is part of the contract: a

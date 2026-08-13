@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 void main() {
@@ -276,6 +277,7 @@ void main() {
 
     test('merges overlapping registries and remaps role pins', () {
       final json = legacyJson()
+        ..['codingPrimaryEndpointId'] = 'legacy-mesh-id'
         ..['memoryExtractionEndpointId'] = 'legacy-mesh-id'
         ..['proReasoningEndpointId'] = 'legacy-mesh-id'
         ..['llmEndpointProfiles'] = [
@@ -304,6 +306,7 @@ void main() {
       expect(settings.llmEndpoints.single.label, 'Profile Label');
       expect(settings.llmEndpoints.single.apiKey, 'profile-key');
       expect(settings.llmEndpoints.single.enabled, isTrue);
+      expect(settings.codingPrimaryEndpointId, 'profile-id');
       expect(settings.memoryExtractionEndpointId, 'profile-id');
       expect(settings.proReasoningEndpointId, 'profile-id');
     });
@@ -798,6 +801,10 @@ void main() {
     expect(settings.effectiveGoalSuggestionModel, 'main-model');
     expect(settings.effectiveApprovalAutoReviewModel, 'main-model');
     expect(settings.effectiveProReasoningModel, 'main-model');
+    for (final mode in AssistantMode.values) {
+      expect(settings.effectivePrimaryModelFor(mode), 'main-model');
+      expect(settings.primaryEndpointIdFor(mode), isEmpty);
+    }
 
     final whitespaceOnly = settings.copyWith(memoryExtractionModel: '   ');
     expect(whitespaceOnly.effectiveMemoryExtractionModel, 'main-model');
@@ -821,6 +828,60 @@ void main() {
     // Unassigned roles still fall back to the main model.
     expect(settings.effectiveGoalSuggestionModel, 'main-model');
     expect(settings.effectiveApprovalAutoReviewModel, 'main-model');
+  });
+
+  test('primary turn assignments resolve independently for each mode', () {
+    const settings = AppSettings(
+      baseUrl: 'http://primary.example/v1',
+      model: 'primary-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      generalPrimaryModel: 'fast-model',
+      codingPrimaryEndpointId: 'quality-host',
+      planPrimaryModel: 'planner-model',
+      planPrimaryEndpointId: 'quality-host',
+      llmEndpoints: [
+        LlmEndpoint(
+          id: 'quality-host',
+          baseUrl: 'http://quality.example/v1',
+          model: 'quality-model',
+        ),
+      ],
+    );
+
+    expect(
+      settings.effectivePrimaryModelFor(AssistantMode.general),
+      'fast-model',
+    );
+    expect(
+      settings.effectivePrimaryModelFor(AssistantMode.coding),
+      'quality-model',
+    );
+    expect(
+      settings.effectivePrimaryModelFor(AssistantMode.plan),
+      'planner-model',
+    );
+    expect(settings.primaryEndpointIdFor(AssistantMode.general), isEmpty);
+    expect(settings.primaryEndpointIdFor(AssistantMode.coding), 'quality-host');
+  });
+
+  test('primary turn assignments are ignored for Apple Foundation Models', () {
+    const settings = AppSettings(
+      llmProvider: LlmProvider.appleFoundationModels,
+      baseUrl: 'http://primary.example/v1',
+      model: 'primary-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      codingPrimaryModel: 'quality-model',
+      codingPrimaryEndpointId: 'quality-host',
+    );
+
+    expect(
+      settings.effectivePrimaryModelFor(AssistantMode.coding),
+      AppSettings.appleFoundationModelsModelId,
+    );
   });
 
   test('a pinned endpoint supplies the default model for an empty role', () {
@@ -946,6 +1007,12 @@ void main() {
       proReasoningDepth: ProReasoningDepth.standard,
       proReasoningModel: 'reasoning-model',
       proReasoningEndpointId: 'reasoning-endpoint',
+      generalPrimaryModel: 'fast-model',
+      codingPrimaryModel: 'quality-model',
+      planPrimaryModel: 'planner-model',
+      generalPrimaryEndpointId: 'fast-endpoint',
+      codingPrimaryEndpointId: 'quality-endpoint',
+      planPrimaryEndpointId: 'quality-endpoint',
     );
 
     final decoded = AppSettings.fromJson(
@@ -959,6 +1026,12 @@ void main() {
     expect(decoded.proReasoningDepth, ProReasoningDepth.standard);
     expect(decoded.proReasoningModel, 'reasoning-model');
     expect(decoded.proReasoningEndpointId, 'reasoning-endpoint');
+    expect(decoded.generalPrimaryModel, 'fast-model');
+    expect(decoded.codingPrimaryModel, 'quality-model');
+    expect(decoded.planPrimaryModel, 'planner-model');
+    expect(decoded.generalPrimaryEndpointId, 'fast-endpoint');
+    expect(decoded.codingPrimaryEndpointId, 'quality-endpoint');
+    expect(decoded.planPrimaryEndpointId, 'quality-endpoint');
 
     final legacy = AppSettings.fromJson({
       'baseUrl': 'http://localhost:1234/v1',
@@ -972,5 +1045,11 @@ void main() {
     expect(legacy.proReasoningEnabled, isFalse);
     expect(legacy.proReasoningDepth, ProReasoningDepth.deep);
     expect(legacy.effectiveProReasoningModel, 'main-model');
+    expect(legacy.generalPrimaryModel, isEmpty);
+    expect(legacy.codingPrimaryModel, isEmpty);
+    expect(legacy.planPrimaryModel, isEmpty);
+    expect(legacy.generalPrimaryEndpointId, isEmpty);
+    expect(legacy.codingPrimaryEndpointId, isEmpty);
+    expect(legacy.planPrimaryEndpointId, isEmpty);
   });
 }
