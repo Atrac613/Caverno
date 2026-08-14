@@ -1,13 +1,21 @@
 # Remote Coding P1 Release Gate
 
-Remote Coding P1 is the product hardening gate after the P0 safety and launch
-blockers are satisfied. It focuses on LAN resilience, supportability, and
-multi-device behavior for mobile control of existing desktop coding projects.
+Remote Coding P1 combines the audit-P0 authenticated-transport prerequisite
+with later product hardening. Its transport and plaintext-containment checks
+must pass before Remote Coding can appear in a release; resilience,
+supportability, and multi-device evidence follow before broader product
+promotion.
 
 ## Scope
 
 P1 covers these release-hardening requirements:
 
+- Transport security: use pinned authenticated WSS or equivalent application-
+  layer authenticated encryption, reject plaintext downgrade before sending a
+  pairing secret or token, and issue short-lived channel-bound session
+  authorization.
+- Resource boundaries: close unauthenticated connections after a bounded
+  deadline and enforce connection, frame, message, and per-source rate limits.
 - Resilience: unexpected WebSocket closures schedule bounded automatic
   reconnects, sockets use ping intervals, command responses are correlated by
   request ID, and timed-out commands become visible to the user.
@@ -20,6 +28,12 @@ P1 covers these release-hardening requirements:
   visible, and revocation is scoped to the selected mobile device.
 - Soak evidence: iOS and Android must pass a user-operated LAN soak with
   background/resume, desktop sleep/wake, and desktop IP change recovery.
+
+The current P1 checker predates the first two requirements and does not yet
+accept or validate `transportSecurity` or `resourceBoundary` checklist
+sections. Until the RC1/SEC4.5 implementation updates the checker and focused
+tests in the same change, a passing P1 report is not final Remote Coding product
+promotion evidence. See `docs/security_audit_2026-08-14.md` SA-06 and SA-10.
 
 ## Command
 
@@ -52,6 +66,10 @@ Required sections:
 - `resilienceSoak`
 - `supportPacket`
 - `multiDevice`
+
+The RC1 transport slice must add required `transportSecurity` and
+`resourceBoundary` sections to the checklist schema, generated template, Dart
+gate, and gate tests. Documentation alone does not satisfy those controls.
 
 Keep real-device screenshots, copied diagnostics, and build logs next to the
 JSON report when preparing a release candidate. Diagnostics must be reviewed to

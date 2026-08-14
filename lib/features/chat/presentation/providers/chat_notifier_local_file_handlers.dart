@@ -535,14 +535,6 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       );
     }
 
-    if (LocalShellTools.isReadOnly(command) && !requiresExplicitApproval) {
-      return _mcpToolService!.executeProcessTool(
-        owner: approvalCache.owner,
-        name: toolCall.name,
-        arguments: localArguments,
-      );
-    }
-
     final cachedResult = approvalCache.lookupDenial(
       toolCall.name,
       localArguments,

@@ -55,40 +55,7 @@ class LocalShellTools {
   static bool isReadOnly(String command) {
     final trimmed = normalizeCommand(command);
     if (trimmed.isEmpty) return false;
-
-    final chainedCommands = _splitConditionalCommands(trimmed);
-    if (chainedCommands.length > 1) {
-      return chainedCommands.every(_isSingleReadOnlyCommand);
-    }
-
-    return _isSingleReadOnlyCommand(trimmed);
-  }
-
-  static bool _isSingleReadOnlyCommand(String command) {
-    final trimmed = normalizeCommand(command);
-    if (trimmed.isEmpty) return false;
-    if (_hasUnsafeShellSyntax(trimmed)) return false;
-
-    final args = _splitArgs(trimmed);
-    if (args.isEmpty) return false;
-
-    final executable = args.first;
-    return switch (executable) {
-      'pwd' ||
-      'echo' ||
-      'ls' ||
-      'cat' ||
-      'head' ||
-      'tail' ||
-      'wc' ||
-      'stat' ||
-      'file' => true,
-      'find' || 'rg' || 'grep' => true,
-      'sed' => _isSedReadOnly(args),
-      'awk' => true,
-      'git' => GitTools.isReadOnly(args.skip(1).join(' ')),
-      _ => false,
-    };
+    return _canExecuteInternally(trimmed);
   }
 
   static Future<String> execute({
@@ -1003,16 +970,6 @@ class LocalShellTools {
         );
       }
     }
-  }
-
-  static bool _isSedReadOnly(List<String> args) {
-    if (!args.contains('-n')) return false;
-    for (final arg in args.skip(1)) {
-      if (arg == '-i' || arg.startsWith('-i')) {
-        return false;
-      }
-    }
-    return true;
   }
 
   static Future<_LocalCommandResult> _executeHead(

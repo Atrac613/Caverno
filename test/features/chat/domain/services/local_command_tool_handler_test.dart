@@ -445,13 +445,48 @@ void main() {
         _request(
           owner: owner,
           remote: true,
-          arguments: const {'command': 'git status --short'},
+          arguments: const {'command': 'pwd'},
         ),
       );
 
       expect(harness.execution.calls, hasLength(1));
       expect(harness.approval.resolveCalls, isEmpty);
       expect(harness.approval.manualCalls, isEmpty);
+    });
+
+    test('routes remote shell-backed commands through approval', () async {
+      final owner = _owner('owner-a');
+
+      for (final command in [
+        "awk 'BEGIN { system(\"touch marker\") }' /dev/null",
+        "sed -n '1w marker.txt' pubspec.yaml",
+      ]) {
+        final harness = _Harness()
+          ..approval.gates[owner] = ToolApprovalGateDecision.fullAccess;
+
+        await harness.handler.handle(
+          _request(owner: owner, remote: true, arguments: {'command': command}),
+        );
+
+        expect(harness.approval.resolveCalls, hasLength(1), reason: command);
+        expect(harness.execution.calls, hasLength(1), reason: command);
+      }
+    });
+
+    test('routes background local execution through approval', () async {
+      final owner = _owner('owner-a');
+      final harness = _Harness()
+        ..approval.gates[owner] = ToolApprovalGateDecision.fullAccess;
+
+      await harness.handler.handle(
+        _request(
+          owner: owner,
+          arguments: const {'command': 'pwd', 'background': true},
+        ),
+      );
+
+      expect(harness.approval.resolveCalls, hasLength(1));
+      expect(harness.execution.calls, hasLength(1));
     });
 
     test('executes a manual approval and remembers its result', () async {

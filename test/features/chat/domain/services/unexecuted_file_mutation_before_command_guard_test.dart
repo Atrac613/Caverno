@@ -8,10 +8,10 @@ import 'package:test/test.dart';
 void main() {
   const guard = UnexecutedFileMutationBeforeCommandGuard();
 
-  test('bypasses non-command and read-only command calls', () {
+  test('bypasses non-command and internally executed read-only calls', () {
     for (final toolCall in [
       _call('read_file'),
-      _call('local_execute_command', command: 'git status'),
+      _call('local_execute_command', command: 'pwd'),
       _call('git_execute_command', command: 'status'),
     ]) {
       expect(guard.evaluate(_input(toolCall: toolCall)), isNull);

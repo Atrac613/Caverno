@@ -84,6 +84,14 @@ violations must fail closed.
 A failed Tool should render a safe error surface rather than crashing the app or
 falling back to permissive behavior.
 
+The 2026-08-14 security audit promotes SEC4 as a release-blocking dependency
+for executable capability work. TOOL0 may add only empty navigation and product
+vocabulary. TOOL1 and later milestones must not connect a manifest action to
+shell, files, network, MCP, routines, secrets, or Remote Coding until the
+corresponding SEC4 P0 boundary is closed. See
+`docs/security_audit_2026-08-14.md` and
+`docs/local_llm_agent_roadmap.md` SEC4.
+
 ## Architecture
 
 ### Feature Package
@@ -782,7 +790,8 @@ tool/codex_verify.sh --no-codegen --test test/features/tools
 - Multi-device conflict resolution.
 - Cross-Tool data access with explicit data perimeter labels.
 - Tool trace timeline integration after OBS1.
-- Stronger data-perimeter labels after SEC1/SEC2 are fully productized.
+- Stronger data-perimeter labels after SEC1/SEC2 are fully productized and the
+  applicable SEC4 runtime boundary has passed its release gate.
 - Local backup import/export UI.
 - Advanced migration planner for Tool schema updates.
 - Template gallery.

@@ -56,8 +56,8 @@ handoffs can refer to the same unit of work over time.
 | Computer Use | M54 | done | Decide whether post-release Computer Use rollout can expand safely. | Use `bash tool/run_macos_computer_use_m54_rollout_expansion_gate.sh` for rollout expansion evidence. |
 | Computer Use | M55 | done | Review post-expansion Computer Use evidence and decide whether to continue, hold, pause, or roll back. | Use `bash tool/run_macos_computer_use_m55_post_expansion_monitoring_gate.sh` for post-expansion monitoring evidence. |
 | Computer Use | M56 | done | Hand off the approved post-expansion rollout decision to the next user-operated rollout branch. | Use `bash tool/run_macos_computer_use_m56_rollout_decision_handoff_gate.sh` for rollout decision handoff evidence. |
-| Remote Coding | RC0 | done | Ship the P0 LAN mobile control safety gate for existing desktop coding projects. | Use `dart run tool/remote_coding_p0_release_gate.dart` before P0 release review. |
-| Remote Coding | RC1 | later | Harden Remote Coding for product use with reconnect resilience, support diagnostics, and multi-device evidence. | Keep light manual smoke as sufficient until P1 release evidence becomes a release priority. |
+| Remote Coding | RC0 | done | Ship the P0 LAN mobile control safety gate for existing desktop coding projects. | Keep the P0 regression gate, but do not treat it as transport-confidentiality evidence; the 2026-08-14 audit makes non-loopback plaintext containment an RC1/SEC4 blocker. |
+| Remote Coding | RC1 | next | Add authenticated confidential transport, downgrade rejection, bounded unauthenticated connections/frames, reconnect resilience, support diagnostics, and multi-device evidence. | First prevent release builds from binding plaintext Remote Coding to non-loopback interfaces, then design pinned WSS or equivalent authenticated encryption and short-lived session authorization. |
 | Caverno CLI | CLI0 | done | Establish a no-window production-path canary and freeze the terminal execution contract. | Keep the passing three-headless-plus-one-macOS comparison gate as the shared CLI baseline. |
 | Caverno CLI | CLI1 | done | Extract a shared application execution runtime without changing GUI behavior. | Use the shared typed runtime and CLI1 parity evidence as the terminal frontend boundary. |
 | Caverno CLI | CLI2 | done | Ship the interactive terminal MVP on the shared execution runtime. | Preserve the passing terminal and three-headless-plus-one-macOS parity gates as the CLI2 baseline; keep persistence, resume, and concurrent ownership in CLI3. |
@@ -104,12 +104,14 @@ handoffs can refer to the same unit of work over time.
 | Local LLM | LL38 | done | Mid-turn interruption (steering): a message typed while a turn is running joins that turn instead of waiting behind it, opt-in per send (`sendMessage(interrupt: true)`) so the queue keeps its owner-receipt contract. The interaction generation never advances, so the turn keeps its owner, tool results and partial output and no partial-response recovery path fires; an interruption no request ever carried is handed back to the queue at turn teardown. | Live-verified on `qwen3.6-35b-a3b-vision` with a queued control arm (`tool/run_turn_steering_live_canary.sh`); delivery and obedience are asserted separately. Extended 2026-08-07 to restart mid-stream, so an answer being written can be interrupted rather than only the gaps between requests (`docs/turn_steering_midstream_design.md`, 3/3 arms live). Reading the plain-chat path that document flagged as unverified then found three defects in the restart — a leftover subscription restarting a turn busy running a tool, a concurrent thread's stream cancelled by an interruption aimed elsewhere, and a tools-off turn re-issued tool-aware — all fixed by binding the stream to its turn owner. |
 | Local LLM | LL32 | later | Deferred subdirectory instruction and skill discovery: surface newly reachable `CLAUDE.md` / rules / skill files as paths only, once per session, when a tool touches a path outside the startup discovery chain. | Corroborated 2026-07-21 by Grok Build shipping the same design; stays behind the Grounded Verification Track. |
 | Platform Vision | API1 | later | Normalize Chat Completions, Responses-style APIs, and local-provider extensions into one Agent Event Core. | Promote only after the current LL backlog is stable; first slice defines the event schema and replay fixture. |
-| Platform Vision | SEC1 | later | Define the Local Agent Data Perimeter for data classes, tool capabilities, and trust boundaries. | Start before expanding unattended or cross-machine tool execution beyond current approval gates. |
+| Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, distinguish host-wide reads from project reads, and deny external MCP tools in routines unless an exact reviewed grant exists. |
+| Security | SEC2 | current | Enforce taint-aware execution before cached or full-access authorization. | Complete SEC2.3b at the central execution boundary and add cache/full-access regression tests; advisory auto-review metadata is not sufficient. |
+| Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 security audit. | SEC4.1 is complete. Start SEC4.2 executable-configuration quarantine next; treat every remaining P0 slice as a release blocker. |
 | Platform Vision | OBS1 | later | Build an Agent Trace Timeline for model calls, tools, checkpoints, slots, evals, and maintenance runs. | Start before making LL13 parallel worktrees a product-facing agent-farm feature. |
 | Platform Vision | COMPAT1 | next | Add an OpenAI-compatible endpoint conformance suite for protocol and provider-behavior diagnostics. | Start with a diagnostic CLI seeded by LL9 live lifecycle evidence; keep model capability separate from endpoint protocol support. |
-| Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | Keep the first slice scoped to config sync, MCP server import, and session/prompt/stop hooks; defer tool-event parity to HOOK2. |
+| Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | Before further hook expansion, make imported commands fail closed: hooks disabled, MCP pending, and zero process start before exact review. Defer tool-event parity to HOOK2. |
 | Platform Vision | HOOK2 | later | Claude-like lifecycle hook flexibility with tool-event hooks, matchers, and normalized payloads. | Start with `PostToolUse` and `PostToolUseFailure` so agent-kb can archive successful and failed tool outcomes. |
-| Platform Vision | HOOK3 | later | Advanced hook runtime: trust review, richer handler types, async execution, batch hooks, and reactive config/file events. | Keep deferred until SEC1/OBS1 define trust boundaries and trace visibility for hook side effects. |
+| Platform Vision | HOOK3 | later | Advanced hook runtime: richer review UX, handler types, async execution, batch hooks, and reactive config/file events. | Keep deferred until SEC4.2 closes the minimum executable-import gate and SEC1/OBS1 define trust boundaries and trace visibility for hook side effects. |
 | Platform Vision | MLIB1 | later | Store Local Model Pack manifests with provenance, checksum, quantization, license, and verified capability metadata. | Pair with LL9 model management and LL21 profile history when model-library UX becomes active. |
 | Platform Vision | EDGE1 | later | Add an embedded local runtime adapter for bounded on-device micro-model tasks. | Keep first tasks low-risk and advisory: routing, memory extraction, privacy screening, and offline fallback. |
 | Platform Vision | EVAL-MOBILE1 | later | Create a Flutter/mobile coding eval pack for Caverno-relevant app-development failures. | Start as local fixtures before UI productization; connect results to LL19 replay. |
@@ -128,6 +130,13 @@ Foundation F5 and the future platform vision milestones are
 detailed in `docs/local_llm_agent_roadmap.md`. The user-created Tools MVP is
 detailed in `docs/tools_mvp_roadmap.md`. Conversation fork milestones are
 detailed below under "Conversation Fork Track".
+
+The canonical security finding record is
+`docs/security_audit_2026-08-14.md`. Its P0 exit criteria override feature-track
+promotion while SA-01 through SA-07 remain open. Schema-only and empty Tools
+work may proceed independently, but TOOL effect integration, HOOK2/HOOK3,
+executable integration expansion, and Remote Coding product promotion remain
+gated by SEC4.
 
 ## Plan Mode Track
 
@@ -1323,7 +1332,7 @@ Future platform vision summary:
 | Prefix | Leading milestone | Status | Vision |
 |--------|-------------------|--------|--------|
 | API | API1 | later | Normalize provider APIs into a stable Agent Event Core before broader Responses-style migration. |
-| SEC | SEC1 | later | Make data classes, trust boundaries, and tool capabilities first-class policy inputs. |
+| SEC | SEC1/SEC2/SEC4 | current | Correct the data perimeter, enforce taint before trusted execution, and close the runtime security release blockers from the 2026-08-14 audit; SEC3 remains later. |
 | OBS | OBS1 | later | Make agent work inspectable as a timeline of model calls, tools, checkpoints, evals, and maintenance decisions. |
 | COMPAT | COMPAT1 | next | Turn endpoint variance into a conformance report and compatibility badge. |
 | MLIB | MLIB1 | later | Treat local models as managed artifacts with provenance, checksum, license, and verified capabilities. |

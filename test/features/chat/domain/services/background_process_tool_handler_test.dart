@@ -387,20 +387,44 @@ void main() {
       expect(harness.approval.rememberedResults, isEmpty);
     });
 
-    test('starts a read-only command without approval', () async {
+    test('routes an unsaved read-only start through approval', () async {
       final owner = _owner('owner-a');
-      final harness = _Harness();
+      final harness = _Harness()
+        ..approval.gates[owner] = ToolApprovalGateDecision.fullAccess;
 
       await harness.handler.handle(
         _startRequest(
           owner: owner,
           remote: true,
-          arguments: const {'command': 'git status --short'},
+          arguments: const {'command': 'pwd'},
         ),
       );
 
       expect(harness.execution.startCalls, hasLength(1));
-      expect(harness.approval.resolveCalls, isEmpty);
+      expect(harness.approval.resolveCalls, hasLength(1));
+    });
+
+    test('routes remote shell-backed starts through approval', () async {
+      final owner = _owner('owner-a');
+
+      for (final command in [
+        "awk 'BEGIN { system(\"touch marker\") }' /dev/null",
+        "sed -n '1w marker.txt' pubspec.yaml",
+      ]) {
+        final harness = _Harness()
+          ..approval.gates[owner] = ToolApprovalGateDecision.fullAccess;
+
+        await harness.handler.handle(
+          _startRequest(
+            owner: owner,
+            remote: true,
+            arguments: {'command': command},
+          ),
+        );
+
+        expect(harness.approval.resolveCalls, hasLength(1), reason: command);
+        expect(harness.execution.startCalls, hasLength(1), reason: command);
+      }
     });
 
     test(

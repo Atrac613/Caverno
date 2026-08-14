@@ -109,10 +109,9 @@ final class BackgroundProcessToolHandler {
       );
     }
     if (_isExpired(request)) return _results.expired(request.toolName);
-    if ((!request.isRemoteInteraction &&
-            permission == CommandPermissionRuleDecision.allow &&
-            !requiresExplicit) ||
-        (LocalShellTools.isReadOnly(command) && !requiresExplicit)) {
+    if (!request.isRemoteInteraction &&
+        permission == CommandPermissionRuleDecision.allow &&
+        !requiresExplicit) {
       return _executeStart(request, execution, dispatchedAt);
     }
 

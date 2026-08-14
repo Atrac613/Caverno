@@ -5,6 +5,7 @@ import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/local_shell_tools.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
+import 'local_command_tool_contract.dart';
 import 'tool_definition_search_service.dart';
 
 typedef PlanningToolArgumentResolver =
@@ -77,14 +78,20 @@ class PlanningToolPolicy {
       case 'lan_get_scan_results':
         return null;
       case 'local_execute_command':
-        final command = _localCommand(toolCall, resolveArguments);
-        return LocalShellTools.isReadOnly(command)
+        final localCommand = _localCommand(toolCall, resolveArguments);
+        if (localCommand.background) {
+          return _buildDeniedResult(
+            toolCall,
+            detail: 'Planning mode cannot start background local commands.',
+          );
+        }
+        return LocalShellTools.isReadOnly(localCommand.command)
             ? null
             : _buildDeniedResult(
                 toolCall,
-                detail: command.isEmpty
+                detail: localCommand.command.isEmpty
                     ? 'Planning mode only allows read-only local commands.'
-                    : 'Planning mode blocked local command: $command',
+                    : 'Planning mode blocked local command: ${localCommand.command}',
               );
       case 'process_start':
         return _buildDeniedResult(
@@ -118,7 +125,7 @@ class PlanningToolPolicy {
     }
   }
 
-  String _localCommand(
+  ({String command, bool background}) _localCommand(
     ToolCallInfo toolCall,
     PlanningToolArgumentResolver resolveArguments,
   ) {
@@ -126,8 +133,11 @@ class PlanningToolPolicy {
       toolCall.name,
       toolCall.arguments,
     );
-    return LocalShellTools.normalizeCommand(
-      (resolvedArguments['command'] as String?)?.trim() ?? '',
+    return (
+      command: LocalShellTools.normalizeCommand(
+        (resolvedArguments['command'] as String?)?.trim() ?? '',
+      ),
+      background: argumentIsTruthy(resolvedArguments['background']),
     );
   }
 

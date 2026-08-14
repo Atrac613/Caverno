@@ -112,14 +112,20 @@ void main() {
     });
 
     test('rejects broad allow prefix rules', () {
-      const rule = LocalCommandPermissionRule(
-        id: 'broad-python',
-        action: LocalCommandPermissionAction.allow,
-        match: LocalCommandPermissionMatch.prefix,
-        pattern: 'python3',
-      );
+      for (final pattern in ['python3', 'awk', 'sed']) {
+        final rule = LocalCommandPermissionRule(
+          id: 'broad-$pattern',
+          action: LocalCommandPermissionAction.allow,
+          match: LocalCommandPermissionMatch.prefix,
+          pattern: pattern,
+        );
 
-      expect(LocalCommandPermissionService.validateRule(rule), isNotNull);
+        expect(
+          LocalCommandPermissionService.validateRule(rule),
+          isNotNull,
+          reason: pattern,
+        );
+      }
     });
 
     test('allows exact rules for broad commands', () {
@@ -145,6 +151,24 @@ void main() {
         LocalCommandPermissionService.riskWarningFor('git status'),
         isNull,
       );
+    });
+
+    test('requires exact approval for interpreter-capable shell commands', () {
+      for (final command in [
+        "awk 'BEGIN { system(\"touch marker\") }' /dev/null",
+        "sed -n '1w marker.txt' pubspec.yaml",
+      ]) {
+        expect(
+          LocalCommandPermissionService.riskWarningFor(command)?.title,
+          'Interpreter-capable shell command',
+          reason: command,
+        );
+        expect(
+          LocalCommandPermissionService.requiresExplicitApproval(command),
+          isTrue,
+          reason: command,
+        );
+      }
     });
 
     test('requires approval for dangerous removals despite allow rules', () {

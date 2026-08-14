@@ -9,6 +9,19 @@ startup and when the user presses Sync now. MCP servers and hooks loaded from
 this file are tracked with the `external:caverno-config` source id, so later
 syncs replace only the entries managed by this file.
 
+## Security Boundary
+
+MCP stdio commands and lifecycle hooks are executable configuration. Treat this
+file with the same care as a shell script: keep it user-owned, restrict its
+permissions, do not sync it from an untrusted repository or download, and do not
+place long-lived secrets in its environment map.
+
+The 2026-08-14 audit found that imported trust and hook enablement are not yet
+quarantined behind a dedicated executable review. Until SEC4.2 is complete,
+keep external hooks disabled, keep imported MCP servers disabled and pending,
+and inspect every command, argument, endpoint, and environment key before
+enabling it. See `docs/security_audit_2026-08-14.md` SA-02.
+
 ```json
 {
   "version": 1,
@@ -20,7 +33,7 @@ syncs replace only the entries managed by this file.
     "maxTokens": 4096,
     "reasoningEffort": "automatic",
     "mcpEnabled": true,
-    "externalToolHooksEnabled": true,
+    "externalToolHooksEnabled": false,
     "assistantMode": "coding"
   },
   "mcpServers": [
@@ -31,8 +44,8 @@ syncs replace only the entries managed by this file.
       "env": {
         "KB_BASE_DIR": "~/.kb"
       },
-      "trustState": "trusted",
-      "enabled": true
+      "trustState": "pending",
+      "enabled": false
     }
   ],
   "hooks": [
@@ -43,7 +56,7 @@ syncs replace only the entries managed by this file.
       "env": {
         "KB_BASE_DIR": "~/.kb"
       },
-      "enabled": true
+      "enabled": false
     },
     {
       "event": "Stop",
@@ -52,7 +65,7 @@ syncs replace only the entries managed by this file.
       "env": {
         "KB_BASE_DIR": "~/.kb"
       },
-      "enabled": true
+      "enabled": false
     }
   ]
 }

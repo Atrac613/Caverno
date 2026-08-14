@@ -8,8 +8,6 @@ import 'local_command_tool_contract.dart';
 
 export 'local_command_tool_contract.dart';
 
-// ChatNotifier decomposition collaborator: local-command-tool-handler
-
 final class LocalCommandToolHandler {
   const LocalCommandToolHandler({
     required LocalCommandExecutionPort executionPort,
@@ -25,8 +23,7 @@ final class LocalCommandToolHandler {
       'from the selected coding project';
   static const String _outsideProjectMessage =
       'working_directory must resolve inside the selected coding project';
-  static const String _expiredMessage =
-      'The approval turn expired before execution';
+  static const _expiredMessage = 'The approval turn expired before execution';
   static const String _effectUncertainMessage =
       'The local command may have completed after its owner expired; inspect '
       'possible process and filesystem effects before retrying';
@@ -74,6 +71,7 @@ final class LocalCommandToolHandler {
     );
     final requiresExplicitApproval =
         LocalCommandPermissionService.requiresExplicitApproval(command);
+    final background = argumentIsTruthy(request.arguments['background']);
     if (permission == CommandPermissionRuleDecision.deny) {
       return _failure(
         request.toolName,
@@ -86,7 +84,9 @@ final class LocalCommandToolHandler {
         !requiresExplicitApproval) {
       return _execute(request, execution);
     }
-    if (LocalShellTools.isReadOnly(command) && !requiresExplicitApproval) {
+    if (!background &&
+        LocalShellTools.isReadOnly(command) &&
+        !requiresExplicitApproval) {
       return _execute(request, execution);
     }
 

@@ -23,6 +23,27 @@ P0 covers these release blockers:
   store token hashes only, redacted diagnostics must exclude token material, and
   existing settings/conversations must start after upgrade.
 
+## Security Audit Qualification
+
+Passing this P0 gate does not establish transport confidentiality. The current
+LAN channel uses plaintext `ws://`, so an active LAN attacker can observe or
+modify pairing, authentication, snapshots, prompts, and approval traffic. The
+2026-08-14 audit records this as SA-06 in
+`docs/security_audit_2026-08-14.md`.
+
+Until RC1/SEC4.5 ships authenticated confidential transport and downgrade
+rejection, a release build must not expose a plaintext non-loopback Remote
+Coding listener. Disable or remove the feature from the release artifact; an
+isolated-LAN assumption is not closure because the reusable credential and
+approval channel remain plaintext. The current P0 checker does not verify this
+containment, so its report is necessary but not sufficient for product
+promotion.
+
+SEC4.5b must extend the generated checklist/schema and Dart gate with a required
+`transportContainment` result, add a focused gate test, and run a release-mode
+artifact/runtime smoke that proves a plaintext non-loopback listener cannot
+start. Documentation or a default-off UI setting is not evidence for this gate.
+
 ## Command
 
 Create a manual checklist template:

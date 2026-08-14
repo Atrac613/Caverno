@@ -78,6 +78,40 @@ void main() {
       );
     });
 
+    test('blocks shell-backed inspection commands', () {
+      for (final command in [
+        'git status --short',
+        "awk 'BEGIN { system(\"touch marker\") }' /dev/null",
+        "sed -n '1w marker.txt' pubspec.yaml",
+      ]) {
+        final result = policy.enforce(
+          _toolCall('local_execute_command', {'command': command}),
+          isPlanningSession: true,
+          resolveArguments: _identityResolver,
+        );
+
+        expect(result, isNotNull, reason: command);
+        expect(result!.errorMessage, contains(command), reason: command);
+      }
+    });
+
+    test('blocks background local execution for bounded commands', () {
+      final result = policy.enforce(
+        _toolCall('local_execute_command', {
+          'command': 'pwd',
+          'background': true,
+        }),
+        isPlanningSession: true,
+        resolveArguments: _identityResolver,
+      );
+
+      expect(result, isNotNull);
+      expect(
+        result!.errorMessage,
+        'Planning mode cannot start background local commands.',
+      );
+    });
+
     test('allows read-only git commands after argument resolution', () {
       final result = policy.enforce(
         _toolCall('git_execute_command', {'command': 'commit -m test'}),

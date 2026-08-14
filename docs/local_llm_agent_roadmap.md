@@ -179,9 +179,10 @@ structurally unmotivated to build:
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
-| Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
-| Security | SEC2 | current | M | SEC1, LL23 | Taint-aware tool execution: surface when untrusted evidence influences a privileged tool call. |
+| Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: the baseline is implemented, but the 2026-08-14 audit reopened classifier exhaustiveness, host-read trust, and external-MCP routine policy. |
+| Security | SEC2 | current | M | SEC1, LL23 | Taint-aware tool execution: enforce the decision before cache/full-access authorization, not only in auto-review metadata. |
 | Security | SEC3 | later | S-M | SEC1, MCP-GOV2 | MCP permission diff and audit view for server/tool changes. |
+| Security | SEC4 | current | L | F2 | Runtime trust, egress, transport, and local-data hardening: close the release blockers in `docs/security_audit_2026-08-14.md` through small reviewable slices co-owned with SEC1/SEC2 where noted. |
 | Model Library | MLIB1 | later | M | LL3, LL9 | Local Model Pack Manifest: provenance, checksum, quantization, license, and verified capability metadata per local model artifact. |
 | Model Library | MLIB2 | later | M | MLIB1 | Model provenance and license registry with revision history and local-only export boundaries. |
 | Model Library | MLIB3 | later | S-M | MLIB1, LL12, LL19 | Verified capability/eval badges backed by probes and personal eval runs. |
@@ -191,9 +192,9 @@ structurally unmotivated to build:
 | Compatibility | COMPAT1 | next | M | LL3, LL20 | OpenAI-compatible endpoint conformance suite for chat, streaming, tools, Responses-style APIs, embeddings, vision, lifecycle metadata, and provider extensions. |
 | Compatibility | COMPAT2 | later | S | COMPAT1 | Provider compatibility badge surfaced in settings and diagnostics. |
 | Compatibility | COMPAT3 | later | M | COMPAT1, API2 | Streaming/tool-call fuzz tests for local endpoints and weak-model recovery paths. |
-| Hooks | HOOK1 | current | S-M | F2, LL2 | Caverno-owned external config plus basic lifecycle hook bridge for agent-kb and local automation. |
-| Hooks | HOOK2 | later | M | HOOK1, OBS1 | Claude-like lifecycle hook flexibility: tool-event hooks, matchers, normalized payloads, and hook-result handling. |
-| Hooks | HOOK3 | later | M-L | HOOK2, SEC1, OBS1 | Advanced hook runtime with trust review, richer handler types, async/batch hooks, and reactive lifecycle events. |
+| Hooks | HOOK1 | current | S-M | F2, LL2 | Caverno-owned external config plus basic lifecycle hooks; the minimum fail-closed executable-import review is now owned by SEC4.2 before further expansion. |
+| Hooks | HOOK2 | later | M | HOOK1, OBS1, SEC4.2 | Claude-like lifecycle hook flexibility: tool-event hooks, matchers, normalized payloads, and hook-result handling. |
+| Hooks | HOOK3 | later | M-L | HOOK2, SEC1, SEC4.2, OBS1 | Advanced hook runtime with richer review UX, handler types, async/batch hooks, and reactive lifecycle events. |
 | Edge | EDGE1 | later | L | F3, LL1 | Embedded local runtime adapter for on-device micro-model execution. |
 | Edge | EDGE2 | later | M | EDGE1, SEC1 | On-device micro-model tasks: routing, memory extraction, privacy screening, title/summary helpers, and prompt compression. |
 | Edge | EDGE3 | later | S-M | EDGE1, API1 | Offline fallback mode for selected low-risk app features when no endpoint is reachable. |
@@ -214,7 +215,7 @@ structurally unmotivated to build:
 | Tools | TOOL1 | later | M | TOOL0 | Manifest schema, capability registry, policy engine, and validator for closed, versioned user-created Tools. |
 | Tools | TOOL2 | later | M | TOOL1, F4 | Local repository, record store, indexes, assets, execution logs, and storage-safety rules. |
 | Tools | TOOL3 | later | M | TOOL1, TOOL2 | Declarative runtime and read-only Flutter component renderer for saved Tool manifests. |
-| Tools | TOOL4 | later | M | TOOL3, SEC1, SEC2 | Action runner with confirmation gates, provenance tracking, manual fallback, and scoped writes. |
+| Tools | TOOL4 | later | M | TOOL3, SEC1, SEC2.3b, SEC4.1, SEC4.2, SEC4.3a-SEC4.3c, SEC4.4a | Action runner with confirmation gates, provenance tracking, manual fallback, and scoped writes. |
 | Tools | TOOL5 | later | S-M | TOOL3, TOOL4 | Receipt ledger MVP template using the same manifest runtime, storage, and permission gates as generated Tools. |
 | Tools | TOOL6 | later | M | TOOL5, LL3, COMPAT1 | Natural-language Tool builder that emits reviewable manifest drafts from approved templates and vocabularies. |
 | Tools | TOOL7 | later | S | TOOL0-TOOL6 | MVP release gate and store/privacy readiness for workspace switching, validation, persistence, rendering, confirmation, data-egress copy, and receipt-ledger behavior. |
@@ -338,18 +339,23 @@ The LL track makes Caverno powerful; this phase makes that power durable and
 reviewable. API1/API2 decouple the app from any one OpenAI-compatible endpoint
 shape. SEC1-SEC3 define the local permission and data perimeter so retrieved
 content, MCP resources, Remote Coding state, and memory writes do not collapse
-into one undifferentiated prompt. OBS1-OBS3 make parallel candidates, overnight
+into one undifferentiated prompt. SEC4 owns the audited runtime, egress,
+transport, and local-data gaps that cross those individual policy milestones.
+OBS1-OBS3 make parallel candidates, overnight
 maintenance, eval adoption, and worktree execution inspectable as a single trace.
 COMPAT1-COMPAT3 turn endpoint variance into a visible compatibility result
 instead of a support mystery. HOOK1-HOOK3 turn external automation from a
 minimal agent-kb bridge into a reviewed lifecycle extension surface.
 
-Recommended ordering: COMPAT1 can start early because it is mostly diagnostic;
-API1 should land before any broad Responses-style API migration; SEC1 should
-land before expanding automatic tool execution; OBS1 should land before
-productizing broader unattended agent-farm scheduling. HOOK1 can land
-independently, but HOOK2 should wait for enough trace visibility to debug
-tool-event side effects, and HOOK3 should wait for SEC1 trust boundaries.
+Recommended ordering: every audit P0 slice — SEC4.1, SEC4.2, SEC4.3a-SEC4.3c,
+SEC2.3b, SEC4.4a, and SEC4.5a-SEC4.5b — is release-blocking after the
+2026-08-14 audit and takes precedence over new executable-tool, hook, MCP, and
+Remote Coding expansion. COMPAT1 can proceed in parallel because it is mostly
+diagnostic; API1 should land before any broad Responses-style API migration;
+OBS1 should land before productizing broader unattended agent-farm scheduling.
+HOOK1 must first gain the minimum fail-closed executable-import boundary;
+HOOK2 waits for enough trace visibility to debug tool-event side effects, and
+HOOK3 waits for SEC4.2 plus SEC1 trust boundaries.
 THREAT1 (agent-as-vector hardening) builds directly on the SEC1/SEC2 perimeter;
 THREAT2 host triage can ship its read-only snapshot independently, but THREAT3
 intel pre-learning waits for the LL18 idle orchestrator and the LL10
@@ -4635,7 +4641,7 @@ Acceptance criteria:
 
 ### SEC1: Local Agent Data Perimeter
 
-Status: `done`
+Status: `current` (baseline complete; audit corrections reopened 2026-08-14)
 
 Scope:
 - Classify data sources such as user instructions, project source, dependency
@@ -4650,6 +4656,13 @@ Acceptance criteria:
 - High-risk tool calls display the relevant capability and data-source context.
 - Untrusted document content is never treated as equivalent to a user command.
 - Existing approval flows continue to work with no weaker default policy.
+- Every built-in HTTP verb and model-triggered browser navigation is classified
+  as network access; mutation verbs cannot fall through to low-risk `other`,
+  and all HTTP/browser results are remote/untrusted.
+- A filesystem read is project-trusted only after canonical, symlink-aware
+  containment has been established; host-wide reads are a separate capability.
+- External MCP tools are denied in unattended routines unless an exact reviewed
+  grant proves the server identity, tool schema, and allowed intent.
 
 Slice plan:
 1. Tool capability classification (pure domain model). **done.**
@@ -4679,6 +4692,11 @@ Slice plan:
    auto-reviewer denies untrusted-driven privileged actions; live-verified).
    Live-verified on macOS (2026-06-21): the local-command sheet for
    `touch /tmp/...` showed "shell execution · high risk · mutates host" in red.
+7. Close audit-discovered classifier and trust gaps: classify every HTTP verb
+   and browser navigation/result, distinguish project-contained reads from
+   host-wide reads, and remove the blanket read-only classification for
+   external MCP tools in routines.
+   **current; release-blocking with SEC4.3/SEC4.4.**
 
 Slice 6 evidence:
 - `lib/features/chat/presentation/widgets/tool_perimeter_summary.dart`: a
@@ -4759,6 +4777,18 @@ Slice 5 evidence:
   asserts the embedded capability context for a shell command and a network
   fetch.
 
+Audit reopening (2026-08-14):
+- `http_post`, `http_put`, `http_patch`, and `http_delete` are executable
+  built-ins but are not classified as network mutations; the dispatcher can
+  execute them through its generic fallback.
+- Absolute and home-relative filesystem reads are labelled project-trusted even
+  when they are outside the selected project.
+- Routine policy treats any externally marked MCP definition as read-only.
+- These are policy-input defects, not merely missing UI labels. SEC1 remains
+  `current` until slice 7 has exhaustive classifier and containment tests. The
+  canonical evidence and remediation mapping are in
+  `docs/security_audit_2026-08-14.md` (SA-03, SA-04, and SA-09).
+
 ### SEC2: Taint-Aware Tool Execution
 
 Status: `current`
@@ -4774,6 +4804,8 @@ Acceptance criteria:
 - A tool call derived from untrusted document instructions is flagged in tests.
 - Taint metadata survives compaction, model-switch handoff, and trace export.
 - Safe read-only actions can proceed while write/shell/network actions escalate.
+- `TaintDecision` is evaluated before approval-cache and full-access shortcuts;
+  untrusted influence cannot authorize a privileged action through those paths.
 
 Slice plan:
 1. Pure taint-decision policy over SEC1 capability + influencing trust levels.
@@ -4788,7 +4820,8 @@ Slice plan:
 3b. Honor `TaintDecision` directly at the approval/execution boundary (mandatory
     non-cacheable approval or hard block) and feed findings into the audit
     trail; keep taint metadata across compaction / model-switch handoff. (Hard
-    behavioral gate — verify on a live run before relying on it.)
+    behavioral gate — verify on focused tests and a live run before relying on
+    it.) **current; release-blocking with SEC4.3.**
 
 Slice 3a evidence:
 - `ConversationTaintState` is held on `ChatNotifier`, reset per turn, and fed
@@ -4815,9 +4848,15 @@ precise, not a blanket high-risk-shell block.
   `untrustedInfluence=false` -> **allowed** and the file was created.
 - Approval audit recorded all three with `capabilityClass`/`capabilityRisk`/
   `untrustedInfluence`. Inspect with `tool/sec_verify_logs.sh`.
-The hard `TaintDecision` gate (3b) stays deferred: the reviewer path already
-stops web-driven shell in practice, so a mechanical block adds false-positive
-risk for limited extra protection — revisit only if a live miss appears.
+Audit decision update (2026-08-14): the hard `TaintDecision` gate (3b) is no
+longer deferred. Source tracing confirmed that approval-cache and full-access
+paths resolve before untrusted influence can constrain them, and mutating HTTP
+tools can bypass the registered approval dispatcher entirely. The earlier live
+auto-review success remains useful evidence for precision, but it does not prove
+the other authorization paths. Implement the gate centrally before cache/full
+access, record the decision in the audit trail, and add adversarial regression
+coverage for both shortcuts. See `docs/security_audit_2026-08-14.md` SA-03 and
+SA-07.
 
 Slice 1 evidence:
 - `lib/core/security/taint_policy.dart`: `TaintDecision` (allow / requireApproval
@@ -4855,6 +4894,118 @@ Acceptance criteria:
 - A changed MCP tool schema is visible before the tool is used by an agent.
 - Permission diffs never include secrets by default.
 - Audit records are searchable from support diagnostics.
+
+### SEC4: Runtime Trust, Egress, And Local Data Hardening
+
+Status: `current`
+
+Source of truth: `docs/security_audit_2026-08-14.md`
+
+Scope:
+- Close the audit findings that cross the narrower SEC1 classifier and SEC2
+  taint milestones: approval-free process execution, executable configuration
+  import, network destination policy, project containment, authenticated
+  transport, secret/log lifecycle, migration privacy, backup, and release
+  supply-chain controls.
+- Treat the audit's P0 exit criteria as release blockers. Default-off is only a
+  temporary compensating control for Remote Coding; it is not finding closure.
+- Preserve finding IDs and attach the fix commit, regression tests, verified
+  version, and residual risk to the dated audit when each slice closes.
+
+Implementation constraints:
+- One slice per focused PR. Create its task from
+  `docs/codex_task_template.md` when implementation starts.
+- Approval-free execution is allowed only through a bounded internal argv
+  implementation. No path that can reach a native shell (`sh -c`, `cmd /C`, or
+  a background-process equivalent) may use a read-only shortcut.
+- Imported trust, full-access state, and executable enablement never establish
+  authority. Authority comes from a fresh review bound to exact normalized
+  inputs and identity.
+- Destination, containment, taint, and approval checks must occur at the shared
+  effect boundary, not only in one UI or dispatcher.
+
+Slice plan:
+
+1. **SEC4.1 — Approval-free execution boundary (P0, completed 2026-08-14).** Remove semantic
+   interpreters and option-extensible fallback commands from the read-only
+   shortcut. Apply the invariant to foreground/background local execution,
+   `process_start`, Remote Coding origin, saved permission rules, and Plan Mode.
+   Add separate `awk system()`, `sed w`, option-bearing `find`/`rg`, Windows
+   `cmd /C`, and Plan Mode `background:true` regressions. Move the historical
+   standalone-`&` assertions into a named lexical-separator group without
+   weakening them.
+2. **SEC4.2 — Executable configuration quarantine (P0).** Use one sanitizer for
+   settings file, QR, onboarding, and external-config flows. Import hooks as
+   disabled and MCP servers as pending, clear imported trust/full-access state,
+   show a redacted executable diff, and require exact consent before any stdio
+   process or pending-server connection starts. Persist only the sanitized
+   state; re-check it after provider rebuild, next turn, app restart, and manual
+   resync. Invalidate review on any command, argv, environment-key, URL, schema,
+   or normalized trust-identity change.
+3. **SEC4.3 — Network authority and resource boundary.** Land as four focused
+   sub-slices: **SEC4.3a (P0)** classifies every HTTP verb and all HTTP/browser
+   results as remote/untrusted; **SEC4.3b (P0)** completes SEC2.3b and routes
+   every network mutation through one approval boundary; **SEC4.3c (P0)**
+   applies one HTTP/browser destination policy, rejects unsafe schemes and every
+   private/loopback/link-local/metadata A/AAAA result, binds the approved address
+   to the connection or verifies the peer address, revalidates redirects, and
+   strips cross-origin credentials; **SEC4.3d (P1)** adds streamed body and
+   total-time ceilings.
+4. **SEC4.4 — Project and autonomous containment.** Split implementation into
+   **SEC4.4a (P0)**, applying one canonical, symlink-aware fence to every
+   approval-free read, and **SEC4.4b (P1)**, applying the same authorization to
+   every file mutation and denying external MCP tools in routines by default.
+   Any restored routine grant binds server identity, tool name, schema digest,
+   and reviewed intent.
+5. **SEC4.5 — Authenticated transport.** Land as focused sub-slices:
+   **SEC4.5a (P0)** implements SSH known-host verification;
+   **SEC4.5b (P0)** makes the release gate and artifact/runtime smoke fail if a
+   plaintext non-loopback Remote Coding listener can start;
+   **SEC4.5c (P1, required before enabling Remote Coding)** adds pinned
+   confidential transport and downgrade rejection;
+   **SEC4.5d (P1)** issues short-lived, challenge- and channel-bound session
+   authorization;
+   **SEC4.5e (P1)** adds authentication deadlines, connection/frame/rate limits;
+   and **SEC4.5f (P1)** requires HTTPS for credential-bearing non-loopback LLM
+   endpoints.
+6. **SEC4.6 — Data protection and lifecycle (P1).** Move credentials to platform
+   secure storage, redact default JSON/QR exports, recursively redact audit and
+   support artifacts, preserve session-log opt-out, fail closed after
+   authoritative drift migration, apply owner-only log permissions, bind
+   attachment deletion to conversations, and exclude private stores from
+   Android backup.
+7. **SEC4.7 — Supply-chain and release hardening (P1).** Pin GitHub Actions to
+   immutable commits, minimize write credentials, pin automation tool versions,
+   monitor npm dependencies, add the Gradle distribution checksum, and fail
+   Android release builds without release signing material.
+
+Acceptance criteria:
+- The P0 release criteria in `docs/security_audit_2026-08-14.md` are all met.
+- Imported settings fixtures containing enabled hooks, trusted stdio MCP, full
+  access, and saved permissions persist only sanitized state and cause zero
+  effects before fresh review across rebuild, next-turn, restart, and resync.
+- Every HTTP verb reports network access; mutation verbs report an external
+  state change and cannot reach execution without authorization.
+- Every HTTP and browser result is remote/untrusted; navigation tests cover
+  unsafe schemes, mixed A/AAAA answers, DNS-rebinding/peer mismatch, private
+  redirects, and cross-origin credential stripping.
+- Tainted privileged actions cannot resolve from cache or full access.
+- Project escape tests cover `..`, sibling/prefix collisions, home paths, and
+  intermediate symlinks for reads and writes.
+- SSH mismatch and Remote Coding wrong-pin/downgrade tests fail before any
+  credential is sent.
+- Default settings storage/export, audit logs, support packets, and platform
+  backups contain no raw credentials or unintended private conversation data.
+- Focused tests pass for each slice, followed by `tool/codex_verify.sh`; slices
+  that change approval, execution, persistence, or recovery also run
+  `tool/codex_verify.sh --coverage`.
+
+Promotion rule:
+- Do not connect TOOL1+ manifests to effects, promote HOOK2/HOOK3, add new
+  executable integrations, broaden unattended MCP execution, or promote Remote
+  Coding while their corresponding SEC4 P0 owner remains open. Schema-only and
+  empty-navigation work may proceed independently because it adds no execution
+  capability.
 
 ### MLIB1: Local Model Pack Manifest
 
@@ -5196,6 +5347,9 @@ Scope:
 - Provide an agent-kb-friendly bridge for session start, user prompt submit,
   and turn stop events.
 - Pass environment variables through stdio MCP servers and hook commands.
+- Treat every imported command, argument list, environment map, endpoint, and
+  trust claim as executable configuration: import disabled/pending and require
+  a fresh exact review before process or connection startup.
 
 Acceptance criteria:
 - External config sync is opt-in and uses a stable Caverno config path.
@@ -5206,12 +5360,17 @@ Acceptance criteria:
   assistant response, error, and current project root when available.
 - Focused tests cover config parsing, managed-entry replacement, and agent-kb
   preset behavior.
+- Syncing or importing a config cannot start a process, connect a pending MCP
+  server, enable a hook, or establish trusted/full-access state before review.
+- The review summary shows commands, arguments, endpoints, and environment key
+  names while redacting values that may contain secrets.
 
 Deferred from HOOK1:
 - Tool-call lifecycle hooks such as `PreToolUse`, `PostToolUse`, and
   `PostToolUseFailure`.
-- Matcher semantics, hook result decisions, trust-review UI, HTTP handlers,
-  async hooks, batch hooks, and reactive file/config events.
+- Matcher semantics, hook result decisions, advanced trust-management UX, HTTP
+  handlers, async hooks, batch hooks, and reactive file/config events. The
+  minimum fail-closed review required by SEC4.2 is not deferred.
 
 ### HOOK2: Claude-Like Tool Lifecycle Hooks
 
@@ -5247,8 +5406,9 @@ Deferred from HOOK2:
 Status: `later`
 
 Scope:
-- Add a hook trust/review surface for local commands and external-config
-  changes before they run automatically.
+- Extend the minimum SEC4.2 executable-import review into a richer lifecycle
+  trust and change-review surface; HOOK3 must not be the first point at which
+  imported commands are prevented from running automatically.
 - Consider additional handler types after command hooks are stable: HTTP,
   MCP-tool handlers, prompt handlers, agent handlers, and async/background
   hooks.
@@ -5467,6 +5627,11 @@ Context:
   newline), which happens to defeat the classic `curl … | sh` one-liner, but it
   has no command-name policy, so a two-step `curl -o /tmp/x` then `sh /tmp/x`
   still passes, and `ToolApprovalCache` can make the second occurrence silent.
+- The 2026-08-14 audit separately confirmed semantic execution inside commands
+  labelled read-only (`awk system()` and `sed w`). That is SA-01/SEC4.1, not a
+  recurrence of the fixed standalone-`&` parser bug and not deferred to this
+  broader threat-posture milestone. THREAT1 may build on SEC4.1 only after the
+  approval-free shell invariant is closed.
 
 Scope:
 - Detect high-risk command shapes regardless of the approval cache: network
@@ -5580,6 +5745,8 @@ Acceptance criteria:
   trust model, and adopts profile mutations only through the LL12 eval gate.
 - Future platform milestones remain `later` until explicitly promoted; they are
   a vision backlog, not a reason to interrupt the current `next` milestone.
+  Confirmed security release blockers are the exception: the 2026-08-14 audit
+  explicitly promotes SEC4 and reopens SEC1/SEC2 until their exit criteria pass.
 - API adapters must normalize into versioned agent events before UI, eval,
   memory, trace, or tool policy adds provider-specific branches.
 - Security and MCP-governance milestones treat retrieved or external content as

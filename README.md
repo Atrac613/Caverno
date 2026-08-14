@@ -37,20 +37,27 @@
   built-in tools grouped by category: web search, memory, files and scripts,
   Git, SSH, network, LAN scan, Wi-Fi, BLE, serial port, system logs, tasks,
   skills, built-in browser, and macOS Computer Use
-- **Approvals** — High-risk tools (shell, filesystem writes, Computer Use, SSH) require explicit approval; the decision is cached per turn so a repeated identical call does not ask twice
+- **Approvals** — High-risk tools are intended to require explicit approval;
+  repeated identical decisions can be cached per turn. The current security
+  audit records open execution/classification gaps that must be closed before
+  this is treated as a complete boundary.
 - **Embedded Python** — Runs `run_python_script` on a bundled interpreter, on desktop and mobile alike
 - **Built-in Browser** — An in-app webview the model can navigate and read
 - **Embedded Terminal** — A desktop-only terminal panel in the coding workspace, running a long-lived login shell that keeps going while the panel is hidden
 
 ### Coding
 
-- **Coding Mode** — Project-scoped sessions with a repo map, dependency grounding, and LSP-backed post-edit diagnostics
+- **Coding Mode** — Project-associated sessions with a repo map, dependency
+  grounding, and LSP-backed post-edit diagnostics; canonical filesystem
+  containment is an open security-remediation item
 - **Git Worktrees** — Work in an isolated worktree per thread, with `/agent` queueing tasks across several at once
 - **Turn Checkpoints** — Whole-turn file snapshots with one-action revert
 - **Goals** — Set a coding goal with `/goal`; the agent can continue toward it across turns under a visible token and turn budget
 - **Plan Mode** — Creates reviewable workflow plans, decisions, saved tasks, and validation evidence before implementation
 - **Skills** — Save a conversation's workflow as a reusable skill and load it later
-- **Remote Coding** — Drive a desktop coding session from a paired phone on the same LAN
+- **Remote Coding** — Drive a desktop coding session from a paired phone on the
+  same LAN; keep it disabled in release builds until the authenticated-transport
+  roadmap is complete
 - **AGENTS.md Support** — In coding and plan modes, the project root `AGENTS.md` (and the higher-priority `AGENTS.override.md`) is injected into the system prompt, following the [OpenAI Codex AGENTS.md spec](https://developers.openai.com/codex/guides/agents-md)
 
 ### Models and operations
@@ -59,7 +66,8 @@
 - **LAN Inference Mesh** — Discover and register OpenAI-compatible endpoints on the local network and route roles across them with fallback
 - **Local Stack Manager** — Manage model lifecycle and hardware fit for llama.cpp, LM Studio, and Ollama from `Advanced > Local Stack`
 - **Routines** — Schedule recurring prompts with optional tool use, approved Markdown plans, run history, and Google Chat delivery
-- **Settings Import/Export** — Share configuration via JSON file or QR code with validation
+- **Settings Import/Export** — Share configuration via JSON file or QR code;
+  executable hook/MCP trust quarantine is an open security-remediation item
 - **Localization** — English and Japanese UI (easy_localization)
 - **Local Notifications** — Background response notifications
 
@@ -71,6 +79,13 @@ macOS Computer Use keeps the existing `M<number>` series; local-LLM agent work
 (`LL<number>`), foundation refactors (`F<number>`), and the platform vision
 tracks are detailed in
 [`docs/local_llm_agent_roadmap.md`](docs/local_llm_agent_roadmap.md).
+
+## Security
+
+The current point-in-time security assessment, stable finding IDs, release
+decision, and remediation map are recorded in
+[`docs/security_audit_2026-08-14.md`](docs/security_audit_2026-08-14.md).
+`SEC1`, `SEC2`, `SEC4`, and `RC1` in the roadmap own the open release blockers.
 
 ## Requirements
 

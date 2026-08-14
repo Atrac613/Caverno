@@ -1,6 +1,85 @@
 part of 'chat_notifier_test.dart';
 
 void registerChatNotifierApprovalCacheTests() {
+  test('process_start requires approval for bounded commands', () async {
+    final projectRoot = await Directory.systemTemp.createTemp(
+      'caverno_process_start_approval_',
+    );
+    addTearDown(() async {
+      await projectRoot.delete(recursive: true);
+    });
+    final processCall = ToolCallInfo(
+      id: 'process-start-pwd',
+      name: 'process_start',
+      arguments: {'command': 'pwd', 'working_directory': projectRoot.path},
+    );
+    final dataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [processCall],
+      toolLoopResponses: [
+        ChatCompletionResult(content: 'Denied.', finishReason: 'stop'),
+      ],
+      finalAnswerChunks: const ['The background command was not started.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'process_start': 'unexpected execution'},
+    );
+    final project = CodingProject(
+      id: 'process-start-project',
+      name: 'Process Start Project',
+      rootPath: projectRoot.path,
+      createdAt: DateTime(2026, 8, 14),
+      updatedAt: DateTime(2026, 8, 14),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    container
+        .read(conversationsNotifierProvider.notifier)
+        .activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: project.id,
+          createIfMissing: true,
+        );
+    final notifier = container.read(chatNotifierProvider.notifier);
+
+    final sendFuture = notifier.sendMessage(
+      'Start a background workspace inspection.',
+      bypassPlanMode: true,
+    );
+    await _waitForCondition(() => notifier.state.pendingLocalCommand != null);
+
+    expect(toolService.executedToolNames, isEmpty);
+    final pending = notifier.state.pendingLocalCommand!;
+    notifier.resolveLocalCommand(
+      id: pending.id,
+      approval: const LocalCommandApproval(approved: false),
+    );
+    await sendFuture.timeout(const Duration(seconds: 5));
+
+    expect(toolService.executedToolNames, isEmpty);
+    expect(notifier.state.pendingLocalCommand, isNull);
+  });
+
   test('cached command approval re-executes and audits fresh results', () async {
     final projectRoot = await Directory.systemTemp.createTemp(
       'caverno_approval_cache_',

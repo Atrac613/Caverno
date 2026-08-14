@@ -51,6 +51,8 @@ class LocalCommandPermissionService {
     'osascript',
     'open',
     'git',
+    'awk',
+    'sed',
     'rm',
     'sudo',
   };
@@ -125,6 +127,16 @@ class LocalCommandPermissionService {
       if (args.isEmpty) continue;
       final executable = args.first.toLowerCase();
       final lowerSegment = segment.toLowerCase();
+
+      if (executable == 'awk' || executable == 'sed') {
+        return const LocalCommandRiskWarning(
+          title: 'Interpreter-capable shell command',
+          message:
+              'This command can execute subprocesses or write files through '
+              'its program expression. Review the exact command before '
+              'approving it.',
+        );
+      }
 
       if (executable == 'rm' || executable == 'rmdir') {
         if (_hasDangerousRemovalTarget(args)) {

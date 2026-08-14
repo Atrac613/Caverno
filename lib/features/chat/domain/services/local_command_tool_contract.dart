@@ -9,6 +9,18 @@ import 'immutable_json_snapshot.dart';
 
 const Duration localCommandDefaultTimeout = Duration(seconds: 60);
 
+bool argumentIsTruthy(Object? value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    return switch (value.trim().toLowerCase()) {
+      'true' || '1' || 'yes' => true,
+      _ => false,
+    };
+  }
+  return false;
+}
+
 enum CommandPermissionRuleDecision { ask, allow, deny }
 
 enum RememberedCommandPermissionAction { allow, deny }
