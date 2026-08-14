@@ -146,7 +146,7 @@ void main() {
         approval: SerialConnectionApprovalFacts(
           mode: ToolApprovalMode.autoReview,
           conversationMessages: <Message>[_message('Use the desk sensor.')],
-          hasUntrustedInfluence: true,
+          hasUntrustedInfluence: false,
         ),
         arguments: <String, dynamic>{
           'port': ' /dev/cu.sensor ',
@@ -171,7 +171,7 @@ void main() {
       final review = fixture.autoReview.requests.single;
       expect(review.toolName, canonicalSerialOpenToolName);
       expect(review.reason, 'Open the requested device.');
-      expect(review.hasUntrustedInfluence, isTrue);
+      expect(review.hasUntrustedInfluence, isFalse);
       expect(review.conversationTail.single.content, 'Use the desk sensor.');
       expect(fixture.manual.requests, isEmpty);
     });

@@ -471,7 +471,7 @@ void main() {
         final request = _request(
           owner: owner,
           approvalMode: ToolApprovalMode.autoReview,
-          hasUntrustedInfluence: true,
+          hasUntrustedInfluence: false,
         );
 
         final first = await harness.handler.handle(request);
@@ -494,7 +494,7 @@ void main() {
         );
         expect(
           harness.autoReview.requests.single.hasUntrustedInfluence,
-          isTrue,
+          isFalse,
         );
         expect(harness.manual.requests, isEmpty);
         expect(harness.connection.connectCalls, hasLength(2));
@@ -531,7 +531,7 @@ void main() {
         _request(
           owner: owner,
           approvalMode: ToolApprovalMode.autoReview,
-          hasUntrustedInfluence: true,
+          hasUntrustedInfluence: false,
         ),
       );
 

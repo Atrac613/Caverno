@@ -48,10 +48,11 @@ void main() {
 
       final state = container.read(modelCapabilityAutoProbeNotifierProvider);
       expect(state.status, ModelCapabilityAutoProbeStatus.succeeded);
-      // 27 pre-vision requests (including streaming) plus the two vision
+      // 32 pre-vision requests (including structured-output fallback and
+      // streaming) plus the two vision
       // attachment arms. The tool-observation probe goes through a different
       // datasource method, so it is not part of this count.
-      expect(dataSource.requestCount, 29);
+      expect(dataSource.requestCount, 34);
       expect(
         state.report?.results
             .singleWhere((result) => result.id == 'exact_preservation')
@@ -199,7 +200,8 @@ void main() {
   });
 }
 
-class _InstructionOnlyDataSource implements ChatDataSource {
+class _InstructionOnlyDataSource
+    implements ChatDataSource, StructuredOutputChatDataSource {
   int requestCount = 0;
 
   @override
@@ -251,6 +253,27 @@ class _InstructionOnlyDataSource implements ChatDataSource {
           '{"probe":"instruction_echo","status":"ok","marker":"CAVERNO_LIVE_DIAGNOSTIC"}',
       finishReason: 'stop',
     );
+  }
+
+  @override
+  Future<ChatCompletionResult> createStructuredChatCompletion({
+    required List<Message> messages,
+    required StructuredOutputRequest responseFormat,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    requestCount += 1;
+    return switch (responseFormat.format) {
+      StructuredOutputFormat.jsonSchema => ChatCompletionResult(
+        content: '{"marker":"wrong","count":0}',
+        finishReason: 'stop',
+      ),
+      StructuredOutputFormat.jsonObject => ChatCompletionResult(
+        content: '{"marker":"CAVERNO_JSON_OBJECT_OK","count":47}',
+        finishReason: 'stop',
+      ),
+    };
   }
 
   @override

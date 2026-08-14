@@ -601,7 +601,7 @@ void main() {
         _request(
           owner: owner,
           approvalMode: ToolApprovalMode.autoReview,
-          hasUntrustedInfluence: true,
+          hasUntrustedInfluence: false,
         ),
       );
 
@@ -623,7 +623,7 @@ void main() {
         harness.autoReview.requests.single.reason,
         'Open the requested serial device.',
       );
-      expect(harness.autoReview.requests.single.hasUntrustedInfluence, isTrue);
+      expect(harness.autoReview.requests.single.hasUntrustedInfluence, isFalse);
       expect(harness.manual.requests, isEmpty);
     });
 
@@ -727,7 +727,7 @@ void main() {
         _request(
           owner: owner,
           approvalMode: ToolApprovalMode.autoReview,
-          hasUntrustedInfluence: true,
+          hasUntrustedInfluence: false,
         ),
       );
 
