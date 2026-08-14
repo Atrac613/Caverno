@@ -1,0 +1,70 @@
+{
+  "schema": "caverno_ll39_cold_path_ab_evidence",
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-14T10:40:18Z",
+  "model": "qwen3.6-27b-vision",
+  "probeId": "initial_harness_selection",
+  "blockCount": 3,
+  "catalog": {
+    "totalToolCount": 170,
+    "initialToolCount": 48,
+    "remoteToolCount": 52,
+    "remoteServerCount": 6
+  },
+  "invariants": {
+    "passedRunCount": 9,
+    "failedRunCount": 0,
+    "earnedPointsPerRun": 45,
+    "promptTokensPerRun": 8974,
+    "completionTokensPerRun": 15
+  },
+  "arms": {
+    "none": {
+      "measuredElapsedMs": [8791, 8708, 8603],
+      "minElapsedMs": 8603,
+      "medianElapsedMs": 8708,
+      "maxElapsedMs": 8791,
+      "spreadElapsedMs": 188
+    },
+    "unrelatedCompletion": {
+      "warmupElapsedMs": [748, 806, 817],
+      "measuredElapsedMs": [8671, 8429, 8382],
+      "minElapsedMs": 8382,
+      "medianElapsedMs": 8429,
+      "maxElapsedMs": 8671,
+      "spreadElapsedMs": 289
+    },
+    "diagnostic": {
+      "warmupElapsedMs": [8683, 8620, 8748],
+      "measuredElapsedMs": [817, 878, 851],
+      "minElapsedMs": 817,
+      "medianElapsedMs": 851,
+      "maxElapsedMs": 878,
+      "spreadElapsedMs": 61
+    }
+  },
+  "comparisons": {
+    "unrelatedVersusNoneMedianReductionMs": 279,
+    "unrelatedVersusNoneMedianReductionPercent": 3.2,
+    "diagnosticVersusNoneMedianReductionMs": 7857,
+    "diagnosticVersusNoneMedianReductionPercent": 90.23,
+    "diagnosticVersusUnrelatedMedianReductionMs": 7578,
+    "diagnosticVersusUnrelatedMedianReductionPercent": 89.9
+  },
+  "conclusion": {
+    "classification": "exact_prefix_reuse_supported",
+    "summary": "A tool-free completion did not materially remove the cold initial harness cost, while an identical diagnostic warm-up reduced the median by 90.23 percent.",
+    "boundary": "The controlled result supports exact request-prefix and tool-schema reuse as the dominant factor, but does not identify the router or model server's internal cache implementation."
+  },
+  "artifactDirectorySuffixes": [
+    "ll39_cold_path_b1_none_1786703781",
+    "ll39_cold_path_b1_unrelated_1786703808",
+    "ll39_cold_path_b1_diagnostic_1786703830",
+    "ll39_cold_path_b2_unrelated_1786703852",
+    "ll39_cold_path_b2_diagnostic_1786703873",
+    "ll39_cold_path_b2_none_1786703895",
+    "ll39_cold_path_b3_diagnostic_1786703916",
+    "ll39_cold_path_b3_none_1786703938",
+    "ll39_cold_path_b3_unrelated_1786703959"
+  ]
+}

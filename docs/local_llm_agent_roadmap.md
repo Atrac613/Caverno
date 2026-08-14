@@ -175,7 +175,7 @@ structurally unmotivated to build:
 | Local LLM | LL36 | done | S-M | LL33, LL34, LL35 | **Instrument for LL37, as LL31 was for LL29/LL30** — Heuristic demotion and firing audit: every remaining lexical guard gets a stable pattern label, emits a LL33-style transform record on each firing, and is barred from setting terminal state; grounded verdicts measured the lexical paths before deletion. The goal-completion inference was removed, prose task progress is structurally advisory, and remaining compatibility fallbacks have explicit Go/No-Go evidence. |
 | Local LLM | LL37 | done | L | LL34, LL35, LL36 evidence, LL3, LL18, LL19 | Objective verification for **unattended runs only**: the bounded route-diverse panel runs at idle via LL18 against goals completed by routines / overnight retry-until-green / LL13 agents, with deterministic convergence, anti-ratchet review, run caps, and `none`/`contradiction`/`unverifiable` blocking classification. There is deliberately **no inline stage**: while a user is present, LL35's confirmation rung is both cheaper and more accurate than a local verifier, so nothing is added to the interactive turn. Two measured routes passed the ten-case fidelity gate, and all three unattended source contracts now have fail-closed production paths. |
 | Local LLM | LL38 | done | S-M | LL31, LL33 | Mid-turn interruption (steering): an opt-in `interrupt: true` send joins the running turn instead of queueing behind it. Committed into the turn history at the top of `_prepareMessagesForLLM`, so every request path (native tools, content-tag tools, plain streaming) carries it without a per-site injection; rules in `TurnSteeringPolicy`, per-owner state in `TurnSteeringRegistry`, uncarried steers returned to `ThreadScopedMessageQueue` by the turn release scope. Ground-truth live canary with a queued control arm. |
-| Local LLM | LL39 | current | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
+| Local LLM | LL39 | done | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
@@ -658,6 +658,19 @@ Follow-up (done): metadata-driven initial load.
 - Remaining option: fold those 18 into `BuiltInToolRegistry` for a true single
   source (adds settings-UI toggles), and broaden MCP-GOV1's linter to the
   built-in catalog.
+
+Follow-up (done): initial tool budget reduction.
+- Live diagnostics exposed 62 initial tools and 11,045 prompt tokens in a
+  170-tool catalog. The first bounded reduction keeps `ping`, `dns_lookup`, and
+  `http_get` as common network entry points while explicitly deferring 14
+  specialized network tools behind `tool_search`.
+- The F6 classification guard remains exhaustive, and focused tests prove every
+  newly deferred tool is rediscoverable by exact name. A focused 27B canary
+  passed direct initial-harness selection and tool-search invocation for 80/80
+  points. Its headless catalog had no remote MCP configuration, so it measured
+  22 initial tools from 45 total and 5,260 prompt tokens; the original app
+  catalog needs an in-app rerun to directly confirm the deterministic 62-to-48
+  classification delta.
 
 ### LL1: Per-Role Model Routing
 
@@ -2487,7 +2500,7 @@ LL24 / LL25 (per-turn primary-model routing).
 
 ### LL39: Live Capability Benchmark (Absolute Score And Unprobed Production Paths)
 
-Status: `current`
+Status: `done` — implemented and live-canary verified 2026-08-14.
 
 Context:
 - The Live LLM diagnostic is already the app's model-acceptance instrument: it
@@ -2798,6 +2811,15 @@ Implementation status:
       context evidence remains usable. The UI explicitly has no overall weighted
       score, so trade-offs stay visible instead of being hidden in arbitrary
       cross-unit weights.
+
+Closure evidence:
+- Full `cavernobench-v9` reruns earned 965/1000 on both registered models with
+  one denominator, triggering the positive saturation-watchdog path.
+- Headless artifact import persisted both runs into LL21 history and the widget
+  integration verified the visible saturation declaration.
+- Reset-controlled cold-path A/B evidence isolated stable-prefix reuse as the
+  latency driver; production warm-up optimization continues under LL22 rather
+  than extending LL39.
 
 Cost note:
 - The suite is already ~43 requests; the additions roughly reach ~55, and

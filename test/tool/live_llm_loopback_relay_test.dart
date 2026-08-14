@@ -115,6 +115,171 @@ void main() {
     );
 
     test(
+      'MCP relay rewrites HTTP servers and preserves stdio settings',
+      () async {
+        final temporaryDirectory = Directory.systemTemp.createTempSync(
+          'live-mcp-loopback-relay-test-',
+        );
+        final origins = await Future.wait([
+          HttpServer.bind(InternetAddress.loopbackIPv4, 0),
+          HttpServer.bind(InternetAddress.loopbackIPv4, 0),
+        ]);
+        for (var index = 0; index < origins.length; index += 1) {
+          origins[index].listen((request) async {
+            request.response.write('origin-$index:${request.uri.path}');
+            await request.response.close();
+          });
+        }
+        final sourceConfig = File('${temporaryDirectory.path}/source.json');
+        final effectiveConfig = File(
+          '${temporaryDirectory.path}/effective.json',
+        );
+        final readyFile = File('${temporaryDirectory.path}/ready');
+        const secret = 'must-not-appear-in-process-output';
+        sourceConfig.writeAsStringSync(
+          jsonEncode([
+            for (var index = 0; index < origins.length; index += 1)
+              {
+                'type': 'http',
+                'url': 'http://127.0.0.1:${origins[index].port}/mcp/$index',
+                'enabled': true,
+                'trustState': 'trusted',
+              },
+            {
+              'type': 'stdio',
+              'command': '/usr/bin/example-mcp',
+              'args': ['serve'],
+              'env': {'EXAMPLE_TOKEN': secret},
+              'enabled': true,
+              'trustState': 'trusted',
+            },
+          ]),
+        );
+        final sourceContents = sourceConfig.readAsStringSync();
+        final relay = await Process.start(_dartExecutable(), [
+          '--disable-dart-dev',
+          'tool/live_mcp_loopback_relay.dart',
+          '--config',
+          sourceConfig.path,
+          '--output-config',
+          effectiveConfig.path,
+          '--ready-file',
+          readyFile.path,
+        ]);
+        final relayStdout = relay.stdout.transform(utf8.decoder).join();
+        final relayStderr = relay.stderr.transform(utf8.decoder).join();
+
+        addTearDown(() async {
+          relay.kill(ProcessSignal.sigterm);
+          await relay.exitCode.timeout(const Duration(seconds: 5));
+          for (final origin in origins) {
+            await origin.close(force: true);
+          }
+          temporaryDirectory.deleteSync(recursive: true);
+        });
+
+        expect(await _waitForReadyFile(readyFile), '2');
+        final decoded = jsonDecode(effectiveConfig.readAsStringSync()) as List;
+        expect(decoded, hasLength(3));
+        final effectiveUrls = decoded
+            .take(2)
+            .map((value) => Uri.parse((value as Map)['url'] as String))
+            .toList(growable: false);
+        expect(
+          effectiveUrls.map((uri) => uri.host),
+          everyElement(InternetAddress.loopbackIPv4.address),
+        );
+        expect(effectiveUrls.map((uri) => uri.port).toSet(), hasLength(2));
+        expect(effectiveUrls[0].path, '/mcp/0');
+        expect(effectiveUrls[1].path, '/mcp/1');
+        expect((decoded.last as Map)['command'], '/usr/bin/example-mcp');
+        expect(((decoded.last as Map)['env'] as Map)['EXAMPLE_TOKEN'], secret);
+        expect(sourceConfig.readAsStringSync(), sourceContents);
+
+        final client = HttpClient();
+        addTearDown(client.close);
+        for (var index = 0; index < effectiveUrls.length; index += 1) {
+          final request = await client.getUrl(effectiveUrls[index]);
+          final response = await request.close();
+          expect(
+            await response.transform(utf8.decoder).join(),
+            'origin-$index:/mcp/$index',
+          );
+        }
+
+        relay.kill(ProcessSignal.sigterm);
+        expect(await relay.exitCode.timeout(const Duration(seconds: 5)), 0);
+        expect(await relayStdout, isNot(contains(secret)));
+        expect(await relayStderr, isNot(contains(secret)));
+      },
+    );
+
+    test(
+      'wrapper manages MCP relay config lifecycle without printing secrets',
+      () async {
+        final temporaryDirectory = Directory.systemTemp.createTempSync(
+          'live-mcp-loopback-wrapper-test-',
+        );
+        final origin = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        const secret = 'wrapper-secret-value';
+        final sourceConfig = File('${temporaryDirectory.path}/source.json')
+          ..writeAsStringSync(
+            jsonEncode([
+              {
+                'type': 'http',
+                'url': 'http://127.0.0.1:${origin.port}/mcp',
+                'enabled': true,
+                'trustState': 'trusted',
+              },
+              {
+                'type': 'stdio',
+                'command': '/usr/bin/example-mcp',
+                'env': {'TOKEN': secret},
+                'enabled': true,
+                'trustState': 'trusted',
+              },
+            ]),
+          );
+        addTearDown(() async {
+          await origin.close(force: true);
+          temporaryDirectory.deleteSync(recursive: true);
+        });
+
+        final result = await Process.run(
+          'bash',
+          [
+            'tool/with_live_llm_loopback.sh',
+            '--',
+            'bash',
+            '-c',
+            'test -s "\$CAVERNO_BENCHMARK_CANARY_MCP_CONFIG_PATH" && '
+                'grep -q "http://127.0.0.1:" "\$CAVERNO_BENCHMARK_CANARY_MCP_CONFIG_PATH" && '
+                'printf "%s\\n%s\\n%s\\n" '
+                '"\$CAVERNO_BENCHMARK_CANARY_MCP_ORIGIN_CONFIG_PATH" '
+                '"\$CAVERNO_BENCHMARK_CANARY_MCP_CONFIG_PATH" '
+                '"\$CAVERNO_BENCHMARK_CANARY_MCP_RELAY_MODE"',
+          ],
+          environment: {
+            ...Platform.environment,
+            'CAVERNO_LLM_BASE_URL': 'http://127.0.0.1:${origin.port}/v1',
+            'CAVERNO_BENCHMARK_CANARY_MCP_CONFIG_PATH': sourceConfig.path,
+            'CAVERNO_DART_EXECUTABLE': _dartExecutable(),
+          },
+        );
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        expect(result.stdout, contains(sourceConfig.path));
+        expect(result.stdout, contains('MCP relay mode: loopbackTcp (1'));
+        expect(result.stdout, isNot(contains(secret)));
+        expect(result.stderr, isNot(contains(secret)));
+        final effectivePath = RegExp(
+          r'/[^\n]+/mcp-config\.json',
+        ).allMatches(result.stdout as String).last.group(0)!;
+        expect(File(effectivePath).existsSync(), isFalse);
+      },
+    );
+
+    test(
       'wrapper exports relay evidence and preserves the child exit code',
       () async {
         final origin = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);

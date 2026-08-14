@@ -66,10 +66,34 @@ class BuiltInToolRegistry {
     categorySystem,
   };
 
+  /// Specialized network tools deferred from the initial tool-search selection.
+  ///
+  /// `ping`, `dns_lookup`, and `http_get` remain common entry points. The
+  /// narrower diagnostics stay reachable through `tool_search` without sending
+  /// every schema on unrelated first turns.
+  static const Set<String> toolSearchDeferredNetworkToolNames = {
+    'ping6',
+    'arp',
+    'ndp',
+    'route_lookup',
+    'interface_info',
+    'whois_lookup',
+    'dns_query',
+    'port_check',
+    'ssl_certificate',
+    'http_status',
+    'http_head',
+    'traceroute',
+    'path_mtu',
+    'mdns_browse',
+  };
+
   /// Individual built-in tools deferred from the initial tool-search selection
-  /// even though their category is otherwise initial-loaded: mutating HTTP
-  /// verbs and heavy script execution stay behind `tool_search`.
+  /// even though their category is otherwise initial-loaded: specialized
+  /// network diagnostics, mutating HTTP verbs, and heavy script execution stay
+  /// behind `tool_search`.
   static const Set<String> toolSearchDeferredToolNames = {
+    ...toolSearchDeferredNetworkToolNames,
     'http_post',
     'http_put',
     'http_patch',

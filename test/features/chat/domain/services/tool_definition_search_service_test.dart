@@ -58,6 +58,55 @@ void main() {
       expect(names, isNot(contains('remote_tool_29')));
     });
 
+    test('keeps common network entry points and defers specialist tools', () {
+      final specialistNames =
+          BuiltInToolRegistry.toolSearchDeferredNetworkToolNames;
+      final definitions = [
+        _tool('ping', 'Check whether a host responds.'),
+        _tool('dns_lookup', 'Resolve a hostname.'),
+        _tool('http_get', 'Fetch a URL.'),
+        for (final name in specialistNames)
+          _tool(name, '${name.replaceAll('_', ' ')} network capability.'),
+        for (var i = 0; i < 30; i++)
+          _tool('remote_tool_$i', 'Remote MCP capability number $i.'),
+      ];
+
+      final selection = ToolDefinitionSearchService.buildInitialSelection(
+        ToolDefinitionSearchService.appendSearchToolIfUseful(definitions),
+      );
+      final names = ToolDefinitionSearchService.toolNamesFromDefinitions(
+        selection.toolDefinitions,
+      );
+
+      expect(names, containsAll(['ping', 'dns_lookup', 'http_get']));
+      expect(names.intersection(specialistNames), isEmpty);
+      expect(names, contains(ToolDefinitionSearchService.toolName));
+    });
+
+    test('rediscovers every deferred network tool by exact name', () {
+      final specialistNames =
+          BuiltInToolRegistry.toolSearchDeferredNetworkToolNames;
+      final definitions = [
+        for (final name in specialistNames)
+          _tool(name, '${name.replaceAll('_', ' ')} network capability.'),
+      ];
+
+      for (final name in specialistNames) {
+        final result = ToolDefinitionSearchService.searchToolDefinitions(
+          definitions: definitions,
+          query: name,
+        );
+        final decoded = jsonDecode(result) as Map<String, dynamic>;
+        final matches = decoded['matched_tools'] as List<dynamic>;
+
+        expect(
+          (matches.first as Map)['name'],
+          name,
+          reason: '$name must remain reachable through tool_search',
+        );
+      }
+    });
+
     test(
       'loads search tools first and defers browser tools in large catalogs',
       () {
@@ -346,6 +395,16 @@ void main() {
       );
     });
 
+    test('common network entry points load initially', () {
+      for (final name in ['ping', 'dns_lookup', 'http_get']) {
+        expect(
+          ToolDefinitionSearchService.shouldLoadInitially(name),
+          isTrue,
+          reason: '$name must remain initial-loaded',
+        );
+      }
+    });
+
     test('worktree finish tool loads initially', () {
       expect(
         ToolDefinitionSearchService.shouldLoadInitially(
@@ -373,6 +432,7 @@ void main() {
 
     test('deferred tools are not in the initial selection', () {
       for (final name in [
+        ...BuiltInToolRegistry.toolSearchDeferredNetworkToolNames,
         'http_post',
         'run_python_script',
         'browser_open',
