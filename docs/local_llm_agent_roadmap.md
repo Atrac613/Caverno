@@ -2160,9 +2160,21 @@ Implementation evidence:
 - Pipeline wiring: `maintenanceStagesProvider` appends `precompute` (repo map)
   and `warm_cache` (KV prime) as the final two stages — after
   probe/calibrate/eval send their own requests — so the warmed prefix is the one
-  left in the server slot for the morning's first turn. `warm_cache` skips the
-  on-device Apple provider, a disabled LL6 prefix-stable tool loop, and a missing
-  tool service; warm failures degrade to a soft skip.
+  left in the server slot for the morning's first turn. `warm_cache` mirrors
+  ChatNotifier's production selection branch: the default mode warms
+  `ToolDefinitionSearchService.buildInitialSelection`, while LL6 prefix-stable
+  mode warms the complete fixed catalog. It skips the on-device Apple provider,
+  a missing tool service, and an empty catalog; warm failures degrade to a soft
+  skip.
+- Production-prefix parity: idle precompute and warm-up consume the same cached
+  LSP symbols as the interactive repo-map path. Warm-up also resolves the same
+  locale, AGENTS.md, skill index, model profile/harness, project, and tool
+  definitions. `SystemPromptBuilder` places volatile clock and memory context
+  after the deterministic core, preserving the large leading prefix.
+- Bounded invalidation: `maintenanceWarmupRefreshKeyProvider` fingerprints the
+  model route, locale, harness/profile, repo signature, AGENTS.md, skill index,
+  MCP state, and complete tool catalog. When it changes during an open idle
+  gate, `IdleMaintenanceScheduler` reruns only `precompute -> warm_cache`.
 - Measurement: `tool/ll22_warmup_measurement.dart` compares a cold first-turn
   request against a warm-up-then-measured pair on a separate slot, reporting
   `timings.prompt_ms`, `cache_n`, and cached share via raw HTTP so provider
@@ -2184,14 +2196,26 @@ Live measurement evidence:
   tokens (cached share 99.3%) and reached first token at `prompt_ms=63.2` — a
   1310.0 ms / 95.4% prefill reduction. Artifact:
   `build/integration_test_reports/ll22_warmup_measurement_2026-06-16.json`.
+- 2026-08-14 LL39 reset-controlled A/B against the production-parity
+  170-total/48-initial/six-server catalog isolated the selection contract: a
+  tool-free warm-up changed the cold median from 8708 ms to 8429 ms (3.2%),
+  while reusing the identical 48-tool initial prefix reduced it to 851 ms
+  (90.23%). LL22 now uses that same initial-selection function in the idle
+  stage instead of skipping when full-list prefix stability is disabled.
+- 2026-08-14 production-path A/B against `qwen3.6-35b-a3b-vision` ran the
+  actual `maintenance warm_cache -> ChatNotifier.sendMessage` path across three
+  alternating reset-controlled blocks. All measured requests used the same
+  48-tool initial catalog. Cold TTFT was 6823/6875/6908 ms (6875 ms median);
+  warm TTFT was 381/418/420 ms (418 ms median), a 6457 ms / 93.92% median
+  reduction. Warm and interactive prompts shared 34,179 leading system-prompt
+  characters in every block. Evidence:
+  `docs/evidence/ll22_production_warmup_ab_2026-08-14.json`.
 
 Known limitation:
-- The temporal header is the first line of the system prompt, so cross-session
-  (overnight -> morning) KV reuse relies on llama.cpp `--cache-reuse` recovering
-  the stable bulk (tools + repo map + harness guidance) after the timestamp
-  chunk; the measured warm benefit is the same-prefix upper bound. Runtime
-  `id_slot` pinning and KV-cache persistence across server restarts remain LL20
-  / an LL6 extension.
+- Dynamic turn context now follows the deterministic system-prompt core, but
+  runtime `id_slot` pinning and KV-cache persistence across server restarts
+  remain LL20 / an LL6 extension. LL22 refreshes changed in-process inputs; it
+  does not preserve a server cache through an unload or restart.
 
 Deferred (out of this milestone):
 - Embedding-vector precompute for the repo map is part of the deferred semantic

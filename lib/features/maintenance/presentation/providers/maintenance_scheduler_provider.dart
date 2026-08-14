@@ -1,5 +1,10 @@
+import 'dart:convert';
+import 'dart:ui' show PlatformDispatcher;
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/agents_md_loader.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../chat/data/repositories/worktree_agent_task_repository.dart';
 import '../../../chat/data/repositories/retry_until_green_report_repository.dart';
@@ -7,15 +12,20 @@ import '../../../chat/domain/entities/message.dart';
 import '../../../chat/domain/entities/model_usage_role.dart';
 import '../../../chat/domain/services/kv_cache_warmup_service.dart';
 import '../../../chat/domain/services/repo_map_precompute_cache.dart';
+import '../../../chat/domain/services/repo_map_service.dart';
+import '../../../chat/domain/services/skill_prompt_index_builder.dart';
 import '../../../chat/domain/services/system_prompt_builder.dart';
+import '../../../chat/domain/services/tool_definition_search_service.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../../chat/presentation/providers/mcp_tool_provider.dart';
 import '../../../chat/presentation/providers/repo_map_precompute_cache_provider.dart';
+import '../../../chat/presentation/providers/skills_notifier.dart';
 import '../../../personal_eval/domain/services/personal_eval_replay_orchestrator.dart';
 import '../../../personal_eval/presentation/providers/personal_eval_cases_notifier.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/model_benchmark_history.dart';
+import '../../../settings/domain/services/app_language_resolver.dart';
 import '../../../settings/presentation/providers/live_llm_diagnostic_notifier.dart';
 import '../../../settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -566,12 +576,16 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
           );
         }
         final settings = ref.read(settingsNotifierProvider);
+        final lspSymbolEntries = ref
+            .read(repoMapLspSymbolCacheProvider)
+            .entriesForRoot(project.rootPath);
         final result = ref
             .read(repoMapPrecomputeCacheProvider)
             .precompute(
               rootPath: project.rootPath,
               usableContextTokens:
                   settings.effectiveModelCapabilityProfile?.usableContextTokens,
+              lspSymbolEntries: lspSymbolEntries,
             );
         return switch (result) {
           RepoMapPrecomputeResult.computed =>
@@ -587,17 +601,12 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
       name: 'warm_cache',
       body: (_) async {
         // LL22 KV warm-up: prime the server-side prefix cache so the morning's
-        // first turn reuses it. Only meaningful for an OpenAI-compatible server
-        // running the LL6 prefix-stable tool loop.
+        // first turn reuses it. This is meaningful for OpenAI-compatible
+        // servers in both bounded-selection and prefix-stable tool-loop modes.
         final settings = ref.read(settingsNotifierProvider);
         if (settings.llmProvider != LlmProvider.openAiCompatible) {
           return const MaintenanceStageOutcome.skipped(
             'on-device provider has no server cache to warm',
-          );
-        }
-        if (!settings.enablePrefixStableToolLoop) {
-          return const MaintenanceStageOutcome.skipped(
-            'prefix-stable tool loop disabled',
           );
         }
         final mcpToolService = ref.read(mcpToolServiceProvider);
@@ -607,7 +616,18 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
           );
         }
 
-        final tools = mcpToolService.getOpenAiToolDefinitions();
+        final allTools = mcpToolService.getOpenAiToolDefinitions();
+        if (allTools.isEmpty) {
+          return const MaintenanceStageOutcome.skipped('tool catalog is empty');
+        }
+        // Mirror ChatNotifier's turn-opening branch exactly. The default path
+        // warms the bounded initial selection; prefix-stable mode warms the
+        // complete catalog that production keeps fixed across the tool loop.
+        final tools = settings.enablePrefixStableToolLoop
+            ? allTools
+            : ToolDefinitionSearchService.buildInitialSelection(
+                allTools,
+              ).toolDefinitions;
         final toolNames = <String>[];
         for (final tool in tools) {
           final function = tool['function'];
@@ -620,6 +640,11 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
         final project = ref
             .read(codingProjectsNotifierProvider)
             .selectedProject;
+        final lspSymbolEntries = project == null
+            ? const <RepoMapSymbolEntry>[]
+            : ref
+                  .read(repoMapLspSymbolCacheProvider)
+                  .entriesForRoot(project.rootPath);
         final repoMap = project == null
             ? null
             : ref
@@ -629,20 +654,39 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
                     usableContextTokens: settings
                         .effectiveModelCapabilityProfile
                         ?.usableContextTokens,
+                    lspSymbolEntries: lspSymbolEntries,
                   );
+        String? skillsContext;
+        if (toolNames.contains('load_skill')) {
+          try {
+            skillsContext = SkillPromptIndexBuilder.build(
+              ref.read(skillsNotifierProvider).enabledSkills,
+            );
+          } catch (_) {
+            // Match ChatNotifier's best-effort skill-index behavior. A skill
+            // repository startup failure must not abort the final idle stage.
+          }
+        }
 
         final systemPrompt = SystemPromptBuilder.build(
           now: DateTime.now(),
           // Coding mode is the warm-up target: it carries the repo map and the
           // full agentic tool guidance the first morning turn will send.
           assistantMode: AssistantMode.coding,
-          languageCode: settings.language == 'system'
-              ? 'en'
-              : settings.language,
+          languageCode: resolveAppLanguageCode(
+            preference: settings.language,
+            systemLocale: PlatformDispatcher.instance.locale,
+          ),
           toolNames: toolNames,
           projectName: project?.name,
           projectRootPath: project?.rootPath,
           repoMapContext: repoMap,
+          agentsMarkdown: settings.enableAgentsMd
+              ? ref
+                    .read(agentsMdLoaderProvider)
+                    .loadForProject(project?.rootPath)
+              : null,
+          skillsContext: skillsContext,
           modelCapabilityProfile: settings.effectiveModelCapabilityProfile,
           modelHarnessConfig: settings.effectiveModelHarnessConfig,
         );
@@ -691,6 +735,77 @@ final maintenancePipelineProvider = Provider<MaintenancePipeline>((ref) {
   return MaintenancePipeline(stages: ref.watch(maintenanceStagesProvider));
 });
 
+/// LL22's bounded refresh pipeline. Input drift while the idle gate remains
+/// open must not rerun probe/calibrate/eval; it only rebuilds the repo map and
+/// primes the new production prefix.
+final maintenanceWarmupPipelineProvider = Provider<MaintenancePipeline>((ref) {
+  final stages = ref
+      .watch(maintenanceStagesProvider)
+      .where(
+        (stage) => stage.name == 'precompute' || stage.name == 'warm_cache',
+      )
+      .toList(growable: false);
+  return MaintenancePipeline(stages: stages);
+});
+
+/// Computes the current LL22 input identity on demand. The closure deliberately
+/// reads the mutable MCP catalog at each idle tick, because a connected server
+/// can change its definitions without rebuilding the service provider.
+final maintenanceWarmupRefreshKeyProvider = Provider<String Function()>((ref) {
+  return () {
+    final settings = ref.read(settingsNotifierProvider);
+    final project = ref.read(codingProjectsNotifierProvider).selectedProject;
+    final toolService = ref.read(mcpToolServiceProvider);
+    final toolDefinitions = toolService?.getOpenAiToolDefinitions() ?? const [];
+    final lspEntries = ref
+        .read(repoMapLspSymbolCacheProvider)
+        .entriesForRoot(project?.rootPath);
+    final repoSignature = RepoMapService.computeSignatureForProject(
+      rootPath: project?.rootPath,
+      usableContextTokens:
+          settings.effectiveModelCapabilityProfile?.usableContextTokens,
+      lspSymbolEntries: lspEntries,
+    );
+    final toolNames = ToolDefinitionSearchService.toolNamesFromDefinitions(
+      toolDefinitions,
+    );
+    String? skillIndex;
+    if (toolNames.contains('load_skill')) {
+      try {
+        skillIndex = SkillPromptIndexBuilder.build(
+          ref.read(skillsNotifierProvider).enabledSkills,
+        );
+      } catch (_) {
+        skillIndex = null;
+      }
+    }
+    final agentsMarkdown = settings.enableAgentsMd
+        ? ref.read(agentsMdLoaderProvider).loadForProject(project?.rootPath)
+        : null;
+    final payload = <String, Object?>{
+      'provider': settings.llmProvider.name,
+      'baseUrl': settings.baseUrl,
+      'model': settings.effectiveModel,
+      'language': resolveAppLanguageCode(
+        preference: settings.language,
+        systemLocale: PlatformDispatcher.instance.locale,
+      ),
+      'prefixStableToolLoop': settings.enablePrefixStableToolLoop,
+      'modelCapabilityProfile': settings.effectiveModelCapabilityProfile
+          ?.toJson(),
+      'modelHarnessConfig': settings.effectiveModelHarnessConfig?.toJson(),
+      'projectId': project?.id,
+      'projectRootPath': project?.rootPath,
+      'repoSignature': repoSignature,
+      'agentsMarkdown': agentsMarkdown,
+      'skillIndex': skillIndex,
+      'mcpStatus': toolService?.status.name,
+      'toolDefinitions': toolDefinitions,
+    };
+    return sha256.convert(utf8.encode(jsonEncode(payload))).toString();
+  };
+});
+
 /// LL18: the wired idle-maintenance scheduler. On each gate opening it runs the
 /// pipeline and delivers the morning report. Started on desktop from `main`;
 /// the gate (config + idle + power) decides whether anything actually runs.
@@ -698,7 +813,9 @@ final idleMaintenanceSchedulerProvider = Provider<IdleMaintenanceScheduler>((
   ref,
 ) {
   final pipeline = ref.watch(maintenancePipelineProvider);
+  final warmupPipeline = ref.watch(maintenanceWarmupPipelineProvider);
   final reportService = ref.watch(maintenanceReportServiceProvider);
+  final warmupRefreshKey = ref.watch(maintenanceWarmupRefreshKeyProvider);
 
   final scheduler = IdleMaintenanceScheduler(
     environment: ref.watch(idleMaintenanceEnvironmentProvider),
@@ -714,6 +831,10 @@ final idleMaintenanceSchedulerProvider = Provider<IdleMaintenanceScheduler>((
         await reportService.deliver(report);
       }
     },
+    refreshRun: (handle) async {
+      await warmupPipeline.run(handle);
+    },
+    refreshKeyProvider: warmupRefreshKey,
   );
   ref.onDispose(scheduler.dispose);
   return scheduler;

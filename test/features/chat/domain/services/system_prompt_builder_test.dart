@@ -8,6 +8,54 @@ import 'package:caverno/features/chat/domain/services/system_prompt_builder.dart
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 void main() {
+  test('keeps temporal and memory context behind a stable prompt prefix', () {
+    final morning = SystemPromptBuilder.build(
+      now: DateTime.utc(2026, 8, 14, 1),
+      assistantMode: AssistantMode.coding,
+      languageCode: 'en',
+      toolNames: const ['tool_search', 'read_file'],
+      projectName: 'Caverno',
+      projectRootPath: '/workspace/caverno',
+      repoMapContext: 'Root: /workspace/caverno\n- lib/main.dart',
+      sessionMemoryContext: 'Morning memory.',
+    );
+    final evening = SystemPromptBuilder.build(
+      now: DateTime.utc(2026, 8, 14, 18),
+      assistantMode: AssistantMode.coding,
+      languageCode: 'en',
+      toolNames: const ['tool_search', 'read_file'],
+      projectName: 'Caverno',
+      projectRootPath: '/workspace/caverno',
+      repoMapContext: 'Root: /workspace/caverno\n- lib/main.dart',
+      sessionMemoryContext: 'Evening memory.',
+    );
+
+    const dynamicMarker = 'Dynamic turn context:';
+    final morningStablePrefix = morning.substring(
+      0,
+      morning.indexOf(dynamicMarker),
+    );
+    final eveningStablePrefix = evening.substring(
+      0,
+      evening.indexOf(dynamicMarker),
+    );
+
+    expect(morningStablePrefix, eveningStablePrefix);
+    expect(
+      morningStablePrefix,
+      contains('Available tools: read_file, tool_search'),
+    );
+    expect(morningStablePrefix, contains('<repo_map>'));
+    expect(
+      morning.indexOf('Morning memory.'),
+      greaterThan(morning.indexOf(dynamicMarker)),
+    );
+    expect(
+      evening.indexOf('Evening memory.'),
+      greaterThan(evening.indexOf(dynamicMarker)),
+    );
+  });
+
   test('includes selected project context in coding mode prompts', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 4, 13, 10, 30),

@@ -1,0 +1,45 @@
+{
+  "schema": "caverno_ll22_production_warmup_ab_evidence",
+  "generatedAt": "2026-08-14T20:27:00+09:00",
+  "model": "qwen3.6-35b-a3b-vision",
+  "originBaseUrl": "http://192.168.100.241:1234/v1",
+  "relayMode": "loopbackTcp",
+  "blockCount": 3,
+  "method": {
+    "resetBeforeEachArm": true,
+    "armOrder": [
+      ["cold", "warm"],
+      ["warm", "cold"],
+      ["cold", "warm"]
+    ],
+    "path": "maintenance warm_cache -> ChatNotifier.sendMessage",
+    "toolCountPerMeasuredRequest": 48,
+    "mcpServerCount": 6,
+    "project": "caverno",
+    "modelRestoredLoaded": true
+  },
+  "cold": {
+    "ttftMs": [6823, 6875, 6908],
+    "medianTtftMs": 6875,
+    "wallClockMs": [7153, 7083, 7110],
+    "medianWallClockMs": 7110
+  },
+  "warm": {
+    "ttftMs": [381, 418, 420],
+    "medianTtftMs": 418,
+    "wallClockMs": [540, 569, 580],
+    "medianWallClockMs": 569,
+    "warmupLatencyMs": [6899, 6915, 6723],
+    "stableSystemPrefixChars": 34179,
+    "warmupStatus": "completed",
+    "warmupDetail": "primed prefix (48 tool(s))"
+  },
+  "result": {
+    "medianTtftReductionMs": 6457,
+    "medianTtftReductionPercent": 93.92,
+    "medianWallClockReductionMs": 6541,
+    "medianWallClockReductionPercent": 92.0,
+    "acceptanceCriterionMet": true
+  },
+  "rawArtifactRoot": "build/integration_test_reports/ll22_production_warmup_ab_48"
+}

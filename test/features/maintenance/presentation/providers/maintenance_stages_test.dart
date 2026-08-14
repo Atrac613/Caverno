@@ -2,12 +2,20 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
+import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/worktree_agent_task_repository.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
+import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
+import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
+import 'package:caverno/features/chat/domain/services/repo_map_lsp_symbol_cache.dart';
+import 'package:caverno/features/chat/domain/services/repo_map_precompute_cache.dart';
+import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_data_source_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
+import 'package:caverno/features/chat/presentation/providers/repo_map_precompute_cache_provider.dart';
 import 'package:caverno/features/maintenance/data/ll37_objective_verdict_repository.dart';
 import 'package:caverno/features/maintenance/domain/entities/ll37_objective_verdict_record.dart';
 import 'package:caverno/features/maintenance/domain/services/failure_trace_miner.dart';
@@ -76,6 +84,7 @@ class _MutableSettingsNotifier extends SettingsNotifier {
 
 class _RecordingVerifierDataSource extends ChatDataSource {
   int requestCount = 0;
+  List<Message>? messages;
   List<Map<String, dynamic>>? tools;
   String? model;
   final models = <String>[];
@@ -90,6 +99,7 @@ class _RecordingVerifierDataSource extends ChatDataSource {
     int? maxTokens,
   }) async {
     requestCount += 1;
+    this.messages = messages;
     this.tools = tools;
     this.model = model;
     if (model != null) models.add(model);
@@ -141,6 +151,15 @@ class _RecordingVerifierDataSource extends ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) => const Stream<String>.empty();
+}
+
+class _FixedMcpToolService extends McpToolService {
+  _FixedMcpToolService(this.definitions);
+
+  final List<Map<String, dynamic>> definitions;
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() => definitions;
 }
 
 class _FailingVerdictHistoryNotifier
@@ -679,25 +698,185 @@ void main() {
     expect(outcome.detail, contains('no active coding project'));
   });
 
-  test(
-    'warm_cache skips when the prefix-stable tool loop is disabled',
-    () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final container = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+  test('precompute and warm_cache reuse the production LSP repo map', () async {
+    final projectDirectory = Directory.systemTemp.createTempSync(
+      'caverno_ll22_lsp_',
+    );
+    addTearDown(() => projectDirectory.deleteSync(recursive: true));
+    final source = File('${projectDirectory.path}/sample.dart')
+      ..writeAsStringSync('void main() {}\n');
+    final now = DateTime.utc(2026, 8, 14);
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'LL22 fixture',
+      rootPath: projectDirectory.path,
+      createdAt: now,
+      updatedAt: now,
+    );
+    final repoMapCache = RepoMapPrecomputeCache();
+    final lspCache = RepoMapLspSymbolCache()
+      ..updateFromLsp(
+        projectRoot: projectDirectory.path,
+        changedPaths: [source.path],
+        symbols: [
+          LspDocumentSymbol(
+            uri: source.uri.toString(),
+            name: 'main',
+            kind: 12,
+            kindLabel: 'Function',
+            startLine: 0,
+            startCharacter: 5,
+          ),
+        ],
       );
-      addTearDown(container.dispose);
+    final definitions = _toolDefinitions(30);
+    final dataSource = _RecordingVerifierDataSource();
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          () => _FixedSettingsNotifier(AppSettings.defaults()),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FakeCodingProjectsNotifier(
+            CodingProjectsState(
+              projects: [project],
+              selectedProjectId: project.id,
+            ),
+          ),
+        ),
+        repoMapPrecomputeCacheProvider.overrideWithValue(repoMapCache),
+        repoMapLspSymbolCacheProvider.overrideWithValue(lspCache),
+        mcpToolServiceProvider.overrideWithValue(
+          _FixedMcpToolService(definitions),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+      ],
+    );
+    addTearDown(container.dispose);
+    final stages = container.read(maintenanceStagesProvider);
 
-      final warm = container
-          .read(maintenanceStagesProvider)
-          .firstWhere((s) => s.name == 'warm_cache');
-      final outcome = await warm.run(context());
+    final precompute = await stages
+        .firstWhere((stage) => stage.name == 'precompute')
+        .run(context());
+    final warm = await stages
+        .firstWhere((stage) => stage.name == 'warm_cache')
+        .run(context());
 
-      expect(outcome.status, MaintenanceStageStatus.skipped);
-      expect(outcome.detail, contains('prefix-stable tool loop disabled'));
-    },
-  );
+    expect(precompute.status, MaintenanceStageStatus.completed);
+    expect(precompute.detail, contains('precomputed repo map'));
+    expect(warm.status, MaintenanceStageStatus.completed);
+    expect(dataSource.messages!.first.content, contains('LSP symbols:'));
+    expect(
+      dataSource.messages!.first.content,
+      contains('sample.dart: function main'),
+    );
+    expect(
+      repoMapCache.precompute(
+        rootPath: projectDirectory.path,
+        lspSymbolEntries: lspCache.entriesForRoot(projectDirectory.path),
+      ),
+      RepoMapPrecomputeResult.alreadyWarm,
+    );
+  });
+
+  test('warm_cache uses the production initial selection by default', () async {
+    final definitions = _toolDefinitions(30);
+    final expected = ToolDefinitionSearchService.buildInitialSelection(
+      definitions,
+    ).toolDefinitions;
+    final dataSource = _RecordingVerifierDataSource();
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          () => _FixedSettingsNotifier(AppSettings.defaults()),
+        ),
+        mcpToolServiceProvider.overrideWithValue(
+          _FixedMcpToolService(definitions),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FakeCodingProjectsNotifier(
+            const CodingProjectsState(projects: [], selectedProjectId: null),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final outcome = await container
+        .read(maintenanceStagesProvider)
+        .firstWhere((stage) => stage.name == 'warm_cache')
+        .run(context());
+
+    expect(outcome.status, MaintenanceStageStatus.completed);
+    expect(dataSource.requestCount, 1);
+    expect(dataSource.tools, expected);
+    expect(dataSource.tools!.length, lessThan(definitions.length));
+    expect(
+      dataSource.messages!.first.content,
+      contains(ToolDefinitionSearchService.toolName),
+    );
+    expect(dataSource.messages!.first.content, isNot(contains('tool_29')));
+  });
+
+  test('warm_cache preserves the full catalog in prefix-stable mode', () async {
+    final definitions = _toolDefinitions(30);
+    final dataSource = _RecordingVerifierDataSource();
+    final settings = AppSettings.defaults().copyWith(
+      enablePrefixStableToolLoop: true,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          () => _FixedSettingsNotifier(settings),
+        ),
+        mcpToolServiceProvider.overrideWithValue(
+          _FixedMcpToolService(definitions),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FakeCodingProjectsNotifier(
+            const CodingProjectsState(projects: [], selectedProjectId: null),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final outcome = await container
+        .read(maintenanceStagesProvider)
+        .firstWhere((stage) => stage.name == 'warm_cache')
+        .run(context());
+
+    expect(outcome.status, MaintenanceStageStatus.completed);
+    expect(dataSource.tools, definitions);
+    expect(outcome.detail, contains('30 tool(s)'));
+  });
+
+  test('warm_cache skips an empty tool catalog', () async {
+    final dataSource = _RecordingVerifierDataSource();
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          () => _FixedSettingsNotifier(AppSettings.defaults()),
+        ),
+        mcpToolServiceProvider.overrideWithValue(
+          _FixedMcpToolService(const []),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final outcome = await container
+        .read(maintenanceStagesProvider)
+        .firstWhere((stage) => stage.name == 'warm_cache')
+        .run(context());
+
+    expect(outcome.status, MaintenanceStageStatus.skipped);
+    expect(outcome.detail, contains('tool catalog is empty'));
+    expect(dataSource.requestCount, 0);
+  });
 
   test('mine skips when there are no failure traces', () async {
     final container = ProviderContainer(
@@ -875,3 +1054,15 @@ WorktreeAgentTask _eligibleWorktreeAgentTask() {
     ],
   );
 }
+
+List<Map<String, dynamic>> _toolDefinitions(int count) => [
+  for (var index = 0; index < count; index += 1)
+    {
+      'type': 'function',
+      'function': {
+        'name': 'tool_$index',
+        'description': 'Synthetic maintenance tool $index.',
+        'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
+      },
+    },
+];

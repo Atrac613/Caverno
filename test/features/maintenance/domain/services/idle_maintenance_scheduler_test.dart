@@ -98,6 +98,76 @@ void main() {
     expect(run.startCount, 1);
   });
 
+  test('runs a bounded refresh when the idle input key changes', () async {
+    final env = _FakeEnvironment(nowValue: at(3, 0));
+    final run = _ControllableRun();
+    final refresh = _ControllableRun();
+    var refreshKey = 'model-a:catalog-a';
+    final scheduler = IdleMaintenanceScheduler(
+      environment: env,
+      configProvider: () => config,
+      run: run.call,
+      refreshRun: refresh.call,
+      refreshKeyProvider: () => refreshKey,
+    );
+
+    await scheduler.tick();
+    run.finish();
+    await scheduler.drain();
+
+    await scheduler.tick();
+    expect(refresh.startCount, 0);
+
+    refreshKey = 'model-b:catalog-a';
+    await scheduler.tick();
+    expect(refresh.startCount, 1);
+    refresh.finish();
+    await scheduler.drain();
+
+    await scheduler.tick();
+    expect(refresh.startCount, 1);
+  });
+
+  test('retains a refresh change that occurs during an active run', () async {
+    final env = _FakeEnvironment(nowValue: at(3, 0));
+    final run = _ControllableRun();
+    final refresh = _ControllableRun();
+    var refreshKey = 'catalog-a';
+    final scheduler = IdleMaintenanceScheduler(
+      environment: env,
+      configProvider: () => config,
+      run: run.call,
+      refreshRun: refresh.call,
+      refreshKeyProvider: () => refreshKey,
+    );
+
+    await scheduler.tick();
+    refreshKey = 'catalog-b';
+    run.finish();
+    await scheduler.drain();
+
+    await scheduler.tick();
+    expect(refresh.startCount, 1);
+    refresh.finish();
+    await scheduler.drain();
+  });
+
+  test('runs the primary pipeline when refresh fingerprinting fails', () async {
+    final env = _FakeEnvironment(nowValue: at(3, 0));
+    final run = _ControllableRun();
+    final scheduler = IdleMaintenanceScheduler(
+      environment: env,
+      configProvider: () => config,
+      run: run.call,
+      refreshKeyProvider: () => throw StateError('signature unavailable'),
+    );
+
+    await scheduler.tick();
+    expect(run.startCount, 1);
+    run.finish();
+    await scheduler.drain();
+  });
+
   test('cancels the in-progress run when the gate closes', () async {
     final env = _FakeEnvironment(nowValue: at(3, 0));
     final run = _ControllableRun();

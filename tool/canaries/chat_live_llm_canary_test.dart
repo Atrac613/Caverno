@@ -20,6 +20,7 @@ import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
@@ -36,6 +37,12 @@ import 'package:caverno/features/chat/presentation/providers/skills_notifier.dar
 import 'package:caverno/features/chat/presentation/providers/subagent_task_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:caverno/features/maintenance/domain/services/idle_maintenance_scheduler.dart';
+import 'package:caverno/features/maintenance/domain/services/maintenance_pipeline.dart';
+import 'package:caverno/features/maintenance/presentation/providers/maintenance_scheduler_provider.dart';
+
+import '../live_llm_benchmark_app_tool_profile.dart';
+import '../live_llm_benchmark_mcp_config.dart';
 
 const _basicMarker = 'CHAT_BASIC_LIVE_OK';
 const _embeddedMarker = 'EMBEDDED_TOOL_LIVE_OK';
@@ -55,11 +62,153 @@ const _foundationJapaneseMatrixMarker = 'FOUNDATION_LANGUAGE_JA_OK';
 
 void main() {
   final liveEnabled = Platform.environment['CAVERNO_CHAT_LIVE_CANARY'] == '1';
+  final ll22Enabled =
+      Platform.environment['CAVERNO_LL22_PRODUCTION_WARMUP_CANARY'] == '1';
   final foundationModelsRun =
       liveEnabled && _isAppleFoundationModelsEnvironment();
   final foundationLanguageMatrixRun =
       foundationModelsRun &&
       Platform.environment['CAVERNO_FOUNDATION_MODELS_LANGUAGE_MATRIX'] == '1';
+
+  test(
+    'LL22 production warm-up primes the first ChatNotifier turn',
+    () async {
+      final env = _ChatLiveEnv.fromEnvironment();
+      final arm =
+          Platform.environment['CAVERNO_LL22_WARMUP_ARM']?.trim() ?? 'warm';
+      if (arm != 'cold' && arm != 'warm') {
+        throw StateError('CAVERNO_LL22_WARMUP_ARM must be cold or warm.');
+      }
+      final servers = loadLiveLlmBenchmarkMcpServers(
+        Platform.environment['CAVERNO_LL22_MCP_CONFIG_PATH'],
+      );
+      final toolProfile = await LiveLlmBenchmarkToolProfile.create(
+        mcpServers: servers,
+        includeAppToolProfile: true,
+      );
+      addTearDown(toolProfile.dispose);
+      if (servers.isNotEmpty) {
+        await toolProfile.service.connect();
+      }
+
+      final dataSource = _ChatLiveDataSource(env.createDataSource());
+      final projectRoot =
+          Platform.environment['CAVERNO_LL22_PROJECT_ROOT']
+                  ?.trim()
+                  .isNotEmpty ==
+              true
+          ? Platform.environment['CAVERNO_LL22_PROJECT_ROOT']!.trim()
+          : Directory.current.path;
+      final container = _buildChatContainer(
+        env,
+        mcpEnabled: true,
+        assistantMode: AssistantMode.coding,
+        toolService: toolProfile.service,
+        chatDataSource: dataSource,
+        conversations: _Ll22ConversationsNotifier.new,
+        codingProjects: () => _Ll22CodingProjectsNotifier(projectRoot),
+      );
+
+      try {
+        // Production initializes ChatNotifier before the app becomes idle.
+        // Do the same so its best-effort MCP reconnect cannot change the
+        // catalog between the maintenance request and the interactive turn.
+        final notifier = container.read(chatNotifierProvider.notifier);
+        if (servers.isNotEmpty) {
+          await toolProfile.service.connect();
+        }
+        await _waitForStableToolCatalog(
+          toolProfile.service,
+          expectedServerCount: servers.length,
+        );
+        MaintenanceStageOutcome? warmupOutcome;
+        Duration? warmupLatency;
+        List<Map<String, dynamic>>? warmupTools;
+        String? warmupSystemPrompt;
+        if (arm == 'warm') {
+          final warmStage = container
+              .read(maintenanceStagesProvider)
+              .singleWhere((stage) => stage.name == 'warm_cache');
+          warmupOutcome = await warmStage.run(
+            MaintenanceStageContext(
+              handle: IdleMaintenanceRunHandle(),
+              shared: <String, Object?>{},
+            ),
+          );
+          expect(
+            warmupOutcome.status,
+            MaintenanceStageStatus.completed,
+            reason: warmupOutcome.detail,
+          );
+          warmupLatency = dataSource.lastCompletionLatency;
+          warmupTools = _wireToolDefinitions(
+            dataSource.completionToolDefinitionBatches.last,
+          );
+          warmupSystemPrompt = dataSource.completionRequests.last.first.content;
+        }
+
+        final startedAt = DateTime.now();
+        await notifier.sendMessage(
+          'Reply with exactly LL22_PRODUCTION_WARMUP_OK and no extra text.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container);
+        final wallClock = DateTime.now().difference(startedAt);
+
+        expect(
+          _lastAssistantContent(container).toUpperCase(),
+          contains('LL22_PRODUCTION_WARMUP_OK'),
+          reason: _chatDiagnostic(container),
+        );
+        expect(dataSource.streamWithToolsRequests, isNotEmpty);
+        expect(dataSource.firstToolStreamChunkLatency, isNotNull);
+        if (servers.isNotEmpty) {
+          expect(dataSource.streamToolDefinitionBatches.first, hasLength(48));
+        }
+
+        int? stableSystemPrefixChars;
+        if (arm == 'warm') {
+          expect(dataSource.completionRequests, isNotEmpty);
+          expect(dataSource.completionToolDefinitionBatches, isNotEmpty);
+          expect(dataSource.streamToolDefinitionBatches, isNotEmpty);
+          expect(
+            _wireToolDefinitions(dataSource.streamToolDefinitionBatches.first),
+            warmupTools,
+          );
+          final turnSystem =
+              dataSource.streamWithToolsRequests.first.first.content;
+          stableSystemPrefixChars = _commonPrefixLength(
+            warmupSystemPrompt!,
+            turnSystem,
+          );
+          expect(
+            stableSystemPrefixChars,
+            greaterThanOrEqualTo(2000),
+            reason: 'Warm-up and production system prompts diverged too early.',
+          );
+        }
+
+        final artifact = _writeLl22Artifact(
+          arm: arm,
+          env: env,
+          projectRoot: projectRoot,
+          toolCount: dataSource.streamToolDefinitionBatches.first.length,
+          wallClock: wallClock,
+          ttft: dataSource.firstToolStreamChunkLatency!,
+          warmupOutcome: warmupOutcome,
+          warmupLatency: warmupLatency,
+          stableSystemPrefixChars: stableSystemPrefixChars,
+        );
+        stdout.writeln('LL22 production warm-up artifact: ${artifact.path}');
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: ll22Enabled
+        ? false
+        : 'Set CAVERNO_LL22_PRODUCTION_WARMUP_CANARY=1 to run.',
+    timeout: const Timeout(Duration(minutes: 10)),
+  );
 
   test(
     'live LLM produces a plain chat response without tools',
@@ -989,21 +1138,28 @@ ProviderContainer _buildChatContainer(
   _ChatLiveEnv env, {
   required bool mcpEnabled,
   required McpToolService toolService,
+  AssistantMode assistantMode = AssistantMode.general,
   ChatDataSource? chatDataSource,
   ToolResultArtifactStore? artifactStore,
+  ConversationsNotifier Function()? conversations,
+  CodingProjectsNotifier Function()? codingProjects,
 }) {
   final appLifecycleService = _MockAppLifecycleService();
   when(() => appLifecycleService.isInBackground).thenReturn(false);
   return ProviderContainer(
     overrides: [
       settingsNotifierProvider.overrideWith(
-        () => _LiveSettingsNotifier(env: env, mcpEnabled: mcpEnabled),
+        () => _LiveSettingsNotifier(
+          env: env,
+          mcpEnabled: mcpEnabled,
+          assistantMode: assistantMode,
+        ),
       ),
       conversationsNotifierProvider.overrideWith(
-        _LiveConversationsNotifier.new,
+        conversations ?? _LiveConversationsNotifier.new,
       ),
       codingProjectsNotifierProvider.overrideWith(
-        _LiveCodingProjectsNotifier.new,
+        codingProjects ?? _LiveCodingProjectsNotifier.new,
       ),
       skillsNotifierProvider.overrideWith(_LiveSkillsNotifier.new),
       chatRemoteDataSourceProvider.overrideWithValue(
@@ -1211,6 +1367,100 @@ String _diagnosticPreview(String value, [int maxLength = 1200]) {
   return '${value.substring(0, maxLength)}...';
 }
 
+int _commonPrefixLength(String left, String right) {
+  final limit = left.length < right.length ? left.length : right.length;
+  var index = 0;
+  while (index < limit && left.codeUnitAt(index) == right.codeUnitAt(index)) {
+    index += 1;
+  }
+  return index;
+}
+
+List<Map<String, dynamic>> _wireToolDefinitions(
+  List<Map<String, dynamic>> definitions,
+) {
+  return [
+    for (final definition in definitions)
+      <String, dynamic>{
+        if (definition['type'] != null) 'type': definition['type'],
+        if (definition['function'] != null)
+          'function': jsonDecode(jsonEncode(definition['function'])),
+      },
+  ];
+}
+
+Future<void> _waitForStableToolCatalog(
+  McpToolService service, {
+  required int expectedServerCount,
+}) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 15));
+  String? previousFingerprint;
+  var stablePolls = 0;
+  while (DateTime.now().isBefore(deadline)) {
+    final connectedCount = service.serverStates
+        .where((state) => state.status == McpConnectionStatus.connected)
+        .length;
+    final fingerprint = jsonEncode(
+      _wireToolDefinitions(service.getOpenAiToolDefinitions()),
+    );
+    if (connectedCount == expectedServerCount &&
+        fingerprint == previousFingerprint) {
+      stablePolls += 1;
+      if (stablePolls >= 3) return;
+    } else {
+      stablePolls = 0;
+    }
+    previousFingerprint = fingerprint;
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+  }
+  throw TimeoutException(
+    'MCP tool catalog did not stabilize with all $expectedServerCount '
+    'servers connected.',
+  );
+}
+
+File _writeLl22Artifact({
+  required String arm,
+  required _ChatLiveEnv env,
+  required String projectRoot,
+  required int toolCount,
+  required Duration wallClock,
+  required Duration ttft,
+  required MaintenanceStageOutcome? warmupOutcome,
+  required Duration? warmupLatency,
+  required int? stableSystemPrefixChars,
+}) {
+  final reportDirectory =
+      Platform.environment['CAVERNO_LL22_REPORT_DIR']?.trim() ?? '';
+  if (reportDirectory.isEmpty) {
+    throw StateError('CAVERNO_LL22_REPORT_DIR is required.');
+  }
+  final directory = Directory(reportDirectory)..createSync(recursive: true);
+  final artifact = File('${directory.path}/ll22_production_warmup.json');
+  final payload = <String, Object?>{
+    'schema': 'caverno_ll22_production_warmup_canary',
+    'generatedAt': DateTime.now().toIso8601String(),
+    'arm': arm,
+    'provider': env.provider.name,
+    'baseUrl': env.baseUrl,
+    'model': env.model,
+    'projectRoot': projectRoot,
+    'toolCount': toolCount,
+    'wallClockMs': wallClock.inMilliseconds,
+    'ttftMs': ttft.inMilliseconds,
+    if (warmupOutcome != null) ...{
+      'warmupStatus': warmupOutcome.status.name,
+      'warmupDetail': warmupOutcome.detail,
+      'warmupLatencyMs': warmupLatency?.inMilliseconds,
+      'stableSystemPrefixChars': stableSystemPrefixChars,
+    },
+  };
+  artifact.writeAsStringSync(
+    '${const JsonEncoder.withIndent('  ').convert(payload)}\n',
+  );
+  return artifact;
+}
+
 class _ChatLiveEnv {
   const _ChatLiveEnv({
     required this.provider,
@@ -1300,15 +1550,20 @@ bool _isAppleFoundationModelsEnvironment() {
 }
 
 class _LiveSettingsNotifier extends SettingsNotifier {
-  _LiveSettingsNotifier({required this.env, required this.mcpEnabled});
+  _LiveSettingsNotifier({
+    required this.env,
+    required this.mcpEnabled,
+    required this.assistantMode,
+  });
 
   final _ChatLiveEnv env;
   final bool mcpEnabled;
+  final AssistantMode assistantMode;
 
   @override
   AppSettings build() {
     return AppSettings.defaults().copyWith(
-      assistantMode: AssistantMode.general,
+      assistantMode: assistantMode,
       llmProvider: env.provider,
       baseUrl: env.baseUrl,
       apiKey: env.apiKey,
@@ -1404,11 +1659,88 @@ class _LiveConversationsNotifier extends ConversationsNotifier {
 
   @override
   Future<void> updateCurrentConversation(List<Message> messages) async {}
+
+  @override
+  Future<void> updateConversationMessages(
+    String conversationId,
+    List<Message> messages,
+  ) async {
+    final matches = state.conversations.where(
+      (conversation) => conversation.id == conversationId,
+    );
+    if (matches.isEmpty) return;
+    final conversation = matches.first;
+    state = state.copyWith(
+      conversations: [conversation.copyWith(messages: messages)],
+    );
+  }
+}
+
+class _Ll22ConversationsNotifier extends ConversationsNotifier {
+  @override
+  ConversationsState build() => ConversationsState.initial();
+
+  @override
+  Conversation? ensureCurrentConversation({
+    WorkspaceMode? workspaceMode,
+    String? projectId,
+  }) {
+    final current = state.currentConversation;
+    if (current != null) return current;
+
+    final now = DateTime.now();
+    final conversation = Conversation(
+      id: 'll22-live-conversation',
+      title: defaultConversationTitle,
+      messages: const <Message>[],
+      createdAt: now,
+      updatedAt: now,
+      workspaceMode: workspaceMode ?? WorkspaceMode.coding,
+      projectId: projectId ?? 'll22-live-project',
+    );
+    state = state.copyWith(
+      conversations: [conversation],
+      currentConversationId: conversation.id,
+      activeWorkspaceMode: conversation.workspaceMode,
+      activeProjectId: conversation.projectId,
+    );
+    return conversation;
+  }
+
+  @override
+  Future<void> ensureCurrentPlanArtifactBackfilled({
+    String? conversationId,
+  }) async {}
+
+  @override
+  Future<void> updateCurrentConversation(List<Message> messages) async {}
 }
 
 class _LiveCodingProjectsNotifier extends CodingProjectsNotifier {
   @override
   CodingProjectsState build() => CodingProjectsState.initial();
+}
+
+class _Ll22CodingProjectsNotifier extends CodingProjectsNotifier {
+  _Ll22CodingProjectsNotifier(this.rootPath);
+
+  final String rootPath;
+
+  @override
+  CodingProjectsState build() {
+    final now = DateTime.now();
+    final project = CodingProject(
+      id: 'll22-live-project',
+      name: 'caverno',
+      rootPath: rootPath,
+      createdAt: now,
+      updatedAt: now,
+    );
+    return CodingProjectsState(
+      projects: [project],
+      selectedProjectId: project.id,
+    );
+  }
 }
 
 class _LiveSkillsNotifier extends SkillsNotifier {
@@ -1498,8 +1830,13 @@ class _ChatLiveDataSource implements ChatDataSource {
   final _ScriptedAssistantToolResultPrelude? scriptedAssistantToolResultPrelude;
   final List<List<Message>> streamRequests = [];
   final List<List<Message>> streamWithToolsRequests = [];
+  final List<List<Message>> completionRequests = [];
+  final List<List<Map<String, dynamic>>> completionToolDefinitionBatches = [];
+  final List<List<Map<String, dynamic>>> streamToolDefinitionBatches = [];
   final List<List<ToolResultInfo>> toolResultBatches = [];
   final List<ChatCompletionResult> toolResultResponses = [];
+  Duration? firstToolStreamChunkLatency;
+  Duration? lastCompletionLatency;
 
   @override
   StreamedChatCompletion streamChatCompletion({
@@ -1545,13 +1882,22 @@ class _ChatLiveDataSource implements ChatDataSource {
         ),
       );
     }
-    return delegate.createChatCompletion(
-      messages: messages,
-      tools: tools,
-      model: model,
-      temperature: temperature,
-      maxTokens: maxTokens,
+    completionRequests.add(List<Message>.unmodifiable(messages));
+    completionToolDefinitionBatches.add(
+      List<Map<String, dynamic>>.unmodifiable(tools ?? const []),
     );
+    final startedAt = DateTime.now();
+    return delegate
+        .createChatCompletion(
+          messages: messages,
+          tools: tools,
+          model: model,
+          temperature: temperature,
+          maxTokens: maxTokens,
+        )
+        .whenComplete(() {
+          lastCompletionLatency = DateTime.now().difference(startedAt);
+        });
   }
 
   @override
@@ -1563,6 +1909,9 @@ class _ChatLiveDataSource implements ChatDataSource {
     int? maxTokens,
   }) {
     streamWithToolsRequests.add(List<Message>.unmodifiable(messages));
+    streamToolDefinitionBatches.add(
+      List<Map<String, dynamic>>.unmodifiable(tools),
+    );
     final prelude = scriptedIncompleteToolPrelude;
     if (prelude != null && prelude.shouldHandle(messages)) {
       return prelude.buildResult();
@@ -1571,12 +1920,28 @@ class _ChatLiveDataSource implements ChatDataSource {
     if (toolResultPrelude != null && toolResultPrelude.shouldHandle(messages)) {
       return toolResultPrelude.buildResult();
     }
-    return delegate.streamChatCompletionWithTools(
+    final startedAt = DateTime.now();
+    final result = delegate.streamChatCompletionWithTools(
       messages: messages,
       tools: tools,
       model: model,
       temperature: temperature,
       maxTokens: maxTokens,
+    );
+    var observedFirstChunk = false;
+    Stream<String> measuredStream() async* {
+      await for (final chunk in result.stream) {
+        if (!observedFirstChunk && chunk.isNotEmpty) {
+          observedFirstChunk = true;
+          firstToolStreamChunkLatency ??= DateTime.now().difference(startedAt);
+        }
+        yield chunk;
+      }
+    }
+
+    return StreamWithToolsResult(
+      stream: measuredStream(),
+      completion: result.completion,
     );
   }
 

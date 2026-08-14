@@ -110,25 +110,11 @@ class SystemPromptBuilder {
     final timeZoneName = now.timeZoneName.isEmpty ? 'Local' : now.timeZoneName;
     final utcOffset = _formatUtcOffset(now.timeZoneOffset);
 
+    // Keep deterministic instruction and tool guidance at the prompt head.
+    // Turn-specific temporal and memory context is appended near the tail so
+    // LL6/LL22 can reuse this substantial leading prefix across idle warm-up
+    // and the first interactive request.
     final buffer = StringBuffer()
-      ..writeln(
-        'Current local date and time (source of truth): '
-        '$date ($weekday) $time $timeZoneName (UTC$utcOffset).',
-      )
-      ..writeln(
-        'Resolve relative date/time references (today, yesterday, tomorrow, '
-        'this week, recently, now, latest, current) against this source of truth.',
-      );
-
-    // In voice mode, dates should be spoken naturally; skip YYYY-MM-DD instruction.
-    if (!isVoiceMode) {
-      buffer.writeln(
-        'When responding to time-relative questions, include exact dates '
-        '(YYYY-MM-DD) to avoid ambiguity.',
-      );
-    }
-
-    buffer
       ..writeln(SystemPromptConstants.knowledgeCutoffHumilityInstruction)
       ..writeln(SystemPromptConstants.researchHonestyInstruction)
       ..writeln(SystemPromptConstants.coreAssistantPrompt)
@@ -849,6 +835,24 @@ class SystemPromptBuilder {
       if (!isVoiceMode) {
         buffer.writeln(SystemPromptConstants.webCitationInstruction);
       }
+    }
+
+    buffer
+      ..writeln('Dynamic turn context:')
+      ..writeln(
+        'Current local date and time (source of truth): '
+        '$date ($weekday) $time $timeZoneName (UTC$utcOffset).',
+      )
+      ..writeln(
+        'Resolve relative date/time references (today, yesterday, tomorrow, '
+        'this week, recently, now, latest, current) against this source of truth.',
+      );
+    // In voice mode, dates should be spoken naturally; skip YYYY-MM-DD instruction.
+    if (!isVoiceMode) {
+      buffer.writeln(
+        'When responding to time-relative questions, include exact dates '
+        '(YYYY-MM-DD) to avoid ambiguity.',
+      );
     }
 
     final memoryContext = sessionMemoryContext?.trim();

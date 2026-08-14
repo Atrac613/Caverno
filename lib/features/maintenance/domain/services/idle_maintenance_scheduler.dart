@@ -40,21 +40,29 @@ class IdleMaintenanceScheduler {
     required IdleMaintenanceEnvironment environment,
     required IdleMaintenanceConfig Function() configProvider,
     required IdleMaintenanceRun run,
+    IdleMaintenanceRun? refreshRun,
+    Object? Function()? refreshKeyProvider,
     IdleMaintenanceWindowPolicy policy = const IdleMaintenanceWindowPolicy(),
   }) : _environment = environment,
        _configProvider = configProvider,
        _run = run,
+       _refreshRun = refreshRun,
+       _refreshKeyProvider = refreshKeyProvider,
        _policy = policy;
 
   final IdleMaintenanceEnvironment _environment;
   final IdleMaintenanceConfig Function() _configProvider;
   final IdleMaintenanceRun _run;
+  final IdleMaintenanceRun? _refreshRun;
+  final Object? Function()? _refreshKeyProvider;
   final IdleMaintenanceWindowPolicy _policy;
 
   Timer? _timer;
   IdleMaintenanceRunHandle? _activeHandle;
   Future<void>? _activeRun;
   bool _allowedLastTick = false;
+  bool _hasCompletedPrimaryRun = false;
+  Object? _appliedRefreshKey;
 
   /// Whether a maintenance run is currently in progress.
   bool get isRunning => _activeHandle != null;
@@ -79,9 +87,25 @@ class IdleMaintenanceScheduler {
       return;
     }
 
-    // Rising edge only: start a run when the gate transitions blocked->allowed.
+    Object? refreshKey;
+    if (allowed) {
+      try {
+        refreshKey = _refreshKeyProvider?.call();
+      } catch (_) {
+        // Refresh detection is an optimization. A transient fingerprint error
+        // must not prevent the primary maintenance run on a fresh idle window.
+      }
+    }
+
+    // A rising edge runs the full maintenance pipeline. While the gate stays
+    // open, a changed LL22 input key runs only the bounded refresh pipeline.
     if (allowed && !_allowedLastTick) {
-      _startRun();
+      _startRun(_run, refreshKey: refreshKey, primary: true);
+    } else if (allowed &&
+        _hasCompletedPrimaryRun &&
+        _refreshRun != null &&
+        refreshKey != _appliedRefreshKey) {
+      _startRun(_refreshRun, refreshKey: refreshKey, primary: false);
     }
     _allowedLastTick = allowed;
   }
@@ -97,14 +121,21 @@ class IdleMaintenanceScheduler {
         .allowed;
   }
 
-  void _startRun() {
+  void _startRun(
+    IdleMaintenanceRun run, {
+    required Object? refreshKey,
+    required bool primary,
+  }) {
     final handle = IdleMaintenanceRunHandle();
     _activeHandle = handle;
-    _activeRun = _run(handle).whenComplete(() {
-      if (identical(_activeHandle, handle)) {
-        _activeHandle = null;
-        _activeRun = null;
+    _activeRun = run(handle).whenComplete(() {
+      if (!identical(_activeHandle, handle)) return;
+      if (!handle.isCancelled) {
+        _appliedRefreshKey = refreshKey;
+        if (primary) _hasCompletedPrimaryRun = true;
       }
+      _activeHandle = null;
+      _activeRun = null;
     });
   }
 
@@ -116,6 +147,8 @@ class IdleMaintenanceScheduler {
     _timer = null;
     _activeHandle?.cancel();
     _allowedLastTick = false;
+    _hasCompletedPrimaryRun = false;
+    _appliedRefreshKey = null;
   }
 
   /// Awaits the in-progress run, if any, so callers (and tests) can wait for a
