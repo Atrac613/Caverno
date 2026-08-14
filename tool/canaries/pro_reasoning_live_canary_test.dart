@@ -35,10 +35,21 @@ import 'package:caverno/features/chat/presentation/providers/pro_reasoning_run_n
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
+import 'support/pro_reasoning_grounded_claims_verifier.dart';
+
 const _question =
     'Investigate which APIs llama.cpp and LM Studio expose for loaded-model or '
     'slot discovery, then recommend a safe two-host candidate placement policy. '
     'State uncertainty and keep the final answer concise.';
+const _groundedClaimsQuestion =
+    'Read /canary/hardware_requirements.txt and report the minimum memory '
+    'requirement. Separate the verified artifact size from any runtime RAM '
+    'requirement, and do not invent a safety margin.';
+const _groundedClaimsEvidence = <String>[
+  'Verified artifact size: 397 GB.',
+  'Published runtime RAM minimum: not specified.',
+  'Runtime overhead depends on the engine and deployment settings.',
+];
 
 void main() {
   final originalHttpOverrides = HttpOverrides.current;
@@ -71,6 +82,7 @@ void main() {
           'single_host',
           'cancel',
           'logging_disabled',
+          'grounded_claims',
         }.contains(scenario)) {
           throw StateError('Unsupported Pro Reasoning scenario: $scenario');
         }
@@ -107,6 +119,12 @@ Future<Map<String, dynamic>> _runScenario({
     'multi_host',
     'selected_endpoint',
   }.contains(scenario);
+  final question = scenario == 'grounded_claims'
+      ? _groundedClaimsQuestion
+      : _question;
+  final toolService = scenario == 'grounded_claims'
+      ? _GroundedClaimsToolService()
+      : _NoToolsMcpToolService();
   final settings = env.settings(
     includeSecondary: includeSecondary,
     selectSecondary: scenario == 'selected_endpoint',
@@ -120,6 +138,7 @@ Future<Map<String, dynamic>> _runScenario({
     settings: settings,
     logStore: LlmSessionLogStore(rootDirectoryProvider: () async => logRoot),
     usageSink: usageSink,
+    toolService: toolService,
   );
   final stages = <String>[];
   final endpointLabels = <String>{};
@@ -150,7 +169,7 @@ Future<Map<String, dynamic>> _runScenario({
   try {
     notifier = container.read(proReasoningRunProvider.notifier);
     final completed = await notifier.start(
-      _question,
+      question,
       depth: ProReasoningDepth.standard,
     );
     final finishedAt = DateTime.now();
@@ -164,7 +183,7 @@ Future<Map<String, dynamic>> _runScenario({
     expect(
       messages.where(
         (message) =>
-            message.role == MessageRole.user && message.content == _question,
+            message.role == MessageRole.user && message.content == question,
       ),
       hasLength(1),
       reason: _diagnostic(container, stages),
@@ -254,6 +273,50 @@ Future<Map<String, dynamic>> _runScenario({
         .where((entry) => entry['operation'] == 'pro_reasoning_candidate')
         .toList(growable: false);
 
+    Map<String, dynamic>? groundedClaims;
+    if (scenario == 'grounded_claims') {
+      final answer = assistantAnswers.last.content;
+      final normalized = answer.toLowerCase();
+      const verifier = ProReasoningGroundedClaimsVerifier();
+      final supportedMemoryClaims = verifier.memoryClaims(
+        _groundedClaimsEvidence.join('\n'),
+      );
+      final observedMemoryClaims = verifier.memoryClaims(answer);
+      final unsupportedMemoryClaims = verifier.unsupportedMemoryClaims(
+        evidence: _groundedClaimsEvidence.join('\n'),
+        answer: answer,
+      );
+      expect(toolService.executedToolNames, contains('read_file'));
+      expect(answer, contains('397'));
+      expect(
+        unsupportedMemoryClaims,
+        isEmpty,
+        reason:
+            'Final answer introduced unsupported memory quantities: '
+            '$unsupportedMemoryClaims\n$answer',
+      );
+      expect(
+        normalized,
+        anyOf(
+          contains('not specified'),
+          contains('not provided'),
+          contains('unknown'),
+          contains('cannot be determined'),
+          contains('insufficient'),
+        ),
+        reason:
+            'Final answer did not preserve the missing RAM requirement:\n$answer',
+      );
+      groundedClaims = <String, dynamic>{
+        'toolCalls': toolService.executedToolNames,
+        'mentionsArtifactSize': answer.contains('397'),
+        'supportedMemoryClaims': supportedMemoryClaims,
+        'observedMemoryClaims': observedMemoryClaims,
+        'unsupportedMemoryClaims': unsupportedMemoryClaims,
+        'preservesMissingRuntimeRequirement': true,
+      };
+    }
+
     if (scenario == 'multi_host') {
       expect(summaryEndpoints.toSet().length, greaterThanOrEqualTo(2));
       expect(candidateCount, greaterThanOrEqualTo(2));
@@ -311,6 +374,7 @@ Future<Map<String, dynamic>> _runScenario({
           .toSet()
           .toList(growable: false),
       'summary': summary,
+      'groundedClaims': ?groundedClaims,
     };
     stdout.writeln('PRO_REASONING_CANARY ${jsonEncode(result)}');
     return result;
@@ -325,6 +389,7 @@ ProviderContainer _buildContainer({
   required AppSettings settings,
   required LlmSessionLogStore logStore,
   required ModelUsageSink usageSink,
+  required _NoToolsMcpToolService toolService,
 }) {
   return ProviderContainer(
     overrides: [
@@ -346,7 +411,7 @@ ProviderContainer _buildContainer({
       sessionMemoryServiceProvider.overrideWithValue(
         _NoopSessionMemoryService(),
       ),
-      mcpToolServiceProvider.overrideWithValue(_NoToolsMcpToolService()),
+      mcpToolServiceProvider.overrideWithValue(toolService),
       appLifecycleServiceProvider.overrideWithValue(
         _ForegroundAppLifecycleService(),
       ),
@@ -532,7 +597,9 @@ final class _InMemoryConversationRepository
   Future<List<Conversation>> search(String query) async => const [];
 }
 
-final class _NoToolsMcpToolService extends McpToolService {
+class _NoToolsMcpToolService extends McpToolService {
+  final executedToolNames = <String>[];
+
   @override
   Future<void> connect({
     List<McpServerConfig>? overrideServers,
@@ -547,12 +614,59 @@ final class _NoToolsMcpToolService extends McpToolService {
   Future<McpToolResult> executeTool({
     required String name,
     required Map<String, dynamic> arguments,
-  }) async => McpToolResult(
-    toolName: name,
-    result: jsonEncode({'error': 'Tool is not available'}),
-    isSuccess: false,
-    errorMessage: 'Tool is not available',
-  );
+  }) async {
+    executedToolNames.add(name);
+    return McpToolResult(
+      toolName: name,
+      result: jsonEncode({'error': 'Tool is not available'}),
+      isSuccess: false,
+      errorMessage: 'Tool is not available',
+    );
+  }
+}
+
+final class _GroundedClaimsToolService extends _NoToolsMcpToolService {
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() => const [
+    {
+      'type': 'function',
+      'function': {
+        'name': 'read_file',
+        'description': 'Read the controlled hardware evidence file.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'path': {'type': 'string'},
+          },
+          'required': ['path'],
+        },
+      },
+    },
+  ];
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedToolNames.add(name);
+    if (name != 'read_file') {
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({'error': 'Unsupported tool: $name'}),
+        isSuccess: false,
+        errorMessage: 'Unsupported tool: $name',
+      );
+    }
+    return McpToolResult(
+      toolName: name,
+      result: jsonEncode({
+        'path': '/canary/hardware_requirements.txt',
+        'content': _groundedClaimsEvidence.join('\n'),
+      }),
+      isSuccess: true,
+    );
+  }
 }
 
 final class _MockMemoryBox extends Mock implements Box<String> {}

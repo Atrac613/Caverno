@@ -25,10 +25,15 @@ void main() {
     expect(canary, contains("'single_host'"));
     expect(canary, contains("'cancel'"));
     expect(canary, contains("'logging_disabled'"));
+    expect(canary, contains("'grounded_claims'"));
     expect(canary, contains('pro_reasoning_summary'));
     expect(canary, contains("summary['candidateRouting'], 'selectedOnly'"));
     expect(canary, contains("request['model'], env.secondary.model"));
     expect(canary, contains('ModelUsageRole.proReasoning'));
     expect(canary, contains('CAVERNO_PRO_REASONING_LIVE_CANARY_DIR'));
+    expect(canary, contains('_GroundedClaimsToolService'));
+    expect(canary, contains('unsupportedMemoryClaims'));
+    expect(canary, contains('supportedMemoryClaims'));
+    expect(canary, contains('preservesMissingRuntimeRequirement'));
   });
 }
