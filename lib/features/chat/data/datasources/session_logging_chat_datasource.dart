@@ -31,6 +31,27 @@ class SessionLoggingChatDataSource
     return LlmSessionLogContext.current ?? _contextProvider();
   }
 
+  int _effectiveMaxTokens(String model, int? maxTokens) {
+    final requested = maxTokens ?? ApiConstants.defaultMaxTokens;
+    final delegate = _delegate;
+    if (delegate is! ChatRemoteDataSource) return requested;
+    return delegate
+            .qwen38RequestOverrides(model: model, maxTokens: requested)
+            ?.maxTokens ??
+        requested;
+  }
+
+  Map<String, dynamic>? _chatTemplateKwargs(String model, int? maxTokens) {
+    final delegate = _delegate;
+    if (delegate is! ChatRemoteDataSource) return null;
+    return delegate
+        .qwen38RequestOverrides(
+          model: model,
+          maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+        )
+        ?.chatTemplateKwargs;
+  }
+
   TokenUsage get lastUsage {
     final delegate = _delegate;
     if (delegate is ChatRemoteDataSource) {
@@ -99,7 +120,14 @@ class SessionLoggingChatDataSource
       toolResults: toolResults,
       model: model ?? ApiConstants.defaultModel,
       temperature: temperature ?? ApiConstants.defaultTemperature,
-      maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+      maxTokens: _effectiveMaxTokens(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
+      chatTemplateKwargs: _chatTemplateKwargs(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
     );
     final completion = _delegate.streamChatCompletion(
       messages: messages,
@@ -161,7 +189,14 @@ class SessionLoggingChatDataSource
       tools: tools,
       model: model ?? ApiConstants.defaultModel,
       temperature: temperature ?? ApiConstants.defaultTemperature,
-      maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+      maxTokens: _effectiveMaxTokens(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
+      chatTemplateKwargs: _chatTemplateKwargs(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
     );
     try {
       final result = await _delegate.createChatCompletion(
@@ -206,7 +241,14 @@ class SessionLoggingChatDataSource
       tools: tools,
       model: model ?? ApiConstants.defaultModel,
       temperature: temperature ?? ApiConstants.defaultTemperature,
-      maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+      maxTokens: _effectiveMaxTokens(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
+      chatTemplateKwargs: _chatTemplateKwargs(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
     );
     final response = StringBuffer();
     final result = _delegate.streamChatCompletionWithTools(
@@ -284,7 +326,14 @@ class SessionLoggingChatDataSource
       assistantContent: assistantContent,
       model: model ?? ApiConstants.defaultModel,
       temperature: temperature ?? ApiConstants.defaultTemperature,
-      maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+      maxTokens: _effectiveMaxTokens(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
+      chatTemplateKwargs: _chatTemplateKwargs(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
     );
     final response = StringBuffer();
     try {
@@ -351,7 +400,14 @@ class SessionLoggingChatDataSource
       assistantContent: assistantContent,
       model: model ?? ApiConstants.defaultModel,
       temperature: temperature ?? ApiConstants.defaultTemperature,
-      maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+      maxTokens: _effectiveMaxTokens(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
+      chatTemplateKwargs: _chatTemplateKwargs(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
     );
     try {
       final result = await _delegate.createChatCompletionWithToolResult(
@@ -405,7 +461,14 @@ class SessionLoggingChatDataSource
       assistantContent: assistantContent,
       model: model ?? ApiConstants.defaultModel,
       temperature: temperature ?? ApiConstants.defaultTemperature,
-      maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+      maxTokens: _effectiveMaxTokens(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
+      chatTemplateKwargs: _chatTemplateKwargs(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
     );
     try {
       final result = await _delegate.createChatCompletionWithToolResults(

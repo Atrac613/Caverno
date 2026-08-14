@@ -3,6 +3,7 @@ class ApiConstants {
 
   static const String defaultBaseUrl = 'http://localhost:1234/v1';
   static const String defaultModel = 'qwen3.6-27b-mtp-vision';
+  static const String qwen38VisionModel = 'qwen3.8-27b-vision';
   static const String defaultApiKey = 'no-key';
   static const Map<String, String> userAgentHeaders = {'User-Agent': 'Caverno'};
   static const Map<String, String> jsonRequestHeaders = {

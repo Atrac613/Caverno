@@ -12,12 +12,14 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/model_usage_sink.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/chat_request_prefix_stability_service.dart';
+import '../../domain/services/qwen38_request_thinking_policy.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import 'chat_completion_request_fallback.dart';
 import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
 import 'chat_request_logger.dart';
 import 'chat_response_telemetry.dart';
+import 'qwen38_request_policy_client.dart';
 
 export '../../domain/entities/chat_completion_terminal_metadata.dart';
 export '../../domain/entities/tool_call_info.dart'
@@ -44,7 +46,10 @@ class ChatRemoteDataSource
     String endpointId = '',
     String? Function()? usageLabelResolver,
     this.defaultTopP,
-  }) : _requestFallback = ChatCompletionRequestFallback(reasoningEffort),
+  }) : _qwen38RequestPolicy = Qwen38RequestThinkingPolicy(
+         reasoningEffort: reasoningEffort,
+       ),
+       _requestFallback = ChatCompletionRequestFallback(reasoningEffort),
        _telemetry = ChatResponseTelemetry(
          usageSink: usageSink,
          endpointId: endpointId,
@@ -54,14 +59,30 @@ class ChatRemoteDataSource
          apiKey ?? ApiConstants.defaultApiKey,
          baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
          defaultHeaders: ApiConstants.userAgentHeaders,
-         httpClient: httpClient,
-         streamClientFactory: streamClientFactory,
+         httpClient: Qwen38RequestPolicyClient(
+           delegate: httpClient ?? http.Client(),
+           policy: Qwen38RequestThinkingPolicy(
+             reasoningEffort: reasoningEffort,
+           ),
+         ),
+         streamClientFactory: () => Qwen38RequestPolicyClient(
+           delegate: streamClientFactory?.call() ?? http.Client(),
+           policy: Qwen38RequestThinkingPolicy(
+             reasoningEffort: reasoningEffort,
+           ),
+         ),
        );
 
   final OpenAIClient _client;
+  final Qwen38RequestThinkingPolicy _qwen38RequestPolicy;
   final ChatCompletionRequestFallback _requestFallback;
   final ChatResponseTelemetry _telemetry;
   final double? defaultTopP;
+
+  Qwen38RequestOverrides? qwen38RequestOverrides({
+    required String model,
+    required int? maxTokens,
+  }) => _qwen38RequestPolicy.resolve(model: model, maxTokens: maxTokens);
 
   static const _responseNormalizer = ChatCompletionResponseNormalizer();
   static const _logger = ChatRequestLogger();

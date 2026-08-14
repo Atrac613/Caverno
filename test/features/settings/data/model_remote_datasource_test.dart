@@ -9,6 +9,27 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('keeps the exact Qwen3.8 Vision id in the selectable catalog', () {
+    final catalog = ModelRemoteDataSource.parseModelCatalogResponse({
+      'object': 'list',
+      'data': [
+        {
+          'id': ApiConstants.qwen38VisionModel,
+          'owned_by': 'llamacpp',
+          'context_length': 65536,
+        },
+      ],
+    });
+
+    expect(catalog, [
+      const ModelCatalogEntry(
+        id: ApiConstants.qwen38VisionModel,
+        ownedBy: 'llamacpp',
+        contextWindowTokens: 65536,
+      ),
+    ]);
+  });
+
   test('extracts explicit context window fields from raw model metadata', () {
     final catalog = ModelRemoteDataSource.parseModelCatalogResponse({
       'object': 'list',

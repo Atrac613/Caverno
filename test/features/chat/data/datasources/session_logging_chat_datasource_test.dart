@@ -10,6 +10,8 @@ import 'package:caverno/features/chat/data/datasources/session_logging_chat_data
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 void main() {
   group('LlmSessionLogStore', () {
@@ -715,6 +717,61 @@ void main() {
       expect(decoded['response']['usage']['totalTokens'], 15);
       // No producer label was set, so the record must not invent one.
       expect(decoded['request'].containsKey('label'), isFalse);
+    });
+
+    test('records Qwen3.8 model and nested template controls', () async {
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'qwen38-log',
+        conversationId: 'qwen38-log',
+      );
+      final remote = ChatRemoteDataSource(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'no-key',
+        reasoningEffort: 'medium',
+        httpClient: MockClient((request) async {
+          return http.Response(
+            jsonEncode({
+              'id': 'chatcmpl-qwen38-log',
+              'object': 'chat.completion',
+              'created': 0,
+              'model': 'qwen3.8-27b-vision',
+              'choices': [
+                {
+                  'index': 0,
+                  'message': {'role': 'assistant', 'content': 'done'},
+                  'finish_reason': 'stop',
+                },
+              ],
+            }),
+            200,
+            headers: const {'content-type': 'application/json'},
+          );
+        }),
+      );
+      final dataSource = SessionLoggingChatDataSource(
+        delegate: remote,
+        logStore: store,
+      );
+
+      await LlmSessionLogContext.run(context, () {
+        return dataSource.createChatCompletion(
+          messages: [_message('user-1', MessageRole.user, 'Implement it')],
+          model: 'qwen3.8-27b-vision',
+          maxTokens: 1024,
+        );
+      });
+
+      final line = (await (await store.fileForContext(
+        context,
+      )).readAsLines()).single;
+      final decoded = jsonDecode(line) as Map<String, dynamic>;
+      expect(decoded['request']['model'], 'qwen3.8-27b-vision');
+      expect(decoded['request']['maxTokens'], 1536);
+      expect(decoded['request']['chat_template_kwargs'], {
+        'enable_thinking': true,
+        'reasoning_effort': 'medium',
+      });
     });
 
     test('records the ambient producer label on the request', () async {

@@ -70,6 +70,169 @@ void main() {
     expect(requestBody?['top_p'], 0.95);
   });
 
+  group('Qwen3.8 request thinking policy', () {
+    test('serializes the exact disabled tool-request shape', () async {
+      final requestBodies = <Map<String, dynamic>>[];
+      final client = MockClient((request) async {
+        requestBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return _streamedChunkResponse('done');
+      });
+      final qwenDataSource = ChatRemoteDataSource(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'no-key',
+        httpClient: client,
+        streamClientFactory: () => client,
+      );
+
+      final result = qwenDataSource.streamChatCompletionWithTools(
+        messages: [_userMessage()],
+        tools: const [
+          {
+            'type': 'function',
+            'function': {
+              'name': 'strict_tool',
+              'parameters': {
+                'type': 'object',
+                'properties': {
+                  'top_k': {'type': 'integer', 'minimum': 2},
+                },
+              },
+            },
+          },
+        ],
+        model: 'qwen3.8-27b-vision',
+        maxTokens: 1024,
+      );
+      expect(await result.stream.join(), 'done');
+      await result.completion;
+
+      expect(requestBodies.single['model'], 'qwen3.8-27b-vision');
+      expect(requestBodies.single['max_tokens'], 1024);
+      expect(requestBodies.single['chat_template_kwargs'], {
+        'enable_thinking': false,
+      });
+      expect(requestBodies.single.containsKey('reasoning_effort'), isFalse);
+      expect(
+        requestBodies
+            .single['tools'][0]['function']['parameters']['properties']['top_k']['minimum'],
+        2,
+      );
+    });
+
+    test('serializes low inside chat_template_kwargs only', () async {
+      final requestBodies = <Map<String, dynamic>>[];
+      final client = _capturingCompletionClient(requestBodies);
+      final qwenDataSource = ChatRemoteDataSource(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'no-key',
+        reasoningEffort: 'low',
+        httpClient: client,
+      );
+
+      await qwenDataSource.createChatCompletion(
+        messages: [_userMessage()],
+        model: 'qwen3.8-27b-vision',
+        maxTokens: 1024,
+      );
+
+      expect(requestBodies.single['max_tokens'], 1024);
+      expect(requestBodies.single['chat_template_kwargs'], {
+        'enable_thinking': true,
+        'reasoning_effort': 'low',
+      });
+      expect(requestBodies.single.containsKey('reasoning_effort'), isFalse);
+    });
+
+    test('keeps a strict tool-argument mismatch visible downstream', () async {
+      final client = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'id': 'chatcmpl-qwen38-strict-tool',
+            'object': 'chat.completion',
+            'created': 0,
+            'model': 'qwen3.8-27b-vision',
+            'choices': [
+              {
+                'index': 0,
+                'message': {
+                  'role': 'assistant',
+                  'content': '',
+                  'tool_calls': [
+                    {
+                      'id': 'strict-1',
+                      'type': 'function',
+                      'function': {
+                        'name': 'strict_tool',
+                        'arguments': '{"top_k":1}',
+                      },
+                    },
+                  ],
+                },
+                'finish_reason': 'tool_calls',
+              },
+            ],
+          }),
+          200,
+          headers: const {'content-type': 'application/json'},
+        );
+      });
+      final qwenDataSource = ChatRemoteDataSource(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'no-key',
+        httpClient: client,
+      );
+
+      final result = await qwenDataSource.createChatCompletion(
+        messages: [_userMessage()],
+        tools: const [
+          {
+            'type': 'function',
+            'function': {
+              'name': 'strict_tool',
+              'parameters': {
+                'type': 'object',
+                'properties': {
+                  'top_k': {'type': 'integer', 'minimum': 2},
+                },
+              },
+            },
+          },
+        ],
+        model: 'qwen3.8-27b-vision',
+      );
+
+      expect(result.toolCalls, hasLength(1));
+      expect(result.toolCalls!.single.arguments, {'top_k': 1});
+    });
+
+    test(
+      'serializes medium and raises a small output budget to 1536',
+      () async {
+        final requestBodies = <Map<String, dynamic>>[];
+        final client = _capturingCompletionClient(requestBodies);
+        final qwenDataSource = ChatRemoteDataSource(
+          baseUrl: 'http://localhost:1234/v1',
+          apiKey: 'no-key',
+          reasoningEffort: 'medium',
+          httpClient: client,
+        );
+
+        await qwenDataSource.createChatCompletion(
+          messages: [_userMessage()],
+          model: 'qwen3.8-27b-vision',
+          maxTokens: 1024,
+        );
+
+        expect(requestBodies.single['max_tokens'], 1536);
+        expect(requestBodies.single['chat_template_kwargs'], {
+          'enable_thinking': true,
+          'reasoning_effort': 'medium',
+        });
+        expect(requestBodies.single.containsKey('reasoning_effort'), isFalse);
+      },
+    );
+  });
+
   test('serializes JSON Schema response formatting', () async {
     Map<String, dynamic>? requestBody;
     final client = MockClient((request) async {
@@ -1142,6 +1305,31 @@ MockClient _completionClient({
           'completion_tokens': 1,
           'total_tokens': 2,
         },
+      }),
+      200,
+      headers: const {'content-type': 'application/json'},
+    );
+  });
+}
+
+MockClient _capturingCompletionClient(
+  List<Map<String, dynamic>> requestBodies,
+) {
+  return MockClient((request) async {
+    requestBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+    return http.Response(
+      jsonEncode({
+        'id': 'chatcmpl-qwen38-policy',
+        'object': 'chat.completion',
+        'created': 0,
+        'model': 'qwen3.8-27b-vision',
+        'choices': [
+          {
+            'index': 0,
+            'message': {'role': 'assistant', 'content': 'done'},
+            'finish_reason': 'stop',
+          },
+        ],
       }),
       200,
       headers: const {'content-type': 'application/json'},

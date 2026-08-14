@@ -157,6 +157,7 @@ class LlmSessionLogRequest {
     this.model,
     this.temperature,
     this.maxTokens,
+    this.chatTemplateKwargs,
     this.label,
   });
 
@@ -172,6 +173,7 @@ class LlmSessionLogRequest {
   final String? model;
   final double? temperature;
   final int? maxTokens;
+  final Map<String, dynamic>? chatTemplateKwargs;
 
   /// The producer that issued this request, taken from the ambient
   /// [LlmSessionLogContext.requestLabel].
@@ -739,6 +741,8 @@ class LlmSessionLogStore {
       'model': request.model,
       'temperature': request.temperature,
       'maxTokens': request.maxTokens,
+      if (request.chatTemplateKwargs != null)
+        'chat_template_kwargs': request.chatTemplateKwargs,
       if (request.label != null && request.label!.trim().isNotEmpty)
         'label': request.label!.trim(),
       'messages': request.messages.map(_messageToJson).toList(growable: false),
