@@ -149,7 +149,7 @@ void main() {
         overrideServers: const [
           McpServerConfig(
             url: '  https://pending.example/mcp  ',
-            trustState: McpServerTrustState.pending,
+            trustState: McpServerTrustState.trusted,
           ),
         ],
         overrideUrls: const ['https://ignored-list.example/mcp'],
@@ -229,19 +229,63 @@ void main() {
           ],
         );
 
-        expect(httpUrls, [
-          'https://pending.example/mcp',
-          'https://trusted.example/mcp',
-        ]);
-        expect(stdioRequests, [
-          {
-            'command': 'dart',
-            'args': ['run', 'tool/server.dart'],
-            'environment': {'TOKEN': 'secret'},
-          },
-        ]);
+        expect(httpUrls, ['https://trusted.example/mcp']);
+        expect(stdioRequests, isEmpty);
         expect(manager.status, McpConnectionStatus.connected);
-        expect(manager.serverStates, hasLength(3));
+        expect(manager.serverStates, hasLength(1));
+      },
+    );
+
+    test(
+      'never creates clients for pending or expired server overrides',
+      () async {
+        var httpFactoryCalls = 0;
+        var stdioFactoryCalls = 0;
+        final manager = RemoteMcpConnectionManager(
+          configuredClients: const [],
+          reservedToolNames: const {},
+          httpClientFactory: (baseUrl) {
+            httpFactoryCalls += 1;
+            return _FakeMcpClient(identifier: baseUrl);
+          },
+          stdioClientFactory: (command, args, environment) {
+            stdioFactoryCalls += 1;
+            return _FakeMcpClient(identifier: command);
+          },
+          isDesktopPlatform: true,
+        );
+
+        await manager.connect(
+          overrideServers: [
+            const McpServerConfig(
+              url: 'https://pending.example/mcp',
+              trustState: McpServerTrustState.pending,
+            ),
+            const McpServerConfig(
+              type: McpServerType.stdio,
+              command: 'dangerous-server',
+              trustState: McpServerTrustState.pending,
+            ),
+            McpServerConfig(
+              url: 'https://expired.example/mcp',
+              sourceId: 'external:test',
+              trustState: McpServerTrustState.trusted,
+              trustedAt: DateTime.now().subtract(const Duration(days: 31)),
+            ),
+            McpServerConfig(
+              type: McpServerType.stdio,
+              command: 'expired-server',
+              sourceId: 'external:test',
+              trustState: McpServerTrustState.trusted,
+              trustedAt: DateTime.now().subtract(const Duration(days: 31)),
+            ),
+          ],
+        );
+
+        expect(httpFactoryCalls, 0);
+        expect(stdioFactoryCalls, 0);
+        expect(manager.status, McpConnectionStatus.disconnected);
+        expect(manager.serverStates, isEmpty);
       },
     );
 

@@ -165,6 +165,9 @@ _ExternalToolHook _$ExternalToolHookFromJson(Map<String, dynamic> json) =>
           ) ??
           const <String, String>{},
       sourceId: json['sourceId'] as String? ?? '',
+      reviewedAt: json['reviewedAt'] == null
+          ? null
+          : DateTime.parse(json['reviewedAt'] as String),
     );
 
 Map<String, dynamic> _$ExternalToolHookToJson(_ExternalToolHook instance) =>
@@ -176,6 +179,7 @@ Map<String, dynamic> _$ExternalToolHookToJson(_ExternalToolHook instance) =>
       'args': instance.args,
       'env': instance.env,
       'sourceId': instance.sourceId,
+      'reviewedAt': instance.reviewedAt?.toIso8601String(),
     };
 
 _ModelCapabilityProfile _$ModelCapabilityProfileFromJson(

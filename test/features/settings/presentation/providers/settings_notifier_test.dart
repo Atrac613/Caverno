@@ -135,6 +135,60 @@ void main() {
     },
   );
 
+  test('MCP trust review is bound to the exact source and identity', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(settingsNotifierProvider.notifier);
+
+    await notifier.updateMcpServers([
+      const McpServerConfig(
+        type: McpServerType.stdio,
+        command: 'reviewed-server',
+        args: ['serve'],
+        env: {'TOKEN': 'first'},
+        sourceId: 'external:first',
+        trustState: McpServerTrustState.pending,
+      ),
+    ]);
+    final reviewed = container
+        .read(settingsNotifierProvider)
+        .configuredMcpServers
+        .single;
+
+    await notifier.updateMcpServers([
+      reviewed.copyWith(sourceId: 'external:changed'),
+    ]);
+    final staleReviewApplied = await notifier.updateMcpServerTrustState(
+      0,
+      McpServerTrustState.trusted,
+      expectedApprovalIdentity: reviewed.approvalIdentity,
+    );
+
+    expect(staleReviewApplied, isFalse);
+    var current = container
+        .read(settingsNotifierProvider)
+        .configuredMcpServers
+        .single;
+    expect(current.trustState, McpServerTrustState.pending);
+
+    final exactReviewApplied = await notifier.updateMcpServerTrustState(
+      0,
+      McpServerTrustState.trusted,
+      expectedApprovalIdentity: current.approvalIdentity,
+    );
+
+    expect(exactReviewApplied, isTrue);
+    current = container
+        .read(settingsNotifierProvider)
+        .configuredMcpServers
+        .single;
+    expect(current.trustState, McpServerTrustState.trusted);
+  });
+
   test(
     'completeOnboarding persists the first-launch completion flag',
     () async {

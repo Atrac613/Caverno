@@ -14,10 +14,28 @@ final externalToolHookServiceProvider = Provider<ExternalToolHookService>((
   return const ExternalToolHookService();
 });
 
+typedef ExternalHookProcessStarter =
+    Future<Process> Function(
+      String command,
+      List<String> args,
+      Map<String, String> environment,
+    );
+
+Future<Process> _startExternalHookProcess(
+  String command,
+  List<String> args,
+  Map<String, String> environment,
+) {
+  return Process.start(command, args, environment: environment);
+}
+
 class ExternalToolHookService {
-  const ExternalToolHookService();
+  const ExternalToolHookService({
+    ExternalHookProcessStarter processStarter = _startExternalHookProcess,
+  }) : _processStarter = processStarter;
 
   static const _timeout = Duration(seconds: 15);
+  final ExternalHookProcessStarter _processStarter;
 
   Future<void> dispatch({
     required AppSettings settings,
@@ -44,11 +62,7 @@ class ExternalToolHookService {
       final env = await LoginShellEnvironment.instance.environment(
         extra: hook.normalizedEnv,
       );
-      process = await Process.start(
-        hook.normalizedCommand,
-        hook.args,
-        environment: env,
-      );
+      process = await _processStarter(hook.normalizedCommand, hook.args, env);
 
       final stdoutTail = StringBuffer();
       final stderrTail = StringBuffer();

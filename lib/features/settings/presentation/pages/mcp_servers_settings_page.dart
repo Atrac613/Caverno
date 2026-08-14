@@ -164,27 +164,31 @@ class _McpServersSettingsPageState
       return;
     }
 
-    await mcpToolService.connect(overrideServers: [server]);
-    if (!mounted) return;
-
-    final status = mcpToolService.status;
-    final toolNames = mcpToolService.tools
-        .map((tool) => tool.originalName ?? tool.name)
-        .toList(growable: false);
     final trustState = await showModalBottomSheet<McpServerTrustState>(
       context: context,
       isScrollControlled: true,
       builder: (context) => McpServerApprovalSheet(
         server: server,
-        toolNames: toolNames,
-        connectionError: status == McpConnectionStatus.error
-            ? mcpToolService.lastError
-            : null,
+        toolNames: const [],
       ),
     );
 
-    if (trustState != null && trustState != server.trustState) {
-      await notifier.updateMcpServerTrustState(index, trustState);
+    if (trustState != null &&
+        (trustState != server.trustState || !server.isTrusted)) {
+      final updated = await notifier.updateMcpServerTrustState(
+        index,
+        trustState,
+        expectedApprovalIdentity: server.approvalIdentity,
+      );
+      if (!updated && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'The MCP server changed during review. Review the current configuration again.',
+            ),
+          ),
+        );
+      }
     }
     await mcpToolService.connect();
     if (!mounted) return;

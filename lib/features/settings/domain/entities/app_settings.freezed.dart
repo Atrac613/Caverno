@@ -897,7 +897,7 @@ as DateTime?,
 /// @nodoc
 mixin _$ExternalToolHook {
 
- String get id; bool get enabled; String get event; String get command; List<String> get args; Map<String, String> get env; String get sourceId;
+ String get id; bool get enabled; String get event; String get command; List<String> get args; Map<String, String> get env; String get sourceId; DateTime? get reviewedAt;
 /// Create a copy of ExternalToolHook
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -910,16 +910,16 @@ $ExternalToolHookCopyWith<ExternalToolHook> get copyWith => _$ExternalToolHookCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExternalToolHook&&(identical(other.id, id) || other.id == id)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.event, event) || other.event == event)&&(identical(other.command, command) || other.command == command)&&const DeepCollectionEquality().equals(other.args, args)&&const DeepCollectionEquality().equals(other.env, env)&&(identical(other.sourceId, sourceId) || other.sourceId == sourceId));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExternalToolHook&&(identical(other.id, id) || other.id == id)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.event, event) || other.event == event)&&(identical(other.command, command) || other.command == command)&&const DeepCollectionEquality().equals(other.args, args)&&const DeepCollectionEquality().equals(other.env, env)&&(identical(other.sourceId, sourceId) || other.sourceId == sourceId)&&(identical(other.reviewedAt, reviewedAt) || other.reviewedAt == reviewedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,enabled,event,command,const DeepCollectionEquality().hash(args),const DeepCollectionEquality().hash(env),sourceId);
+int get hashCode => Object.hash(runtimeType,id,enabled,event,command,const DeepCollectionEquality().hash(args),const DeepCollectionEquality().hash(env),sourceId,reviewedAt);
 
 @override
 String toString() {
-  return 'ExternalToolHook(id: $id, enabled: $enabled, event: $event, command: $command, args: $args, env: $env, sourceId: $sourceId)';
+  return 'ExternalToolHook(id: $id, enabled: $enabled, event: $event, command: $command, args: $args, env: $env, sourceId: $sourceId, reviewedAt: $reviewedAt)';
 }
 
 
@@ -930,7 +930,7 @@ abstract mixin class $ExternalToolHookCopyWith<$Res>  {
   factory $ExternalToolHookCopyWith(ExternalToolHook value, $Res Function(ExternalToolHook) _then) = _$ExternalToolHookCopyWithImpl;
 @useResult
 $Res call({
- String id, bool enabled, String event, String command, List<String> args, Map<String, String> env, String sourceId
+ String id, bool enabled, String event, String command, List<String> args, Map<String, String> env, String sourceId, DateTime? reviewedAt
 });
 
 
@@ -947,7 +947,7 @@ class _$ExternalToolHookCopyWithImpl<$Res>
 
 /// Create a copy of ExternalToolHook
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? enabled = null,Object? event = null,Object? command = null,Object? args = null,Object? env = null,Object? sourceId = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? enabled = null,Object? event = null,Object? command = null,Object? args = null,Object? env = null,Object? sourceId = null,Object? reviewedAt = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
@@ -956,7 +956,8 @@ as String,command: null == command ? _self.command : command // ignore: cast_nul
 as String,args: null == args ? _self.args : args // ignore: cast_nullable_to_non_nullable
 as List<String>,env: null == env ? _self.env : env // ignore: cast_nullable_to_non_nullable
 as Map<String, String>,sourceId: null == sourceId ? _self.sourceId : sourceId // ignore: cast_nullable_to_non_nullable
-as String,
+as String,reviewedAt: freezed == reviewedAt ? _self.reviewedAt : reviewedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 
@@ -1041,10 +1042,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  bool enabled,  String event,  String command,  List<String> args,  Map<String, String> env,  String sourceId)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  bool enabled,  String event,  String command,  List<String> args,  Map<String, String> env,  String sourceId,  DateTime? reviewedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ExternalToolHook() when $default != null:
-return $default(_that.id,_that.enabled,_that.event,_that.command,_that.args,_that.env,_that.sourceId);case _:
+return $default(_that.id,_that.enabled,_that.event,_that.command,_that.args,_that.env,_that.sourceId,_that.reviewedAt);case _:
   return orElse();
 
 }
@@ -1062,10 +1063,10 @@ return $default(_that.id,_that.enabled,_that.event,_that.command,_that.args,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  bool enabled,  String event,  String command,  List<String> args,  Map<String, String> env,  String sourceId)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  bool enabled,  String event,  String command,  List<String> args,  Map<String, String> env,  String sourceId,  DateTime? reviewedAt)  $default,) {final _that = this;
 switch (_that) {
 case _ExternalToolHook():
-return $default(_that.id,_that.enabled,_that.event,_that.command,_that.args,_that.env,_that.sourceId);case _:
+return $default(_that.id,_that.enabled,_that.event,_that.command,_that.args,_that.env,_that.sourceId,_that.reviewedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1082,10 +1083,10 @@ return $default(_that.id,_that.enabled,_that.event,_that.command,_that.args,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  bool enabled,  String event,  String command,  List<String> args,  Map<String, String> env,  String sourceId)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  bool enabled,  String event,  String command,  List<String> args,  Map<String, String> env,  String sourceId,  DateTime? reviewedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _ExternalToolHook() when $default != null:
-return $default(_that.id,_that.enabled,_that.event,_that.command,_that.args,_that.env,_that.sourceId);case _:
+return $default(_that.id,_that.enabled,_that.event,_that.command,_that.args,_that.env,_that.sourceId,_that.reviewedAt);case _:
   return null;
 
 }
@@ -1097,7 +1098,7 @@ return $default(_that.id,_that.enabled,_that.event,_that.command,_that.args,_tha
 @JsonSerializable()
 
 class _ExternalToolHook extends ExternalToolHook {
-  const _ExternalToolHook({required this.id, this.enabled = true, this.event = '', this.command = '', final  List<String> args = const <String>[], final  Map<String, String> env = const <String, String>{}, this.sourceId = ''}): _args = args,_env = env,super._();
+  const _ExternalToolHook({required this.id, this.enabled = true, this.event = '', this.command = '', final  List<String> args = const <String>[], final  Map<String, String> env = const <String, String>{}, this.sourceId = '', this.reviewedAt}): _args = args,_env = env,super._();
   factory _ExternalToolHook.fromJson(Map<String, dynamic> json) => _$ExternalToolHookFromJson(json);
 
 @override final  String id;
@@ -1119,6 +1120,7 @@ class _ExternalToolHook extends ExternalToolHook {
 }
 
 @override@JsonKey() final  String sourceId;
+@override final  DateTime? reviewedAt;
 
 /// Create a copy of ExternalToolHook
 /// with the given fields replaced by the non-null parameter values.
@@ -1133,16 +1135,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExternalToolHook&&(identical(other.id, id) || other.id == id)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.event, event) || other.event == event)&&(identical(other.command, command) || other.command == command)&&const DeepCollectionEquality().equals(other._args, _args)&&const DeepCollectionEquality().equals(other._env, _env)&&(identical(other.sourceId, sourceId) || other.sourceId == sourceId));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExternalToolHook&&(identical(other.id, id) || other.id == id)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.event, event) || other.event == event)&&(identical(other.command, command) || other.command == command)&&const DeepCollectionEquality().equals(other._args, _args)&&const DeepCollectionEquality().equals(other._env, _env)&&(identical(other.sourceId, sourceId) || other.sourceId == sourceId)&&(identical(other.reviewedAt, reviewedAt) || other.reviewedAt == reviewedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,enabled,event,command,const DeepCollectionEquality().hash(_args),const DeepCollectionEquality().hash(_env),sourceId);
+int get hashCode => Object.hash(runtimeType,id,enabled,event,command,const DeepCollectionEquality().hash(_args),const DeepCollectionEquality().hash(_env),sourceId,reviewedAt);
 
 @override
 String toString() {
-  return 'ExternalToolHook(id: $id, enabled: $enabled, event: $event, command: $command, args: $args, env: $env, sourceId: $sourceId)';
+  return 'ExternalToolHook(id: $id, enabled: $enabled, event: $event, command: $command, args: $args, env: $env, sourceId: $sourceId, reviewedAt: $reviewedAt)';
 }
 
 
@@ -1153,7 +1155,7 @@ abstract mixin class _$ExternalToolHookCopyWith<$Res> implements $ExternalToolHo
   factory _$ExternalToolHookCopyWith(_ExternalToolHook value, $Res Function(_ExternalToolHook) _then) = __$ExternalToolHookCopyWithImpl;
 @override @useResult
 $Res call({
- String id, bool enabled, String event, String command, List<String> args, Map<String, String> env, String sourceId
+ String id, bool enabled, String event, String command, List<String> args, Map<String, String> env, String sourceId, DateTime? reviewedAt
 });
 
 
@@ -1170,7 +1172,7 @@ class __$ExternalToolHookCopyWithImpl<$Res>
 
 /// Create a copy of ExternalToolHook
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? enabled = null,Object? event = null,Object? command = null,Object? args = null,Object? env = null,Object? sourceId = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? enabled = null,Object? event = null,Object? command = null,Object? args = null,Object? env = null,Object? sourceId = null,Object? reviewedAt = freezed,}) {
   return _then(_ExternalToolHook(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
@@ -1179,7 +1181,8 @@ as String,command: null == command ? _self.command : command // ignore: cast_nul
 as String,args: null == args ? _self._args : args // ignore: cast_nullable_to_non_nullable
 as List<String>,env: null == env ? _self._env : env // ignore: cast_nullable_to_non_nullable
 as Map<String, String>,sourceId: null == sourceId ? _self.sourceId : sourceId // ignore: cast_nullable_to_non_nullable
-as String,
+as String,reviewedAt: freezed == reviewedAt ? _self.reviewedAt : reviewedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 
@@ -1826,7 +1829,7 @@ mixin _$ModelCapabilityProfileRevision {
 /// says a capability appeared or vanished, while this says every capability
 /// still reports the same but the model got measurably worse.
  bool get benchmarkRegressionDetected;/// How this revision was triggered. Known values: 'initial', 'idle_re_probe',
-/// 'calibrate', 'manual', 'probe'.
+/// 'calibrate', 'benchmark_artifact', 'manual', 'probe'.
  String get source;/// True when any key capability field changed vs the immediately preceding
 /// revision for the same [profileId] — a heuristic for GGUF/weight swaps.
  bool get capabilityChangeDetected;
@@ -2105,7 +2108,7 @@ class _ModelCapabilityProfileRevision extends ModelCapabilityProfileRevision {
 /// still reports the same but the model got measurably worse.
 @override@JsonKey() final  bool benchmarkRegressionDetected;
 /// How this revision was triggered. Known values: 'initial', 'idle_re_probe',
-/// 'calibrate', 'manual', 'probe'.
+/// 'calibrate', 'benchmark_artifact', 'manual', 'probe'.
 @override@JsonKey() final  String source;
 /// True when any key capability field changed vs the immediately preceding
 /// revision for the same [profileId] — a heuristic for GGUF/weight swaps.

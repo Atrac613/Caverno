@@ -18,7 +18,10 @@ class McpServerApprovalSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final canApprove = connectionError == null;
-    final reviewPendingLabel = server.isBlocked ? 'Move to pending' : 'Keep pending';
+    final reviewPendingLabel = server.isBlocked
+        ? 'Move to pending'
+        : 'Keep pending';
+    final environmentKeys = server.normalizedEnv.keys.toList()..sort();
 
     return SafeArea(
       child: Padding(
@@ -41,17 +44,47 @@ class McpServerApprovalSheet extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Approve this server before Caverno exposes its tools to the model.',
+                      'Approve this exact server configuration for 30 days before Caverno connects or exposes its tools.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text('Source: ${server.trustSourceLabel}'),
+                    Text('Source type: ${server.trustSourceLabel}'),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Source ID: ${server.sourceId.trim().isEmpty ? 'local settings' : server.sourceId.trim()}',
+                    ),
                     const SizedBox(height: 4),
                     Text('Transport: ${server.type.name}'),
-                    const SizedBox(height: 4),
-                    Text('Endpoint: ${server.displayLabel}'),
+                    if (server.type == McpServerType.http) ...[
+                      const SizedBox(height: 4),
+                      Text('URL: ${server.normalizedUrl}'),
+                    ] else ...[
+                      const SizedBox(height: 4),
+                      Text('Command: ${server.normalizedCommand}'),
+                      const SizedBox(height: 4),
+                      Text(
+                        server.args.isEmpty
+                            ? 'Arguments: none'
+                            : 'Arguments: ${server.args.join(' ')}',
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        environmentKeys.isEmpty
+                            ? 'Environment keys: none'
+                            : 'Environment keys: ${environmentKeys.join(', ')}',
+                      ),
+                      if (environmentKeys.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Environment values are hidden.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
                     if (server.trustedAt != null) ...[
                       const SizedBox(height: 4),
                       Text('Previously trusted at: ${server.trustedAt}'),
@@ -66,7 +99,7 @@ class McpServerApprovalSheet extends StatelessWidget {
                       ),
                     ] else if (toolNames.isEmpty) ...[
                       const Text(
-                        'No remote MCP tools were reported by this server.',
+                        'Tools are not queried until this exact configuration is trusted.',
                       ),
                     ] else ...[
                       Text(
@@ -100,9 +133,7 @@ class McpServerApprovalSheet extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () {
-                      Navigator.of(
-                        context,
-                      ).pop(McpServerTrustState.pending);
+                      Navigator.of(context).pop(McpServerTrustState.pending);
                     },
                     child: Text(reviewPendingLabel),
                   ),
@@ -111,9 +142,7 @@ class McpServerApprovalSheet extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () {
-                      Navigator.of(
-                        context,
-                      ).pop(McpServerTrustState.blocked);
+                      Navigator.of(context).pop(McpServerTrustState.blocked);
                     },
                     child: const Text('Block'),
                   ),

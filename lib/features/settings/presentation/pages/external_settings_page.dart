@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/external_settings_service.dart';
 import '../../domain/entities/app_settings.dart';
 import '../providers/settings_notifier.dart';
+import '../widgets/external_tool_hook_approval_sheet.dart';
 
 class ExternalSettingsPage extends ConsumerStatefulWidget {
   const ExternalSettingsPage({super.key});
@@ -36,10 +37,13 @@ class _ExternalSettingsPageState extends ConsumerState<ExternalSettingsPage> {
     final settings = ref.watch(settingsNotifierProvider);
     final notifier = ref.read(settingsNotifierProvider.notifier);
     final enabledHooks = settings.externalToolHooks
-        .where((hook) => hook.enabled && hook.isUsable)
+        .where((hook) => hook.isAuthorized)
         .length;
     final managedServers = settings.configuredMcpServers
         .where((server) => server.sourceId.isNotEmpty)
+        .toList(growable: false);
+    final managedHooks = settings.externalToolHooks.indexed
+        .where((entry) => entry.$2.sourceId.isNotEmpty)
         .toList(growable: false);
 
     if (!_pathFocusNode.hasFocus &&
@@ -95,7 +99,9 @@ class _ExternalSettingsPageState extends ConsumerState<ExternalSettingsPage> {
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('agent-kb integration enabled.'),
+                        content: Text(
+                          'agent-kb integration staged for review.',
+                        ),
                       ),
                     );
                   },
@@ -153,6 +159,53 @@ class _ExternalSettingsPageState extends ConsumerState<ExternalSettingsPage> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          Text(
+            'Managed External Hooks',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                for (
+                  var position = 0;
+                  position < managedHooks.length;
+                  position++
+                ) ...[
+                  ListTile(
+                    leading: Icon(
+                      managedHooks[position].$2.isAuthorized
+                          ? Icons.verified_user_outlined
+                          : Icons.gpp_maybe_outlined,
+                    ),
+                    title: Text(managedHooks[position].$2.normalizedEvent),
+                    subtitle: Text(
+                      '${managedHooks[position].$2.normalizedCommand}\n'
+                      '${managedHooks[position].$2.isAuthorized ? 'Reviewed' : 'Review required'}',
+                    ),
+                    isThreeLine: true,
+                    trailing: TextButton(
+                      onPressed: () => _reviewHook(
+                        notifier: notifier,
+                        index: managedHooks[position].$1,
+                        hook: managedHooks[position].$2,
+                      ),
+                      child: Text(
+                        managedHooks[position].$2.isAuthorized
+                            ? 'Review again'
+                            : 'Review',
+                      ),
+                    ),
+                  ),
+                  if (position != managedHooks.length - 1)
+                    const Divider(height: 1),
+                ],
+                if (managedHooks.isEmpty)
+                  const ListTile(title: Text('No managed external hooks')),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -169,6 +222,36 @@ class _ExternalSettingsPageState extends ConsumerState<ExternalSettingsPage> {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('External config path saved.')),
+    );
+  }
+
+  Future<void> _reviewHook({
+    required SettingsNotifier notifier,
+    required int index,
+    required ExternalToolHook hook,
+  }) async {
+    final enabled = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => ExternalToolHookApprovalSheet(hook: hook),
+    );
+    if (enabled == null || !mounted) return;
+    final updated = await notifier.updateExternalToolHookReview(
+      index,
+      enabled: enabled,
+      expectedApprovalIdentity: hook.approvalIdentity,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          updated
+              ? enabled
+                    ? 'External hook review recorded.'
+                    : 'External hook disabled.'
+              : 'The hook changed during review. Review it again.',
+        ),
+      ),
     );
   }
 

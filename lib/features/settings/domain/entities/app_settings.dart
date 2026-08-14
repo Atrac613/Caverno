@@ -20,6 +20,15 @@ enum McpServerType { http, stdio }
 
 enum McpServerTrustState { pending, trusted, blocked }
 
+const executableConfigurationReviewLifetime = Duration(days: 30);
+
+bool _hasFreshExecutableReview(DateTime? reviewedAt, DateTime now) {
+  if (reviewedAt == null || reviewedAt.isAfter(now)) {
+    return false;
+  }
+  return now.difference(reviewedAt) <= executableConfigurationReviewLifetime;
+}
+
 enum LocalCommandPermissionAction { allow, deny, ask }
 
 enum LocalCommandPermissionMatch { exact, prefix }
@@ -212,11 +221,20 @@ abstract class McpServerConfig with _$McpServerConfig {
           '${normalizedEnv.entries.map((e) => '${e.key}=${e.value}').join('\u{1f}')}',
   };
 
-  bool get isTrusted => trustState == McpServerTrustState.trusted;
+  String get approvalIdentity => '${sourceId.trim()}::$trustIdentity';
+
+  bool isTrustedAt(DateTime now) {
+    if (trustState != McpServerTrustState.trusted) {
+      return false;
+    }
+    return sourceId.trim().isEmpty || _hasFreshExecutableReview(trustedAt, now);
+  }
+
+  bool get isTrusted => isTrustedAt(DateTime.now());
 
   bool get isBlocked => trustState == McpServerTrustState.blocked;
 
-  bool get needsTrustReview => trustState == McpServerTrustState.pending;
+  bool get needsTrustReview => !isBlocked && !isTrusted;
 
   bool get exposesToolsToModel => enabled && isValid && isTrusted;
 }
@@ -233,6 +251,7 @@ abstract class ExternalToolHook with _$ExternalToolHook {
     @Default(<String>[]) List<String> args,
     @Default(<String, String>{}) Map<String, String> env,
     @Default('') String sourceId,
+    DateTime? reviewedAt,
   }) = _ExternalToolHook;
 
   factory ExternalToolHook.fromJson(Map<String, dynamic> json) =>
@@ -259,6 +278,15 @@ abstract class ExternalToolHook with _$ExternalToolHook {
       '${normalizedEvent.toLowerCase()}::$normalizedCommand::'
       '${args.join('\u{1f}')}::'
       '${normalizedEnv.entries.map((e) => '${e.key}=${e.value}').join('\u{1f}')}';
+
+  String get approvalIdentity => '${sourceId.trim()}::$identity';
+
+  bool isAuthorizedAt(DateTime now) {
+    return isUsable &&
+        (sourceId.trim().isEmpty || _hasFreshExecutableReview(reviewedAt, now));
+  }
+
+  bool get isAuthorized => isAuthorizedAt(DateTime.now());
 
   ExternalToolHook normalizedForPersistence() => copyWith(
     id: id.trim(),
@@ -1408,7 +1436,7 @@ abstract class AppSettings with _$AppSettings {
         .map((hook) => hook.normalizedForPersistence())
         .where(
           (hook) =>
-              hook.isUsable &&
+              hook.isAuthorized &&
               hook.normalizedEvent.toLowerCase() == normalizedEvent,
         )
         .toList(growable: false);
@@ -1452,7 +1480,7 @@ abstract class AppSettings with _$AppSettings {
     final seenIds = <String>{};
 
     for (final server in effectiveMcpServers) {
-      if (!server.enabled || !server.isValid || server.isBlocked) continue;
+      if (!server.enabled || !server.isValid || !server.isTrusted) continue;
       final id = server.trustIdentity;
       if (!seenIds.add(id)) continue;
       connectableServers.add(

@@ -14,6 +14,7 @@ import '../../domain/entities/app_settings.dart';
 import '../../domain/services/llm_sampler_runtime_feedback_service.dart';
 import '../../domain/services/model_benchmark_history.dart';
 import '../../domain/services/local_command_permission_service.dart';
+import '../../domain/services/executable_settings_quarantine_service.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('SharedPreferences must be overridden in main');
@@ -29,6 +30,11 @@ final externalSettingsServiceProvider = Provider<ExternalSettingsService>((
   return ExternalSettingsService();
 });
 
+final executableSettingsQuarantineServiceProvider =
+    Provider<ExecutableSettingsQuarantineService>((ref) {
+      return const ExecutableSettingsQuarantineService();
+    });
+
 final settingsNotifierProvider =
     NotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);
 
@@ -37,6 +43,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
   late final SettingsFileService _fileService;
   late final SettingsQrService _qrService;
   late final ExternalSettingsService _externalSettingsService;
+  late final ExecutableSettingsQuarantineService _quarantineService;
   bool _isSyncingExternalSettings = false;
   bool _hasTransientRuntimeOverrides = false;
 
@@ -46,6 +53,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
     _fileService = ref.read(settingsFileServiceProvider);
     _qrService = ref.read(settingsQrServiceProvider);
     _externalSettingsService = ref.read(externalSettingsServiceProvider);
+    _quarantineService = ref.read(executableSettingsQuarantineServiceProvider);
     final settings = _repository.load();
     if (settings.externalSettingsSyncEnabled) {
       unawaited(Future<void>.microtask(syncExternalSettings));
@@ -638,12 +646,17 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await updateMcpServers(servers);
   }
 
-  Future<void> updateMcpServerTrustState(
+  Future<bool> updateMcpServerTrustState(
     int index,
-    McpServerTrustState trustState,
-  ) async {
+    McpServerTrustState trustState, {
+    String? expectedApprovalIdentity,
+  }) async {
     final servers = List<McpServerConfig>.from(state.configuredMcpServers);
-    if (index < 0 || index >= servers.length) return;
+    if (index < 0 || index >= servers.length) return false;
+    if (expectedApprovalIdentity != null &&
+        servers[index].approvalIdentity != expectedApprovalIdentity) {
+      return false;
+    }
     servers[index] = servers[index].copyWith(
       trustState: trustState,
       trustedAt: trustState == McpServerTrustState.trusted
@@ -651,6 +664,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
           : null,
     );
     await updateMcpServers(servers);
+    return true;
   }
 
   Future<void> removeMcpServer(int index) async {
@@ -779,6 +793,25 @@ class SettingsNotifier extends Notifier<AppSettings> {
   Future<void> updateExternalToolHooksEnabled(bool enabled) async {
     state = state.copyWith(externalToolHooksEnabled: enabled);
     await _repository.save(state);
+  }
+
+  Future<bool> updateExternalToolHookReview(
+    int index, {
+    required bool enabled,
+    required String expectedApprovalIdentity,
+  }) async {
+    final hooks = List<ExternalToolHook>.from(state.externalToolHooks);
+    if (index < 0 || index >= hooks.length) return false;
+    if (hooks[index].approvalIdentity != expectedApprovalIdentity) {
+      return false;
+    }
+    hooks[index] = hooks[index].copyWith(
+      enabled: enabled,
+      reviewedAt: enabled ? DateTime.now() : null,
+    );
+    state = state.copyWith(externalToolHooks: hooks);
+    await _repository.save(state);
+    return true;
   }
 
   Future<void> updateExternalSettingsPath(String path) async {
@@ -1083,7 +1116,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
   Future<bool> importSettings() async {
     final settings = await _fileService.importSettings();
     if (settings != null) {
-      state = settings.withNormalizedLlmEndpoints();
+      state = _quarantineService
+          .quarantineImportedSettings(settings)
+          .withNormalizedLlmEndpoints();
       await _repository.save(state);
       return true;
     }
@@ -1096,7 +1131,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> importFromQr(String data) async {
     final settings = _qrService.parseQrString(data);
-    state = settings.withNormalizedLlmEndpoints();
+    state = _quarantineService
+        .quarantineImportedSettings(settings)
+        .withNormalizedLlmEndpoints();
     await _repository.save(state);
   }
 
@@ -1116,7 +1153,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
       return normalized;
     }
 
-    if (previous.trustIdentity != normalized.trustIdentity) {
+    if (previous.approvalIdentity != normalized.approvalIdentity) {
       return normalized.copyWith(
         trustState: McpServerTrustState.pending,
         trustedAt: null,

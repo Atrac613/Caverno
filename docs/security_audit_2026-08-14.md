@@ -77,7 +77,7 @@ conventions:
 | ID | Severity | Finding | Primary roadmap owner |
 |----|----------|---------|-----------------------|
 | SA-01 | Critical | Read-only shell classification permits arbitrary execution without approval | SEC4.1 |
-| SA-02 | High | Imported executable settings and pending MCP review can start processes before dedicated consent | SEC4.2 |
+| SA-02 | High | Imported executable settings and pending MCP review can start processes before dedicated consent (fixed 2026-08-14) | SEC4.2 |
 | SA-03 | High | Built-in HTTP and browser tools bypass a complete egress/SSRF boundary | SEC1, SEC4.3 |
 | SA-04 | High | Project-scoped reads accept arbitrary absolute and home paths | SEC1, SEC4.4 |
 | SA-05 | High | SSH host keys are accepted without known-host verification | SEC4.5 |
@@ -534,7 +534,7 @@ Add negative coverage for:
 | Order | Slice | Findings | Exit evidence |
 |-------|-------|----------|---------------|
 | P0-1 | SEC4.1 approval-free execution boundary (completed 2026-08-14) | SA-01 | No command reaching a native shell can take a read-only shortcut; foreground, background, process, Windows, remote, and Plan Mode tests pass. |
-| P0-2 | SEC4.2 executable configuration quarantine | SA-02 | File, QR, onboarding, and external-config fixtures persist sanitized state and cause zero process/client starts across import, rebuild, next turn, restart, and resync before exact non-cacheable review. |
+| P0-2 | SEC4.2 executable configuration quarantine (completed 2026-08-14) | SA-02 | File, QR, onboarding, and external-config fixtures persist sanitized state and cause zero process/client starts across import, rebuild, next turn, restart, and resync before exact expiring review. |
 | P0-3 | SEC1 + SEC2.3b + SEC4.3a-SEC4.3c network authority | SA-03, SA-07 | Every HTTP/browser request uses one classifier, remote provenance, approval, destination, DNS/peer, and redirect policy; taint precedes cache/full access. |
 | P0-4 | SEC4.4a project read containment | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
 | P0-5 | SEC4.5a-SEC4.5b authenticated transport containment | SA-05, SA-06 | SSH known-host mismatch fails; the updated release gate and artifact/runtime smoke prove that non-loopback Remote Coding plaintext is absent until pinned transport passes. |

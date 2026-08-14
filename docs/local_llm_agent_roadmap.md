@@ -4956,7 +4956,7 @@ Slice plan:
    `cmd /C`, and Plan Mode `background:true` regressions. Move the historical
    standalone-`&` assertions into a named lexical-separator group without
    weakening them.
-2. **SEC4.2 — Executable configuration quarantine (P0).** Use one sanitizer for
+2. **SEC4.2 — Executable configuration quarantine (P0, completed 2026-08-14).** Use one sanitizer for
    settings file, QR, onboarding, and external-config flows. Import hooks as
    disabled and MCP servers as pending, clear imported trust/full-access state,
    show a redacted executable diff, and require exact consent before any stdio

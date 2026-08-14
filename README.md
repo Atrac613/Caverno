@@ -67,7 +67,7 @@
 - **Local Stack Manager** — Manage model lifecycle and hardware fit for llama.cpp, LM Studio, and Ollama from `Advanced > Local Stack`
 - **Routines** — Schedule recurring prompts with optional tool use, approved Markdown plans, run history, and Google Chat delivery
 - **Settings Import/Export** — Share configuration via JSON file or QR code;
-  executable hook/MCP trust quarantine is an open security-remediation item
+  executable hooks and MCP servers remain quarantined until exact review
 - **Localization** — English and Japanese UI (easy_localization)
 - **Local Notifications** — Background response notifications
 

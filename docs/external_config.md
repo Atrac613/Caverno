@@ -16,11 +16,13 @@ file with the same care as a shell script: keep it user-owned, restrict its
 permissions, do not sync it from an untrusted repository or download, and do not
 place long-lived secrets in its environment map.
 
-The 2026-08-14 audit found that imported trust and hook enablement are not yet
-quarantined behind a dedicated executable review. Until SEC4.2 is complete,
-keep external hooks disabled, keep imported MCP servers disabled and pending,
-and inspect every command, argument, endpoint, and environment key before
-enabling it. See `docs/security_audit_2026-08-14.md` SA-02.
+SEC4.2 now imports and resynchronizes hooks as disabled and MCP servers as
+pending. Caverno requires a review bound to the exact source and normalized
+configuration before use, expires that review after 30 days, and checks it
+again at the process/client boundary. Any resync or executable identity change
+requires another review. Environment values remain hidden in the review UI,
+while their normalized values remain part of the identity so secret changes
+invalidate prior approval. See `docs/security_audit_2026-08-14.md` SA-02.
 
 ```json
 {

@@ -7,6 +7,55 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 void main() {
+  group('executable configuration review freshness', () {
+    final now = DateTime(2026, 8, 14, 12);
+
+    test('imported MCP trust requires a current non-future review', () {
+      final server = McpServerConfig(
+        url: 'https://mcp.example',
+        sourceId: 'external:test',
+        trustState: McpServerTrustState.trusted,
+        trustedAt: now.subtract(const Duration(days: 1)),
+      );
+
+      expect(server.isTrustedAt(now), isTrue);
+      expect(
+        server
+            .copyWith(
+              trustedAt: now.subtract(
+                executableConfigurationReviewLifetime +
+                    const Duration(seconds: 1),
+              ),
+            )
+            .isTrustedAt(now),
+        isFalse,
+      );
+      expect(
+        server
+            .copyWith(trustedAt: now.add(const Duration(seconds: 1)))
+            .isTrustedAt(now),
+        isFalse,
+      );
+    });
+
+    test('imported hooks require a current exact review', () {
+      final hook = ExternalToolHook(
+        id: 'hook',
+        event: 'Stop',
+        command: 'reviewed-hook',
+        sourceId: 'external:test',
+        reviewedAt: now.subtract(const Duration(days: 1)),
+      );
+
+      expect(hook.isAuthorizedAt(now), isTrue);
+      expect(hook.copyWith(reviewedAt: null).isAuthorizedAt(now), isFalse);
+      expect(
+        hook.copyWith(command: 'changed-hook').approvalIdentity,
+        isNot(hook.approvalIdentity),
+      );
+    });
+  });
+
   test('default max tokens is 8192 to avoid truncating coding output', () {
     expect(AppSettings.defaults().maxTokens, 8192);
   });
@@ -43,7 +92,7 @@ void main() {
     ]);
     expect(
       settings.connectableMcpServers.map((server) => server.normalizedUrl),
-      containsAll(['http://trusted.example', 'http://pending.example']),
+      ['http://trusted.example'],
     );
     expect(
       settings.connectableMcpServers.map((server) => server.normalizedUrl),

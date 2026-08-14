@@ -265,7 +265,7 @@ class RemoteMcpConnectionManager {
   ) {
     final clients = <McpClientBase>[];
     for (final server in servers) {
-      if (!server.enabled || !server.isValid || server.isBlocked) {
+      if (!server.enabled || !server.isValid || !server.isTrusted) {
         continue;
       }
       switch (server.type) {

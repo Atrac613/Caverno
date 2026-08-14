@@ -60,7 +60,12 @@ void main() {
     );
 
     final snapshot = await service.loadConfig(config.path);
-    final applied = snapshot.overrides.applyTo(AppSettings.defaults());
+    final applied = snapshot.overrides.applyTo(
+      AppSettings.defaults().copyWith(
+        mcpEnabled: false,
+        externalToolHooksEnabled: false,
+      ),
+    );
 
     expect(applied.baseUrl, 'http://localhost:4321/v1');
     expect(applied.model, 'local/test-model');
@@ -68,8 +73,8 @@ void main() {
     expect(applied.temperature, 0.2);
     expect(applied.maxTokens, 2048);
     expect(applied.reasoningEffort, ReasoningEffortPreference.high);
-    expect(applied.mcpEnabled, isTrue);
-    expect(applied.externalToolHooksEnabled, isTrue);
+    expect(applied.mcpEnabled, isFalse);
+    expect(applied.externalToolHooksEnabled, isFalse);
     expect(applied.assistantMode, AssistantMode.coding);
 
     expect(snapshot.mcpServers, hasLength(1));
@@ -79,7 +84,8 @@ void main() {
     expect(server.args, ['mcp']);
     expect(server.env, {'KB_BASE_DIR': '${tempDir.path}/kb'});
     expect(server.sourceId, ExternalSettingsService.cavernoConfigSourceId);
-    expect(server.isTrusted, isTrue);
+    expect(server.trustState, McpServerTrustState.trusted);
+    expect(server.isTrusted, isFalse);
 
     expect(snapshot.hooks, hasLength(1));
     final hook = snapshot.hooks.single;
@@ -87,6 +93,18 @@ void main() {
     expect(hook.command, '${tempDir.path}/agent-kb-local');
     expect(hook.args, ['hook', '--agent', 'codex']);
     expect(hook.sourceId, ExternalSettingsService.cavernoConfigSourceId);
+
+    final quarantined = service.applySnapshot(AppSettings.defaults(), snapshot);
+    final managedServer = quarantined.configuredMcpServers.singleWhere(
+      (server) =>
+          server.sourceId == ExternalSettingsService.cavernoConfigSourceId,
+    );
+    final managedHook = quarantined.externalToolHooks.singleWhere(
+      (hook) => hook.sourceId == ExternalSettingsService.cavernoConfigSourceId,
+    );
+    expect(managedServer.trustState, McpServerTrustState.pending);
+    expect(managedServer.trustedAt, isNull);
+    expect(managedHook.enabled, isFalse);
   });
 
   test(
@@ -141,6 +159,7 @@ void main() {
       );
       expect(managedServers, hasLength(1));
       expect(managedServers.single.command, '${tempDir.path}/agent-kb-local');
+      expect(managedServers.single.trustState, McpServerTrustState.pending);
       expect(
         second.configuredMcpServers.any(
           (server) => server.normalizedUrl == 'http://localhost:8081',
@@ -154,6 +173,8 @@ void main() {
       );
       expect(managedHooks, hasLength(1));
       expect(managedHooks.single.command, '${tempDir.path}/agent-kb-local');
+      expect(managedHooks.single.enabled, isFalse);
+      expect(managedHooks.single.reviewedAt, isNull);
     },
   );
 
@@ -201,7 +222,7 @@ void main() {
     },
   );
 
-  test('agent-kb preset enables sync, hooks, and stdio MCP env', () {
+  test('agent-kb preset quarantines hooks and stdio MCP env', () {
     final settings = service.applyAgentKbPreset(
       AppSettings.defaults(),
       wrapperPath: '${tempDir.path}/agent-kb-local',
@@ -213,7 +234,7 @@ void main() {
       settings.externalSettingsPath,
       AppSettings.defaultExternalSettingsPath,
     );
-    expect(settings.externalToolHooksEnabled, isTrue);
+    expect(settings.externalToolHooksEnabled, isFalse);
     expect(
       settings.configuredMcpServers.any(
         (server) =>
@@ -223,9 +244,17 @@ void main() {
       ),
       isTrue,
     );
-    expect(
-      settings.enabledExternalToolHooksFor('UserPromptSubmit').single.args,
-      ['hook', '--agent', 'codex'],
+    final server = settings.configuredMcpServers.singleWhere(
+      (server) =>
+          server.sourceId == ExternalSettingsService.agentKbPresetSourceId,
     );
+    expect(server.trustState, McpServerTrustState.pending);
+    final submitHook = settings.externalToolHooks.singleWhere(
+      (hook) => hook.event == 'UserPromptSubmit',
+    );
+    expect(submitHook.enabled, isFalse);
+    expect(submitHook.reviewedAt, isNull);
+    expect(submitHook.args, ['hook', '--agent', 'codex']);
+    expect(settings.enabledExternalToolHooksFor('UserPromptSubmit'), isEmpty);
   });
 }

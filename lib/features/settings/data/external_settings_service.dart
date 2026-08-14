@@ -4,6 +4,7 @@ import 'dart:io';
 import '../../../core/types/assistant_mode.dart';
 import '../../../core/utils/logger.dart';
 import '../domain/entities/app_settings.dart';
+import '../domain/services/executable_settings_quarantine_service.dart';
 
 class ExternalSettingsSnapshot {
   const ExternalSettingsSnapshot({
@@ -50,15 +51,17 @@ class ExternalSettingsOverrides {
       temperature: temperature ?? settings.temperature,
       maxTokens: maxTokens ?? settings.maxTokens,
       reasoningEffort: reasoningEffort ?? settings.reasoningEffort,
-      mcpEnabled: mcpEnabled ?? settings.mcpEnabled,
-      externalToolHooksEnabled:
-          externalToolHooksEnabled ?? settings.externalToolHooksEnabled,
       assistantMode: assistantMode ?? settings.assistantMode,
     );
   }
 }
 
 class ExternalSettingsService {
+  ExternalSettingsService({
+    ExecutableSettingsQuarantineService quarantineService =
+        const ExecutableSettingsQuarantineService(),
+  }) : _quarantineService = quarantineService;
+
   static const String cavernoConfigSourceId = 'external:caverno-config';
   static const String agentKbPresetSourceId = 'preset:agent-kb';
   static const List<String> agentKbHookEvents = [
@@ -72,6 +75,8 @@ class ExternalSettingsService {
     'Stop',
     'SessionEnd',
   ];
+
+  final ExecutableSettingsQuarantineService _quarantineService;
 
   Future<AppSettings> sync(AppSettings settings) async {
     if (!settings.externalSettingsSyncEnabled ||
@@ -117,13 +122,13 @@ class ExternalSettingsService {
       ...settings.configuredMcpServers.where(
         (server) => server.sourceId != cavernoConfigSourceId,
       ),
-      ...snapshot.mcpServers,
+      ..._quarantineService.quarantineMcpServers(snapshot.mcpServers),
     ]);
     final mergedHooks = _dedupeHooks([
       ...settings.externalToolHooks.where(
         (hook) => hook.sourceId != cavernoConfigSourceId,
       ),
-      ...snapshot.hooks,
+      ..._quarantineService.quarantineHooks(snapshot.hooks),
     ]);
     final httpServers = mergedServers.where(
       (server) => server.type == McpServerType.http,
@@ -152,30 +157,33 @@ class ExternalSettingsService {
       ...settings.configuredMcpServers.where(
         (server) => server.sourceId != agentKbPresetSourceId,
       ),
-      McpServerConfig(
-        enabled: true,
-        type: McpServerType.stdio,
-        trustState: McpServerTrustState.trusted,
-        command: wrapper,
-        args: const ['mcp'],
-        env: env,
-        sourceId: agentKbPresetSourceId,
-      ),
+      ..._quarantineService.quarantineMcpServers([
+        McpServerConfig(
+          enabled: true,
+          type: McpServerType.stdio,
+          command: wrapper,
+          args: const ['mcp'],
+          env: env,
+          sourceId: agentKbPresetSourceId,
+        ),
+      ]),
     ]);
     final hooks = _dedupeHooks([
       ...settings.externalToolHooks.where(
         (hook) => hook.sourceId != agentKbPresetSourceId,
       ),
-      for (final event in agentKbHookEvents)
-        ExternalToolHook(
-          id: 'agent-kb:$event',
-          enabled: true,
-          event: event,
-          command: wrapper,
-          args: const ['hook', '--agent', 'codex'],
-          env: env,
-          sourceId: agentKbPresetSourceId,
-        ),
+      ..._quarantineService.quarantineHooks([
+        for (final event in agentKbHookEvents)
+          ExternalToolHook(
+            id: 'agent-kb:$event',
+            enabled: true,
+            event: event,
+            command: wrapper,
+            args: const ['hook', '--agent', 'codex'],
+            env: env,
+            sourceId: agentKbPresetSourceId,
+          ),
+      ]),
     ]);
     final httpServers = servers.where(
       (server) => server.type == McpServerType.http,
@@ -187,8 +195,6 @@ class ExternalSettingsService {
       externalSettingsPath: settings.hasExternalSettingsPath
           ? settings.normalizedExternalSettingsPath
           : AppSettings.defaultExternalSettingsPath,
-      externalToolHooksEnabled: true,
-      mcpEnabled: true,
       mcpUrl: activeUrls.isEmpty ? '' : activeUrls.first,
       mcpUrls: activeUrls,
       mcpServers: servers,
@@ -437,7 +443,10 @@ class ExternalSettingsService {
     final seen = <String>{};
     for (final hook in hooks) {
       final normalized = hook.normalizedForPersistence();
-      if (!normalized.isUsable) continue;
+      if (normalized.normalizedEvent.isEmpty ||
+          normalized.normalizedCommand.isEmpty) {
+        continue;
+      }
       if (!seen.add(normalized.identity)) continue;
       result.add(normalized);
     }
