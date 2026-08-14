@@ -8,6 +8,7 @@ import 'local_command_tool_contract.dart';
 
 export 'local_command_tool_contract.dart';
 
+// ChatNotifier decomposition collaborator: local-command-tool-handler
 final class LocalCommandToolHandler {
   const LocalCommandToolHandler({
     required LocalCommandExecutionPort executionPort,

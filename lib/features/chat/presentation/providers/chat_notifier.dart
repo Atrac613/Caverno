@@ -245,7 +245,6 @@ part 'chat_notifier_execution_runtime.dart';
 part 'chat_notifier_final_answer_recovery.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_local_file_handlers.dart';
-part 'chat_notifier_network_handlers.dart';
 part 'chat_notifier_participant_turns.dart';
 part 'chat_notifier_serial_handlers.dart';
 part 'chat_notifier_ssh_handlers.dart';
@@ -7786,13 +7785,16 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<McpToolResult> _dispatchToolCall(
     ToolCallInfo toolCall, {
     int? interactionGeneration,
+    String? projectRoot,
   }) async {
     final approvalCache = _approvalCacheForGeneration(interactionGeneration);
     if (interactionGeneration != null && approvalCache == null) {
       return _turnOwnerSnapshotUnavailableResult(toolCall.name);
     }
     return TurnProjectRoot.runScoped(
-      _turnProjectRootFor(interactionGeneration),
+      projectRoot == null
+          ? _turnProjectRootFor(interactionGeneration)
+          : TurnProjectRoot(projectRoot),
       () => TurnGeneration.runScoped(
         interactionGeneration,
         () => TurnThread.runScoped(
@@ -7815,6 +7817,7 @@ class ChatNotifier extends Notifier<ChatState> {
             handlerRegistry: _buildToolHandlerRegistry(
               interactionGeneration: interactionGeneration,
               approvalCache: approvalCache,
+              projectRoot: projectRoot,
             ),
             executeFallbackTool: (toolCall) => _mcpToolService!.executeTool(
               name: toolCall.name,
@@ -7829,6 +7832,7 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<McpToolResult> _handleProjectScopedTool(
     ToolCallInfo toolCall, [
     ChatTurnOwner? owner,
+    String? projectRoot,
   ]) async {
     final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
     if (accessFailure != null) return accessFailure;
@@ -7842,7 +7846,7 @@ class ChatNotifier extends Notifier<ChatState> {
       final authorization = await const ProjectReadToolAuthorizer().authorize(
         toolName: toolCall.name,
         arguments: arguments,
-        projectRoot: _getActiveProjectRootPath(),
+        projectRoot: projectRoot,
       );
       if (!authorization.isAllowed) {
         return authorization.deniedResult!;

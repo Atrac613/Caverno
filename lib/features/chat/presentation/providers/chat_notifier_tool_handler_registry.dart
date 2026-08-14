@@ -194,9 +194,15 @@ extension ChatNotifierToolHandlerRegistry on ChatNotifier {
   ChatToolHandlerRegistry _buildToolHandlerRegistry({
     int? interactionGeneration,
     required OwnerToolApprovalCache? approvalCache,
+    String? projectRoot,
   }) {
+    final resolvedProjectRoot =
+        projectRoot ??
+        (interactionGeneration == null
+            ? null
+            : _projectRootForGeneration(interactionGeneration));
     return ChatToolHandlerRegistry.fromModules([
-      _ProjectScopedToolHandlerModule(this),
+      _ProjectScopedToolHandlerModule(this, projectRoot: resolvedProjectRoot),
       _OwnerToolHandlerModule(this, approvalCache),
       _ConversationToolHandlerModule(
         this,
@@ -207,9 +213,13 @@ extension ChatNotifierToolHandlerRegistry on ChatNotifier {
 }
 
 final class _ProjectScopedToolHandlerModule implements ChatToolHandlerModule {
-  const _ProjectScopedToolHandlerModule(this._notifier);
+  const _ProjectScopedToolHandlerModule(
+    this._notifier, {
+    required String? projectRoot,
+  }) : _projectRoot = projectRoot;
 
   final ChatNotifier _notifier;
+  final String? _projectRoot;
 
   @override
   Map<String, ChatToolHandler> get handlers => {
@@ -220,7 +230,8 @@ final class _ProjectScopedToolHandlerModule implements ChatToolHandlerModule {
       'find_files',
       'search_files',
     ])
-      toolName: _notifier._handleProjectScopedTool,
+      toolName: (toolCall) =>
+          _notifier._handleProjectScopedTool(toolCall, null, _projectRoot),
   };
 }
 
@@ -424,8 +435,13 @@ final class _OwnerToolHandlerModule implements ChatToolHandlerModule {
       'process_list',
     ])
       toolName: _bind(
-        (toolCall, approvalCache) =>
-            _notifier._handleProjectScopedTool(toolCall, approvalCache.owner),
+        (toolCall, approvalCache) => _notifier._handleProjectScopedTool(
+          toolCall,
+          approvalCache.owner,
+          _notifier._projectRootForGeneration(
+            approvalCache.owner.interactionGeneration,
+          ),
+        ),
       ),
     'run_tests': _bind(_notifier._handleRunTests),
     'run_python_script': _bind((toolCall, approvalCache) async {

@@ -33,6 +33,7 @@ extension ChatNotifierPlanningResearch on ChatNotifier {
               runTool: (toolCall) => _dispatchToolCall(
                 toolCall,
                 interactionGeneration: interactionGeneration,
+                projectRoot: projectRoot,
               ),
               extractPlainText:
                   ProposalParsingTextUtils.extractPlainTextForProposal,
