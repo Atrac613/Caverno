@@ -39,7 +39,11 @@ class ToolPerimeterContext {
       '${_riskLabel(capability.riskTier)} risk',
     ];
     if (capability.mutatesState) {
-      parts.add('mutates host');
+      parts.add(
+        capability.capabilityClass == ToolCapabilityClass.networkMutation
+            ? 'mutates remote state'
+            : 'mutates host',
+      );
     }
     if (capability.accessesNetwork) {
       parts.add('network');
@@ -57,6 +61,7 @@ class ToolPerimeterContext {
       ToolCapabilityClass.shellExecution => 'shell execution',
       ToolCapabilityClass.codeExecution => 'code execution',
       ToolCapabilityClass.networkFetch => 'network fetch',
+      ToolCapabilityClass.networkMutation => 'network mutation',
       ToolCapabilityClass.gitWrite => 'git command',
       ToolCapabilityClass.sshExecution => 'SSH execution',
       ToolCapabilityClass.memoryWrite => 'memory write',

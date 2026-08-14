@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/core/services/browser_tool_policy.dart';
 import 'package:caverno/core/security/data_source_classifier.dart';
 
 void main() {
@@ -23,13 +24,18 @@ void main() {
       expect(sourceOf('recall_memory'), DataSourceClass.generatedSummary);
     });
 
-    test('classifies remote web content as remoteWeb', () {
+    test('classifies every HTTP result as remoteWeb', () {
       for (final name in [
+        'http_status',
         'http_get',
+        'http_head',
+        'http_post',
+        'http_put',
+        'http_patch',
+        'http_delete',
         'web_url_read',
         'search_web',
         'search_news',
-        'browser_get_content',
         'whois_lookup',
         'ssl_certificate',
       ]) {
@@ -37,8 +43,14 @@ void main() {
       }
     });
 
+    test('classifies every built-in browser result as remoteWeb', () {
+      for (final name in BrowserToolPolicy.allTools) {
+        expect(sourceOf(name), DataSourceClass.remoteWeb, reason: name);
+      }
+    });
+
     test('classifies local diagnostics distinctly from remote web', () {
-      for (final name in ['ping', 'dns_lookup', 'traceroute', 'http_status']) {
+      for (final name in ['ping', 'dns_lookup', 'traceroute']) {
         expect(sourceOf(name), DataSourceClass.localDiagnostic, reason: name);
       }
     });
@@ -60,6 +72,11 @@ void main() {
 
     test('falls back to other for unknown tools', () {
       expect(sourceOf('mystery_tool'), DataSourceClass.other);
+    });
+
+    test('normalizes HTTP and browser tool names', () {
+      expect(sourceOf(' HTTP_POST '), DataSourceClass.remoteWeb);
+      expect(sourceOf(' Browser_Open '), DataSourceClass.remoteWeb);
     });
   });
 

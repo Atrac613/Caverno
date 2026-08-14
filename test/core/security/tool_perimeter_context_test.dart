@@ -20,7 +20,7 @@ void main() {
       expect(context.producesUntrustedContent, isFalse);
     });
 
-    test('flags a network read as low-risk-to-run but untrusted output', () {
+    test('flags a network read as medium-risk with untrusted output', () {
       final context = classifier.classify('http_get');
       expect(
         context.capability.capabilityClass,
@@ -29,6 +29,30 @@ void main() {
       expect(context.resultSource, DataSourceClass.remoteWeb);
       expect(context.resultTrust, TrustLevel.untrusted);
       expect(context.producesUntrustedContent, isTrue);
+    });
+
+    test('flags an HTTP mutation as high-risk remote mutation', () {
+      final context = classifier.classify('http_post');
+      expect(
+        context.capability.capabilityClass,
+        ToolCapabilityClass.networkMutation,
+      );
+      expect(context.capability.riskTier, ToolRiskTier.high);
+      expect(context.capability.mutatesState, isTrue);
+      expect(context.capability.accessesNetwork, isTrue);
+      expect(context.resultSource, DataSourceClass.remoteWeb);
+      expect(context.resultTrust, TrustLevel.untrusted);
+    });
+
+    test('treats every browser result as untrusted network content', () {
+      final context = classifier.classify('browser_close');
+      expect(
+        context.capability.capabilityClass,
+        ToolCapabilityClass.browserControl,
+      );
+      expect(context.capability.accessesNetwork, isTrue);
+      expect(context.resultSource, DataSourceClass.remoteWeb);
+      expect(context.resultTrust, TrustLevel.untrusted);
     });
 
     test('marks MCP tool output as untrusted regardless of capability', () {
@@ -58,6 +82,15 @@ void main() {
       expect(summary, contains('network fetch'));
       expect(summary, contains('output: untrusted'));
       expect(summary, contains('remote web'));
+    });
+
+    test('describes a high-risk network mutation with untrusted output', () {
+      final summary = classifier.classify('http_delete').summary;
+      expect(summary, contains('network mutation'));
+      expect(summary, contains('high risk'));
+      expect(summary, contains('mutates remote state'));
+      expect(summary, contains('network'));
+      expect(summary, contains('output: untrusted (remote web)'));
     });
 
     test('stays concise for a read-only inspection', () {

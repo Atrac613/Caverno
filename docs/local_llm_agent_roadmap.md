@@ -4965,9 +4965,10 @@ Slice plan:
    resync. Invalidate review on any command, argv, environment-key, URL, schema,
    or normalized trust-identity change.
 3. **SEC4.3 — Network authority and resource boundary.** Land as four focused
-   sub-slices: **SEC4.3a (P0)** classifies every HTTP verb and all HTTP/browser
-   results as remote/untrusted; **SEC4.3b (P0)** completes SEC2.3b and routes
-   every network mutation through one approval boundary; **SEC4.3c (P0)**
+   sub-slices: **SEC4.3a (P0, completed 2026-08-14)** classifies every HTTP verb
+   and all HTTP/browser results as remote/untrusted; **SEC4.3b (P0)** completes
+   SEC2.3b and routes every network mutation through one approval boundary;
+   **SEC4.3c (P0)**
    applies one HTTP/browser destination policy, rejects unsafe schemes and every
    private/loopback/link-local/metadata A/AAAA result, binds the approved address
    to the connection or verifies the peer address, revalidates redirects, and

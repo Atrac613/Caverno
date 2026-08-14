@@ -29,6 +29,16 @@ void main() {
     expect(find.textContaining('output: untrusted'), findsOneWidget);
   });
 
+  testWidgets('shows remote mutation and untrusted output for HTTP POST', (
+    tester,
+  ) async {
+    await _pump(tester, const ToolPerimeterSummary(toolName: 'http_post'));
+    expect(find.textContaining('network mutation'), findsOneWidget);
+    expect(find.textContaining('high risk'), findsOneWidget);
+    expect(find.textContaining('mutates remote state'), findsOneWidget);
+    expect(find.textContaining('output: untrusted'), findsOneWidget);
+  });
+
   testWidgets('renders read-only inspection without a risk-escalating note', (
     tester,
   ) async {

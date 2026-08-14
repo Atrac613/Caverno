@@ -28,8 +28,12 @@ enum ToolCapabilityClass {
   /// `run_python_script`).
   codeExecution,
 
-  /// Fetches or sends data over the network (`http_get`, web fetch, web search).
+  /// Reads data over the network (`http_get`, web fetch, web search).
   networkFetch,
+
+  /// Mutates a remote HTTP resource (`http_post`, `http_put`, `http_patch`,
+  /// `http_delete`).
+  networkMutation,
 
   /// Runs a git command that can mutate history or push (`git_execute_command`).
   gitWrite,
@@ -106,6 +110,7 @@ class ToolCapability {
     ToolCapabilityClass.sshExecution ||
     ToolCapabilityClass.memoryWrite ||
     ToolCapabilityClass.clipboard ||
+    ToolCapabilityClass.networkMutation ||
     ToolCapabilityClass.remoteCoding ||
     ToolCapabilityClass.computerUse ||
     ToolCapabilityClass.deviceControl => true,
@@ -115,8 +120,10 @@ class ToolCapability {
   /// Whether the action crosses the network boundary (egress or remote control).
   bool get accessesNetwork => switch (capabilityClass) {
     ToolCapabilityClass.networkFetch ||
+    ToolCapabilityClass.networkMutation ||
     ToolCapabilityClass.sshExecution ||
-    ToolCapabilityClass.remoteCoding => true,
+    ToolCapabilityClass.remoteCoding ||
+    ToolCapabilityClass.browserControl => true,
     _ => false,
   };
 }
@@ -141,7 +148,12 @@ class ToolCapabilityClassifier {
   }
 
   ToolCommandEffect _effectOf(String name, Map<String, dynamic> arguments) {
+    if (_networkMutationTools.contains(name) ||
+        name.startsWith('http_') && !_networkFetchTools.contains(name)) {
+      return ToolCommandEffect.externalSideEffect;
+    }
     if (_readOnlyInspectionTools.contains(name) ||
+        _networkFetchTools.contains(name) ||
         name.startsWith('search_') ||
         name.startsWith('get_') ||
         name.startsWith('wifi_get') ||
@@ -404,6 +416,9 @@ class ToolCapabilityClassifier {
     if (_networkFetchTools.contains(name)) {
       return ToolCapabilityClass.networkFetch;
     }
+    if (_networkMutationTools.contains(name) || name.startsWith('http_')) {
+      return ToolCapabilityClass.networkMutation;
+    }
     if (_memoryWriteTools.contains(name)) {
       return ToolCapabilityClass.memoryWrite;
     }
@@ -446,6 +461,7 @@ class ToolCapabilityClassifier {
       ToolCapabilityClass.gitWrite ||
       ToolCapabilityClass.remoteCoding ||
       ToolCapabilityClass.computerUse => ToolRiskTier.high,
+      ToolCapabilityClass.networkMutation => ToolRiskTier.high,
       // Medium-risk: mutates local state or crosses the network, but bounded.
       ToolCapabilityClass.filesystemWrite ||
       ToolCapabilityClass.codeExecution ||
@@ -469,12 +485,20 @@ class ToolCapabilityClassifier {
   };
 
   static const Set<String> _networkFetchTools = {
+    'http_status',
     'http_get',
     'http_head',
     'web_url_read',
     'web_fetch',
     'search_web',
     'searxng_web_search',
+  };
+
+  static const Set<String> _networkMutationTools = {
+    'http_post',
+    'http_put',
+    'http_patch',
+    'http_delete',
   };
 
   static const Set<String> _memoryWriteTools = {
@@ -495,7 +519,6 @@ class ToolCapabilityClassifier {
     'inspect_file',
     'find_files',
     'search_files',
-    'http_status',
     'ping',
     'ping6',
     'arp',

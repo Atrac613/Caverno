@@ -247,6 +247,13 @@ Required remediation:
 - stream responses through byte and total-time limits rather than buffering the
   complete body.
 
+Remediation status (2026-08-14): SEC4.3a is complete. HTTP reads are classified
+as network fetches, HTTP mutations as high-risk remote side effects, and all
+HTTP/browser results as remote untrusted provenance. SA-03 remains open and
+release-blocking: SEC4.3b must centralize approval before any network mutation,
+SEC4.3c must enforce the destination/DNS/peer/redirect policy, and SEC4.3d must
+bound response bytes and total time.
+
 ### SA-04: Host-Wide Reads Through Project-Scoped Tools
 
 Severity: `High`

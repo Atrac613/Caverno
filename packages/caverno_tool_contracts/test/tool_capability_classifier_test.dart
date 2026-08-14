@@ -49,8 +49,9 @@ void main() {
       );
     });
 
-    test('classifies network fetch tools', () {
+    test('classifies every read-only HTTP operation as a network fetch', () {
       for (final name in [
+        'http_status',
         'http_get',
         'http_head',
         'web_url_read',
@@ -58,6 +59,21 @@ void main() {
         'searxng_web_search',
       ]) {
         expect(classOf(name), ToolCapabilityClass.networkFetch, reason: name);
+      }
+    });
+
+    test('classifies every mutating HTTP verb as a network mutation', () {
+      for (final name in [
+        'http_post',
+        'http_put',
+        'http_patch',
+        'http_delete',
+      ]) {
+        expect(
+          classOf(name),
+          ToolCapabilityClass.networkMutation,
+          reason: name,
+        );
       }
     });
 
@@ -77,7 +93,6 @@ void main() {
         'ping',
         'dns_lookup',
         'traceroute',
-        'http_status',
         'get_wifi_health',
         'search_past_conversations',
       ]) {
@@ -106,6 +121,10 @@ void main() {
         'git_execute_command',
         'computer_left_click',
         'remote_coding_apply_patch',
+        'http_post',
+        'http_put',
+        'http_patch',
+        'http_delete',
       ]) {
         expect(riskOf(name), ToolRiskTier.high, reason: name);
       }
@@ -131,10 +150,13 @@ void main() {
       expect(classifier.classify('ssh_execute_command').mutatesState, isTrue);
       expect(classifier.classify('read_file').mutatesState, isFalse);
       expect(classifier.classify('http_get').mutatesState, isFalse);
+      expect(classifier.classify('http_post').mutatesState, isTrue);
     });
 
     test('accessesNetwork reflects network-crossing classes', () {
       expect(classifier.classify('http_get').accessesNetwork, isTrue);
+      expect(classifier.classify('http_delete').accessesNetwork, isTrue);
+      expect(classifier.classify('browser_open').accessesNetwork, isTrue);
       expect(
         classifier.classify('ssh_execute_command').accessesNetwork,
         isTrue,
@@ -149,6 +171,28 @@ void main() {
   });
 
   group('ToolCapabilityClassifier command effects', () {
+    test('distinguishes HTTP inspection from remote side effects', () {
+      for (final name in ['http_status', 'http_get', 'http_head']) {
+        expect(
+          classifier.classify(name).commandEffect,
+          ToolCommandEffect.inspection,
+          reason: name,
+        );
+      }
+      for (final name in [
+        'http_post',
+        'http_put',
+        'http_patch',
+        'http_delete',
+      ]) {
+        expect(
+          classifier.classify(name).commandEffect,
+          ToolCommandEffect.externalSideEffect,
+          reason: name,
+        );
+      }
+    });
+
     test('distinguishes dependency, build, verification, and generation', () {
       expect(
         effectOf('local_execute_command', 'dart pub get'),

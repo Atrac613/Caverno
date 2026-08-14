@@ -40,6 +40,7 @@ void main() {
         'ssh_execute_command',
         'git_execute_command',
         'computer_left_click',
+        'http_post',
       ]) {
         expect(
           assess(tool, {TrustLevel.untrusted}),
@@ -56,6 +57,10 @@ void main() {
       );
       expect(
         assess('http_get', {TrustLevel.untrusted}),
+        TaintDecision.requireApproval,
+      );
+      expect(
+        assess('browser_open', {TrustLevel.untrusted}),
         TaintDecision.requireApproval,
       );
     });

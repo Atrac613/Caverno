@@ -81,13 +81,12 @@ class DataSourceClassifier {
     if (_generatedSummaryTools.contains(name)) {
       return DataSourceClass.generatedSummary;
     }
-    if (_remoteWebTools.contains(name) ||
+    if (name.startsWith('http_') ||
+        name.startsWith('browser_') ||
+        _remoteWebTools.contains(name) ||
         name.startsWith('search_') &&
             name != 'search_files' &&
-            name != 'search_past_conversations' ||
-        name.startsWith('browser_get') ||
-        name.startsWith('browser_snapshot') ||
-        name.startsWith('browser_screenshot')) {
+            name != 'search_past_conversations') {
       return DataSourceClass.remoteWeb;
     }
     if (_localDiagnosticTools.contains(name) ||
@@ -182,7 +181,6 @@ class DataSourceClassifier {
     'traceroute',
     'path_mtu',
     'mdns_browse',
-    'http_status',
     'get_current_datetime',
   };
 
