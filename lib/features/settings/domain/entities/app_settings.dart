@@ -39,7 +39,7 @@ enum ReasoningEffortPreference { automatic, low, medium, high }
 
 enum ProReasoningDepth { standard, deep, max }
 
-enum ProReasoningCandidateRouting { mesh, selectedOnly }
+enum ProReasoningCandidateRouting { mesh, localOnly, selectedOnly }
 
 enum LlmProvider { openAiCompatible, appleFoundationModels }
 

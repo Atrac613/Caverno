@@ -237,9 +237,7 @@ void main() {
       );
       final endpoints = const ProReasoningCandidateEndpointResolver().resolve(
         settings: settings,
-        selectedEndpointOnly:
-            settings.proReasoningCandidateRouting ==
-            ProReasoningCandidateRouting.selectedOnly,
+        routing: settings.proReasoningCandidateRouting,
       );
       final explorer = ProReasoningCandidateExplorer(endpoints: endpoints);
 

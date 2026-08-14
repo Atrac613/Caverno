@@ -280,6 +280,8 @@ class _ProReasoningCandidateRoutingDropdown extends StatelessWidget {
             child: Text(switch (routing) {
               ProReasoningCandidateRouting.mesh =>
                 'settings.model_routing_pro_reasoning_candidates_mesh'.tr(),
+              ProReasoningCandidateRouting.localOnly =>
+                'settings.model_routing_pro_reasoning_candidates_local'.tr(),
               ProReasoningCandidateRouting.selectedOnly =>
                 'settings.model_routing_pro_reasoning_candidates_selected'.tr(),
             }),

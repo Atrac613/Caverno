@@ -792,6 +792,7 @@ const _$ProReasoningDepthEnumMap = {
 
 const _$ProReasoningCandidateRoutingEnumMap = {
   ProReasoningCandidateRouting.mesh: 'mesh',
+  ProReasoningCandidateRouting.localOnly: 'localOnly',
   ProReasoningCandidateRouting.selectedOnly: 'selectedOnly',
 };
 

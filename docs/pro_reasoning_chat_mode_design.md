@@ -466,6 +466,8 @@ from the selected target. `ProReasoningCandidateRouting.mesh` keeps the selected
 target first and adds enabled peers with their own configured models;
 `selectedOnly` restricts every candidate to the selected target. The default is
 `mesh` so existing multi-host latency and diversity behavior remains intact.
+`localOnly` excludes hosted endpoints and fans candidates across enabled
+loopback, private-network, link-local, mDNS, discovered, and local DNS targets.
 Explicitly selecting a Pro Reasoning endpoint switches candidate routing to
 `selectedOnly` as the safe default; users can opt back into mesh fan-out after
 the endpoint selection. Legacy settings with a Pro endpoint pin and no stored

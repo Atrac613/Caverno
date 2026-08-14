@@ -104,9 +104,7 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
     final toolService = ref.read(mcpToolServiceProvider);
     final endpoints = const ProReasoningCandidateEndpointResolver().resolve(
       settings: settings,
-      selectedEndpointOnly:
-          settings.proReasoningCandidateRouting ==
-          ProReasoningCandidateRouting.selectedOnly,
+      routing: settings.proReasoningCandidateRouting,
     );
     final stageTimings = <String, int>{};
     final coordinator = ProReasoningRunCoordinator(

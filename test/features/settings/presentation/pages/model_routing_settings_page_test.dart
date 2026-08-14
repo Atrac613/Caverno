@@ -161,6 +161,25 @@ void main() {
     );
   });
 
+  testWidgets('offers local LLM only candidate generation', (tester) async {
+    final settings = AppSettings.defaults().copyWith(
+      model: 'main-model',
+      proReasoningCandidateRouting: ProReasoningCandidateRouting.localOnly,
+    );
+
+    await _pumpModelRoutingPage(
+      tester,
+      settings: settings,
+      loadModels: () async => ['main-model'],
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('routing-pro-reasoning-candidates')),
+      200,
+    );
+    expect(find.text('Local LLMs only'), findsOneWidget);
+  });
+
   testWidgets('assigning the planning model persists it in settings', (
     tester,
   ) async {

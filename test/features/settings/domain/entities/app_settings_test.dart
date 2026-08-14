@@ -150,7 +150,7 @@ void main() {
     final settings = defaults.copyWith(
       proReasoningEnabled: true,
       proReasoningDepth: ProReasoningDepth.max,
-      proReasoningCandidateRouting: ProReasoningCandidateRouting.selectedOnly,
+      proReasoningCandidateRouting: ProReasoningCandidateRouting.localOnly,
       proReasoningModel: 'reasoning-model',
       proReasoningEndpointId: 'reasoning-endpoint',
     );
@@ -162,7 +162,7 @@ void main() {
     expect(decoded.proReasoningDepth, ProReasoningDepth.max);
     expect(
       decoded.proReasoningCandidateRouting,
-      ProReasoningCandidateRouting.selectedOnly,
+      ProReasoningCandidateRouting.localOnly,
     );
     expect(decoded.proReasoningModel, 'reasoning-model');
     expect(decoded.proReasoningEndpointId, 'reasoning-endpoint');

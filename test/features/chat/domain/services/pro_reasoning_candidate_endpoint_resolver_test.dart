@@ -9,7 +9,7 @@ void main() {
   test('anchors the selected endpoint and preserves peer models', () {
     final targets = resolver.resolve(
       settings: _settings(),
-      selectedEndpointOnly: false,
+      routing: ProReasoningCandidateRouting.mesh,
     );
 
     expect(targets.map((target) => target.endpointId), [
@@ -27,7 +27,7 @@ void main() {
   test('restricts candidates to the selected endpoint when requested', () {
     final targets = resolver.resolve(
       settings: _settings(),
-      selectedEndpointOnly: true,
+      routing: ProReasoningCandidateRouting.selectedOnly,
     );
 
     expect(targets, hasLength(1));
@@ -41,7 +41,7 @@ void main() {
         proReasoningEndpointId: 'missing',
         proReasoningModel: '',
       ),
-      selectedEndpointOnly: true,
+      routing: ProReasoningCandidateRouting.selectedOnly,
     );
 
     expect(targets, hasLength(1));
@@ -63,7 +63,7 @@ void main() {
           ),
         ],
       ),
-      selectedEndpointOnly: false,
+      routing: ProReasoningCandidateRouting.mesh,
     );
 
     expect(
@@ -84,12 +84,68 @@ void main() {
 
     final targets = resolver.resolve(
       settings: settings,
-      selectedEndpointOnly: false,
+      routing: ProReasoningCandidateRouting.mesh,
     );
 
     expect(targets, hasLength(1));
     expect(targets.single.endpointId, AppSettings.seededLlmEndpointId);
     expect(targets.single.model, 'legacy-reasoning-model');
+  });
+
+  test('local-only routing excludes hosted endpoints', () {
+    final settings = _settings();
+    final targets = resolver.resolve(
+      settings: settings.copyWith(
+        llmEndpoints: [
+          ...settings.llmEndpoints,
+          const LlmEndpoint(
+            id: 'private-ip',
+            baseUrl: 'http://192.168.100.5:1234/v1',
+            model: 'private-model',
+          ),
+          const LlmEndpoint(
+            id: 'mdns',
+            baseUrl: 'http://inference.local:1234/v1',
+            model: 'mdns-model',
+          ),
+          const LlmEndpoint(
+            id: 'discovered',
+            baseUrl: 'http://discovery-proxy.example/v1',
+            model: 'discovered-model',
+            source: LlmEndpointSource.discovered,
+          ),
+        ],
+      ),
+      routing: ProReasoningCandidateRouting.localOnly,
+    );
+
+    expect(targets.map((target) => target.endpointId), [
+      'local',
+      'peer',
+      'private-ip',
+      'mdns',
+      'discovered',
+    ]);
+    expect(targets.first.model, 'local-model');
+  });
+
+  test('local-only routing returns no hosted-only candidate', () {
+    final targets = resolver.resolve(
+      settings: _settings().copyWith(
+        baseUrl: 'https://api.example.com/v1',
+        activeLlmEndpointId: 'xai',
+        llmEndpoints: const [
+          LlmEndpoint(
+            id: 'xai',
+            baseUrl: 'https://api.x.ai/v1',
+            model: 'hosted-model',
+          ),
+        ],
+      ),
+      routing: ProReasoningCandidateRouting.localOnly,
+    );
+
+    expect(targets, isEmpty);
   });
 }
 
