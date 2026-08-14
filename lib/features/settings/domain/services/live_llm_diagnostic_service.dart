@@ -1231,8 +1231,10 @@ class LiveLlmDiagnosticService {
       const _EditFormatProbeCase(
         preference: ModelEditFormatPreference.unifiedDiff,
         instruction:
-            'Return one unified diff for lib/greeting.dart with three context '
-            'lines and no markdown fence.',
+            'Return one syntactically valid unified diff that can be applied '
+            'to lib/greeting.dart. Include every available unchanged line as '
+            'context, and ensure each hunk header count matches the old and '
+            'new lines in that hunk. Return no markdown fence or explanation.',
         expected: _editFormatUnifiedDiff,
       ),
     ];
@@ -1250,10 +1252,15 @@ class LiveLlmDiagnosticService {
         maxTokens: _diagnosticMaxTokens,
       );
       final normalized = _stripSingleCodeFence(result.content);
+      final failureDetail = _firstEditFormatMismatch(
+        expected: testCase.expected,
+        actual: normalized,
+      );
       outcomes.add(
         _EditFormatProbeOutcome(
           preference: testCase.preference,
-          passed: normalized == testCase.expected,
+          passed: failureDetail == null,
+          failureDetail: failureDetail,
           content: result.content,
           usage: _usage(result),
         ),
@@ -1275,8 +1282,10 @@ class LiveLlmDiagnosticService {
           : 'The model reliably produced ${preference.name} edits.',
       details: outcomes
           .map(
-            (outcome) =>
-                '${outcome.preference.name}: ${outcome.passed ? 'passed' : 'failed'}',
+            (outcome) => outcome.passed
+                ? '${outcome.preference.name}: passed'
+                : '${outcome.preference.name}: failed'
+                      '${outcome.failureDetail == null ? '' : ' (${outcome.failureDetail})'}',
           )
           .join('\n'),
       modelContent: outcomes
@@ -1314,6 +1323,28 @@ class LiveLlmDiagnosticService {
       caseSensitive: false,
     ).firstMatch(normalized);
     return (match?.group(1) ?? normalized).trim();
+  }
+
+  String? _firstEditFormatMismatch({
+    required String expected,
+    required String actual,
+  }) {
+    if (expected == actual) return null;
+    final expectedLines = const LineSplitter().convert(expected);
+    final actualLines = const LineSplitter().convert(actual);
+    final sharedLength = math.min(expectedLines.length, actualLines.length);
+    for (var index = 0; index < sharedLength; index += 1) {
+      if (expectedLines[index] != actualLines[index]) {
+        return 'line ${index + 1}: expected `${expectedLines[index]}`, '
+            'received `${actualLines[index]}`';
+      }
+    }
+    if (expectedLines.length > actualLines.length) {
+      return 'line ${actualLines.length + 1}: expected '
+          '`${expectedLines[actualLines.length]}`, received end of output';
+    }
+    return 'line ${expectedLines.length + 1}: expected end of output, '
+        'received `${actualLines[expectedLines.length]}`';
   }
 
   Future<LiveLlmDiagnosticReport> _runEmbeddingsProbe({
@@ -3307,12 +3338,14 @@ class _EditFormatProbeOutcome {
   const _EditFormatProbeOutcome({
     required this.preference,
     required this.passed,
+    required this.failureDetail,
     required this.content,
     required this.usage,
   });
 
   final ModelEditFormatPreference preference;
   final bool passed;
+  final String? failureDetail;
   final String content;
   final LiveLlmDiagnosticTokenUsage usage;
 }

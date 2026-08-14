@@ -53,6 +53,54 @@ void main() {
       expect(rev.benchmarkSuite, 'cavernobench-v2');
     });
 
+    test('carries independently versioned difficulty ladder evidence', () {
+      final rev = ModelCapabilityProfileRevision.fromProfile(
+        profile.copyWith(
+          probeMetadata: const {
+            'difficultyLadder': 'ladder-v1',
+            'difficultyLadderAxis': 'effective_context_recall',
+            'difficultyLadderMeasuredPromptTokens': '16498',
+            'difficultyLadderHighestStagePromptTokens': '16384',
+            'difficultyLadderNextStagePromptTokens': '32768',
+            'difficultyLadderPassedStageCount': '3',
+            'difficultyLadderStageCount': '6',
+          },
+        ),
+      );
+
+      expect(rev.difficultyLadder, 'ladder-v1');
+      expect(rev.difficultyLadderAxis, 'effective_context_recall');
+      expect(rev.difficultyLadderMeasuredPromptTokens, 16498);
+      expect(rev.difficultyLadderHighestStagePromptTokens, 16384);
+      expect(rev.difficultyLadderNextStagePromptTokens, 32768);
+      expect(rev.difficultyLadderPassedStageCount, 3);
+      expect(rev.difficultyLadderStageCount, 6);
+
+      final decoded = ModelCapabilityProfileRevision.fromJson(rev.toJson());
+      expect(decoded.difficultyLadder, 'ladder-v1');
+      expect(decoded.difficultyLadderMeasuredPromptTokens, 16498);
+      expect(decoded.difficultyLadderNextStagePromptTokens, 32768);
+    });
+
+    test('carries unit-bearing physical capability metrics', () {
+      final rev = ModelCapabilityProfileRevision.fromProfile(
+        profile.copyWith(
+          probeMetadata: const {
+            'capability.streaming.ttftMs': '900',
+            'capability.streaming.decodeTokensPerSecond': '42.5',
+            'unrelated': 'not revision evidence',
+          },
+        ),
+      );
+
+      expect(rev.physicalCapabilityMetrics, {
+        'capability.streaming.ttftMs': '900',
+        'capability.streaming.decodeTokensPerSecond': '42.5',
+      });
+      final decoded = ModelCapabilityProfileRevision.fromJson(rev.toJson());
+      expect(decoded.physicalCapabilityMetrics, rev.physicalCapabilityMetrics);
+    });
+
     test('an unscored profile records no score rather than zero', () {
       final rev = ModelCapabilityProfileRevision.fromProfile(profile);
 

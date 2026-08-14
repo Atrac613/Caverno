@@ -140,6 +140,7 @@ File _writeArtifact(_BenchmarkCanaryEnv env, List<_BenchmarkCanaryRun> runs) {
     'suiteId': LiveLlmDiagnosticSuite.id,
     'suiteVersion': LiveLlmDiagnosticSuite.version,
     'generatedAt': DateTime.now().toIso8601String(),
+    'provider': env.settings.llmProvider.name,
     'baseUrl': env.settings.baseUrl,
     'model': env.settings.effectiveModel,
     if (env.settings.embeddingsModel.isNotEmpty)

@@ -1,7 +1,6 @@
 # LL39 Embeddings Capability Probe
 
-Status: implemented; deterministic verification complete, live endpoint
-validation pending explicit data-export consent.
+Status: implemented and live-canary verified on 2026-08-14.
 
 ## Task
 
@@ -54,3 +53,8 @@ tool/codex_verify.sh --no-codegen \
 
 The focused suite passed with 57 tests. The standard repository verification
 is recorded in the implementation commit handoff.
+
+Live validation against `http://192.168.100.241:1234/v1` used
+`qwen3-embedding-0.6b` for both v8 chat-model runs. Each request returned three
+finite 1,024-dimensional vectors. The semantic margins were 0.534215 and
+0.534107, both above the required 0.05 threshold. No vectors were persisted.

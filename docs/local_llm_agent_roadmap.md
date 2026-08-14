@@ -2691,7 +2691,13 @@ Implementation status:
      metadata. `ModelCapabilityProfileBuilder` now populates every
      `ModelEditFormatPreference` branch from live evidence instead of always
      returning `unknown`. Partial format support earns proportional credit,
-     and the fixed maximum remains 1,000 after rebalancing.
+     and the fixed maximum remains 1,000 after rebalancing. A 2026-08-14 live
+     3-by-3 A/B found that v8's phrase "with three context lines" induced the
+     invalid hunk header `@@ -1,3 +1,3 @@` on 35B in every control run. Asking
+     for an applicable diff with hunk counts matching its lines passed 3/3
+     against the unchanged exact expected output. The corrected scored prompt
+     therefore ships as `cavernobench-v9`; weights and the denominator remain
+     unchanged, while v8 history remains intentionally non-comparable.
   6. ~~Embeddings.~~ **Shipped** in `cavernobench` v6. The probe reuses LL5's
      production `EmbeddingsClient` and sends an anchor, paraphrase, and
      unrelated control in one request. It rejects missing, non-finite, zero,
@@ -2700,8 +2706,9 @@ Implementation status:
      margin as physical units outside the score. A structurally valid but weak
      semantic margin remains inspectable as a warning. The headless canary opts
      in with `CAVERNO_EMBEDDINGS_MODEL`; otherwise the probe skips without
-     penalty. Live endpoint evidence for v6 remains pending explicit data-export
-     consent.
+     penalty. Live v8 canaries on 2026-08-14 used `qwen3-embedding-0.6b` for
+     both chat models and returned three finite 1,024-dimensional vectors with
+     semantic margins of 0.534215 and 0.534107, closing the live evidence gap.
   7. ~~Effective context.~~ **Implemented** in `cavernobench` v8. The headless
      canary opts in with `CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS`; normal
      diagnostics skip before allocating a long prompt. A doubling ladder places
@@ -2712,9 +2719,10 @@ Implementation status:
      The probe is an unbounded physical measurement with zero conformance
      points, so the fixed 1,000-point denominator does not move. Deterministic
      verification passed. A 2026-08-14 live canary against
-     `qwen3.6-27b-vision` measured successful boundary recall through 16,498
-     endpoint-reported prompt tokens, found the next boundary at the 32,768
-     approximate-token trial, and completed with main readiness ready.
+     `qwen3.6-27b-vision` initially measured 16,498 prompt tokens. The full v8
+     run later that day raised the measured lower bound to 32,887 prompt tokens,
+     reached its configured 32K ceiling, and completed with main readiness
+     ready.
   8. ~~`response_format` / `json_schema`.~~ **Shipped** in `cavernobench` v7.
      `ChatRemoteDataSource` now exposes an opt-in structured-output capability
      without widening every provider contract. The probe first asks for a
@@ -2723,8 +2731,67 @@ Implementation status:
      request. Machine-readable evidence maps `jsonSchema`, `jsonObject`, and
      `none` directly into `ModelCapabilityProfile`, making every consumer branch
      reachable from a live run. Apple Foundation Models and incapable wrapper
-     datasources skip without penalty. Live endpoint evidence for v7 remains
-     pending explicit data-export consent.
+     datasources skip without penalty. Live v8 canaries on 2026-08-14 verified
+     strict JSON Schema enforcement on both `qwen3.6-27b-vision` and
+     `qwen3.6-35b-a3b-vision` without using the JSON object fallback.
+  9. ~~Saturation watchdog.~~ **Shipped** without changing the v8 probe set or
+     fixed denominator. Every benchmark export records whether the current run
+     reached the 95% high-water mark. `ModelBenchmarkSaturationWatchdog`
+     evaluates the latest stored score on every unique registered profile and
+     declares saturation only when at least two models all carry the current
+     suite, share one denominator, and clear that mark. Missing scores, stale
+     suite versions, and mismatched denominators fail closed. Live LLM
+     Diagnostics then announces that bounded conformance has stopped
+     discriminating and directs comparisons to ladder stages and physical
+     capability metrics. The 2026-08-14 two-model v8 evidence exercises the
+     fail-closed input case: 27B reached 965/1000, while 35B initially reached
+     730/1000 after a reproducible vision-triggered server CUDA OOM. Changing
+     the 35B server to automatic GPU-layer fitting with `--fit-target 512,512`
+     eliminated the OOM and raised the same full v8 run to 947/1000. A live
+     3-by-3 A/B isolated ambiguous unified-diff wording, and the corrected
+     scored prompt shipped as v9. Full v9 reruns then earned 965/1000 on both
+     27B and 35B with the same denominator and high-water true, supplying the
+     watchdog's positive multi-model input. The page-level widget integration
+     now imports those two v9 contracts in sequence, persists distinct profile
+     revisions, and confirms the visible declaration after the second import.
+     The native picker remains mocked at its OS service boundary.
+  10. ~~Separately versioned difficulty ladder.~~ **Implemented** as
+      `ladder-v1` without changing `cavernobench-v8`. The first axis promotes
+      effective-context boundary recall into fixed 4K, 8K, 16K, 32K, 64K, and
+      128K endpoint-reported prompt-token stages. Exports and LL21 revisions
+      retain the ladder suite, axis, measured lower bound, highest passed stage,
+      and next stage with no ladder point total. Future thresholds or axes bump
+      only the ladder version, preserving bounded conformance history. A
+      2026-08-14 full v8 canary against `qwen3.6-27b-vision` retained
+      `cavernobench-v8`, measured 32,887 prompt tokens, passed the 32K ladder
+      stage, exposed 64K as next, and completed with main readiness ready.
+  11. ~~Persist headless benchmark evidence in LL21 history.~~ **Implemented.**
+      Live LLM Diagnostics can import a canary `benchmark_run.json`, validate
+      its identity and measured evidence, merge it into the matching model
+      profile, and append a normal LL21 revision. A focused capability-only run
+      never manufactures a `0/1000` conformance result: bounded metadata changes
+      only when the run attempted points, while measured ladder evidence updates
+      physical context fields without erasing existing categorical capabilities.
+      Older artifacts are refused so stale evidence cannot replace a newer
+      profile. New canary artifacts also carry the provider explicitly, with a
+      compatibility fallback for legacy artifacts.
+  12. ~~Retain the physical capability tier in LL21 history.~~ **Implemented.**
+      Diagnostic profiles and every new revision now retain stable unit-bearing
+      metadata for streaming TTFT and honest decode rate, multi-round turns and
+      token cost, embedding dimension and semantic margin, and effective-context
+      prompt tokens. Buffered delivery never gains a synthetic decode rate.
+      Headless artifact import reads the same metric blocks, and revision cards
+      show the stored physical values independently from bounded points. Older
+      revision JSON defaults to an empty metrics map.
+  13. ~~Compare saturated models by physical capability.~~ **Implemented.**
+      Live LLM Diagnostics orders registered models independently within each
+      sufficiently covered physical axis: measured effective context and decode
+      rate are higher-is-better, while TTFT, tool-loop turns, and tool-loop token
+      cost are lower-is-better. Missing and invalid evidence is omitted rather
+      than ranked as zero, equal values remain tied, and legacy `ladder-v1`
+      context evidence remains usable. The UI explicitly has no overall weighted
+      score, so trade-offs stay visible instead of being hidden in arbitrary
+      cross-unit weights.
 
 Cost note:
 - The suite is already ~43 requests; the additions roughly reach ~55, and

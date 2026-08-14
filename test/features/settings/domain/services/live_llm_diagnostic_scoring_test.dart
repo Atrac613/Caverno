@@ -24,7 +24,7 @@ void main() {
       LiveLlmDiagnosticSuite.probePointsTotal +
           LiveLlmDiagnosticSuite.samplerStabilityPoints,
     );
-    expect(LiveLlmDiagnosticSuite.version, 8);
+    expect(LiveLlmDiagnosticSuite.version, 9);
     expect(LiveLlmDiagnosticSuite.pointsFor('effective_context'), 0);
     expect(
       LiveLlmDiagnosticSuite.pointsFor('structured_output'),
@@ -50,6 +50,12 @@ void main() {
     expect(score.earnedPoints, LiveLlmDiagnosticSuite.maxPoints);
     expect(score.attemptedPoints, LiveLlmDiagnosticSuite.maxPoints);
     expect(score.coverage, 1);
+    expect(score.saturationHighWaterReached, isTrue);
+  });
+
+  test('the saturation high-water mark starts at 95 percent', () {
+    expect(LiveLlmDiagnosticSuite.saturationHighWaterPoints(1000), 950);
+    expect(LiveLlmDiagnosticSuite.saturationHighWaterPoints(999), 950);
   });
 
   test('skipped probes lower coverage instead of raising the score', () {
@@ -172,6 +178,13 @@ void main() {
       benchmark['earnedPoints'],
       LiveLlmDiagnosticSuite.pointsFor('instruction_echo'),
     );
+    expect(benchmark['saturationHighWaterPercent'], 95);
+    expect(benchmark['saturationHighWaterPoints'], 950);
+    expect(benchmark['saturationHighWaterReached'], isFalse);
+    final ladder = export['difficultyLadder'] as Map<String, dynamic>;
+    expect(ladder['suite'], 'ladder-v1');
+    expect(ladder['axis'], 'effective_context_recall');
+    expect(ladder['measured'], isFalse);
   });
 }
 

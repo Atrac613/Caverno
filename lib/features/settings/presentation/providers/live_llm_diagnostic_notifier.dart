@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../chat/data/datasources/apple_foundation_models_datasource.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/mcp_tool_provider.dart';
+import '../../data/live_llm_benchmark_artifact_file_service.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
@@ -72,5 +73,20 @@ class LiveLlmDiagnosticNotifier extends Notifier<LiveLlmDiagnosticState> {
       }
       state = state.copyWith(isRunning: false, error: error.toString());
     }
+  }
+
+  /// Imports physical and bounded evidence produced by the headless LL39
+  /// canary, then persists it through the same LL21 revision path as an in-app
+  /// calibration.
+  Future<bool> importBenchmarkArtifact() async {
+    final settings = ref.read(settingsNotifierProvider);
+    final profile = await ref
+        .read(liveLlmBenchmarkArtifactFileServiceProvider)
+        .importProfile(existingProfiles: settings.modelCapabilityProfiles);
+    if (profile == null) return false;
+    await ref
+        .read(settingsNotifierProvider.notifier)
+        .upsertModelCapabilityProfile(profile, source: 'benchmark_artifact');
+    return true;
   }
 }

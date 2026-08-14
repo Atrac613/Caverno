@@ -11,6 +11,7 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/settings/data/settings_repository.dart';
+import 'package:caverno/features/settings/data/live_llm_benchmark_artifact_file_service.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_preset_profile.dart';
@@ -47,7 +48,11 @@ void main() {
     expect(diagnosticState.isRunning, isFalse);
     expect(
       diagnosticState.report?.overallStatus,
-      LiveLlmDiagnosticStatus.passed,
+      LiveLlmDiagnosticStatus.warning,
+      reason: diagnosticState.report?.results
+          .where((result) => result.status == LiveLlmDiagnosticStatus.failed)
+          .map((result) => '${result.id}: ${result.details}')
+          .join('\n'),
     );
 
     final settings = SettingsRepository(prefs).load();
@@ -177,9 +182,73 @@ void main() {
       '2',
     );
   });
+
+  test('artifact import persists evidence as an LL21 revision', () async {
+    final initialSettings = AppSettings.defaults().copyWith(
+      model: 'artifact-model',
+    );
+    SharedPreferences.setMockInitialValues({
+      'app_settings': jsonEncode(initialSettings.toJson()),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final importedProfile = ModelCapabilityProfile(
+      id: '',
+      provider: initialSettings.llmProvider,
+      baseUrl: initialSettings.baseUrl,
+      model: 'artifact-model',
+      usableContextTokens: 16498,
+      probedAt: DateTime.parse('2026-08-14T08:54:00Z'),
+      probeMetadata: const {
+        'difficultyLadder': 'ladder-v1',
+        'difficultyLadderAxis': 'effective_context_recall',
+        'difficultyLadderMeasuredPromptTokens': '16498',
+        'difficultyLadderHighestStagePromptTokens': '16384',
+        'difficultyLadderNextStagePromptTokens': '32768',
+        'difficultyLadderPassedStageCount': '3',
+        'difficultyLadderStageCount': '6',
+      },
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        liveLlmBenchmarkArtifactFileServiceProvider.overrideWithValue(
+          _FakeBenchmarkArtifactFileService(importedProfile),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final imported = await container
+        .read(liveLlmDiagnosticNotifierProvider.notifier)
+        .importBenchmarkArtifact();
+
+    expect(imported, isTrue);
+    final settings = SettingsRepository(prefs).load();
+    expect(
+      settings.effectiveModelCapabilityProfile?.usableContextTokens,
+      16498,
+    );
+    final revision = settings.effectiveModelProfileRevisions.single;
+    expect(revision.source, 'benchmark_artifact');
+    expect(revision.difficultyLadder, 'ladder-v1');
+    expect(revision.difficultyLadderMeasuredPromptTokens, 16498);
+  });
 }
 
-class _TextOnlyDiagnosticDataSource implements ChatDataSource {
+class _FakeBenchmarkArtifactFileService
+    extends LiveLlmBenchmarkArtifactFileService {
+  _FakeBenchmarkArtifactFileService(this.profile);
+
+  final ModelCapabilityProfile profile;
+
+  @override
+  Future<ModelCapabilityProfile?> importProfile({
+    required Iterable<ModelCapabilityProfile> existingProfiles,
+  }) async => profile;
+}
+
+class _TextOnlyDiagnosticDataSource
+    implements ChatDataSource, StructuredOutputChatDataSource {
   @override
   Future<ChatCompletionResult> createChatCompletion({
     required List<Message> messages,
@@ -208,6 +277,24 @@ class _TextOnlyDiagnosticDataSource implements ChatDataSource {
     if (user.contains('12 GiB')) {
       return ChatCompletionResult(
         content: '12 GiB, \u00a53,980',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('complete updated file contents')) {
+      return ChatCompletionResult(
+        content: _editFormatWholeFile,
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('one exact SEARCH/REPLACE block')) {
+      return ChatCompletionResult(
+        content: _editFormatSearchReplace,
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('one syntactically valid unified diff')) {
+      return ChatCompletionResult(
+        content: _editFormatUnifiedDiff,
         finishReason: 'stop',
       );
     }
@@ -245,6 +332,26 @@ class _TextOnlyDiagnosticDataSource implements ChatDataSource {
           '{"probe":"instruction_echo","status":"ok","marker":"CAVERNO_LIVE_DIAGNOSTIC"}',
       finishReason: 'stop',
     );
+  }
+
+  @override
+  Future<ChatCompletionResult> createStructuredChatCompletion({
+    required List<Message> messages,
+    required StructuredOutputRequest responseFormat,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    return switch (responseFormat.format) {
+      StructuredOutputFormat.jsonSchema => ChatCompletionResult(
+        content: '{"marker":"wrong","count":0}',
+        finishReason: 'stop',
+      ),
+      StructuredOutputFormat.jsonObject => ChatCompletionResult(
+        content: '{"marker":"CAVERNO_JSON_OBJECT_OK","count":47}',
+        finishReason: 'stop',
+      ),
+    };
   }
 
   @override
@@ -339,6 +446,28 @@ class _TextOnlyDiagnosticDataSource implements ChatDataSource {
     throw UnimplementedError();
   }
 }
+
+const _editFormatWholeFile = '''String buildLabel(String name) {
+  final trimmed = name.trim();
+  return 'Welcome, \$trimmed!';
+}''';
+
+final _editFormatSearchReplace = [
+  '<<<<<<< SEARCH',
+  "  return 'Hello, \$trimmed!';",
+  '=======',
+  "  return 'Welcome, \$trimmed!';",
+  '>>>>>>> REPLACE',
+].join('\n');
+
+const _editFormatUnifiedDiff = '''--- a/lib/greeting.dart
++++ b/lib/greeting.dart
+@@ -1,4 +1,4 @@
+ String buildLabel(String name) {
+   final trimmed = name.trim();
+-  return 'Hello, \$trimmed!';
++  return 'Welcome, \$trimmed!';
+ }''';
 
 class _NativeToolDiagnosticDataSource extends _TextOnlyDiagnosticDataSource {
   @override

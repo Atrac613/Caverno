@@ -83,6 +83,7 @@ void main() {
         canary,
         contains("'suiteVersion': LiveLlmDiagnosticSuite.version"),
       );
+      expect(canary, contains("'provider': env.settings.llmProvider.name"));
       expect(canary, contains("'wallClockMs'"));
     });
 

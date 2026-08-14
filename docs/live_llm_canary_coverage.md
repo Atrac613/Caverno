@@ -12,7 +12,7 @@ settings, or feature-specific execution behavior.
 | Chat | `tool/run_chat_live_llm_canary.sh`, `tool/run_chat_background_process_live_canary.sh`, `tool/run_tool_result_budget_live_canary.sh` | Plain chat streaming, memory extraction JSON, background process lifecycle (including `process_start`, repeated `process_wait`, observed running-state progress reporting, and zero-exit completion), content-embedded tool-call execution, incomplete inline tool-call recovery, assistant-authored `tool_result` rejection, oversized tool-result compaction retry, final marker extraction, subagent delegation via spawn_subagent (sync, child tool use, background result recovery) | Native tool-role compatibility, broad multi-turn continuity beyond focused parser recovery, and routine/cleanup-safety behavior beyond dedicated focused flows | Keep the chat canary suite in every model switch baseline; use `docs/long_running_process_mvp_tasks.md` when process tooling, cleanup behavior, or background-command safety changes |
 | Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_suggestion_live_canary.sh`, `tool/run_coding_todo_app_mvp_live_canary.sh`, `tool/run_coding_todo_app_minimal_prompt_live_canary.sh`, `tool/run_coding_word_frequency_live_canary.sh`, `tool/run_coding_markdown_toc_live_canary.sh`, `tool/run_coding_markdown_toc_exact_short_live_canary.sh`, `tool/run_coding_expense_tracker_live_canary.sh`, `tool/run_coding_weather_code_live_canary.sh`, `tool/run_coding_overwrite_transparency_live_canary.sh`, `tool/run_coding_output_feedback_live_canary.sh`, `tool/run_coding_goal_live_canary.sh`, `tool/run_coding_goal_live_edit_canary.sh`, `tool/run_coding_diagnostic_feedback_live_canary.sh`, `tool/run_coding_verification_feedback_live_canary.sh`, `tool/run_turn_steering_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal suggestion artifact preservation, Dart-pinned MVP assembly covering CRUD persistence, deterministic text processing, Markdown structure, exact money aggregation, and CSV export, Open-Meteo WMO weather-code interpretation across saved reports, final answers, and memory extraction, write_file existing-file update transparency in final answers, zero-exit command output feedback and artifact repair, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, completed/disabled goal prompt suppression, negative-completion guard, real coding-goal file edit with local test execution, red-green repair after observing a failing fixture test with exact-short TODO and Markdown TOC prompts, two-file coding-goal edit coordination, package-like parser repair without test mutation, file create/read/update/delete lifecycle with final filesystem verification, Git init/commit/revert lifecycle with final clean-status verification, mid-turn interruption redirecting a running turn against a queued-message control arm, repeated-blocker auto-blocking, Dart analyzer diagnostic feedback after a broken edit, Dart test feedback after a premature completion claim with failing tests, report quality | Larger native coding-mode refactors and broader multi-file suites are still covered mainly through Plan Mode | Keep PM5 as baseline; run the focused MVP, coding-goal, weather-code, overwrite-transparency, output-feedback, diagnostic-feedback, and verification-feedback canaries after changing goal state, coding prompts, budget handling, tool execution, tool-result interpretation, diagnostic or verification feedback, command output guardrails, file/Git side effects, or completion/blocker inference |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
-| Capability benchmark (LL39) | `tool/run_live_llm_benchmark_canary.sh` | The whole `LiveLlmDiagnosticService` suite against a real endpoint: instruction contract, JSON Schema with JSON object fallback, production streaming path with TTFT and guarded decode rate, exact preservation, edit-format fidelity, optional embeddings and effective-context physical metrics, both vision message shapes with the no-image control arm, tool call, goal-update fidelity, tool-result integration, a sequential multi-round loop, harness selection, tool search, subagent, remote MCP exposure, and the LL16 sampler trials — scored with `cavernobench` and written to `benchmark_run.json` | Saturation watchdog and the separately versioned difficulty ladder remain | Run after changing any probe or the scoring table, and before trusting a new model's stored profile. Set `CAVERNO_EMBEDDINGS_MODEL` or `CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS` to include the expensive optional probes, and use `CAVERNO_BENCHMARK_CANARY_REPEAT_COUNT` to measure the run-to-run spread in one command |
+| Capability benchmark (LL39) | `tool/run_live_llm_benchmark_canary.sh` | The whole `LiveLlmDiagnosticService` suite against a real endpoint: instruction contract, JSON Schema with JSON object fallback, production streaming path with TTFT and guarded decode rate, exact preservation, edit-format fidelity, optional embeddings and effective-context physical metrics, both vision message shapes with the no-image control arm, tool call, goal-update fidelity, tool-result integration, a sequential multi-round loop, harness selection, tool search, subagent, remote MCP exposure, the LL16 sampler trials, a 95% saturation high-water signal, and separately versioned `ladder-v1` effective-context stages — scored with `cavernobench` and written to `benchmark_run.json` | New ladder axes or stages require evidence and a ladder-only version bump | Run after changing any probe, scoring table, or ladder stage, and before trusting a new model's stored profile. Set `CAVERNO_EMBEDDINGS_MODEL` or `CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS` to include the expensive optional probes, and use `CAVERNO_BENCHMARK_CANARY_REPEAT_COUNT` to measure the run-to-run spread in one command |
 
 ## LL39 Capability Benchmark Canary
 
@@ -42,7 +42,44 @@ The artifact lands at
 and carries each run's full report plus the min/max/spread across repeats. That
 spread is the same noise floor the in-app history derives from stored profile
 revisions — this measures it in one command instead of over several nights of
-unattended calibration.
+unattended calibration. Each run's `benchmark` block also carries
+`saturationHighWaterPercent`, `saturationHighWaterPoints`, and
+`saturationHighWaterReached`. The in-app watchdog combines those current-suite
+scores across registered profiles and announces saturation only when at least
+two fully covered, same-denominator models all reach 95%.
+
+Live LLM Diagnostics can import this artifact from its app-bar action. The
+importer persists the evidence through the LL21 model-profile revision path,
+preserves categorical evidence from an existing focused profile, refuses stale
+artifacts, and treats a capability-only run with zero attempted conformance
+points as unscored rather than as a zero score.
+
+The imported and in-app paths use the same unit-bearing profile metadata for
+streaming TTFT and decode rate, multi-round turns and token cost, embeddings,
+and effective context. New LL21 revisions retain these values for historical
+comparison without folding them into a second score.
+
+When at least two registered profiles have the same physical axis, Live LLM
+Diagnostics displays them best-first within that axis. Effective context and
+decode throughput sort higher-first; TTFT, tool-loop turns, and token cost sort
+lower-first. Ties remain ties, missing measurements are not treated as zero,
+and no cross-unit overall winner is synthesized.
+
+The separate `difficultyLadder` block is `ladder-v1`. It maps the
+endpoint-reported effective-context lower bound onto fixed 4K, 8K, 16K, 32K,
+64K, and 128K prompt-token stages, then reports the highest passed and next
+stage. It has no point total and changing its thresholds requires a ladder-only
+version bump; `cavernobench-v8` remains comparable.
+
+`cavernobench-v9` is the current bounded suite. It changes only the scored
+unified-diff prompt after a live 3-by-3 A/B isolated ambiguous context-line
+wording in v8. Stored v8 scores remain historical evidence but are intentionally
+not comparable with v9 scores.
+
+Focused live validation on 2026-08-14 against `qwen3.6-27b-vision` produced a
+16,498 prompt-token lower bound, passed three of six `ladder-v1` stages through
+16,384, and identified 32,768 as the next stage. The canary passed with main
+readiness ready while the bounded suite remained `cavernobench-v8`.
 
 The streaming block reports TTFT, total elapsed time, completion tokens, and
 chunk count in physical units. Decode rate is present only when incremental
@@ -487,6 +524,133 @@ allowed-warning, compaction-retry, and analyzer feedback increases are recorded
 as watch signals instead of hard failures.
 
 ## Latest Full-Surface Evidence
+
+### 2026-08-14: `cavernobench-v8` Two-Model Validation On 192.168.100.241
+
+- Endpoint: `http://192.168.100.241:1234/v1` through the loopback SSH tunnel
+  `http://127.0.0.1:11234/v1`.
+- Chat models: `qwen3.6-27b-vision` and `qwen3.6-35b-a3b-vision`.
+- Embeddings model: `qwen3-embedding-0.6b`.
+- Build commit: `19237091`.
+- Suite: `cavernobench-v8`, `ladder-v1`, one full run per chat model, with
+  embeddings enabled and the effective-context ceiling set to 32K approximate
+  tokens.
+
+| Measurement | `qwen3.6-27b-vision` | `qwen3.6-35b-a3b-vision` |
+|-------------|----------------------|--------------------------|
+| Bounded conformance | **965/1000** from 965 attempted; 95% high-water reached | **730/1000** from 965 attempted; high-water not reached |
+| Structured output | JSON Schema passed | JSON Schema passed |
+| Edit fidelity | Unified diff passed | Search/replace passed; unified diff failed |
+| Streaming | 4,019 ms TTFT; buffered decode rate omitted | 936 ms TTFT; buffered decode rate omitted |
+| Multi-round tool loop | 3 turns; 2 successful tools; 2,936 tokens; 7,166 ms | 3 turns; 2 successful tools; 3,282 tokens; 2,901 ms |
+| Embeddings | 3 x 1,024; semantic margin 0.534215 | 3 x 1,024; semantic margin 0.534107 |
+| Effective context | 32K stage passed; 32,887 measured prompt tokens | First 2K trial returned 2,165 prompt tokens but missed the boundary markers |
+| Vision | Both production message shapes passed | Attachment request exhausted GPU memory and terminated the model instance |
+
+The current evidence pair does **not** prove suite saturation: only the 27B run
+reached the high-water mark, so importing both artifacts would leave the
+watchdog's all-model precondition false.
+The 35B result also is not a clean model-only score. The router log shows its
+attachment request failed while allocating a 120.06 MiB CUDA buffer on device
+0, after which the child server exited and four requests received proxy HTTP
+500 errors. A focused retry reproduced the same vision-triggered CUDA OOM and
+server exit. After the router reloaded the model, isolated `narrow_tool_call`
+and `update_goal_fidelity` probes both passed, proving their full-run failures
+were transport fallout rather than missing tool capability.
+
+This run closes the live-evidence gaps for JSON Schema and embeddings. It also
+demonstrates why physical axes remain separate: 35B had much lower TTFT and a
+faster tool loop, while 27B retained measurable 32K boundary recall and a
+working vision path under the current server configuration.
+
+Artifacts:
+
+- 27B full v8:
+  `build/integration_test_reports/ll39_v8_27b_vision_1786668112/benchmark_run.json`
+- 35B full v8:
+  `build/integration_test_reports/ll39_v8_35b_a3b_vision_1786668336/benchmark_run.json`
+- 35B failure reproduction:
+  `build/integration_test_reports/ll39_v8_35b_failure_retry_1786668603/benchmark_run.json`
+- 35B isolated tool recovery:
+  `build/integration_test_reports/ll39_v8_35b_tool_retry_1786668645/benchmark_run.json`
+
+#### 35B parameter-adjusted rerun
+
+The 35B server was then changed from `--n-gpu-layers all` to
+`--n-gpu-layers auto` and given `--fit-target 512,512`. Repeating the same full
+v8 command with embeddings and the 32K effective-context ceiling completed all
+51 requests in 36,332 ms with main readiness ready, no transport disconnect,
+and the original child-server PID still alive after the run. The router log had
+no new CUDA allocation failure, proxy disconnect, or child exit.
+
+The adjusted run improved from 730 to **947/1000** from 965 attempted points.
+Both vision paths, native tool calls, JSON Schema, embeddings, multi-round tool
+execution, and all 32 sampler trials passed. The remaining 18-point gap was the
+repeatable edit-format result: whole-file and search/replace passed, while
+unified diff declared a three-line hunk (`@@ -1,3 +1,3 @@`) around the four-line
+file and therefore failed exact grading. The effective-context probe again
+missed the boundary markers on its first 2K trial, so it retained no measured
+context lower bound; that physical probe carries zero conformance points.
+
+The server fix therefore resolved the operational blocker without changing the
+benchmark threshold. The adjusted 35B result remains three points below the
+950-point high-water mark, so the 27B 965-point result and the adjusted 35B
+947-point result still do not satisfy the watchdog's all-model saturation
+precondition.
+
+Artifact:
+`build/integration_test_reports/ll39_v8_35b_adjusted_1786670121/benchmark_run.json`
+
+#### Unified-diff prompt A/B and `cavernobench-v9`
+
+The adjusted 35B model repeated the v8 edit-format probe three times at
+temperature 0. The control scored `[37, 37, 37]`: every run reproduced
+whole-file and search/replace exactly but emitted the same invalid
+`@@ -1,3 +1,3 @@` header for a four-line hunk. A production-shaped candidate
+kept the expected output and exact grader unchanged, but asked for an
+applicable diff, all available context, and hunk counts matching the lines in
+the hunk. It scored `[55, 55, 55]`, reproducing the valid
+`@@ -1,4 +1,4 @@` header in all three runs.
+
+Because edit-format fidelity contributes bounded points, adopting the corrected
+wording bumps the suite to `cavernobench-v9`. No weights, pass rules, expected
+output, or 1,000-point denominator changed. Full v9 runs are required before
+making a cross-model saturation claim; focused A/B artifacts must not be
+imported as complete model profiles.
+
+Artifacts:
+
+- v8 control:
+  `build/integration_test_reports/ll39_edit_prompt_control_1786670886/benchmark_run.json`
+- candidate experiment captured before the v9 version bump (do not import):
+  `build/integration_test_reports/ll39_edit_prompt_candidate_1786670938/benchmark_run.json`
+
+#### Full `cavernobench-v9` saturation evidence
+
+Full v9 reruns then measured both configured vision models against the same
+1,000-point denominator. Both earned **965/1000** from 965 attempted points,
+passed all 32 sampler trials, and set `saturationHighWaterReached` to `true`.
+The corrected unified-diff case earned 55/55 on both models. These artifacts
+therefore supply the watchdog's positive two-model input: two distinct models,
+the current suite, one denominator, and every score at or above 950 points.
+
+The physical context axis still distinguishes the models without changing the
+bounded score. The 27B model reproduced both markers through 32,887 reported
+prompt tokens and passed the 32K `ladder-v1` stage. The 35B model missed the
+markers at its first 2K trial, so it retained no measured context lower bound.
+Both canaries completed with main readiness ready and no transport disconnect.
+The page-level widget integration then imported matching v9 artifact contracts
+for these model identities in sequence. It verified fail-closed behavior after
+the first import, two persisted `benchmark_artifact` revisions after the
+second, and the visible saturation declaration. The native file picker is
+mocked at its service boundary; JSON import through page rendering is covered.
+
+Artifacts:
+
+- 27B full v9:
+  `build/integration_test_reports/ll39_v9_27b_vision_1786671470/benchmark_run.json`
+- 35B full v9:
+  `build/integration_test_reports/ll39_v9_35b_a3b_vision_1786671349/benchmark_run.json`
 
 ### 2026-08-11: `qwen/qwen3-coder-next` Multi-Round Focused Validation
 

@@ -1,8 +1,10 @@
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
+import 'live_llm_diagnostic_difficulty_ladder.dart';
 import 'live_llm_diagnostic_scoring.dart';
 import 'llm_sampler_calibration_service.dart';
 import 'llm_sampler_preset_profile.dart';
+import 'model_capability_physical_metrics.dart';
 
 class ModelCapabilityProfileBuilder {
   const ModelCapabilityProfileBuilder._();
@@ -23,6 +25,7 @@ class ModelCapabilityProfileBuilder {
       ...samplerTrials,
     ];
     final score = LiveLlmDiagnosticScore.fromReport(report);
+    final ladder = LiveLlmDiagnosticDifficultyLadder.fromReport(report);
     final metadata = <String, String>{
       'overallStatus': report.overallStatus.name,
       'score': report.score.toStringAsFixed(3),
@@ -34,6 +37,20 @@ class ModelCapabilityProfileBuilder {
       'benchmarkPoints': score.earnedPoints.toString(),
       'benchmarkMaxPoints': score.maxPoints.toString(),
       'benchmarkAttemptedPoints': score.attemptedPoints.toString(),
+      'difficultyLadder': LiveLlmDiagnosticDifficultyLadder.suite,
+      'difficultyLadderAxis': LiveLlmDiagnosticDifficultyLadder.axis,
+      'difficultyLadderMeasuredPromptTokens': ladder.measuredPromptTokens
+          .toString(),
+      'difficultyLadderHighestStagePromptTokens': ladder
+          .highestPassedStagePromptTokens
+          .toString(),
+      'difficultyLadderNextStagePromptTokens': ?ladder.nextStagePromptTokens
+          ?.toString(),
+      'difficultyLadderPassedStageCount': ladder.passedStageCount.toString(),
+      'difficultyLadderStageCount': LiveLlmDiagnosticDifficultyLadder
+          .stagePromptTokens
+          .length
+          .toString(),
       'passedProbeCount': report.passedProbeCount.toString(),
       'scoredProbeCount': report.scoredProbeCount.toString(),
       'totalToolCount': report.toolCatalog.totalToolCount.toString(),
@@ -51,6 +68,7 @@ class ModelCapabilityProfileBuilder {
             .reachedConfiguredMaximum
             .toString(),
       },
+      ...ModelCapabilityPhysicalMetrics.fromReport(report),
     };
     final profile = ModelCapabilityProfile(
       id: '',

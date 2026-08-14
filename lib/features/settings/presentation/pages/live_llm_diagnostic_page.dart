@@ -10,6 +10,10 @@ import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
 import '../../domain/services/live_llm_diagnostic_scoring.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
+import '../../domain/services/live_llm_diagnostic_difficulty_ladder.dart';
+import '../../domain/services/model_benchmark_saturation_watchdog.dart';
+import '../../domain/services/model_capability_comparison.dart';
+import '../../domain/services/model_capability_physical_metrics.dart';
 import '../providers/live_llm_diagnostic_notifier.dart';
 import '../providers/settings_notifier.dart';
 import '../../../../core/theme/app_tokens.dart';
@@ -27,6 +31,13 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
     final state = ref.watch(liveLlmDiagnosticNotifierProvider);
     final report = state.report;
     final settings = ref.watch(settingsNotifierProvider);
+    final saturationWatchdog = ModelBenchmarkSaturationWatchdog.evaluate(
+      profiles: settings.modelCapabilityProfiles,
+      suite: '${LiveLlmDiagnosticSuite.id}-v${LiveLlmDiagnosticSuite.version}',
+    );
+    final capabilityComparison = ModelCapabilityComparison.evaluate(
+      settings.modelCapabilityProfiles,
+    ).where((result) => result.isComparable).toList(growable: false);
     final showFoundationModelsCanary =
         !kIsWeb &&
         defaultTargetPlatform == TargetPlatform.macOS &&
@@ -36,6 +47,12 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
       appBar: AppBar(
         title: Text('settings.live_llm_diagnostics'.tr()),
         actions: [
+          IconButton(
+            key: const ValueKey('live-llm-diag-import-artifact'),
+            tooltip: 'settings.live_llm_diag_import_artifact'.tr(),
+            icon: const Icon(Icons.file_open_outlined),
+            onPressed: () => _importBenchmarkArtifact(context, ref),
+          ),
           if (report != null)
             IconButton(
               tooltip: 'settings.live_llm_diag_copy'.tr(),
@@ -60,6 +77,14 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
           if (state.error != null) ...[
             const SizedBox(height: 12),
             _ErrorBanner(error: state.error!),
+          ],
+          if (saturationWatchdog.isSaturated) ...[
+            const SizedBox(height: 12),
+            _SaturationWatchdogCard(watchdog: saturationWatchdog),
+          ],
+          if (capabilityComparison.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _ModelCapabilityComparisonSection(results: capabilityComparison),
           ],
           const SizedBox(height: 16),
           if (report == null)
@@ -109,6 +134,162 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('settings.live_llm_diag_copied'.tr())),
+    );
+  }
+
+  Future<void> _importBenchmarkArtifact(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    try {
+      final imported = await ref
+          .read(liveLlmDiagnosticNotifierProvider.notifier)
+          .importBenchmarkArtifact();
+      if (imported && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('settings.live_llm_diag_import_artifact_done'.tr()),
+          ),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'settings.live_llm_diag_import_artifact_error'.tr(
+                args: [error.toString()],
+              ),
+            ),
+          ),
+        );
+      }
+    }
+  }
+}
+
+class _SaturationWatchdogCard extends StatelessWidget {
+  const _SaturationWatchdogCard({required this.watchdog});
+
+  final ModelBenchmarkSaturationWatchdog watchdog;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      key: const ValueKey('live-llm-diag-saturation-watchdog'),
+      color: theme.colorScheme.tertiaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.speed_outlined,
+              color: theme.colorScheme.onTertiaryContainer,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'settings.live_llm_diag_saturation_title'.tr(),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.onTertiaryContainer,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'settings.live_llm_diag_saturation_desc'.tr(
+                      namedArgs: {
+                        'count': '${watchdog.registeredModelCount}',
+                        'threshold':
+                            '${LiveLlmDiagnosticSuite.saturationHighWaterPercent}',
+                        'suite': watchdog.suite,
+                      },
+                    ),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onTertiaryContainer,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ModelCapabilityComparisonSection extends StatelessWidget {
+  const _ModelCapabilityComparisonSection({required this.results});
+
+  final List<ModelCapabilityComparisonResult> results;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      key: const ValueKey('live-llm-diag-capability-comparison'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(label: 'settings.live_llm_diag_comparison_title'.tr()),
+        const SizedBox(height: 4),
+        Text(
+          'settings.live_llm_diag_comparison_desc'.tr(),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final result in results)
+          Card(
+            key: ValueKey('live-llm-diag-comparison-${result.axis.id}'),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    result.axis.labelKey.tr(),
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final sample in result.samples)
+                        Chip(
+                          key: ValueKey(
+                            'live-llm-diag-comparison-${result.axis.id}-'
+                            '${sample.profileId}',
+                          ),
+                          avatar:
+                              result.bestProfileIds.contains(sample.profileId)
+                              ? Icon(
+                                  Icons.emoji_events_outlined,
+                                  key: ValueKey(
+                                    'live-llm-diag-comparison-${result.axis.id}-'
+                                    'best-${sample.profileId}',
+                                  ),
+                                  size: 18,
+                                )
+                              : null,
+                          label: Text(
+                            '${sample.model}: '
+                            '${result.formatValue(sample.value)}',
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -473,6 +654,10 @@ class _CapabilitySection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final rate = streamingMetrics?.decodeTokensPerSecond;
+    final ladder = LiveLlmDiagnosticDifficultyLadder(
+      measuredPromptTokens:
+          effectiveContextMetrics?.maxSuccessfulPromptTokens ?? 0,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -593,6 +778,28 @@ class _CapabilitySection extends StatelessWidget {
               ),
             ],
             if (effectiveContextMetrics case final metrics?) ...[
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-ladder-version-tile'),
+                icon: Icons.account_tree_outlined,
+                label: 'settings.live_llm_diag_ladder_version'.tr(),
+                value: LiveLlmDiagnosticDifficultyLadder.suite,
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-ladder-highest-tile'),
+                icon: Icons.flag_outlined,
+                label: 'settings.live_llm_diag_ladder_highest'.tr(),
+                value: ladder.highestPassedStagePromptTokens == 0
+                    ? '—'
+                    : '${ladder.highestPassedStagePromptTokens} tok',
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-ladder-next-tile'),
+                icon: Icons.next_plan_outlined,
+                label: 'settings.live_llm_diag_ladder_next'.tr(),
+                value: ladder.nextStagePromptTokens == null
+                    ? 'settings.live_llm_diag_ladder_complete'.tr()
+                    : '${ladder.nextStagePromptTokens} tok',
+              ),
               _MetricTile(
                 key: const ValueKey('live-llm-diag-context-measured-tile'),
                 icon: Icons.compress_outlined,
@@ -856,6 +1063,7 @@ class _ProfileRevisionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final physical = revision.physicalCapabilityMetrics;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -934,6 +1142,47 @@ class _ProfileRevisionCard extends StatelessWidget {
                     label: 'settings.live_llm_diag_profile_context_tokens'.tr(),
                     value: '${revision.usableContextTokens}',
                   ),
+                if (revision.difficultyLadder.isNotEmpty &&
+                    (revision.difficultyLadderMeasuredPromptTokens ?? 0) > 0)
+                  _SamplerInfoChip(
+                    key: const ValueKey('live-llm-diag-revision-ladder'),
+                    label: 'settings.live_llm_diag_ladder_version'.tr(),
+                    value:
+                        '${revision.difficultyLadder}: '
+                        '${revision.difficultyLadderHighestStagePromptTokens ?? 0} tok',
+                  ),
+                if (physical[ModelCapabilityPhysicalMetrics.streamingTtftMs]
+                    case final value?)
+                  _SamplerInfoChip(
+                    label: 'settings.live_llm_diag_ttft'.tr(),
+                    value: '$value ms',
+                  ),
+                if (physical[ModelCapabilityPhysicalMetrics
+                        .streamingDecodeTokensPerSecond]
+                    case final value?)
+                  _SamplerInfoChip(
+                    label: 'settings.live_llm_diag_decode_rate'.tr(),
+                    value: '$value tok/s',
+                  ),
+                if (physical[ModelCapabilityPhysicalMetrics.toolLoopModelTurns]
+                    case final value?)
+                  _SamplerInfoChip(
+                    label: 'settings.live_llm_diag_loop_turns'.tr(),
+                    value: value,
+                  ),
+                if (physical[ModelCapabilityPhysicalMetrics.toolLoopTotalTokens]
+                    case final value?)
+                  _SamplerInfoChip(
+                    label: 'settings.live_llm_diag_loop_total_tokens'.tr(),
+                    value: value,
+                  ),
+                if (physical[ModelCapabilityPhysicalMetrics
+                        .embeddingSemanticMargin]
+                    case final value?)
+                  _SamplerInfoChip(
+                    label: 'settings.live_llm_diag_embedding_margin'.tr(),
+                    value: value,
+                  ),
               ],
             ),
           ],
@@ -949,6 +1198,8 @@ String _profileSourceLabel(String source) {
     'idle_re_probe' =>
       'settings.live_llm_diag_profile_source_idle_re_probe'.tr(),
     'calibrate' => 'settings.live_llm_diag_profile_source_calibrate'.tr(),
+    'benchmark_artifact' =>
+      'settings.live_llm_diag_profile_source_benchmark_artifact'.tr(),
     'manual' => 'settings.live_llm_diag_profile_source_manual'.tr(),
     _ => 'settings.live_llm_diag_profile_source_probe'.tr(),
   };

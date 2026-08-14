@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/settings/data/live_llm_benchmark_artifact_file_service.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
+import 'package:caverno/features/settings/domain/services/live_llm_benchmark_artifact_importer.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_scoring.dart';
 import 'package:caverno/features/settings/presentation/pages/live_llm_diagnostic_page.dart';
 import 'package:caverno/features/settings/presentation/providers/live_llm_diagnostic_notifier.dart';
@@ -13,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();
@@ -32,6 +35,82 @@ class _TestTranslationLoader extends AssetLoader {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
+
+  testWidgets('offers benchmark artifact import', (tester) async {
+    await _pumpPage(tester, settings: AppSettings.defaults());
+
+    expect(
+      find.byKey(const ValueKey('live-llm-diag-import-artifact')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Import benchmark artifact'), findsOneWidget);
+  });
+
+  testWidgets('imports two v9 artifacts and announces saturation', (
+    tester,
+  ) async {
+    final initialSettings = AppSettings.defaults();
+    SharedPreferences.setMockInitialValues({
+      'app_settings': jsonEncode(initialSettings.toJson()),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final artifacts = _QueuedBenchmarkArtifactFileService([
+      _v9BenchmarkArtifact('qwen3.6-27b-vision'),
+      _v9BenchmarkArtifact('qwen3.6-35b-a3b-vision'),
+    ]);
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        liveLlmBenchmarkArtifactFileServiceProvider.overrideWithValue(
+          artifacts,
+        ),
+        liveLlmDiagnosticNotifierProvider.overrideWith(
+          () => _FixedLiveLlmDiagnosticNotifier(LiveLlmDiagnosticState.initial),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpPageWithContainer(tester, container);
+
+    await tester.tap(
+      find.byKey(const ValueKey('live-llm-diag-import-artifact')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('live-llm-diag-saturation-watchdog')),
+      findsNothing,
+    );
+    expect(
+      container.read(settingsNotifierProvider).modelCapabilityProfiles,
+      hasLength(1),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('live-llm-diag-import-artifact')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('live-llm-diag-saturation-watchdog')),
+      findsOneWidget,
+    );
+    expect(find.text('Conformance suite saturated'), findsOneWidget);
+    expect(find.textContaining('All 2 registered models'), findsOneWidget);
+    final settings = container.read(settingsNotifierProvider);
+    expect(
+      settings.modelCapabilityProfiles.map((profile) => profile.model),
+      containsAll(['qwen3.6-27b-vision', 'qwen3.6-35b-a3b-vision']),
+    );
+    expect(settings.modelCapabilityProfileRevisions, hasLength(2));
+    expect(
+      settings.modelCapabilityProfileRevisions.map(
+        (revision) => revision.source,
+      ),
+      everyElement('benchmark_artifact'),
+    );
+  });
 
   testWidgets('shows Foundation Models live canary guidance on macOS', (
     tester,
@@ -377,6 +456,124 @@ void main() {
     expect(find.text('Context trials'), findsOneWidget);
     expect(find.text('Reached ceiling'), findsOneWidget);
     expect(find.text('Yes'), findsOneWidget);
+    expect(find.text('Difficulty ladder'), findsOneWidget);
+    expect(find.text('ladder-v1'), findsOneWidget);
+    expect(find.text('Highest passed stage'), findsOneWidget);
+    expect(find.text('8192 tok'), findsOneWidget);
+    expect(find.text('Next ladder stage'), findsOneWidget);
+    expect(find.text('16384 tok'), findsOneWidget);
+  });
+
+  testWidgets('announces saturation across registered current-suite models', (
+    tester,
+  ) async {
+    final defaults = AppSettings.defaults();
+    await _pumpPage(
+      tester,
+      settings: defaults.copyWith(
+        modelCapabilityProfiles: [
+          _benchmarkProfile(defaults, 'model-a', points: 950),
+          _benchmarkProfile(defaults, 'model-b', points: 1000),
+        ],
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('live-llm-diag-saturation-watchdog')),
+      findsOneWidget,
+    );
+    expect(find.text('Conformance suite saturated'), findsOneWidget);
+    expect(find.textContaining('All 2 registered models'), findsOneWidget);
+  });
+
+  testWidgets('does not announce saturation with incomplete model coverage', (
+    tester,
+  ) async {
+    final defaults = AppSettings.defaults();
+    await _pumpPage(
+      tester,
+      settings: defaults.copyWith(
+        modelCapabilityProfiles: [
+          _benchmarkProfile(defaults, 'model-a', points: 1000),
+          _benchmarkProfile(defaults, 'model-b', points: null),
+        ],
+      ),
+      diagnosticState: LiveLlmDiagnosticState(
+        report: LiveLlmDiagnosticReport(
+          startedAt: DateTime.utc(2026, 8, 14),
+          baseUrl: defaults.baseUrl,
+          model: defaults.effectiveModel,
+          demoMode: false,
+          mcpEnabled: false,
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('live-llm-diag-saturation-watchdog')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('compares registered models independently by physical axis', (
+    tester,
+  ) async {
+    final defaults = AppSettings.defaults();
+    await _pumpPage(
+      tester,
+      settings: defaults.copyWith(
+        modelCapabilityProfiles: [
+          _benchmarkProfile(defaults, 'model-a', points: 1000).copyWith(
+            probeMetadata: {
+              ..._benchmarkProfile(
+                defaults,
+                'model-a',
+                points: 1000,
+              ).probeMetadata,
+              'capability.effectiveContext.promptTokens': '16498',
+              'capability.streaming.decodeTokensPerSecond': '42.50',
+              'capability.streaming.ttftMs': '900',
+            },
+          ),
+          _benchmarkProfile(defaults, 'model-b', points: 1000).copyWith(
+            probeMetadata: {
+              ..._benchmarkProfile(
+                defaults,
+                'model-b',
+                points: 1000,
+              ).probeMetadata,
+              'capability.effectiveContext.promptTokens': '32768',
+              'capability.streaming.decodeTokensPerSecond': '30.00',
+              'capability.streaming.ttftMs': '500',
+            },
+          ),
+        ],
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('live-llm-diag-capability-comparison')),
+      400,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('Registered model capability comparison'), findsOneWidget);
+    expect(find.textContaining('No overall weighted score'), findsOneWidget);
+    expect(find.text('model-b: 32768 tok'), findsOneWidget);
+    expect(find.text('model-a: 16498 tok'), findsOneWidget);
+    expect(find.text('model-a: 42.50 tok/s'), findsOneWidget);
+    expect(find.text('model-b: 30.00 tok/s'), findsOneWidget);
+    expect(find.text('model-b: 500 ms'), findsOneWidget);
+    expect(find.text('model-a: 900 ms'), findsOneWidget);
+    expect(
+      find.byKey(
+        ValueKey(
+          'live-llm-diag-comparison-effective-context-best-'
+          '${_benchmarkProfile(defaults, 'model-b', points: 1000).computedId}',
+        ),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows profile history empty state when no revisions', (
@@ -419,7 +616,23 @@ void main() {
       source: 'probe',
     );
     final newer = ModelCapabilityProfileRevision.fromProfile(
-      baseProfile.copyWith(probedAt: DateTime.utc(2026, 6, 1, 9)),
+      baseProfile.copyWith(
+        probedAt: DateTime.utc(2026, 6, 1, 9),
+        probeMetadata: const {
+          'difficultyLadder': 'ladder-v1',
+          'difficultyLadderAxis': 'effective_context_recall',
+          'difficultyLadderMeasuredPromptTokens': '8300',
+          'difficultyLadderHighestStagePromptTokens': '8192',
+          'difficultyLadderNextStagePromptTokens': '16384',
+          'difficultyLadderPassedStageCount': '2',
+          'difficultyLadderStageCount': '6',
+          'capability.streaming.ttftMs': '900',
+          'capability.streaming.decodeTokensPerSecond': '42.50',
+          'capability.toolLoop.modelTurns': '3',
+          'capability.toolLoop.totalTokens': '3282',
+          'capability.embedding.semanticMargin': '0.500000',
+        },
+      ),
       source: 'idle_re_probe',
       capabilityChangeDetected: true,
     );
@@ -441,7 +654,38 @@ void main() {
     expect(find.text('Probe'), findsOneWidget);
     expect(find.textContaining('Capability change detected'), findsOneWidget);
     expect(find.text('Usable context: 8192'), findsWidgets);
+    expect(find.text('Difficulty ladder: ladder-v1: 8192 tok'), findsOneWidget);
+    expect(find.text('Time to first token: 900 ms'), findsOneWidget);
+    expect(find.text('Decode rate: 42.50 tok/s'), findsOneWidget);
+    expect(find.text('Tool-loop model turns: 3'), findsOneWidget);
+    expect(find.text('Tool-loop total tokens: 3282'), findsOneWidget);
+    expect(find.text('Semantic margin: 0.500000'), findsOneWidget);
   });
+}
+
+ModelCapabilityProfile _benchmarkProfile(
+  AppSettings defaults,
+  String model, {
+  required int? points,
+}) {
+  return ModelCapabilityProfile(
+    id: ModelCapabilityProfile.buildId(
+      provider: defaults.llmProvider,
+      baseUrl: defaults.baseUrl,
+      model: model,
+    ),
+    provider: defaults.llmProvider,
+    baseUrl: defaults.baseUrl,
+    model: model,
+    probeMetadata: points == null
+        ? const {}
+        : {
+            'benchmarkSuite':
+                '${LiveLlmDiagnosticSuite.id}-v${LiveLlmDiagnosticSuite.version}',
+            'benchmarkPoints': '$points',
+            'benchmarkMaxPoints': '${LiveLlmDiagnosticSuite.maxPoints}',
+          },
+  );
 }
 
 Future<void> _pumpPage(
@@ -481,6 +725,85 @@ Future<void> _pumpPage(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+Future<void> _pumpPageWithContainer(
+  WidgetTester tester,
+  ProviderContainer container,
+) async {
+  await tester.pumpWidget(
+    EasyLocalization(
+      supportedLocales: const [Locale('en')],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('en'),
+      startLocale: const Locale('en'),
+      useOnlyLangCode: true,
+      saveLocale: false,
+      assetLoader: const _TestTranslationLoader(),
+      child: Builder(
+        builder: (context) {
+          return UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              localizationsDelegates: context.localizationDelegates,
+              supportedLocales: context.supportedLocales,
+              locale: context.locale,
+              home: const LiveLlmDiagnosticPage(),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Map<String, dynamic> _v9BenchmarkArtifact(String model) {
+  const baseUrl = 'http://127.0.0.1:11234/v1';
+  const generatedAt = '2026-08-14T10:00:00Z';
+  return {
+    'schema': LiveLlmBenchmarkArtifactImporter.schema,
+    'generatedAt': generatedAt,
+    'suiteId': 'cavernobench',
+    'suiteVersion': 9,
+    'provider': LlmProvider.openAiCompatible.name,
+    'baseUrl': baseUrl,
+    'model': model,
+    'runs': [
+      {
+        'model': model,
+        'baseUrl': baseUrl,
+        'finishedAt': generatedAt,
+        'benchmark': {
+          'suiteId': 'cavernobench',
+          'suiteVersion': 9,
+          'earnedPoints': 965,
+          'attemptedPoints': 965,
+          'maxPoints': 1000,
+          'saturationHighWaterReached': true,
+        },
+      },
+    ],
+  };
+}
+
+class _QueuedBenchmarkArtifactFileService
+    extends LiveLlmBenchmarkArtifactFileService {
+  _QueuedBenchmarkArtifactFileService(this.artifacts);
+
+  final List<Map<String, dynamic>> artifacts;
+  var _nextArtifact = 0;
+
+  @override
+  Future<ModelCapabilityProfile?> importProfile({
+    required Iterable<ModelCapabilityProfile> existingProfiles,
+  }) async {
+    final artifact = artifacts[_nextArtifact++];
+    return LiveLlmBenchmarkArtifactImporter.importProfile(
+      artifact,
+      existingProfiles: existingProfiles,
+    );
+  }
 }
 
 class _FixedSettingsNotifier extends SettingsNotifier {

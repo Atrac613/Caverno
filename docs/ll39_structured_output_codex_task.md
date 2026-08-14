@@ -1,7 +1,6 @@
 # LL39 Structured Output Probe
 
-Status: implemented; deterministic verification complete, live endpoint
-validation pending explicit data-export consent.
+Status: implemented and live-canary verified on 2026-08-14.
 
 ## Task
 
@@ -51,3 +50,7 @@ tool/codex_verify.sh --no-codegen \
   --test test/features/settings/domain/services/live_llm_diagnostic_service_test.dart \
   --test test/features/settings/domain/services/model_capability_profile_builder_test.dart
 ```
+
+Live v8 canaries against `qwen3.6-27b-vision` and
+`qwen3.6-35b-a3b-vision` at `http://192.168.100.241:1234/v1` both enforced the
+strict supplied JSON Schema without needing the JSON object fallback.

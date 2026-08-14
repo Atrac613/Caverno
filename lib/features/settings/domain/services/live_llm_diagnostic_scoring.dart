@@ -1,4 +1,5 @@
 import '../entities/live_llm_diagnostic.dart';
+import 'live_llm_diagnostic_difficulty_ladder.dart';
 
 /// LL39 benchmark scoring for the Live LLM diagnostic.
 ///
@@ -24,8 +25,10 @@ class LiveLlmDiagnosticSuite {
   /// v5 adds edit-format fidelity, v6 adds embeddings capability, v7 adds
   /// structured output, and v8 adds the opt-in effective-context capability.
   /// The context probe is physical measurement only, so it carries zero
-  /// conformance points and does not distort the fixed denominator.
-  static const version = 8;
+  /// conformance points and does not distort the fixed denominator. v9 fixes
+  /// the scored unified-diff prompt after live A/B evidence showed that its
+  /// ambiguous context-line wording induced an invalid hunk count.
+  static const version = 9;
 
   /// Points per probe. Weighted by how much of Caverno's agent loop the probe
   /// actually stands for: the tool-result round trip and the first tool call
@@ -60,6 +63,17 @@ class LiveLlmDiagnosticSuite {
   static const probePointsTotal = 800;
 
   static const maxPoints = probePointsTotal + samplerStabilityPoints;
+
+  /// A model at or above this share of the fixed denominator contributes a
+  /// high-water sample to the cross-model saturation watchdog.
+  static const saturationHighWaterPercent = 95;
+
+  /// Saturation is a cross-model claim. One strong model only proves that the
+  /// model is conformant, not that the suite stopped discriminating.
+  static const saturationMinimumModels = 2;
+
+  static int saturationHighWaterPoints(int maximum) =>
+      (maximum * saturationHighWaterPercent + 99) ~/ 100;
 
   /// Credit for a probe that partially held. Used only when the probe did not
   /// report sub-check counts; a probe that knows it passed 2 of 3 checks
@@ -155,6 +169,12 @@ class LiveLlmDiagnosticScore {
 
   int get maxPoints => LiveLlmDiagnosticSuite.maxPoints;
 
+  int get saturationHighWaterPoints =>
+      LiveLlmDiagnosticSuite.saturationHighWaterPoints(maxPoints);
+
+  bool get saturationHighWaterReached =>
+      earnedPoints >= saturationHighWaterPoints;
+
   /// Points the run was actually able to measure. Compare two runs directly
   /// only when this matches; otherwise the environments differed.
   int get attemptedPoints {
@@ -184,6 +204,10 @@ class LiveLlmDiagnosticScore {
     'maxPoints': maxPoints,
     'attemptedPoints': attemptedPoints,
     'coverage': coverage,
+    'saturationHighWaterPercent':
+        LiveLlmDiagnosticSuite.saturationHighWaterPercent,
+    'saturationHighWaterPoints': saturationHighWaterPoints,
+    'saturationHighWaterReached': saturationHighWaterReached,
     'samplerTrialCount': samplerTrialCount,
     'samplerPassedCount': samplerPassedCount,
     'probes': probeScores.map((score) => score.toJson()).toList(),
@@ -245,6 +269,9 @@ Map<String, dynamic> buildLiveLlmDiagnosticExport(
   return {
     ...report.toJson(),
     'benchmark': LiveLlmDiagnosticScore.fromReport(report).toJson(),
+    'difficultyLadder': LiveLlmDiagnosticDifficultyLadder.fromReport(
+      report,
+    ).toJson(),
   };
 }
 

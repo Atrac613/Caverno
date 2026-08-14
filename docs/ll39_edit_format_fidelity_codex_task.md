@@ -25,7 +25,8 @@
 - Prefer unified diff, then search-and-replace, then whole-file output among
   formats that pass exact grading.
 - Store the selected enum name in probe metadata; do not parse display text.
-- Keep the fixed benchmark maximum at 1,000 and bump the suite version.
+- Keep the fixed benchmark maximum at 1,000 and bump the suite version whenever
+  the scored prompt contract changes.
 
 ## Acceptance Criteria
 
@@ -49,5 +50,17 @@ tool/codex_verify.sh --no-codegen \
 - Completed: deterministic three-format probe and partial-fidelity grading.
 - Completed: `ModelEditFormatPreference` profile mapping via probe metadata.
 - Completed: `cavernobench` v5 scoring with the fixed 1,000-point maximum.
-- Completed: focused analysis and tests. Live model evidence remains a separate
-  consented follow-up because this slice changes implementation and contracts.
+- Completed: focused analysis and tests.
+- Live v8 evidence on 2026-08-14 showed `qwen3.6-35b-a3b-vision` reproduced the
+  whole-file and search/replace contracts but emitted `@@ -1,3 +1,3 @@` for a
+  four-line unified-diff hunk. Exact grading correctly rejected that malformed
+  header. Failed formats now report their first differing line so future runs
+  expose the cause without manually extracting `modelContent`.
+- The standard verifier passed project and package analysis, 54 focused Flutter
+  tests, package tests, and notification-relay checks.
+- A 3-by-3 live A/B then isolated the v8 prompt wording: the original scored
+  `[37, 37, 37]`, while an applicable-diff contract with explicit hunk-count
+  consistency scored `[55, 55, 55]` against the unchanged exact expected
+  output. The corrected production-shaped prompt ships as `cavernobench-v9`.
+- Full v9 reruns confirmed 55/55 edit-format fidelity on both
+  `qwen3.6-27b-vision` and `qwen3.6-35b-a3b-vision`.

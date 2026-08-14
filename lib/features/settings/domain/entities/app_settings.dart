@@ -571,6 +571,23 @@ abstract class ModelCapabilityProfileRevision
     /// comparable, so history is partitioned by this before any delta.
     @Default('') String benchmarkSuite,
 
+    /// LL39 physical capability ladder evidence. The ladder is versioned
+    /// independently from bounded conformance so adding harder stages does not
+    /// invalidate score history.
+    @Default('') String difficultyLadder,
+    @Default('') String difficultyLadderAxis,
+    int? difficultyLadderMeasuredPromptTokens,
+    int? difficultyLadderHighestStagePromptTokens,
+    int? difficultyLadderNextStagePromptTokens,
+    int? difficultyLadderPassedStageCount,
+    int? difficultyLadderStageCount,
+
+    /// Unit-bearing LL39 capability measurements retained independently from
+    /// the bounded score. Keys are version-stable metric identities such as
+    /// `capability.streaming.ttftMs`; values remain strings for forward JSON
+    /// compatibility with new physical axes.
+    @Default(<String, String>{}) Map<String, String> physicalCapabilityMetrics,
+
     /// True when this revision's score dropped by more than the spread measured
     /// across earlier same-suite revisions. Separate from
     /// [capabilityChangeDetected] because the diagnosis differs: an enum flip
@@ -579,7 +596,7 @@ abstract class ModelCapabilityProfileRevision
     @Default(false) bool benchmarkRegressionDetected,
 
     /// How this revision was triggered. Known values: 'initial', 'idle_re_probe',
-    /// 'calibrate', 'manual', 'probe'.
+    /// 'calibrate', 'benchmark_artifact', 'manual', 'probe'.
     @Default('probe') String source,
 
     /// True when any key capability field changed vs the immediately preceding
@@ -609,10 +626,40 @@ abstract class ModelCapabilityProfileRevision
     benchmarkAttemptedPoints: _metadataInt(profile, 'benchmarkAttemptedPoints'),
     benchmarkMaxPoints: _metadataInt(profile, 'benchmarkMaxPoints'),
     benchmarkSuite: profile.probeMetadata['benchmarkSuite'] ?? '',
+    difficultyLadder: profile.probeMetadata['difficultyLadder'] ?? '',
+    difficultyLadderAxis: profile.probeMetadata['difficultyLadderAxis'] ?? '',
+    difficultyLadderMeasuredPromptTokens: _metadataInt(
+      profile,
+      'difficultyLadderMeasuredPromptTokens',
+    ),
+    difficultyLadderHighestStagePromptTokens: _metadataInt(
+      profile,
+      'difficultyLadderHighestStagePromptTokens',
+    ),
+    difficultyLadderNextStagePromptTokens: _metadataInt(
+      profile,
+      'difficultyLadderNextStagePromptTokens',
+    ),
+    difficultyLadderPassedStageCount: _metadataInt(
+      profile,
+      'difficultyLadderPassedStageCount',
+    ),
+    difficultyLadderStageCount: _metadataInt(
+      profile,
+      'difficultyLadderStageCount',
+    ),
+    physicalCapabilityMetrics: _physicalCapabilityMetrics(profile),
     source: source,
     capabilityChangeDetected: capabilityChangeDetected,
     benchmarkRegressionDetected: benchmarkRegressionDetected,
   );
+
+  static Map<String, String> _physicalCapabilityMetrics(
+    ModelCapabilityProfile profile,
+  ) => Map.unmodifiable({
+    for (final entry in profile.probeMetadata.entries)
+      if (entry.key.startsWith('capability.')) entry.key: entry.value,
+  });
 
   /// The builder writes the score into `probeMetadata`, which is the profile's
   /// existing output contract. Absent or unparseable stays null rather than

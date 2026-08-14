@@ -422,5 +422,26 @@ void main() {
       profile.probeMetadata['effectiveContext.reachedConfiguredMaximum'],
       'false',
     );
+    expect(profile.probeMetadata['difficultyLadder'], 'ladder-v1');
+    expect(
+      profile.probeMetadata['difficultyLadderAxis'],
+      'effective_context_recall',
+    );
+    expect(
+      profile.probeMetadata['difficultyLadderMeasuredPromptTokens'],
+      '8320',
+    );
+    expect(
+      profile.probeMetadata['difficultyLadderHighestStagePromptTokens'],
+      '8192',
+    );
+    expect(
+      profile.probeMetadata['difficultyLadderNextStagePromptTokens'],
+      '16384',
+    );
+    expect(
+      profile.probeMetadata['capability.effectiveContext.promptTokens'],
+      '8320',
+    );
   });
 }

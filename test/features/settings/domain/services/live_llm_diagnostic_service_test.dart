@@ -222,6 +222,34 @@ void main() {
     expect(result.metadata['editFormatPreference'], 'searchReplace');
   });
 
+  test('reports the first exact edit format mismatch', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _EditFormatDiagnosticDataSource(
+        {
+          ModelEditFormatPreference.wholeFile,
+          ModelEditFormatPreference.searchReplace,
+        },
+        unifiedDiffResponse: _editFormatUnifiedDiff.replaceFirst(
+          '@@ -1,4 +1,4 @@',
+          '@@ -1,3 +1,3 @@',
+        ),
+      ),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: {'edit_format_fidelity'});
+    final result = _result(report, 'edit_format_fidelity');
+
+    expect(
+      result.details,
+      contains(
+        'unifiedDiff: failed (line 3: expected `@@ -1,4 +1,4 @@`, '
+        'received `@@ -1,3 +1,3 @@`)',
+      ),
+    );
+  });
+
   test('keeps edit format unknown when every exact contract fails', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
@@ -883,7 +911,7 @@ class _FakeDiagnosticDataSource
         finishReason: 'stop',
       );
     }
-    if (user.contains('one unified diff')) {
+    if (user.contains('one syntactically valid unified diff')) {
       return ChatCompletionResult(
         content: _editFormatUnifiedDiff,
         finishReason: 'stop',
@@ -1135,9 +1163,10 @@ const _editFormatUnifiedDiff = '''--- a/lib/greeting.dart
  }''';
 
 class _EditFormatDiagnosticDataSource extends _FakeDiagnosticDataSource {
-  _EditFormatDiagnosticDataSource(this.supported);
+  _EditFormatDiagnosticDataSource(this.supported, {this.unifiedDiffResponse});
 
   final Set<ModelEditFormatPreference> supported;
+  final String? unifiedDiffResponse;
 
   @override
   Future<ChatCompletionResult> createChatCompletion({
@@ -1164,11 +1193,13 @@ class _EditFormatDiagnosticDataSource extends _FakeDiagnosticDataSource {
         finishReason: 'stop',
       );
     }
-    if (prompt.contains('one unified diff')) {
+    if (prompt.contains('one syntactically valid unified diff')) {
       return ChatCompletionResult(
-        content: supported.contains(ModelEditFormatPreference.unifiedDiff)
-            ? _editFormatUnifiedDiff
-            : 'I changed the greeting.',
+        content:
+            unifiedDiffResponse ??
+            (supported.contains(ModelEditFormatPreference.unifiedDiff)
+                ? _editFormatUnifiedDiff
+                : 'I changed the greeting.'),
         finishReason: 'stop',
       );
     }

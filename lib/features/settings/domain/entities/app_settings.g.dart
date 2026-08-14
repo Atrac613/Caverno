@@ -397,6 +397,23 @@ _ModelCapabilityProfileRevision _$ModelCapabilityProfileRevisionFromJson(
   benchmarkAttemptedPoints: (json['benchmarkAttemptedPoints'] as num?)?.toInt(),
   benchmarkMaxPoints: (json['benchmarkMaxPoints'] as num?)?.toInt(),
   benchmarkSuite: json['benchmarkSuite'] as String? ?? '',
+  difficultyLadder: json['difficultyLadder'] as String? ?? '',
+  difficultyLadderAxis: json['difficultyLadderAxis'] as String? ?? '',
+  difficultyLadderMeasuredPromptTokens:
+      (json['difficultyLadderMeasuredPromptTokens'] as num?)?.toInt(),
+  difficultyLadderHighestStagePromptTokens:
+      (json['difficultyLadderHighestStagePromptTokens'] as num?)?.toInt(),
+  difficultyLadderNextStagePromptTokens:
+      (json['difficultyLadderNextStagePromptTokens'] as num?)?.toInt(),
+  difficultyLadderPassedStageCount:
+      (json['difficultyLadderPassedStageCount'] as num?)?.toInt(),
+  difficultyLadderStageCount: (json['difficultyLadderStageCount'] as num?)
+      ?.toInt(),
+  physicalCapabilityMetrics:
+      (json['physicalCapabilityMetrics'] as Map<String, dynamic>?)?.map(
+        (k, e) => MapEntry(k, e as String),
+      ) ??
+      const <String, String>{},
   benchmarkRegressionDetected:
       json['benchmarkRegressionDetected'] as bool? ?? false,
   source: json['source'] as String? ?? 'probe',
@@ -422,6 +439,17 @@ Map<String, dynamic> _$ModelCapabilityProfileRevisionToJson(
   'benchmarkAttemptedPoints': instance.benchmarkAttemptedPoints,
   'benchmarkMaxPoints': instance.benchmarkMaxPoints,
   'benchmarkSuite': instance.benchmarkSuite,
+  'difficultyLadder': instance.difficultyLadder,
+  'difficultyLadderAxis': instance.difficultyLadderAxis,
+  'difficultyLadderMeasuredPromptTokens':
+      instance.difficultyLadderMeasuredPromptTokens,
+  'difficultyLadderHighestStagePromptTokens':
+      instance.difficultyLadderHighestStagePromptTokens,
+  'difficultyLadderNextStagePromptTokens':
+      instance.difficultyLadderNextStagePromptTokens,
+  'difficultyLadderPassedStageCount': instance.difficultyLadderPassedStageCount,
+  'difficultyLadderStageCount': instance.difficultyLadderStageCount,
+  'physicalCapabilityMetrics': instance.physicalCapabilityMetrics,
   'benchmarkRegressionDetected': instance.benchmarkRegressionDetected,
   'source': instance.source,
   'capabilityChangeDetected': instance.capabilityChangeDetected,
