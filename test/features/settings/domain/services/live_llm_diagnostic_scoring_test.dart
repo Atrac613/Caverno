@@ -182,7 +182,7 @@ void main() {
     expect(benchmark['saturationHighWaterPoints'], 950);
     expect(benchmark['saturationHighWaterReached'], isFalse);
     final ladder = export['difficultyLadder'] as Map<String, dynamic>;
-    expect(ladder['suite'], 'ladder-v1');
+    expect(ladder['suite'], 'ladder-v2');
     expect(ladder['axis'], 'effective_context_recall');
     expect(ladder['measured'], isFalse);
   });

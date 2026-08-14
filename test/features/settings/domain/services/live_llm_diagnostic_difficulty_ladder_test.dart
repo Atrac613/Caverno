@@ -10,7 +10,7 @@ void main() {
     expect(ladder.passedStageCount, 0);
     expect(ladder.highestPassedStagePromptTokens, 0);
     expect(ladder.nextStagePromptTokens, 4096);
-    expect(ladder.toJson()['suite'], 'ladder-v1');
+    expect(ladder.toJson()['suite'], 'ladder-v2');
     expect(ladder.toJson()['measured'], isFalse);
   });
 

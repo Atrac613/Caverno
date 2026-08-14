@@ -31,7 +31,7 @@ void main() {
       ModelStructuredOutputSupport.jsonSchema,
     );
     expect(profile.probeMetadata['benchmarkPoints'], '970');
-    expect(profile.probeMetadata['difficultyLadder'], 'ladder-v1');
+    expect(profile.probeMetadata['difficultyLadder'], 'ladder-v2');
     expect(
       profile.probeMetadata['difficultyLadderMeasuredPromptTokens'],
       '16498',
@@ -65,6 +65,15 @@ void main() {
     final profile = LiveLlmBenchmarkArtifactImporter.importProfile(artifact);
 
     expect(profile.provider, LlmProvider.openAiCompatible);
+  });
+
+  test('accepts legacy ladder-v1 evidence after the prompt contract bump', () {
+    final profile = LiveLlmBenchmarkArtifactImporter.importProfile(
+      _artifact(attemptedPoints: 0, earnedPoints: 0, ladderVersion: 1),
+    );
+
+    expect(profile.probeMetadata['difficultyLadder'], 'ladder-v1');
+    expect(profile.usableContextTokens, 16498);
   });
 
   test('rejects an artifact older than the stored profile', () {
@@ -130,6 +139,7 @@ void main() {
 Map<String, dynamic> _artifact({
   required int attemptedPoints,
   required int earnedPoints,
+  int ladderVersion = 2,
 }) => {
   'schema': LiveLlmBenchmarkArtifactImporter.schema,
   'generatedAt': '2026-08-14T09:00:00Z',
@@ -152,8 +162,8 @@ Map<String, dynamic> _artifact({
       },
       'difficultyLadder': {
         'suiteId': 'ladder',
-        'suiteVersion': 1,
-        'suite': 'ladder-v1',
+        'suiteVersion': ladderVersion,
+        'suite': 'ladder-v$ladderVersion',
         'axis': 'effective_context_recall',
         'unit': 'prompt_tokens',
         'measured': true,

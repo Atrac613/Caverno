@@ -1592,6 +1592,11 @@ class LiveLlmDiagnosticService {
         final expected = _effectiveContextExpectedReply(target);
         final recallPassed = result.content.trim() == expected;
         final usageReported = result.usage.promptTokens > 0;
+        final failureKind = !recallPassed
+            ? _effectiveContextResponseFailureKind(target, result.content)
+            : !usageReported
+            ? 'prompt_usage_missing'
+            : '';
         trials.add(
           LiveLlmDiagnosticContextTrial(
             requestedApproximateTokens: target,
@@ -1603,6 +1608,11 @@ class LiveLlmDiagnosticService {
                 : !usageReported
                 ? 'The endpoint omitted prompt token usage.'
                 : '',
+            failureKind: failureKind,
+            finishReason: result.finishReason,
+            responsePreview: recallPassed
+                ? ''
+                : _preview(result.content, maxChars: 240),
           ),
         );
       } catch (error) {
@@ -1613,6 +1623,7 @@ class LiveLlmDiagnosticService {
             elapsed: stopwatch.elapsed,
             passed: false,
             failure: _preview('$error', maxChars: 300),
+            failureKind: 'request_error',
           ),
         );
       }
@@ -1649,11 +1660,16 @@ class LiveLlmDiagnosticService {
                 '${trial.requestedApproximateTokens}: '
                     '${trial.passed ? 'passed' : 'failed'}'
                     '${trial.promptTokens > 0 ? ' (${trial.promptTokens} prompt tokens)' : ''}'
+                    '${trial.failureKind.isNotEmpty ? ' [${trial.failureKind}]' : ''}'
+                    '${trial.finishReason.isNotEmpty ? ' finish=${trial.finishReason}' : ''}'
                     '${trial.failure.isNotEmpty ? ' - ${trial.failure}' : ''}',
             ].join('\n'),
             passedChecks: trials.where((trial) => trial.passed).length,
             totalChecks: trials.length,
             metadata: {'maxSuccessfulPromptTokens': '$measured'},
+            modelContent: trials
+                .map((trial) => trial.responsePreview)
+                .firstWhere((preview) => preview.isNotEmpty, orElse: () => ''),
             usage: _totalUsage(completed),
             elapsed: DateTime.now().difference(startedAt),
           ),
@@ -1693,8 +1709,9 @@ class LiveLlmDiagnosticService {
     final fillerCount = math.max(1, target - 128);
     final content = StringBuffer()
       ..writeln(
-        'Read the DATA block. Reply with exactly its first and last data lines '
-        'separated by |, with no spaces or other text.',
+        'Read the DATA block. Return the exact line beginning CTX_BEGIN_ and '
+        'the exact line beginning CTX_END_, separated by |, with no spaces or '
+        'other text.',
       )
       ..writeln('DATA')
       ..writeln(begin)
@@ -1707,6 +1724,17 @@ class LiveLlmDiagnosticService {
 
   String _effectiveContextExpectedReply(int target) =>
       '${_effectiveContextBeginMarker(target)}|${_effectiveContextEndMarker(target)}';
+
+  String _effectiveContextResponseFailureKind(int target, String content) {
+    final trimmed = content.trim();
+    if (trimmed.isEmpty) return 'response_empty';
+    final hasBegin = trimmed.contains(_effectiveContextBeginMarker(target));
+    final hasEnd = trimmed.contains(_effectiveContextEndMarker(target));
+    if (hasBegin && hasEnd) return 'response_both_markers_non_exact';
+    if (hasBegin) return 'response_begin_marker_only';
+    if (hasEnd) return 'response_end_marker_only';
+    return 'response_mismatch';
+  }
 
   String _effectiveContextBeginMarker(int target) => 'CTX_BEGIN_$target';
   String _effectiveContextEndMarker(int target) => 'CTX_END_$target';

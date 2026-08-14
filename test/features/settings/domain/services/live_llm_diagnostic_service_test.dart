@@ -409,6 +409,14 @@ void main() {
       effectiveContextMaxTokens: 8192,
       runEffectiveContextTrial: (target, messages) async {
         requested.add(target);
+        expect(
+          messages.last.content,
+          contains('exact line beginning CTX_BEGIN_'),
+        );
+        expect(
+          messages.last.content,
+          contains('exact line beginning CTX_END_'),
+        );
         expect(messages.last.content, contains('CTX_BEGIN_$target'));
         expect(messages.last.content, contains('CTX_END_$target'));
         return ChatCompletionResult(
@@ -460,6 +468,96 @@ void main() {
     expect(report.effectiveContextMetrics!.trials, hasLength(3));
     expect(report.effectiveContextMetrics!.maxSuccessfulPromptTokens, 4136);
     expect(report.effectiveContextMetrics!.firstFailedApproximateTokens, 8192);
+    expect(
+      report.effectiveContextMetrics!.trials.last.failureKind,
+      'request_error',
+    );
+  });
+
+  test('classifies effective-context marker response failures', () async {
+    final cases = <(String, String)>[
+      ('', 'response_empty'),
+      ('CTX_BEGIN_2048', 'response_begin_marker_only'),
+      ('CTX_END_2048', 'response_end_marker_only'),
+      (
+        'prefix CTX_BEGIN_2048|CTX_END_2048 suffix',
+        'response_both_markers_non_exact',
+      ),
+      ('unrelated response', 'response_mismatch'),
+    ];
+
+    for (final (content, expectedKind) in cases) {
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false),
+        chatDataSource: _FakeDiagnosticDataSource(),
+        mcpToolService: McpToolService(),
+        effectiveContextMaxTokens: 2048,
+        runEffectiveContextTrial: (_, _) async => ChatCompletionResult(
+          content: content,
+          finishReason: 'length',
+          usage: const TokenUsage(
+            promptTokens: 2165,
+            completionTokens: 32,
+            totalTokens: 2197,
+          ),
+        ),
+      );
+
+      final report = await service.run(probeIds: {'effective_context'});
+      final trial = report.effectiveContextMetrics!.trials.single;
+      final result = _result(report, 'effective_context');
+
+      expect(trial.failureKind, expectedKind);
+      expect(trial.finishReason, 'length');
+      expect(trial.responsePreview, content);
+      expect(result.modelContent, content);
+    }
+  });
+
+  test('classifies missing effective-context prompt usage', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+      effectiveContextMaxTokens: 2048,
+      runEffectiveContextTrial: (target, _) async => ChatCompletionResult(
+        content: 'CTX_BEGIN_$target|CTX_END_$target',
+        finishReason: 'stop',
+      ),
+    );
+
+    final report = await service.run(probeIds: {'effective_context'});
+    final trial = report.effectiveContextMetrics!.trials.single;
+
+    expect(trial.failureKind, 'prompt_usage_missing');
+    expect(trial.responsePreview, isEmpty);
+    expect(trial.finishReason, 'stop');
+  });
+
+  test('bounds effective-context response previews', () async {
+    final content = List.filled(300, 'unexpected').join(' ');
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+      effectiveContextMaxTokens: 2048,
+      runEffectiveContextTrial: (_, _) async => ChatCompletionResult(
+        content: content,
+        finishReason: 'length',
+        usage: const TokenUsage(
+          promptTokens: 2165,
+          completionTokens: 32,
+          totalTokens: 2197,
+        ),
+      ),
+    );
+
+    final report = await service.run(probeIds: {'effective_context'});
+    final preview =
+        report.effectiveContextMetrics!.trials.single.responsePreview;
+
+    expect(preview, hasLength(243));
+    expect(preview, endsWith('...'));
   });
 
   test('does not run the expensive context ladder without opt-in', () async {

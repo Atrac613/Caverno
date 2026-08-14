@@ -12,7 +12,7 @@ settings, or feature-specific execution behavior.
 | Chat | `tool/run_chat_live_llm_canary.sh`, `tool/run_chat_background_process_live_canary.sh`, `tool/run_tool_result_budget_live_canary.sh` | Plain chat streaming, memory extraction JSON, background process lifecycle (including `process_start`, repeated `process_wait`, observed running-state progress reporting, and zero-exit completion), content-embedded tool-call execution, incomplete inline tool-call recovery, assistant-authored `tool_result` rejection, oversized tool-result compaction retry, final marker extraction, subagent delegation via spawn_subagent (sync, child tool use, background result recovery) | Native tool-role compatibility, broad multi-turn continuity beyond focused parser recovery, and routine/cleanup-safety behavior beyond dedicated focused flows | Keep the chat canary suite in every model switch baseline; use `docs/long_running_process_mvp_tasks.md` when process tooling, cleanup behavior, or background-command safety changes |
 | Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_suggestion_live_canary.sh`, `tool/run_coding_todo_app_mvp_live_canary.sh`, `tool/run_coding_todo_app_minimal_prompt_live_canary.sh`, `tool/run_coding_word_frequency_live_canary.sh`, `tool/run_coding_markdown_toc_live_canary.sh`, `tool/run_coding_markdown_toc_exact_short_live_canary.sh`, `tool/run_coding_expense_tracker_live_canary.sh`, `tool/run_coding_weather_code_live_canary.sh`, `tool/run_coding_overwrite_transparency_live_canary.sh`, `tool/run_coding_output_feedback_live_canary.sh`, `tool/run_coding_goal_live_canary.sh`, `tool/run_coding_goal_live_edit_canary.sh`, `tool/run_coding_diagnostic_feedback_live_canary.sh`, `tool/run_coding_verification_feedback_live_canary.sh`, `tool/run_turn_steering_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal suggestion artifact preservation, Dart-pinned MVP assembly covering CRUD persistence, deterministic text processing, Markdown structure, exact money aggregation, and CSV export, Open-Meteo WMO weather-code interpretation across saved reports, final answers, and memory extraction, write_file existing-file update transparency in final answers, zero-exit command output feedback and artifact repair, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, completed/disabled goal prompt suppression, negative-completion guard, real coding-goal file edit with local test execution, red-green repair after observing a failing fixture test with exact-short TODO and Markdown TOC prompts, two-file coding-goal edit coordination, package-like parser repair without test mutation, file create/read/update/delete lifecycle with final filesystem verification, Git init/commit/revert lifecycle with final clean-status verification, mid-turn interruption redirecting a running turn against a queued-message control arm, repeated-blocker auto-blocking, Dart analyzer diagnostic feedback after a broken edit, Dart test feedback after a premature completion claim with failing tests, report quality | Larger native coding-mode refactors and broader multi-file suites are still covered mainly through Plan Mode | Keep PM5 as baseline; run the focused MVP, coding-goal, weather-code, overwrite-transparency, output-feedback, diagnostic-feedback, and verification-feedback canaries after changing goal state, coding prompts, budget handling, tool execution, tool-result interpretation, diagnostic or verification feedback, command output guardrails, file/Git side effects, or completion/blocker inference |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
-| Capability benchmark (LL39) | `tool/run_live_llm_benchmark_canary.sh` | The whole `LiveLlmDiagnosticService` suite against a real endpoint: instruction contract, JSON Schema with JSON object fallback, production streaming path with TTFT and guarded decode rate, exact preservation, edit-format fidelity, optional embeddings and effective-context physical metrics, both vision message shapes with the no-image control arm, tool call, goal-update fidelity, tool-result integration, a sequential multi-round loop, harness selection, tool search, subagent, remote MCP exposure, the LL16 sampler trials, a 95% saturation high-water signal, and separately versioned `ladder-v1` effective-context stages — scored with `cavernobench` and written to `benchmark_run.json` | New ladder axes or stages require evidence and a ladder-only version bump | Run after changing any probe, scoring table, or ladder stage, and before trusting a new model's stored profile. Set `CAVERNO_EMBEDDINGS_MODEL` or `CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS` to include the expensive optional probes, and use `CAVERNO_BENCHMARK_CANARY_REPEAT_COUNT` to measure the run-to-run spread in one command |
+| Capability benchmark (LL39) | `tool/run_live_llm_benchmark_canary.sh` | The whole `LiveLlmDiagnosticService` suite against a real endpoint: instruction contract, JSON Schema with JSON object fallback, production streaming path with TTFT and guarded decode rate, exact preservation, edit-format fidelity, optional embeddings and effective-context physical metrics, both vision message shapes with the no-image control arm, tool call, goal-update fidelity, tool-result integration, a sequential multi-round loop, harness selection, tool search, subagent, remote MCP exposure, the LL16 sampler trials, a 95% saturation high-water signal, and separately versioned `ladder-v2` effective-context stages — scored with `cavernobench` and written to `benchmark_run.json` | New ladder axes or stages require evidence and a ladder-only version bump | Run after changing any probe, scoring table, or ladder stage, and before trusting a new model's stored profile. Set `CAVERNO_EMBEDDINGS_MODEL` or `CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS` to include the expensive optional probes, and use `CAVERNO_BENCHMARK_CANARY_REPEAT_COUNT` to measure the run-to-run spread in one command |
 
 ## LL39 Capability Benchmark Canary
 
@@ -65,11 +65,11 @@ decode throughput sort higher-first; TTFT, tool-loop turns, and token cost sort
 lower-first. Ties remain ties, missing measurements are not treated as zero,
 and no cross-unit overall winner is synthesized.
 
-The separate `difficultyLadder` block is `ladder-v1`. It maps the
+The separate `difficultyLadder` block is `ladder-v2`. It maps the
 endpoint-reported effective-context lower bound onto fixed 4K, 8K, 16K, 32K,
 64K, and 128K prompt-token stages, then reports the highest passed and next
 stage. It has no point total and changing its thresholds requires a ladder-only
-version bump; `cavernobench-v8` remains comparable.
+version bump; `cavernobench-v9` remains comparable.
 
 `cavernobench-v9` is the current bounded suite. It changes only the scored
 unified-diff prompt after a live 3-by-3 A/B isolated ambiguous context-line
@@ -664,6 +664,24 @@ Artifacts:
   `build/integration_test_reports/ll39_v9_27b_vision_1786671470/benchmark_run.json`
 - 35B full v9:
   `build/integration_test_reports/ll39_v9_35b_a3b_vision_1786671349/benchmark_run.json`
+
+#### 35B effective-context failure triage
+
+A focused three-repeat run on 2026-08-14 reproduced the 35B first-stage marker
+failure without a transport error. Every request reported 2,165 prompt tokens,
+used the full 32-token completion allowance, ended with `finish_reason=length`,
+and returned repeated `pad` filler without either boundary marker. The evidence
+therefore does not establish a 2K endpoint context limit; it shows that the
+current repetitive filler can induce a continuation loop that the old artifact
+reduced to a generic marker mismatch.
+
+Effective-context trial artifacts now retain a stable response mismatch class,
+finish reason, and bounded response preview. Scoring, `cavernobench-v9`,
+At that triage point, `ladder-v1` and the exact pass contract remained
+unchanged. The subsequent reset-controlled prompt A/B isolated ambiguous marker
+selection wording, moved the current prompt contract to `ladder-v2`, and
+measured the same 35B model through 16,512 prompt tokens. Sanitized evidence:
+`docs/evidence/ll39_effective_context_prompt_ab_2026-08-14.json`.
 
 ### 2026-08-11: `qwen/qwen3-coder-next` Multi-Round Focused Validation
 

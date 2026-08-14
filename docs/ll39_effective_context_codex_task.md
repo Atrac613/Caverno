@@ -1,6 +1,7 @@
 # LL39 Effective Context Probe
 
-Status: implemented and live-canary verified on 2026-08-14.
+Status: implemented and live-canary verified on 2026-08-14. The corrected
+explicit-marker prompt is versioned as `ladder-v2`.
 
 ## Task
 
@@ -67,3 +68,18 @@ The first run also exposed a canary harness mismatch: capability-only probes
 carry zero conformance points, while the harness treated zero attempted points
 as proof that every probe skipped. The gate now checks attempted probe state,
 preserving the all-skipped safeguard without rejecting physical-only metrics.
+
+## Ladder v2 Follow-up
+
+A reset-controlled 35B A/B found that the original phrase "first and last data
+lines" produced filler continuation in every control, trailing-instruction, and
+varied-filler run. Naming the `CTX_BEGIN_` and `CTX_END_` prefixes passed 3/3
+without changing the filler, exact grader, temperature, or 32-token completion
+limit. The production prompt now uses that wording and bumps only the separate
+difficulty ladder to `ladder-v2`; `cavernobench-v9` remains unchanged.
+
+The corrected 35B production canary passed 3/3 at the first stage. A 32K
+ceiling run then passed through 16,512 reported prompt tokens and received an
+explicit endpoint rejection when a 32,896-token request exceeded the available
+32,768-token context. Evidence:
+`docs/evidence/ll39_effective_context_prompt_ab_2026-08-14.json`.

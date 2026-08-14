@@ -33,7 +33,7 @@ class LiveLlmDiagnosticDifficultyLadder {
   );
 
   static const id = 'ladder';
-  static const version = 1;
+  static const version = 2;
   static const axis = 'effective_context_recall';
   static const unit = 'prompt_tokens';
   static const stagePromptTokens = <int>[

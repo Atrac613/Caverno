@@ -1,0 +1,69 @@
+{
+  "schema": "caverno_ll39_effective_context_prompt_ab",
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-14T21:13:24.104323+09:00",
+  "sourceRevision": "74d401d5",
+  "endpoint": "http://192.168.100.241:1234/v1",
+  "model": "qwen3.6-35b-a3b-vision",
+  "temperature": 0.0,
+  "maxCompletionTokens": 32,
+  "resetBeforeEveryExperimentalArm": true,
+  "experimentalArms": {
+    "control": {
+      "passedRuns": 0,
+      "runCount": 3,
+      "promptTokens": 2165,
+      "completionTokens": 32,
+      "finishReason": "length",
+      "responsePattern": "repeated_pad"
+    },
+    "trailingInstruction": {
+      "passedRuns": 0,
+      "runCount": 3,
+      "promptTokens": 2191,
+      "completionTokens": 32,
+      "finishReason": "length",
+      "responsePattern": "repeated_pad"
+    },
+    "variedFiller": {
+      "passedRuns": 0,
+      "runCount": 3,
+      "promptTokens": 2405,
+      "completionTokens": 32,
+      "finishReason": "length",
+      "responsePattern": "repeated_filler_cycle"
+    },
+    "explicitMarkers": {
+      "passedRuns": 3,
+      "runCount": 3,
+      "promptTokens": 2174,
+      "completionTokens": 16,
+      "finishReason": "stop",
+      "response": "CTX_BEGIN_2048|CTX_END_2048"
+    }
+  },
+  "productionValidation": {
+    "artifactDirectorySuffix": "ll39_35b_effective_context_ladder_v2_1786709559",
+    "suite": "cavernobench-v9",
+    "difficultyLadder": "ladder-v2",
+    "passedRuns": 3,
+    "runCount": 3,
+    "promptTokens": 2174,
+    "completionTokens": 16,
+    "finishReason": "stop",
+    "mainReadiness": "ready"
+  },
+  "boundaryValidation": {
+    "artifactDirectorySuffix": "ll39_35b_effective_context_ladder_v2_32k_1786709591",
+    "configuredApproximateMaximumTokens": 32768,
+    "maxSuccessfulPromptTokens": 16512,
+    "highestPassedStagePromptTokens": 16384,
+    "nextStagePromptTokens": 32768,
+    "firstFailedApproximateTokens": 32768,
+    "failureKind": "request_error",
+    "endpointPromptTokensAtFailure": 32896,
+    "endpointContextTokens": 32768,
+    "mainReadiness": "ready"
+  },
+  "conclusion": "The old first-and-last-lines wording was ambiguous for this model. Explicitly naming the CTX_BEGIN_ and CTX_END_ marker prefixes passed every experimental and production validation run. The corrected ladder-v2 measured 16512 prompt tokens and found the next 32K trial exceeded the server's 32768-token per-request context."
+}

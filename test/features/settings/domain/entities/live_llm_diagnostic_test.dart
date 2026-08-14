@@ -18,6 +18,9 @@ void main() {
           elapsed: Duration(milliseconds: 45),
           passed: false,
           failure: 'context overflow',
+          failureKind: 'request_error',
+          finishReason: 'length',
+          responsePreview: 'partial output',
         ),
       ],
     );
@@ -50,6 +53,9 @@ void main() {
           'elapsedMs': 45,
           'passed': false,
           'failure': 'context overflow',
+          'failureKind': 'request_error',
+          'finishReason': 'length',
+          'responsePreview': 'partial output',
         },
       ],
     });

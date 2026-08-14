@@ -2844,6 +2844,12 @@ Closure evidence:
 - Reset-controlled cold-path A/B evidence isolated stable-prefix reuse as the
   latency driver; production warm-up optimization continues under LL22 rather
   than extending LL39.
+- A 2026-08-14 effective-context prompt A/B found that `ladder-v1`'s ambiguous
+  "first and last data lines" wording caused the 35B model to copy filler until
+  the output limit. Explicit marker-prefix wording passed 3/3, shipped as the
+  independently versioned `ladder-v2`, and measured a 16,512-token lower bound
+  before the endpoint rejected a 32,896-token request against its 32,768-token
+  context. `cavernobench-v9` and its fixed denominator did not change.
 
 Cost note:
 - The suite is already ~43 requests; the additions roughly reach ~55, and

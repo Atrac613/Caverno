@@ -422,7 +422,7 @@ void main() {
       profile.probeMetadata['effectiveContext.reachedConfiguredMaximum'],
       'false',
     );
-    expect(profile.probeMetadata['difficultyLadder'], 'ladder-v1');
+    expect(profile.probeMetadata['difficultyLadder'], 'ladder-v2');
     expect(
       profile.probeMetadata['difficultyLadderAxis'],
       'effective_context_recall',

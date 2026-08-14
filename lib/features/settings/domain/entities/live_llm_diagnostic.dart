@@ -376,6 +376,9 @@ class LiveLlmDiagnosticContextTrial {
     required this.passed,
     this.promptTokens = 0,
     this.failure = '',
+    this.failureKind = '',
+    this.finishReason = '',
+    this.responsePreview = '',
   });
 
   final int requestedApproximateTokens;
@@ -383,6 +386,9 @@ class LiveLlmDiagnosticContextTrial {
   final bool passed;
   final int promptTokens;
   final String failure;
+  final String failureKind;
+  final String finishReason;
+  final String responsePreview;
 
   Map<String, dynamic> toJson() => {
     'requestedApproximateTokens': requestedApproximateTokens,
@@ -390,6 +396,9 @@ class LiveLlmDiagnosticContextTrial {
     'passed': passed,
     if (promptTokens > 0) 'promptTokens': promptTokens,
     if (failure.isNotEmpty) 'failure': failure,
+    if (failureKind.isNotEmpty) 'failureKind': failureKind,
+    if (finishReason.isNotEmpty) 'finishReason': finishReason,
+    if (responsePreview.isNotEmpty) 'responsePreview': responsePreview,
   };
 }
 

@@ -457,7 +457,7 @@ void main() {
     expect(find.text('Reached ceiling'), findsOneWidget);
     expect(find.text('Yes'), findsOneWidget);
     expect(find.text('Difficulty ladder'), findsOneWidget);
-    expect(find.text('ladder-v1'), findsOneWidget);
+    expect(find.text('ladder-v2'), findsOneWidget);
     expect(find.text('Highest passed stage'), findsOneWidget);
     expect(find.text('8192 tok'), findsOneWidget);
     expect(find.text('Next ladder stage'), findsOneWidget);

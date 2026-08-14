@@ -1,0 +1,31 @@
+{
+  "schema": "caverno_ll39_effective_context_triage",
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-14T20:49:48.982003+09:00",
+  "sourceRevision": "affb7e3f",
+  "endpoint": "http://192.168.100.241:1234/v1",
+  "model": "qwen3.6-35b-a3b-vision",
+  "suite": "cavernobench-v9",
+  "probe": "effective_context",
+  "requestedApproximateTokens": 2048,
+  "repeatCount": 3,
+  "baselineArtifactDirectorySuffix": "ll39_35b_effective_context_baseline_1786708025",
+  "instrumentedArtifactDirectorySuffix": "ll39_35b_effective_context_triage_1786708184",
+  "invariants": {
+    "promptTokens": 2165,
+    "completionTokens": 32,
+    "failureKind": "response_mismatch",
+    "finishReason": "length",
+    "beginMarkerObserved": false,
+    "endMarkerObserved": false,
+    "responsePreview": "pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad pad"
+  },
+  "elapsedMs": [377, 292, 297],
+  "result": {
+    "passedRuns": 0,
+    "failedRuns": 3,
+    "mainReadiness": "ready",
+    "transportDisconnects": 0
+  },
+  "conclusion": "The repeated first-stage failure is not evidence of a 2K endpoint context limit. The endpoint accepted 2165 prompt tokens in every run, while the model copied the repetitive filler until the 32-token completion limit and returned neither boundary marker. A controlled prompt-shape experiment is required before changing the ladder contract."
+}

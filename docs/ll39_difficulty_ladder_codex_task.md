@@ -1,6 +1,7 @@
-# LL39 Difficulty Ladder v1
+# LL39 Difficulty Ladder
 
-Status: implemented and live-canary verified on 2026-08-14.
+Status: implemented and live-canary verified on 2026-08-14. The current prompt
+contract is `ladder-v2`; historical `ladder-v1` evidence remains importable.
 
 ## Goal
 
@@ -9,8 +10,9 @@ score without inventing another weighted score.
 
 ## Contract
 
-- Suite identity: `ladder-v1`, independent from the current `cavernobench`
-  version.
+- Current suite identity: `ladder-v2`, independent from the current
+  `cavernobench` version. `ladder-v1` identifies the historical ambiguous
+  marker-selection prompt.
 - Axis: effective-context boundary recall.
 - Unit: endpoint-reported prompt tokens.
 - Fixed stages: 4K, 8K, 16K, 32K, 64K, and 128K prompt tokens.
@@ -49,3 +51,13 @@ main readiness ready. Its `benchmark_run.json` retained `cavernobench-v8` and
 exported the independent `ladder-v1` block with a 16,498 prompt-token measured
 lower bound, three of six stages passed, 16,384 as the highest passed stage,
 and 32,768 as the next stage.
+
+## Ladder v2 Prompt Contract
+
+The stage thresholds and physical unit are unchanged. `ladder-v2` changes only
+the marker-selection wording after a reset-controlled 35B A/B proved that
+`ladder-v1`'s phrase "first and last data lines" induced filler continuation.
+The explicit `CTX_BEGIN_` / `CTX_END_` wording passed 3/3 and then measured the
+35B model through 16,512 prompt tokens. Existing v1 artifacts remain historical
+evidence and are still accepted by the importer; new runs identify themselves
+as v2 so the two prompt contracts are not silently conflated.
