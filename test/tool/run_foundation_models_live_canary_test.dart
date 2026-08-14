@@ -82,6 +82,11 @@ void main() {
         );
         expect(dartLog, contains('--surface chat'));
         expect(dartLog, contains('--base-url apple-foundation-models://local'));
+        expect(
+          dartLog,
+          contains('--effective-base-url apple-foundation-models://local'),
+        );
+        expect(dartLog, contains('--relay-mode direct'));
         expect(dartLog, contains('--model apple-foundation-models'));
         expect(
           dartLog,

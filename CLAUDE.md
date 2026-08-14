@@ -75,6 +75,17 @@ tool/sec_verify_logs.sh
 python3 tool/triage_session_logs.py --top 10 [--since-days N]
 ```
 
+## Live LLM Canary Workflow
+
+When a macOS `flutter_tester` canary targets an HTTP LAN endpoint, use
+`tool/with_live_llm_loopback.sh -- <canary command>`. Do not create an ad hoc
+SSH tunnel or fixed-port relay. Follow
+[`docs/live_llm_canary_agent_runbook.md`](docs/live_llm_canary_agent_runbook.md)
+for endpoint preflight, the smallest bounded probe, evidence inspection, and
+failure triage. Use [`docs/live_llm_canary_coverage.md`](docs/live_llm_canary_coverage.md)
+only after the connection path is proven and broader surface selection is
+needed.
+
 ## macOS Build Policy
 
 This repo is regularly checked out as multiple git worktrees (feature branches under `caverno-worktrees/`, AI-agent sandboxes under `~/.codex/worktrees/` and `~/.claude/worktrees/`, milestone branches under `/private/tmp/caverno-m*`, etc.). Each worktree that builds the macOS app emits its own `Caverno.app` claiming `com.noguwo.apps.caverno`. macOS LaunchServices then routes launchd / XPC requests to whichever copy was registered last, TCC grants drift across helper paths, and the Computer Use helper reports `helper_bundle_path_mismatch`.

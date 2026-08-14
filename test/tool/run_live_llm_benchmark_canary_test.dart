@@ -40,8 +40,10 @@ void main() {
     test('documents the loopback requirement for a LAN endpoint', () {
       // flutter_tester cannot reach a LAN address directly on macOS, and a
       // canary that silently cannot connect looks like a model failure.
-      expect(script, contains('127.0.0.1'));
-      expect(script, contains('Local Network Privacy'));
+      expect(script, contains('tool/with_live_llm_loopback.sh'));
+      expect(script, contains('CAVERNO_LLM_ORIGIN_BASE_URL'));
+      expect(script, contains('CAVERNO_LLM_EFFECTIVE_BASE_URL'));
+      expect(script, contains('CAVERNO_LLM_RELAY_MODE'));
     });
 
     test(

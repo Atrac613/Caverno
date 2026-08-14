@@ -48,6 +48,12 @@ fvm flutter run
   `--coverage` when test coverage or missing edge cases are part of the task.
   The script automatically uses `fvm flutter` and `fvm dart` when FVM metadata
   is present.
+- When a macOS `flutter_tester` live canary targets an HTTP LAN endpoint, use
+  `tool/with_live_llm_loopback.sh -- <canary command>`. Do not create an ad hoc
+  SSH tunnel or fixed-port relay; the managed wrapper owns port allocation,
+  evidence metadata, and cleanup. Follow
+  `docs/live_llm_canary_agent_runbook.md` for preflight, bounded probes,
+  evidence checks, and failure triage.
 - For large-file refactors, follow `docs/large_file_refactor_plan.md`. Preserve
   behavior first, move one concern at a time, and keep focused tests green after
   each slice.

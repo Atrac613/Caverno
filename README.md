@@ -429,10 +429,13 @@ CAVERNO_LLM_MODEL=... \
 fvm flutter test tool/canaries/multi_thread_plan_live_canary_test.dart
 ```
 
-On macOS point `CAVERNO_LLM_BASE_URL` at a loopback relay: Local Network Privacy
-stops the test binary from reaching a LAN address directly. Two concurrent
+On macOS, wrap this command with `tool/with_live_llm_loopback.sh --` when the
+endpoint is an HTTP LAN address: Local Network Privacy stops the test binary
+from reaching it directly. Do not create a fixed-port relay. Two concurrent
 threads issue two concurrent requests, so a single-slot server serialises them —
-allow for a slow run rather than assuming a hang.
+allow for a slow run rather than assuming a hang. See the
+[`Live LLM Canary Agent Runbook`](docs/live_llm_canary_agent_runbook.md) for the
+complete command shape and evidence checks.
 
 ### Deterministic suite
 
@@ -443,6 +446,12 @@ fvm flutter test integration_test/plan_mode_scenario_test.dart -d macos -r compa
 Results are written to `build/integration_test_reports/plan_mode_suite_macos_report.json`, `build/integration_test_reports/plan_mode_suite_macos_report.md`, and `build/integration_test_reports/plan_mode_suite_macos_report.xml`.
 
 ### Live LLM suite
+
+Codex, Claude, and developers should start with the
+[`Live LLM Canary Agent Runbook`](docs/live_llm_canary_agent_runbook.md). It
+defines endpoint preflight, when to use the managed macOS loopback wrapper, the
+smallest bounded production streaming check, and the evidence required before
+claiming success.
 
 Use the PM5 gate for MVP and release confidence:
 

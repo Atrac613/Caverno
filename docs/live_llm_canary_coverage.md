@@ -109,14 +109,27 @@ unfinished, or every scored probe skipped. Opt into gating with
 with `CAVERNO_BENCHMARK_CANARY_REQUIRED_PROBE_IDS` (for example
 `vision_attachment,vision_tool_observation` when validating vision support).
 
-**LAN endpoints need a loopback tunnel.** The canary runs under
+**LAN endpoints need the managed loopback relay.** Start with
+[`live_llm_canary_agent_runbook.md`](live_llm_canary_agent_runbook.md) for the
+agent-oriented preflight, bounded first probe, evidence checks, and failure
+triage. The canary runs under
 `flutter_tester`, which macOS Local Network Privacy blocks from reaching a LAN
 address directly; a blocked connection looks exactly like a model that failed
-every probe. Forward the port first:
+every probe. Wrap the existing canary command with the Caverno-owned relay:
 
 ```bash
-ssh -N -L 1234:192.168.100.241:1234 <host>
+CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1 \
+CAVERNO_LLM_API_KEY=no-key \
+CAVERNO_LLM_MODEL=qwen3.6-35b-a3b-vision \
+tool/with_live_llm_loopback.sh -- tool/run_live_llm_benchmark_canary.sh
 ```
+
+The wrapper allocates an ephemeral IPv4 loopback port, preserves streaming,
+passes the child exit status through, and cleans up the relay on normal exit or
+a signal. Reports keep the original endpoint in `baseUrl` and record the local
+route separately as `effectiveBaseUrl` with `relayMode: loopbackTcp`. The first
+version intentionally accepts only HTTP endpoints; do not weaken TLS hostname
+verification to force an HTTPS endpoint through it.
 
 ## Qwen3.6-35B-A3B Main LLM Gate
 

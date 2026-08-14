@@ -347,7 +347,9 @@ void main() {
       logFile: logFile,
       canaryName: 'chat_live_llm_canary',
       surface: 'chat',
-      baseUrl: 'http://127.0.0.1:1234/v1',
+      baseUrl: 'http://192.168.100.241:1234/v1',
+      effectiveBaseUrl: 'http://127.0.0.1:18234/v1',
+      relayMode: 'loopbackTcp',
       model: 'test-model',
       command: 'tool/run_chat_live_llm_canary.sh',
       generatedAt: DateTime.utc(2026, 5, 23, 1, 2, 3),
@@ -468,7 +470,11 @@ void main() {
 
     final json = summary.toJson();
     expect(json['schemaName'], 'live_llm_canary_summary');
-    expect(json['schemaVersion'], 3);
+    expect(json['schemaVersion'], 4);
+    expect(json['baseUrl'], 'http://192.168.100.241:1234/v1');
+    expect(json['effectiveBaseUrl'], 'http://127.0.0.1:18234/v1');
+    expect(json['relayMode'], 'loopbackTcp');
+    expect(summary.toMarkdown(), contains('- Relay mode: `loopbackTcp`'));
     expect(json['generatedAt'], '2026-05-23T01:02:03.000Z');
     expect(json['mainReadiness'], containsPair('status', 'ready'));
     expect(json['tests'], hasLength(2));

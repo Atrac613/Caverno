@@ -8,10 +8,8 @@
 # in one command instead of over several nights of unattended calibration.
 #
 # LAN note: this runs under flutter_tester, which cannot reach a LAN address
-# directly on macOS (Local Network Privacy applies to the test host, not the
-# app bundle). Point CAVERNO_LLM_BASE_URL at a loopback tunnel, e.g.
-#   ssh -N -L 1234:192.168.100.241:1234 <host>
-#   export CAVERNO_LLM_BASE_URL=http://127.0.0.1:1234/v1
+# directly on macOS. Use the Caverno-owned loopback wrapper:
+#   tool/with_live_llm_loopback.sh -- tool/run_live_llm_benchmark_canary.sh
 
 set -euo pipefail
 
@@ -89,7 +87,9 @@ dart run "${ROOT_DIR}/tool/live_llm_canary_summary.dart" \
   --out-dir "${RUN_DIR}" \
   --canary-name "${CANARY_NAME}" \
   --surface chat \
-  --base-url "${CAVERNO_LLM_BASE_URL}" \
+  --base-url "${CAVERNO_LLM_ORIGIN_BASE_URL:-${CAVERNO_LLM_BASE_URL}}" \
+  --effective-base-url "${CAVERNO_LLM_EFFECTIVE_BASE_URL:-${CAVERNO_LLM_BASE_URL}}" \
+  --relay-mode "${CAVERNO_LLM_RELAY_MODE:-direct}" \
   --model "${CAVERNO_LLM_MODEL}" \
   --command "${CANARY_COMMAND}"
 SUMMARY_STATUS=$?

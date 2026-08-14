@@ -18,6 +18,7 @@ Future<void> main(List<String> args) async {
       'Usage: dart run tool/live_llm_canary_summary.dart '
       '--log PATH --out-dir PATH --canary-name NAME --surface NAME '
       '--base-url URL --model MODEL --command COMMAND '
+      '[--effective-base-url URL] [--relay-mode MODE] '
       '[--session-log-dir PATH]',
     );
     exitCode = 64;
@@ -39,6 +40,8 @@ Future<void> main(List<String> args) async {
     canaryName: options.canaryName,
     surface: options.surface,
     baseUrl: options.baseUrl,
+    effectiveBaseUrl: options.effectiveBaseUrl,
+    relayMode: options.relayMode,
     model: options.model,
     command: options.command,
     sessionLogDirectory: sessionLogDir == null
@@ -66,6 +69,8 @@ Future<LiveLlmCanarySummary> buildLiveLlmCanarySummary({
   required String canaryName,
   required String surface,
   required String baseUrl,
+  String? effectiveBaseUrl,
+  String relayMode = 'direct',
   required String model,
   required String command,
   Directory? sessionLogDirectory,
@@ -94,11 +99,13 @@ Future<LiveLlmCanarySummary> buildLiveLlmCanarySummary({
   );
   return LiveLlmCanarySummary(
     schemaName: 'live_llm_canary_summary',
-    schemaVersion: 3,
+    schemaVersion: 4,
     generatedAt: generatedAt ?? DateTime.now(),
     canaryName: canaryName,
     surface: surface,
     baseUrl: baseUrl,
+    effectiveBaseUrl: effectiveBaseUrl ?? baseUrl,
+    relayMode: relayMode,
     model: model,
     command: command,
     logPath: logFile.path,
@@ -146,6 +153,8 @@ class LiveLlmCanarySummary {
     required this.canaryName,
     required this.surface,
     required this.baseUrl,
+    required this.effectiveBaseUrl,
+    required this.relayMode,
     required this.model,
     required this.command,
     required this.logPath,
@@ -170,6 +179,8 @@ class LiveLlmCanarySummary {
   final String canaryName;
   final String surface;
   final String baseUrl;
+  final String effectiveBaseUrl;
+  final String relayMode;
   final String model;
   final String command;
   final String logPath;
@@ -197,6 +208,8 @@ class LiveLlmCanarySummary {
       'canaryName': canaryName,
       'surface': surface,
       'baseUrl': baseUrl,
+      'effectiveBaseUrl': effectiveBaseUrl,
+      'relayMode': relayMode,
       'model': model,
       'command': command,
       'logPath': logPath,
@@ -226,6 +239,8 @@ class LiveLlmCanarySummary {
       ..writeln('- Main readiness: `${readiness.status}`')
       ..writeln('- Model: `$model`')
       ..writeln('- Base URL: `$baseUrl`')
+      ..writeln('- Effective base URL: `$effectiveBaseUrl`')
+      ..writeln('- Relay mode: `$relayMode`')
       ..writeln('- Command: `$command`')
       ..writeln('- Flutter JSON log: `$logPath`')
       ..writeln(
@@ -1260,6 +1275,8 @@ class _LiveLlmCanarySummaryOptions {
     required this.canaryName,
     required this.surface,
     required this.baseUrl,
+    required this.effectiveBaseUrl,
+    required this.relayMode,
     required this.model,
     required this.command,
     this.sessionLogDir,
@@ -1270,6 +1287,8 @@ class _LiveLlmCanarySummaryOptions {
   final String canaryName;
   final String surface;
   final String baseUrl;
+  final String effectiveBaseUrl;
+  final String relayMode;
   final String model;
   final String command;
 
@@ -1312,6 +1331,8 @@ class _LiveLlmCanarySummaryOptions {
       canaryName: canaryName,
       surface: surface,
       baseUrl: baseUrl,
+      effectiveBaseUrl: values['effective-base-url'] ?? baseUrl,
+      relayMode: values['relay-mode'] ?? 'direct',
       model: model,
       command: command,
       sessionLogDir: values['session-log-dir'],
