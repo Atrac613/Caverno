@@ -9,26 +9,36 @@ import '../../data/datasources/demo_datasource.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import 'model_usage_providers.dart';
 
+/// Creates a chat data source from an immutable settings snapshot.
+typedef ChatDataSourceFactory = ChatDataSource Function(AppSettings settings);
+
+final chatDataSourceFactoryProvider = Provider<ChatDataSourceFactory>((ref) {
+  final usageSink = ref.watch(modelUsageSinkProvider);
+  return (settings) {
+    if (settings.demoMode) {
+      return DemoDataSource();
+    }
+    if (settings.llmProvider == LlmProvider.appleFoundationModels) {
+      return AppleFoundationModelsDataSource(enableSafePromptRetry: true);
+    }
+    return ChatRemoteDataSource(
+      baseUrl: settings.baseUrl,
+      apiKey: settings.apiKey,
+      reasoningEffort: settings.reasoningEffort.apiValue,
+      usageSink: usageSink,
+      endpointId: settings.activeLlmEndpointId,
+      usageLabelResolver: () => LlmSessionLogContext.current?.requestLabel,
+    );
+  };
+});
+
 /// The chat data source for the active provider and endpoint.
 ///
 /// Only the real remote source records per-model usage; demo and on-device
 /// providers report no token counts to account for.
 final chatRemoteDataSourceProvider = Provider<ChatDataSource>((ref) {
   final settings = ref.watch(settingsNotifierProvider);
-  if (settings.demoMode) {
-    return DemoDataSource();
-  }
-  if (settings.llmProvider == LlmProvider.appleFoundationModels) {
-    return AppleFoundationModelsDataSource(enableSafePromptRetry: true);
-  }
-  return ChatRemoteDataSource(
-    baseUrl: settings.baseUrl,
-    apiKey: settings.apiKey,
-    reasoningEffort: settings.reasoningEffort.apiValue,
-    usageSink: ref.watch(modelUsageSinkProvider),
-    endpointId: settings.activeLlmEndpointId,
-    usageLabelResolver: () => LlmSessionLogContext.current?.requestLabel,
-  );
+  return ref.watch(chatDataSourceFactoryProvider)(settings);
 });
 
 typedef PrimaryRouteEndpointDataSourceFactory =

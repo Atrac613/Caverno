@@ -29,7 +29,7 @@ extension ChatNotifierContextSurgery on ChatNotifier {
     _settings = settings;
     if (comparison.shouldRebuildDataSource) {
       _dataSource = _withChatSessionLogging(
-        ref.read(chatRemoteDataSourceProvider),
+        ref.read(chatDataSourceFactoryProvider)(settings),
         settings,
       );
     }

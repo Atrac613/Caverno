@@ -27,7 +27,68 @@ class _PlanModeContextSurgerySettingsNotifier
       super.build().copyWith(assistantMode: AssistantMode.plan);
 }
 
+class _EndpointSwitchSettingsNotifier extends _TestSettingsNotifier {
+  void switchEndpoint() {
+    state = state.copyWith(
+      baseUrl: 'https://new.example.com/v1',
+      apiKey: 'new-key',
+      activeLlmEndpointId: 'new-endpoint',
+    );
+  }
+}
+
 void registerChatNotifierContextSurgeryTests() {
+  test('endpoint switches rebuild from the new settings snapshot', () async {
+    final initialDataSource = _QueuedStreamingChatDataSource([
+      ['stale endpoint response'],
+    ]);
+    final newDataSource = _QueuedStreamingChatDataSource([
+      ['new endpoint response'],
+    ]);
+    final builtBaseUrls = <String>[];
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _EndpointSwitchSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatDataSourceFactoryProvider.overrideWithValue((settings) {
+          builtBaseUrls.add(settings.baseUrl);
+          return settings.baseUrl == 'https://new.example.com/v1'
+              ? newDataSource
+              : initialDataSource;
+        }),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(null),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final notifier = container.read(chatNotifierProvider.notifier);
+      (container.read(settingsNotifierProvider.notifier)
+              as _EndpointSwitchSettingsNotifier)
+          .switchEndpoint();
+
+      await notifier.sendMessage('Use the selected endpoint');
+
+      expect(builtBaseUrls, contains('https://new.example.com/v1'));
+      expect(initialDataSource.requests, isEmpty);
+      expect(newDataSource.requests, hasLength(1));
+    } finally {
+      container.dispose();
+    }
+  });
+
   test('model profile updates keep the current chat data source', () async {
     final dataSource = _ToolBatchChatDataSource(
       initialToolCalls: const [],

@@ -1244,6 +1244,7 @@ void main() {
 
   test('sendMessage prepares changed primary model before request', () async {
     final prepController = StreamController<String>();
+    final prepDataSource = _StreamingChatDataSource(prepController);
     final preparedModelIds = <String>[];
     final unloadedModelIds = <String>[];
     final appLifecycleService = _MockAppLifecycleService();
@@ -1254,9 +1255,8 @@ void main() {
         conversationsNotifierProvider.overrideWith(
           _TestConversationsNotifier.new,
         ),
-        chatRemoteDataSourceProvider.overrideWithValue(
-          _StreamingChatDataSource(prepController),
-        ),
+        chatRemoteDataSourceProvider.overrideWithValue(prepDataSource),
+        chatDataSourceFactoryProvider.overrideWithValue((_) => prepDataSource),
         sessionMemoryServiceProvider.overrideWithValue(
           _TestSessionMemoryService(),
         ),
@@ -6877,6 +6877,7 @@ with open(path, "rb") as file:
           _TestConversationsNotifier.new,
         ),
         chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        chatDataSourceFactoryProvider.overrideWithValue((_) => toolDataSource),
         sessionMemoryServiceProvider.overrideWithValue(
           _TestSessionMemoryService(),
         ),

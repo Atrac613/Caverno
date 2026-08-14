@@ -76,7 +76,8 @@ import 'goal_update_notifier_runtime_coordinator.dart';
 import 'python_script_approval_cache_runtime_adapter.dart';
 import 'primary_turn_route_runtime.dart';
 
-export 'chat_data_source_provider.dart' show chatRemoteDataSourceProvider;
+export 'chat_data_source_provider.dart'
+    show chatDataSourceFactoryProvider, chatRemoteDataSourceProvider;
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
