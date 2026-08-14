@@ -7,6 +7,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../security/egress_destination_policy.dart';
 import '../utils/logger.dart';
 
 /// Singleton service backing the built-in agent-controlled browser.
@@ -34,6 +35,28 @@ class BrowserUnavailableException implements Exception {
 /// Thrown when the browser panel did not mount its webview in time.
 class BrowserNotReadyException implements Exception {
   const BrowserNotReadyException();
+}
+
+class BrowserNavigationDecision {
+  const BrowserNavigationDecision._({
+    required this.allowed,
+    required this.code,
+    required this.message,
+  });
+
+  const BrowserNavigationDecision.allowInternalBlank()
+    : this._(
+        allowed: true,
+        code: 'internal_blank',
+        message: 'Internal blank-page initialization is allowed.',
+      );
+
+  const BrowserNavigationDecision.deny(this.code, this.message)
+    : allowed = false;
+
+  final bool allowed;
+  final String code;
+  final String message;
 }
 
 class BrowserSaveTarget {
@@ -109,13 +132,17 @@ class _ResolvedBrowserSaveDirectory {
 }
 
 class BrowserSessionService extends ChangeNotifier {
-  BrowserSessionService({Directory? saveDirectoryOverride})
-    : _saveDirectoryOverride = saveDirectoryOverride;
+  BrowserSessionService({
+    Directory? saveDirectoryOverride,
+    EgressDestinationPolicy destinationPolicy = const EgressDestinationPolicy(),
+  }) : _saveDirectoryOverride = saveDirectoryOverride,
+       _destinationPolicy = destinationPolicy;
 
   InAppWebViewController? _controller;
   Completer<InAppWebViewController>? _controllerReady;
   Completer<void>? _loadCompleter;
   final Directory? _saveDirectoryOverride;
+  final EgressDestinationPolicy _destinationPolicy;
 
   bool _enabled = false;
   bool _isPanelOpen = false;
@@ -171,7 +198,8 @@ class BrowserSessionService extends ChangeNotifier {
       ready.complete(controller);
     }
     // If we reopened onto a known URL, restore it.
-    if (_currentUrl != null) {
+    if (_currentUrl != null &&
+        navigationDecision(_currentUrl, allowInternalBlank: true).allowed) {
       controller.loadUrl(urlRequest: URLRequest(url: WebUri(_currentUrl!)));
     }
   }
@@ -211,6 +239,49 @@ class BrowserSessionService extends ChangeNotifier {
     notifyListeners();
   }
 
+  BrowserNavigationDecision navigationDecision(
+    String? rawUrl, {
+    bool allowInternalBlank = false,
+  }) {
+    final normalized = rawUrl?.trim() ?? '';
+    if (normalized == 'about:blank') {
+      return allowInternalBlank
+          ? const BrowserNavigationDecision.allowInternalBlank()
+          : const BrowserNavigationDecision.deny(
+              'unsafe_scheme',
+              'Only HTTP and HTTPS destinations are allowed.',
+            );
+    }
+    if (normalized.isEmpty) {
+      return const BrowserNavigationDecision.deny(
+        'invalid_url',
+        'A non-empty URL is required.',
+      );
+    }
+    try {
+      _destinationPolicy.validateUri(Uri.parse(normalized));
+    } on EgressPolicyException catch (error) {
+      return BrowserNavigationDecision.deny(error.code, error.message);
+    } on FormatException {
+      return const BrowserNavigationDecision.deny(
+        'invalid_url',
+        'The browser destination URL is invalid.',
+      );
+    }
+    return const BrowserNavigationDecision.deny(
+      'browser_peer_verification_unavailable',
+      'External browser navigation is disabled until the connected peer can be verified.',
+    );
+  }
+
+  void handleBlockedNavigation(BrowserNavigationDecision decision) {
+    _isLoading = false;
+    _lastError = decision.message;
+    final completer = _loadCompleter;
+    if (completer != null && !completer.isCompleted) completer.complete();
+    notifyListeners();
+  }
+
   // ---------------------------------------------------------------------------
   // Panel visibility.
   // ---------------------------------------------------------------------------
@@ -240,6 +311,10 @@ class BrowserSessionService extends ChangeNotifier {
     final normalized = _normalizeUrl(url);
     if (normalized.isEmpty) {
       return _error('invalid_url', 'A non-empty url is required');
+    }
+    final decision = navigationDecision(normalized);
+    if (!decision.allowed) {
+      return _error(decision.code, decision.message);
     }
     return _guard('browser_open', () async {
       open();
@@ -429,6 +504,10 @@ class BrowserSessionService extends ChangeNotifier {
   }
 
   Future<String> navigateHistory(String direction) async {
+    final decision = navigationDecision(_currentUrl);
+    if (!decision.allowed) {
+      return _error(decision.code, decision.message);
+    }
     return _guard('browser_navigate_history', () async {
       final controller = await _ensureReady();
       _loadCompleter = Completer<void>();
@@ -624,10 +703,8 @@ class BrowserSessionService extends ChangeNotifier {
   String _normalizeUrl(String input) {
     final trimmed = input.trim();
     if (trimmed.isEmpty) return trimmed;
-    if (trimmed.contains('://')) return trimmed;
-    if (trimmed.startsWith('about:') || trimmed.startsWith('data:')) {
-      return trimmed;
-    }
+    final parsed = Uri.tryParse(trimmed);
+    if (parsed != null && parsed.hasScheme) return trimmed;
     return 'https://$trimmed';
   }
 

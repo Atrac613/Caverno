@@ -78,7 +78,7 @@ conventions:
 |----|----------|---------|-----------------------|
 | SA-01 | Critical | Read-only shell classification permits arbitrary execution without approval | SEC4.1 |
 | SA-02 | High | Imported executable settings and pending MCP review can start processes before dedicated consent (fixed 2026-08-14) | SEC4.2 |
-| SA-03 | High | Built-in HTTP and browser tools bypass a complete egress/SSRF boundary | SEC1, SEC4.3 |
+| SA-03 | High | Built-in HTTP and browser tools bypass a complete egress/SSRF boundary (destination boundary fixed 2026-08-14; resource limits pending) | SEC1, SEC4.3 |
 | SA-04 | High | Project-scoped reads accept arbitrary absolute and home paths | SEC1, SEC4.4 |
 | SA-05 | High | SSH host keys are accepted without known-host verification | SEC4.5 |
 | SA-06 | High | Remote Coding credentials and control traffic use plaintext WebSockets | RC1, SEC4.5 |
@@ -247,14 +247,17 @@ Required remediation:
 - stream responses through byte and total-time limits rather than buffering the
   complete body.
 
-Remediation status (2026-08-14): SEC4.3a and SEC4.3b are complete. HTTP reads
+Remediation status (2026-08-14): SEC4.3a through SEC4.3c are complete. HTTP reads
 are classified as network fetches, HTTP mutations as high-risk remote side
 effects, all HTTP/browser results use remote untrusted provenance, and every
 interactive HTTP mutation passes through the owner-scoped approval boundary.
 Tainted high-risk mutation blocks before cache/full access; other tainted
-network access requires a fresh approval. SA-03 remains open and
-release-blocking: SEC4.3c must enforce the destination/DNS/peer/redirect policy,
-and SEC4.3d must bound response bytes and total time.
+network access requires a fresh approval. HTTP destinations now reject unsafe
+schemes and any unsafe DNS answer, connect directly to a pinned approved
+address, verify the peer, revalidate every manual redirect, and strip sensitive
+cross-origin headers. External WebView navigation fails closed because the
+native WebView cannot enforce the peer invariant. SA-03 remains open for
+SEC4.3d, which must bound response bytes and total time.
 
 ### SA-04: Host-Wide Reads Through Project-Scoped Tools
 
@@ -552,7 +555,7 @@ Add negative coverage for:
 |-------|-------|----------|---------------|
 | P0-1 | SEC4.1 approval-free execution boundary (completed 2026-08-14) | SA-01 | No command reaching a native shell can take a read-only shortcut; foreground, background, process, Windows, remote, and Plan Mode tests pass. |
 | P0-2 | SEC4.2 executable configuration quarantine (completed 2026-08-14) | SA-02 | File, QR, onboarding, and external-config fixtures persist sanitized state and cause zero process/client starts across import, rebuild, next turn, restart, and resync before exact expiring review. |
-| P0-3 | SEC1 + SEC2.3b + SEC4.3a-SEC4.3c network authority | SA-03, SA-07 | Every HTTP/browser request uses one classifier, remote provenance, approval, destination, DNS/peer, and redirect policy; taint precedes cache/full access. |
+| P0-3 | SEC1 + SEC2.3b + SEC4.3a-SEC4.3c network authority (completed 2026-08-14) | SA-03, SA-07 | Every HTTP/browser request uses one classifier, remote provenance, approval, destination, DNS/peer, and redirect policy; unverifiable external WebView navigation is absent; taint precedes cache/full access. |
 | P0-4 | SEC4.4a project read containment | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
 | P0-5 | SEC4.5a-SEC4.5b authenticated transport containment | SA-05, SA-06 | SSH known-host mismatch fails; the updated release gate and artifact/runtime smoke prove that non-loopback Remote Coding plaintext is absent until pinned transport passes. |
 | P1-1 | SEC4.4b mutation and autonomous containment | SA-08, SA-09 | Symlink-aware write fences and routine MCP deny-by-default tests pass. |

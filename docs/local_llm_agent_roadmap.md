@@ -5001,7 +5001,7 @@ Slice plan:
    sub-slices: **SEC4.3a (P0, completed 2026-08-14)** classifies every HTTP verb
    and all HTTP/browser results as remote/untrusted; **SEC4.3b (P0, completed
    2026-08-14)** completes SEC2.3b and routes every network mutation through
-   one approval boundary; **SEC4.3c (P0)**
+   one approval boundary; **SEC4.3c (P0, completed 2026-08-14)**
    applies one HTTP/browser destination policy, rejects unsafe schemes and every
    private/loopback/link-local/metadata A/AAAA result, binds the approved address
    to the connection or verifies the peer address, revalidates redirects, and

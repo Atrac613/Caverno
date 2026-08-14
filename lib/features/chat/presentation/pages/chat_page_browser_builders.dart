@@ -362,6 +362,7 @@ class _BrowserWebViewHostState extends State<_BrowserWebViewHost> {
         isInspectable: kDebugMode,
         javaScriptEnabled: true,
         transparentBackground: false,
+        useShouldOverrideUrlLoading: true,
       ),
       onWebViewCreated: (controller) {
         _controller = controller;
@@ -371,6 +372,17 @@ class _BrowserWebViewHostState extends State<_BrowserWebViewHost> {
           widget.service.handleLoadStart(url?.toString()),
       onLoadStop: (controller, url) =>
           widget.service.handleLoadStop(url?.toString()),
+      shouldOverrideUrlLoading: (controller, navigationAction) async {
+        final decision = widget.service.navigationDecision(
+          navigationAction.request.url?.toString(),
+          allowInternalBlank: true,
+        );
+        if (!decision.allowed) {
+          widget.service.handleBlockedNavigation(decision);
+          return NavigationActionPolicy.CANCEL;
+        }
+        return NavigationActionPolicy.ALLOW;
+      },
       onReceivedError: (controller, request, error) {
         if (request.isForMainFrame ?? true) {
           widget.service.handleError(error.description);

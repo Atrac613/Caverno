@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/security/egress_destination_policy.dart';
 import 'package:caverno/features/chat/data/datasources/network_http_tools.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -25,7 +26,7 @@ void main() {
         ),
       ),
     ]);
-    final tools = NetworkHttpTools(clientFactory: harness.createClient);
+    final tools = _createTools(harness);
 
     final result = _decode(
       await tools.httpStatus(
@@ -72,7 +73,7 @@ void main() {
         ),
       ),
     ]);
-    final tools = NetworkHttpTools(clientFactory: harness.createClient);
+    final tools = _createTools(harness);
 
     final result = _decode(
       await tools.httpGet(
@@ -88,7 +89,7 @@ void main() {
     expect(request.method, 'GET');
     expect(request.uri, Uri.parse('https://example.test/redirect'));
     expect(request.followRedirects, isFalse);
-    expect(request.maxRedirects, 2);
+    expect(request.maxRedirects, 0);
     expect(request.headers.value('x-request-test'), 'redirect');
     expect(result['method'], 'GET');
     expect(result['status_code'], HttpStatus.ok);
@@ -101,6 +102,12 @@ void main() {
     expect(result['redirects'], [
       {'status': HttpStatus.found, 'location': 'https://example.test/text'},
     ]);
+    expect(harness.connectedAddresses.single.address, '93.184.216.34');
+    expect(harness.connectedPorts.single, 443);
+    expect(
+      harness.createdClients.single.configuredFindProxy!(request.uri),
+      'DIRECT',
+    );
   });
 
   test('HEAD drains the response and omits body fields', () async {
@@ -114,7 +121,7 @@ void main() {
         ),
       ),
     ]);
-    final tools = NetworkHttpTools(clientFactory: harness.createClient);
+    final tools = _createTools(harness);
 
     final result = _decode(
       await tools.httpHead(url: 'https://example.test/text', timeoutSeconds: 2),
@@ -136,7 +143,7 @@ void main() {
           _FakeHttpResponse(body: utf8.encode('ok')),
         ),
     ]);
-    final tools = NetworkHttpTools(clientFactory: harness.createClient);
+    final tools = _createTools(harness);
     final calls =
         <
           ({
@@ -212,7 +219,7 @@ void main() {
         _FakeHttpResponse(body: utf8.encode(List.filled(4001, 'a').join())),
       ),
     ]);
-    final tools = NetworkHttpTools(clientFactory: harness.createClient);
+    final tools = _createTools(harness);
 
     final binary = _decode(
       await tools.httpGet(url: 'https://example.test/binary'),
@@ -231,11 +238,164 @@ void main() {
     expect(large['body_truncated'], isTrue);
   });
 
+  test(
+    'rejects unsafe and mixed DNS answers before creating a client',
+    () async {
+      final harness = _FakeHttpHarness([]);
+      final tools = NetworkHttpTools(
+        clientFactory: harness.createClient,
+        addressLookup: (_) async => [
+          InternetAddress('93.184.216.34'),
+          InternetAddress('127.0.0.1'),
+        ],
+        socketConnector: (uri, address, port) =>
+            throw StateError('unreachable'),
+      );
+
+      await expectLater(
+        tools.httpGet(url: 'https://example.test/private'),
+        throwsA(
+          isA<EgressPolicyException>().having(
+            (error) => error.code,
+            'code',
+            'unsafe_address',
+          ),
+        ),
+      );
+      expect(harness.createdClients, isEmpty);
+    },
+  );
+
+  test('rejects a peer mismatch before opening the HTTP request', () async {
+    final harness = _FakeHttpHarness([
+      _FakeHttpClient.withResponse(_FakeHttpResponse()),
+    ]);
+    final tools = NetworkHttpTools(
+      clientFactory: harness.createClient,
+      addressLookup: (_) async => [InternetAddress('93.184.216.34')],
+      socketConnector: (uri, address, port) async {
+        return ConnectionTask.fromSocket<Socket>(
+          Future<Socket>.value(_FakeSocket(InternetAddress('93.184.216.35'))),
+          () {},
+        );
+      },
+    );
+
+    await expectLater(
+      tools.httpGet(url: 'https://example.test/mismatch'),
+      throwsA(
+        isA<EgressPolicyException>().having(
+          (error) => error.code,
+          'code',
+          'peer_mismatch',
+        ),
+      ),
+    );
+    expect(harness.createdClients.single.request, isNull);
+    expect(harness.createdClients.single.closed, isTrue);
+  });
+
+  test('revalidates redirects and strips cross-origin credentials', () async {
+    final harness = _FakeHttpHarness([
+      _FakeHttpClient.withResponse(
+        _FakeHttpResponse(
+          statusCode: HttpStatus.found,
+          headers: const {
+            'location': ['https://other.example.test/final'],
+          },
+        ),
+      ),
+      _FakeHttpClient.withResponse(
+        _FakeHttpResponse(body: utf8.encode('redirected')),
+      ),
+    ]);
+    final resolvedHosts = <String>[];
+    final tools = NetworkHttpTools(
+      clientFactory: harness.createClient,
+      addressLookup: (host) async {
+        resolvedHosts.add(host);
+        return [
+          InternetAddress(host == 'example.test' ? '93.184.216.34' : '1.1.1.1'),
+        ];
+      },
+      socketConnector: (uri, address, port) async {
+        return ConnectionTask.fromSocket<Socket>(
+          Future<Socket>.value(_FakeSocket(address)),
+          () {},
+        );
+      },
+    );
+
+    final result = _decode(
+      await tools.httpPost(
+        url: 'https://example.test/start',
+        headers: const {
+          'Authorization': 'Bearer secret',
+          'Cookie': 'session=secret',
+          'Proxy-Authorization': 'Basic secret',
+          'Content-Type': 'text/plain',
+          'X-Trace': 'keep',
+        },
+        body: 'secret body',
+        followRedirects: true,
+        maxRedirects: 2,
+      ),
+    );
+
+    expect(resolvedHosts, ['example.test', 'other.example.test']);
+    expect(harness.createdClients, hasLength(2));
+    final first = harness.createdClients[0].request!;
+    final second = harness.createdClients[1].request!;
+    expect(first.method, 'POST');
+    expect(utf8.decode(first.bodyBytes), 'secret body');
+    expect(second.method, 'GET');
+    expect(second.bodyBytes, isEmpty);
+    expect(second.headers.value('authorization'), isNull);
+    expect(second.headers.value('cookie'), isNull);
+    expect(second.headers.value('proxy-authorization'), isNull);
+    expect(second.headers.value('content-type'), isNull);
+    expect(second.headers.value('x-trace'), 'keep');
+    expect(result['body'], 'redirected');
+    expect(result['redirects'], [
+      {
+        'status': HttpStatus.found,
+        'location': 'https://other.example.test/final',
+      },
+    ]);
+  });
+
+  test('blocks an unsafe redirect before opening another connection', () async {
+    final harness = _FakeHttpHarness([
+      _FakeHttpClient.withResponse(
+        _FakeHttpResponse(
+          statusCode: HttpStatus.temporaryRedirect,
+          headers: const {
+            'location': ['http://127.0.0.1/admin'],
+          },
+        ),
+      ),
+    ]);
+    final tools = _createTools(harness);
+
+    await expectLater(
+      tools.httpGet(url: 'https://example.test/start'),
+      throwsA(
+        isA<EgressPolicyException>().having(
+          (error) => error.code,
+          'code',
+          'unsafe_address',
+        ),
+      ),
+    );
+    expect(harness.createdClients, hasLength(1));
+    expect(harness.connectedAddresses, hasLength(1));
+  });
+
   test('closes the client when request setup fails', () async {
     final harness = _FakeHttpHarness([
       _FakeHttpClient.withError(const SocketException('connection failed')),
     ]);
-    final tools = NetworkHttpTools(clientFactory: harness.createClient);
+    final tools = _createTools(harness);
 
     await expectLater(
       tools.httpGet(url: 'https://example.test/failure'),
@@ -243,6 +403,21 @@ void main() {
     );
     expect(harness.createdClients.single.closed, isTrue);
   });
+}
+
+NetworkHttpTools _createTools(_FakeHttpHarness harness) {
+  return NetworkHttpTools(
+    clientFactory: harness.createClient,
+    addressLookup: (_) async => [InternetAddress('93.184.216.34')],
+    socketConnector: (uri, address, port) async {
+      harness.connectedAddresses.add(address);
+      harness.connectedPorts.add(port);
+      return ConnectionTask.fromSocket<Socket>(
+        Future<Socket>.value(_FakeSocket(address)),
+        () {},
+      );
+    },
+  );
 }
 
 extension on int {
@@ -258,6 +433,8 @@ class _FakeHttpHarness {
 
   final List<_FakeHttpClient> _pendingClients;
   final List<_FakeHttpClient> createdClients = [];
+  final List<InternetAddress> connectedAddresses = [];
+  final List<int> connectedPorts = [];
 
   HttpClient createClient() {
     final client = _pendingClients.removeAt(0);
@@ -275,6 +452,9 @@ class _FakeHttpClient implements HttpClient {
 
   _FakeHttpRequest? request;
   bool closed = false;
+  Future<ConnectionTask<Socket>> Function(Uri, String?, int?)?
+  configuredConnectionFactory;
+  String Function(Uri)? configuredFindProxy;
 
   @override
   Duration? connectionTimeout;
@@ -284,6 +464,11 @@ class _FakeHttpClient implements HttpClient {
 
   @override
   Future<HttpClientRequest> openUrl(String method, Uri url) async {
+    final connect = configuredConnectionFactory;
+    if (connect != null) {
+      final task = await connect(url, null, null);
+      await task.socket;
+    }
     return request = _FakeHttpRequest(
       method: method,
       uri: url,
@@ -293,9 +478,31 @@ class _FakeHttpClient implements HttpClient {
   }
 
   @override
+  set connectionFactory(
+    Future<ConnectionTask<Socket>> Function(Uri, String?, int?)? value,
+  ) {
+    configuredConnectionFactory = value;
+  }
+
+  @override
+  set findProxy(String Function(Uri)? value) {
+    configuredFindProxy = value;
+  }
+
+  @override
   void close({bool force = false}) {
     closed = true;
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeSocket implements Socket {
+  _FakeSocket(this.remoteAddress);
+
+  @override
+  final InternetAddress remoteAddress;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

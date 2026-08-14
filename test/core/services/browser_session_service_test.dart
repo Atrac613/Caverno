@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:caverno/core/services/browser_session_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -149,5 +150,57 @@ void main() {
       expect(script, contains('label: labelFor(el)'));
       expect(script, contains('Object.assign({ok:true}, target)'));
     });
+
+    test('allows only the internal blank-page navigation', () {
+      final service = BrowserSessionService();
+
+      final decision = service.navigationDecision(
+        'about:blank',
+        allowInternalBlank: true,
+      );
+
+      expect(decision.allowed, isTrue);
+      expect(decision.code, 'internal_blank');
+    });
+
+    test('rejects unsafe schemes through the shared destination policy', () {
+      final service = BrowserSessionService();
+
+      for (final url in [
+        'file:///etc/passwd',
+        'data:text/plain,secret',
+        'javascript:alert(1)',
+        'about:blank',
+      ]) {
+        final decision = service.navigationDecision(url);
+        expect(decision.allowed, isFalse, reason: url);
+        expect(decision.code, 'unsafe_scheme', reason: url);
+      }
+    });
+
+    test('keeps public WebView navigation closed without peer evidence', () {
+      final service = BrowserSessionService();
+
+      final decision = service.navigationDecision('https://example.com/');
+
+      expect(decision.allowed, isFalse);
+      expect(decision.code, 'browser_peer_verification_unavailable');
+    });
+
+    test(
+      'browser_open fails before mounting a WebView or resolving DNS',
+      () async {
+        final service = BrowserSessionService();
+
+        final result = jsonDecode(await service.openUrl('example.com'));
+
+        expect(result, containsPair('ok', false));
+        expect(
+          result,
+          containsPair('code', 'browser_peer_verification_unavailable'),
+        );
+        expect(service.isPanelOpen, isFalse);
+      },
+    );
   });
 }
