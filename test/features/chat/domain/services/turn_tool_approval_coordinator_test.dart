@@ -556,63 +556,99 @@ void main() {
       expect(harness.autoReview.requests, isEmpty);
     });
 
-    test('allows auto-review and builds the exact owner request', () async {
-      final harness = _Harness();
-      final owner = _owner('thread-a');
-      harness.owners.currentOwners.add(owner);
-      harness.autoReview.decision = _reviewDecision(
-        outcome: ToolApprovalAutoReviewOutcome.allow,
-      );
-      final messages = List<Message>.generate(
-        10,
-        (index) => Message(
-          id: 'message-$index',
-          role: index.isEven ? MessageRole.user : MessageRole.assistant,
-          content: index == 9 ? 'x' * 950 : 'message $index',
-          timestamp: DateTime(2026, 1, index + 1),
-        ),
-      );
+    test(
+      'allows untainted auto-review and builds the exact owner request',
+      () async {
+        final harness = _Harness();
+        final owner = _owner('thread-a');
+        harness.owners.currentOwners.add(owner);
+        harness.autoReview.decision = _reviewDecision(
+          outcome: ToolApprovalAutoReviewOutcome.allow,
+        );
+        final messages = List<Message>.generate(
+          10,
+          (index) => Message(
+            id: 'message-$index',
+            role: index.isEven ? MessageRole.user : MessageRole.assistant,
+            content: index == 9 ? 'x' * 950 : 'message $index',
+            timestamp: DateTime(2026, 1, index + 1),
+          ),
+        );
 
-      final outcome = await harness.coordinator.resolve(
-        _request(
-          owner: owner,
-          mode: ToolApprovalMode.autoReview,
-          conversationMessages: messages,
-          hasUntrustedInfluence: true,
-        ),
-      );
+        final outcome = await harness.coordinator.resolve(
+          _request(
+            owner: owner,
+            mode: ToolApprovalMode.autoReview,
+            conversationMessages: messages,
+            hasUntrustedInfluence: false,
+          ),
+        );
 
-      expect(outcome.gateDecision, ToolApprovalGateDecision.autoReviewAllowed);
-      expect(harness.autoReview.owners, [owner]);
-      expect(harness.autoReview.domains, [ToolApprovalAutoReviewDomain.coding]);
-      final review = harness.autoReview.requests.single;
-      expect(review.actionKind, 'write file');
-      expect(review.toolName, 'write_file');
-      expect(review.arguments['path'], 'lib/main.dart');
-      expect(review.path, 'lib/main.dart');
-      expect(review.workingDirectory, '/workspace/project');
-      expect(review.reason, 'Update the implementation.');
-      expect(review.warningTitle, 'Confirm action');
-      expect(review.warningMessage, 'Review this action.');
-      expect(review.preview, 'replacement preview');
-      expect(review.hasUntrustedInfluence, isTrue);
-      expect(review.conversationTail, hasLength(8));
-      expect(review.conversationTail.last.content, endsWith('...'));
-      expect(
-        () => review.arguments['path'] = 'poison.dart',
-        throwsUnsupportedError,
-      );
-      final audit = harness.audit.records.single;
-      expect(audit.outcome, 'allowed');
-      expect(audit.decisionSource, 'auto_review');
-      expect(audit.rationale, 'The request is scoped.');
-      expect(audit.riskLevel, 'low');
-      expect(audit.hasUntrustedInfluence, isTrue);
-      expect(
-        () => audit.arguments['path'] = 'poison.dart',
-        throwsUnsupportedError,
-      );
-    });
+        expect(
+          outcome.gateDecision,
+          ToolApprovalGateDecision.autoReviewAllowed,
+        );
+        expect(harness.autoReview.owners, [owner]);
+        expect(harness.autoReview.domains, [
+          ToolApprovalAutoReviewDomain.coding,
+        ]);
+        final review = harness.autoReview.requests.single;
+        expect(review.actionKind, 'write file');
+        expect(review.toolName, 'write_file');
+        expect(review.arguments['path'], 'lib/main.dart');
+        expect(review.path, 'lib/main.dart');
+        expect(review.workingDirectory, '/workspace/project');
+        expect(review.reason, 'Update the implementation.');
+        expect(review.warningTitle, 'Confirm action');
+        expect(review.warningMessage, 'Review this action.');
+        expect(review.preview, 'replacement preview');
+        expect(review.hasUntrustedInfluence, isFalse);
+        expect(review.conversationTail, hasLength(8));
+        expect(review.conversationTail.last.content, endsWith('...'));
+        expect(
+          () => review.arguments['path'] = 'poison.dart',
+          throwsUnsupportedError,
+        );
+        final audit = harness.audit.records.single;
+        expect(audit.outcome, 'allowed');
+        expect(audit.decisionSource, 'auto_review');
+        expect(audit.rationale, 'The request is scoped.');
+        expect(audit.riskLevel, 'low');
+        expect(audit.hasUntrustedInfluence, isFalse);
+        expect(
+          () => audit.arguments['path'] = 'poison.dart',
+          throwsUnsupportedError,
+        );
+      },
+    );
+
+    test(
+      'forces fresh manual approval for a tainted medium-risk action',
+      () async {
+        final harness = _Harness();
+        final owner = _owner('thread-a');
+        harness.owners.currentOwners.add(owner);
+        harness.autoReview.decision = _reviewDecision(
+          outcome: ToolApprovalAutoReviewOutcome.allow,
+        );
+
+        final outcome = await harness.coordinator.resolve(
+          _request(
+            owner: owner,
+            mode: ToolApprovalMode.autoReview,
+            hasUntrustedInfluence: true,
+          ),
+        );
+
+        expect(outcome.isApproved, isTrue);
+        expect(outcome.gateDecision?.needsManual, isTrue);
+        expect(harness.autoReview.requests, isEmpty);
+        expect(harness.manual.requests, hasLength(1));
+        expect(harness.audit.records.single.outcome, 'manual_required');
+        expect(harness.audit.records.single.decisionSource, 'taint_policy');
+        expect(harness.audit.records.single.hasUntrustedInfluence, isTrue);
+      },
+    );
 
     test('falls back to manual when auto-review returns no decision', () async {
       final harness = _Harness();
@@ -699,55 +735,49 @@ void main() {
       expect(harness.manual.requests.single.warningMessage, 'Review required.');
     });
 
-    test(
-      'hard-denies tainted or non-coding review and caches payload',
-      () async {
-        for (final configuration in [
-          (domain: ToolApprovalAutoReviewDomain.coding, untrusted: true),
-          (domain: ToolApprovalAutoReviewDomain.browser, untrusted: false),
-        ]) {
-          final harness = _Harness();
-          final owner = _owner('thread-${configuration.domain.name}');
-          harness.owners.currentOwners.add(owner);
-          harness.autoReview.decision = _reviewDecision(
-            outcome: ToolApprovalAutoReviewOutcome.deny,
-            rationale: 'The action is unsafe.',
-            riskLevel: 'high',
-          );
-          final request = _request(
-            owner: owner,
-            mode: ToolApprovalMode.autoReview,
-            domain: configuration.domain,
-            hasUntrustedInfluence: configuration.untrusted,
-          );
+    test('hard-denies non-coding review and caches payload', () async {
+      for (final domain in [
+        ToolApprovalAutoReviewDomain.browser,
+        ToolApprovalAutoReviewDomain.connection,
+      ]) {
+        final harness = _Harness();
+        final owner = _owner('thread-${domain.name}');
+        harness.owners.currentOwners.add(owner);
+        harness.autoReview.decision = _reviewDecision(
+          outcome: ToolApprovalAutoReviewOutcome.deny,
+          rationale: 'The action is unsafe.',
+          riskLevel: 'high',
+        );
+        final request = _request(
+          owner: owner,
+          mode: ToolApprovalMode.autoReview,
+          domain: domain,
+        );
 
-          final denied = await harness.coordinator.resolve(request);
-          final cached = await harness.coordinator.resolve(request);
+        final denied = await harness.coordinator.resolve(request);
+        final cached = await harness.coordinator.resolve(request);
 
-          expect(denied.isApproved, isFalse);
-          expect(
-            denied.denialResult?.result,
-            'Auto-review denied this action. Rationale: '
-            'The action is unsafe.',
-          );
-          expect(denied.denialResult?.toolName, 'write_file');
-          expect(denied.denialResult?.isSuccess, isFalse);
-          expect(
-            denied.denialResult?.errorMessage,
-            'Auto-review denied: The action is unsafe.',
-          );
-          expect(cached.denialResult, same(denied.denialResult));
-          expect(harness.manual.requests, isEmpty);
-          expect(harness.audit.records.single.outcome, 'denied');
-          expect(
-            harness.coordinator.domainEscalatesDeniedActionToManual(
-              configuration.domain,
-            ),
-            configuration.domain == ToolApprovalAutoReviewDomain.coding,
-          );
-        }
-      },
-    );
+        expect(denied.isApproved, isFalse);
+        expect(
+          denied.denialResult?.result,
+          'Auto-review denied this action. Rationale: '
+          'The action is unsafe.',
+        );
+        expect(denied.denialResult?.toolName, 'write_file');
+        expect(denied.denialResult?.isSuccess, isFalse);
+        expect(
+          denied.denialResult?.errorMessage,
+          'Auto-review denied: The action is unsafe.',
+        );
+        expect(cached.denialResult, same(denied.denialResult));
+        expect(harness.manual.requests, isEmpty);
+        expect(harness.audit.records.single.outcome, 'denied');
+        expect(
+          harness.coordinator.domainEscalatesDeniedActionToManual(domain),
+          isFalse,
+        );
+      }
+    });
   });
 
   group('owner lifecycle', () {

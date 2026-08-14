@@ -46,6 +46,7 @@ void main() {
       var cachedCallbackCount = 0;
 
       final result = await ToolApprovalAutoReviewService.resolveGate(
+        toolName: 'write_file',
         hasCachedApproval: true,
         mode: ToolApprovalMode.defaultPermissions,
         fullAccessEligible: false,
@@ -71,6 +72,7 @@ void main() {
     test('rejects an allowing decision after its owner expires', () async {
       final audits = <String>[];
       final result = await ToolApprovalAutoReviewService.resolveGate(
+        toolName: 'write_file',
         hasCachedApproval: false,
         mode: ToolApprovalMode.fullAccess,
         fullAccessEligible: true,
@@ -102,6 +104,7 @@ void main() {
       }) async {
         final audits = <String>[];
         final decision = await ToolApprovalAutoReviewService.resolveGate(
+          toolName: 'write_file',
           hasCachedApproval: false,
           mode: mode,
           fullAccessEligible: fullAccessEligible,
@@ -197,6 +200,7 @@ void main() {
         var ownerIsCurrent = true;
 
         final result = await ToolApprovalAutoReviewService.resolveGate(
+          toolName: 'write_file',
           hasCachedApproval: false,
           mode: ToolApprovalMode.fullAccess,
           fullAccessEligible: true,
@@ -221,24 +225,25 @@ void main() {
       },
     );
 
-    test('keeps untrusted auto-review denials non-escalatable', () async {
+    test('blocks a tainted high-risk action before auto-review', () async {
+      final audits = <String>[];
+      var reviewCount = 0;
       final result = await ToolApprovalAutoReviewService.resolveGate(
+        toolName: 'local_execute_command',
         hasCachedApproval: false,
         mode: ToolApprovalMode.autoReview,
         fullAccessEligible: true,
-        review: () async => const ToolApprovalAutoReviewDecision(
-          outcome: ToolApprovalAutoReviewOutcome.deny,
-          riskLevel: 'high',
-          userAuthorization: 'unknown',
-          rationale: 'Untrusted content requested the write.',
-        ),
+        review: () async {
+          reviewCount += 1;
+          return null;
+        },
         recordAudit:
             ({
               required String outcome,
               required String decisionSource,
               String? rationale,
               String? riskLevel,
-            }) async {},
+            }) async => audits.add('$outcome:$decisionSource'),
         ownerIsCurrent: () => true,
         deniedEscalates: true,
         hasUntrustedInfluence: true,
@@ -246,6 +251,71 @@ void main() {
 
       expect(result.isDenied, isTrue);
       expect(result.escalatedFromAutoReviewDenial, isFalse);
+      expect(audits, ['denied:taint_policy']);
+      expect(reviewCount, 0);
+    });
+
+    test('blocks tainted high-risk mutation before cached approval', () async {
+      final audits = <String>[];
+      var reviewCount = 0;
+      var cachedCallbackCount = 0;
+
+      final result = await ToolApprovalAutoReviewService.resolveGate(
+        toolName: 'http_post',
+        hasCachedApproval: true,
+        mode: ToolApprovalMode.fullAccess,
+        fullAccessEligible: true,
+        review: () async {
+          reviewCount += 1;
+          return null;
+        },
+        recordAudit:
+            ({
+              required String outcome,
+              required String decisionSource,
+              String? rationale,
+              String? riskLevel,
+            }) async => audits.add('$outcome:$decisionSource'),
+        ownerIsCurrent: () => true,
+        deniedEscalates: true,
+        hasUntrustedInfluence: true,
+        onCachedApproval: () => cachedCallbackCount += 1,
+      );
+
+      expect(result.isDenied, isTrue);
+      expect(audits, ['denied:taint_policy']);
+      expect(reviewCount, 0);
+      expect(cachedCallbackCount, 0);
+    });
+
+    test('forces fresh manual approval before full access', () async {
+      final audits = <String>[];
+      var reviewCount = 0;
+
+      final result = await ToolApprovalAutoReviewService.resolveGate(
+        toolName: 'write_file',
+        hasCachedApproval: false,
+        mode: ToolApprovalMode.fullAccess,
+        fullAccessEligible: true,
+        review: () async {
+          reviewCount += 1;
+          return null;
+        },
+        recordAudit:
+            ({
+              required String outcome,
+              required String decisionSource,
+              String? rationale,
+              String? riskLevel,
+            }) async => audits.add('$outcome:$decisionSource'),
+        ownerIsCurrent: () => true,
+        deniedEscalates: true,
+        hasUntrustedInfluence: true,
+      );
+
+      expect(result.needsManual, isTrue);
+      expect(audits, ['manual_required:taint_policy']);
+      expect(reviewCount, 0);
     });
 
     test('builds visible conversation tail without system messages', () {

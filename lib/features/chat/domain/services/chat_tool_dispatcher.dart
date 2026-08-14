@@ -1,10 +1,13 @@
 import '../../../../core/services/browser_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 
 typedef ChatToolHandler = Future<McpToolResult> Function(ToolCallInfo toolCall);
 typedef ChatToolPlanningPolicy = McpToolResult? Function(ToolCallInfo toolCall);
+typedef ChatToolPreflightPolicy =
+    Future<McpToolResult?> Function(ToolCallInfo toolCall);
 
 abstract interface class ChatToolHandlerModule {
   Map<String, ChatToolHandler> get handlers;
@@ -35,19 +38,23 @@ final class ChatToolHandlerRegistry {
 final class ChatToolDispatcher {
   const ChatToolDispatcher({
     required this.enforcePlanningPolicy,
+    required this.enforceNetworkReadTaint,
     required this.handleComputerUseAction,
     required this.handleComputerUseObservation,
     required this.handleBrowserAction,
     required this.handleBrowserObservation,
+    required this.handleNetworkMutation,
     required this.handlerRegistry,
     required this.executeFallbackTool,
   });
 
   final ChatToolPlanningPolicy enforcePlanningPolicy;
+  final ChatToolPreflightPolicy enforceNetworkReadTaint;
   final ChatToolHandler handleComputerUseAction;
   final ChatToolHandler handleComputerUseObservation;
   final ChatToolHandler handleBrowserAction;
   final ChatToolHandler handleBrowserObservation;
+  final ChatToolHandler handleNetworkMutation;
   final ChatToolHandlerRegistry handlerRegistry;
   final ChatToolHandler executeFallbackTool;
 
@@ -55,6 +62,18 @@ final class ChatToolDispatcher {
     final planningPolicyResult = enforcePlanningPolicy(toolCall);
     if (planningPolicyResult != null) {
       return planningPolicyResult;
+    }
+
+    final taintPolicyResult = await enforceNetworkReadTaint(toolCall);
+    if (taintPolicyResult != null) {
+      return taintPolicyResult;
+    }
+
+    if (const ToolCapabilityClassifier()
+            .classify(toolCall.name)
+            .capabilityClass ==
+        ToolCapabilityClass.networkMutation) {
+      return handleNetworkMutation(toolCall);
     }
 
     if (MacosComputerUseToolPolicy.requiresUserApproval(toolCall.name)) {

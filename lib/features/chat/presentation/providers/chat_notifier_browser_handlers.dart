@@ -144,6 +144,7 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
     String? targetSummary,
     String? sensitiveValuePreview,
     String? reason,
+    String capability = 'browser_action',
   }) {
     final completer = Completer<bool>();
     final pending = PendingBrowserAction(
@@ -164,7 +165,7 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
     return _registerPendingToolApproval(
       pending,
       (s) => s.copyWith(pendingBrowserAction: pending),
-      'browser_action',
+      capability,
       _approvalSummary(reason, summary),
       targetSummary,
     );

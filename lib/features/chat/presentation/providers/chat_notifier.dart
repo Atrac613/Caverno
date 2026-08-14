@@ -243,6 +243,7 @@ part 'chat_notifier_execution_runtime.dart';
 part 'chat_notifier_final_answer_recovery.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_local_file_handlers.dart';
+part 'chat_notifier_network_handlers.dart';
 part 'chat_notifier_participant_turns.dart';
 part 'chat_notifier_serial_handlers.dart';
 part 'chat_notifier_ssh_handlers.dart';
@@ -7801,11 +7802,14 @@ class ChatNotifier extends Notifier<ChatState> {
           () => ChatToolDispatcher(
             enforcePlanningPolicy: (toolCall) =>
                 _enforcePlanningToolPolicy(toolCall, interactionGeneration),
+            enforceNetworkReadTaint: (toolCall) =>
+                _enforceNetworkReadTaint(toolCall, approvalCache),
             handleComputerUseAction: _ownerComputerUseHandler(approvalCache),
             handleComputerUseObservation:
                 _handleComputerUseActionWithoutApproval,
             handleBrowserAction: _ownerBrowserActionHandler(approvalCache),
             handleBrowserObservation: _handleBrowserActionWithoutApproval,
+            handleNetworkMutation: _ownerNetworkMutationHandler(approvalCache),
             handlerRegistry: _buildToolHandlerRegistry(
               interactionGeneration: interactionGeneration,
               approvalCache: approvalCache,

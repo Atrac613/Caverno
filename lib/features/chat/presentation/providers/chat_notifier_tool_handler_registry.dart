@@ -159,6 +159,10 @@ extension ChatNotifierToolHandlerRegistry on ChatNotifier {
     OwnerToolApprovalCache? approvalCache,
   ) => _bindOwnerHandler(approvalCache, _handleBrowserAction);
 
+  ChatToolHandler _ownerNetworkMutationHandler(
+    OwnerToolApprovalCache? approvalCache,
+  ) => _bindOwnerHandler(approvalCache, _handleNetworkMutation);
+
   List<Map<String, dynamic>> _toolDefinitionsAllowedBy(
     Set<String>? allowedToolNames,
   ) {

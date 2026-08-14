@@ -20,6 +20,25 @@ void main() {
     });
 
     test(
+      'returns tainted network preflight before execution handlers',
+      () async {
+        final events = <String>[];
+        final dispatcher = _buildDispatcher(
+          events: events,
+          networkReadTaintPolicy: (toolCall) async {
+            events.add('network_taint');
+            return _result('network_taint');
+          },
+        );
+
+        final result = await dispatcher.dispatch(_toolCall('http_get'));
+
+        expect(result.toolName, 'network_taint');
+        expect(events, ['network_taint']);
+      },
+    );
+
+    test(
       'routes approval-gated computer tools before registry handlers',
       () async {
         final events = <String>[];
@@ -81,6 +100,43 @@ void main() {
 
       expect(result.toolName, 'browser_observation');
       expect(events, ['browser_observation']);
+    });
+
+    test('routes every HTTP mutation before registry and fallback', () async {
+      for (final name in const [
+        'http_post',
+        'http_put',
+        'http_patch',
+        'http_delete',
+      ]) {
+        final events = <String>[];
+        final dispatcher = _buildDispatcher(
+          events: events,
+          registry: ChatToolHandlerRegistry({
+            name: (_) async {
+              events.add('registry');
+              return _result('registry');
+            },
+          }),
+        );
+
+        final result = await dispatcher.dispatch(_toolCall(name));
+
+        expect(result.toolName, 'network_mutation', reason: name);
+        expect(events, ['network_mutation'], reason: name);
+      }
+    });
+
+    test('keeps HTTP reads on the normal fallback path', () async {
+      final events = <String>[];
+      final dispatcher = _buildDispatcher(events: events);
+
+      for (final name in const ['http_status', 'http_get', 'http_head']) {
+        final result = await dispatcher.dispatch(_toolCall(name));
+        expect(result.toolName, 'fallback', reason: name);
+      }
+
+      expect(events, ['fallback', 'fallback', 'fallback']);
     });
 
     test('uses registered handlers before fallback tools', () async {
@@ -152,10 +208,12 @@ void main() {
 ChatToolDispatcher _buildDispatcher({
   required List<String> events,
   ChatToolPlanningPolicy? planningPolicy,
+  ChatToolPreflightPolicy? networkReadTaintPolicy,
   ChatToolHandlerRegistry registry = const ChatToolHandlerRegistry({}),
 }) {
   return ChatToolDispatcher(
     enforcePlanningPolicy: planningPolicy ?? (_) => null,
+    enforceNetworkReadTaint: networkReadTaintPolicy ?? (_) async => null,
     handleComputerUseAction: (_) async {
       events.add('computer_action');
       return _result('computer_action');
@@ -171,6 +229,10 @@ ChatToolDispatcher _buildDispatcher({
     handleBrowserObservation: (_) async {
       events.add('browser_observation');
       return _result('browser_observation');
+    },
+    handleNetworkMutation: (_) async {
+      events.add('network_mutation');
+      return _result('network_mutation');
     },
     handlerRegistry: registry,
     executeFallbackTool: (_) async {

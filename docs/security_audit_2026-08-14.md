@@ -82,7 +82,7 @@ conventions:
 | SA-04 | High | Project-scoped reads accept arbitrary absolute and home paths | SEC1, SEC4.4 |
 | SA-05 | High | SSH host keys are accepted without known-host verification | SEC4.5 |
 | SA-06 | High | Remote Coding credentials and control traffic use plaintext WebSockets | RC1, SEC4.5 |
-| SA-07 | High | Taint policy is advisory before cache and full-access decisions | SEC2.3b |
+| SA-07 | High | Taint policy is advisory before cache and full-access decisions (fixed 2026-08-14) | SEC2.3b |
 | SA-08 | Medium | File mutations can escape project scope through missing or lexical-only containment | SEC4.4 |
 | SA-09 | Medium | Routines treat every external MCP tool as read-only | SEC4.4 |
 | SA-10 | Medium | HTTP bodies and unauthenticated Remote Coding sockets/frames are unbounded | SEC4.3, RC1 |
@@ -247,12 +247,14 @@ Required remediation:
 - stream responses through byte and total-time limits rather than buffering the
   complete body.
 
-Remediation status (2026-08-14): SEC4.3a is complete. HTTP reads are classified
-as network fetches, HTTP mutations as high-risk remote side effects, and all
-HTTP/browser results as remote untrusted provenance. SA-03 remains open and
-release-blocking: SEC4.3b must centralize approval before any network mutation,
-SEC4.3c must enforce the destination/DNS/peer/redirect policy, and SEC4.3d must
-bound response bytes and total time.
+Remediation status (2026-08-14): SEC4.3a and SEC4.3b are complete. HTTP reads
+are classified as network fetches, HTTP mutations as high-risk remote side
+effects, all HTTP/browser results use remote untrusted provenance, and every
+interactive HTTP mutation passes through the owner-scoped approval boundary.
+Tainted high-risk mutation blocks before cache/full access; other tainted
+network access requires a fresh approval. SA-03 remains open and
+release-blocking: SEC4.3c must enforce the destination/DNS/peer/redirect policy,
+and SEC4.3d must bound response bytes and total time.
 
 ### SA-04: Host-Wide Reads Through Project-Scoped Tools
 
@@ -359,6 +361,14 @@ central execution boundary before cache/full-access resolution. Tainted
 high-risk mutation must block or require fresh non-cacheable approval; the
 decision and influence sources must be recorded recursively and survive turn
 handoff.
+
+Remediation status (2026-08-14): fixed by SEC2.3b/SEC4.3b. The shared approval
+service evaluates `TaintDecision` before cached approval, auto-review, and full
+access. High-risk tainted mutation is denied, other tainted network/state
+actions require fresh manual approval, and the audit records `taint_policy`
+with the untrusted-influence flag. Production ChatNotifier regressions prove an
+HTTP fetch followed by POST cannot use full access and causes zero mutation
+execution.
 
 ## Medium And Low Findings
 

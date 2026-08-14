@@ -241,6 +241,7 @@ final class TurnToolApprovalCoordinator {
         ? request.cacheArguments!
         : request.arguments;
     final gate = await ToolApprovalAutoReviewService.resolveGate(
+      toolName: request.toolName,
       hasCachedApproval: hasCachedApproval,
       mode: request.mode,
       fullAccessEligible: request.fullAccessEligible,

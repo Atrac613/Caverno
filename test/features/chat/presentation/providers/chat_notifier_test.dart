@@ -96,6 +96,7 @@ part 'chat_notifier_narrated_transcript_part.dart';
 part 'chat_notifier_analysis_options_lint_guard_part.dart';
 part 'chat_notifier_tool_failure_classification_part.dart';
 part 'chat_notifier_execution_runtime_part.dart';
+part 'chat_notifier_network_mutation_part.dart';
 part 'chat_notifier_unexecuted_action_retry_part.dart';
 
 void main() {
@@ -161,6 +162,7 @@ void main() {
   registerChatNotifierNarratedTranscriptTests();
   registerChatNotifierAnalysisOptionsLintGuardTests();
   registerChatNotifierExecutionRuntimeTests();
+  registerChatNotifierNetworkMutationTests();
   registerChatNotifierUnexecutedActionRetryTests();
 
   test('failed-command correction notice keeps the original answer', () {

@@ -212,6 +212,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
     required bool fullAccessEligible,
     Map<String, dynamic>? approvalCacheArguments,
     String? approvalCacheStateFingerprint,
+    Map<String, dynamic>? auditArguments,
     required Future<ToolApprovalAutoReviewRequest> Function()
     buildReviewRequest,
   }) async {
@@ -223,7 +224,13 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
             stateFingerprint: approvalCacheStateFingerprint,
           );
     final hasCachedApproval = cachedApproval?.isApproved == true;
-    final auditToolCall = hasCachedApproval
+    final auditToolCall = auditArguments != null
+        ? ToolCallInfo(
+            id: toolCall.id,
+            name: toolCall.name,
+            arguments: auditArguments,
+          )
+        : hasCachedApproval
         ? ToolCallInfo(
             id: toolCall.id,
             name: toolCall.name,
@@ -231,6 +238,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
           )
         : toolCall;
     return ToolApprovalAutoReviewService.resolveGate(
+      toolName: toolCall.name,
       hasCachedApproval: hasCachedApproval,
       mode: mode,
       fullAccessEligible: fullAccessEligible,

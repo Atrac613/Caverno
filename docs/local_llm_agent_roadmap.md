@@ -180,7 +180,7 @@ structurally unmotivated to build:
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: the baseline is implemented, but the 2026-08-14 audit reopened classifier exhaustiveness, host-read trust, and external-MCP routine policy. |
-| Security | SEC2 | current | M | SEC1, LL23 | Taint-aware tool execution: enforce the decision before cache/full-access authorization, not only in auto-review metadata. |
+| Security | SEC2 | done | M | SEC1, LL23 | Taint-aware tool execution: the decision now precedes cache/full-access authorization, and tainted ungated network reads receive a fresh owner-scoped preflight. |
 | Security | SEC3 | later | S-M | SEC1, MCP-GOV2 | MCP permission diff and audit view for server/tool changes. |
 | Security | SEC4 | current | L | F2 | Runtime trust, egress, transport, and local-data hardening: close the release blockers in `docs/security_audit_2026-08-14.md` through small reviewable slices co-owned with SEC1/SEC2 where noted. |
 | Model Library | MLIB1 | later | M | LL3, LL9 | Local Model Pack Manifest: provenance, checksum, quantization, license, and verified capability metadata per local model artifact. |
@@ -3253,7 +3253,7 @@ warranted.
 
 ### LL33: Turn Provenance (session-log ↔ on-screen conversation)
 
-Status: `current`
+Status: `done`
 
 Problem:
 - The LLM session log (`*.jsonl`) records the raw LLM request/response; the
@@ -4843,7 +4843,19 @@ Slice plan:
     non-cacheable approval or hard block) and feed findings into the audit
     trail; keep taint metadata across compaction / model-switch handoff. (Hard
     behavioral gate — verify on focused tests and a live run before relying on
-    it.) **current; release-blocking with SEC4.3.**
+    it.) **done 2026-08-14.**
+
+Slice 3b evidence:
+- `ToolApprovalAutoReviewService.resolveGate` evaluates the pure taint policy
+  before cached approval, auto-review, or full access. High-risk tainted
+  mutation returns a hard denial; other tainted network/state actions return a
+  fresh manual requirement and record `taint_policy` in the approval audit.
+- `ChatToolDispatcher` routes HTTP POST/PUT/PATCH/DELETE through the
+  owner-scoped network handler before the generic fallback and runs tainted
+  HTTP/browser-read preflight before every execution handler.
+- Focused service/dispatcher/coordinator tests and production ChatNotifier tests
+  cover manual denial, full-access execution, cache/full-access precedence, and
+  fetch-then-POST blocking with zero mutation execution.
 
 Slice 3a evidence:
 - `ConversationTaintState` is held on `ChatNotifier`, reset per turn, and fed
@@ -4870,15 +4882,12 @@ precise, not a blanket high-risk-shell block.
   `untrustedInfluence=false` -> **allowed** and the file was created.
 - Approval audit recorded all three with `capabilityClass`/`capabilityRisk`/
   `untrustedInfluence`. Inspect with `tool/sec_verify_logs.sh`.
-Audit decision update (2026-08-14): the hard `TaintDecision` gate (3b) is no
-longer deferred. Source tracing confirmed that approval-cache and full-access
-paths resolve before untrusted influence can constrain them, and mutating HTTP
-tools can bypass the registered approval dispatcher entirely. The earlier live
-auto-review success remains useful evidence for precision, but it does not prove
-the other authorization paths. Implement the gate centrally before cache/full
-access, record the decision in the audit trail, and add adversarial regression
-coverage for both shortcuts. See `docs/security_audit_2026-08-14.md` SA-03 and
-SA-07.
+Resolution update (2026-08-14): the hard `TaintDecision` gate (3b) is complete.
+The approval service evaluates taint before cache/full access, HTTP mutations
+cannot reach generic fallback execution, and tainted ungated network reads stop
+at a fresh owner-scoped preflight. Adversarial cache, full-access, and
+fetch-then-mutate regressions cover the shortcuts identified in
+`docs/security_audit_2026-08-14.md` SA-03 and SA-07.
 
 Slice 1 evidence:
 - `lib/core/security/taint_policy.dart`: `TaintDecision` (allow / requireApproval
@@ -4886,8 +4895,8 @@ Slice 1 evidence:
   influencing `TrustLevel`s. Untrusted influence on a high-risk mutating action
   blocks (the fetch-then-execute / AMOS shape); on other write/network actions it
   requires a non-cacheable approval; read-only/inert actions still proceed
-  (acceptance: read-only proceeds while write/shell/network escalate). Pure and
-  advisory — no execution path is wired yet, so no default is weakened.
+  (acceptance: read-only proceeds while write/shell/network escalate). This
+  slice remained pure and advisory until Slice 3b wired it into execution.
 - `test/core/security/taint_policy_test.dart` covers untainted allow, read-only
   pass-through, high-risk block, medium escalation, and mixed-trust influence.
 
@@ -4966,9 +4975,9 @@ Slice plan:
    or normalized trust-identity change.
 3. **SEC4.3 — Network authority and resource boundary.** Land as four focused
    sub-slices: **SEC4.3a (P0, completed 2026-08-14)** classifies every HTTP verb
-   and all HTTP/browser results as remote/untrusted; **SEC4.3b (P0)** completes
-   SEC2.3b and routes every network mutation through one approval boundary;
-   **SEC4.3c (P0)**
+   and all HTTP/browser results as remote/untrusted; **SEC4.3b (P0, completed
+   2026-08-14)** completes SEC2.3b and routes every network mutation through
+   one approval boundary; **SEC4.3c (P0)**
    applies one HTTP/browser destination policy, rejects unsafe schemes and every
    private/loopback/link-local/metadata A/AAAA result, binds the approved address
    to the connection or verifies the peer address, revalidates redirects, and
