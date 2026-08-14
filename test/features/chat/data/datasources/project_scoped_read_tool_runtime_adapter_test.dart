@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/project_scoped_read_tool_runtime_adapter.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
@@ -97,6 +98,8 @@ void main() {
   });
 
   group('ProjectScopedReadToolRuntimeAdapter', () {
+    late Directory projectDirectory;
+    late Directory alternateProjectDirectory;
     late String? projectRoot;
     late ProjectScopedReadRootDisposition rootDisposition;
     late ProjectScopedReadLifecycleDisposition lifecycleDisposition;
@@ -108,8 +111,26 @@ void main() {
     buildAcknowledgement;
     late ProjectScopedReadToolRuntimeAdapter adapter;
 
-    setUp(() {
-      projectRoot = '/workspace/a';
+    setUp(() async {
+      projectDirectory = await Directory.systemTemp.createTemp(
+        'caverno_project_read_runtime_a_',
+      );
+      alternateProjectDirectory = await Directory.systemTemp.createTemp(
+        'caverno_project_read_runtime_b_',
+      );
+      projectDirectory = Directory(
+        await projectDirectory.resolveSymbolicLinks(),
+      );
+      alternateProjectDirectory = Directory(
+        await alternateProjectDirectory.resolveSymbolicLinks(),
+      );
+      await Directory('${projectDirectory.path}/lib').create();
+      await File('${projectDirectory.path}/lib/main.dart').writeAsString('');
+      await Directory('${alternateProjectDirectory.path}/lib').create();
+      await File(
+        '${alternateProjectDirectory.path}/lib/main.dart',
+      ).writeAsString('');
+      projectRoot = projectDirectory.path;
       rootDisposition = ProjectScopedReadRootDisposition.resolved;
       lifecycleDisposition = ProjectScopedReadLifecycleDisposition.current;
       executionDisposition = ProjectScopedReadExecutionDisposition.completed;
@@ -150,6 +171,11 @@ void main() {
       );
     });
 
+    tearDown(() async {
+      await projectDirectory.delete(recursive: true);
+      await alternateProjectDirectory.delete(recursive: true);
+    });
+
     test('binds owner, call, tool, arguments, root, and completion', () async {
       final completion = await adapter.handle(
         owner: owner,
@@ -166,9 +192,9 @@ void main() {
       expect(completion.result.isSuccess, isTrue);
       expect(completion.identity.owner, owner);
       expect(completion.identity.invocation.toolCallId, 'exact-call');
-      expect(completion.identity.root.projectRoot, '/workspace/a');
+      expect(completion.identity.root.projectRoot, projectDirectory.path);
       expect(executions.single.arguments, {
-        'path': '/workspace/a/lib/main.dart',
+        'path': '${projectDirectory.path}/lib/main.dart',
         'limit': 12,
       });
       expect(
@@ -187,7 +213,7 @@ void main() {
         owner: owner,
         toolCall: _toolCall(arguments: const {'path': 'lib/other.dart'}),
       );
-      projectRoot = '/workspace/b';
+      projectRoot = alternateProjectDirectory.path;
       final changedRoot = await adapter.handle(
         owner: owner,
         toolCall: _toolCall(),
@@ -424,7 +450,7 @@ void main() {
 
     test('root drift during execution is explicitly uncertain', () async {
       buildAcknowledgement = (request) {
-        projectRoot = '/workspace/b';
+        projectRoot = alternateProjectDirectory.path;
         return ProjectScopedReadExecutionAcknowledgement(
           identity: request.identity,
           disposition: ProjectScopedReadExecutionDisposition.completed,

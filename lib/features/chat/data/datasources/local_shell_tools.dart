@@ -9,6 +9,7 @@ import '../../domain/services/dart_diagnostic_line_parser.dart';
 import 'filesystem_tools.dart';
 import 'first_party_tool_execution_result.dart';
 import 'git_tools.dart';
+import 'project_read_path_fence.dart';
 
 class LocalShellTools {
   LocalShellTools._();
@@ -56,6 +57,79 @@ class LocalShellTools {
     final trimmed = normalizeCommand(command);
     if (trimmed.isEmpty) return false;
     return _canExecuteInternally(trimmed);
+  }
+
+  static Future<ProjectReadPathDenial?> projectReadDenial({
+    required String command,
+    required String workingDirectory,
+    required String? projectRoot,
+  }) async {
+    final normalized = normalizeCommand(command);
+    if (!_canExecuteInternally(normalized)) return null;
+    final segments = _splitConditionalCommands(
+      normalized,
+    ).map(_splitArgs).where((args) => args.isNotEmpty).toList(growable: false);
+    if (segments.every((args) => args.first == 'echo')) return null;
+    const fence = ProjectReadPathFence();
+    final workingDirectoryAuthorization = await fence.authorize(
+      projectRoot: projectRoot,
+      rawPath: workingDirectory,
+    );
+    if (!workingDirectoryAuthorization.isAllowed) {
+      return workingDirectoryAuthorization.denial;
+    }
+    for (final args in segments) {
+      if (args.first == 'echo') continue;
+      for (final path in _internalReadPaths(args)) {
+        final authorization = await fence.authorize(
+          projectRoot: projectRoot,
+          rawPath: path,
+          baseDirectory: workingDirectory,
+        );
+        if (!authorization.isAllowed) return authorization.denial;
+      }
+    }
+    return null;
+  }
+
+  static List<String> _internalReadPaths(List<String> args) {
+    final command = args.first;
+    final operands = args.skip(1).toList();
+    return switch (command) {
+      'pwd' => const <String>[],
+      'cat' || 'ls' || 'wc' => [
+        for (final operand in operands)
+          if (!operand.startsWith('-')) operand,
+        if (command == 'ls' && operands.every((value) => value.startsWith('-')))
+          '.',
+      ],
+      'head' || 'tail' => _parseHeadTailArgs(operands, command).filePaths,
+      'find' => [
+        if (operands.isNotEmpty && !operands.first.startsWith('-'))
+          operands.first
+        else
+          '.',
+      ],
+      'rg' => [_rgSearchRoot(operands)],
+      _ => const <String>[],
+    };
+  }
+
+  static String _rgSearchRoot(List<String> args) {
+    var filesOnly = false;
+    final positional = <String>[];
+    for (var index = 0; index < args.length; index++) {
+      final arg = args[index];
+      if (arg == '--files') {
+        filesOnly = true;
+      } else if (arg == '-g') {
+        index += 1;
+      } else if (!arg.startsWith('-')) {
+        positional.add(arg);
+      }
+    }
+    if (filesOnly) return positional.isEmpty ? '.' : positional.first;
+    return positional.length > 1 ? positional[1] : '.';
   }
 
   static Future<String> execute({

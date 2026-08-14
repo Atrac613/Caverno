@@ -16,7 +16,6 @@ final class LocalCommandToolHandler {
   }) : _executionPort = executionPort,
        _approvalPort = approvalPort,
        _permissionRuleStorePort = permissionRuleStorePort;
-
   static const Duration defaultTimeout = localCommandDefaultTimeout;
   static const String _missingArgumentsMessage =
       'command is required and working_directory must be provided or inferred '
@@ -56,6 +55,7 @@ final class LocalCommandToolHandler {
         ...request.arguments,
         'command': command,
         'working_directory': workingDirectory,
+        'allowed_read_root': request.allowedWorkingDirectoryRoot,
       },
     );
     final ruleRequest = CommandPermissionRuleRequest(

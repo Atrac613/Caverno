@@ -92,6 +92,106 @@ void main() {
   });
 
   group('approval-free internal execution boundary', () {
+    test(
+      'fences every internal filesystem operand to the project root',
+      () async {
+        final sandbox = await Directory.systemTemp.createTemp(
+          'local_shell_read_fence_',
+        );
+        addTearDown(() => sandbox.delete(recursive: true));
+        final project = await Directory('${sandbox.path}/project').create();
+        final inside = await File(
+          '${project.path}/inside.txt',
+        ).writeAsString('needle');
+        final outside = await File(
+          '${sandbox.path}/outside.txt',
+        ).writeAsString('secret');
+
+        for (final command in [
+          'cat ${inside.path}',
+          'ls ${project.path}',
+          'head ${inside.path}',
+          'tail ${inside.path}',
+          'wc ${inside.path}',
+          'find ${project.path} -name *.txt',
+          'rg needle ${project.path}',
+        ]) {
+          expect(
+            await LocalShellTools.projectReadDenial(
+              command: command,
+              workingDirectory: project.path,
+              projectRoot: project.path,
+            ),
+            isNull,
+            reason: command,
+          );
+        }
+
+        for (final command in [
+          'cat ${outside.path}',
+          'ls ${sandbox.path}',
+          'head ${outside.path}',
+          'tail ${outside.path}',
+          'wc ${outside.path}',
+          'find ${sandbox.path}',
+          'rg secret ${sandbox.path}',
+        ]) {
+          final denial = await LocalShellTools.projectReadDenial(
+            command: command,
+            workingDirectory: project.path,
+            projectRoot: project.path,
+          );
+          expect(denial?.code, 'project_read_outside_root', reason: command);
+        }
+      },
+    );
+
+    test('rejects missing roots, traversal, and symlink escapes', () async {
+      final sandbox = await Directory.systemTemp.createTemp(
+        'local_shell_read_escape_',
+      );
+      addTearDown(() => sandbox.delete(recursive: true));
+      final project = await Directory('${sandbox.path}/project').create();
+      final outside = await File(
+        '${sandbox.path}/outside.txt',
+      ).writeAsString('secret');
+      final link = Link('${project.path}/outside-link');
+      try {
+        await link.create(outside.path);
+      } on FileSystemException {
+        markTestSkipped('Symbolic links are unavailable on this platform.');
+        return;
+      }
+
+      final missingRoot = await LocalShellTools.projectReadDenial(
+        command: 'cat ${outside.path}',
+        workingDirectory: project.path,
+        projectRoot: null,
+      );
+      final traversal = await LocalShellTools.projectReadDenial(
+        command: 'cat ../outside.txt',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final symlink = await LocalShellTools.projectReadDenial(
+        command: 'cat ${link.path}',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+
+      expect(missingRoot?.code, 'project_read_root_required');
+      expect(traversal?.code, 'project_read_traversal_not_allowed');
+      expect(symlink?.code, 'project_read_outside_root');
+      expect(
+        await LocalShellTools.projectReadDenial(
+          command: 'echo ok',
+          workingDirectory: project.path,
+          projectRoot: null,
+        ),
+        isNull,
+      );
+    });
+
     test('allows bounded internal inspection commands', () {
       expect(LocalShellTools.isReadOnly('pwd'), isTrue);
       expect(LocalShellTools.isReadOnly('ls -la'), isTrue);

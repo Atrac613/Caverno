@@ -2,6 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/data/datasources/llm_session_log_store.dart';
+import '../../../chat/data/datasources/mcp_tool_service.dart';
+import '../../../chat/data/datasources/project_read_tool_authorizer.dart';
+import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/data/datasources/session_logging_chat_datasource.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/coding_projects_notifier.dart';
@@ -17,6 +20,23 @@ import '../../domain/services/live_personal_eval_case_runner.dart';
 import '../../domain/services/personal_eval_bake_off_service.dart';
 import '../../domain/services/personal_eval_replay_orchestrator.dart';
 import '../../domain/services/personal_eval_verification_runner.dart';
+
+Future<McpToolResult> _dispatchPersonalEvalTool(
+  McpToolService service,
+  String projectRoot,
+  ToolCallInfo toolCall,
+) async {
+  final authorization = await const ProjectReadToolAuthorizer().authorize(
+    toolName: toolCall.name,
+    arguments: toolCall.arguments,
+    projectRoot: projectRoot,
+  );
+  if (!authorization.isAllowed) return authorization.deniedResult!;
+  return service.executeTool(
+    name: toolCall.name,
+    arguments: authorization.arguments!,
+  );
+}
 
 /// Local-only personal eval case store (LL19).
 final personalEvalCaseRepositoryProvider = Provider<PersonalEvalCaseRepository>(
@@ -60,9 +80,10 @@ final personalEvalReplayTurnDriverFactoryProvider =
         toolDefinitions: toolService?.getOpenAiToolDefinitions,
         dispatchToolCall: toolService == null
             ? null
-            : (toolCall) => toolService.executeTool(
-                name: toolCall.name,
-                arguments: toolCall.arguments,
+            : (toolCall) => _dispatchPersonalEvalTool(
+                toolService,
+                workingDirectory,
+                toolCall,
               ),
       );
     });
@@ -107,9 +128,10 @@ final personalEvalRunnerWithSuffixFactoryProvider =
           toolDefinitions: toolService?.getOpenAiToolDefinitions,
           dispatchToolCall: toolService == null
               ? null
-              : (toolCall) => toolService.executeTool(
-                  name: toolCall.name,
-                  arguments: toolCall.arguments,
+              : (toolCall) => _dispatchPersonalEvalTool(
+                  toolService,
+                  workingDirectory,
+                  toolCall,
                 ),
           systemPromptSuffix: suffix,
         );

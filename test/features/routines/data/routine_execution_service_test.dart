@@ -1187,7 +1187,14 @@ void main() {
     test(
       'resolves relative read paths against the routine workspace',
       () async {
-        const workspaceDirectory = '/tmp/caverno-routine-workspace';
+        final workspace = await Directory.systemTemp.createTemp(
+          'routine-read-workspace-',
+        );
+        addTearDown(() => workspace.delete(recursive: true));
+        final stateFile = await File(
+          '${workspace.path}/lan_devices.json',
+        ).writeAsString('[]');
+        final workspaceDirectory = workspace.path;
         final dataSource = _FakeChatDataSource(
           initialToolAwareResult: ChatCompletionResult(
             content: 'Reading previous routine state',
@@ -1238,7 +1245,7 @@ void main() {
         expect(record.toolNames, ['read_file']);
         expect(
           toolService.executedCalls.single.arguments['path'],
-          '/tmp/caverno-routine-workspace/lan_devices.json',
+          await stateFile.resolveSymbolicLinks(),
         );
       },
     );

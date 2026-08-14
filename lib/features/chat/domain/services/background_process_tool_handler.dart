@@ -91,6 +91,7 @@ final class BackgroundProcessToolHandler {
         ...request.arguments,
         'command': command,
         'working_directory': workingDirectory,
+        'allowed_read_root': request.allowedWorkingDirectoryRoot,
       },
     );
     final permission = _permissionRuleStorePort.evaluate(

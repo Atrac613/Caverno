@@ -2140,8 +2140,12 @@ void registerChatNotifierGoalAutoContinueTests() {
       'write_file',
       'local_execute_command',
     ]);
-    expect(toolService.executedToolArguments.first, verifierArguments);
-    expect(toolService.executedToolArguments.last, verifierArguments);
+    final scopedVerifierArguments = {
+      ...verifierArguments,
+      'allowed_read_root': verifierArguments['working_directory'],
+    };
+    expect(toolService.executedToolArguments.first, scopedVerifierArguments);
+    expect(toolService.executedToolArguments.last, scopedVerifierArguments);
   });
 
   test(

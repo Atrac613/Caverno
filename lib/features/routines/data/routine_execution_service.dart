@@ -15,6 +15,7 @@ import '../../chat/data/datasources/chat_datasource.dart';
 import '../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../chat/data/datasources/llm_session_log_store.dart';
 import '../../chat/data/datasources/mcp_tool_service.dart';
+import '../../chat/data/datasources/project_read_tool_authorizer.dart';
 import '../../chat/data/datasources/session_logging_chat_datasource.dart';
 import '../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../chat/domain/entities/message.dart';
@@ -780,9 +781,34 @@ class RoutineExecutionService {
       return RoutineToolPolicy.buildUnavailableResult(toolCall);
     }
 
+    Map<String, dynamic> authorizedArguments = toolCall.arguments;
+    if (RoutineToolPolicy.isWorkspaceReadToolName(toolCall.name)) {
+      final root = routine.hasWorkspaceDirectory
+          ? _normalizeDirectoryPath(routine.trimmedWorkspaceDirectory)
+          : null;
+      final arguments = <String, dynamic>{...toolCall.arguments};
+      final rawPath = (arguments['path'] as String?)?.trim() ?? '';
+      if (rawPath.isEmpty && toolCall.name != 'read_file') {
+        arguments['path'] = root ?? '';
+      }
+      final authorization = await const ProjectReadToolAuthorizer().authorize(
+        toolName: toolCall.name,
+        arguments: arguments,
+        projectRoot: root,
+      );
+      if (!authorization.isAllowed) {
+        return authorization.deniedResult!;
+      }
+      authorizedArguments = authorization.arguments!;
+    }
+
     final scopedArgumentsResult = _scopedWorkspaceArguments(
       routine: routine,
-      toolCall: toolCall,
+      toolCall: ToolCallInfo(
+        id: toolCall.id,
+        name: toolCall.name,
+        arguments: authorizedArguments,
+      ),
     );
     if (scopedArgumentsResult.deniedResult != null) {
       return scopedArgumentsResult.deniedResult!;

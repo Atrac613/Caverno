@@ -409,15 +409,28 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       ownerPort: CallbackToolApprovalOwnerPort(_isApprovalOwnerCurrent),
       executeEffect: service == null
           ? null
-          : (identity, arguments) {
+          : (identity, arguments) async {
               appLog(
                 '[ParticipantTool] executing ${identity.toolName} for '
                 '${participant.id} with '
                 'approvalMode=${participant.toolApprovalMode.name}',
               );
+              var authorizedArguments = arguments;
+              if (service.ownsBuiltInFilesystemEffects) {
+                final authorization = await const ProjectReadToolAuthorizer()
+                    .authorize(
+                      toolName: identity.toolName,
+                      arguments: arguments,
+                      projectRoot: _getActiveProjectRootPath(),
+                    );
+                if (!authorization.isAllowed) {
+                  return authorization.deniedResult!;
+                }
+                authorizedArguments = authorization.arguments!;
+              }
               return service.executeTool(
                 name: identity.toolName,
-                arguments: arguments,
+                arguments: authorizedArguments,
               );
             },
       projectActivity: (_, activeToolName) =>

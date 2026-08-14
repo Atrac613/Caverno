@@ -1,8 +1,10 @@
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
+import '../../domain/services/local_command_tool_contract.dart';
 import 'background_process_monitor_service.dart';
 import 'background_process_tool_executor.dart';
 import 'background_process_tools.dart';
+import 'built_in_local_command_read_preflight.dart';
 import 'built_in_local_command_runner.dart';
 import 'built_in_local_command_tool_definitions.dart';
 import 'local_shell_tools.dart';
@@ -75,7 +77,7 @@ class BuiltInLocalCommandToolHandler {
     }
     if ((name.startsWith('process_') ||
             (name == 'local_execute_command' &&
-                _asBool(arguments['background']))) &&
+                argumentIsTruthy(arguments['background']))) &&
         owner == null) {
       return McpToolResultNormalizer.structuredFailure(
         toolName: name,
@@ -87,6 +89,12 @@ class BuiltInLocalCommandToolHandler {
         errorMessage: 'An active chat turn owner is required',
       );
     }
+
+    final readDenial = await authorizeBuiltInLocalCommandRead(
+      toolName: name,
+      arguments: arguments,
+    );
+    if (readDenial != null) return readDenial;
 
     switch (name) {
       case 'local_execute_command':
@@ -109,7 +117,7 @@ class BuiltInLocalCommandToolHandler {
         if (gitWriteBlockedResult != null) {
           return _gitWriteFailure(name, gitWriteBlockedResult);
         }
-        if (_asBool(arguments['background'])) {
+        if (argumentIsTruthy(arguments['background'])) {
           return _backgroundProcessExecutor.start(
             owner: owner!,
             name: name,
@@ -170,22 +178,5 @@ class BuiltInLocalCommandToolHandler {
       result: result,
       errorMessage: 'Use git_execute_command for git write commands',
     );
-  }
-
-  bool _asBool(Object? value) {
-    if (value == null) {
-      return false;
-    }
-    if (value is bool) {
-      return value;
-    }
-    if (value is num) {
-      return value != 0;
-    }
-    if (value is String) {
-      final normalized = value.trim().toLowerCase();
-      return normalized == 'true' || normalized == '1' || normalized == 'yes';
-    }
-    return false;
   }
 }

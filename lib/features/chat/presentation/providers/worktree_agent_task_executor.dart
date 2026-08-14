@@ -11,6 +11,8 @@ import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/mesh_secondary_completion_runner.dart';
 import '../../data/datasources/mcp_tool_service.dart';
+import '../../data/datasources/project_read_tool_authorizer.dart';
+import '../../data/datasources/project_scoped_read_runtime_contract.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/subagent_task.dart';
@@ -350,9 +352,27 @@ class WorktreeAgentScopedToolDispatcher {
     }
 
     final scopedArguments = Map<String, dynamic>.from(toolCall.arguments);
-    final scopeFailure = _scopePathArgument(toolCall.name, scopedArguments);
-    if (scopeFailure != null) {
-      return scopeFailure;
+    if (projectScopedLocalReadToolNames.contains(toolCall.name)) {
+      final rawPath = (scopedArguments['path'] as String?)?.trim() ?? '';
+      if (rawPath.isEmpty && _rootDefaultToolNames.contains(toolCall.name)) {
+        scopedArguments['path'] = _worktreePath;
+      }
+      final authorization = await const ProjectReadToolAuthorizer().authorize(
+        toolName: toolCall.name,
+        arguments: scopedArguments,
+        projectRoot: _worktreePath,
+      );
+      if (!authorization.isAllowed) {
+        return authorization.deniedResult!;
+      }
+      scopedArguments
+        ..clear()
+        ..addAll(authorization.arguments!);
+    } else {
+      final scopeFailure = _scopePathArgument(toolCall.name, scopedArguments);
+      if (scopeFailure != null) {
+        return scopeFailure;
+      }
     }
     final result = await service.executeTool(
       name: toolCall.name,

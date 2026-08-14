@@ -12,6 +12,7 @@ import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/mcp_tool_service.dart';
+import '../../data/datasources/project_read_tool_authorizer.dart';
 import '../../data/datasources/mesh_secondary_completion_runner.dart';
 import '../../data/datasources/session_logging_chat_datasource.dart';
 import '../../data/datasources/llama_cpp_slot_transport.dart';
@@ -27,6 +28,7 @@ import '../../domain/services/pro_reasoning_run_coordinator.dart';
 import '../../domain/services/pro_reasoning_synthesis_recovery.dart';
 import '../../domain/services/secondary_completion_router.dart';
 import 'chat_notifier.dart';
+import 'coding_projects_notifier.dart';
 import 'conversations_notifier.dart';
 import 'hidden_prompt_launch_options.dart';
 import 'mcp_tool_provider.dart';
@@ -313,6 +315,10 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
   }) async {
     if (toolService == null) return '';
     final startedAt = DateTime.now();
+    final projectRoot = ref
+        .read(codingProjectsNotifierProvider)
+        .selectedProject
+        ?.rootPath;
     try {
       final result = await _bounded(
         ProReasoningInvestigator().investigate(
@@ -324,10 +330,19 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
           deadline: deadline,
           isCancelled: isCancelled,
           toolDefinitions: toolService.getOpenAiToolDefinitions(),
-          runTool: (call) => toolService.executeTool(
-            name: call.name,
-            arguments: call.arguments,
-          ),
+          runTool: (call) async {
+            final authorization = await const ProjectReadToolAuthorizer()
+                .authorize(
+                  toolName: call.name,
+                  arguments: call.arguments,
+                  projectRoot: projectRoot,
+                );
+            if (!authorization.isAllowed) return authorization.deniedResult!;
+            return toolService.executeTool(
+              name: call.name,
+              arguments: authorization.arguments!,
+            );
+          },
           onLlmCall:
               ({
                 required messages,

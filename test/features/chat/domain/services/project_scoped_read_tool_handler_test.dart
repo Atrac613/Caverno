@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
+import 'package:caverno/features/chat/data/datasources/project_read_tool_authorizer.dart';
 import 'package:caverno/features/chat/domain/services/project_scoped_read_tool_handler.dart';
 import 'package:test/test.dart';
+import 'package:path/path.dart' as p;
 
 const _tools = {
   'list_directory',
@@ -80,6 +83,9 @@ ProjectScopedReadToolHandler _handler(
   executionPort: execution,
   lifecyclePort: lifecycle,
   supportedToolNames: _tools,
+  authorizeRead:
+      ({required toolName, required arguments, required projectRoot}) async =>
+          ProjectReadToolAuthorization.allowed(arguments),
 );
 
 Map<String, dynamic> _payload(McpToolResult result) =>
@@ -175,6 +181,32 @@ void main() {
     expect(execution.calls[0].arguments, {'path': '.'});
     expect(execution.calls[1].arguments, {'job_id': 'job-7', 'lines': 12});
   });
+
+  test(
+    'default authorization blocks an out-of-project file before execution',
+    () async {
+      final sandbox = await Directory.systemTemp.createTemp('scoped-read-');
+      addTearDown(() => sandbox.delete(recursive: true));
+      final project = await Directory(p.join(sandbox.path, 'project')).create();
+      final outside = await File(
+        p.join(sandbox.path, 'outside.txt'),
+      ).writeAsString('secret');
+      final execution = _Execution();
+      final lifecycle = _Lifecycle();
+      final handler = ProjectScopedReadToolHandler(
+        executionPort: execution,
+        lifecyclePort: lifecycle,
+        supportedToolNames: _tools,
+      );
+
+      final result = await handler.handle(
+        _request(root: project.path, arguments: {'path': outside.path}),
+      );
+
+      expect(_code(result), 'project_read_outside_root');
+      expect(execution.calls, isEmpty);
+    },
+  );
 
   test(
     'rejects unsupported tools and resolver failures before execution',

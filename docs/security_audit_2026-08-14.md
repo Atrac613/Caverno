@@ -79,7 +79,7 @@ conventions:
 | SA-01 | Critical | Read-only shell classification permits arbitrary execution without approval | SEC4.1 |
 | SA-02 | High | Imported executable settings and pending MCP review can start processes before dedicated consent (fixed 2026-08-14) | SEC4.2 |
 | SA-03 | High | Built-in HTTP and browser tools bypass a complete egress/SSRF boundary (destination boundary fixed 2026-08-14; resource limits pending) | SEC1, SEC4.3 |
-| SA-04 | High | Project-scoped reads accept arbitrary absolute and home paths | SEC1, SEC4.4 |
+| SA-04 | High | Project-scoped reads accept arbitrary absolute and home paths (fixed 2026-08-14) | SEC1, SEC4.4 |
 | SA-05 | High | SSH host keys are accepted without known-host verification | SEC4.5 |
 | SA-06 | High | Remote Coding credentials and control traffic use plaintext WebSockets | RC1, SEC4.5 |
 | SA-07 | High | Taint policy is advisory before cache and full-access decisions (fixed 2026-08-14) | SEC2.3b |
@@ -284,6 +284,14 @@ or private documents can enter model requests, tool results, and session logs.
 Required remediation: apply one canonical, symlink-aware project path fence to
 all approval-free filesystem and internal shell reads. Host-wide reads must be
 a separate disabled-by-default capability with a fresh, non-cacheable approval.
+
+Remediation status (2026-08-14): SEC4.4a is complete. One canonical asynchronous
+fence now covers interactive, Plan Mode, participant, Pro Reasoning, Personal
+Eval, routine, and worktree-agent reads plus approval-free internal shell reads.
+Missing authority, home paths, traversal, sibling and prefix collisions, and
+direct or intermediate symlink escapes fail before the filesystem or process
+effect. A complete current-main versus feature failure-set comparison recorded
+15 shared pre-existing failures and zero feature-only failures.
 
 ### SA-05: Missing SSH Host-Key Verification
 
@@ -556,7 +564,7 @@ Add negative coverage for:
 | P0-1 | SEC4.1 approval-free execution boundary (completed 2026-08-14) | SA-01 | No command reaching a native shell can take a read-only shortcut; foreground, background, process, Windows, remote, and Plan Mode tests pass. |
 | P0-2 | SEC4.2 executable configuration quarantine (completed 2026-08-14) | SA-02 | File, QR, onboarding, and external-config fixtures persist sanitized state and cause zero process/client starts across import, rebuild, next turn, restart, and resync before exact expiring review. |
 | P0-3 | SEC1 + SEC2.3b + SEC4.3a-SEC4.3c network authority (completed 2026-08-14) | SA-03, SA-07 | Every HTTP/browser request uses one classifier, remote provenance, approval, destination, DNS/peer, and redirect policy; unverifiable external WebView navigation is absent; taint precedes cache/full access. |
-| P0-4 | SEC4.4a project read containment | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
+| P0-4 | SEC4.4a project read containment (completed 2026-08-14) | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
 | P0-5 | SEC4.5a-SEC4.5b authenticated transport containment | SA-05, SA-06 | SSH known-host mismatch fails; the updated release gate and artifact/runtime smoke prove that non-loopback Remote Coding plaintext is absent until pinned transport passes. |
 | P1-1 | SEC4.4b mutation and autonomous containment | SA-08, SA-09 | Symlink-aware write fences and routine MCP deny-by-default tests pass. |
 | P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport | SA-10, SA-12 | HTTP and Remote Coding limits pass; credential-bearing non-loopback LLM endpoints require HTTPS. |

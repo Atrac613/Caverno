@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/background_process_monitor_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
@@ -214,6 +215,56 @@ void main() {
       expect(result.result, '{"ok":false,"code":"runner_failure"}');
       expect(result.isSuccess, isTrue);
       expect(result.errorMessage, isNull);
+    });
+
+    test('blocks an out-of-project internal read before the runner', () async {
+      final sandbox = await Directory.systemTemp.createTemp(
+        'built_in_command_read_fence_',
+      );
+      addTearDown(() => sandbox.delete(recursive: true));
+      final project = await Directory('${sandbox.path}/project').create();
+      final outside = await File(
+        '${sandbox.path}/secret.txt',
+      ).writeAsString('secret');
+      var runnerCalls = 0;
+      final handler = BuiltInLocalCommandToolHandler(
+        foregroundCommandRunner:
+            ({required command, required workingDirectory}) async {
+              runnerCalls += 1;
+              return 'unexpected';
+            },
+      );
+
+      final result = await handler.execute(
+        owner: owner,
+        name: 'local_execute_command',
+        arguments: {
+          'command': 'cat ${outside.path}',
+          'working_directory': project.path,
+          'allowed_read_root': project.path,
+        },
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(
+        jsonDecode(result.result),
+        containsPair('code', 'project_read_outside_root'),
+      );
+      final backgroundResult = await handler.execute(
+        owner: owner,
+        name: 'process_start',
+        arguments: {
+          'command': 'cat ${outside.path}',
+          'working_directory': project.path,
+          'allowed_read_root': project.path,
+        },
+      );
+      expect(backgroundResult.isSuccess, isFalse);
+      expect(
+        jsonDecode(backgroundResult.result),
+        containsPair('code', 'project_read_outside_root'),
+      );
+      expect(runnerCalls, 0);
     });
 
     test('carries the reported exit status without failing the tool', () async {

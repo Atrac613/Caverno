@@ -65,6 +65,7 @@ import '../../data/datasources/local_shell_tools.dart';
 import '../../data/datasources/lsp_go_to_definition_runtime_adapter.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../data/datasources/project_scoped_tool_argument_resolver.dart';
+import '../../data/datasources/project_read_tool_authorizer.dart';
 import '../../data/datasources/turn_project_root.dart';
 import '../../data/datasources/python_script_tool_runtime_adapter.dart';
 import '../../data/datasources/save_skill_tool_runtime_adapter.dart';
@@ -7835,16 +7836,28 @@ class ChatNotifier extends Notifier<ChatState> {
       toolCall.name,
       toolCall.arguments,
     );
+    var authorizedArguments = arguments;
+    if (_mcpToolService!.ownsBuiltInFilesystemEffects) {
+      final authorization = await const ProjectReadToolAuthorizer().authorize(
+        toolName: toolCall.name,
+        arguments: arguments,
+        projectRoot: _getActiveProjectRootPath(),
+      );
+      if (!authorization.isAllowed) {
+        return authorization.deniedResult!;
+      }
+      authorizedArguments = authorization.arguments!;
+    }
     if (owner != null) {
-      return _mcpToolService!.executeProcessTool(
+      return _mcpToolService!.executeFileTool(
         owner: owner,
         name: toolCall.name,
-        arguments: arguments,
+        arguments: authorizedArguments,
       );
     }
     return _mcpToolService!.executeTool(
       name: toolCall.name,
-      arguments: arguments,
+      arguments: authorizedArguments,
     );
   }
 

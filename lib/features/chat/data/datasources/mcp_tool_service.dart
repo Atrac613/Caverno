@@ -181,6 +181,13 @@ class McpToolService extends McpToolServiceFacadeBase {
   final BackgroundProcessMonitorService? backgroundProcessMonitorService;
   final BuiltInNetworkToolHandler networkToolHandler;
   final BuiltInFilesystemToolHandler filesystemToolHandler;
+
+  /// Whether this service dispatches built-in filesystem effects locally.
+  ///
+  /// Adapter services that override [executeTool] without touching the local
+  /// filesystem can opt out of caller-side project read fencing.
+  bool get ownsBuiltInFilesystemEffects => true;
+
   final BuiltInLocalCommandToolHandler localCommandToolHandler;
   final BuiltInSshToolHandler sshToolHandler;
   final BuiltInBleToolHandler bleToolHandler;

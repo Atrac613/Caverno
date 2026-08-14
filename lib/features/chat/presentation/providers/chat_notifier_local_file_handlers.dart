@@ -506,6 +506,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       ...resolvedArguments,
       'command': command,
       'working_directory': workingDirectory,
+      'allowed_read_root': _getActiveProjectRootPath() ?? '',
     };
 
     final permissionDecision = LocalCommandPermissionService.evaluate(

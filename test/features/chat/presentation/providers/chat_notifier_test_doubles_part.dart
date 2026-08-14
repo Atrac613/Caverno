@@ -2824,6 +2824,9 @@ class _FakeMcpToolService extends McpToolService
   final List<Map<String, dynamic>> executedToolArguments = [];
 
   @override
+  bool get ownsBuiltInFilesystemEffects => false;
+
+  @override
   Future<void> connect({
     List<McpServerConfig>? overrideServers,
     List<String>? overrideUrls,
@@ -3429,6 +3432,9 @@ class _PlanningResearchMcpToolService extends McpToolService {
   final List<String> executedToolNames = [];
   final List<({String name, Map<String, dynamic> arguments})> executedCalls =
       [];
+
+  @override
+  bool get ownsBuiltInFilesystemEffects => false;
 
   @override
   Future<void> connect({

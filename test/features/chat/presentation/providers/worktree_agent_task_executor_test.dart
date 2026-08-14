@@ -266,6 +266,14 @@ void main() {
   test(
     'scoped dispatcher confines file paths to the assigned worktree',
     () async {
+      final worktree = await Directory.systemTemp.createTemp(
+        'scoped-worktree-',
+      );
+      addTearDown(() => worktree.delete(recursive: true));
+      await Directory('${worktree.path}/lib').create();
+      await File(
+        '${worktree.path}/lib/main.dart',
+      ).writeAsString('void main() {}');
       final toolService = _RecordingMcpToolService(
         toolDefinitions: const [
           _readFileToolDefinition,
@@ -274,7 +282,7 @@ void main() {
       );
       final dispatcher = WorktreeAgentScopedToolDispatcher(
         toolService: toolService,
-        worktreePath: '/tmp/caverno-worktrees/fix-test',
+        worktreePath: worktree.path,
       );
 
       final readResult = await dispatcher.dispatch(
@@ -304,14 +312,12 @@ void main() {
       expect(outsideResult.isSuccess, isFalse);
       expect(outsideResult.errorMessage, contains('outside'));
       expect(toolService.executedToolNames, ['read_file', 'search_files']);
+      final canonicalWorktree = await worktree.resolveSymbolicLinks();
       expect(
         toolService.executedToolArguments[0]['path'],
-        '/tmp/caverno-worktrees/fix-test/lib/main.dart',
+        '$canonicalWorktree/lib/main.dart',
       );
-      expect(
-        toolService.executedToolArguments[1]['path'],
-        '/tmp/caverno-worktrees/fix-test',
-      );
+      expect(toolService.executedToolArguments[1]['path'], canonicalWorktree);
     },
   );
 

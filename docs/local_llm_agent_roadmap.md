@@ -5014,7 +5014,7 @@ Slice plan:
    strips cross-origin credentials; **SEC4.3d (P1)** adds streamed body and
    total-time ceilings.
 4. **SEC4.4 — Project and autonomous containment.** Split implementation into
-   **SEC4.4a (P0)**, applying one canonical, symlink-aware fence to every
+   **SEC4.4a (P0, completed 2026-08-14)**, applying one canonical, symlink-aware fence to every
    approval-free read, and **SEC4.4b (P1)**, applying the same authorization to
    every file mutation and denying external MCP tools in routines by default.
    Any restored routine grant binds server identity, tool name, schema digest,

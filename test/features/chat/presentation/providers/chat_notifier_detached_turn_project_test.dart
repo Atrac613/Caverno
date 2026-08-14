@@ -373,6 +373,9 @@ final class _ParticipantReadToolService extends McpToolService {
   final List<Map<String, dynamic>> executedArguments = <Map<String, dynamic>>[];
 
   @override
+  bool get ownsBuiltInFilesystemEffects => false;
+
+  @override
   Future<void> connect({
     List<McpServerConfig>? overrideServers,
     List<String>? overrideUrls,
@@ -438,6 +441,9 @@ class _SwitchingToolService extends McpToolService {
   final Future<void> Function() onExecute;
   final List<String> receivedPaths = [];
   int executions = 0;
+
+  @override
+  bool get ownsBuiltInFilesystemEffects => false;
 
   @override
   Future<void> connect({
@@ -831,6 +837,9 @@ class _ProtectedPathToolService extends McpToolService {
   final List<Map<String, dynamic>> executedArguments = [];
 
   @override
+  bool get ownsBuiltInFilesystemEffects => false;
+
+  @override
   Future<void> connect({
     List<McpServerConfig>? overrideServers,
     List<String>? overrideUrls,
@@ -1025,6 +1034,9 @@ class _SavedWorkflowToolService extends McpToolService
   final List<Map<String, dynamic>> executedArguments = [];
 
   @override
+  bool get ownsBuiltInFilesystemEffects => false;
+
+  @override
   Future<void> connect({
     List<McpServerConfig>? overrideServers,
     List<String>? overrideUrls,
@@ -1107,6 +1119,9 @@ final class _GatedContentToolService extends McpToolService with _ProcessTools {
   final List<Map<String, dynamic>> executedArguments = <Map<String, dynamic>>[];
 
   @override
+  bool get ownsBuiltInFilesystemEffects => false;
+
+  @override
   Future<void> connect({
     List<McpServerConfig>? overrideServers,
     List<String>? overrideUrls,
@@ -1146,6 +1161,13 @@ final class _GatedContentToolService extends McpToolService with _ProcessTools {
       isSuccess: true,
     );
   }
+
+  @override
+  Future<McpToolResult> executeFileTool({
+    required ChatTurnOwner owner,
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) => executeTool(name: name, arguments: arguments);
 }
 
 Future<({String threadA, String threadB})> _configureSavedWorkflowThreads(
@@ -10583,6 +10605,9 @@ class _ReportedOutcomeToolService extends McpToolService {
   _ReportedOutcomeToolService(this.outcome);
 
   final ToolOutcome outcome;
+
+  @override
+  bool get ownsBuiltInFilesystemEffects => false;
 
   @override
   Future<void> connect({
