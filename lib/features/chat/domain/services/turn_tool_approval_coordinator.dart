@@ -369,7 +369,6 @@ final class TurnToolApprovalCoordinator {
   ) => gate.escalatedFromAutoReviewDenial
       ? 'Auto-review flagged this action'
       : fallback;
-
   String? escalatedWarningMessage(
     ToolApprovalGateDecision gate,
     String? fallback,

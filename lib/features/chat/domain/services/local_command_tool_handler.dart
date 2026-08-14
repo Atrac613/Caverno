@@ -27,7 +27,6 @@ final class LocalCommandToolHandler {
   static const String _effectUncertainMessage =
       'The local command may have completed after its owner expired; inspect '
       'possible process and filesystem effects before retrying';
-
   final LocalCommandExecutionPort _executionPort;
   final LocalCommandApprovalPort _approvalPort;
   final CommandPermissionRuleStorePort _permissionRuleStorePort;
