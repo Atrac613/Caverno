@@ -80,11 +80,10 @@ mixin McpToolServiceOwnerFacade {
   Future<McpToolResult> reconcileFileTurnRollbackRecovery({
     required ChatTurnOwner owner,
     required String recoveryReceipt,
-  }) => filesystemToolHandler.checkpointStore
-      .reconcileFileTurnRollbackRecovery(
-        owner: owner,
-        recoveryReceipt: recoveryReceipt,
-      );
+  }) => filesystemToolHandler.checkpointStore.reconcileFileTurnRollbackRecovery(
+    owner: owner,
+    recoveryReceipt: recoveryReceipt,
+  );
 
   Future<FileTurnRollbackPreview?> previewFsTurn(String? conversationId) async {
     final owner = filesystemToolHandler.checkpointStore

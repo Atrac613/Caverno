@@ -46,6 +46,7 @@ import 'local_shell_tools.dart';
 import 'mcp_client.dart';
 import 'mcp_goal_routine_tool_definitions.dart';
 import 'mcp_tool_service_facades.dart';
+import 'mcp_tool_search_catalog.dart';
 import 'mcp_tool_result_normalizer.dart';
 import 'os_log_tools.dart';
 import 'python_script_tools.dart';
@@ -82,7 +83,6 @@ class McpToolService extends McpToolServiceFacadeBase {
     ...BuiltInBrowserToolHandler.toolNames,
     ToolDefinitionSearchService.toolName,
   };
-
   static final RegExp _whitespaceRun = RegExp(r'\s+');
   McpToolService({
     this.mcpClients = const [],
@@ -181,13 +181,6 @@ class McpToolService extends McpToolServiceFacadeBase {
   final BackgroundProcessMonitorService? backgroundProcessMonitorService;
   final BuiltInNetworkToolHandler networkToolHandler;
   final BuiltInFilesystemToolHandler filesystemToolHandler;
-
-  /// Whether this service dispatches built-in filesystem effects locally.
-  ///
-  /// Adapter services that override [executeTool] without touching the local
-  /// filesystem can opt out of caller-side project read fencing.
-  bool get ownsBuiltInFilesystemEffects => true;
-
   final BuiltInLocalCommandToolHandler localCommandToolHandler;
   final BuiltInSshToolHandler sshToolHandler;
   final BuiltInBleToolHandler bleToolHandler;
@@ -203,8 +196,8 @@ class McpToolService extends McpToolServiceFacadeBase {
   /// `search_past_conversations`. Null when semantic search is disabled, in
   /// which case the tool falls back to a keyword scan.
   final SemanticConversationRanker? semanticConversationRanker;
-
   final Set<String> disabledBuiltInTools;
+  bool get ownsBuiltInFilesystemEffects => true;
 
   McpConnectionStatus get status => _remoteMcpConnectionManager.status;
   List<McpToolEntity> get tools => _remoteMcpConnectionManager.tools;
@@ -390,20 +383,11 @@ class McpToolService extends McpToolServiceFacadeBase {
       toolDefinitions.addAll(tools.map((tool) => tool.toOpenAiTool()));
     }
 
-    // A connected MCP server may expose only unrelated capabilities, such as
-    // filesystem tools. Keep the configured SearXNG fallback available unless
-    // the combined catalog already contains the canonical web search tool.
-    final hasWebSearch = toolDefinitions.any(
-      (definition) =>
-          ToolDefinitionSearchService.toolNameFromDefinition(definition) ==
-          'web_search',
-    );
-    if (searxngClient != null && !hasWebSearch) {
-      _addIfEnabled(toolDefinitions, _mcpToolWebSearchToolFallback);
-    }
-
-    return ToolDefinitionSearchService.appendSearchToolIfUseful(
+    return McpToolSearchCatalog.finalize(
       toolDefinitions,
+      hasSearxngClient: searxngClient != null,
+      webSearchFallback: _mcpToolWebSearchToolFallback,
+      disabledBuiltInTools: disabledBuiltInTools,
     );
   }
 
