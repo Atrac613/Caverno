@@ -6,6 +6,9 @@ import 'package:crypto/crypto.dart';
 import '../entities/chat_turn_owner.dart';
 import '../entities/mcp_tool_entity.dart';
 import 'immutable_json_snapshot.dart';
+import 'local_command_operation_identity.dart';
+
+export 'local_command_operation_identity.dart';
 
 const Duration localCommandDefaultTimeout = Duration(seconds: 60);
 
@@ -33,54 +36,6 @@ enum LocalCommandEffectDisposition {
   noEffect,
   settlementRequired,
   effectUncertain,
-}
-
-/// Exact owner, call, tool, and immutable argument identity for one execution.
-final class LocalCommandOperationIdentity {
-  LocalCommandOperationIdentity({
-    required this.owner,
-    required String toolCallId,
-    required String toolName,
-    required String argumentDigest,
-  }) : toolCallId = _requiredLocalCommandValue(toolCallId, 'toolCallId'),
-       toolName = _requiredLocalCommandValue(toolName, 'toolName'),
-       argumentDigest = _requiredLocalCommandValue(
-         argumentDigest,
-         'argumentDigest',
-       );
-
-  final ChatTurnOwner owner;
-  final String toolCallId;
-  final String toolName;
-  final String argumentDigest;
-
-  bool belongsTo(LocalCommandOperationIdentity expected) => this == expected;
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        other is LocalCommandOperationIdentity &&
-            other.owner == owner &&
-            other.toolCallId == toolCallId &&
-            other.toolName == toolName &&
-            other.argumentDigest == argumentDigest;
-  }
-
-  @override
-  int get hashCode => Object.hash(owner, toolCallId, toolName, argumentDigest);
-}
-
-/// Exact one-use settlement capability retained through final cache writes.
-final class LocalCommandEffectSettlement {
-  LocalCommandEffectSettlement({
-    required this.identity,
-    required bool Function() settle,
-  }) : _settle = settle;
-
-  final LocalCommandOperationIdentity identity;
-  final bool Function() _settle;
-
-  bool settle() => _settle();
 }
 
 final class LocalCommandCompletion<T> {
