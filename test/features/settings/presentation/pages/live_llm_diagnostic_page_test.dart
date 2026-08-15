@@ -331,10 +331,14 @@ void main() {
       ),
     );
 
+    // Denominated by what this run attempted (the one probe it ran), not the
+    // fixed maximum: a narrower run must not read as a weaker model. The
+    // coverage tile beside it reports the share that went unmeasured.
     final expectedPoints = LiveLlmDiagnosticSuite.pointsFor('instruction_echo');
+    expect(find.text('$expectedPoints / $expectedPoints'), findsOneWidget);
     expect(
       find.text('$expectedPoints / ${LiveLlmDiagnosticSuite.maxPoints}'),
-      findsOneWidget,
+      findsNothing,
     );
     // The old headline: one passing probe out of one scored probe read as 100%.
     expect(find.text('100%'), findsNothing);

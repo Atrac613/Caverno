@@ -730,7 +730,11 @@ class _SummarySection extends StatelessWidget {
               key: const ValueKey('live-llm-diag-score-tile'),
               icon: Icons.grade_outlined,
               label: 'settings.live_llm_diag_score'.tr(),
-              value: '${score.earnedPoints} / ${score.maxPoints}',
+              // Out of what this run could attempt, not the fixed maximum:
+              // against 1000 an endpoint that cannot run a block reads as a
+              // weaker model, when it is the run that was narrower. The
+              // coverage tile beside this one carries the missing share.
+              value: '${score.earnedPoints} / ${score.attemptedPoints}',
             ),
             _MetricTile(
               key: const ValueKey('live-llm-diag-coverage-tile'),

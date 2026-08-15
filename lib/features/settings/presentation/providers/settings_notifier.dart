@@ -394,12 +394,18 @@ class SettingsNotifier extends Notifier<AppSettings> {
     final candidatePoints = int.tryParse(
       profile.probeMetadata['benchmarkPoints']?.trim() ?? '',
     );
+    // Compared only against runs that measured the same amount: a run the
+    // environment cut short scores lower without the model changing.
+    final candidateAttemptedPoints = int.tryParse(
+      profile.probeMetadata['benchmarkAttemptedPoints']?.trim() ?? '',
+    );
     final benchmarkRegressionDetected = candidateSuite.isEmpty
         ? false
         : ModelBenchmarkHistory.forProfile(
             revisions: existing,
             profileId: profile.computedId,
             suite: candidateSuite,
+            attemptedPoints: candidateAttemptedPoints,
           ).regressionFor(candidatePoints);
 
     final newRevision = ModelCapabilityProfileRevision.fromProfile(

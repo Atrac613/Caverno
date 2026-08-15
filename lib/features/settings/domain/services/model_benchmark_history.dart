@@ -18,15 +18,29 @@ class ModelBenchmarkHistory {
   /// Only revisions carrying a score from [suite] are kept: a revision from
   /// another suite version measured a different thing, and a revision with no
   /// score measured nothing. Mixing either in would manufacture a delta.
+  ///
+  /// [attemptedPoints] partitions further, by how much the run could measure.
+  /// Points are absolute, so a run that could not attempt a block scores lower
+  /// for a reason that has nothing to do with the model: an endpoint that
+  /// starts rejecting `temperature` forfeits the 200-point sampler block and
+  /// would otherwise register as a 200-point capability regression. Null keeps
+  /// every scored revision, for callers with no candidate to match.
   factory ModelBenchmarkHistory.forProfile({
     required Iterable<ModelCapabilityProfileRevision> revisions,
     required String profileId,
     required String suite,
+    int? attemptedPoints,
   }) {
     final samples = revisions
         .where((revision) => revision.profileId == profileId)
         .where((revision) => revision.hasBenchmarkScore)
         .where((revision) => revision.benchmarkSuite == suite)
+        .where(
+          (revision) =>
+              attemptedPoints == null ||
+              revision.benchmarkAttemptedPoints == null ||
+              revision.benchmarkAttemptedPoints == attemptedPoints,
+        )
         .toList(growable: false);
     return ModelBenchmarkHistory._(List.unmodifiable(samples));
   }
@@ -103,17 +117,25 @@ class ModelBenchmarkHistory {
   }
 
   /// One line for the unattended morning report, e.g.
-  /// `benchmark 812/1000 (-34 vs previous, spread 12 over 4 runs)`.
+  /// `benchmark 812/980 measured (-34 vs previous, spread 12 over 4 runs)`.
   /// Returns null when there is nothing measured to say.
   String? summaryLine() {
     final latest = latestPoints;
     if (latest == null) {
       return null;
     }
+    // Denominated by what the run measured. Reporting a narrower run against
+    // the fixed maximum reads as a worse model in a line nobody can question,
+    // because the morning report is read without the run beside it.
+    final attempted = samples.last.benchmarkAttemptedPoints;
     final max = samples.last.benchmarkMaxPoints;
+    final denominator = attempted ?? max;
     final buffer = StringBuffer('benchmark $latest');
-    if (max != null && max > 0) {
-      buffer.write('/$max');
+    if (denominator != null && denominator > 0) {
+      buffer.write('/$denominator');
+      if (max != null && denominator < max) {
+        buffer.write(' measured');
+      }
     }
     final currentDelta = delta;
     if (currentDelta == null) {

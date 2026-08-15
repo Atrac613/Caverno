@@ -130,12 +130,78 @@ void main() {
     expect(history.summaryLine(), isNull);
     expect(history.regressionFor(100), isFalse);
   });
+
+  test('a narrower run is not compared with the runs before it', () {
+    // The endpoint stopped accepting `temperature`, so the 200-point sampler
+    // block became unmeasurable. The points fall by 200 with no change in the
+    // model, and comparing across that would report a huge regression.
+    final revisions = [
+      _revision(points: 980, attempted: 980),
+      _revision(points: 975, attempted: 980),
+      _revision(points: 980, attempted: 980),
+    ];
+
+    final sameWidth = ModelBenchmarkHistory.forProfile(
+      revisions: revisions,
+      profileId: 'model-a',
+      suite: 'cavernobench-v2',
+      attemptedPoints: 980,
+    );
+    final narrower = ModelBenchmarkHistory.forProfile(
+      revisions: revisions,
+      profileId: 'model-a',
+      suite: 'cavernobench-v2',
+      attemptedPoints: 780,
+    );
+
+    expect(sameWidth.samples, hasLength(3));
+    expect(sameWidth.regressionFor(762), isTrue);
+    expect(narrower.samples, isEmpty);
+    expect(narrower.regressionFor(762), isFalse);
+  });
+
+  test('revisions that predate the attempted field stay comparable', () {
+    final history = ModelBenchmarkHistory.forProfile(
+      revisions: [
+        _revision(points: 980),
+        _revision(points: 975),
+        _revision(points: 980),
+      ],
+      profileId: 'model-a',
+      suite: 'cavernobench-v2',
+      attemptedPoints: 980,
+    );
+
+    expect(history.samples, hasLength(3));
+  });
+
+  test('the summary line is denominated by what the run measured', () {
+    final narrow = ModelBenchmarkHistory.forProfile(
+      revisions: [_revision(points: 762, attempted: 780)],
+      profileId: 'model-a',
+      suite: 'cavernobench-v2',
+    );
+
+    expect(
+      narrow.summaryLine(),
+      'benchmark 762/780 measured (first scored run)',
+    );
+
+    final full = ModelBenchmarkHistory.forProfile(
+      revisions: [_revision(points: 980, attempted: 1000)],
+      profileId: 'model-a',
+      suite: 'cavernobench-v2',
+    );
+
+    expect(full.summaryLine(), 'benchmark 980/1000 (first scored run)');
+  });
 }
 
 ModelCapabilityProfileRevision _revision({
   required int? points,
   String profileId = 'model-a',
   String suite = 'cavernobench-v2',
+  int? attempted,
 }) {
   return ModelCapabilityProfileRevision(
     profileId: profileId,
@@ -145,6 +211,7 @@ ModelCapabilityProfileRevision _revision({
     editFormatPreference: ModelEditFormatPreference.unknown,
     usableContextTokens: 8192,
     benchmarkPoints: points,
+    benchmarkAttemptedPoints: attempted,
     benchmarkMaxPoints: points == null ? null : 1000,
     benchmarkSuite: points == null ? '' : suite,
   );

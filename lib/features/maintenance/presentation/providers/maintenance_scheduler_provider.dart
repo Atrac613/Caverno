@@ -303,6 +303,10 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
                 revisions: settings.modelCapabilityProfileRevisions,
                 profileId: profile.computedId,
                 suite: profile.probeMetadata['benchmarkSuite'] ?? '',
+                attemptedPoints: int.tryParse(
+                  profile.probeMetadata['benchmarkAttemptedPoints']?.trim() ??
+                      '',
+                ),
               ).summaryLine();
         return MaintenanceStageOutcome.completed(
           summary == null
