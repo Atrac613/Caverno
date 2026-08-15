@@ -165,8 +165,7 @@ import '../../domain/services/blocked_production_release_retry_policy.dart';
 import '../../domain/services/fenced_tool_arguments_detector.dart';
 import '../../domain/services/turn_tool_catalog_cache.dart';
 import '../../domain/services/unexecuted_command_action_retry_policy.dart';
-import '../../domain/services/production_release_approval_policy.dart'
-    show productionReleaseApprovalRequiredAction;
+import '../../domain/services/production_release_approval_policy.dart';
 import '../../domain/services/proposal_option_extraction.dart';
 import '../../domain/services/background_process_follow_up_policy.dart';
 import '../../domain/services/proposal_parsing_text_utils.dart';
