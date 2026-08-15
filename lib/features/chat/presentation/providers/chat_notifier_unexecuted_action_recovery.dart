@@ -282,9 +282,11 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
         owner: owner,
         ownerToolResults: executedToolResults,
         ownerExecutedCommands: _turnToolResults.commands(owner),
-        approvalGranted: _releaseEvidenceFor(interactionGeneration).approved,
+        approvalGranted: _productionReleaseApprovals
+            .evidenceFor(interactionGeneration)
+            .approved,
         pendingBlockedRelease:
-            _pendingBlockedReleases[owner.conversationId] ??
+            _productionReleaseApprovals.pendingRelease(owner.conversationId) ??
             _blockedReleaseRetries.blockedReleaseFromToolResults(
               executedToolResults,
             ),
@@ -312,7 +314,7 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     if (!_blockedReleaseRetrySignatures.add(plan.signature)) return null;
     // One prompt is all this block gets. Whether the model issues the call or
     // not, the conversation stops owing a retry for it.
-    _pendingBlockedReleases.remove(plan.owner.conversationId);
+    _productionReleaseApprovals.removePendingRelease(plan.owner.conversationId);
 
     return _requestFinalAnswerRecoveryCompletion(
       owner: plan.owner,

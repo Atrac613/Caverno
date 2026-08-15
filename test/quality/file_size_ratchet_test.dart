@@ -70,6 +70,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/participant_turn_planner.dart': 304,
   'lib/features/chat/domain/services/production_release_approval_policy.dart':
       388,
+  'lib/features/chat/domain/services/production_release_approval_coordinator.dart':
+      170,
   'lib/features/chat/domain/services/project_scoped_read_tool_handler.dart':
       102,
   'lib/features/chat/domain/services/run_tests_tool_handler.dart': 465,

@@ -23,7 +23,9 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
     if (owner == null) {
       return _turnOwnerSnapshotUnavailableResult(toolCall.name);
     }
-    final savedTask = _savedTaskForGeneration(owner.interactionGeneration);
+    final savedTask = _turnOwnerSnapshotForGeneration(
+      owner.interactionGeneration,
+    )?.savedTask;
     return _askUserQuestionRuntime.handle(
       owner: owner,
       toolCall: toolCall,

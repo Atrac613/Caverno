@@ -165,7 +165,7 @@ import '../../domain/services/blocked_production_release_retry_policy.dart';
 import '../../domain/services/fenced_tool_arguments_detector.dart';
 import '../../domain/services/turn_tool_catalog_cache.dart';
 import '../../domain/services/unexecuted_command_action_retry_policy.dart';
-import '../../domain/services/production_release_approval_policy.dart';
+import '../../domain/services/production_release_approval_coordinator.dart';
 import '../../domain/services/proposal_option_extraction.dart';
 import '../../domain/services/background_process_follow_up_policy.dart';
 import '../../domain/services/proposal_parsing_text_utils.dart';
@@ -236,7 +236,6 @@ part 'chat_notifier_ble_handlers.dart';
 part 'chat_notifier_browser_handlers.dart';
 part 'chat_notifier_cancellation.dart';
 part 'chat_notifier_coding_continuation_recovery.dart';
-part 'chat_notifier_command_guardrails.dart';
 part 'chat_notifier_computer_use_handlers.dart';
 part 'chat_notifier_context_surgery.dart';
 part 'chat_notifier_error_handling.dart';
@@ -341,10 +340,14 @@ class ChatNotifier extends Notifier<ChatState> {
   final _pendingActions = const PendingActionLengthRecoveryPolicy();
   final _transcriptRepairs = const NarratedTranscriptRepairPlanner();
   final _blockedReleaseRetries = const BlockedProductionReleaseRetryPolicy();
+  late final _productionReleaseApprovals = ProductionReleaseApprovalCoordinator(
+    activeConversationId: _activeResponseConversationIdForGeneration,
+    ownerForGeneration: _turnOwnerForGeneration,
+    questionResults: _askUserQuestionTurnCache,
+  );
   final _unexecutedCommandRetries = const UnexecutedCommandActionRetryPolicy();
   final _unexecutedCommandRetryOwners = <String>{};
   final _blockedReleaseRetrySignatures = <String>{};
-  final _pendingBlockedReleases = <String, PendingBlockedRelease>{};
   final _planningToolPolicy = const PlanningToolPolicy();
   final _toolLoopContextDigest = const ToolLoopContextDigest();
   final _runtimeTurns = <int, CavernoRuntimeTurnHandle>{};
@@ -2252,7 +2255,6 @@ class ChatNotifier extends Notifier<ChatState> {
   final Set<int> _pendingActionLengthRecoveryGenerations = <int>{};
   final _explicitTerminalSuccessSummariesByGeneration = <int, String>{};
   final _askUserQuestionTurnCache = AskUserQuestionTurnCache();
-  final _releaseApprovalSnapshots = <int, _ReleaseProof>{};
   final ResponseMetadataRegistry _responseMetadata = ResponseMetadataRegistry();
   final _pendingAskUserQuestionsByThread = <String, PendingAskUserQuestion>{};
   final _participantTurnControls = ParticipantTurnControlRegistry();
@@ -2373,7 +2375,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _lastStreamedToolResultFinalAnswersByGeneration.remove(generation);
     _pendingActionLengthRecoveryGenerations.remove(generation);
     _explicitTerminalSuccessSummariesByGeneration.remove(generation);
-    _releaseApprovalSnapshots.remove(generation);
+    _productionReleaseApprovals.clearGeneration(generation);
     _turnFinalizationRecoveryGenerations.remove(generation);
     _syncBusyConversationIds();
   }
@@ -2391,9 +2393,8 @@ class ChatNotifier extends Notifier<ChatState> {
     _pendingActionLengthRecoveryGenerations.clear();
     _explicitTerminalSuccessSummariesByGeneration.clear();
     _askUserQuestionTurnCache.clear();
-    _releaseApprovalSnapshots.clear();
+    _productionReleaseApprovals.clearAll();
     _blockedReleaseRetrySignatures.clear();
-    _pendingBlockedReleases.clear();
     _unexecutedCommandRetryOwners.clear();
     _turnFinalizationRecoveryGenerations.clear();
     _modelSwitchHandoffs.clearPromptCompactions();
@@ -2686,7 +2687,13 @@ class ChatNotifier extends Notifier<ChatState> {
         conversationId: effectiveOwner,
         interactionGeneration: interactionGeneration,
       );
-      _captureProof(interactionGeneration, queuedMessage, currentConversation);
+      _productionReleaseApprovals.captureProof(
+        generation: interactionGeneration,
+        conversation: queuedMessage.conversationId == null
+            ? currentConversation
+            : _conversationForId(queuedMessage.conversationId!),
+        submittedContent: queuedMessage.content,
+      );
       _hiddenPrompt = null;
       _languageCode = languageCode;
       _isVoiceMode = isVoiceMode;

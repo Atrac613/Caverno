@@ -168,7 +168,7 @@
         "_mentionsProductionRelease",
         "_looksLikeAffirmativeReleaseApprovalAnswer"
       ],
-      "status": "partial",
+      "status": "extracted",
       "collaborators": [
         {
           "id": "goal-validation-probe-guard",
@@ -234,6 +234,11 @@
           "id": "production-release-approval-policy",
           "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/production_release_approval_policy.dart"
+        },
+        {
+          "id": "production-release-approval-coordinator",
+          "path": "lib/features/chat/domain/services/production_release_approval_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/production_release_approval_coordinator.dart"
         }
       ]
     },

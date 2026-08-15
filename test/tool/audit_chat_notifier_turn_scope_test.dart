@@ -19,14 +19,16 @@ void main() {
         hasLength(43),
       );
       expect(_statusCounts(manifest), {
-        'partial': 25,
+        // command_guardrails moved partial -> extracted when production
+        // release approval coordination removed its final wrapper methods.
+        'partial': 24,
         // execution_runtime moved keep -> partial on 2026-08-04 when the
         // destructor slice extracted the turn's releases from it.
         'keep': 4,
         // proposal_option_extraction and proposal_parsing moved
         // deferred -> extracted when their part-files became domain services.
         'deferred': 4,
-        'extracted': 8,
+        'extracted': 9,
         'remaining': 2,
       });
       audit.validateProgramManifest(manifest);

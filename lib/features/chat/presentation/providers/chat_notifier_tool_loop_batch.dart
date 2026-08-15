@@ -239,11 +239,13 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         if (timeoutRetryGuardResult != null) {
           return timeoutRetryGuardResult;
         }
-        final productionReleaseGuardResult =
-            _buildProductionReleaseApprovalGuardResult(
+        final productionReleaseGuardResult = _productionReleaseApprovals
+            .buildGuardResult(
               toolCall,
               currentAssistantContent: currentAssistantContent,
-              approvalEvidence: _releaseEvidenceFor(interactionGeneration),
+              evidence: _productionReleaseApprovals.evidenceFor(
+                interactionGeneration,
+              ),
             );
         if (productionReleaseGuardResult != null) {
           return productionReleaseGuardResult;
@@ -287,7 +289,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           SavedTaskTargetScopeInput(
             owner: owner,
             toolCall: toolCall,
-            ownerTask: _savedTaskForGeneration(interactionGeneration),
+            ownerTask: _turnOwnerSnapshotForGeneration(
+              interactionGeneration,
+            )?.savedTask,
             ownerProjectRoot: projectRoot,
           ),
         );

@@ -166,8 +166,8 @@ void main() {
       );
 
       expect(report.historicalPartCount, 43);
-      expect(report.declaredPartCount, 35);
-      expect(report.statusSelectedPartCount, 35);
+      expect(report.declaredPartCount, 34);
+      expect(report.statusSelectedPartCount, 34);
       expect(report.markerIds, {
         'analysis-options-lint-edit-guard',
         'ask-user-question-option-parser',
@@ -222,6 +222,7 @@ void main() {
         'process-start-result-policy',
         'proposal-option-extraction',
         'proposal-parsing-text-utils',
+        'production-release-approval-coordinator',
         'production-release-approval-policy',
         'project-scoped-read-tool-handler',
         'python-attachment-repair-policy',
