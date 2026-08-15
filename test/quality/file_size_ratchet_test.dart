@@ -374,6 +374,7 @@ const Map<String, int> _lineBudgets = {
       160,
   'lib/features/chat/data/datasources/chat_completion_embedded_tool_call_parser.dart':
       70,
+  'lib/features/chat/domain/services/printed_tool_call_recovery.dart': 45,
   'lib/features/chat/data/datasources/built_in_network_tool_handler.dart': 978,
   'lib/features/chat/data/datasources/file_rollback_checkpoint_store.dart': 402,
   'lib/features/chat/presentation/providers/mcp_tool_provider.dart': 176,

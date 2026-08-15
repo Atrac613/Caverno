@@ -30,6 +30,7 @@ import '../../application/runtime/turn_release_scope.dart';
 import '../../application/runtime/turn_runtime.dart';
 import '../../application/runtime/turn_runtime_owner_lease_registry.dart';
 import '../../application/runtime/tool_outcome_shadow_observer.dart';
+import '../../domain/services/printed_tool_call_recovery.dart';
 import '../../domain/services/ask_user_question_turn_cache.dart';
 import '../../domain/services/conversation_goal_suggestion_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
@@ -7153,7 +7154,12 @@ class ChatNotifier extends Notifier<ChatState> {
     final generation = interactionGeneration ?? _interactionGeneration;
     final owner = _turnOwnerForGeneration(generation);
     if (owner == null) return;
-    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+    final toolCalls = const PrintedToolCallRecovery().extract(
+      content: content,
+      advertisedToolNames: _activeResponseRegistry
+          .snapshotForOwner(owner)
+          ?.allowedToolNames,
+    );
     final freshToolCalls = <ToolCallData>[];
     final repeatedToolCalls = <ToolCallData>[];
     for (final toolCall in toolCalls) {

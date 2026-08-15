@@ -98,6 +98,7 @@ part 'chat_notifier_tool_failure_classification_part.dart';
 part 'chat_notifier_execution_runtime_part.dart';
 part 'chat_notifier_network_mutation_part.dart';
 part 'chat_notifier_unexecuted_action_retry_part.dart';
+part 'chat_notifier_printed_tool_call_part.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -164,6 +165,7 @@ void main() {
   registerChatNotifierExecutionRuntimeTests();
   registerChatNotifierNetworkMutationTests();
   registerChatNotifierUnexecutedActionRetryTests();
+  registerChatNotifierPrintedToolCallTests();
 
   test('failed-command correction notice keeps the original answer', () {
     const claims = FinalAnswerClaimDetector();
