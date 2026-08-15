@@ -335,6 +335,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/widgets/file_workspace_viewer_sheet.dart':
       1559,
   'lib/features/chat/presentation/widgets/file_workspace_diff_parser.dart': 97,
+  'lib/features/chat/presentation/widgets/turn_rollback_confirmation_dialog.dart':
+      90,
   'lib/features/chat/presentation/slash_commands/slash_command_catalog.dart':
       100,
   'lib/features/chat/presentation/slash_commands/worktree_agent_command_args.dart':

@@ -61,8 +61,10 @@ extension _ChatPageTurnRollbackSupport on _ChatPageState {
     final confirmed =
         await showDialog<bool>(
           context: context,
-          builder: (context) =>
-              _TurnRollbackConfirmationDialog(preview: preview),
+          builder: (context) => TurnRollbackConfirmationDialog(
+            summary: preview.summary,
+            paths: preview.paths,
+          ),
         ) ??
         false;
     if (!confirmed || !mounted) {

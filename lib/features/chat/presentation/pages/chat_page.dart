@@ -28,7 +28,6 @@ import '../../../personal_eval/presentation/pages/personal_eval_record_page.dart
 import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/providers/model_list_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
-import '../../data/datasources/file_rollback_checkpoint_store.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/session_logging_chat_datasource.dart';
 import '../../domain/entities/coding_project.dart';
@@ -98,6 +97,7 @@ import '../widgets/queued_messages_strip.dart';
 import '../widgets/session_log_details_section.dart';
 import '../widgets/terminal/coding_terminal_dock.dart';
 import '../widgets/token_usage_indicator.dart';
+import '../widgets/turn_rollback_confirmation_dialog.dart';
 import '../widgets/plan/plan_document_approval_sheet.dart';
 import '../widgets/plan/plan_document_editor_sheet.dart';
 import '../widgets/plan/plan_hydrated_task_row.dart';
