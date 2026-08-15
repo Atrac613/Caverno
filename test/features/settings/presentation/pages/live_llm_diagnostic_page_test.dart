@@ -91,9 +91,21 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(
-      container.read(liveLlmDiagnosticNotifierProvider).report,
-      same(historicalReport),
+      find.byType(LiveLlmDiagnosticHistoryDetailPage),
+      findsOneWidget,
+      reason: 'tapping a saved run must push its own detail page',
     );
+    expect(find.text('Saved probe passed'), findsOneWidget);
+    expect(
+      container.read(liveLlmDiagnosticNotifierProvider).report,
+      isNull,
+      reason: 'the detail page must not replace the latest run on the page',
+    );
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.byType(LiveLlmDiagnosticHistoryDetailPage), findsNothing);
+    expect(find.text('Diagnostic History'), findsOneWidget);
   });
 
   testWidgets('imports two v9 artifacts and announces saturation', (

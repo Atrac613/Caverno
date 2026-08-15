@@ -96,35 +96,12 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
           const SizedBox(height: 16),
           if (report == null)
             _EmptyState(isRunning: state.isRunning)
-          else ...[
-            _SummarySection(report: report),
-            if (report.streamingMetrics != null ||
-                report.multiRoundToolLoopMetrics != null ||
-                report.embeddingMetrics != null ||
-                report.effectiveContextMetrics != null) ...[
-              const SizedBox(height: 16),
-              _CapabilitySection(
-                streamingMetrics: report.streamingMetrics,
-                multiRoundMetrics: report.multiRoundToolLoopMetrics,
-                embeddingMetrics: report.embeddingMetrics,
-                effectiveContextMetrics: report.effectiveContextMetrics,
-              ),
-            ],
-            const SizedBox(height: 16),
-            _ToolCatalogSection(report: report),
-            if (report.samplerCalibrationSummaries.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _SamplerCalibrationSection(report: report),
-            ],
-            const SizedBox(height: 16),
-            _ProbeResultsSection(report: report),
-          ],
+          else
+            ..._reportDetailSections(report),
           const SizedBox(height: 16),
           _DiagnosticHistorySection(
             reports: diagnosticHistory,
-            onOpen: (report) => ref
-                .read(liveLlmDiagnosticNotifierProvider.notifier)
-                .showHistoricalReport(report),
+            onOpen: (selected) => _openHistoricalReport(context, selected),
           ),
           const SizedBox(height: 16),
           _ProfileHistorySection(
@@ -179,6 +156,105 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
         );
       }
     }
+  }
+}
+
+/// Report sections shared by the diagnostic page and the history detail page,
+/// so a saved run renders exactly like the run that produced it.
+List<Widget> _reportDetailSections(LiveLlmDiagnosticReport report) {
+  return [
+    _SummarySection(report: report),
+    if (report.streamingMetrics != null ||
+        report.multiRoundToolLoopMetrics != null ||
+        report.embeddingMetrics != null ||
+        report.effectiveContextMetrics != null) ...[
+      const SizedBox(height: 16),
+      _CapabilitySection(
+        streamingMetrics: report.streamingMetrics,
+        multiRoundMetrics: report.multiRoundToolLoopMetrics,
+        embeddingMetrics: report.embeddingMetrics,
+        effectiveContextMetrics: report.effectiveContextMetrics,
+      ),
+    ],
+    const SizedBox(height: 16),
+    _ToolCatalogSection(report: report),
+    if (report.samplerCalibrationSummaries.isNotEmpty) ...[
+      const SizedBox(height: 16),
+      _SamplerCalibrationSection(report: report),
+    ],
+    const SizedBox(height: 16),
+    _ProbeResultsSection(report: report),
+  ];
+}
+
+/// Opens a saved run on its own page. Swapping it into notifier state instead
+/// was invisible: the report sections sit far above the history list, so the
+/// tap looked dead while it silently replaced the latest run on this page.
+Future<void> _openHistoricalReport(
+  BuildContext context,
+  LiveLlmDiagnosticReport report,
+) async {
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => LiveLlmDiagnosticHistoryDetailPage(report: report),
+    ),
+  );
+}
+
+/// Read-only view of a single saved diagnostic run.
+class LiveLlmDiagnosticHistoryDetailPage extends StatelessWidget {
+  const LiveLlmDiagnosticHistoryDetailPage({super.key, required this.report});
+
+  final LiveLlmDiagnosticReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      key: const ValueKey('live-llm-diag-history-detail'),
+      appBar: AppBar(
+        title: Text(_formatTimestamp(report.startedAt)),
+        actions: [
+          IconButton(
+            key: const ValueKey('live-llm-diag-history-detail-copy'),
+            tooltip: 'settings.live_llm_diag_copy'.tr(),
+            icon: const Icon(Icons.copy_outlined),
+            onPressed: () => _copyHistoricalReport(context, report),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(
+            '${'settings.live_llm_diag_endpoint'.tr()}: ${report.baseUrl}',
+            style: theme.textTheme.bodySmall,
+          ),
+          Text(
+            '${'settings.live_llm_diag_model'.tr()}: ${report.model}',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 16),
+          ..._reportDetailSections(report),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _copyHistoricalReport(
+    BuildContext context,
+    LiveLlmDiagnosticReport report,
+  ) async {
+    final json = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(buildLiveLlmDiagnosticExport(report));
+    await Clipboard.setData(ClipboardData(text: json));
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('settings.live_llm_diag_copied'.tr())),
+    );
   }
 }
 

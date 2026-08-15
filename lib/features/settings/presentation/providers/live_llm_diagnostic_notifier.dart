@@ -92,10 +92,6 @@ class LiveLlmDiagnosticNotifier extends Notifier<LiveLlmDiagnosticState> {
     }
   }
 
-  void showHistoricalReport(LiveLlmDiagnosticReport report) {
-    state = state.copyWith(report: report, clearError: true);
-  }
-
   /// Imports physical and bounded evidence produced by the headless LL39
   /// canary, then persists it through the same LL21 revision path as an in-app
   /// calibration.
