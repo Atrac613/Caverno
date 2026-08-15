@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../../../../core/constants/system_prompt_constants.dart';
@@ -184,15 +186,48 @@ class LiveLlmDiagnosticService {
     _initialHarnessProbeId,
   };
 
-  /// A 64x64 PNG of four solid quadrants in a non-obvious reading order:
+  /// A 384x384 PNG of four solid quadrants in a non-obvious reading order:
   /// yellow, blue, red, green. The shuffled layout prevents a model from
   /// passing by guessing the conventional red, green, blue, yellow sequence.
   /// It is embedded so the probe stays byte-identical on every platform and in
-  /// tests. Solid colors also survive vision-tower downscaling.
+  /// tests.
+  ///
+  /// The size is load-bearing. This was a 64x64 image on the theory that solid
+  /// colors survive any downscaling, and it made a vision-capable model
+  /// (gpt-5.6-luna) look blind: measured over the same endpoint and payload,
+  /// 64px and 128px scored 0/3 while 256px and 384px scored 3/3, and the same
+  /// model counted shapes correctly at 512px. Tiny images are evidently padded
+  /// or upscaled into a tile before the vision tower sees them, so quadrant
+  /// geometry is lost. Do not shrink this to save tokens without re-measuring:
+  /// the probe would report the harness's own limit as a model failure.
+  @visibleForTesting
+  static const visionProbeImageBase64 = _visionProbeImageBase64;
+
   static const _visionProbeImageBase64 =
-      'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAWElEQVR42u3RgQkAIAwDwQ'
-      'a6/8p1iqLC/QLhSM/UasnuQNfnAQAAAAAAAAAAAAAAAAAAAAAAAAAAANwAZHlh4gEAAAAA'
-      'AAAAAAAAAAAAAAAAAAAAAACAtzq7gAUBzMvYfAAAAABJRU5ErkJggg==';
+      'iVBORw0KGgoAAAANSUhEUgAAAYAAAAGACAIAAAArpSLoAAAEpElEQVR42u3UwQkAMAwDMe'
+      '+/tLtD8glFoAkMvrSBsaQw50IIEAKEACFAIEAIEAKEAIEAIUAIEAIEAoQAIUAIEAIEAoQA'
+      'IUAIEAgQAoQAIUAgQAgQAoQAgQAhQAgQAoQAgQAhQAgQAgQChAAhQAgQCBAChAAhQCBACB'
+      'AChAAhQCBACBAChACBACFACBACBAKEACFACBC4EAKEACFACBAIEAKEACFAIEAIEAKEAIEA'
+      'IUAIEAKEAHkRAoQAIUAIEAgQAoQAIUAgQAgQAoQAgQAhQAgQAoQAgQAhQAgQAgQChAAhQA'
+      'gQCBAChAAhQCBACBAChAAhQCBACBAChACBACFACBACBAKEACFACBAIEAKEACFACBAIEAKE'
+      'ACFAIEAIEAKEAIEAIUAIEAIELoQAIUAIEAIEAoQAIUAIEAgQAoQAIUAgQAgQAoQAIUAgQA'
+      'gQAoQAgQAhQAgQAgQChAAhQAgQCBAChAAhQAgQCBAChAAhQCBACBAChACBACFACBACBAKE'
+      'ACFACBACBAKEACFACBAIEAKEACFAIEAIEAKEAIEAIUAIEAKEAIEAIUAIEAIEAoQAIUAIEA'
+      'gQAoQAIUAIEAgQAoQAIUAgQAgQAoQAgQAhQAgQAgQChAAhQAgQAgQChAAhQAgQCBAChAAh'
+      'QCBACBAChACBACFACBAChACBACFACBACBAKEACFACBAIEAKEACFAIEAIEAKEACFAIEAIEA'
+      'KEAIEAIUAIEAIEAoQAIUAIELgQAoQAIUAIEAgQAoQAIUAgQAgQAoQAgQAhQAgQAoQAgQAh'
+      'QAgQAgQChAAhQAgQCBAChAAhQCBACBAChAAhQCBACBAChACBACFACBACBAKEACFACBAIEA'
+      'KEACFACBAIEAKEACFAIEAIEAKEAIEAIUAIEAIEAoQAIUAIEAIEAoQAIUAIEAgQAoQAIUAg'
+      'QAgQAoQAIUAuhAAhQAgQAgQChAAhQAgQCBACxM0A2YAFEwACBAgQgAABAgQgQIAAAQgQIE'
+      'AAAgQIEIAAAQIEIECAAAEIECBAgAABCBAgQAACBAgQgAABAgQgQIAAAQgQIEAAAgQIEIAA'
+      'AQIEIECAAAECBCBAgAABCBAgQAACBAgQgAABAgQgQIAAAQgQIEAAAgQIECBAAAIECBCAAA'
+      'ECBCBAgAABCBAgQAACBAgQgAABAgQgQIAAAQgQIECAAAEIECBAAAIECBCAAAECBCBAgAAB'
+      'CBAgQAACBAgQgAABAgQIEIAAAQIEIECAAAEIECBAAAIECBCAAAECBCBAgAABCBAgQAACBA'
+      'gQIEAAAgQIEIAAAQIEIECAAAEIECBAAAIECBCAAAECBCBAgAABAmQCQIAAAQIQIECAAAQI'
+      'ECAAAQIECECAAAECECBAgAAECBAgAAECBAgQIAABAgQIQIAAAQIQIECAAAQIECAAAQIECE'
+      'CAAAECECBAgABMAAgQIEAAAgQIEIAAAQIEIECAAAEIECBAAAIECBCAAAECBCBAgAABAgQg'
+      'QIAAAQgQIEAAAgQIEIAAAQIEIECAAAEIECBAAAIECBCAAAECBAgQgAABAgQgQIAAAQgQIE'
+      'AAAgQIEIAAAQIEIECAAPGdB+I3WgSaUHuyAAAAAElFTkSuQmCC';
   static const _visionProbeImageMimeType = 'image/png';
   static const _visionProbeExpectedColors = <String>[
     'yellow',

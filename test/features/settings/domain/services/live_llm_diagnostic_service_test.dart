@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:caverno/core/services/apple_foundation_models_platform_client.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
@@ -163,6 +164,21 @@ void main() {
       report.samplerCalibrationUnmeasuredReason,
       contains('server default'),
     );
+  });
+
+  test('the vision probe image stays large enough to be readable', () {
+    // Measured against a live endpoint: at 64px and 128px a vision-capable
+    // model scored 0/3 on the quadrant question and at 256px/384px it scored
+    // 3/3. A probe image below that threshold measures the harness, not the
+    // model, so the dimensions are asserted rather than left to review.
+    final bytes = base64Decode(LiveLlmDiagnosticService.visionProbeImageBase64);
+    expect(bytes.sublist(1, 4), utf8.encode('PNG'));
+    final header = ByteData.sublistView(bytes);
+    final width = header.getUint32(16);
+    final height = header.getUint32(20);
+    expect(width, greaterThanOrEqualTo(256));
+    expect(height, greaterThanOrEqualTo(256));
+    expect(width, height);
   });
 
   test('skips tool probes when MCP tools are disabled', () async {
