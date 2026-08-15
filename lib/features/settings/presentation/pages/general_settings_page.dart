@@ -916,6 +916,69 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     );
   }
 
+  /// LL5: pin embeddings to their own endpoint.
+  ///
+  /// Embeddings used to be the one role without this, so they always followed
+  /// the primary connection: moving the primary to another provider turned a
+  /// working local embedding model into a silent 404 and dropped semantic
+  /// search back to lexical search with no visible failure.
+  Widget _buildEmbeddingsEndpointField(AppSettings settings) {
+    final endpoints = settings.enabledLlmEndpoints;
+    if (endpoints.isEmpty) return const SizedBox.shrink();
+    final selected = settings.embeddingsEndpointId.trim();
+    final hasSelection = endpoints.any((endpoint) => endpoint.id == selected);
+    return DropdownButtonFormField<String>(
+      key: const ValueKey('settings-embeddings-endpoint'),
+      initialValue: hasSelection ? selected : '',
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: 'settings.embeddings_endpoint_label'.tr(),
+        border: const OutlineInputBorder(),
+        helperText: 'settings.embeddings_endpoint_helper'.tr(),
+      ),
+      items: [
+        DropdownMenuItem<String>(
+          value: '',
+          child: Text(
+            'settings.embeddings_endpoint_follow_primary'.tr(),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        for (final endpoint in endpoints)
+          DropdownMenuItem<String>(
+            value: endpoint.id,
+            child: Text(endpoint.displayLabel, overflow: TextOverflow.ellipsis),
+          ),
+      ],
+      onChanged: settings.enableSemanticSearch
+          ? (value) {
+              ref
+                  .read(settingsNotifierProvider.notifier)
+                  .updateEmbeddingsEndpointId(value ?? '');
+            }
+          : null,
+    );
+  }
+
+  /// Models offered for embeddings come from the pinned endpoint, so the list
+  /// can never suggest a model the embeddings requests would 404 on. Falls back
+  /// to the page's primary list when embeddings follow the primary.
+  AsyncValue<List<String>> _embeddingsModelOptions(
+    AppSettings settings,
+    AsyncValue<List<String>> primaryModels,
+  ) {
+    final endpoint = settings.embeddingsEndpoint;
+    if (endpoint == null) return primaryModels;
+    return ref.watch(
+      modelListProvider(
+        ModelListConfig(
+          baseUrl: endpoint.normalizedBaseUrl,
+          apiKey: endpoint.apiKey,
+        ),
+      ),
+    );
+  }
+
   /// LL5: pick the embeddings model. Prefers a dropdown populated from the
   /// endpoint's /v1/models list; while that is loading or unavailable it falls
   /// back to a free-text field so a model id can still be entered by hand.
@@ -1241,7 +1304,12 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                     onChanged: notifier.updateEnableSemanticSearch,
                   ),
                   const SizedBox(height: 8),
-                  _buildEmbeddingsModelField(asyncModels, settings),
+                  _buildEmbeddingsEndpointField(settings),
+                  const SizedBox(height: 8),
+                  _buildEmbeddingsModelField(
+                    _embeddingsModelOptions(settings, asyncModels),
+                    settings,
+                  ),
                   const SizedBox(height: 24),
                   _buildSectionHeader('settings.google_chat_section'.tr()),
                   const SizedBox(height: 8),

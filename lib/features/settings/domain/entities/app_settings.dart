@@ -932,6 +932,12 @@ abstract class AppSettings with _$AppSettings {
     // otherwise search degrades to lexical FTS.
     @Default(false) bool enableSemanticSearch,
     @Default('') String embeddingsModel,
+    // Embeddings used to be the one role with no endpoint of its own: the model
+    // was always sent to the primary base URL, so repointing the primary at a
+    // different provider turned a working local embedding model into a silent
+    // 404 and dropped semantic search back to lexical FTS. Empty keeps the old
+    // behaviour (follow the primary).
+    @Default('') String embeddingsEndpointId,
     @Default(false) bool showMemoryUpdates,
     @Default(true) bool enableLlmSessionLogs,
     @Default(true) bool feedbackUploadEnabled,
@@ -1085,6 +1091,35 @@ abstract class AppSettings with _$AppSettings {
 
   String get effectiveProReasoningModel =>
       _resolveRoleModel(proReasoningModel, proReasoningEndpointId);
+
+  /// The endpoint profile embeddings are sent to, or null when they follow the
+  /// primary connection fields.
+  LlmEndpoint? get embeddingsEndpoint {
+    final endpointId = embeddingsEndpointId.trim();
+    if (endpointId.isEmpty) return null;
+    for (final endpoint in enabledLlmEndpoints) {
+      if (endpoint.id == endpointId) return endpoint;
+    }
+    return null;
+  }
+
+  /// Base URL for `/embeddings`, falling back to the primary connection when no
+  /// embeddings endpoint is pinned or the pinned one has been removed.
+  String get effectiveEmbeddingsBaseUrl {
+    final endpoint = embeddingsEndpoint;
+    final pinned = endpoint?.normalizedBaseUrl ?? '';
+    return pinned.isEmpty ? baseUrl : pinned;
+  }
+
+  /// API key paired with [effectiveEmbeddingsBaseUrl]. Keys are per endpoint, so
+  /// a pinned endpoint must never borrow the primary's key.
+  String get effectiveEmbeddingsApiKey {
+    final endpoint = embeddingsEndpoint;
+    if (endpoint == null || endpoint.normalizedBaseUrl.isEmpty) {
+      return apiKey;
+    }
+    return endpoint.apiKey.trim();
+  }
 
   String primaryModelOverrideFor(AssistantMode mode) => switch (mode) {
     AssistantMode.general => generalPrimaryModel,
@@ -1356,6 +1391,7 @@ abstract class AppSettings with _$AppSettings {
       'approvalAutoReviewEndpointId',
       'planningEndpointId',
       'proReasoningEndpointId',
+      'embeddingsEndpointId',
     ]) {
       final currentId = migrated[field]?.toString();
       if (currentId != null && namedIdMapping.containsKey(currentId)) {

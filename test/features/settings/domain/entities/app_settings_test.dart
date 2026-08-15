@@ -222,6 +222,51 @@ void main() {
     expect(decoded.embeddingsModel, 'text-embedding-local');
   });
 
+  test('embeddings follow the primary endpoint until one is pinned', () {
+    const settings = AppSettings(
+      baseUrl: 'https://api.primary.example/v1',
+      model: 'primary-model',
+      apiKey: 'primary-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      embeddingsModel: 'local-embed',
+      llmEndpoints: [
+        LlmEndpoint(
+          id: 'studio',
+          baseUrl: 'http://192.168.0.10:1234/v1',
+          apiKey: 'studio-key',
+        ),
+      ],
+    );
+
+    expect(AppSettings.defaults().embeddingsEndpointId, '');
+    expect(settings.embeddingsEndpoint, isNull);
+    expect(
+      settings.effectiveEmbeddingsBaseUrl,
+      'https://api.primary.example/v1',
+    );
+    expect(settings.effectiveEmbeddingsApiKey, 'primary-key');
+
+    // Pinning keeps the embedding model on the host that serves it, so moving
+    // the primary to another provider no longer 404s every embed call.
+    final pinned = settings.copyWith(embeddingsEndpointId: 'studio');
+    expect(pinned.effectiveEmbeddingsBaseUrl, 'http://192.168.0.10:1234/v1');
+    expect(pinned.effectiveEmbeddingsApiKey, 'studio-key');
+
+    // A pin at a removed endpoint falls back rather than sending nowhere.
+    final dangling = settings.copyWith(embeddingsEndpointId: 'deleted');
+    expect(
+      dangling.effectiveEmbeddingsBaseUrl,
+      'https://api.primary.example/v1',
+    );
+    expect(dangling.effectiveEmbeddingsApiKey, 'primary-key');
+
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(pinned.toJson())) as Map<String, dynamic>,
+    );
+    expect(decoded.embeddingsEndpointId, 'studio');
+  });
+
   test('defaults to no endpoints and persists registered ones', () {
     expect(AppSettings.defaults().llmEndpoints, isEmpty);
 

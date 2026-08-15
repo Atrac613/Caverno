@@ -21,8 +21,8 @@ final embeddingsClientProvider = Provider<EmbeddingsClient?>((ref) {
   if (!settings.enableSemanticSearch) return null;
   if (settings.embeddingsModel.trim().isEmpty) return null;
   final client = EmbeddingsClient(
-    baseUrl: settings.baseUrl,
-    apiKey: settings.apiKey,
+    baseUrl: settings.effectiveEmbeddingsBaseUrl,
+    apiKey: settings.effectiveEmbeddingsApiKey,
   );
   ref.onDispose(client.close);
   return client;

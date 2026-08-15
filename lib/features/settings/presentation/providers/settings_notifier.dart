@@ -960,6 +960,14 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  /// LL5: pin embeddings to their own endpoint. Empty follows the primary
+  /// connection, which is what breaks when the primary moves to another
+  /// provider that does not serve the configured embedding model.
+  Future<void> updateEmbeddingsEndpointId(String endpointId) async {
+    state = state.copyWith(embeddingsEndpointId: endpointId.trim());
+    await _repository.save(state);
+  }
+
   Future<void> updateBrowserToolsEnabled(bool value) async {
     state = state.copyWith(browserToolsEnabled: value);
     await _repository.save(state);
