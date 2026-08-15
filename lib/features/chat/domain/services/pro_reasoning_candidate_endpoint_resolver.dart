@@ -1,6 +1,5 @@
-import 'dart:io';
-
 import '../../../settings/domain/entities/app_settings.dart';
+import '../../../settings/domain/services/local_llm_endpoint_predicate.dart';
 import 'pro_reasoning_candidate_explorer.dart';
 
 /// Resolves the stage-three candidate pool from the Pro Reasoning route.
@@ -58,43 +57,11 @@ final class ProReasoningCandidateEndpointResolver {
     return List.unmodifiable(targets);
   }
 
-  bool _isLocalEndpoint(LlmEndpoint endpoint) {
-    if (endpoint.source == LlmEndpointSource.discovered) return true;
-    final uri = Uri.tryParse(endpoint.normalizedBaseUrl);
-    final host = uri?.host.trim().toLowerCase() ?? '';
-    if (host.isEmpty) return false;
-    if (host == 'localhost' ||
-        host.endsWith('.localhost') ||
-        host.endsWith('.local')) {
-      return true;
-    }
-
-    final address = InternetAddress.tryParse(host);
-    if (address != null) return _isLocalAddress(address);
-
-    // A single-label hostname is resolved by the local DNS/search domain.
-    return !host.contains('.');
-  }
-
-  bool _isLocalAddress(InternetAddress address) {
-    if (address.isLoopback || address.isLinkLocal) return true;
-    final bytes = address.rawAddress;
-    if (address.type == InternetAddressType.IPv4) {
-      return _isPrivateIpv4(bytes);
-    }
-    if ((bytes[0] & 0xfe) == 0xfc) return true;
-    final isIpv4Mapped =
-        bytes.length == 16 &&
-        bytes.take(10).every((byte) => byte == 0) &&
-        bytes[10] == 0xff &&
-        bytes[11] == 0xff;
-    return isIpv4Mapped && _isPrivateIpv4(bytes.sublist(12));
-  }
-
-  bool _isPrivateIpv4(List<int> bytes) =>
-      bytes[0] == 10 ||
-      (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
-      (bytes[0] == 192 && bytes[1] == 168);
+  bool _isLocalEndpoint(LlmEndpoint endpoint) =>
+      const LocalLlmEndpointPredicate().isLocal(
+        endpoint.normalizedBaseUrl,
+        discovered: endpoint.source == LlmEndpointSource.discovered,
+      );
 
   LlmEndpoint? _selectedEndpoint(
     AppSettings settings,

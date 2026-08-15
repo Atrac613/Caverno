@@ -177,4 +177,28 @@ extension _ChatPageApprovalListeners on _ChatPageState {
       },
     );
   }
+
+  Future<void> _showBleConnectDialog(
+    BuildContext context,
+    PendingBleConnect pending,
+  ) async {
+    final approved = await BleConnectApprovalSheet.show(context, pending);
+
+    if (!mounted) return;
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveBleConnect(id: pending.id, approved: approved ?? false);
+  }
+
+  Future<void> _showSerialOpenDialog(
+    BuildContext context,
+    PendingSerialOpen pending,
+  ) async {
+    final approved = await SerialOpenApprovalSheet.show(context, pending);
+
+    if (!mounted) return;
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveSerialOpen(id: pending.id, approved: approved ?? false);
+  }
 }

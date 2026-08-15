@@ -94,6 +94,7 @@ import '../widgets/chat_error_banner.dart';
 import '../widgets/chat_image_drop_target.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
+import '../widgets/local_llm_health_section.dart';
 import '../widgets/session_log_details_section.dart';
 import '../widgets/terminal/coding_terminal_dock.dart';
 import '../widgets/token_usage_indicator.dart';
@@ -2043,29 +2044,5 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           id: pending.id,
           approved: approved ?? false,
         );
-  }
-
-  Future<void> _showBleConnectDialog(
-    BuildContext context,
-    PendingBleConnect pending,
-  ) async {
-    final approved = await BleConnectApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveBleConnect(id: pending.id, approved: approved ?? false);
-  }
-
-  Future<void> _showSerialOpenDialog(
-    BuildContext context,
-    PendingSerialOpen pending,
-  ) async {
-    final approved = await SerialOpenApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveSerialOpen(id: pending.id, approved: approved ?? false);
   }
 }

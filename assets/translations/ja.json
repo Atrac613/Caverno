@@ -516,7 +516,16 @@
     "workflow_stage_plan": "計画",
     "workflow_stage_tasks": "タスク化",
     "workflow_stage_implement": "実装",
-    "workflow_stage_review": "レビュー"
+    "workflow_stage_review": "レビュー",
+    "companion_local_llm": "ローカル LLM の状態",
+    "local_llm_refresh": "ローカル LLM を再確認",
+    "local_llm_primary": "プライマリ",
+    "local_llm_checking": "確認中...",
+    "local_llm_offline": "オフライン",
+    "local_llm_no_models": "オンライン（モデル未ロード）",
+    "local_llm_loaded_models": "ロード済みモデル",
+    "local_llm_advertised_models": "提供中のモデル（ライフサイクル API なし）",
+    "local_llm_none_registered": "ローカルエンドポイントが登録されていません。"
   },
   "drawer": {
     "title": "会話履歴",

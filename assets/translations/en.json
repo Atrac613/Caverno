@@ -516,7 +516,16 @@
     "workflow_stage_plan": "Plan",
     "workflow_stage_tasks": "Tasks",
     "workflow_stage_implement": "Implement",
-    "workflow_stage_review": "Review"
+    "workflow_stage_review": "Review",
+    "companion_local_llm": "Local LLM status",
+    "local_llm_refresh": "Re-check local LLMs",
+    "local_llm_primary": "primary",
+    "local_llm_checking": "Checking...",
+    "local_llm_offline": "Offline",
+    "local_llm_no_models": "Online, no model loaded",
+    "local_llm_loaded_models": "Loaded models",
+    "local_llm_advertised_models": "Models offered (no lifecycle API)",
+    "local_llm_none_registered": "No local endpoint is registered."
   },
   "drawer": {
     "title": "Conversation History",
