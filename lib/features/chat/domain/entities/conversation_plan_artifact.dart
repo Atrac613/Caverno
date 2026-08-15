@@ -39,7 +39,8 @@ abstract class ConversationPlanArtifact with _$ConversationPlanArtifact {
     @Default('') String draftMarkdown,
     @Default('') String approvedMarkdown,
     DateTime? updatedAt,
-    @Default(<ConversationPlanRevision>[]) List<ConversationPlanRevision> revisions,
+    @Default(<ConversationPlanRevision>[])
+    List<ConversationPlanRevision> revisions,
   }) = _ConversationPlanArtifact;
 
   factory ConversationPlanArtifact.fromJson(Map<String, dynamic> json) =>
@@ -61,10 +62,9 @@ abstract class ConversationPlanArtifact with _$ConversationPlanArtifact {
 
   bool get hasContent => hasDraft || hasApproved;
 
-  List<ConversationPlanRevision> get historyEntries =>
-      revisions
-          .where((entry) => entry.normalizedMarkdown != null)
-          .toList(growable: false);
+  List<ConversationPlanRevision> get historyEntries => revisions
+      .where((entry) => entry.normalizedMarkdown != null)
+      .toList(growable: false);
 
   bool get hasPendingEdits =>
       normalizedDraftMarkdown != null &&

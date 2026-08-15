@@ -14,7 +14,10 @@ import 'chat_datasource.dart';
 /// across models. A streaming failure after the first chunk is propagated
 /// instead of replayed, preventing duplicated visible content.
 final class PrimaryRouteChatDataSource
-    implements ChatDataSource, FinishReasonAware, RequestParameterFallbackAware {
+    implements
+        ChatDataSource,
+        FinishReasonAware,
+        RequestParameterFallbackAware {
   PrimaryRouteChatDataSource({
     required ChatDataSource assigned,
     required ChatDataSource primary,

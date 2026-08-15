@@ -77,9 +77,12 @@ class PythonScriptTools {
     final requestedTimeout =
         (arguments['timeout_seconds'] as num?)?.toInt() ??
         _defaultTimeoutSeconds;
-    final timeoutSeconds = requestedTimeout.clamp(1, _maxTimeoutSeconds).toInt();
+    final timeoutSeconds = requestedTimeout
+        .clamp(1, _maxTimeoutSeconds)
+        .toInt();
 
-    final workingDirectory = (arguments['working_directory'] as String?)?.trim();
+    final workingDirectory = (arguments['working_directory'] as String?)
+        ?.trim();
     final inputs = _parseInputs(arguments['inputs']);
 
     final result = await runtime.run(
@@ -128,7 +131,6 @@ class PythonScriptTools {
     return inputs;
   }
 
-  static String _truncate(String text) => text.length > _maxOutputChars
-      ? text.substring(0, _maxOutputChars)
-      : text;
+  static String _truncate(String text) =>
+      text.length > _maxOutputChars ? text.substring(0, _maxOutputChars) : text;
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -73,7 +75,14 @@ final flutterRunIssueCollectorProvider =
       final subscription = ref
           .watch(flutterRunControllerProvider(projectRoot))
           .states
-          .listen((state) => collector.observe(state.logs));
+          .listen((state) {
+            collector.observe(state.logs);
+            // A failed run gets one final pass, which is where an unknown
+            // failure shape becomes an issue from the tail of the output.
+            if (state.status == FlutterRunStatus.failed) {
+              unawaited(collector.analyseNow(runFailed: true));
+            }
+          });
       ref.onDispose(subscription.cancel);
 
       return collector;

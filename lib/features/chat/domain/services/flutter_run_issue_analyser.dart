@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../data/datasources/chat_datasource.dart';
 import '../entities/flutter_run_issue.dart';
+import 'flutter_run_issue_request.dart';
 import '../entities/message.dart';
 
 /// Sends one candidate block to the model and reads back a judgement.
@@ -12,31 +13,6 @@ class FlutterRunIssueAnalyser {
   const FlutterRunIssueAnalyser();
 
   static const marker = 'CAVERNO_RUN_ISSUE';
-
-  static const _schema = <String, dynamic>{
-    'type': 'object',
-    'additionalProperties': false,
-    'properties': {
-      'title': {
-        'type': 'string',
-        'description':
-            'One short line naming the problem, in the user\'s words',
-      },
-      'cause': {
-        'type': 'string',
-        'description': 'One sentence on why it happens, grounded in the block',
-      },
-      'severity': {
-        'type': 'string',
-        'enum': ['error', 'warning', 'info'],
-      },
-      'location': {
-        'type': 'string',
-        'description': 'file:line from the block, or an empty string',
-      },
-    },
-    'required': ['title', 'cause', 'severity'],
-  };
 
   /// Analyses [candidate], returning it as an issue.
   ///
@@ -70,13 +46,13 @@ class FlutterRunIssueAnalyser {
           Message(
             id: 'flutter-run-issue-${candidate.signature.hashCode}',
             role: MessageRole.user,
-            content: _prompt(candidate),
+            content: FlutterRunIssueRequest.prompt(candidate),
             timestamp: DateTime.now(),
           ),
         ],
         responseFormat: const StructuredOutputRequest.jsonSchema(
           name: 'caverno_run_issue',
-          schema: _schema,
+          schema: FlutterRunIssueRequest.schema,
         ),
         model: model,
         temperature: 0,
@@ -88,6 +64,11 @@ class FlutterRunIssueAnalyser {
       final title = _string(map['title']);
       if (title.isEmpty) return fallback;
       return fallback.copyWith(
+        // Only a window handed over on a bad exit may be ruled out; a block the
+        // toolchain itself framed as a failure is one whatever the model says.
+        dismissed:
+            candidate.kind == FlutterRunIssueKind.unclassifiedFailure &&
+            map['isFailure'] == false,
         title: title,
         cause: _string(map['cause']),
         severity: _severity(_string(map['severity'])),
@@ -99,18 +80,6 @@ class FlutterRunIssueAnalyser {
     } on Object {
       return fallback;
     }
-  }
-
-  String _prompt(FlutterRunLogCandidate candidate) {
-    return 'You are reading one failure block from a running Flutter app.\n'
-        'Report it as a single issue for the developer who owns this code.\n'
-        'Use only what the block says; do not guess at code you cannot see.\n'
-        'Keep the title under 80 characters and name the symptom, not the fix.\n'
-        'Set severity to error for a crash or a failed build, warning for a '
-        'layout or lint complaint the app survives, info otherwise.\n\n'
-        'Failure kind: ${candidate.kind.name}\n'
-        '${candidate.location == null ? '' : 'Reported at: ${candidate.location}\n'}'
-        'Block:\n${candidate.evidence}';
   }
 
   static String _string(Object? value) => value is String ? value.trim() : '';

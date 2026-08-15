@@ -152,8 +152,7 @@ final class UnexecutedCommandActionRetryPolicy {
   bool _hasUnexecutedClaim(List<ToolResultInfo> toolResults) {
     return toolResults.any((toolResult) {
       final decoded = _decodeJsonObject(toolResult.result);
-      return decoded != null &&
-          decoded['code'] == unexecutedCommandActionCode;
+      return decoded != null && decoded['code'] == unexecutedCommandActionCode;
     });
   }
 

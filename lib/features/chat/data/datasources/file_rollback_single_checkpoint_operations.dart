@@ -162,8 +162,7 @@ extension FileRollbackSingleCheckpointOperations
         (currentSnapshot.resolvedPathKey ??
                 FileMutationPathFence.lexicalPathKey(currentSnapshot.path)) !=
             entry.pathKey ||
-        _singleFileCheckpointToken(entry, currentSnapshot) !=
-            checkpointToken) {
+        _singleFileCheckpointToken(entry, currentSnapshot) != checkpointToken) {
       return _changedSingleFileCheckpointResult(
         owner,
         checkpointToken,

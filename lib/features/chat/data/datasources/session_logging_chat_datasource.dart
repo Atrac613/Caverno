@@ -13,7 +13,10 @@ final llmSessionLogStoreProvider = Provider<LlmSessionLogStore>((ref) {
 });
 
 class SessionLoggingChatDataSource
-    implements ChatDataSource, FinishReasonAware, RequestParameterFallbackAware {
+    implements
+        ChatDataSource,
+        FinishReasonAware,
+        RequestParameterFallbackAware {
   SessionLoggingChatDataSource({
     required ChatDataSource delegate,
     required LlmSessionLogStore logStore,

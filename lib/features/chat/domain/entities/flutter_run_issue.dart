@@ -12,6 +12,15 @@ enum FlutterRunIssueKind {
 
   /// A compile or hot-reload failure from the frontend.
   compileError,
+
+  /// A platform build failure: Xcode, Gradle, CocoaPods. Recognised by the
+  /// banner the toolchain prints, not by the wording of the error inside it,
+  /// which varies with every platform and SDK version.
+  buildFailure,
+
+  /// A bad exit with nothing recognisable in it, carrying a window of output
+  /// rather than a block, so an unknown failure shape still reaches the user.
+  unclassifiedFailure,
 }
 
 /// A block of log lines that looks like a failure, before anything has decided
@@ -60,6 +69,7 @@ class FlutterRunIssue {
     this.location,
     this.occurrences = 1,
     this.analysed = false,
+    this.dismissed = false,
   });
 
   final String signature;
@@ -80,6 +90,14 @@ class FlutterRunIssue {
   /// The UI says so rather than presenting an unanalysed title as a verdict.
   final bool analysed;
 
+  /// Whether the model may rule this out entirely: only for a window that
+  /// merely accompanied a bad exit. Every other kind was framed as a failure
+  /// by the toolchain itself, and no summary may erase that.
+  bool get isDismissable => kind == FlutterRunIssueKind.unclassifiedFailure;
+
+  /// Set when the model read a dismissable window and found no failure in it.
+  final bool dismissed;
+
   FlutterRunIssue copyWith({
     String? title,
     FlutterRunIssueSeverity? severity,
@@ -87,6 +105,7 @@ class FlutterRunIssue {
     String? location,
     int? occurrences,
     bool? analysed,
+    bool? dismissed,
   }) {
     return FlutterRunIssue(
       signature: signature,
@@ -98,6 +117,7 @@ class FlutterRunIssue {
       location: location ?? this.location,
       occurrences: occurrences ?? this.occurrences,
       analysed: analysed ?? this.analysed,
+      dismissed: dismissed ?? this.dismissed,
     );
   }
 }

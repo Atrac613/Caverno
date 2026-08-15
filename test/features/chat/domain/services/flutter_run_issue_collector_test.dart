@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
+import 'package:caverno/features/chat/domain/entities/flutter_run_issue.dart';
 import 'package:caverno/features/chat/domain/entities/flutter_run_session.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
@@ -146,6 +147,60 @@ void main() {
     await collector.dispose();
   });
 
+  test('a failed run with nothing recognisable yields a tail issue', () async {
+    // Reported from the app: an Xcode build error produced a failed run and an
+    // empty issue list, because no pattern matched it.
+    final dataSource = _CountingDataSource();
+    final collector = collectorFor(dataSource);
+
+    collector.observe(logsOf('SomeToolchain::fatal — malformed object file'));
+    expect(collector.issues, isEmpty);
+
+    await collector.analyseNow(runFailed: true);
+
+    expect(collector.issues, hasLength(1));
+    expect(
+      collector.issues.single.kind,
+      FlutterRunIssueKind.unclassifiedFailure,
+    );
+    expect(collector.issues.single.evidence, contains('malformed object file'));
+    await collector.dispose();
+  });
+
+  test('the model may rule out a tail, and only a tail', () async {
+    // The window merely accompanied a bad exit, so "no failure here" is a real
+    // answer. A framed failure is one whatever the model says about it.
+    final dismissing = _CountingDataSource(isFailure: false);
+    final tailCollector = collectorFor(dismissing);
+    tailCollector.observe(logsOf('nothing interesting happened'));
+    await tailCollector.analyseNow(runFailed: true);
+
+    expect(tailCollector.issues, isEmpty);
+    await tailCollector.dispose();
+
+    final framed = collectorFor(_CountingDataSource(isFailure: false));
+    framed.observe(logsOf(_overflow));
+    await framed.analyseNow(runFailed: true);
+
+    expect(framed.issues, hasLength(1));
+    await framed.dispose();
+  });
+
+  test('a failed run with a recognised block does not add a tail', () async {
+    final dataSource = _CountingDataSource();
+    final collector = collectorFor(dataSource);
+
+    collector.observe(logsOf(_overflow));
+    await collector.analyseNow(runFailed: true);
+
+    expect(collector.issues, hasLength(1));
+    expect(
+      collector.issues.single.kind,
+      FlutterRunIssueKind.frameworkException,
+    );
+    await collector.dispose();
+  });
+
   test('clear drops the list and the spend', () async {
     final dataSource = _CountingDataSource();
     final collector = collectorFor(dataSource);
@@ -162,9 +217,10 @@ void main() {
 
 class _CountingDataSource extends _PlainDataSource
     implements StructuredOutputChatDataSource {
-  _CountingDataSource({this.throwOnCall = false});
+  _CountingDataSource({this.throwOnCall = false, this.isFailure = true});
 
   final bool throwOnCall;
+  final bool isFailure;
   int calls = 0;
 
   @override
@@ -181,7 +237,8 @@ class _CountingDataSource extends _PlainDataSource
       content:
           '{"title":"Row overflows its width",'
           '"cause":"The Row is wider than its parent allows.",'
-          '"severity":"warning","location":"lib/home_page.dart:64"}',
+          '"severity":"warning","location":"lib/home_page.dart:64",'
+          '"isFailure":$isFailure}',
       finishReason: 'stop',
     );
   }

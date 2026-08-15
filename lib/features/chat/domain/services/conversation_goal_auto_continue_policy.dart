@@ -373,9 +373,7 @@ class ConversationGoalAutoContinuePolicy {
 /// added without both mappings being in front of the author.
 abstract final class GoalAutoContinueStopPresentation {
   /// Translation key for the notice shown when auto-continue stops.
-  static String? noticeKeyFor(
-    GoalAutoContinueStopCause? stopCause,
-  ) {
+  static String? noticeKeyFor(GoalAutoContinueStopCause? stopCause) {
     switch (stopCause) {
       case GoalAutoContinueStopCause.turnBudget:
       case GoalAutoContinueStopCause.goalBudget:
@@ -388,9 +386,7 @@ abstract final class GoalAutoContinueStopPresentation {
   }
 
   /// Stable `decision` value recorded on the session log for a stop.
-  static String sessionDecisionFor(
-    GoalAutoContinueStopCause? stopCause,
-  ) {
+  static String sessionDecisionFor(GoalAutoContinueStopCause? stopCause) {
     return switch (stopCause) {
       GoalAutoContinueStopCause.noProgress => 'no_progress_stop',
       GoalAutoContinueStopCause.turnBudget ||

@@ -11,11 +11,7 @@ import 'mcp_client.dart';
 /// The child process receives JSON-RPC 2.0 requests on stdin (one per line)
 /// and writes JSON-RPC 2.0 responses on stdout (one per line).
 class McpStdioClient implements McpClientBase {
-  McpStdioClient({
-    required this.command,
-    this.args = const [],
-    this.env,
-  });
+  McpStdioClient({required this.command, this.args = const [], this.env});
 
   final String command;
   final List<String> args;
@@ -45,14 +41,11 @@ class McpStdioClient implements McpClientBase {
     // Merge the user's login-shell PATH so commands like `dart`, `npx`, and
     // `uvx` resolve by name even when the app was launched from Finder/Dock
     // with launchd's minimal PATH.
-    final mergedEnv =
-        await LoginShellEnvironment.instance.environment(extra: env);
+    final mergedEnv = await LoginShellEnvironment.instance.environment(
+      extra: env,
+    );
     try {
-      _process = await Process.start(
-        command,
-        args,
-        environment: mergedEnv,
-      );
+      _process = await Process.start(command, args, environment: mergedEnv);
     } on ProcessException catch (error) {
       throw ProcessException(
         error.executable,
@@ -81,15 +74,18 @@ class McpStdioClient implements McpClientBase {
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen((line) {
-      appLog('[McpStdioClient] stderr: $line');
-    });
+          appLog('[McpStdioClient] stderr: $line');
+        });
 
     // Send initialize request.
-    final result = await _sendRequest('initialize', params: {
-      'protocolVersion': '2024-11-05',
-      'capabilities': <String, dynamic>{},
-      'clientInfo': {'name': 'caverno', 'version': '1.0.0'},
-    });
+    final result = await _sendRequest(
+      'initialize',
+      params: {
+        'protocolVersion': '2024-11-05',
+        'capabilities': <String, dynamic>{},
+        'clientInfo': {'name': 'caverno', 'version': '1.0.0'},
+      },
+    );
 
     appLog('[McpStdioClient] Server info: ${result['result']}');
 
@@ -120,10 +116,10 @@ class McpStdioClient implements McpClientBase {
     if (_process == null) await initialize();
 
     appLog('[McpStdioClient] callTool: $name');
-    final response = await _sendRequest('tools/call', params: {
-      'name': name,
-      'arguments': arguments,
-    });
+    final response = await _sendRequest(
+      'tools/call',
+      params: {'name': name, 'arguments': arguments},
+    );
 
     if (response.containsKey('error')) {
       final error = response['error'] as Map<String, dynamic>;
@@ -205,7 +201,10 @@ class McpStdioClient implements McpClientBase {
       return await completer.future.timeout(_requestTimeout);
     } on TimeoutException {
       _pending.remove(id);
-      throw TimeoutException('MCP request "$method" timed out', _requestTimeout);
+      throw TimeoutException(
+        'MCP request "$method" timed out',
+        _requestTimeout,
+      );
     }
   }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:easy_localization/easy_localization.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/chat/data/datasources/flutter_run_process_runner.dart';
 import 'package:caverno/features/chat/domain/entities/flutter_run_issue.dart';
 import 'package:caverno/features/chat/domain/services/flutter_run_command_builder.dart';
+import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_data_source_provider.dart';
+import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/flutter_run_provider.dart';
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_control_section.dart';
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_issue_list.dart';
@@ -47,6 +53,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
 
+  // The failed-run pass reaches settings for the analysis model, so the
+  // preferences the settings notifier is built from have to exist.
+  late SharedPreferences preferences;
+  setUpAll(() async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    preferences = await SharedPreferences.getInstance();
+  });
+
   const projectRoot = '/work/app';
 
   Future<void> pump(
@@ -61,6 +75,11 @@ void main() {
           flutterRunCommandBuilderProvider.overrideWithValue(
             const FlutterRunCommandBuilder(usesFvm: _noFvm),
           ),
+          // A failed run now asks the collector for one last pass, which
+          // reaches for the chat data source; this stub keeps the widget test
+          // off the settings stack without changing what it asserts.
+          chatRemoteDataSourceProvider.overrideWithValue(_StubDataSource()),
+          sharedPreferencesProvider.overrideWithValue(preferences),
         ],
         child: EasyLocalization(
           supportedLocales: const [Locale('en')],
@@ -152,6 +171,11 @@ void main() {
           flutterRunCommandBuilderProvider.overrideWithValue(
             const FlutterRunCommandBuilder(usesFvm: _noFvm),
           ),
+          // A failed run now asks the collector for one last pass, which
+          // reaches for the chat data source; this stub keeps the widget test
+          // off the settings stack without changing what it asserts.
+          chatRemoteDataSourceProvider.overrideWithValue(_StubDataSource()),
+          sharedPreferencesProvider.overrideWithValue(preferences),
         ],
         child: EasyLocalization(
           supportedLocales: const [Locale('en')],
@@ -375,4 +399,71 @@ class _FakeHandle implements FlutterRunProcessHandle {
     exit(-15);
     return true;
   }
+}
+
+/// No structured output, so the analyser falls back and nothing is sent.
+class _StubDataSource implements ChatDataSource {
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async => throw UnimplementedError();
+
+  @override
+  StreamedChatCompletion streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) => throw UnimplementedError();
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) => throw UnimplementedError();
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async => throw UnimplementedError();
 }

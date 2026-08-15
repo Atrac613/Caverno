@@ -167,8 +167,7 @@ class BleTools {
           'encoding': {
             'type': 'string',
             'enum': ['hex', 'utf8', 'base64'],
-            'description':
-                'Encoding for the returned value (default: hex).',
+            'description': 'Encoding for the returned value (default: hex).',
           },
         },
         'required': ['device_id', 'service_uuid', 'characteristic_uuid'],
@@ -210,8 +209,7 @@ class BleTools {
           'write_type': {
             'type': 'string',
             'enum': ['withResponse', 'withoutResponse'],
-            'description':
-                'Write type (default: withResponse).',
+            'description': 'Write type (default: withResponse).',
           },
         },
         'required': [
@@ -257,8 +255,7 @@ class BleTools {
     'type': 'function',
     'function': {
       'name': 'ble_unsubscribe_characteristic',
-      'description':
-          'Unsubscribe from notifications on a GATT characteristic.',
+      'description': 'Unsubscribe from notifications on a GATT characteristic.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -415,10 +412,7 @@ class BleTools {
             'type': 'string',
             'description': 'UUID of the GATT characteristic.',
           },
-          'value': {
-            'type': 'string',
-            'description': 'New value to set.',
-          },
+          'value': {'type': 'string', 'description': 'New value to set.'},
           'encoding': {
             'type': 'string',
             'enum': ['hex', 'utf8', 'base64'],

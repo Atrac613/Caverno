@@ -96,9 +96,7 @@ class SkillSimilarityService {
   // Keep ASCII alphanumerics and CJK (hiragana/katakana/kanji); split on the
   // rest. CJK has no spaces, so it collapses into compact substrings that the
   // containment check still catches.
-  static final RegExp _separator = RegExp(
-    r'[^a-z0-9぀-ヿ一-鿿]+',
-  );
+  static final RegExp _separator = RegExp(r'[^a-z0-9぀-ヿ一-鿿]+');
 
   static Set<String> _tokenize(String text) {
     return text

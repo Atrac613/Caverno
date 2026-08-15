@@ -185,6 +185,61 @@ void main() {
     );
   });
 
+  test('recognises a platform build failure by its banner', () {
+    // The Xcode error text differs with every SDK; the banner does not.
+    const xcode = '''
+Launching lib/main.dart on Untitled 2 in debug mode...
+Automatically signing iOS for device deployment...
+Running Xcode build...
+Xcode build done.                                           28.7s
+Failed to build iOS app
+Error (Xcode): Signing for "Runner" requires a development team.
+Could not build the application for the simulator.
+Error launching application on Untitled 2.
+''';
+
+    final candidates = segmenter.segment(logsOf(xcode));
+
+    expect(candidates, isNotEmpty);
+    final candidate = candidates.first;
+    expect(candidate.kind, FlutterRunIssueKind.buildFailure);
+    expect(candidate.evidence, contains('requires a development team'));
+    // The cause is printed above the banner, so the block reaches back.
+    expect(candidate.evidence, contains('Running Xcode build...'));
+  });
+
+  test('an unknown failure shape still yields a tail to analyse', () {
+    // The generalisation: rather than widening patterns until they match
+    // healthy output too, an unrecognised failure hands over its tail.
+    const unknown = '''
+Launching lib/main.dart on Untitled 2 in debug mode...
+ld: warning: ignoring duplicate libraries
+SomeToolchain::fatal — object file malformed in a way no pattern knows
+''';
+
+    final logs = logsOf(unknown);
+    expect(segmenter.segment(logs), isEmpty);
+
+    final tail = segmenter.unclassifiedTail(logs);
+
+    expect(tail, isNotNull);
+    expect(tail!.kind, FlutterRunIssueKind.unclassifiedFailure);
+    expect(tail.evidence, contains('object file malformed'));
+    // Startup chatter is still excluded from the window.
+    expect(tail.evidence, isNot(contains('Syncing files')));
+  });
+
+  test('the tail is bounded', () {
+    final logs = logsOf(
+      List.generate(500, (index) => 'line $index').join('\n'),
+    );
+
+    final tail = segmenter.unclassifiedTail(logs, maxLines: 20);
+
+    expect(tail!.lines, hasLength(20));
+    expect(tail.lines.last, 'line 499');
+  });
+
   test('a clean run produces nothing to analyse', () {
     const clean = '''
 Launching lib/main.dart on macOS in debug mode...

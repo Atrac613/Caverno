@@ -310,9 +310,17 @@ const Map<String, int> _lineBudgets = {
       135,
   'lib/features/chat/presentation/providers/bottom_dock_provider.dart': 30,
   'lib/features/chat/presentation/widgets/flutter_run_issue_list.dart': 195,
-  'lib/features/chat/domain/services/flutter_run_log_segmenter.dart': 240,
-  'lib/features/chat/domain/services/flutter_run_issue_analyser.dart': 130,
-  'lib/features/chat/domain/services/flutter_run_issue_collector.dart': 165,
+  // Candidate construction and identity moved to flutter_run_candidate_factory
+  // when the tail window joined them: what counts as failure-shaped is one
+  // question, what makes two blocks the same problem is another.
+  'lib/features/chat/domain/services/flutter_run_log_segmenter.dart': 220,
+  'lib/features/chat/domain/services/flutter_run_candidate_factory.dart': 115,
+  'lib/features/chat/domain/services/flutter_run_issue_analyser.dart': 100,
+  'lib/features/chat/domain/services/flutter_run_issue_request.dart': 60,
+  // The store (issues by signature, and the counting rule) split from the
+  // policy that decides when to spend a model call on one.
+  'lib/features/chat/domain/services/flutter_run_issue_collector.dart': 160,
+  'lib/features/chat/domain/services/flutter_run_issue_store.dart': 70,
   'lib/features/chat/domain/entities/flutter_run_issue.dart': 125,
   // Lowered from 2332 by the same extraction (label, colour and icon).
   'lib/features/chat/presentation/widgets/message_input.dart': 2368,

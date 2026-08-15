@@ -88,9 +88,7 @@ class SkillMarkdownParser {
       );
     }
     if (whenToUse.trim().isNotEmpty) {
-      buffer.writeln(
-        'whenToUse: ${_escapeFrontMatterValue(whenToUse.trim())}',
-      );
+      buffer.writeln('whenToUse: ${_escapeFrontMatterValue(whenToUse.trim())}');
     }
     buffer
       ..writeln('---')

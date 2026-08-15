@@ -76,12 +76,14 @@ class ConversationExecutionRecoveryService {
     }
 
     final emitted = <ConversationExecutionRecoveryAction>{};
-    return suggestions.where((suggestion) {
-      if (emitted.contains(suggestion.action)) {
-        return false;
-      }
-      emitted.add(suggestion.action);
-      return true;
-    }).toList(growable: false);
+    return suggestions
+        .where((suggestion) {
+          if (emitted.contains(suggestion.action)) {
+            return false;
+          }
+          emitted.add(suggestion.action);
+          return true;
+        })
+        .toList(growable: false);
   }
 }

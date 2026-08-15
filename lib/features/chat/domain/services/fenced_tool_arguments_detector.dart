@@ -55,10 +55,7 @@ final class FencedToolArgumentsDetector {
       }
       final command = decoded['command'];
       if (command is! String || command.trim().isEmpty) continue;
-      return FencedToolArguments(
-        command: command.trim(),
-        rawJson: raw.trim(),
-      );
+      return FencedToolArguments(command: command.trim(), rawJson: raw.trim());
     }
     return null;
   }

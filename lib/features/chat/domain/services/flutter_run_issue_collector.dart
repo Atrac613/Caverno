@@ -4,6 +4,7 @@ import '../../data/datasources/chat_datasource.dart';
 import '../entities/flutter_run_issue.dart';
 import '../entities/flutter_run_session.dart';
 import 'flutter_run_issue_analyser.dart';
+import 'flutter_run_issue_store.dart';
 import 'flutter_run_log_segmenter.dart';
 
 /// Turns a growing run log into a deduplicated issue list.
@@ -42,8 +43,7 @@ class FlutterRunIssueCollector {
   /// still collected, they just stop being analysed until the user asks.
   final int analysisBudget;
 
-  final _issues = <String, FlutterRunIssue>{};
-  final _pending = <String, FlutterRunLogCandidate>{};
+  final _store = FlutterRunIssueStore();
   final _controller = StreamController<List<FlutterRunIssue>>.broadcast();
 
   List<FlutterRunLogLine> _lastLogs = const [];
@@ -51,7 +51,7 @@ class FlutterRunIssueCollector {
   bool _analysing = false;
   int _analysisCount = 0;
 
-  List<FlutterRunIssue> get issues => List.unmodifiable(_issues.values);
+  List<FlutterRunIssue> get issues => _store.issues;
 
   Stream<List<FlutterRunIssue>> get changes => _controller.stream;
 
@@ -62,55 +62,52 @@ class FlutterRunIssueCollector {
 
   /// Re-reads [logs] and queues anything new. Idempotent: the segmenter runs
   /// over the whole buffer every time and known signatures are dropped here.
-  void observe(List<FlutterRunLogLine> logs, {bool streamEnded = false}) {
+  void observe(
+    List<FlutterRunLogLine> logs, {
+    bool streamEnded = false,
+    bool runFailed = false,
+  }) {
     _lastLogs = logs;
     var discovered = false;
     for (final candidate in _segmenter.segment(
       logs,
       allowUnterminated: streamEnded,
     )) {
-      final known = _issues[candidate.signature];
-      if (known != null) {
-        // The same problem again. Counting it is the whole point of the
-        // signature: a re-thrown exception must not become a second issue or
-        // a second model call.
-        _issues[candidate.signature] = known.copyWith(
-          occurrences: known.occurrences + 1,
-        );
+      if (_store.merge(candidate)) discovered = true;
+    }
+    // Nothing recognisable came out of a run that failed. Hand over the tail
+    // rather than leaving the user with a failed build and an empty list.
+    if (runFailed &&
+        _store.issuesBySignature.isEmpty &&
+        _store.pending.isEmpty) {
+      final tail = _segmenter.unclassifiedTail(logs);
+      if (tail != null &&
+          !_store.issuesBySignature.containsKey(tail.signature)) {
+        _store.queue(tail);
         discovered = true;
-        continue;
       }
-      if (_pending.containsKey(candidate.signature)) continue;
-
-      _pending[candidate.signature] = candidate;
-      _issues[candidate.signature] = FlutterRunIssue(
-        signature: candidate.signature,
-        kind: candidate.kind,
-        title: candidate.headline,
-        evidence: candidate.evidence,
-        location: candidate.location,
-      );
-      discovered = true;
     }
     if (discovered) _publish();
-    if (_pending.isNotEmpty) _scheduleAnalysis();
+    if (_store.pending.isNotEmpty) _scheduleAnalysis();
   }
 
   /// Analyses whatever is queued now, ignoring the quiet period. Also the way
   /// back from an exhausted budget, which is why it lifts the cap by a batch.
-  Future<void> analyseNow() {
+  Future<void> analyseNow({bool runFailed = false}) {
     _debounceTimer?.cancel();
     _analysisCount = 0;
     // Nothing more is coming, so a block still missing its closing rule is
     // all there will ever be of it.
-    if (_lastLogs.isNotEmpty) observe(_lastLogs, streamEnded: true);
+    if (_lastLogs.isNotEmpty) {
+      observe(_lastLogs, streamEnded: true, runFailed: runFailed);
+    }
     return _drain();
   }
 
   void clear() {
     _debounceTimer?.cancel();
-    _issues.clear();
-    _pending.clear();
+    _store.issuesBySignature.clear();
+    _store.pending.clear();
     _analysisCount = 0;
     _publish();
   }
@@ -129,20 +126,17 @@ class FlutterRunIssueCollector {
     if (_analysing) return;
     _analysing = true;
     try {
-      while (_pending.isNotEmpty && !budgetExhausted) {
-        final signature = _pending.keys.first;
-        final candidate = _pending.remove(signature)!;
+      while (_store.pending.isNotEmpty && !budgetExhausted) {
+        final signature = _store.pending.keys.first;
+        final candidate = _store.pending.remove(signature)!;
         _analysisCount += 1;
         final analysed = await _analyser.analyse(
           dataSource: _dataSource(),
           candidate: candidate,
           model: _model(),
-          occurrences: _issues[signature]?.occurrences ?? 1,
+          occurrences: _store.issuesBySignature[signature]?.occurrences ?? 1,
         );
-        // The count may have grown while the model was thinking.
-        _issues[signature] = analysed.copyWith(
-          occurrences: _issues[signature]?.occurrences ?? analysed.occurrences,
-        );
+        _store.record(signature, analysed);
         _publish();
       }
     } finally {

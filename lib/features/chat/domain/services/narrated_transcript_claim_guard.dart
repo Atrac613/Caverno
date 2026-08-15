@@ -90,8 +90,7 @@ class NarratedTranscriptClaimGuard {
         if (normalized.isEmpty || _isIgnoredNarratedSegment(normalized)) {
           continue;
         }
-        if (executedSegments.contains(normalized) ||
-            !seen.add(normalized)) {
+        if (executedSegments.contains(normalized) || !seen.add(normalized)) {
           continue;
         }
         unexecuted.add(normalized);

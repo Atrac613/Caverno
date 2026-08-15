@@ -43,15 +43,17 @@ class ConversationPlanDocumentBuilder {
 
     final normalizedDraft = currentArtifact.normalizedDraftMarkdown;
     if (normalizedDraft != null) {
-      final stagedDraft = ConversationPlanProjectionService.replaceWorkflowStage(
-        markdown: normalizedDraft,
-        workflowStage: workflowStage,
-      );
+      final stagedDraft =
+          ConversationPlanProjectionService.replaceWorkflowStage(
+            markdown: normalizedDraft,
+            workflowStage: workflowStage,
+          );
       final validation = ConversationPlanProjectionService.validateDocument(
         markdown: stagedDraft,
         requireTasks: tasks.isNotEmpty,
       );
-      if (validation.isValid && (tasks.isEmpty || validation.previewTasks.isNotEmpty)) {
+      if (validation.isValid &&
+          (tasks.isEmpty || validation.previewTasks.isNotEmpty)) {
         return stagedDraft;
       }
     }
