@@ -169,11 +169,11 @@ class _Card extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appColors = context.appColors;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: appColors.surface2,
+    return Material(
+      color: appColors.surface2,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(context.radii.md),
-        border: Border.all(color: appColors.hairline, width: 0.5),
+        side: BorderSide(color: appColors.hairline, width: 0.5),
       ),
       child: Padding(padding: EdgeInsets.all(context.space.xl), child: child),
     );

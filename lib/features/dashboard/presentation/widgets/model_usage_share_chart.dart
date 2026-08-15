@@ -84,10 +84,11 @@ class _ShareBarPainter extends CustomPainter {
     var x = 0.0;
     for (final segment in segments) {
       if (x >= size.width) break;
-      final width = (segment.share * size.width).clamp(
-        _minSegmentWidth,
-        size.width - x,
-      );
+      final remainingWidth = size.width - x;
+      final desiredWidth = segment.share * size.width;
+      final width = remainingWidth <= _minSegmentWidth
+          ? remainingWidth
+          : desiredWidth.clamp(_minSegmentWidth, remainingWidth);
       canvas.drawRect(
         Rect.fromLTWH(x, 0, width, size.height),
         Paint()..color = segment.color,

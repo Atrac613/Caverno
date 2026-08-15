@@ -80,6 +80,41 @@ void main() {
     expect(find.text('10.0%'), findsWidgets);
   });
 
+  testWidgets('renders expandable recovery labels on a material surface', (
+    tester,
+  ) async {
+    final model = entry(label: 'model-with-recovery');
+    await _pump(
+      tester,
+      ModelUsageStats(
+        models: [model],
+        labelsByModelKey: {
+          model.key: [entry(label: 'recovery-path')],
+        },
+      ),
+    );
+
+    expect(find.byType(ExpansionTile), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('renders tiny trailing usage shares without a paint exception', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      ModelUsageStats(
+        models: [
+          entry(label: 'dominant', totalTokens: 999998),
+          entry(label: 'small-a', totalTokens: 1),
+          entry(label: 'small-b', totalTokens: 1),
+        ],
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('renders unreported cache and reasoning as a dash, not 0%', (
     tester,
   ) async {
