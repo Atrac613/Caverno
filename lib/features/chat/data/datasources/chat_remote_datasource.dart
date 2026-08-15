@@ -35,6 +35,7 @@ class ChatRemoteDataSource
     implements
         ChatDataSource,
         FinishReasonAware,
+        RequestParameterFallbackAware,
         StructuredOutputChatDataSource {
   ChatRemoteDataSource({
     String? baseUrl,
@@ -93,6 +94,10 @@ class ChatRemoteDataSource
     return message.contains('peg-native') ||
         (message.contains('native tool') && message.contains('format'));
   }
+
+  @override
+  bool get endpointIgnoresRequestedTemperature =>
+      _requestFallback.temperatureIsOmitted;
 
   TokenUsage get lastUsage => _telemetry.lastUsage;
   set lastUsage(TokenUsage usage) => _telemetry.lastUsage = usage;

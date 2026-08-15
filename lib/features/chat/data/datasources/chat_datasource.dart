@@ -129,6 +129,29 @@ abstract interface class FinishReasonAware {
   String? get lastFinishReason;
 }
 
+/// Opt-in capability for data sources that report which request parameters the
+/// endpoint refused, after the 400-driven fallback has rewritten the request.
+///
+/// Anything that varies a parameter to measure its effect has to read this:
+/// a sweep over temperature 0.0-0.7 against an endpoint that rejects
+/// `temperature` (GPT-5 class) is otherwise the same request repeated N times,
+/// reported as a clean sweep. Kept separate from [ChatDataSource] so existing
+/// implementers are not forced to provide it.
+abstract interface class RequestParameterFallbackAware {
+  /// True once the endpoint has 400'd on `temperature`, after which every
+  /// request omits it and runs at the server default.
+  bool get endpointIgnoresRequestedTemperature;
+
+  /// Reads the flag off any data source, false when it does not report one.
+  ///
+  /// Takes [Object] because this capability is not part of [ChatDataSource]:
+  /// `is` against an unrelated type does not promote a [ChatDataSource]
+  /// variable, so callers would otherwise need a cast at every site.
+  static bool ignoresTemperature(Object? dataSource) =>
+      dataSource is RequestParameterFallbackAware &&
+      dataSource.endpointIgnoresRequestedTemperature;
+}
+
 enum StructuredOutputFormat { jsonSchema, jsonObject }
 
 class StructuredOutputRequest {

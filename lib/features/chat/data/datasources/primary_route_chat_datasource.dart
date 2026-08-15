@@ -14,7 +14,7 @@ import 'chat_datasource.dart';
 /// across models. A streaming failure after the first chunk is propagated
 /// instead of replayed, preventing duplicated visible content.
 final class PrimaryRouteChatDataSource
-    implements ChatDataSource, FinishReasonAware {
+    implements ChatDataSource, FinishReasonAware, RequestParameterFallbackAware {
   PrimaryRouteChatDataSource({
     required ChatDataSource assigned,
     required ChatDataSource primary,
@@ -37,6 +37,14 @@ final class PrimaryRouteChatDataSource
 
   @override
   String? get lastFinishReason => _lastFinishReason;
+
+  /// True when either leg drops the requested temperature: a request can land on
+  /// the assigned endpoint or fall back to the primary, so a measurement is only
+  /// trustworthy when both honour it.
+  @override
+  bool get endpointIgnoresRequestedTemperature =>
+      RequestParameterFallbackAware.ignoresTemperature(_assigned) ||
+      RequestParameterFallbackAware.ignoresTemperature(_primary);
 
   @override
   StreamedChatCompletion streamChatCompletion({

@@ -25,6 +25,10 @@ final class ChatCompletionRequestFallback {
     };
   }
 
+  /// True once the endpoint has 400'd on `temperature`, after which every
+  /// request omits it and runs at the server default.
+  bool get temperatureIsOmitted => _parameterCompat.omitTemperature;
+
   double? temperatureForRequest(double? temperature) =>
       _parameterCompat.omitTemperature
       ? null

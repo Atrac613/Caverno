@@ -178,7 +178,8 @@ List<Widget> _reportDetailSections(LiveLlmDiagnosticReport report) {
     ],
     const SizedBox(height: 16),
     _ToolCatalogSection(report: report),
-    if (report.samplerCalibrationSummaries.isNotEmpty) ...[
+    if (report.samplerCalibrationSummaries.isNotEmpty ||
+        report.samplerCalibrationUnmeasuredReason.isNotEmpty) ...[
       const SizedBox(height: 16),
       _SamplerCalibrationSection(report: report),
     ],
@@ -1039,11 +1040,36 @@ class _SamplerCalibrationSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final summaries = report.samplerCalibrationSummaries;
+    final unmeasuredReason = report.samplerCalibrationUnmeasuredReason;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _SectionTitle(label: 'settings.live_llm_diag_sampler_calibration'.tr()),
         const SizedBox(height: 8),
+        // An unmeasured sweep has to read as unmeasured, never as an empty
+        // section next to probes that did run.
+        if (unmeasuredReason.isNotEmpty)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.help_outline,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      unmeasuredReason,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         for (final summary in summaries)
           _SamplerCalibrationSummaryCard(summary: summary),
       ],

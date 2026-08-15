@@ -457,6 +457,7 @@ class LiveLlmDiagnosticReport {
     this.toolCatalog = LiveLlmDiagnosticToolCatalog.empty,
     this.results = const <LiveLlmDiagnosticProbeResult>[],
     this.samplerCalibrationTrials = const <LiveLlmDiagnosticSamplerTrial>[],
+    this.samplerCalibrationUnmeasuredReason = '',
     this.streamingMetrics,
     this.multiRoundToolLoopMetrics,
     this.embeddingMetrics,
@@ -472,6 +473,12 @@ class LiveLlmDiagnosticReport {
   final LiveLlmDiagnosticToolCatalog toolCatalog;
   final List<LiveLlmDiagnosticProbeResult> results;
   final List<LiveLlmDiagnosticSamplerTrial> samplerCalibrationTrials;
+
+  /// Why no sampler sweep was run, or empty when it was. A temperature sweep is
+  /// only a measurement when the endpoint honours the temperature; on endpoints
+  /// that reject the parameter the trials would all be the same request, so
+  /// they are not run and this says why instead of reporting a clean sweep.
+  final String samplerCalibrationUnmeasuredReason;
 
   /// Null until the streaming probe runs, and after a run where it was skipped
   /// or threw. Absent means unmeasured, not zero.
@@ -494,6 +501,7 @@ class LiveLlmDiagnosticReport {
     LiveLlmDiagnosticToolCatalog? toolCatalog,
     List<LiveLlmDiagnosticProbeResult>? results,
     List<LiveLlmDiagnosticSamplerTrial>? samplerCalibrationTrials,
+    String? samplerCalibrationUnmeasuredReason,
     LiveLlmDiagnosticStreamingMetrics? streamingMetrics,
     LiveLlmDiagnosticMultiRoundToolLoopMetrics? multiRoundToolLoopMetrics,
     LiveLlmDiagnosticEmbeddingMetrics? embeddingMetrics,
@@ -510,6 +518,9 @@ class LiveLlmDiagnosticReport {
       results: results ?? this.results,
       samplerCalibrationTrials:
           samplerCalibrationTrials ?? this.samplerCalibrationTrials,
+      samplerCalibrationUnmeasuredReason:
+          samplerCalibrationUnmeasuredReason ??
+          this.samplerCalibrationUnmeasuredReason,
       streamingMetrics: streamingMetrics ?? this.streamingMetrics,
       multiRoundToolLoopMetrics:
           multiRoundToolLoopMetrics ?? this.multiRoundToolLoopMetrics,
@@ -615,6 +626,8 @@ class LiveLlmDiagnosticReport {
           .toList(),
     if (samplerCalibrationTrials.isNotEmpty)
       'samplerCalibrationSummary': _samplerCalibrationSummaryToJson(),
+    if (samplerCalibrationUnmeasuredReason.isNotEmpty)
+      'samplerCalibrationUnmeasured': samplerCalibrationUnmeasuredReason,
   };
 
   Map<String, dynamic> _samplerCalibrationSummaryToJson() {

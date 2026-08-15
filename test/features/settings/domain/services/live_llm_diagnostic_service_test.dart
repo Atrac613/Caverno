@@ -114,6 +114,57 @@ void main() {
     );
   });
 
+  test(
+    'reports the sampler sweep as unmeasured when temperature is dropped',
+    () async {
+      // An endpoint that 400s on `temperature` runs every request at its own
+      // default, so a sweep would be one request repeated 32 times reported as
+      // a clean pass across every temperature.
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true),
+        chatDataSource: _TemperatureIgnoringDataSource(),
+        mcpToolService: McpToolService(),
+      );
+
+      final report = await service.run();
+
+      expect(report.samplerCalibrationTrials, isEmpty);
+      expect(report.samplerCalibrationSummaries, isEmpty);
+      expect(
+        report.samplerCalibrationUnmeasuredReason,
+        contains('rejects the `temperature` parameter'),
+      );
+      expect(
+        report.toJson()['samplerCalibrationUnmeasured'],
+        contains('Not measured'),
+      );
+      expect(report.toJson().containsKey('samplerCalibrationSummary'), isFalse);
+      // The rest of the run is unaffected.
+      expect(
+        _result(report, 'instruction_echo').status,
+        LiveLlmDiagnosticStatus.passed,
+      );
+    },
+  );
+
+  test('discards sampler trials when the endpoint 400s mid-sweep', () async {
+    final dataSource = _TemperatureIgnoringDataSource(afterFirstNonZero: true);
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: dataSource,
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run();
+
+    expect(dataSource.endpointIgnoresRequestedTemperature, isTrue);
+    expect(report.samplerCalibrationTrials, isEmpty);
+    expect(
+      report.samplerCalibrationUnmeasuredReason,
+      contains('server default'),
+    );
+  });
+
   test('skips tool probes when MCP tools are disabled', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
@@ -991,6 +1042,43 @@ LiveLlmDiagnosticProbeResult _result(
   String id,
 ) {
   return report.results.singleWhere((result) => result.id == id);
+}
+
+/// A GPT-5-class endpoint: it rejects `temperature`, so the request fallback
+/// drops the parameter and every request runs at the server default.
+class _TemperatureIgnoringDataSource extends _FakeDiagnosticDataSource
+    implements RequestParameterFallbackAware {
+  _TemperatureIgnoringDataSource({this.afterFirstNonZero = false});
+
+  /// When true the endpoint only reveals itself once a sweep asks for a
+  /// non-default temperature, so the flag flips in the middle of the sweep.
+  final bool afterFirstNonZero;
+
+  bool _revealed = false;
+
+  @override
+  bool get endpointIgnoresRequestedTemperature =>
+      afterFirstNonZero ? _revealed : true;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    if (temperature != null && temperature > 0) {
+      _revealed = true;
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
 }
 
 class _FakeDiagnosticDataSource

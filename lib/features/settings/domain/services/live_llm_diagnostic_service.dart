@@ -286,6 +286,37 @@ class LiveLlmDiagnosticService {
   static const _diagnosticMaxTokens = 512;
   static const _samplerCalibrationTemperatures = <double>[0.0, 0.2, 0.4, 0.7];
   static const _samplerCalibrationRepeatCount = 2;
+  static const _samplerCalibrationTemperatureIgnoredReason =
+      'Not measured: this endpoint rejects the `temperature` parameter, so '
+      'every request runs at the server default. A sweep would have repeated '
+      'one identical request and reported it as a clean pass.';
+
+  /// True when the endpoint has already proven it drops `temperature`.
+  ///
+  /// The flag is discovered from a 400 on some earlier request and is sticky
+  /// from then on, so it can also flip in the middle of a sweep -- callers
+  /// check it before starting and again before keeping the trials.
+  bool get _temperatureSweepIsMeaningless =>
+      RequestParameterFallbackAware.ignoresTemperature(chatDataSource);
+
+  /// Records that the sweep was not a measurement, discarding whatever trials
+  /// were collected before the endpoint revealed itself.
+  LiveLlmDiagnosticReport _markSamplerCalibrationUnmeasured(
+    LiveLlmDiagnosticReport report,
+    LiveLlmDiagnosticReportCallback? onReport,
+  ) {
+    if (report.samplerCalibrationUnmeasuredReason.isNotEmpty &&
+        report.samplerCalibrationTrials.isEmpty) {
+      return report;
+    }
+    final updated = report.copyWith(
+      samplerCalibrationTrials: const <LiveLlmDiagnosticSamplerTrial>[],
+      samplerCalibrationUnmeasuredReason:
+          _samplerCalibrationTemperatureIgnoredReason,
+    );
+    onReport?.call(updated);
+    return updated;
+  }
 
   Future<LiveLlmDiagnosticReport> run({
     LiveLlmDiagnosticReportCallback? onReport,
@@ -2211,6 +2242,9 @@ class LiveLlmDiagnosticService {
     if (dateTool == null) {
       return report;
     }
+    if (_temperatureSweepIsMeaningless) {
+      return _markSamplerCalibrationUnmeasured(report, onReport);
+    }
 
     final trials = <LiveLlmDiagnosticSamplerTrial>[];
     for (var repeat = 0; repeat < _samplerCalibrationRepeatCount; repeat += 1) {
@@ -2222,6 +2256,9 @@ class LiveLlmDiagnosticService {
           ),
         );
       }
+    }
+    if (_temperatureSweepIsMeaningless) {
+      return _markSamplerCalibrationUnmeasured(report, onReport);
     }
     if (trials.isEmpty) {
       return report;
@@ -2281,6 +2318,9 @@ class LiveLlmDiagnosticService {
         !_shouldRunProbe(_instructionProbeId, selectedProbeIds)) {
       return report;
     }
+    if (_temperatureSweepIsMeaningless) {
+      return _markSamplerCalibrationUnmeasured(report, onReport);
+    }
 
     final trials = <LiveLlmDiagnosticSamplerTrial>[];
     for (var repeat = 0; repeat < _samplerCalibrationRepeatCount; repeat += 1) {
@@ -2289,6 +2329,11 @@ class LiveLlmDiagnosticService {
           await _runRoutineSamplerCalibrationTrial(temperature: temperature),
         );
       }
+    }
+    // The first trials can be what teaches the endpoint's 400 to the fallback,
+    // so re-check before keeping anything.
+    if (_temperatureSweepIsMeaningless) {
+      return _markSamplerCalibrationUnmeasured(report, onReport);
     }
     if (trials.isEmpty) {
       return report;
@@ -2352,6 +2397,9 @@ class LiveLlmDiagnosticService {
         !_shouldRunProbe(_instructionProbeId, selectedProbeIds)) {
       return report;
     }
+    if (_temperatureSweepIsMeaningless) {
+      return _markSamplerCalibrationUnmeasured(report, onReport);
+    }
 
     final trials = <LiveLlmDiagnosticSamplerTrial>[];
     for (var repeat = 0; repeat < _samplerCalibrationRepeatCount; repeat += 1) {
@@ -2363,6 +2411,9 @@ class LiveLlmDiagnosticService {
           await _runPlanSamplerCalibrationTrial(temperature: temperature),
         );
       }
+    }
+    if (_temperatureSweepIsMeaningless) {
+      return _markSamplerCalibrationUnmeasured(report, onReport);
     }
     if (trials.isEmpty) {
       return report;

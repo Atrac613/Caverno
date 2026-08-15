@@ -13,7 +13,7 @@ final llmSessionLogStoreProvider = Provider<LlmSessionLogStore>((ref) {
 });
 
 class SessionLoggingChatDataSource
-    implements ChatDataSource, FinishReasonAware {
+    implements ChatDataSource, FinishReasonAware, RequestParameterFallbackAware {
   SessionLoggingChatDataSource({
     required ChatDataSource delegate,
     required LlmSessionLogStore logStore,
@@ -26,6 +26,10 @@ class SessionLoggingChatDataSource
   final ChatDataSource _delegate;
   final LlmSessionLogStore _logStore;
   final LlmSessionLogContext? Function() _contextProvider;
+
+  @override
+  bool get endpointIgnoresRequestedTemperature =>
+      RequestParameterFallbackAware.ignoresTemperature(_delegate);
 
   LlmSessionLogContext? _resolveContext() {
     return LlmSessionLogContext.current ?? _contextProvider();
