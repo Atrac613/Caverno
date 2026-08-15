@@ -532,7 +532,14 @@
     "flutter_run_log_title": "Run log",
     "flutter_run_clear_logs": "Clear log",
     "flutter_run_collapse_logs": "Collapse log",
-    "flutter_run_expand_logs": "Expand log"
+    "flutter_run_expand_logs": "Expand log",
+    "flutter_run_issues_title": "Issues",
+    "flutter_run_no_issues": "No issues found in this run yet.",
+    "flutter_run_issue_occurrences": "seen {} times",
+    "flutter_run_issue_unanalysed": "not analysed yet",
+    "flutter_run_issue_ask": "Ask in chat",
+    "flutter_run_analysis_paused": "Analysis paused for this run.",
+    "flutter_run_analysis_resume": "Analyse the rest"
   },
   "drawer": {
     "title": "Conversation History",

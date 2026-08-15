@@ -171,6 +171,20 @@ void main() {
     expect(first, second);
   });
 
+  test('a half-arrived block is not a candidate while output streams', () {
+    // Found through the panel: mid-stream the block has no stack frame yet, so
+    // emitting it would take a different signature from the finished block and
+    // list the same failure twice.
+    final partial = logsOf(_overflow).sublist(0, 9);
+
+    expect(segmenter.segment(partial), isEmpty);
+    expect(
+      segmenter.segment(partial, allowUnterminated: true),
+      hasLength(1),
+      reason: 'once the stream is over, a partial block is all there is',
+    );
+  });
+
   test('a clean run produces nothing to analyse', () {
     const clean = '''
 Launching lib/main.dart on macOS in debug mode...

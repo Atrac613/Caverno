@@ -289,7 +289,7 @@ const Map<String, int> _lineBudgets = {
   // -97: the ten approval dialogs moved to chat_page_approval_listeners.dart,
   // where the listeners that raise them already live. The page keeps the
   // layout; the part keeps the approval flow.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1980,
+  'lib/features/chat/presentation/pages/chat_page.dart': 1975,
   'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
   'lib/features/chat/domain/services/flutter_run_session_controller.dart': 230,
   'lib/features/chat/domain/entities/flutter_run_session.dart': 130,
@@ -297,7 +297,16 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/flutter_run_process_runner.dart': 135,
   'lib/features/chat/presentation/widgets/flutter_run_control_section.dart': 145,
   'lib/features/chat/presentation/widgets/flutter_run_device_sheet.dart': 130,
-  'lib/features/chat/presentation/widgets/flutter_run_log_panel.dart': 185,
+  // The panel owns the scrollback; its tab strip and actions live in
+  // flutter_run_log_panel_header.dart.
+  'lib/features/chat/presentation/widgets/flutter_run_log_panel.dart': 155,
+  'lib/features/chat/presentation/widgets/flutter_run_log_panel_header.dart':
+      125,
+  'lib/features/chat/presentation/widgets/flutter_run_issue_list.dart': 195,
+  'lib/features/chat/domain/services/flutter_run_log_segmenter.dart': 240,
+  'lib/features/chat/domain/services/flutter_run_issue_analyser.dart': 130,
+  'lib/features/chat/domain/services/flutter_run_issue_collector.dart': 165,
+  'lib/features/chat/domain/entities/flutter_run_issue.dart': 125,
   // Lowered from 2332 by the same extraction (label, colour and icon).
   'lib/features/chat/presentation/widgets/message_input.dart': 2368,
   'lib/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart':

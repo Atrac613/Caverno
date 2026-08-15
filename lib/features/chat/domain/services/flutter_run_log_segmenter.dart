@@ -48,12 +48,23 @@ class FlutterRunLogSegmenter {
     RegExp(r'^Syncing files to device'),
   ];
 
-  List<FlutterRunLogCandidate> segment(List<FlutterRunLogLine> logs) {
+  /// Cuts [logs] into candidates.
+  ///
+  /// [allowUnterminated] keeps a framework block whose closing rule has not
+  /// arrived. False while output is streaming: a half-arrived block has no
+  /// stack frame yet, so it would take a different signature from the finished
+  /// one and the same failure would be listed twice. True once the stream is
+  /// over, where an unterminated block is all there will ever be.
+  List<FlutterRunLogCandidate> segment(
+    List<FlutterRunLogLine> logs, {
+    bool allowUnterminated = false,
+  }) {
     final lines = [for (final line in logs) line.text];
     final candidates = <FlutterRunLogCandidate>[];
     var index = 0;
     while (index < lines.length) {
-      final consumed = _frameworkBlock(lines, index, candidates)
+      final consumed =
+          _frameworkBlock(lines, index, candidates, allowUnterminated)
           ? _frameworkBlockEnd(lines, index)
           : _unhandledBlock(lines, index, candidates)
           ? _unhandledBlockEnd(lines, index)
@@ -69,8 +80,10 @@ class FlutterRunLogSegmenter {
     List<String> lines,
     int start,
     List<FlutterRunLogCandidate> out,
+    bool allowUnterminated,
   ) {
     if (!_frameworkBanner.hasMatch(lines[start])) return false;
+    if (!allowUnterminated && !_isTerminated(lines, start)) return false;
     final end = _frameworkBlockEnd(lines, start);
     final block = lines.sublist(start, end);
     final headline = _firstMeaningfulLine(block.skip(1));
@@ -84,6 +97,15 @@ class FlutterRunLogSegmenter {
       ),
     );
     return true;
+  }
+
+  /// Whether the closing rule (or the next banner) has arrived yet.
+  bool _isTerminated(List<String> lines, int start) {
+    for (var index = start + 1; index < lines.length; index += 1) {
+      if (_bannerRule.hasMatch(lines[index])) return true;
+      if (_frameworkBanner.hasMatch(lines[index])) return true;
+    }
+    return false;
   }
 
   int _frameworkBlockEnd(List<String> lines, int start) {

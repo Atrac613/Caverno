@@ -1,9 +1,11 @@
-import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/entities/flutter_run_issue.dart';
 import '../../domain/entities/flutter_run_session.dart';
 import '../providers/flutter_run_provider.dart';
+import 'flutter_run_issue_list.dart';
+import 'flutter_run_log_panel_header.dart';
 
 /// Bottom log panel for the running app.
 ///
@@ -12,9 +14,16 @@ import '../providers/flutter_run_provider.dart';
 /// scrollback for now: the planned reader that turns these lines into an issue
 /// list consumes [FlutterRunSessionState.logs], not this widget.
 class FlutterRunLogPanel extends ConsumerStatefulWidget {
-  const FlutterRunLogPanel({super.key, required this.projectRoot});
+  const FlutterRunLogPanel({
+    super.key,
+    required this.projectRoot,
+    required this.onSendIssueToChat,
+  });
 
   final String projectRoot;
+
+  /// Hands an issue to the conversation as a prefilled prompt.
+  final void Function(FlutterRunIssue issue) onSendIssueToChat;
 
   @override
   ConsumerState<FlutterRunLogPanel> createState() => _FlutterRunLogPanelState();
@@ -23,6 +32,7 @@ class FlutterRunLogPanel extends ConsumerStatefulWidget {
 class _FlutterRunLogPanelState extends ConsumerState<FlutterRunLogPanel> {
   final _scrollController = ScrollController();
   bool _expanded = true;
+  bool _showIssues = false;
   int _renderedLineCount = 0;
 
   @override
@@ -50,6 +60,12 @@ class _FlutterRunLogPanelState extends ConsumerState<FlutterRunLogPanel> {
     if (state.status == FlutterRunStatus.idle && !state.hasLogs) {
       return const SizedBox.shrink();
     }
+    final issueCount =
+        ref.watch(flutterRunIssuesProvider(widget.projectRoot)).value?.length ??
+        ref
+            .read(flutterRunIssueCollectorProvider(widget.projectRoot))
+            .issues
+            .length;
     _followTail(state.logs.length);
 
     return DecoratedBox(
@@ -63,94 +79,45 @@ class _FlutterRunLogPanelState extends ConsumerState<FlutterRunLogPanel> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _Header(
+          FlutterRunLogPanelHeader(
             state: state,
             expanded: _expanded,
+            showIssues: _showIssues,
+            issueCount: issueCount,
+            onSelectTab: (issues) => setState(() {
+              _showIssues = issues;
+              _expanded = true;
+            }),
             onToggle: () => setState(() => _expanded = !_expanded),
-            onClear: () => ref
-                .read(flutterRunControllerProvider(widget.projectRoot))
-                .clearLogs(),
+            onClear: () => _showIssues
+                ? ref
+                      .read(
+                        flutterRunIssueCollectorProvider(widget.projectRoot),
+                      )
+                      .clear()
+                : ref
+                      .read(flutterRunControllerProvider(widget.projectRoot))
+                      .clearLogs(),
           ),
           if (_expanded)
             SizedBox(
               height: 200,
-              child: Scrollbar(
-                controller: _scrollController,
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-                  itemCount: state.logs.length,
-                  itemBuilder: (_, index) => _LogLine(line: state.logs[index]),
-                ),
-              ),
+              child: _showIssues
+                  ? FlutterRunIssueList(
+                      projectRoot: widget.projectRoot,
+                      onSendToChat: widget.onSendIssueToChat,
+                    )
+                  : Scrollbar(
+                      controller: _scrollController,
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                        itemCount: state.logs.length,
+                        itemBuilder: (_, index) =>
+                            _LogLine(line: state.logs[index]),
+                      ),
+                    ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.state,
-    required this.expanded,
-    required this.onToggle,
-    required this.onClear,
-  });
-
-  final FlutterRunSessionState state;
-  final bool expanded;
-  final VoidCallback onToggle;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 6, 4),
-      child: Row(
-        children: [
-          Icon(
-            Icons.terminal_outlined,
-            size: 18,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'chat.flutter_run_log_title'.tr(),
-            style: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              state.command,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const Spacer(),
-          if (state.hasLogs)
-            IconButton(
-              key: const ValueKey('flutter-run-log-clear'),
-              onPressed: onClear,
-              icon: const Icon(Icons.delete_sweep_outlined, size: 18),
-              tooltip: 'chat.flutter_run_clear_logs'.tr(),
-            ),
-          IconButton(
-            key: const ValueKey('flutter-run-log-toggle'),
-            onPressed: onToggle,
-            icon: Icon(
-              expanded ? Icons.expand_more : Icons.expand_less,
-              size: 20,
-            ),
-            tooltip: expanded
-                ? 'chat.flutter_run_collapse_logs'.tr()
-                : 'chat.flutter_run_expand_logs'.tr(),
-          ),
         ],
       ),
     );

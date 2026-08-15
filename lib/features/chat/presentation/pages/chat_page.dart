@@ -96,6 +96,7 @@ import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
 import '../providers/flutter_run_provider.dart';
 import '../widgets/flutter_run_control_section.dart';
+import '../widgets/flutter_run_issue_list.dart';
 import '../widgets/flutter_run_log_panel.dart';
 import '../widgets/session_log_details_section.dart';
 import '../widgets/terminal/coding_terminal_dock.dart';
@@ -1145,14 +1146,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 currentConversation: currentConversation,
                                 activeProject: activeProject,
                               ).normalizedRootPath);
-                  final bodyWithRunLog = runProjectRoot.isEmpty
-                      ? coreBody
-                      : Column(
-                          children: [
-                            Expanded(child: coreBody),
-                            FlutterRunLogPanel(projectRoot: runProjectRoot),
-                          ],
-                        );
+                  final bodyWithRunLog = _withRunLogPanel(
+                    coreBody,
+                    projectRoot: runProjectRoot,
+                  );
                   return _wrapWithBrowserPane(
                     context,
                     bodyWithRunLog,

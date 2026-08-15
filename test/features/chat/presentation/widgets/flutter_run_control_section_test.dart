@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/data/datasources/flutter_run_process_runner.dart';
+import 'package:caverno/features/chat/domain/entities/flutter_run_issue.dart';
 import 'package:caverno/features/chat/domain/services/flutter_run_command_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/flutter_run_provider.dart';
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_control_section.dart';
@@ -29,7 +30,11 @@ void main() {
 
   const projectRoot = '/work/app';
 
-  Future<void> pump(WidgetTester tester, _FakeRunner runner) async {
+  Future<void> pump(
+    WidgetTester tester,
+    _FakeRunner runner, {
+    void Function(FlutterRunIssue issue)? onIssue,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -51,11 +56,14 @@ void main() {
               localizationsDelegates: context.localizationDelegates,
               supportedLocales: context.supportedLocales,
               locale: context.locale,
-              home: const Scaffold(
+              home: Scaffold(
                 body: Column(
                   children: [
-                    FlutterRunControlSection(projectRoot: projectRoot),
-                    FlutterRunLogPanel(projectRoot: projectRoot),
+                    const FlutterRunControlSection(projectRoot: projectRoot),
+                    FlutterRunLogPanel(
+                      projectRoot: projectRoot,
+                      onSendIssueToChat: onIssue ?? (_) {},
+                    ),
                   ],
                 ),
               ),
@@ -134,6 +142,48 @@ void main() {
 
     expect(runner.handle.stdinWrites, ['q']);
     expect(find.byKey(const ValueKey('flutter-run-start')), findsOneWidget);
+  });
+
+  testWidgets('a failure in the output becomes an issue row', (tester) async {
+    // End to end through the panel: the block is segmented, listed before any
+    // analysis, and handed to the conversation with its evidence.
+    final runner = _FakeRunner(
+      devicesJson: '[{"name":"macOS","id":"macos","targetPlatform":"darwin"}]',
+    );
+    String? prompt;
+    await pump(tester, runner, onIssue: (issue) => prompt = issue.evidence);
+    await tester.tap(find.byKey(const ValueKey('flutter-run-start')));
+    await tester.pumpAndSettle();
+
+    for (final line in const [
+      '══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════',
+      'The following assertion was thrown during layout:',
+      'A RenderFlex overflowed by 42 pixels on the right.',
+      '  Row Row:file:///Users/dev/app/lib/home_page.dart:64:16',
+      '════════════════════════════════════════════════════════════════',
+    ]) {
+      runner.handle.emitStdout(line);
+    }
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('flutter-run-issues-tab')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('The following assertion was thrown during layout:'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('not analysed yet'), findsOneWidget);
+
+    await tester.tap(find.textContaining('assertion was thrown'));
+    await tester.pumpAndSettle();
+    // The action sits below the fold of the 200px panel.
+    await tester.ensureVisible(find.text('Ask in chat'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask in chat'));
+    await tester.pumpAndSettle();
+
+    expect(prompt, contains('A RenderFlex overflowed by 42 pixels'));
   });
 
   testWidgets('a device listing failure is shown, not swallowed', (

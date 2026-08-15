@@ -46,6 +46,7 @@ class FlutterRunIssueCollector {
   final _pending = <String, FlutterRunLogCandidate>{};
   final _controller = StreamController<List<FlutterRunIssue>>.broadcast();
 
+  List<FlutterRunLogLine> _lastLogs = const [];
   Timer? _debounceTimer;
   bool _analysing = false;
   int _analysisCount = 0;
@@ -61,9 +62,13 @@ class FlutterRunIssueCollector {
 
   /// Re-reads [logs] and queues anything new. Idempotent: the segmenter runs
   /// over the whole buffer every time and known signatures are dropped here.
-  void observe(List<FlutterRunLogLine> logs) {
+  void observe(List<FlutterRunLogLine> logs, {bool streamEnded = false}) {
+    _lastLogs = logs;
     var discovered = false;
-    for (final candidate in _segmenter.segment(logs)) {
+    for (final candidate in _segmenter.segment(
+      logs,
+      allowUnterminated: streamEnded,
+    )) {
       final known = _issues[candidate.signature];
       if (known != null) {
         // The same problem again. Counting it is the whole point of the
@@ -96,6 +101,9 @@ class FlutterRunIssueCollector {
   Future<void> analyseNow() {
     _debounceTimer?.cancel();
     _analysisCount = 0;
+    // Nothing more is coming, so a block still missing its closing rule is
+    // all there will ever be of it.
+    if (_lastLogs.isNotEmpty) observe(_lastLogs, streamEnded: true);
     return _drain();
   }
 

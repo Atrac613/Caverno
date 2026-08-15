@@ -974,6 +974,22 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
     );
   }
 
+  /// Puts the run log under [body], full width, when the workspace has a
+  /// project to run. Renders nothing until a run starts.
+  Widget _withRunLogPanel(Widget body, {required String projectRoot}) {
+    if (projectRoot.isEmpty) return body;
+    return Column(
+      children: [
+        Expanded(child: body),
+        FlutterRunLogPanel(
+          projectRoot: projectRoot,
+          onSendIssueToChat: (issue) =>
+              _prefillCompanionPrompt(flutterRunIssuePrompt(issue)),
+        ),
+      ],
+    );
+  }
+
   void _prefillCompanionPrompt(String prompt) {
     setState(() {
       _composerPrefillText = prompt;
