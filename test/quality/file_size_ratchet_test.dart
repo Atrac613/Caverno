@@ -298,7 +298,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/entities/flutter_run_session.dart': 130,
   'lib/features/chat/domain/entities/flutter_run_device.dart': 50,
   'lib/features/chat/data/datasources/flutter_run_process_runner.dart': 140,
-  'lib/features/chat/presentation/widgets/flutter_run_control_section.dart': 165,
+  // The run flow moved to flutter_run_launcher.dart when it grew the
+  // diagnostics that a silent stall needs.
+  'lib/features/chat/presentation/widgets/flutter_run_control_section.dart': 140,
+  'lib/features/chat/presentation/widgets/flutter_run_launcher.dart': 80,
   'lib/features/chat/presentation/widgets/flutter_run_device_sheet.dart': 130,
   // The standalone run panel became panes of the shared bottom dock, so the
   // scrollback is all that is left of it and the tab strip belongs to the dock.

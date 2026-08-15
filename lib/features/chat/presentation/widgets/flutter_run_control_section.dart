@@ -2,12 +2,9 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/services/coding_terminal_service.dart';
-import '../../domain/entities/flutter_run_device.dart';
 import '../../domain/entities/flutter_run_session.dart';
-import '../providers/bottom_dock_provider.dart';
 import '../providers/flutter_run_provider.dart';
-import 'flutter_run_device_sheet.dart';
+import 'flutter_run_launcher.dart';
 
 /// Run/stop control for the project's Flutter app.
 ///
@@ -60,37 +57,13 @@ class FlutterRunControlSection extends ConsumerWidget {
     );
   }
 
-  Future<void> _run(BuildContext context, WidgetRef ref) async {
-    final controller = ref.read(flutterRunControllerProvider(projectRoot));
-    // Open the log before the work starts: device discovery is the part that
-    // can stall, and its output is the only thing that explains a stall.
-    _showRunLog(ref, threadId);
-    final devices = await controller.listDevices(projectRoot: projectRoot);
-    if (!context.mounted || devices.isEmpty) return;
-
-    final runnable = [
-      for (final device in devices)
-        if (device.isSupported) device,
-    ];
-    // Asking about a single option is friction, not a choice.
-    final FlutterRunDevice? device = runnable.length == 1
-        ? runnable.single
-        : await FlutterRunDeviceSheet.show(context, devices);
-    if (device == null) return;
-
-    await controller.start(projectRoot: projectRoot, device: device);
-  }
-}
-
-/// Brings the bottom dock up on the run log.
-void _showRunLog(WidgetRef ref, String? threadId) {
-  ref
-      .read(bottomDockTabProvider.notifier)
-      .select(threadId, BottomDockTab.runLog);
-  final terminal = ref.read(codingTerminalServiceProvider);
-  if (!terminal.isPanelOpenFor(threadId)) {
-    terminal.togglePanel(threadId);
-  }
+  Future<void> _run(BuildContext context, WidgetRef ref) =>
+      const FlutterRunLauncher().run(
+        context: context,
+        ref: ref,
+        projectRoot: projectRoot,
+        threadId: threadId,
+      );
 }
 
 class _StatusLine extends StatelessWidget {

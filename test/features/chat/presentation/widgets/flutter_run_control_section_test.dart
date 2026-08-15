@@ -14,6 +14,7 @@ import 'package:caverno/features/chat/presentation/providers/flutter_run_provide
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_control_section.dart';
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_issue_list.dart';
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_log_view.dart';
+import 'package:caverno/features/chat/presentation/widgets/terminal/coding_terminal_dock.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();
@@ -131,6 +132,63 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(runner.startedArguments, ['run', '-d', 'sim-1']);
+  });
+
+  testWidgets('the picker still opens when the dock opens first', (
+    tester,
+  ) async {
+    // Reported from the app: the run listed devices into the log and then did
+    // nothing. Opening the dock re-parents this subtree, so a picker shown
+    // from the pre-await context is shown from an unmounted element.
+    final runner = _FakeRunner(
+      devicesJson:
+          '[{"name":"macOS","id":"macos","targetPlatform":"darwin"},'
+          '{"name":"iPhone 16","id":"sim-1","targetPlatform":"ios"}]',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          flutterRunProcessRunnerProvider.overrideWithValue(runner),
+          flutterRunCommandBuilderProvider.overrideWithValue(
+            const FlutterRunCommandBuilder(usesFvm: _noFvm),
+          ),
+        ],
+        child: EasyLocalization(
+          supportedLocales: const [Locale('en')],
+          path: 'assets/translations',
+          fallbackLocale: const Locale('en'),
+          startLocale: const Locale('en'),
+          useOnlyLangCode: true,
+          saveLocale: false,
+          assetLoader: const _TestTranslationLoader(),
+          child: Builder(
+            builder: (context) => MaterialApp(
+              localizationsDelegates: context.localizationDelegates,
+              supportedLocales: context.supportedLocales,
+              locale: context.locale,
+              home: Scaffold(
+                body: CodingTerminalDock(
+                  workingDirectory: null,
+                  threadId: 'thread-a',
+                  runProjectRoot: projectRoot,
+                  onSendIssueToChat: (_) {},
+                  child: const FlutterRunControlSection(
+                    projectRoot: projectRoot,
+                    threadId: 'thread-a',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('flutter-run-start')));
+    await settle(tester);
+
+    expect(find.text('Pick a device to run on'), findsOneWidget);
   });
 
   testWidgets('run output reaches the bottom log panel', (tester) async {
