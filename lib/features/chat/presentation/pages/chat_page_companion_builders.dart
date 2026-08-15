@@ -123,7 +123,12 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
           _buildCompanionSection(
             context,
             title: 'chat.companion_flutter_run'.tr(),
-            children: [FlutterRunControlSection(projectRoot: rootPath)],
+            children: [
+              FlutterRunControlSection(
+                projectRoot: rootPath,
+                threadId: currentConversation.id,
+              ),
+            ],
           ),
         if (ref.watch(flutterRunSupportedProvider(rootPath)))
           const SizedBox(height: 18),
@@ -971,22 +976,6 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
       style: theme.textTheme.bodySmall?.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
       ),
-    );
-  }
-
-  /// Puts the run log under [body], full width, when the workspace has a
-  /// project to run. Renders nothing until a run starts.
-  Widget _withRunLogPanel(Widget body, {required String projectRoot}) {
-    if (projectRoot.isEmpty) return body;
-    return Column(
-      children: [
-        Expanded(child: body),
-        FlutterRunLogPanel(
-          projectRoot: projectRoot,
-          onSendIssueToChat: (issue) =>
-              _prefillCompanionPrompt(flutterRunIssuePrompt(issue)),
-        ),
-      ],
     );
   }
 

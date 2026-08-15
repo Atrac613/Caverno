@@ -1,4 +1,5 @@
 import 'package:caverno/core/services/coding_terminal_service.dart';
+import 'package:caverno/features/chat/presentation/providers/bottom_dock_provider.dart';
 import 'package:caverno/features/chat/presentation/widgets/terminal/coding_terminal_dock.dart';
 import 'package:caverno/features/chat/presentation/widgets/terminal/coding_terminal_panel.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +31,8 @@ void main() {
     await tester.pumpWidget(
       host(
         const CodingTerminalDock(
+          runProjectRoot: '',
+          onSendIssueToChat: _ignoreIssue,
           workingDirectory: null,
           threadId: 'thread-a',
           child: child,
@@ -48,6 +51,8 @@ void main() {
     await tester.pumpWidget(
       host(
         const CodingTerminalDock(
+          runProjectRoot: '',
+          onSendIssueToChat: _ignoreIssue,
           workingDirectory: '/tmp/project',
           threadId: 'thread-a',
           child: child,
@@ -86,4 +91,65 @@ void main() {
     expect(service.isRunning, isFalse);
     expect(service.workingDirectory, isNull);
   });
+  testWidgets('shows the run panes for a project without a terminal', (
+    tester,
+  ) async {
+    // The run panes do not need a shell, so the dock still opens where the
+    // terminal cannot be offered.
+    final providers = container();
+    providers.read(codingTerminalServiceProvider).togglePanel('thread-a');
+
+    await tester.pumpWidget(
+      host(
+        const CodingTerminalDock(
+          runProjectRoot: '/work/app',
+          onSendIssueToChat: _ignoreIssue,
+          workingDirectory: null,
+          threadId: 'thread-a',
+          child: child,
+        ),
+        container: providers,
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('bottom-dock-tab-run-log')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('bottom-dock-tab-terminal')),
+      findsNothing,
+    );
+    expect(find.byType(CodingTerminalPanel), findsNothing);
+  });
+
+  testWidgets('selecting a tab swaps the pane', (tester) async {
+    final providers = container();
+    providers.read(codingTerminalServiceProvider).togglePanel('thread-a');
+
+    await tester.pumpWidget(
+      host(
+        const CodingTerminalDock(
+          runProjectRoot: '/work/app',
+          onSendIssueToChat: _ignoreIssue,
+          workingDirectory: null,
+          threadId: 'thread-a',
+          child: child,
+        ),
+        container: providers,
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('bottom-dock-tab-issues')));
+    await tester.pump();
+
+    expect(
+      providers.read(bottomDockTabProvider)['thread-a'],
+      BottomDockTab.issues,
+    );
+  });
 }
+
+void _ignoreIssue(Object issue) {}

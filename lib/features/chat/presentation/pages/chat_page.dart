@@ -97,7 +97,6 @@ import '../widgets/queued_messages_strip.dart';
 import '../providers/flutter_run_provider.dart';
 import '../widgets/flutter_run_control_section.dart';
 import '../widgets/flutter_run_issue_list.dart';
-import '../widgets/flutter_run_log_panel.dart';
 import '../widgets/session_log_details_section.dart';
 import '../widgets/terminal/coding_terminal_dock.dart';
 import '../widgets/token_usage_indicator.dart';
@@ -1135,24 +1134,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   // conversation and the sidebar: it belongs to the project,
                   // not to either column. It renders nothing until a run
                   // starts.
-                  // Scoped to the thread's worktree when there is one, so a
-                  // worktree thread runs its own checkout rather than the
-                  // project root it branched from.
-                  final runProjectRoot = activeProject == null
-                      ? ''
-                      : (currentConversation == null
-                            ? activeProject.normalizedRootPath
-                            : _effectiveCodingProjectForConversation(
-                                currentConversation: currentConversation,
-                                activeProject: activeProject,
-                              ).normalizedRootPath);
-                  final bodyWithRunLog = _withRunLogPanel(
-                    coreBody,
-                    projectRoot: runProjectRoot,
-                  );
                   return _wrapWithBrowserPane(
                     context,
-                    bodyWithRunLog,
+                    coreBody,
                     availableWidth: MediaQuery.sizeOf(context).width,
                     availableHeight: constraints.maxHeight,
                   );
@@ -1165,6 +1149,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final workspaceBody = CodingTerminalDock(
       workingDirectory: terminalWorkingDirectory,
       threadId: currentThreadId,
+      runProjectRoot: activeProject == null || currentConversation == null
+          ? ''
+          : _effectiveCodingProjectForConversation(
+              currentConversation: currentConversation,
+              activeProject: activeProject,
+            ).normalizedRootPath,
+      onSendIssueToChat: (issue) =>
+          _prefillCompanionPrompt(flutterRunIssuePrompt(issue)),
       child: buildWorkspaceBody(),
     );
     final taskBanner = SubagentTaskBanner(conversationId: currentThreadId);

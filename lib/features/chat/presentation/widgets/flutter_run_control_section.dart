@@ -2,8 +2,10 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/coding_terminal_service.dart';
 import '../../domain/entities/flutter_run_device.dart';
 import '../../domain/entities/flutter_run_session.dart';
+import '../providers/bottom_dock_provider.dart';
 import '../providers/flutter_run_provider.dart';
 import 'flutter_run_device_sheet.dart';
 
@@ -12,9 +14,16 @@ import 'flutter_run_device_sheet.dart';
 /// Only rendered for a Flutter project; a Dart package or a non-Dart worktree
 /// has nothing to run and gets no dead button.
 class FlutterRunControlSection extends ConsumerWidget {
-  const FlutterRunControlSection({super.key, required this.projectRoot});
+  const FlutterRunControlSection({
+    super.key,
+    required this.projectRoot,
+    this.threadId,
+  });
 
   final String projectRoot;
+
+  /// Thread whose bottom dock opens on the run log when a run starts.
+  final String? threadId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,6 +62,9 @@ class FlutterRunControlSection extends ConsumerWidget {
 
   Future<void> _run(BuildContext context, WidgetRef ref) async {
     final controller = ref.read(flutterRunControllerProvider(projectRoot));
+    // Open the log before the work starts: device discovery is the part that
+    // can stall, and its output is the only thing that explains a stall.
+    _showRunLog(ref, threadId);
     final devices = await controller.listDevices(projectRoot: projectRoot);
     if (!context.mounted || devices.isEmpty) return;
 
@@ -67,6 +79,17 @@ class FlutterRunControlSection extends ConsumerWidget {
     if (device == null) return;
 
     await controller.start(projectRoot: projectRoot, device: device);
+  }
+}
+
+/// Brings the bottom dock up on the run log.
+void _showRunLog(WidgetRef ref, String? threadId) {
+  ref
+      .read(bottomDockTabProvider.notifier)
+      .select(threadId, BottomDockTab.runLog);
+  final terminal = ref.read(codingTerminalServiceProvider);
+  if (!terminal.isPanelOpenFor(threadId)) {
+    terminal.togglePanel(threadId);
   }
 }
 

@@ -298,13 +298,14 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/entities/flutter_run_session.dart': 130,
   'lib/features/chat/domain/entities/flutter_run_device.dart': 50,
   'lib/features/chat/data/datasources/flutter_run_process_runner.dart': 140,
-  'lib/features/chat/presentation/widgets/flutter_run_control_section.dart': 145,
+  'lib/features/chat/presentation/widgets/flutter_run_control_section.dart': 165,
   'lib/features/chat/presentation/widgets/flutter_run_device_sheet.dart': 130,
-  // The panel owns the scrollback; its tab strip and actions live in
-  // flutter_run_log_panel_header.dart.
-  'lib/features/chat/presentation/widgets/flutter_run_log_panel.dart': 155,
-  'lib/features/chat/presentation/widgets/flutter_run_log_panel_header.dart':
-      125,
+  // The standalone run panel became panes of the shared bottom dock, so the
+  // scrollback is all that is left of it and the tab strip belongs to the dock.
+  'lib/features/chat/presentation/widgets/flutter_run_log_view.dart': 145,
+  'lib/features/chat/presentation/widgets/terminal/coding_terminal_dock_tabs.dart':
+      135,
+  'lib/features/chat/presentation/providers/bottom_dock_provider.dart': 30,
   'lib/features/chat/presentation/widgets/flutter_run_issue_list.dart': 195,
   'lib/features/chat/domain/services/flutter_run_log_segmenter.dart': 240,
   'lib/features/chat/domain/services/flutter_run_issue_analyser.dart': 130,

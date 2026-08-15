@@ -12,7 +12,8 @@ import 'package:caverno/features/chat/domain/entities/flutter_run_issue.dart';
 import 'package:caverno/features/chat/domain/services/flutter_run_command_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/flutter_run_provider.dart';
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_control_section.dart';
-import 'package:caverno/features/chat/presentation/widgets/flutter_run_log_panel.dart';
+import 'package:caverno/features/chat/presentation/widgets/flutter_run_issue_list.dart';
+import 'package:caverno/features/chat/presentation/widgets/flutter_run_log_view.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();
@@ -77,9 +78,14 @@ void main() {
                 body: Column(
                   children: [
                     const FlutterRunControlSection(projectRoot: projectRoot),
-                    FlutterRunLogPanel(
-                      projectRoot: projectRoot,
-                      onSendIssueToChat: onIssue ?? (_) {},
+                    const Expanded(
+                      child: FlutterRunLogView(projectRoot: projectRoot),
+                    ),
+                    Expanded(
+                      child: FlutterRunIssueList(
+                        projectRoot: projectRoot,
+                        onSendToChat: onIssue ?? (_) {},
+                      ),
                     ),
                   ],
                 ),
@@ -132,14 +138,13 @@ void main() {
       devicesJson: '[{"name":"macOS","id":"macos","targetPlatform":"darwin"}]',
     );
     await pump(tester, runner);
-    expect(find.byKey(const ValueKey('flutter-run-log-panel')), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('flutter-run-start')));
     await settle(tester);
     runner.handle.emitStdout('Syncing files to macOS...');
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('flutter-run-log-panel')), findsOneWidget);
+    expect(find.byKey(const ValueKey('flutter-run-log-view')), findsOneWidget);
     expect(find.text('Syncing files to macOS...'), findsOneWidget);
     expect(find.text(r'$ flutter run -d macos'), findsOneWidget);
   });
@@ -183,16 +188,25 @@ void main() {
     }
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('flutter-run-issues-tab')));
-    await tester.pumpAndSettle();
-
+    // Both panes are mounted side by side here; in the dock only one shows at
+    // a time, so the assertion is scoped to the issue list.
     expect(
-      find.text('The following assertion was thrown during layout:'),
+      find.descendant(
+        of: find.byType(FlutterRunIssueList),
+        matching: find.text(
+          'The following assertion was thrown during layout:',
+        ),
+      ),
       findsOneWidget,
     );
     expect(find.textContaining('not analysed yet'), findsOneWidget);
 
-    await tester.tap(find.textContaining('assertion was thrown'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(FlutterRunIssueList),
+        matching: find.textContaining('assertion was thrown'),
+      ),
+    );
     await tester.pumpAndSettle();
     // The action sits below the fold of the 200px panel.
     await tester.ensureVisible(find.text('Ask in chat'));

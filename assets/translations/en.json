@@ -186,7 +186,7 @@
     "projects": "Projects",
     "add_project": "Add Project",
     "companion_panel_toggle": "Toggle companion panel",
-    "terminal_toggle": "Toggle terminal",
+    "terminal_toggle": "Bottom panel",
     "terminal_restart": "Restart terminal",
     "terminal_hide": "Hide terminal",
     "terminal_exited": "exited ({code})",
@@ -539,7 +539,12 @@
     "flutter_run_issue_unanalysed": "not analysed yet",
     "flutter_run_issue_ask": "Ask in chat",
     "flutter_run_analysis_paused": "Analysis paused for this run.",
-    "flutter_run_analysis_resume": "Analyse the rest"
+    "flutter_run_analysis_resume": "Analyse the rest",
+    "bottom_dock_terminal": "Terminal",
+    "bottom_dock_run_log": "Run log",
+    "bottom_dock_issues": "Issues",
+    "bottom_dock_close": "Close panel",
+    "flutter_run_log_empty": "No output yet."
   },
   "drawer": {
     "title": "Conversation History",

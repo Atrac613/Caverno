@@ -23,7 +23,12 @@ class CodingTerminalPanel extends ConsumerStatefulWidget {
     super.key,
     required this.workingDirectory,
     required this.onClose,
+    this.showHeader = true,
   });
+
+  /// False when the panel sits under the bottom dock's tab strip, which
+  /// already carries the title and the close action.
+  final bool showHeader;
 
   /// Root of the active coding project; where the shell is spawned.
   final String workingDirectory;
@@ -87,7 +92,7 @@ class _CodingTerminalPanelState extends ConsumerState<CodingTerminalPanel> {
           ),
           child: Column(
             children: [
-              _buildHeader(context, service),
+              if (widget.showHeader) _buildHeader(context, service),
               Expanded(
                 child: TerminalView(
                   service.terminal,

@@ -186,7 +186,7 @@
     "projects": "プロジェクト",
     "add_project": "プロジェクトを追加",
     "companion_panel_toggle": "補助パネルを切り替え",
-    "terminal_toggle": "ターミナルを切り替え",
+    "terminal_toggle": "ボトムパネル",
     "terminal_restart": "ターミナルを再起動",
     "terminal_hide": "ターミナルを閉じる",
     "terminal_exited": "終了 ({code})",
@@ -539,7 +539,12 @@
     "flutter_run_issue_unanalysed": "未解析",
     "flutter_run_issue_ask": "チャットで相談",
     "flutter_run_analysis_paused": "この実行の解析を一時停止しました。",
-    "flutter_run_analysis_resume": "残りを解析"
+    "flutter_run_analysis_resume": "残りを解析",
+    "bottom_dock_terminal": "ターミナル",
+    "bottom_dock_run_log": "実行ログ",
+    "bottom_dock_issues": "Issue",
+    "bottom_dock_close": "パネルを閉じる",
+    "flutter_run_log_empty": "まだ出力はありません。"
   },
   "drawer": {
     "title": "会話履歴",
