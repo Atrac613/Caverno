@@ -1401,18 +1401,31 @@ class LiveLlmDiagnosticService {
     onReport?.call(updated);
     try {
       final stopwatch = Stopwatch()..start();
-      final result = await _embed(_embeddingInputs, model: model);
+      final attempt = await _embed(_embeddingInputs, model: model);
       stopwatch.stop();
+      final result = attempt.result;
       if (result == null) {
         updated = updated.withProbeResult(
           LiveLlmDiagnosticProbeResult(
             id: _embeddingsProbeId,
             status: LiveLlmDiagnosticStatus.failed,
             summary: 'The production embeddings client returned no vectors.',
-            details:
-                'The configured endpoint/model pair was unavailable or returned '
-                'an unsupported response. Run COMPAT1 to classify the protocol '
-                'failure separately.',
+            details: [
+              // The embeddings client swallows every failure so semantic search
+              // can degrade quietly; name the endpoint and the server's own
+              // words here, or a stale model id reads as a dead endpoint.
+              attempt.failure?.describe() ??
+                  'The configured endpoint/model pair was unavailable or '
+                      'returned an unsupported response.',
+              '',
+              'Embeddings endpoint: ${settings.effectiveEmbeddingsBaseUrl}',
+              'Embeddings model: $model',
+              if (settings.embeddingsEndpointId.trim().isEmpty)
+                'This model is sent to the primary endpoint because no '
+                    'embeddings endpoint is pinned. A model from a different '
+                    'server will 404 here.',
+              'Run COMPAT1 to classify the protocol failure separately.',
+            ].join('\n'),
             elapsed: DateTime.now().difference(startedAt),
           ),
         );
@@ -1443,20 +1456,21 @@ class LiveLlmDiagnosticService {
     return updated;
   }
 
-  Future<EmbeddingsResult?> _embed(
+  Future<_EmbeddingAttempt> _embed(
     List<String> inputs, {
     required String model,
   }) async {
     final injected = embedTexts;
     if (injected != null) {
-      return injected(inputs);
+      return _EmbeddingAttempt(result: await injected(inputs));
     }
     final client = EmbeddingsClient(
-      baseUrl: settings.baseUrl,
-      apiKey: settings.apiKey,
+      baseUrl: settings.effectiveEmbeddingsBaseUrl,
+      apiKey: settings.effectiveEmbeddingsApiKey,
     );
     try {
-      return await client.embed(inputs: inputs, model: model);
+      final result = await client.embed(inputs: inputs, model: model);
+      return _EmbeddingAttempt(result: result, failure: client.lastFailure);
     } finally {
       client.close();
     }
@@ -3391,6 +3405,14 @@ class _EditFormatProbeOutcome {
   final String? failureDetail;
   final String content;
   final LiveLlmDiagnosticTokenUsage usage;
+}
+
+/// One embeddings call plus the reason it produced nothing, when it did.
+class _EmbeddingAttempt {
+  const _EmbeddingAttempt({required this.result, this.failure});
+
+  final EmbeddingsResult? result;
+  final EmbeddingsFailure? failure;
 }
 
 class _EmbeddingProbeOutcome {

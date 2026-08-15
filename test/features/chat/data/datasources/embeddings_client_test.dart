@@ -118,6 +118,77 @@ void main() {
         expect(await networkError.embed(inputs: ['x'], model: 'm'), isNull);
       },
     );
+
+    test('records why the last call produced no vectors', () async {
+      // A stale model id pointed at a new endpoint is an ordinary 404; without
+      // this the diagnostic could only report "no vectors" for every cause.
+      final notFound = EmbeddingsClient(
+        baseUrl: 'https://api.example.test/v1',
+        apiKey: '',
+        client: MockClient(
+          (_) async => http.Response(
+            '{"error":{"message":"The model `local-embed` does not exist"}}',
+            404,
+          ),
+        ),
+      );
+      expect(await notFound.embed(inputs: ['x'], model: 'local-embed'), isNull);
+      final failure = notFound.lastFailure!;
+      expect(failure.kind, EmbeddingsFailureKind.httpStatus);
+      expect(failure.statusCode, 404);
+      expect(failure.model, 'local-embed');
+      expect(failure.uri.toString(), 'https://api.example.test/v1/embeddings');
+      expect(failure.describe(), contains('HTTP 404'));
+      expect(failure.describe(), contains('does not exist'));
+
+      final malformed = EmbeddingsClient(
+        baseUrl: 'https://api.example.test/v1',
+        apiKey: '',
+        client: MockClient((_) async => http.Response('{"data":[]}', 200)),
+      );
+      expect(await malformed.embed(inputs: ['x'], model: 'm'), isNull);
+      expect(
+        malformed.lastFailure!.kind,
+        EmbeddingsFailureKind.malformedResponse,
+      );
+
+      final networkError = EmbeddingsClient(
+        baseUrl: 'https://api.example.test/v1',
+        apiKey: '',
+        client: MockClient((_) async => throw const _NetworkDown()),
+      );
+      expect(await networkError.embed(inputs: ['x'], model: 'm'), isNull);
+      expect(networkError.lastFailure!.kind, EmbeddingsFailureKind.transport);
+    });
+
+    test('clears the recorded failure once a call succeeds', () async {
+      var shouldFail = true;
+      final client = EmbeddingsClient(
+        baseUrl: 'https://api.example.test/v1',
+        apiKey: '',
+        client: MockClient((_) async {
+          if (shouldFail) return http.Response('nope', 500);
+          return http.Response(
+            jsonEncode({
+              'model': 'm',
+              'data': [
+                {
+                  'index': 0,
+                  'embedding': [0.1, 0.2],
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+      expect(await client.embed(inputs: ['x'], model: 'm'), isNull);
+      expect(client.lastFailure, isNotNull);
+
+      shouldFail = false;
+      expect(await client.embed(inputs: ['x'], model: 'm'), isNotNull);
+      expect(client.lastFailure, isNull);
+    });
   });
 }
 
