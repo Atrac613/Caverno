@@ -154,6 +154,55 @@ void main() {
       expect(result.finishReason, 'stop');
     });
 
+    test('promotes an advertised call object printed as content', () {
+      // grok-4.6 answers some tool requests by printing the call in a fenced
+      // block instead of using the tool-call channel. The name is advertised,
+      // so the request is honoured rather than shown to the user as text.
+      final result = normalizer.normalize(
+        content:
+            '<think>The user wants a file read.</think>'
+            '```json\n'
+            '{"name": "read_file", "arguments": {"path": "pubspec.yaml"}}\n'
+            '```',
+        reasoning: null,
+        nativeToolCalls: null,
+        finishReason: 'stop',
+        advertisedTools: _tools('read_file'),
+      );
+
+      expect(result.finishReason, 'tool_calls');
+      expect(result.toolCalls!.single.name, 'read_file');
+      expect(result.toolCalls!.single.arguments['path'], 'pubspec.yaml');
+    });
+
+    test('leaves an unadvertised call object as text', () {
+      final result = normalizer.normalize(
+        content: '{"name": "delete_file", "arguments": {"path": "a.dart"}}',
+        reasoning: null,
+        nativeToolCalls: null,
+        finishReason: 'stop',
+        advertisedTools: _tools('read_file'),
+      );
+
+      expect(result.toolCalls, isNull);
+      expect(result.finishReason, 'stop');
+    });
+
+    test('leaves JSON that merely mentions a tool name as text', () {
+      final result = normalizer.normalize(
+        content:
+            'The schema is {"name":"read_file",'
+            '"parameters":{"type":"object"}}.',
+        reasoning: null,
+        nativeToolCalls: null,
+        finishReason: 'stop',
+        advertisedTools: _tools('read_file'),
+      );
+
+      expect(result.toolCalls, isNull);
+      expect(result.finishReason, 'stop');
+    });
+
     test('ignores incomplete embedded calls', () {
       final result = normalizer.normalize(
         content: '<tool_call>{"name":"read_file"',

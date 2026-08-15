@@ -15,6 +15,67 @@ void main() {
     expect(toolCalls.first.occurrenceId, isNotNull);
   });
 
+  group('extractFunctionObjectToolCalls', () {
+    test('reads a fenced call object a model printed instead of calling', () {
+      // Measured on grok-4.6: it answered a delegation request with the call
+      // written out in a ```json fence, so the tool never ran.
+      const content = '<think>The user wants a subagent.</think>'
+          '```json\n'
+          '{"name": "spawn_subagent", "arguments": {"description": "Summarize", '
+          '"prompt": "Summarize CAVERNO_SUBAGENT_DIAGNOSTIC", "background": true}}\n'
+          '```';
+
+      final toolCalls = ContentParser.extractFunctionObjectToolCalls(content);
+
+      expect(toolCalls, hasLength(1));
+      expect(toolCalls.first.name, 'spawn_subagent');
+      expect(toolCalls.first.arguments['description'], 'Summarize');
+      expect(toolCalls.first.arguments['background'], isTrue);
+      expect(toolCalls.first.occurrenceId, isNotNull);
+    });
+
+    test('reads the OpenAI wire wrapper with string arguments', () {
+      const content =
+          '{"type":"function","function":{"name":"read_file",'
+          '"arguments":"{\\"path\\":\\"pubspec.yaml\\"}"}}';
+
+      final toolCalls = ContentParser.extractFunctionObjectToolCalls(content);
+
+      expect(toolCalls, hasLength(1));
+      expect(toolCalls.first.name, 'read_file');
+      expect(toolCalls.first.arguments['path'], 'pubspec.yaml');
+    });
+
+    test('ignores JSON that is not a call', () {
+      // No `arguments` key: ordinary data, and a printed tool schema carries
+      // `parameters` instead. Neither is an instruction to run anything.
+      const content =
+          'Here is the record: {"name":"read_file","size":42}\n'
+          'And its schema: {"name":"read_file","parameters":{"type":"object"}}';
+
+      expect(ContentParser.extractFunctionObjectToolCalls(content), isEmpty);
+    });
+
+    test('ignores a call object left inside a thinking block', () {
+      const content =
+          '<think>{"name":"read_file","arguments":{"path":"a.dart"}}</think>'
+          'I will not read that file.';
+
+      expect(ContentParser.extractFunctionObjectToolCalls(content), isEmpty);
+    });
+
+    test('reads several call objects in one message', () {
+      const content =
+          '{"name":"read_file","arguments":{"path":"a.dart"}}\n'
+          '{"name":"read_file","arguments":{"path":"b.dart"}}';
+
+      final toolCalls = ContentParser.extractFunctionObjectToolCalls(content);
+
+      expect(toolCalls, hasLength(2));
+      expect(toolCalls.last.arguments['path'], 'b.dart');
+    });
+  });
+
   test('extractCompletedToolCalls accepts flat tool_use payloads', () {
     const content =
         'Reading file...\n<tool_use>{"name":"read_file","path":"pubspec.yaml"}</tool_use>';

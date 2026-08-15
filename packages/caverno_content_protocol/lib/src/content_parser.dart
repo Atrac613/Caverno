@@ -357,6 +357,91 @@ class ContentParser {
     );
   }
 
+  /// Extracts OpenAI-style function-call objects printed as message content.
+  ///
+  /// Some models answer a tool request by writing the call out instead of
+  /// emitting it through the tool-call channel, typically inside a fenced
+  /// block:
+  ///
+  /// ```text
+  /// {"name": "spawn_subagent", "arguments": {"description": "..."}}
+  /// ```
+  ///
+  /// The OpenAI wire wrapper `{"type": "function", "function": {...}}` is
+  /// accepted too. Nothing here marks the text as a call, so this is stricter
+  /// than the tagged forms: both `name` and an object-valued `arguments` are
+  /// required, which keeps ordinary JSON payloads and printed tool *schemas*
+  /// (which carry `parameters`, not `arguments`) from reading as calls.
+  /// Callers should additionally require the name to be a tool they actually
+  /// advertised -- see `parseAdvertisedEmbeddedToolCalls`.
+  static List<ToolCallData> extractFunctionObjectToolCalls(String content) {
+    final executableContent = _withoutThinkingBlocks(content);
+    final toolCalls = <ToolCallData>[];
+    var index = executableContent.indexOf('{');
+    while (index >= 0) {
+      final end = _findLooseObjectEnd(executableContent, index);
+      if (end == null) {
+        return toolCalls;
+      }
+      final parsed = _parseFunctionObject(
+        executableContent.substring(index, end + 1),
+      );
+      if (parsed != null && parsed.name != 'memory_update') {
+        toolCalls.add(
+          ToolCallData(
+            name: parsed.name,
+            arguments: parsed.arguments,
+            isComplete: true,
+            occurrenceId: '$index:${end + 1}',
+          ),
+        );
+      }
+      index = executableContent.indexOf('{', end + 1);
+    }
+    return toolCalls;
+  }
+
+  static ToolCallData? _parseFunctionObject(String candidate) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(_sanitizeModelControlTokens(candidate).trim());
+    } catch (_) {
+      return null;
+    }
+    if (decoded is! Map) return null;
+    final map = Map<String, dynamic>.from(decoded);
+    final function = map['function'];
+    return _parseFunctionObjectBody(
+      function is Map ? Map<String, dynamic>.from(function) : map,
+    );
+  }
+
+  static ToolCallData? _parseFunctionObjectBody(Map<String, dynamic> body) {
+    final name = body['name'];
+    if (name is! String || name.trim().isEmpty) return null;
+    final rawArguments = body['arguments'];
+    Map<String, dynamic>? arguments;
+    if (rawArguments is Map) {
+      arguments = Map<String, dynamic>.from(rawArguments);
+    } else if (rawArguments is String) {
+      // The wire format carries arguments as a JSON string.
+      try {
+        final decodedArguments = jsonDecode(rawArguments);
+        if (decodedArguments is Map) {
+          arguments = Map<String, dynamic>.from(decodedArguments);
+        }
+      } catch (_) {
+        return null;
+      }
+    }
+    if (arguments == null) return null;
+    return ToolCallData(
+      name: name.trim(),
+      arguments: sanitizeToolArguments(arguments),
+      isComplete: true,
+    );
+  }
+
   /// Extracts completed `\<tool_call>` and `\<tool_use>` entries.
   static List<ToolCallData> extractCompletedToolCalls(String content) {
     final toolCalls = <ToolCallData>[];

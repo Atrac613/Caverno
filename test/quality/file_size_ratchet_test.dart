@@ -366,8 +366,14 @@ const Map<String, int> _lineBudgets = {
   // previous 1164 ceiling: the extractions paid for the usage attribution each
   // request method now captures at issue time.
   'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1141,
+  // -23: embedded tool-call recovery moved to
+  // chat_completion_embedded_tool_call_parser.dart, which owns both the tagged
+  // forms and the advertised-name gate that makes recovering an untagged call
+  // object safe. The normalizer keeps two delegating lines.
   'lib/features/chat/data/datasources/chat_completion_response_normalizer.dart':
-      183,
+      160,
+  'lib/features/chat/data/datasources/chat_completion_embedded_tool_call_parser.dart':
+      70,
   'lib/features/chat/data/datasources/built_in_network_tool_handler.dart': 978,
   'lib/features/chat/data/datasources/file_rollback_checkpoint_store.dart': 402,
   'lib/features/chat/presentation/providers/mcp_tool_provider.dart': 176,

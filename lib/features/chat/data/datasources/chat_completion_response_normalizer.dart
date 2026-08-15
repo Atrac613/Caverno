@@ -4,6 +4,7 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:openai_dart/openai_dart.dart';
 
 import '../../domain/entities/tool_call_info.dart';
+import 'chat_completion_embedded_tool_call_parser.dart';
 
 final class NormalizedChatCompletionResponse {
   const NormalizedChatCompletionResponse({
@@ -33,6 +34,7 @@ final class ChatCompletionResponseNormalizer {
     caseSensitive: false,
   );
   static final RegExp _channelEndPattern = RegExp(r'<channel\|>');
+  static const _embeddedToolCalls = ChatCompletionEmbeddedToolCallParser();
 
   NormalizedChatCompletionResponse normalize({
     required String? content,
@@ -108,42 +110,13 @@ final class ChatCompletionResponseNormalizer {
         .toList(growable: false);
   }
 
-  List<ToolCallInfo>? parseEmbeddedToolCalls(String content) {
-    final toolCalls = ContentParser.extractCompletedToolCalls(content);
-    if (toolCalls.isEmpty) {
-      return null;
-    }
-    return toolCalls
-        .map(
-          (toolCall) => ToolCallInfo(
-            id: toolCall.occurrenceId ?? 'raw_${toolCall.name}',
-            name: toolCall.name,
-            arguments: toolCall.arguments,
-          ),
-        )
-        .toList(growable: false);
-  }
+  List<ToolCallInfo>? parseEmbeddedToolCalls(String content) =>
+      _embeddedToolCalls.parseTagged(content);
 
   List<ToolCallInfo>? parseAdvertisedEmbeddedToolCalls(
     String content,
     List<Map<String, dynamic>>? advertisedTools,
-  ) {
-    if (advertisedTools == null || advertisedTools.isEmpty) {
-      return null;
-    }
-    final advertisedNames = advertisedTools
-        .map((tool) => tool['function'])
-        .whereType<Map<String, dynamic>>()
-        .map((function) => function['name'])
-        .whereType<String>()
-        .toSet();
-    final calls = parseEmbeddedToolCalls(content);
-    if (calls == null ||
-        calls.any((call) => !advertisedNames.contains(call.name))) {
-      return null;
-    }
-    return calls;
-  }
+  ) => _embeddedToolCalls.parseAdvertised(content, advertisedTools);
 
   String _composeContent({
     required String? content,
