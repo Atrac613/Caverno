@@ -291,10 +291,13 @@ const Map<String, int> _lineBudgets = {
   // layout; the part keeps the approval flow.
   'lib/features/chat/presentation/pages/chat_page.dart': 1975,
   'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
-  'lib/features/chat/domain/services/flutter_run_session_controller.dart': 230,
+  // The device listing moved to flutter_run_device_lister.dart when it grew
+  // a stream, a timeout and a drain.
+  'lib/features/chat/domain/services/flutter_run_session_controller.dart': 225,
+  'lib/features/chat/domain/services/flutter_run_device_lister.dart': 145,
   'lib/features/chat/domain/entities/flutter_run_session.dart': 130,
   'lib/features/chat/domain/entities/flutter_run_device.dart': 50,
-  'lib/features/chat/data/datasources/flutter_run_process_runner.dart': 135,
+  'lib/features/chat/data/datasources/flutter_run_process_runner.dart': 140,
   'lib/features/chat/presentation/widgets/flutter_run_control_section.dart': 145,
   'lib/features/chat/presentation/widgets/flutter_run_device_sheet.dart': 130,
   // The panel owns the scrollback; its tab strip and actions live in

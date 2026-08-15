@@ -24,6 +24,23 @@ class _TestTranslationLoader extends AssetLoader {
   }
 }
 
+/// Lets an async chain finish between frames.
+///
+/// `pumpAndSettle` stops as soon as no frame is scheduled, which is before the
+/// device listing has walked its process, drain and parse hops. Each zero-length
+/// pump drains the microtask queue, which is what those hops resume on --
+/// `pumpEventQueue` cannot be used here, since its delayed futures need the
+/// binding's fake clock to advance.
+Future<void> settle(WidgetTester tester) async {
+  // `runAsync` steps outside the binding's fake clock so the listing's process,
+  // drain and parse hops actually run; `pumpAndSettle` alone returns as soon as
+  // no frame is scheduled, which is well before they finish.
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 50)),
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
@@ -82,7 +99,7 @@ void main() {
     await pump(tester, runner);
 
     await tester.tap(find.byKey(const ValueKey('flutter-run-start')));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(find.text('Pick a device to run on'), findsNothing);
     expect(runner.startedArguments, ['run', '-d', 'macos']);
@@ -99,7 +116,7 @@ void main() {
     await pump(tester, runner);
 
     await tester.tap(find.byKey(const ValueKey('flutter-run-start')));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(find.text('Pick a device to run on'), findsOneWidget);
     expect(runner.startedArguments, isNull);
@@ -118,7 +135,7 @@ void main() {
     expect(find.byKey(const ValueKey('flutter-run-log-panel')), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('flutter-run-start')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     runner.handle.emitStdout('Syncing files to macOS...');
     await tester.pumpAndSettle();
 
@@ -133,7 +150,7 @@ void main() {
     );
     await pump(tester, runner);
     await tester.tap(find.byKey(const ValueKey('flutter-run-start')));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     await tester.tap(find.byKey(const ValueKey('flutter-run-stop')));
     await tester.pump();
@@ -153,7 +170,7 @@ void main() {
     String? prompt;
     await pump(tester, runner, onIssue: (issue) => prompt = issue.evidence);
     await tester.tap(find.byKey(const ValueKey('flutter-run-start')));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     for (final line in const [
       '══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════',
@@ -197,9 +214,11 @@ void main() {
     await pump(tester, runner);
 
     await tester.tap(find.byKey(const ValueKey('flutter-run-start')));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
-    expect(find.text('No pubspec.yaml file found.'), findsOneWidget);
+    // Twice over now: once as the panel's status line, once as the log line
+    // the tool actually printed.
+    expect(find.text('No pubspec.yaml file found.'), findsWidgets);
   });
 }
 
@@ -216,6 +235,7 @@ class _FakeRunner implements FlutterRunProcessRunner {
   final int devicesExitCode;
   final String devicesStderr;
   final handle = _FakeHandle();
+  final listingHandle = _FakeHandle();
 
   List<String>? startedArguments;
 
@@ -224,13 +244,7 @@ class _FakeRunner implements FlutterRunProcessRunner {
     required String executable,
     required List<String> arguments,
     required String workingDirectory,
-  }) async {
-    return FlutterRunCommandOutput(
-      exitCode: devicesExitCode,
-      stdout: devicesJson,
-      stderr: devicesStderr,
-    );
-  }
+  }) async => throw UnimplementedError('the listing streams like the run');
 
   @override
   Future<FlutterRunProcessHandle> start({
@@ -238,21 +252,38 @@ class _FakeRunner implements FlutterRunProcessRunner {
     required List<String> arguments,
     required String workingDirectory,
   }) async {
+    if (arguments.contains('devices')) {
+      // After the caller has attached its listeners, as a real process would.
+      scheduleMicrotask(() {
+        if (devicesJson.isNotEmpty) listingHandle.emitStdout(devicesJson);
+        if (devicesStderr.isNotEmpty) listingHandle.emitStderr(devicesStderr);
+        listingHandle.exit(devicesExitCode);
+      });
+      return listingHandle;
+    }
     startedArguments = arguments;
     return handle;
   }
 }
 
 class _FakeHandle implements FlutterRunProcessHandle {
-  final _stdout = StreamController<String>.broadcast();
-  final _stderr = StreamController<String>.broadcast();
+  // Single-subscription like a real process pipe: output written before the
+  // reader attaches is buffered, not dropped.
+  final _stdout = StreamController<String>();
+  final _stderr = StreamController<String>();
   final _exit = Completer<int>();
   final stdinWrites = <String>[];
 
   void emitStdout(String line) => _stdout.add(line);
 
+  void emitStderr(String line) => _stderr.add(line);
+
   void exit(int code) {
-    if (!_exit.isCompleted) _exit.complete(code);
+    if (_exit.isCompleted) return;
+    // A real process closes its pipes when it exits.
+    _stdout.close();
+    _stderr.close();
+    _exit.complete(code);
   }
 
   @override

@@ -298,72 +298,75 @@ void main() {
     expect(notifier.state.queuedMessages, isEmpty);
   });
 
-  test('a finished stream does not restart a turn that is running a tool', () async {
-    final toolDataSource = _ToolLoopChatDataSource(
-      initialToolCalls: [
-        ToolCallInfo(
-          id: 'tool-1',
-          name: 'read_alpha',
-          arguments: const {'path': 'alpha.txt'},
-        ),
-      ],
-    );
-    final toolService = _FakeMcpToolService(
-      results: const {'read_alpha': 'alpha result'},
-    );
-    final appLifecycleService = _MockAppLifecycleService();
-    when(() => appLifecycleService.isInBackground).thenReturn(false);
-    final container = _buildContainer(
-      settings: _MutableToolSettingsNotifier.new,
-      dataSource: toolDataSource,
-      toolService: toolService,
-      appLifecycleService: appLifecycleService,
-    );
-    addTearDown(container.dispose);
-
-    final notifier = container.read(chatNotifierProvider.notifier);
-    final settings =
-        container.read(settingsNotifierProvider.notifier)
-            as _MutableToolSettingsNotifier;
-
-    // A completed tool-free turn, which is what leaves a stream subscription
-    // behind: nothing cancels one that ended on its own.
-    await notifier.sendMessage('Explain the plan');
-    for (var i = 0; i < 20; i += 1) {
-      await Future<void>.delayed(Duration.zero);
-    }
-    settings.setMcpEnabled(true);
-
-    // The next turn is tool-aware and consumes its stream through the loop, so
-    // no subscription of its own is ever stored. While its tool runs it has a
-    // request still to come, and the interruption belongs in that request.
-    Future<void>? steerResult;
-    toolService.onExecute = () {
-      steerResult ??= notifier.sendMessage(
-        'Use beta.txt instead',
-        interrupt: true,
+  test(
+    'a finished stream does not restart a turn that is running a tool',
+    () async {
+      final toolDataSource = _ToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'read_alpha',
+            arguments: const {'path': 'alpha.txt'},
+          ),
+        ],
       );
-    };
-    await notifier.sendMessage('Inspect alpha');
-    await steerResult;
-    for (var i = 0; i < 20; i += 1) {
-      await Future<void>.delayed(Duration.zero);
-    }
+      final toolService = _FakeMcpToolService(
+        results: const {'read_alpha': 'alpha result'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final container = _buildContainer(
+        settings: _MutableToolSettingsNotifier.new,
+        dataSource: toolDataSource,
+        toolService: toolService,
+        appLifecycleService: appLifecycleService,
+      );
+      addTearDown(container.dispose);
 
-    // One opening request, not two: the turn was never streaming, so there was
-    // nothing to abandon and restart.
-    expect(toolDataSource.initialRequestMessages, hasLength(1));
+      final notifier = container.read(chatNotifierProvider.notifier);
+      final settings =
+          container.read(settingsNotifierProvider.notifier)
+              as _MutableToolSettingsNotifier;
 
-    // And the steer still arrives -- through the window the turn actually had.
-    expect(
-      toolDataSource.toolResultRequestMessages.single
-          .where((message) => message.role == MessageRole.user)
-          .map((message) => message.content),
-      contains('Use beta.txt instead'),
-    );
-    expect(notifier.state.steeringMessages, isEmpty);
-    expect(notifier.state.queuedMessages, isEmpty);
-  });
+      // A completed tool-free turn, which is what leaves a stream subscription
+      // behind: nothing cancels one that ended on its own.
+      await notifier.sendMessage('Explain the plan');
+      for (var i = 0; i < 20; i += 1) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      settings.setMcpEnabled(true);
+
+      // The next turn is tool-aware and consumes its stream through the loop, so
+      // no subscription of its own is ever stored. While its tool runs it has a
+      // request still to come, and the interruption belongs in that request.
+      Future<void>? steerResult;
+      toolService.onExecute = () {
+        steerResult ??= notifier.sendMessage(
+          'Use beta.txt instead',
+          interrupt: true,
+        );
+      };
+      await notifier.sendMessage('Inspect alpha');
+      await steerResult;
+      for (var i = 0; i < 20; i += 1) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      // One opening request, not two: the turn was never streaming, so there was
+      // nothing to abandon and restart.
+      expect(toolDataSource.initialRequestMessages, hasLength(1));
+
+      // And the steer still arrives -- through the window the turn actually had.
+      expect(
+        toolDataSource.toolResultRequestMessages.single
+            .where((message) => message.role == MessageRole.user)
+            .map((message) => message.content),
+        contains('Use beta.txt instead'),
+      );
+      expect(notifier.state.steeringMessages, isEmpty);
+      expect(notifier.state.queuedMessages, isEmpty);
+    },
+  );
 
   test('a withdrawn interruption never reaches the model', () async {
     // Registered while a tool runs, so no stream is being consumed and the

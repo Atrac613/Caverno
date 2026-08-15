@@ -47,11 +47,7 @@ void main() {
 
     test('bounds each field so the sheet stays on screen', () {
       final options = _parser.parse([
-        {
-          'label': 'L' * 400,
-          'description': 'D' * 900,
-          'preview': 'P' * 4000,
-        },
+        {'label': 'L' * 400, 'description': 'D' * 900, 'preview': 'P' * 4000},
       ]);
 
       final option = options.single;

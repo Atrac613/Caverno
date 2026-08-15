@@ -323,8 +323,7 @@ void main() {
       );
       final failedPayload = jsonDecode(failed.result) as Map<String, dynamic>;
       expect(failedPayload['recovery_required'], isTrue);
-      final compensation =
-          failedPayload['compensation'] as List<dynamic>;
+      final compensation = failedPayload['compensation'] as List<dynamic>;
       expect(
         compensation.cast<Map<String, dynamic>>().singleWhere(
           (entry) => entry['path'] == restoredFirst.path,

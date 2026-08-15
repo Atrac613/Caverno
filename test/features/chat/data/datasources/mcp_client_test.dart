@@ -188,10 +188,7 @@ void main() {
       );
 
       final stopwatch = Stopwatch()..start();
-      await expectLater(
-        client.listTools(),
-        throwsA(isA<TimeoutException>()),
-      );
+      await expectLater(client.listTools(), throwsA(isA<TimeoutException>()));
       stopwatch.stop();
 
       expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));

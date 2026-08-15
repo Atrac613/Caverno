@@ -7,25 +7,31 @@ const _root = '/work/project';
 
 void main() {
   group('machine format', () {
-    test('reads the pipe-delimited fields dart analyze --format=machine emits', () {
-      final diagnostic = _parser.parse(
-        'ERROR|COMPILE_TIME_ERROR|UNDEFINED_METHOD|'
-        '/work/project/lib/main.dart|12|7|9|The method is not defined.',
-        pathBase: _root,
-      );
+    test(
+      'reads the pipe-delimited fields dart analyze --format=machine emits',
+      () {
+        final diagnostic = _parser.parse(
+          'ERROR|COMPILE_TIME_ERROR|UNDEFINED_METHOD|'
+          '/work/project/lib/main.dart|12|7|9|The method is not defined.',
+          pathBase: _root,
+        );
 
-      expect(diagnostic, isNotNull);
-      expect(diagnostic!.severity, 'Error');
-      expect(diagnostic.absolutePath, '/work/project/lib/main.dart');
-      expect(diagnostic.line, 12);
-      expect(diagnostic.column, 7);
-      expect(diagnostic.code, 'UNDEFINED_METHOD');
-      expect(diagnostic.message, 'The method is not defined.');
-    });
+        expect(diagnostic, isNotNull);
+        expect(diagnostic!.severity, 'Error');
+        expect(diagnostic.absolutePath, '/work/project/lib/main.dart');
+        expect(diagnostic.line, 12);
+        expect(diagnostic.column, 7);
+        expect(diagnostic.code, 'UNDEFINED_METHOD');
+        expect(diagnostic.message, 'The method is not defined.');
+      },
+    );
 
     test('rejects a line with too few fields', () {
       expect(
-        _parser.parse('ERROR|COMPILE_TIME_ERROR|X|/a.dart|1|1', pathBase: _root),
+        _parser.parse(
+          'ERROR|COMPILE_TIME_ERROR|X|/a.dart|1|1',
+          pathBase: _root,
+        ),
         isNull,
       );
     });

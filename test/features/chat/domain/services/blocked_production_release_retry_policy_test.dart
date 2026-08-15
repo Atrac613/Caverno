@@ -7,7 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const policy = BlockedProductionReleaseRetryPolicy();
-  final owner = ChatTurnOwner(conversationId: 'conv-1', interactionGeneration: 7);
+  final owner = ChatTurnOwner(
+    conversationId: 'conv-1',
+    interactionGeneration: 7,
+  );
   const releaseCommand = 'bash tool/release_ios_macos.sh';
 
   ToolResultInfo blockedRelease({

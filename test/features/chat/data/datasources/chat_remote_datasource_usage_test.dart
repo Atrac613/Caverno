@@ -234,23 +234,19 @@ void main() {
     final streamClient = MockClient(
       (_) async => http.Response(
         'data: ${jsonEncode({
-            'id': 'chatcmpl-test',
-            'object': 'chat.completion.chunk',
-            'created': 0,
-            'model': 'test-model',
-            'choices': [
-              {
-                'index': 0,
-                'delta': {'content': 'Hi'},
-                'finish_reason': 'stop',
-              },
-            ],
-            'usage': {
-              'prompt_tokens': 7,
-              'completion_tokens': 3,
-              'total_tokens': 10,
+          'id': 'chatcmpl-test',
+          'object': 'chat.completion.chunk',
+          'created': 0,
+          'model': 'test-model',
+          'choices': [
+            {
+              'index': 0,
+              'delta': {'content': 'Hi'},
+              'finish_reason': 'stop',
             },
-          })}\n\ndata: [DONE]\n\n',
+          ],
+          'usage': {'prompt_tokens': 7, 'completion_tokens': 3, 'total_tokens': 10},
+        })}\n\ndata: [DONE]\n\n',
         200,
         headers: const {'content-type': 'text/event-stream'},
       ),
@@ -266,8 +262,7 @@ void main() {
 
     // Issue inside the zone, drain outside it, exactly as the chat loop does.
     final completion = ModelUsageRole.chat.runWith(
-      () =>
-          dataSource.streamChatCompletion(messages: messages, model: 'local'),
+      () => dataSource.streamChatCompletion(messages: messages, model: 'local'),
     );
     await completion.stream.drain<void>();
     await completion.terminal;

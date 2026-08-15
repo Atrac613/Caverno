@@ -156,8 +156,9 @@ void main() {
         expect(await otherFirst.readAsString(), 'other first before\n');
         expect(await otherSecond.readAsString(), 'other second before\n');
 
-        final currentOwnerAPreview = await store
-            .previewLastFileTurnCheckpoint(ownerA);
+        final currentOwnerAPreview = await store.previewLastFileTurnCheckpoint(
+          ownerA,
+        );
         expect(currentOwnerAPreview!.turnId, 'turn-a-first');
         expect(currentOwnerAPreview.paths, [repeated.absolute.path]);
         final result = await rollbackLastTurn(ownerA);
@@ -465,10 +466,7 @@ void main() {
 
         expect(firstResult.isSuccess, isFalse);
         expect(await store.previewLastFileTurnCheckpoint(ownerA), isNotNull);
-        expect(
-          await store.previewLastFileTurnCheckpoint(earlierOwner),
-          isNull,
-        );
+        expect(await store.previewLastFileTurnCheckpoint(earlierOwner), isNull);
         expect(
           store.latestCompletedCheckpointOwner(ownerA.conversationId),
           ownerA,

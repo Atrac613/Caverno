@@ -305,40 +305,43 @@ void main() {
       );
     });
 
-    test('turn checkpoints deduplicate entries by stable path identity', () async {
-      const firstAlias = '/workspace/alias-a.txt';
-      const secondAlias = '/workspace/alias-b.txt';
-      const stablePath = '/workspace/target.txt';
-      current[firstAlias] = const TextFileSnapshot(
-        path: firstAlias,
-        exists: true,
-        content: 'after',
-        resolvedPathKey: stablePath,
-      );
-      store.beginFileTurnCheckpoint(ownerA, 'stable-path-turn');
-      store.push(
-        ownerA,
-        const TextFileSnapshot(
+    test(
+      'turn checkpoints deduplicate entries by stable path identity',
+      () async {
+        const firstAlias = '/workspace/alias-a.txt';
+        const secondAlias = '/workspace/alias-b.txt';
+        const stablePath = '/workspace/target.txt';
+        current[firstAlias] = const TextFileSnapshot(
           path: firstAlias,
           exists: true,
-          content: 'before',
+          content: 'after',
           resolvedPathKey: stablePath,
-        ),
-      );
-      store.push(
-        ownerA,
-        const TextFileSnapshot(
-          path: secondAlias,
-          exists: true,
-          content: 'before',
-          resolvedPathKey: stablePath,
-        ),
-      );
-      expect(store.endFileTurnCheckpoint(ownerA), isTrue);
+        );
+        store.beginFileTurnCheckpoint(ownerA, 'stable-path-turn');
+        store.push(
+          ownerA,
+          const TextFileSnapshot(
+            path: firstAlias,
+            exists: true,
+            content: 'before',
+            resolvedPathKey: stablePath,
+          ),
+        );
+        store.push(
+          ownerA,
+          const TextFileSnapshot(
+            path: secondAlias,
+            exists: true,
+            content: 'before',
+            resolvedPathKey: stablePath,
+          ),
+        );
+        expect(store.endFileTurnCheckpoint(ownerA), isTrue);
 
-      final preview = await store.previewLastFileTurnCheckpoint(ownerA);
+        final preview = await store.previewLastFileTurnCheckpoint(ownerA);
 
-      expect(preview?.paths, [firstAlias]);
-    });
+        expect(preview?.paths, [firstAlias]);
+      },
+    );
   });
 }

@@ -20,6 +20,7 @@ void main() {
     _FakeRunner runner, {
     Duration graceful = const Duration(milliseconds: 20),
     Duration terminate = const Duration(milliseconds: 20),
+    Duration deviceListing = const Duration(milliseconds: 40),
   }) {
     return FlutterRunSessionController(
       runner: runner,
@@ -27,43 +28,82 @@ void main() {
       clock: () => DateTime.utc(2026, 8, 15, 20),
       gracefulQuitTimeout: graceful,
       terminateTimeout: terminate,
+      deviceListingTimeout: deviceListing,
     );
   }
 
   test('lists devices through the project toolchain', () async {
-    final runner = _FakeRunner(
-      runOutput: const FlutterRunCommandOutput(
-        exitCode: 0,
-        stdout: '[{"name":"macOS","id":"macos","targetPlatform":"darwin"}]',
-        stderr: '',
-      ),
-    );
+    final runner = _FakeRunner();
     final controller = controllerFor(runner);
 
-    final devices = await controller.listDevices(projectRoot: '/work/app');
+    final listing = controller.listDevices(projectRoot: '/work/app');
+    await pumpEventQueue();
+    runner.handle.emitStdout(
+      '[{"name":"macOS","id":"macos","targetPlatform":"darwin"}]',
+    );
+    runner.handle.exit(0);
+    final devices = await listing;
 
     expect(devices.single.id, 'macos');
-    expect(runner.ranExecutable, 'fvm');
-    expect(runner.ranArguments, ['flutter', 'devices', '--machine']);
+    expect(runner.startedExecutable, 'fvm');
+    expect(runner.startedArguments, ['flutter', 'devices', '--machine']);
     expect(controller.state.status, FlutterRunStatus.idle);
     await controller.dispose();
   });
 
   test('a failed device listing explains itself once', () async {
-    final runner = _FakeRunner(
-      runOutput: const FlutterRunCommandOutput(
-        exitCode: 1,
-        stdout: '',
-        stderr: '\nNo pubspec.yaml file found.\n',
-      ),
+    final runner = _FakeRunner();
+    final controller = controllerFor(runner);
+
+    final listing = controller.listDevices(projectRoot: '/work/app');
+    await pumpEventQueue();
+    runner.handle.emitStderr('No pubspec.yaml file found.');
+    runner.handle.exit(1);
+    final devices = await listing;
+
+    expect(devices, isEmpty);
+    expect(controller.state.status, FlutterRunStatus.failed);
+    expect(controller.state.failure, 'No pubspec.yaml file found.');
+    await controller.dispose();
+  });
+
+  test('a blocked device listing is visible and gives up', () async {
+    // Reported from the app: the panel sat on "looking for devices" forever.
+    // `flutter devices` blocks behind another flutter command's startup lock,
+    // and the buffered output meant the reason never reached the user.
+    final runner = _FakeRunner();
+    final controller = controllerFor(runner);
+
+    final listing = controller.listDevices(projectRoot: '/work/app');
+    await pumpEventQueue();
+    runner.handle.emitStdout(
+      'Waiting for another flutter command to release the startup lock...',
     );
+    final devices = await listing;
+
+    expect(devices, isEmpty);
+    expect(controller.state.status, FlutterRunStatus.failed);
+    expect(controller.state.failure, contains('startup lock'));
+    expect(runner.handle.signals, isNotEmpty, reason: 'the wait is ended');
+    expect(
+      controller.state.logs.map((line) => line.text),
+      contains(
+        'Waiting for another flutter command to release the startup lock...',
+      ),
+      reason: 'the user can see what it is waiting on',
+    );
+    await controller.dispose();
+  });
+
+  test('a listing that never prints still times out', () async {
+    final runner = _FakeRunner();
     final controller = controllerFor(runner);
 
     final devices = await controller.listDevices(projectRoot: '/work/app');
 
     expect(devices, isEmpty);
     expect(controller.state.status, FlutterRunStatus.failed);
-    expect(controller.state.failure, 'No pubspec.yaml file found.');
+    expect(controller.state.failure, contains('Timed out'));
     await controller.dispose();
   });
 
@@ -187,14 +227,15 @@ void main() {
 bool _alwaysFvm(String projectRoot) => true;
 
 class _FakeRunner implements FlutterRunProcessRunner {
-  _FakeRunner({this.runOutput, this.startError});
+  _FakeRunner({this.startError});
 
-  final FlutterRunCommandOutput? runOutput;
   final String? startError;
   final handle = _FakeHandle();
 
   String? ranExecutable;
   List<String>? ranArguments;
+  String? startedExecutable;
+  List<String>? startedArguments;
   int startCount = 0;
 
   @override
@@ -205,8 +246,7 @@ class _FakeRunner implements FlutterRunProcessRunner {
   }) async {
     ranExecutable = executable;
     ranArguments = arguments;
-    return runOutput ??
-        const FlutterRunCommandOutput(exitCode: 0, stdout: '[]', stderr: '');
+    return const FlutterRunCommandOutput(exitCode: 0, stdout: '[]', stderr: '');
   }
 
   @override
@@ -216,6 +256,8 @@ class _FakeRunner implements FlutterRunProcessRunner {
     required String workingDirectory,
   }) async {
     startCount += 1;
+    startedExecutable = executable;
+    startedArguments = arguments;
     final failure = startError;
     if (failure != null) throw ProcessException(executable, arguments, failure);
     return handle;
@@ -223,8 +265,10 @@ class _FakeRunner implements FlutterRunProcessRunner {
 }
 
 class _FakeHandle implements FlutterRunProcessHandle {
-  final _stdout = StreamController<String>.broadcast();
-  final _stderr = StreamController<String>.broadcast();
+  // Single-subscription like a real process pipe: output written before the
+  // reader attaches is buffered, not dropped.
+  final _stdout = StreamController<String>();
+  final _stderr = StreamController<String>();
   final _exit = Completer<int>();
   final stdinWrites = <String>[];
   final signals = <ProcessSignal>[];
@@ -233,7 +277,11 @@ class _FakeHandle implements FlutterRunProcessHandle {
   void emitStderr(String line) => _stderr.add(line);
 
   void exit(int code) {
-    if (!_exit.isCompleted) _exit.complete(code);
+    if (_exit.isCompleted) return;
+    // A real process closes its pipes when it exits.
+    _stdout.close();
+    _stderr.close();
+    _exit.complete(code);
   }
 
   @override

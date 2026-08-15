@@ -24,12 +24,14 @@ void main() {
       expect(SecondaryCallBudget.resolve(513, 1200), 513);
     });
 
-    test('never returns more than the ceiling even when the floor exceeds it',
-        () {
-      // A small ceiling must win over the default floor.
-      expect(SecondaryCallBudget.resolve(64, 200), 200);
-      expect(SecondaryCallBudget.resolve(8192, 200), 200);
-    });
+    test(
+      'never returns more than the ceiling even when the floor exceeds it',
+      () {
+        // A small ceiling must win over the default floor.
+        expect(SecondaryCallBudget.resolve(64, 200), 200);
+        expect(SecondaryCallBudget.resolve(8192, 200), 200);
+      },
+    );
 
     test('honors an explicit floor', () {
       expect(SecondaryCallBudget.resolve(64, 1200, floor: 256), 256);

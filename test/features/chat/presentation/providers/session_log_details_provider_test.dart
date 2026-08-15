@@ -64,59 +64,65 @@ void main() {
     expect(details(5 * 1024 * 1024).formattedSize, '5.0 MB');
   });
 
-  test('resolves size and path when logging is enabled and file exists', () async {
-    final logFile = File('${tempRoot.path}/chat/thread-1.jsonl');
-    logFile.parent.createSync(recursive: true);
-    const payload = '{"hello":"world"}\n';
-    logFile.writeAsStringSync(payload);
+  test(
+    'resolves size and path when logging is enabled and file exists',
+    () async {
+      final logFile = File('${tempRoot.path}/chat/thread-1.jsonl');
+      logFile.parent.createSync(recursive: true);
+      const payload = '{"hello":"world"}\n';
+      logFile.writeAsStringSync(payload);
 
-    final container = _container(
-      root: tempRoot,
-      settings: AppSettings.defaults().copyWith(
-        enableLlmSessionLogs: true,
-        demoMode: false,
-      ),
-    );
+      final container = _container(
+        root: tempRoot,
+        settings: AppSettings.defaults().copyWith(
+          enableLlmSessionLogs: true,
+          demoMode: false,
+        ),
+      );
 
-    final details = await container.read(
-      sessionLogDetailsProvider((
-        workspaceMode: WorkspaceMode.chat,
-        sessionId: 'thread-1',
-      )).future,
-    );
+      final details = await container.read(
+        sessionLogDetailsProvider((
+          workspaceMode: WorkspaceMode.chat,
+          sessionId: 'thread-1',
+        )).future,
+      );
 
-    expect(details.loggingEnabled, isTrue);
-    expect(details.exists, isTrue);
-    expect(details.fileName, 'thread-1.jsonl');
-    expect(details.path, logFile.path);
-    expect(details.sizeBytes, payload.length);
-    expect(details.modifiedAt, isNotNull);
-  });
+      expect(details.loggingEnabled, isTrue);
+      expect(details.exists, isTrue);
+      expect(details.fileName, 'thread-1.jsonl');
+      expect(details.path, logFile.path);
+      expect(details.sizeBytes, payload.length);
+      expect(details.modifiedAt, isNotNull);
+    },
+  );
 
-  test('reports a missing log without creating the workspace directory', () async {
-    final container = _container(
-      root: tempRoot,
-      settings: AppSettings.defaults().copyWith(
-        enableLlmSessionLogs: true,
-        demoMode: false,
-      ),
-    );
+  test(
+    'reports a missing log without creating the workspace directory',
+    () async {
+      final container = _container(
+        root: tempRoot,
+        settings: AppSettings.defaults().copyWith(
+          enableLlmSessionLogs: true,
+          demoMode: false,
+        ),
+      );
 
-    final details = await container.read(
-      sessionLogDetailsProvider((
-        workspaceMode: WorkspaceMode.coding,
-        sessionId: 'thread-2',
-      )).future,
-    );
+      final details = await container.read(
+        sessionLogDetailsProvider((
+          workspaceMode: WorkspaceMode.coding,
+          sessionId: 'thread-2',
+        )).future,
+      );
 
-    expect(details.loggingEnabled, isTrue);
-    expect(details.exists, isFalse);
-    expect(details.sizeBytes, 0);
-    expect(details.fileName, 'thread-2.jsonl');
-    expect(details.path, '${tempRoot.path}/coding/thread-2.jsonl');
-    // create: false must not materialize the workspace directory.
-    expect(Directory('${tempRoot.path}/coding').existsSync(), isFalse);
-  });
+      expect(details.loggingEnabled, isTrue);
+      expect(details.exists, isFalse);
+      expect(details.sizeBytes, 0);
+      expect(details.fileName, 'thread-2.jsonl');
+      expect(details.path, '${tempRoot.path}/coding/thread-2.jsonl');
+      // create: false must not materialize the workspace directory.
+      expect(Directory('${tempRoot.path}/coding').existsSync(), isFalse);
+    },
+  );
 
   test('marks logging disabled when settings disable session logs', () async {
     final container = _container(

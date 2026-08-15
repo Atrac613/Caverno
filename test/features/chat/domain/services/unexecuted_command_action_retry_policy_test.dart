@@ -227,9 +227,7 @@ void main() {
         )
         .plan;
     final terserPlan = policy
-        .evaluate(
-          inputWith(toolResults: [unexecutedClaim(claimed: '開始しました')]),
-        )
+        .evaluate(inputWith(toolResults: [unexecutedClaim(claimed: '開始しました')]))
         .plan;
 
     expect(tablePlan, isNotNull);

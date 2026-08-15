@@ -6,24 +6,28 @@ import 'package:caverno/features/chat/domain/services/conversation_plan_document
 
 void main() {
   test('recordRevision prepends new revisions and keeps history bounded', () {
-    final artifact = const ConversationPlanArtifact(
-      draftMarkdown: '# Plan\n\n## Goal\nCurrent draft',
-    )
-        .recordRevision(
-          markdown: '# Plan\n\n## Goal\nCurrent draft',
-          kind: ConversationPlanRevisionKind.draft,
-          label: 'Saved draft',
-          createdAt: DateTime(2026, 4, 18, 12, 0),
-        )
-        .recordRevision(
-          markdown: '# Plan\n\n## Goal\nApproved draft',
-          kind: ConversationPlanRevisionKind.approved,
-          label: 'Approved draft',
-          createdAt: DateTime(2026, 4, 18, 12, 5),
-        );
+    final artifact =
+        const ConversationPlanArtifact(
+              draftMarkdown: '# Plan\n\n## Goal\nCurrent draft',
+            )
+            .recordRevision(
+              markdown: '# Plan\n\n## Goal\nCurrent draft',
+              kind: ConversationPlanRevisionKind.draft,
+              label: 'Saved draft',
+              createdAt: DateTime(2026, 4, 18, 12, 0),
+            )
+            .recordRevision(
+              markdown: '# Plan\n\n## Goal\nApproved draft',
+              kind: ConversationPlanRevisionKind.approved,
+              label: 'Approved draft',
+              createdAt: DateTime(2026, 4, 18, 12, 5),
+            );
 
     expect(artifact.historyEntries, hasLength(2));
-    expect(artifact.historyEntries.first.kind, ConversationPlanRevisionKind.approved);
+    expect(
+      artifact.historyEntries.first.kind,
+      ConversationPlanRevisionKind.approved,
+    );
     expect(artifact.historyEntries.first.normalizedLabel, 'Approved draft');
   });
 
@@ -59,21 +63,22 @@ void main() {
         ),
       ];
 
-      final markdown = ConversationPlanDocumentBuilder.buildApprovedSnapshotMarkdown(
-        currentArtifact: const ConversationPlanArtifact(
-          draftMarkdown:
-              '# Plan\n'
-              '\n'
-              '## Stage\n'
-              'plan\n'
-              '\n'
-              '## Goal\n'
-              'Keep approved snapshots aligned with saved tasks\n',
-        ),
-        workflowStage: ConversationWorkflowStage.implement,
-        workflowSpec: workflowSpec,
-        tasks: tasks,
-      );
+      final markdown =
+          ConversationPlanDocumentBuilder.buildApprovedSnapshotMarkdown(
+            currentArtifact: const ConversationPlanArtifact(
+              draftMarkdown:
+                  '# Plan\n'
+                  '\n'
+                  '## Stage\n'
+                  'plan\n'
+                  '\n'
+                  '## Goal\n'
+                  'Keep approved snapshots aligned with saved tasks\n',
+            ),
+            workflowStage: ConversationWorkflowStage.implement,
+            workflowSpec: workflowSpec,
+            tasks: tasks,
+          );
 
       expect(markdown, contains('## Tasks'));
       expect(markdown, contains('Implement the main CLI entrypoint'));
@@ -103,36 +108,43 @@ void main() {
         ),
       ];
 
-      final markdown = ConversationPlanDocumentBuilder.buildApprovedSnapshotMarkdown(
-        currentArtifact: const ConversationPlanArtifact(
-          draftMarkdown:
-              '# Plan\n'
-              '\n'
-              '## Stage\n'
-              'tasks\n'
-              '\n'
-              '## Goal\n'
-              'Keep approved snapshots aligned with approved task proposals\n'
-              '\n'
-              '## Tasks\n'
-              '\n'
-              '1. Initialize project structure\n'
-              '   - Task ID: stale-1\n'
-              '   - Status: completed\n'
-              '\n'
-              '2. Validate the CLI tool with a single ping\n'
-              '   - Task ID: stale-2\n'
-              '   - Status: inProgress\n',
-        ),
-        workflowStage: ConversationWorkflowStage.implement,
-        workflowSpec: workflowSpec,
-        tasks: tasks,
-      );
+      final markdown =
+          ConversationPlanDocumentBuilder.buildApprovedSnapshotMarkdown(
+            currentArtifact: const ConversationPlanArtifact(
+              draftMarkdown:
+                  '# Plan\n'
+                  '\n'
+                  '## Stage\n'
+                  'tasks\n'
+                  '\n'
+                  '## Goal\n'
+                  'Keep approved snapshots aligned with approved task proposals\n'
+                  '\n'
+                  '## Tasks\n'
+                  '\n'
+                  '1. Initialize project structure\n'
+                  '   - Task ID: stale-1\n'
+                  '   - Status: completed\n'
+                  '\n'
+                  '2. Validate the CLI tool with a single ping\n'
+                  '   - Task ID: stale-2\n'
+                  '   - Status: inProgress\n',
+            ),
+            workflowStage: ConversationWorkflowStage.implement,
+            workflowSpec: workflowSpec,
+            tasks: tasks,
+          );
 
       expect(markdown, contains('Implement the ping CLI tool in main.py'));
-      expect(markdown, contains('Verify the CLI tool with a single ping request'));
+      expect(
+        markdown,
+        contains('Verify the CLI tool with a single ping request'),
+      );
       expect(markdown, isNot(contains('Initialize project structure')));
-      expect(markdown, isNot(contains('Validate the CLI tool with a single ping')));
+      expect(
+        markdown,
+        isNot(contains('Validate the CLI tool with a single ping')),
+      );
       expect(markdown, contains('## Stage\nimplement'));
     },
   );

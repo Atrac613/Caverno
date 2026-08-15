@@ -85,18 +85,12 @@ void main() {
       // Jaccard score, no containment).
       final matches = SkillSimilarityService.findSimilar(
         name: 'iOS Release',
-        existing: [
-          _skill('Release for iOS'),
-          _skill('Release'),
-        ],
+        existing: [_skill('Release for iOS'), _skill('Release')],
       );
       expect(matches, hasLength(2));
       expect(matches.first.skill.normalizedName, 'Release');
       for (var i = 1; i < matches.length; i++) {
-        expect(
-          matches[i - 1].score,
-          greaterThanOrEqualTo(matches[i].score),
-        );
+        expect(matches[i - 1].score, greaterThanOrEqualTo(matches[i].score));
       }
     });
 

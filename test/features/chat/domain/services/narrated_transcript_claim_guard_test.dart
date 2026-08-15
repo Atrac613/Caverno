@@ -23,15 +23,13 @@ void main() {
   }
 
   group('transcript extraction', () {
-    test(
-      'flags commands narrated with output but never executed '
-      '(session 87f29602 fabricated walk-through)',
-      () {
-        // Condensed from the real fabricated final answer: the compound
-        // add/add/list command ran, done/delete and the unknown-id exit-code
-        // check never did.
-        final assessment = guard.assess(
-          candidateResponse: '''
+    test('flags commands narrated with output but never executed '
+        '(session 87f29602 fabricated walk-through)', () {
+      // Condensed from the real fabricated final answer: the compound
+      // add/add/list command ran, done/delete and the unknown-id exit-code
+      // check never did.
+      final assessment = guard.assess(
+        candidateResponse: '''
 Verification (including cross-process persistence):
 
 ```bash
@@ -55,27 +53,26 @@ exit=1
 
 The MVP is complete.
 ''',
-          toolResults: [
-            executedCommand(
-              'dart run lib/main.dart add "buy milk" && '
-              'dart run lib/main.dart list',
-            ),
-          ],
-        );
+        toolResults: [
+          executedCommand(
+            'dart run lib/main.dart add "buy milk" && '
+            'dart run lib/main.dart list',
+          ),
+        ],
+      );
 
-        expect(assessment.hasUnexecutedCommands, isTrue);
-        expect(assessment.unexecutedCommands, [
-          'dart run lib/main.dart done 4',
-          'dart run lib/main.dart delete 5',
-          'dart run lib/main.dart done 999',
-          'echo "exit=\$?"',
-        ]);
-        final notice = assessment.buildNotice();
-        expect(notice, contains('Transcript claim check:'));
-        expect(notice, contains('`dart run lib/main.dart done 4`'));
-        expect(notice, isNot(contains('buy milk')));
-      },
-    );
+      expect(assessment.hasUnexecutedCommands, isTrue);
+      expect(assessment.unexecutedCommands, [
+        'dart run lib/main.dart done 4',
+        'dart run lib/main.dart delete 5',
+        'dart run lib/main.dart done 999',
+        'echo "exit=\$?"',
+      ]);
+      final notice = assessment.buildNotice();
+      expect(notice, contains('Transcript claim check:'));
+      expect(notice, contains('`dart run lib/main.dart done 4`'));
+      expect(notice, isNot(contains('buy milk')));
+    });
 
     test('ignores a usage example without prompt markers', () {
       // Condensed from the same session: a "how to use it" block whose
@@ -197,9 +194,7 @@ All tests passed!
 Todo #1 marked as done.
 ```
 ''',
-        toolResults: [
-          executedCommand('dart run lib/main.dart add "a"'),
-        ],
+        toolResults: [executedCommand('dart run lib/main.dart add "a"')],
       );
 
       expect(assessment.unexecutedCommands, ['dart run lib/main.dart done 1']);
@@ -262,7 +257,8 @@ removed
             id: 'denied',
             name: 'local_execute_command',
             arguments: const {'command': 'rm -rf build'},
-            result: 'Error: Local command was denied by a saved permission rule',
+            result:
+                'Error: Local command was denied by a saved permission rule',
           ),
         ],
       );

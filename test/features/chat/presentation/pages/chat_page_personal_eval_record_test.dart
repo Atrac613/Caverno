@@ -161,9 +161,7 @@ void main() {
                 localizationsDelegates: context.localizationDelegates,
                 supportedLocales: context.supportedLocales,
                 locale: context.locale,
-                home: ChatPage(
-                  showDashboardOnStartup: showDashboardOnStartup,
-                ),
+                home: ChatPage(showDashboardOnStartup: showDashboardOnStartup),
               ),
             );
           },

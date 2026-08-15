@@ -107,7 +107,10 @@ void main() {
         // snapshot by hand: a hand-built one carries no resolvedPathKey, so the
         // checkpoint records a lexical key while rollback compares the resolved
         // one, and on macOS /var and /tmp are symlinks — the two never match.
-        store.push(owner, await FilesystemTools.captureTextSnapshot(target.path));
+        store.push(
+          owner,
+          await FilesystemTools.captureTextSnapshot(target.path),
+        );
         target.writeAsStringSync(contentFor(index));
         return BestOfNGeneration(
           summary: 'edited a.dart',

@@ -62,7 +62,11 @@ void main() {
       final messages = [
         message(id: 'user', role: MessageRole.user),
         message(id: 'done', role: MessageRole.assistant),
-        message(id: 'streaming', role: MessageRole.assistant, isStreaming: true),
+        message(
+          id: 'streaming',
+          role: MessageRole.assistant,
+          isStreaming: true,
+        ),
       ];
 
       expect(TurnSteeringPolicy.insertIndex(messages), 2);

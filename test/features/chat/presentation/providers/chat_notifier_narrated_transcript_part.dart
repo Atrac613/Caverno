@@ -134,252 +134,227 @@ The MVP is complete.''';
     return container;
   }
 
-  test(
-    'sendMessage replaces a fabricated transcript when the repair declines '
-    'to execute the narrated commands',
-    () async {
-      const repairProse =
-          'The done command was not actually executed; treat that '
-          'check as not run.';
-      final projectRoot = await createProjectRoot();
-      final dataSource = buildDataSource(
-        workingDirectory: projectRoot.path,
-        toolLoopResponses: [
-          ChatCompletionResult(content: loopCompletion, finishReason: 'stop'),
-          // Narrated-transcript repair follow-up answers with prose instead
-          // of executing the narrated command.
-          ChatCompletionResult(content: repairProse, finishReason: 'stop'),
-        ],
-        finalAnswerChunkBatches: const [],
-      );
-      final toolService = buildToolService(
-        workingDirectory: projectRoot.path,
-      );
-      final container = buildContainer(
-        projectRoot: projectRoot.path,
-        dataSource: dataSource,
-        toolService: toolService,
-      );
-      addTearDown(container.dispose);
+  test('sendMessage replaces a fabricated transcript when the repair declines '
+      'to execute the narrated commands', () async {
+    const repairProse =
+        'The done command was not actually executed; treat that '
+        'check as not run.';
+    final projectRoot = await createProjectRoot();
+    final dataSource = buildDataSource(
+      workingDirectory: projectRoot.path,
+      toolLoopResponses: [
+        ChatCompletionResult(content: loopCompletion, finishReason: 'stop'),
+        // Narrated-transcript repair follow-up answers with prose instead
+        // of executing the narrated command.
+        ChatCompletionResult(content: repairProse, finishReason: 'stop'),
+      ],
+      finalAnswerChunkBatches: const [],
+    );
+    final toolService = buildToolService(workingDirectory: projectRoot.path);
+    final container = buildContainer(
+      projectRoot: projectRoot.path,
+      dataSource: dataSource,
+      toolService: toolService,
+    );
+    addTearDown(container.dispose);
 
-      final chatNotifier = container.read(chatNotifierProvider.notifier);
-      await chatNotifier.sendMessage('Implement the TODO CLI and verify it.');
-      await _waitForCondition(
-        () => !container.read(chatNotifierProvider).isLoading,
-      );
+    final chatNotifier = container.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage('Implement the TODO CLI and verify it.');
+    await _waitForCondition(
+      () => !container.read(chatNotifierProvider).isLoading,
+    );
 
-      final answer = container.read(chatNotifierProvider).messages.last.content;
-      // The blocking feedback removed the streamed fabricated answer and the
-      // repair prose replaced it, so no fake output reaches the user.
-      expect(answer, contains(repairProse));
-      expect(answer, isNot(contains('Todo #4 marked as done.')));
-      expect(
-        dataSource.toolResultBatches
-            .expand((batch) => batch)
-            .map((result) => result.name),
-        contains('narrated_transcript_check'),
-      );
-      // Only the compound command ran; the narrated done never executed.
-      expect(
-        toolService.executedToolArguments.map(
-          (arguments) => arguments['command'],
-        ),
-        isNot(contains('dart run lib/main.dart done 4')),
-      );
-    },
-  );
-
-  test(
-    'sendMessage annotates a fabricated transcript when the repair is '
-    'disabled',
-    () async {
-      final projectRoot = await createProjectRoot();
-      final dataSource = buildDataSource(
-        workingDirectory: projectRoot.path,
-        toolLoopResponses: [
-          ChatCompletionResult(content: loopCompletion, finishReason: 'stop'),
-        ],
-        finalAnswerChunkBatches: const [],
-      );
-      final toolService = buildToolService(
-        workingDirectory: projectRoot.path,
-      );
-      final container = buildContainer(
-        projectRoot: projectRoot.path,
-        dataSource: dataSource,
-        toolService: toolService,
-        settingsNotifierBuilder: _ToolEnabledNoVerificationSettingsNotifier.new,
-      );
-      addTearDown(container.dispose);
-
-      final chatNotifier = container.read(chatNotifierProvider.notifier);
-      await chatNotifier.sendMessage('Implement the TODO CLI and verify it.');
-      await _waitForCondition(
-        () => !container.read(chatNotifierProvider).isLoading,
-      );
-
-      final answer = container.read(chatNotifierProvider).messages.last.content;
-      expect(answer, contains('Transcript claim check:'));
-      expect(answer, contains('`dart run lib/main.dart done 4`'));
-      // The executed add/list compound must not be flagged.
-      expect(
-        answer,
-        isNot(contains('`dart run lib/main.dart add "buy milk"`')),
-      );
-      expect(
-        dataSource.toolResultBatches
-            .expand((batch) => batch)
-            .map((result) => result.name),
-        isNot(contains('narrated_transcript_check')),
-      );
-    },
-  );
-
-  test(
-    'sendMessage revives the tool loop to execute narrated transcript '
-    'commands for real',
-    () async {
-      final projectRoot = await createProjectRoot();
-      final dataSource = buildDataSource(
-        workingDirectory: projectRoot.path,
-        toolLoopResponses: [
-          ChatCompletionResult(content: loopCompletion, finishReason: 'stop'),
-          // Narrated-transcript repair follow-up executes the narrated
-          // command instead of restating completion.
-          ChatCompletionResult(
-            content: 'Executing the narrated command now.',
-            toolCalls: [
-              ToolCallInfo(
-                id: 'repair-done-4',
-                name: 'local_execute_command',
-                arguments: {
-                  'command': 'dart run lib/main.dart done 4',
-                  'working_directory': projectRoot.path,
-                },
-              ),
-            ],
-            finishReason: 'tool_calls',
-          ),
-          ChatCompletionResult(
-            content:
-                'The command completed successfully after running the local '
-                'command. The implementation is complete.',
-            finishReason: 'stop',
-          ),
-        ],
-        finalAnswerChunkBatches: const [
-          [fabricatedAnswer],
-          [
-            'done 4 executed with exit code 0; all acceptance checks pass '
-                'against real output.',
-          ],
-        ],
-      );
-      final toolService = buildToolService(
-        workingDirectory: projectRoot.path,
-        extraCommandResults: [
-          jsonEncode({
-            'command': 'dart run lib/main.dart done 4',
-            'working_directory': projectRoot.path,
-            'exit_code': 0,
-            'stdout': 'Todo #4 marked as done.\n',
-            'stderr': '',
-          }),
-        ],
-      );
-      final container = buildContainer(
-        projectRoot: projectRoot.path,
-        dataSource: dataSource,
-        toolService: toolService,
-      );
-      addTearDown(container.dispose);
-
-      final chatNotifier = container.read(chatNotifierProvider.notifier);
-      await chatNotifier.sendMessage('Implement the TODO CLI and verify it.');
-      await _waitForCondition(
-        () => !container.read(chatNotifierProvider).isLoading,
-      );
-
-      expect(
-        toolService.executedToolArguments.map(
-          (arguments) => arguments['command'],
-        ),
-        contains('dart run lib/main.dart done 4'),
-      );
-      expect(
-        dataSource.toolResultBatches
-            .expand((batch) => batch)
-            .map((result) => result.name),
-        contains('narrated_transcript_check'),
-      );
-      final answer = container.read(chatNotifierProvider).messages.last.content;
-      expect(answer, contains('all acceptance checks pass'));
-      expect(answer, isNot(contains('Transcript claim check:')));
-    },
-  );
-
-  test(
-    'sendMessage answers a length-truncated empty-arguments tool call with '
-    'a truncation diagnostic instead of executing it',
-    () async {
-      final projectRoot = await createProjectRoot();
-      final dataSource = buildDataSource(
-        workingDirectory: projectRoot.path,
-        toolLoopResponses: [
-          // The follow-up hit the output token limit while generating the
-          // tool call arguments, so they parsed empty (session 87f29602
-          // entry 18: 8192 completion tokens, finish_reason=length, {}).
-          ChatCompletionResult(
-            content: 'Now running the full verification chain.',
-            toolCalls: [
-              ToolCallInfo(
-                id: 'truncated-verification',
-                name: 'local_execute_command',
-                arguments: const {},
-              ),
-            ],
-            finishReason: 'length',
-          ),
-          ChatCompletionResult(content: loopCompletion, finishReason: 'stop'),
-        ],
-        finalAnswerChunkBatches: const [
-          ['The add and list commands were verified against real output.'],
-        ],
-      );
-      final toolService = buildToolService(
-        workingDirectory: projectRoot.path,
-      );
-      final container = buildContainer(
-        projectRoot: projectRoot.path,
-        dataSource: dataSource,
-        toolService: toolService,
-      );
-      addTearDown(container.dispose);
-
-      final chatNotifier = container.read(chatNotifierProvider.notifier);
-      await chatNotifier.sendMessage('Implement the TODO CLI and verify it.');
-      await _waitForCondition(
-        () => !container.read(chatNotifierProvider).isLoading,
-      );
-
-      // Only the initial compound command was dispatched; the truncated call
-      // never reached the tool service.
-      expect(toolService.executedToolNames, ['local_execute_command']);
-      expect(
-        toolService.executedToolArguments.single['command'],
-        executedCompound,
-      );
-      final truncationResults = dataSource.toolResultBatches
+    final answer = container.read(chatNotifierProvider).messages.last.content;
+    // The blocking feedback removed the streamed fabricated answer and the
+    // repair prose replaced it, so no fake output reaches the user.
+    expect(answer, contains(repairProse));
+    expect(answer, isNot(contains('Todo #4 marked as done.')));
+    expect(
+      dataSource.toolResultBatches
           .expand((batch) => batch)
-          .where(
-            (result) =>
-                result.result.contains('tool_call_arguments_truncated'),
-          );
-      expect(truncationResults, hasLength(1));
-      expect(
-        truncationResults.single.result,
-        contains('finish_reason=length'),
-      );
-    },
-  );
+          .map((result) => result.name),
+      contains('narrated_transcript_check'),
+    );
+    // Only the compound command ran; the narrated done never executed.
+    expect(
+      toolService.executedToolArguments.map(
+        (arguments) => arguments['command'],
+      ),
+      isNot(contains('dart run lib/main.dart done 4')),
+    );
+  });
+
+  test('sendMessage annotates a fabricated transcript when the repair is '
+      'disabled', () async {
+    final projectRoot = await createProjectRoot();
+    final dataSource = buildDataSource(
+      workingDirectory: projectRoot.path,
+      toolLoopResponses: [
+        ChatCompletionResult(content: loopCompletion, finishReason: 'stop'),
+      ],
+      finalAnswerChunkBatches: const [],
+    );
+    final toolService = buildToolService(workingDirectory: projectRoot.path);
+    final container = buildContainer(
+      projectRoot: projectRoot.path,
+      dataSource: dataSource,
+      toolService: toolService,
+      settingsNotifierBuilder: _ToolEnabledNoVerificationSettingsNotifier.new,
+    );
+    addTearDown(container.dispose);
+
+    final chatNotifier = container.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage('Implement the TODO CLI and verify it.');
+    await _waitForCondition(
+      () => !container.read(chatNotifierProvider).isLoading,
+    );
+
+    final answer = container.read(chatNotifierProvider).messages.last.content;
+    expect(answer, contains('Transcript claim check:'));
+    expect(answer, contains('`dart run lib/main.dart done 4`'));
+    // The executed add/list compound must not be flagged.
+    expect(answer, isNot(contains('`dart run lib/main.dart add "buy milk"`')));
+    expect(
+      dataSource.toolResultBatches
+          .expand((batch) => batch)
+          .map((result) => result.name),
+      isNot(contains('narrated_transcript_check')),
+    );
+  });
+
+  test('sendMessage revives the tool loop to execute narrated transcript '
+      'commands for real', () async {
+    final projectRoot = await createProjectRoot();
+    final dataSource = buildDataSource(
+      workingDirectory: projectRoot.path,
+      toolLoopResponses: [
+        ChatCompletionResult(content: loopCompletion, finishReason: 'stop'),
+        // Narrated-transcript repair follow-up executes the narrated
+        // command instead of restating completion.
+        ChatCompletionResult(
+          content: 'Executing the narrated command now.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'repair-done-4',
+              name: 'local_execute_command',
+              arguments: {
+                'command': 'dart run lib/main.dart done 4',
+                'working_directory': projectRoot.path,
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content:
+              'The command completed successfully after running the local '
+              'command. The implementation is complete.',
+          finishReason: 'stop',
+        ),
+      ],
+      finalAnswerChunkBatches: const [
+        [fabricatedAnswer],
+        [
+          'done 4 executed with exit code 0; all acceptance checks pass '
+              'against real output.',
+        ],
+      ],
+    );
+    final toolService = buildToolService(
+      workingDirectory: projectRoot.path,
+      extraCommandResults: [
+        jsonEncode({
+          'command': 'dart run lib/main.dart done 4',
+          'working_directory': projectRoot.path,
+          'exit_code': 0,
+          'stdout': 'Todo #4 marked as done.\n',
+          'stderr': '',
+        }),
+      ],
+    );
+    final container = buildContainer(
+      projectRoot: projectRoot.path,
+      dataSource: dataSource,
+      toolService: toolService,
+    );
+    addTearDown(container.dispose);
+
+    final chatNotifier = container.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage('Implement the TODO CLI and verify it.');
+    await _waitForCondition(
+      () => !container.read(chatNotifierProvider).isLoading,
+    );
+
+    expect(
+      toolService.executedToolArguments.map(
+        (arguments) => arguments['command'],
+      ),
+      contains('dart run lib/main.dart done 4'),
+    );
+    expect(
+      dataSource.toolResultBatches
+          .expand((batch) => batch)
+          .map((result) => result.name),
+      contains('narrated_transcript_check'),
+    );
+    final answer = container.read(chatNotifierProvider).messages.last.content;
+    expect(answer, contains('all acceptance checks pass'));
+    expect(answer, isNot(contains('Transcript claim check:')));
+  });
+
+  test('sendMessage answers a length-truncated empty-arguments tool call with '
+      'a truncation diagnostic instead of executing it', () async {
+    final projectRoot = await createProjectRoot();
+    final dataSource = buildDataSource(
+      workingDirectory: projectRoot.path,
+      toolLoopResponses: [
+        // The follow-up hit the output token limit while generating the
+        // tool call arguments, so they parsed empty (session 87f29602
+        // entry 18: 8192 completion tokens, finish_reason=length, {}).
+        ChatCompletionResult(
+          content: 'Now running the full verification chain.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'truncated-verification',
+              name: 'local_execute_command',
+              arguments: const {},
+            ),
+          ],
+          finishReason: 'length',
+        ),
+        ChatCompletionResult(content: loopCompletion, finishReason: 'stop'),
+      ],
+      finalAnswerChunkBatches: const [
+        ['The add and list commands were verified against real output.'],
+      ],
+    );
+    final toolService = buildToolService(workingDirectory: projectRoot.path);
+    final container = buildContainer(
+      projectRoot: projectRoot.path,
+      dataSource: dataSource,
+      toolService: toolService,
+    );
+    addTearDown(container.dispose);
+
+    final chatNotifier = container.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage('Implement the TODO CLI and verify it.');
+    await _waitForCondition(
+      () => !container.read(chatNotifierProvider).isLoading,
+    );
+
+    // Only the initial compound command was dispatched; the truncated call
+    // never reached the tool service.
+    expect(toolService.executedToolNames, ['local_execute_command']);
+    expect(
+      toolService.executedToolArguments.single['command'],
+      executedCompound,
+    );
+    final truncationResults = dataSource.toolResultBatches
+        .expand((batch) => batch)
+        .where(
+          (result) => result.result.contains('tool_call_arguments_truncated'),
+        );
+    expect(truncationResults, hasLength(1));
+    expect(truncationResults.single.result, contains('finish_reason=length'));
+  });
 }

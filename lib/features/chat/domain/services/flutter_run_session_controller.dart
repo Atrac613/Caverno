@@ -5,6 +5,7 @@ import '../../data/datasources/flutter_run_process_runner.dart';
 import '../entities/flutter_run_device.dart';
 import '../entities/flutter_run_session.dart';
 import 'flutter_run_command_builder.dart';
+import 'flutter_run_device_lister.dart';
 
 /// Drives one project's `flutter run`: device discovery, the process, its log
 /// stream, and stopping it.
@@ -20,7 +21,9 @@ class FlutterRunSessionController {
     DateTime Function()? clock,
     Duration gracefulQuitTimeout = const Duration(seconds: 5),
     Duration terminateTimeout = const Duration(seconds: 5),
+    Duration deviceListingTimeout = const Duration(seconds: 90),
   }) : _runner = runner,
+       _deviceListingTimeout = deviceListingTimeout,
        _commands = commands,
        _clock = clock ?? DateTime.now,
        _gracefulQuitTimeout = gracefulQuitTimeout,
@@ -31,6 +34,7 @@ class FlutterRunSessionController {
   final DateTime Function() _clock;
   final Duration _gracefulQuitTimeout;
   final Duration _terminateTimeout;
+  final Duration _deviceListingTimeout;
 
   final _stateController = StreamController<FlutterRunSessionState>.broadcast();
 
@@ -58,27 +62,17 @@ class FlutterRunSessionController {
         clearFailure: true,
       ),
     );
-    final command = _commands.devices(projectRoot: projectRoot);
-    final FlutterRunCommandOutput output;
-    try {
-      output = await _runner.run(
-        executable: command.executable,
-        arguments: command.arguments,
-        workingDirectory: command.workingDirectory,
-      );
-    } on Object catch (error) {
-      _emit(_failed('${command.displayCommand}: $error'));
+    final listing = await FlutterRunDeviceLister(
+      runner: _runner,
+      commands: _commands,
+      timeout: _deviceListingTimeout,
+    ).list(projectRoot: projectRoot, onLog: _append);
+    if (listing.failure case final failure?) {
+      _emit(_failed(failure));
       return const [];
     }
-
-    if (!output.succeeded) {
-      _emit(_failed(_firstMeaningfulLine(output.stderr, output.stdout)));
-      return const [];
-    }
-
-    final devices = FlutterRunCommandBuilder.parseDevices(output.stdout);
     _emit(_state.copyWith(status: FlutterRunStatus.idle));
-    return devices;
+    return listing.devices;
   }
 
   /// Starts `flutter run` on [device]. Does nothing when a run is active.
@@ -212,15 +206,5 @@ class FlutterRunSessionController {
     if (!_stateController.isClosed) {
       _stateController.add(next);
     }
-  }
-
-  static String _firstMeaningfulLine(String stderr, String stdout) {
-    for (final candidate in [stderr, stdout]) {
-      for (final line in candidate.split('\n')) {
-        final trimmed = line.trim();
-        if (trimmed.isNotEmpty) return trimmed;
-      }
-    }
-    return '';
   }
 }

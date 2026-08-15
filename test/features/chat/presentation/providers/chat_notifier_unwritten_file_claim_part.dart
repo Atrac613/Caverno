@@ -130,10 +130,10 @@ void registerChatNotifierUnwrittenFileClaimTests() {
     () async {
       final dataSource = _ToolBatchChatDataSource(
         initialToolCalls: const [],
-      initialCompletionContent: '`lib/b.dart` was created.',
-      initialFinishReason: 'stop',
-      initialStreamChunks: const ['`lib/b.dart` was created.'],
-      finalAnswerChunks: const ['`lib/b.dart` was created.'],
+        initialCompletionContent: '`lib/b.dart` was created.',
+        initialFinishReason: 'stop',
+        initialStreamChunks: const ['`lib/b.dart` was created.'],
+        finalAnswerChunks: const ['`lib/b.dart` was created.'],
       );
       final appLifecycleService = _MockAppLifecycleService();
       when(() => appLifecycleService.isInBackground).thenReturn(false);
@@ -164,7 +164,7 @@ void registerChatNotifierUnwrittenFileClaimTests() {
       addTearDown(container.dispose);
       container
           .read(conversationsNotifierProvider.notifier)
-        .ensureCurrentConversation(workspaceMode: WorkspaceMode.chat);
+          .ensureCurrentConversation(workspaceMode: WorkspaceMode.chat);
 
       await container
           .read(chatNotifierProvider.notifier)

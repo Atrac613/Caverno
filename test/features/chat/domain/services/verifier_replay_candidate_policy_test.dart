@@ -17,10 +17,7 @@ ToolCallInfo _runTests() =>
 void main() {
   group('isEligible', () {
     test('accepts run_tests, which carries no free-form command', () {
-      expect(
-        _policy.isEligible(_runTests()),
-        isTrue,
-      );
+      expect(_policy.isEligible(_runTests()), isTrue);
     });
 
     test('accepts a single plain foreground command', () {
@@ -47,11 +44,7 @@ void main() {
         r'dart test $(id)',
         'dart test\nrm -rf build',
       ]) {
-        expect(
-          _policy.isEligible(_command(command)),
-          isFalse,
-          reason: command,
-        );
+        expect(_policy.isEligible(_command(command)), isFalse, reason: command);
       }
     });
 

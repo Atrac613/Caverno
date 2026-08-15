@@ -50,11 +50,15 @@ void main() {
 
       final first = tracker.observe(
         commandKey: commandKey,
-        toolResult: _failingAnalyzeResult(message: 'The method is not defined.'),
+        toolResult: _failingAnalyzeResult(
+          message: 'The method is not defined.',
+        ),
       );
       final second = tracker.observe(
         commandKey: commandKey,
-        toolResult: _failingAnalyzeResult(message: 'The method is not defined.'),
+        toolResult: _failingAnalyzeResult(
+          message: 'The method is not defined.',
+        ),
       );
 
       expect(first, isNotNull, reason: 'the first failure must be observed');
@@ -72,7 +76,9 @@ void main() {
 
       tracker.observe(
         commandKey: commandKey,
-        toolResult: _failingAnalyzeResult(message: 'The method is not defined.'),
+        toolResult: _failingAnalyzeResult(
+          message: 'The method is not defined.',
+        ),
       );
       final moved = tracker.observe(
         commandKey: commandKey,

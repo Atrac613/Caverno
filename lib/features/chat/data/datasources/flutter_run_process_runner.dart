@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../../../core/services/login_shell_environment.dart';
+
 /// A spawned process, narrowed to what a run session needs.
 ///
 /// An interface rather than `Process` so the session can be driven by a fake in
@@ -56,6 +58,11 @@ class SystemFlutterRunProcessRunner implements FlutterRunProcessRunner {
 
   final Map<String, String>? _environment;
 
+  /// The environment a developer's own shell would give the command: an app
+  /// launched from Finder inherits a bare PATH, where `fvm` does not exist.
+  Future<Map<String, String>> _resolvedEnvironment() =>
+      LoginShellEnvironment.instance.environment(extra: _environment);
+
   @override
   Future<FlutterRunCommandOutput> run({
     required String executable,
@@ -66,9 +73,7 @@ class SystemFlutterRunProcessRunner implements FlutterRunProcessRunner {
       executable,
       arguments,
       workingDirectory: workingDirectory,
-      environment: _environment,
-      // The tool prints its own banners; inheriting a login environment is
-      // what makes `fvm` resolvable when the app was launched from Finder.
+      environment: await _resolvedEnvironment(),
       includeParentEnvironment: true,
       runInShell: false,
     );
@@ -89,7 +94,7 @@ class SystemFlutterRunProcessRunner implements FlutterRunProcessRunner {
       executable,
       arguments,
       workingDirectory: workingDirectory,
-      environment: _environment,
+      environment: await _resolvedEnvironment(),
       includeParentEnvironment: true,
       runInShell: false,
     );
