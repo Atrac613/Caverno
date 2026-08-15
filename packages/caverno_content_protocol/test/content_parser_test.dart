@@ -46,6 +46,23 @@ void main() {
       expect(toolCalls.first.arguments['path'], 'pubspec.yaml');
     });
 
+    test('reads a call object left inside an unclosed tool_call tag', () {
+      // Observed on grok-4.6: it opened the tag, wrote a complete call object,
+      // and never closed it. The tagged extractor needs the closing tag, so
+      // without the object scan this request was lost.
+      const content =
+          '<think>The user wants a subagent.</think>'
+          '<tool_call>{"name": "spawn_subagent", "arguments": '
+          '{"description": "Summarize", "background": true}}';
+
+      final toolCalls = ContentParser.extractFunctionObjectToolCalls(content);
+
+      expect(ContentParser.extractCompletedToolCalls(content), isEmpty);
+      expect(toolCalls, hasLength(1));
+      expect(toolCalls.first.name, 'spawn_subagent');
+      expect(toolCalls.first.arguments['background'], isTrue);
+    });
+
     test('ignores JSON that is not a call', () {
       // No `arguments` key: ordinary data, and a printed tool schema carries
       // `parameters` instead. Neither is an instruction to run anything.
