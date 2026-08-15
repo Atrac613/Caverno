@@ -144,6 +144,23 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
       ]);
     }
 
+    // Both workspaces: a stalled turn is a stalled turn whether or not a
+    // coding project is open, and the local server is the first suspect.
+    sections.addAll([
+      _buildCompanionSection(
+        context,
+        title: 'chat.companion_local_llm'.tr(),
+        trailing: IconButton(
+          key: const ValueKey('companion-local-llm-refresh'),
+          onPressed: () => refreshLocalLlmHealth(ref),
+          icon: const Icon(Icons.refresh, size: 18),
+          tooltip: 'chat.local_llm_refresh'.tr(),
+        ),
+        children: const [LocalLlmHealthSection()],
+      ),
+      const SizedBox(height: 18),
+    ]);
+
     sections.add(
       SessionLogDetailsSection(
         entries: [

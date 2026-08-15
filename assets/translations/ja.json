@@ -544,7 +544,16 @@
     "bottom_dock_run_log": "実行ログ",
     "bottom_dock_issues": "Issue",
     "bottom_dock_close": "パネルを閉じる",
-    "flutter_run_log_empty": "まだ出力はありません。"
+    "flutter_run_log_empty": "まだ出力はありません。",
+    "companion_local_llm": "ローカル LLM の状態",
+    "local_llm_refresh": "ローカル LLM を再確認",
+    "local_llm_primary": "プライマリ",
+    "local_llm_checking": "確認中...",
+    "local_llm_offline": "オフライン",
+    "local_llm_no_models": "オンライン（モデル未ロード）",
+    "local_llm_loaded_models": "ロード済みモデル",
+    "local_llm_advertised_models": "提供中のモデル（ライフサイクル API なし）",
+    "local_llm_none_registered": "ローカルエンドポイントが登録されていません。"
   },
   "drawer": {
     "title": "会話履歴",
