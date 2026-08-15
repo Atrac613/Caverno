@@ -39,11 +39,17 @@ class ModelCapabilityProfileBuilder {
       'benchmarkAttemptedPoints': score.attemptedPoints.toString(),
       'difficultyLadder': LiveLlmDiagnosticDifficultyLadder.suite,
       'difficultyLadderAxis': LiveLlmDiagnosticDifficultyLadder.axis,
-      'difficultyLadderMeasuredPromptTokens': ladder.measuredPromptTokens
-          .toString(),
-      'difficultyLadderHighestStagePromptTokens': ladder
-          .highestPassedStagePromptTokens
-          .toString(),
+      // Only written once the ladder actually climbed a stage. Storing the
+      // unmeasured zero made "no ladder was run" indistinguishable from a
+      // model that recalls nothing, and the comparison then ranked models on
+      // it. `isMeasured` is the ladder's own word for having a lower bound.
+      if (ladder.isMeasured) ...{
+        'difficultyLadderMeasuredPromptTokens': ladder.measuredPromptTokens
+            .toString(),
+        'difficultyLadderHighestStagePromptTokens': ladder
+            .highestPassedStagePromptTokens
+            .toString(),
+      },
       'difficultyLadderNextStagePromptTokens': ?ladder.nextStagePromptTokens
           ?.toString(),
       'difficultyLadderPassedStageCount': ladder.passedStageCount.toString(),

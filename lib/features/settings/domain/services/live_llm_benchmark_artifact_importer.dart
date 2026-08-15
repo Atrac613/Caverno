@@ -125,8 +125,11 @@ class LiveLlmBenchmarkArtifactImporter {
         'difficultyLadder': suite,
         'difficultyLadderAxis': axis,
         'difficultyLadderUnit': unit,
-        'difficultyLadderMeasuredPromptTokens': '$measuredContextTokens',
-        'difficultyLadderHighestStagePromptTokens': '$highest',
+        // An unclimbed ladder carries no measurement; see the profile builder.
+        if (measuredContextTokens > 0)
+          'difficultyLadderMeasuredPromptTokens': '$measuredContextTokens',
+        if (measuredContextTokens > 0)
+          'difficultyLadderHighestStagePromptTokens': '$highest',
         if (next != null) 'difficultyLadderNextStagePromptTokens': '$next',
         'difficultyLadderPassedStageCount': '$passedCount',
         'difficultyLadderStageCount': '$stageCount',

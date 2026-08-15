@@ -86,6 +86,44 @@ void main() {
     expect(result.samples.map((sample) => sample.model), ['new', 'legacy']);
   });
 
+  test('an unmeasured axis is dropped instead of ranking everyone at zero', () {
+    // The context ladder is opt-in, so it writes zero for every model unless a
+    // headless canary asked for it. Ranking that produced three chips reading
+    // "0 tok", each wearing the best-in-axis trophy.
+    final results = ModelCapabilityComparison.evaluate([
+      _profile('model-a', contextTokens: '0', ttftMs: '500'),
+      _profile('model-b', contextTokens: '0', ttftMs: '700'),
+      _profile(
+        'model-c',
+        extra: const {
+          'difficultyLadderAxis': 'effective_context_recall',
+          'difficultyLadderMeasuredPromptTokens': '0',
+        },
+        ttftMs: '900',
+      ),
+    ]);
+
+    expect(
+      results.any((result) => result.axis.id == 'effective-context'),
+      isFalse,
+    );
+    final ttft = _axis(results, 'ttft');
+    expect(ttft.samples, hasLength(3));
+    expect(ttft.bestProfileIds, hasLength(1));
+  });
+
+  test('a measured context axis still ranks', () {
+    final result = _axis(
+      ModelCapabilityComparison.evaluate([
+        _profile('measured', contextTokens: '32768'),
+        _profile('unmeasured', contextTokens: '0'),
+      ]),
+      'effective-context',
+    );
+
+    expect(result.samples.map((sample) => sample.model), ['measured']);
+  });
+
   test('uses the latest duplicate profile identity', () {
     final result = _axis(
       ModelCapabilityComparison.evaluate([

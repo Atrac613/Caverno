@@ -444,4 +444,48 @@ void main() {
       '8320',
     );
   });
+
+  test('an unclimbed ladder records no measurement', () {
+    // The ladder is opt-in, so most runs never climb a stage. Writing its zero
+    // made "not measured" look like "recalls nothing", and every model then
+    // compared equal at 0 tok.
+    final report = LiveLlmDiagnosticReport(
+      startedAt: DateTime.utc(2026, 8, 15),
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'context-model',
+      demoMode: false,
+      mcpEnabled: false,
+      results: const [
+        LiveLlmDiagnosticProbeResult(
+          id: 'effective_context',
+          status: LiveLlmDiagnosticStatus.skipped,
+          summary: 'skipped',
+        ),
+      ],
+    );
+
+    final profile = ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+      report: report,
+      provider: LlmProvider.openAiCompatible,
+      usableContextTokens: 32768,
+    );
+
+    expect(profile.probeMetadata['difficultyLadder'], 'ladder-v2');
+    expect(
+      profile.probeMetadata.containsKey('difficultyLadderMeasuredPromptTokens'),
+      isFalse,
+    );
+    expect(
+      profile.probeMetadata.containsKey(
+        'difficultyLadderHighestStagePromptTokens',
+      ),
+      isFalse,
+    );
+    expect(
+      profile.probeMetadata.containsKey(
+        'capability.effectiveContext.promptTokens',
+      ),
+      isFalse,
+    );
+  });
 }

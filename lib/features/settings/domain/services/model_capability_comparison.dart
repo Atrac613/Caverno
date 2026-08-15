@@ -113,8 +113,14 @@ class ModelCapabilityComparison {
       }
     }
 
+    // An axis nobody measured is dropped rather than rendered empty: a card
+    // with no models under it reads as a failed comparison, not as an
+    // unrequested measurement.
     return List.unmodifiable([
-      for (final axis in axes) _evaluateAxis(axis, unique.values),
+      for (final axis in axes)
+        if (_evaluateAxis(axis, unique.values) case final result
+            when result.samples.isNotEmpty)
+          result,
     ]);
   }
 
@@ -165,7 +171,11 @@ class ModelCapabilityComparison {
       }
     }
     final value = double.tryParse(raw?.trim() ?? '');
-    if (value == null || !value.isFinite || value < 0) return null;
+    // Zero is not a measurement on any of these axes -- no model answers in
+    // 0 ms, decodes 0 tokens per second, or recalls 0 tokens of context. It is
+    // what a skipped probe writes, and reading it as a value ranked three
+    // models at "0 tok" and handed every one of them the best-in-axis marker.
+    if (value == null || !value.isFinite || value <= 0) return null;
     return value;
   }
 }
