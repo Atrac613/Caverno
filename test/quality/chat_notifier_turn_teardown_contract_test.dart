@@ -67,7 +67,7 @@ const List<String> _generationCleanupContract = [
   '_lastStreamedToolResultFinalAnswersByGeneration.remove(generation)',
   '_pendingActionLengthRecoveryGenerations.remove(generation)',
   '_explicitTerminalSuccessSummariesByGeneration.remove(generation)',
-  '_releaseApprovalSnapshots.remove(generation)',
+  '_productionReleaseApprovals.clearGeneration(generation)',
   '_turnFinalizationRecoveryGenerations.remove(generation)',
   '_syncBusyConversationIds()',
 ];
