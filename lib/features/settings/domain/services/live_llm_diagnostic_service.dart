@@ -1298,7 +1298,7 @@ class LiveLlmDiagnosticService {
             'changed line in each side and no markdown fence.',
         expected: _editFormatSearchReplace,
       ),
-      const _EditFormatProbeCase(
+      _EditFormatProbeCase(
         preference: ModelEditFormatPreference.unifiedDiff,
         instruction:
             'Return one syntactically valid unified diff that can be applied '
@@ -1306,6 +1306,7 @@ class LiveLlmDiagnosticService {
             'context, and ensure each hunk header count matches the old and '
             'new lines in that hunk. Return no markdown fence or explanation.',
         expected: _editFormatUnifiedDiff,
+        normalize: _normalizeUnifiedDiffFileHeaders,
       ),
     ];
     final outcomes = <_EditFormatProbeOutcome>[];
@@ -1325,8 +1326,8 @@ class LiveLlmDiagnosticService {
         _visibleDiagnosticContent(result.content),
       );
       final failureDetail = _firstEditFormatMismatch(
-        expected: testCase.expected,
-        actual: normalized,
+        expected: testCase.prepare(testCase.expected),
+        actual: testCase.prepare(normalized),
       );
       outcomes.add(
         _EditFormatProbeOutcome(
@@ -1395,6 +1396,34 @@ class LiveLlmDiagnosticService {
       caseSensitive: false,
     ).firstMatch(normalized);
     return (match?.group(1) ?? normalized).trim();
+  }
+
+  /// Drops the `a/` and `b/` prefixes from a unified diff's file headers.
+  ///
+  /// The prefixes are a git convention, not part of the format: `diff -u` and
+  /// `patch -p0` write and expect the bare path, and Caverno never consumes the
+  /// header at all -- the preference only picks a sentence for the system
+  /// prompt. Comparing them verbatim scored a model that produced a perfectly
+  /// applicable diff as an edit-format failure, and cost it 18 of 55 points on
+  /// a spelling difference. Everything below the header is still compared
+  /// exactly, including hunk headers and context lines.
+  static String _normalizeUnifiedDiffFileHeaders(String diff) {
+    return diff
+        .split('\n')
+        .map((line) {
+          for (final marker in const ['--- ', '+++ ']) {
+            if (!line.startsWith(marker)) continue;
+            final path = line.substring(marker.length);
+            for (final prefix in const ['a/', 'b/']) {
+              if (path.startsWith(prefix)) {
+                return '$marker${path.substring(prefix.length)}';
+              }
+            }
+            return line;
+          }
+          return line;
+        })
+        .join('\n');
   }
 
   String? _firstEditFormatMismatch({
@@ -3470,11 +3499,18 @@ class _EditFormatProbeCase {
     required this.preference,
     required this.instruction,
     required this.expected,
+    this.normalize,
   });
 
   final ModelEditFormatPreference preference;
   final String instruction;
   final String expected;
+
+  /// Applied to both sides before comparison, to drop spelling differences the
+  /// format permits. Null compares the text verbatim.
+  final String Function(String value)? normalize;
+
+  String prepare(String value) => normalize?.call(value) ?? value;
 }
 
 class _EditFormatProbeOutcome {

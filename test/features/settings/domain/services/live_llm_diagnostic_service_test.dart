@@ -358,6 +358,58 @@ void main() {
     );
   });
 
+  test('accepts a unified diff without the git a/ b/ path prefixes', () async {
+    // `diff -u` and `patch -p0` use the bare path; the prefixes are a git
+    // convention. Requiring them scored an applicable diff as a failure and
+    // cost a model 18 of the probe's 55 points on spelling.
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _EditFormatDiagnosticDataSource(
+        {
+          ModelEditFormatPreference.wholeFile,
+          ModelEditFormatPreference.searchReplace,
+          ModelEditFormatPreference.unifiedDiff,
+        },
+        unifiedDiffResponse: _editFormatUnifiedDiff
+            .replaceFirst('--- a/lib/greeting.dart', '--- lib/greeting.dart')
+            .replaceFirst('+++ b/lib/greeting.dart', '+++ lib/greeting.dart'),
+      ),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: {'edit_format_fidelity'});
+    final result = _result(report, 'edit_format_fidelity');
+
+    expect(result.status, LiveLlmDiagnosticStatus.passed);
+    expect(result.passedChecks, 3);
+    expect(result.metadata['editFormatPreference'], 'unifiedDiff');
+  });
+
+  test('still rejects a unified diff whose body drifted', () async {
+    // Only the file-header prefixes are forgiven: hunk headers and context
+    // lines decide whether the diff would apply.
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _EditFormatDiagnosticDataSource(
+        {
+          ModelEditFormatPreference.wholeFile,
+          ModelEditFormatPreference.searchReplace,
+        },
+        unifiedDiffResponse: _editFormatUnifiedDiff
+            .replaceFirst('--- a/lib/greeting.dart', '--- lib/greeting.dart')
+            .replaceFirst('@@ -1,4 +1,4 @@', '@@ -1,3 +1,3 @@'),
+      ),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: {'edit_format_fidelity'});
+    final result = _result(report, 'edit_format_fidelity');
+
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(result.details, contains('unifiedDiff: failed'));
+    expect(result.metadata['editFormatPreference'], 'searchReplace');
+  });
+
   test('keeps edit format unknown when every exact contract fails', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
