@@ -7,6 +7,7 @@ class ModelBenchmarkSaturationSample {
     required this.model,
     required this.points,
     required this.maxPoints,
+    required this.attemptedPoints,
   });
 
   final String profileId;
@@ -14,8 +15,12 @@ class ModelBenchmarkSaturationSample {
   final int points;
   final int maxPoints;
 
+  /// Points this run could actually measure. Older profiles predate the field
+  /// and record the full denominator, which is what they effectively used.
+  final int attemptedPoints;
+
   int get highWaterPoints =>
-      LiveLlmDiagnosticSuite.saturationHighWaterPoints(maxPoints);
+      LiveLlmDiagnosticSuite.saturationHighWaterPoints(attemptedPoints);
 
   bool get reachedHighWater => points >= highWaterPoints;
 
@@ -24,6 +29,7 @@ class ModelBenchmarkSaturationSample {
     'model': model,
     'points': points,
     'maxPoints': maxPoints,
+    'attemptedPoints': attemptedPoints,
     'highWaterPoints': highWaterPoints,
     'reachedHighWater': reachedHighWater,
   };
@@ -33,9 +39,9 @@ class ModelBenchmarkSaturationSample {
 /// user's registered models.
 ///
 /// The result fails closed: every unique registered profile must carry a score
-/// from the requested suite, all denominators must match, and at least two
-/// models must reach the high-water mark. Missing or stale evidence can never
-/// announce saturation.
+/// from the requested suite, all runs must have attempted the same points, and
+/// at least two models must reach the high-water mark. Missing, stale, or
+/// unlike evidence can never announce saturation.
 class ModelBenchmarkSaturationWatchdog {
   const ModelBenchmarkSaturationWatchdog({
     required this.suite,
@@ -68,11 +74,19 @@ class ModelBenchmarkSaturationWatchdog {
       final maximum = int.tryParse(
         profile.probeMetadata['benchmarkMaxPoints']?.trim() ?? '',
       );
+      final attempted =
+          int.tryParse(
+            profile.probeMetadata['benchmarkAttemptedPoints']?.trim() ?? '',
+          ) ??
+          maximum;
       if (points == null ||
           maximum == null ||
           maximum <= 0 ||
+          attempted == null ||
+          attempted <= 0 ||
+          attempted > maximum ||
           points < 0 ||
-          points > maximum) {
+          points > attempted) {
         continue;
       }
       samples.add(
@@ -81,11 +95,16 @@ class ModelBenchmarkSaturationWatchdog {
           model: profile.normalizedModel,
           points: points,
           maxPoints: maximum,
+          attemptedPoints: attempted,
         ),
       );
     }
     samples.sort((a, b) => a.profileId.compareTo(b.profileId));
-    final denominators = samples.map((sample) => sample.maxPoints).toSet();
+    // Compared on attempted points: two models are only comparable when their
+    // runs measured the same things, which the fixed maximum cannot express.
+    final denominators = samples
+        .map((sample) => sample.attemptedPoints)
+        .toSet();
     return ModelBenchmarkSaturationWatchdog(
       suite: suite,
       registeredModelCount: uniqueProfiles.length,

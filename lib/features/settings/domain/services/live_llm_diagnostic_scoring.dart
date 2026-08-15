@@ -64,8 +64,16 @@ class LiveLlmDiagnosticSuite {
 
   static const maxPoints = probePointsTotal + samplerStabilityPoints;
 
-  /// A model at or above this share of the fixed denominator contributes a
-  /// high-water sample to the cross-model saturation watchdog.
+  /// A model at or above this share of the points its run could attempt
+  /// contributes a high-water sample to the cross-model saturation watchdog.
+  ///
+  /// Measured against attempted points, not the fixed denominator: a probe the
+  /// environment cannot run (no embeddings model, an endpoint that rejects
+  /// `temperature` so the 200-point sampler block is unmeasurable) would
+  /// otherwise put the mark out of reach forever and silently disable
+  /// saturation detection for that endpoint. Cross-model comparability is
+  /// preserved by the watchdog's denominator check instead, which refuses to
+  /// declare saturation across runs that attempted different amounts.
   static const saturationHighWaterPercent = 95;
 
   /// Saturation is a cross-model claim. One strong model only proves that the
@@ -170,7 +178,7 @@ class LiveLlmDiagnosticScore {
   int get maxPoints => LiveLlmDiagnosticSuite.maxPoints;
 
   int get saturationHighWaterPoints =>
-      LiveLlmDiagnosticSuite.saturationHighWaterPoints(maxPoints);
+      LiveLlmDiagnosticSuite.saturationHighWaterPoints(attemptedPoints);
 
   bool get saturationHighWaterReached =>
       earnedPoints >= saturationHighWaterPoints;

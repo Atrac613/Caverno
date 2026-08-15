@@ -58,6 +58,30 @@ void main() {
     expect(LiveLlmDiagnosticSuite.saturationHighWaterPoints(999), 950);
   });
 
+  test(
+    'an unmeasurable sampler block does not put high water out of reach',
+    () {
+      // An endpoint that rejects `temperature` can never earn the 200-point
+      // sampler block. Against the fixed denominator its ceiling is 800, so the
+      // 950 mark was unreachable and saturation could never be detected there.
+      final report = _report(
+        results: [
+          for (final id in LiveLlmDiagnosticSuite.probePoints.keys)
+            _result(id, LiveLlmDiagnosticStatus.passed),
+        ],
+      );
+
+      final score = LiveLlmDiagnosticScore.fromReport(report);
+
+      expect(score.samplerAttempted, isFalse);
+      expect(score.earnedPoints, LiveLlmDiagnosticSuite.probePointsTotal);
+      expect(score.attemptedPoints, LiveLlmDiagnosticSuite.probePointsTotal);
+      expect(score.coverage, lessThan(1));
+      expect(score.attemptedRatio, 1);
+      expect(score.saturationHighWaterReached, isTrue);
+    },
+  );
+
   test('skipped probes lower coverage instead of raising the score', () {
     final ids = LiveLlmDiagnosticSuite.probePoints.keys.toList();
     final passingOnly = _report(
@@ -179,8 +203,11 @@ void main() {
       LiveLlmDiagnosticSuite.pointsFor('instruction_echo'),
     );
     expect(benchmark['saturationHighWaterPercent'], 95);
-    expect(benchmark['saturationHighWaterPoints'], 950);
-    expect(benchmark['saturationHighWaterReached'], isFalse);
+    // 95% of what this run could attempt (one 40-point probe), not of the fixed
+    // 1000: points the environment could not measure must not put the mark out
+    // of reach.
+    expect(benchmark['saturationHighWaterPoints'], 38);
+    expect(benchmark['saturationHighWaterReached'], isTrue);
     final ladder = export['difficultyLadder'] as Map<String, dynamic>;
     expect(ladder['suite'], 'ladder-v2');
     expect(ladder['axis'], 'effective_context_recall');
