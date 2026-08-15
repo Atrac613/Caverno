@@ -1474,7 +1474,9 @@
     "personal_eval_record_split_held_in": "held-in",
     "personal_eval_record_split_held_out": "held-out",
     "personal_eval_record_action": "ケースを記録",
-    "personal_eval_record_success": "評価ケースを記録しました"
+    "personal_eval_record_success": "評価ケースを記録しました",
+    "model_routing_log_analysis": "実行ログ解析",
+    "model_routing_log_analysis_desc": "実行中アプリの失敗ブロックを issue に変換します。アプリを触っている最中に走るため、強いモデルより速いモデルが向きます。"
   },
   "routines": {
     "title": "Routines",

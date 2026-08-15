@@ -1474,7 +1474,9 @@
     "personal_eval_record_split_held_in": "Held-in",
     "personal_eval_record_split_held_out": "Held-out",
     "personal_eval_record_action": "Record case",
-    "personal_eval_record_success": "Eval case recorded"
+    "personal_eval_record_success": "Eval case recorded",
+    "model_routing_log_analysis": "Run log analysis",
+    "model_routing_log_analysis_desc": "Turns failure blocks from a running app into issues. Runs while you exercise the app, so a fast model suits it better than a strong one."
   },
   "routines": {
     "title": "Routines",

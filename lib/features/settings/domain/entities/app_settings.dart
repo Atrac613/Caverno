@@ -870,6 +870,10 @@ abstract class AppSettings with _$AppSettings {
     // Pro Reasoning coordinates multiple deliberation stages, so it can use a
     // dedicated model independently from ordinary chat and plan drafting.
     @Default('') String proReasoningModel,
+    // Reads `flutter run` output and turns failure blocks into issues. Kept
+    // separate because it runs while an app is being exercised: it wants a
+    // fast, cheap model, not whichever strong model the conversation uses.
+    @Default('') String logAnalysisModel,
     // LL8 per-role endpoint routing. Empty string means "use the primary
     // endpoint". A non-empty value is a LlmEndpoint id; an unreachable mesh
     // endpoint falls back to the primary at call time (MeshEndpointRouter).
@@ -879,6 +883,7 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String approvalAutoReviewEndpointId,
     @Default('') String planningEndpointId,
     @Default('') String proReasoningEndpointId,
+    @Default('') String logAnalysisEndpointId,
     @Default('') String googleChatWebhookUrl,
     @Default('') String mcpUrl,
     @Default(<String>[]) List<String> mcpUrls,
@@ -1091,6 +1096,9 @@ abstract class AppSettings with _$AppSettings {
 
   String get effectiveProReasoningModel =>
       _resolveRoleModel(proReasoningModel, proReasoningEndpointId);
+
+  String get effectiveLogAnalysisModel =>
+      _resolveRoleModel(logAnalysisModel, logAnalysisEndpointId);
 
   /// The endpoint profile embeddings are sent to, or null when they follow the
   /// primary connection fields.
@@ -1392,6 +1400,7 @@ abstract class AppSettings with _$AppSettings {
       'planningEndpointId',
       'proReasoningEndpointId',
       'embeddingsEndpointId',
+      'logAnalysisEndpointId',
     ]) {
       final currentId = migrated[field]?.toString();
       if (currentId != null && namedIdMapping.containsKey(currentId)) {

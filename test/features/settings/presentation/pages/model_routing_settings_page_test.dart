@@ -42,7 +42,7 @@ void main() {
 
     expect(
       find.text('Default (main-model)'),
-      findsNWidgets(9),
+      findsNWidgets(10),
       reason: 'all primary modes and secondary roles use the fallback',
     );
 

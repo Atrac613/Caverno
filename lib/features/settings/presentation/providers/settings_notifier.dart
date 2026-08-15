@@ -317,6 +317,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateLogAnalysisModel(String model) async {
+    state = state.copyWith(logAnalysisModel: model.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updateLogAnalysisEndpointId(String endpointId) async {
+    state = state.copyWith(logAnalysisEndpointId: endpointId.trim());
+    await _repository.save(state);
+  }
+
   Future<void> updateProReasoningEndpointId(String endpointId) async {
     final normalizedEndpointId = endpointId.trim();
     state = state.copyWith(
