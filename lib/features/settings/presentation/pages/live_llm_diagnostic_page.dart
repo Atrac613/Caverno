@@ -18,6 +18,13 @@ import '../providers/live_llm_diagnostic_notifier.dart';
 import '../providers/settings_notifier.dart';
 import '../../../../core/theme/app_tokens.dart';
 
+/// Gap between stacked cards in this page's lists.
+///
+/// The app's card theme sets `margin: EdgeInsets.zero`, so a `Column` of cards
+/// renders as one undivided block with only hairlines between rows. Every list
+/// here supplies the gap itself rather than relying on the widget default.
+const _cardListSpacing = 8.0;
+
 const _foundationModelsCanaryCommand =
     'tool/run_foundation_models_live_canary.sh';
 const _foundationModelsCanaryReportPath =
@@ -285,26 +292,33 @@ class _DiagnosticHistorySection extends StatelessWidget {
             ),
           )
         else
-          for (final report in reports)
-            Card(
-              key: ValueKey(
-                'live-llm-diag-history-${report.startedAt.toIso8601String()}',
-              ),
-              child: ListTile(
-                leading: Icon(
-                  _statusIcon(report.overallStatus),
-                  color: _statusColor(context, report.overallStatus),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: _cardListSpacing,
+            children: [
+              for (final report in reports)
+                Card(
+                  key: ValueKey(
+                    'live-llm-diag-history-'
+                    '${report.startedAt.toIso8601String()}',
+                  ),
+                  child: ListTile(
+                    leading: Icon(
+                      _statusIcon(report.overallStatus),
+                      color: _statusColor(context, report.overallStatus),
+                    ),
+                    title: Text(_formatTimestamp(report.startedAt)),
+                    subtitle: Text(
+                      '${_statusLabel(report.overallStatus)} • '
+                      '${report.passedProbeCount}/${report.scoredProbeCount} • '
+                      '${report.elapsed.inMilliseconds} ms',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => onOpen(report),
+                  ),
                 ),
-                title: Text(_formatTimestamp(report.startedAt)),
-                subtitle: Text(
-                  '${_statusLabel(report.overallStatus)} • '
-                  '${report.passedProbeCount}/${report.scoredProbeCount} • '
-                  '${report.elapsed.inMilliseconds} ms',
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => onOpen(report),
-              ),
-            ),
+            ],
+          ),
       ],
     );
   }
@@ -386,51 +400,62 @@ class _ModelCapabilityComparisonSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        for (final result in results)
-          Card(
-            key: ValueKey('live-llm-diag-comparison-${result.axis.id}'),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    result.axis.labelKey.tr(),
-                    style: theme.textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+        // The card theme sets a zero margin, so stacked cards need their own
+        // gap or the axes read as one undivided block.
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: _cardListSpacing,
+          children: [
+            for (final result in results)
+              Card(
+                key: ValueKey('live-llm-diag-comparison-${result.axis.id}'),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final sample in result.samples)
-                        Chip(
-                          key: ValueKey(
-                            'live-llm-diag-comparison-${result.axis.id}-'
-                            '${sample.profileId}',
-                          ),
-                          avatar:
-                              result.bestProfileIds.contains(sample.profileId)
-                              ? Icon(
-                                  Icons.emoji_events_outlined,
-                                  key: ValueKey(
-                                    'live-llm-diag-comparison-${result.axis.id}-'
-                                    'best-${sample.profileId}',
-                                  ),
-                                  size: 18,
-                                )
-                              : null,
-                          label: Text(
-                            '${sample.model}: '
-                            '${result.formatValue(sample.value)}',
-                          ),
-                        ),
+                      Text(
+                        result.axis.labelKey.tr(),
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final sample in result.samples)
+                            Chip(
+                              key: ValueKey(
+                                'live-llm-diag-comparison-${result.axis.id}-'
+                                '${sample.profileId}',
+                              ),
+                              avatar:
+                                  result.bestProfileIds.contains(
+                                    sample.profileId,
+                                  )
+                                  ? Icon(
+                                      Icons.emoji_events_outlined,
+                                      key: ValueKey(
+                                        'live-llm-diag-comparison-'
+                                        '${result.axis.id}-'
+                                        'best-${sample.profileId}',
+                                      ),
+                                      size: 18,
+                                    )
+                                  : null,
+                              label: Text(
+                                '${sample.model}: '
+                                '${result.formatValue(sample.value)}',
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
+          ],
+        ),
       ],
     );
   }
@@ -1074,8 +1099,15 @@ class _SamplerCalibrationSection extends StatelessWidget {
               ),
             ),
           ),
-        for (final summary in summaries)
-          _SamplerCalibrationSummaryCard(summary: summary),
+        if (summaries.isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: _cardListSpacing,
+            children: [
+              for (final summary in summaries)
+                _SamplerCalibrationSummaryCard(summary: summary),
+            ],
+          ),
       ],
     );
   }
@@ -1219,8 +1251,14 @@ class _ProfileHistorySection extends StatelessWidget {
             ),
           )
         else
-          for (final revision in revisions)
-            _ProfileRevisionCard(revision: revision),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: _cardListSpacing,
+            children: [
+              for (final revision in revisions)
+                _ProfileRevisionCard(revision: revision),
+            ],
+          ),
       ],
     );
   }
@@ -1397,11 +1435,17 @@ class _ProbeResultsSection extends StatelessWidget {
       children: [
         _SectionTitle(label: 'settings.live_llm_diag_probe_results'.tr()),
         const SizedBox(height: 8),
-        for (final definition in LiveLlmDiagnosticService.probeDefinitions)
-          _ProbeResultTile(
-            definition: definition,
-            result: _resultFor(definition.id),
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: _cardListSpacing,
+          children: [
+            for (final definition in LiveLlmDiagnosticService.probeDefinitions)
+              _ProbeResultTile(
+                definition: definition,
+                result: _resultFor(definition.id),
+              ),
+          ],
+        ),
       ],
     );
   }
