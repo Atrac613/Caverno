@@ -49,9 +49,7 @@ extension ChatNotifierToolResultTelemetry on ChatNotifier {
       toolResult: toolResult,
       baselineProfile: baselineProfile,
     );
-    if (!result.didPersist ||
-        !ref.mounted ||
-        !telemetry.isCurrent(owner)) {
+    if (!result.didPersist || !ref.mounted || !telemetry.isCurrent(owner)) {
       return;
     }
     _settings = ref.read(settingsNotifierProvider);

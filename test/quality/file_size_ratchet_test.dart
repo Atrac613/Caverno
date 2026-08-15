@@ -286,7 +286,18 @@ const Map<String, int> _lineBudgets = {
   // geometry and the session all live outside this library, and the inline
   // error banner moved to ChatErrorBanner, so the page kept only the dock call
   // site and the working-directory gate.
-  'lib/features/chat/presentation/pages/chat_page.dart': 2071,
+  // -97: the ten approval dialogs moved to chat_page_approval_listeners.dart,
+  // where the listeners that raise them already live. The page keeps the
+  // layout; the part keeps the approval flow.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1980,
+  'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
+  'lib/features/chat/domain/services/flutter_run_session_controller.dart': 230,
+  'lib/features/chat/domain/entities/flutter_run_session.dart': 130,
+  'lib/features/chat/domain/entities/flutter_run_device.dart': 50,
+  'lib/features/chat/data/datasources/flutter_run_process_runner.dart': 135,
+  'lib/features/chat/presentation/widgets/flutter_run_control_section.dart': 145,
+  'lib/features/chat/presentation/widgets/flutter_run_device_sheet.dart': 130,
+  'lib/features/chat/presentation/widgets/flutter_run_log_panel.dart': 185,
   // Lowered from 2332 by the same extraction (label, colour and icon).
   'lib/features/chat/presentation/widgets/message_input.dart': 2368,
   'lib/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart':

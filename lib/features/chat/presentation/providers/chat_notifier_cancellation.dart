@@ -218,7 +218,6 @@ extension ChatNotifierSteering on ChatNotifier {
   }
 
   Future<void> _reissueTurnForSteering(ChatTurnOwner owner) async {
-
     final ownerMessages = _activeResponseRegistry.messagesForOwner(owner);
     if (ownerMessages == null || ownerMessages.isEmpty) return;
 

@@ -20,7 +20,9 @@ class PlanOpenQuestionSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final openQuestions = currentConversation.effectiveWorkflowSpec.openQuestions
+    final openQuestions = currentConversation
+        .effectiveWorkflowSpec
+        .openQuestions
         .where((item) => item.trim().isNotEmpty)
         .toList(growable: false);
 
@@ -128,7 +130,8 @@ class _PlanOpenQuestionRow extends StatelessWidget {
                 ),
               ),
               PopupMenuButton<ConversationOpenQuestionStatus>(
-                onSelected: (nextStatus) => onStatusSelected(question, nextStatus),
+                onSelected: (nextStatus) =>
+                    onStatusSelected(question, nextStatus),
                 itemBuilder: (popupContext) => ConversationOpenQuestionStatus
                     .values
                     .map(
@@ -178,9 +181,7 @@ class _PlanOpenQuestionRow extends StatelessWidget {
                     ConversationOpenQuestionStatus.needsUserInput,
                   ),
                   icon: const Icon(Icons.contact_support_outlined, size: 18),
-                  label: Text(
-                    'chat.open_question_mark_needs_user_input'.tr(),
-                  ),
+                  label: Text('chat.open_question_mark_needs_user_input'.tr()),
                 ),
             ],
           ),

@@ -58,7 +58,10 @@ class _PlanDocumentEditorSheetState extends State<PlanDocumentEditorSheet> {
     if (nextValidation.isValid == _validation.isValid &&
         nextValidation.errorMessage == _validation.errorMessage &&
         nextValidation.workflowStage == _validation.workflowStage &&
-        _sameTaskPreview(nextValidation.previewTasks, _validation.previewTasks)) {
+        _sameTaskPreview(
+          nextValidation.previewTasks,
+          _validation.previewTasks,
+        )) {
       return;
     }
     setState(() {

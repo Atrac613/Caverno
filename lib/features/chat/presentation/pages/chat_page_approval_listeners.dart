@@ -177,4 +177,127 @@ extension _ChatPageApprovalListeners on _ChatPageState {
       },
     );
   }
+
+  Future<void> _showSshConnectDialog(
+    BuildContext context,
+    PendingSshConnect pending,
+  ) async {
+    final approval = await SshConnectApprovalSheet.show(context, pending);
+
+    if (!mounted) return;
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveSshConnect(id: pending.id, approval: approval);
+  }
+
+  Future<void> _showSshCommandDialog(
+    BuildContext context,
+    PendingSshCommand pending,
+  ) async {
+    final approved = await SshCommandApprovalSheet.show(context, pending);
+
+    if (!mounted) return;
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveSshCommand(id: pending.id, approved: approved ?? false);
+  }
+
+  Future<void> _showGitCommandDialog(
+    BuildContext context,
+    PendingGitCommand pending,
+  ) async {
+    final approved = await GitCommandApprovalSheet.show(context, pending);
+
+    if (!mounted) return;
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveGitCommand(id: pending.id, approved: approved ?? false);
+  }
+
+  Future<void> _showLocalCommandDialog(
+    BuildContext context,
+    PendingLocalCommand pending,
+  ) async {
+    final approval = await LocalCommandApprovalSheet.show(context, pending);
+
+    if (!mounted) return;
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveLocalCommand(
+          id: pending.id,
+          approval: approval ?? const LocalCommandApproval(approved: false),
+        );
+  }
+
+  Future<void> _showComputerUseActionDialog(
+    BuildContext context,
+    PendingComputerUseAction pending,
+  ) async {
+    final decision = await ComputerUseActionApprovalSheet.show(
+      context,
+      pending,
+      stopHelperWork: () =>
+          ref.read(macosComputerUseServiceProvider).stopHelperWork(),
+    );
+
+    if (!mounted) return;
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveComputerUseAction(
+          id: pending.id,
+          approved: decision?.approved ?? false,
+          armed: decision?.armed ?? !pending.requiresSmokeArming,
+        );
+  }
+
+  Future<void> _showFileOperationDialog(
+    BuildContext context,
+    PendingFileOperation pending,
+  ) async {
+    final approved = await FileOperationApprovalSheet.show(context, pending);
+
+    if (!mounted) return;
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveFileOperation(id: pending.id, approved: approved ?? false);
+  }
+
+  Future<void> _showParticipantToolApprovalDialog(
+    BuildContext context,
+    PendingParticipantToolApproval pending,
+  ) async {
+    final approved = await ParticipantToolApprovalSheet.show(context, pending);
+
+    if (!mounted) return;
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveParticipantToolApproval(
+          id: pending.id,
+          approved: approved ?? false,
+        );
+  }
+
+  Future<void> _showBleConnectDialog(
+    BuildContext context,
+    PendingBleConnect pending,
+  ) async {
+    final approved = await BleConnectApprovalSheet.show(context, pending);
+
+    if (!mounted) return;
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveBleConnect(id: pending.id, approved: approved ?? false);
+  }
+
+  Future<void> _showSerialOpenDialog(
+    BuildContext context,
+    PendingSerialOpen pending,
+  ) async {
+    final approved = await SerialOpenApprovalSheet.show(context, pending);
+
+    if (!mounted) return;
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveSerialOpen(id: pending.id, approved: approved ?? false);
+  }
 }

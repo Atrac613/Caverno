@@ -83,9 +83,7 @@ class _VoiceModeOverlayState extends ConsumerState<VoiceModeOverlay>
               // Central Animation Area
               SizedBox(
                 height: 200,
-                child: Center(
-                  child: _buildAnimation(state.status),
-                ),
+                child: Center(child: _buildAnimation(state.status)),
               ),
 
               const SizedBox(height: 48),
@@ -109,7 +107,10 @@ class _VoiceModeOverlayState extends ConsumerState<VoiceModeOverlay>
                   padding: const EdgeInsets.symmetric(horizontal: 32),
                   child: Text(
                     state.errorMessage ?? 'Unknown error',
-                    style: const TextStyle(color: Colors.redAccent, fontSize: 16),
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 16,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 )
@@ -138,7 +139,11 @@ class _VoiceModeOverlayState extends ConsumerState<VoiceModeOverlay>
                   onPressed: _onStopPressed,
                   backgroundColor: Colors.white24,
                   elevation: 0,
-                  child: const Icon(Icons.stop_rounded, color: Colors.white, size: 40),
+                  child: const Icon(
+                    Icons.stop_rounded,
+                    color: Colors.white,
+                    size: 40,
+                  ),
                 ),
               ),
             ],
@@ -200,7 +205,9 @@ class _VoiceModeOverlayState extends ConsumerState<VoiceModeOverlay>
                   height: totalSize,
                   decoration: BoxDecoration(
                     color: Colors.blue.withAlpha(
-                      (100 - (_pulseController.value * 60) + (visualBoost * 80)).clamp(0, 255).toInt(),
+                      (100 - (_pulseController.value * 60) + (visualBoost * 80))
+                          .clamp(0, 255)
+                          .toInt(),
                     ),
                     shape: BoxShape.circle,
                   ),

@@ -34,5 +34,4 @@ extension ChatNotifierTaskProposalParser on ChatNotifier {
   ) {
     return _taskProposalParser.parseTaskProposalMap(decoded);
   }
-
 }

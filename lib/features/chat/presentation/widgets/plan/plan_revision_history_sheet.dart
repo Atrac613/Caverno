@@ -4,10 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../domain/entities/conversation_plan_artifact.dart';
 
 class PlanRevisionHistorySheet extends StatelessWidget {
-  const PlanRevisionHistorySheet({
-    super.key,
-    required this.planArtifact,
-  });
+  const PlanRevisionHistorySheet({super.key, required this.planArtifact});
 
   final ConversationPlanArtifact planArtifact;
 
@@ -128,8 +125,7 @@ class PlanRevisionHistorySheet extends StatelessWidget {
                                   maxLines: 3,
                                   overflow: TextOverflow.ellipsis,
                                   style: theme.textTheme.bodySmall?.copyWith(
-                                    color:
-                                        theme.colorScheme.onSurfaceVariant,
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                               ],

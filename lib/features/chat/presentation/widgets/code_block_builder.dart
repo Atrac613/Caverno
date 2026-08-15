@@ -33,11 +33,7 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
 
     final code = codeElement.textContent.trimRight();
 
-    return _CodeBlockWidget(
-      code: code,
-      language: language,
-      theme: theme,
-    );
+    return _CodeBlockWidget(code: code, language: language, theme: theme);
   }
 }
 

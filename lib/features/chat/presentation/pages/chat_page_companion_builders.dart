@@ -119,6 +119,14 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
           ],
         ),
         const SizedBox(height: 18),
+        if (ref.watch(flutterRunSupportedProvider(rootPath)))
+          _buildCompanionSection(
+            context,
+            title: 'chat.companion_flutter_run'.tr(),
+            children: [FlutterRunControlSection(projectRoot: rootPath)],
+          ),
+        if (ref.watch(flutterRunSupportedProvider(rootPath)))
+          const SizedBox(height: 18),
         _buildCompanionSection(
           context,
           title: 'chat.companion_sources'.tr(),

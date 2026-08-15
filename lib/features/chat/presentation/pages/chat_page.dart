@@ -94,6 +94,9 @@ import '../widgets/chat_error_banner.dart';
 import '../widgets/chat_image_drop_target.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
+import '../providers/flutter_run_provider.dart';
+import '../widgets/flutter_run_control_section.dart';
+import '../widgets/flutter_run_log_panel.dart';
 import '../widgets/session_log_details_section.dart';
 import '../widgets/terminal/coding_terminal_dock.dart';
 import '../widgets/token_usage_indicator.dart';
@@ -1127,9 +1130,32 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           ),
                         )
                       : chatContent;
+                  // The run log spans the full width, under both the
+                  // conversation and the sidebar: it belongs to the project,
+                  // not to either column. It renders nothing until a run
+                  // starts.
+                  // Scoped to the thread's worktree when there is one, so a
+                  // worktree thread runs its own checkout rather than the
+                  // project root it branched from.
+                  final runProjectRoot = activeProject == null
+                      ? ''
+                      : (currentConversation == null
+                            ? activeProject.normalizedRootPath
+                            : _effectiveCodingProjectForConversation(
+                                currentConversation: currentConversation,
+                                activeProject: activeProject,
+                              ).normalizedRootPath);
+                  final bodyWithRunLog = runProjectRoot.isEmpty
+                      ? coreBody
+                      : Column(
+                          children: [
+                            Expanded(child: coreBody),
+                            FlutterRunLogPanel(projectRoot: runProjectRoot),
+                          ],
+                        );
                   return _wrapWithBrowserPane(
                     context,
-                    coreBody,
+                    bodyWithRunLog,
                     availableWidth: MediaQuery.sizeOf(context).width,
                     availableHeight: constraints.maxHeight,
                   );
@@ -1945,127 +1971,4 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   ConversationWorkflowStage? _recommendedWorkflowStage(
     ConversationWorkflowStage stage,
   ) => WorkflowStatusPresentation.recommendedWorkflowStage(stage);
-
-  Future<void> _showSshConnectDialog(
-    BuildContext context,
-    PendingSshConnect pending,
-  ) async {
-    final approval = await SshConnectApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveSshConnect(id: pending.id, approval: approval);
-  }
-
-  Future<void> _showSshCommandDialog(
-    BuildContext context,
-    PendingSshCommand pending,
-  ) async {
-    final approved = await SshCommandApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveSshCommand(id: pending.id, approved: approved ?? false);
-  }
-
-  Future<void> _showGitCommandDialog(
-    BuildContext context,
-    PendingGitCommand pending,
-  ) async {
-    final approved = await GitCommandApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveGitCommand(id: pending.id, approved: approved ?? false);
-  }
-
-  Future<void> _showLocalCommandDialog(
-    BuildContext context,
-    PendingLocalCommand pending,
-  ) async {
-    final approval = await LocalCommandApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveLocalCommand(
-          id: pending.id,
-          approval: approval ?? const LocalCommandApproval(approved: false),
-        );
-  }
-
-  Future<void> _showComputerUseActionDialog(
-    BuildContext context,
-    PendingComputerUseAction pending,
-  ) async {
-    final decision = await ComputerUseActionApprovalSheet.show(
-      context,
-      pending,
-      stopHelperWork: () =>
-          ref.read(macosComputerUseServiceProvider).stopHelperWork(),
-    );
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveComputerUseAction(
-          id: pending.id,
-          approved: decision?.approved ?? false,
-          armed: decision?.armed ?? !pending.requiresSmokeArming,
-        );
-  }
-
-  Future<void> _showFileOperationDialog(
-    BuildContext context,
-    PendingFileOperation pending,
-  ) async {
-    final approved = await FileOperationApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveFileOperation(id: pending.id, approved: approved ?? false);
-  }
-
-  Future<void> _showParticipantToolApprovalDialog(
-    BuildContext context,
-    PendingParticipantToolApproval pending,
-  ) async {
-    final approved = await ParticipantToolApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveParticipantToolApproval(
-          id: pending.id,
-          approved: approved ?? false,
-        );
-  }
-
-  Future<void> _showBleConnectDialog(
-    BuildContext context,
-    PendingBleConnect pending,
-  ) async {
-    final approved = await BleConnectApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveBleConnect(id: pending.id, approved: approved ?? false);
-  }
-
-  Future<void> _showSerialOpenDialog(
-    BuildContext context,
-    PendingSerialOpen pending,
-  ) async {
-    final approved = await SerialOpenApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveSerialOpen(id: pending.id, approved: approved ?? false);
-  }
 }

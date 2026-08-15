@@ -66,5 +66,4 @@ extension ChatNotifierWorkflowProposalParser on ChatNotifier {
       keys: keys,
     );
   }
-
 }
