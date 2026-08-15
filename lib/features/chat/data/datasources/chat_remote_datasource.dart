@@ -13,12 +13,12 @@ import '../../domain/entities/model_usage_sink.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/chat_request_prefix_stability_service.dart';
 import '../../domain/services/qwen38_request_thinking_policy.dart';
-import '../../domain/services/tool_result_prompt_builder.dart';
 import 'chat_completion_request_fallback.dart';
 import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
 import 'chat_request_logger.dart';
 import 'chat_response_telemetry.dart';
+import 'chat_tool_result_message_formatter.dart';
 import 'qwen38_request_policy_client.dart';
 
 export '../../domain/entities/chat_completion_terminal_metadata.dart';
@@ -86,6 +86,7 @@ class ChatRemoteDataSource
 
   static const _responseNormalizer = ChatCompletionResponseNormalizer();
   static const _logger = ChatRequestLogger();
+  static const _toolResultFormatter = ChatToolResultMessageFormatter();
 
   static bool isNativeToolStreamFormatError(Object error) {
     final message = error.toString().toLowerCase();
@@ -903,7 +904,9 @@ class ChatRemoteDataSource
     _logger.logTools(tools);
     appLog('[LLM] assistantContent: ${assistantContent ?? "(none)"}');
     for (final toolResult in toolResults) {
-      final llmToolResultContent = _formatToolResultContentForLlm(toolResult);
+      final llmToolResultContent = _toolResultFormatter.formatContent(
+        toolResult,
+      );
       appLog('[LLM] === Tool Call Info ===');
       appLog('[LLM] toolCallId: ${toolResult.id}');
       appLog('[LLM] toolName: ${toolResult.name}');
@@ -941,11 +944,13 @@ class ChatRemoteDataSource
       toolResults.map(
         (toolResult) => ChatMessage.tool(
           toolCallId: toolResult.id,
-          content: _formatToolResultContentForLlm(toolResult),
+          content: _toolResultFormatter.formatContent(toolResult),
         ),
       ),
     );
-    formattedMessages.addAll(_buildToolImageObservationMessages(toolResults));
+    formattedMessages.addAll(
+      _toolResultFormatter.buildImageObservationMessages(toolResults),
+    );
 
     ChatCompletionCreateRequest buildRequest(bool includeReasoning) {
       return ChatCompletionCreateRequest(
@@ -1096,108 +1101,15 @@ class ChatRemoteDataSource
 
   @visibleForTesting
   String formatToolResultContentForLlm(ToolResultInfo toolResult) {
-    return _formatToolResultContentForLlm(toolResult);
+    return _toolResultFormatter.formatContent(toolResult);
   }
 
   @visibleForTesting
   int countToolImageObservationMessagesForTest(
     List<ToolResultInfo> toolResults,
   ) {
-    return _buildToolImageObservationMessages(toolResults).length;
-  }
-
-  String _formatToolResultContentForLlm(ToolResultInfo toolResult) {
-    final decoded = _tryDecodeToolResultJson(toolResult.result);
-    if (decoded == null) {
-      return toolResult.result;
-    }
-
-    if (decoded['imageBase64'] is String) {
-      final redacted = Map<String, dynamic>.from(decoded)
-        ..['imageBase64'] = '[attached as image content]';
-      return dart_convert.jsonEncode(redacted);
-    }
-
-    final interpretationLines = <String>[];
-    switch (toolResult.name) {
-      case 'write_file':
-        if (decoded.containsKey('bytes_written')) {
-          if (decoded['created'] == true) {
-            interpretationLines.add(
-              'Interpretation: write_file succeeded and created the target file.',
-            );
-          } else {
-            interpretationLines.add(
-              'Interpretation: write_file succeeded and updated an existing file.',
-            );
-            interpretationLines.add(
-              'A result with "created": false means the file already existed; it is not an error.',
-            );
-          }
-        }
-      case 'edit_file':
-        if (decoded['already_applied'] == true) {
-          interpretationLines.add(
-            'Interpretation: edit_file detected that the requested replacement was already present and left the file unchanged.',
-          );
-        } else if (decoded.containsKey('replacements')) {
-          interpretationLines.add(
-            'Interpretation: edit_file succeeded and applied the requested replacement.',
-          );
-        }
-      case 'delete_file':
-        if (decoded['deleted'] == true) {
-          interpretationLines.add(
-            'Interpretation: delete_file succeeded and removed the target file.',
-          );
-        }
-    }
-    interpretationLines.addAll(
-      ToolResultPromptBuilder.buildToolDataInterpretationLines(toolResult),
-    );
-
-    if (interpretationLines.isEmpty) {
-      return toolResult.result;
-    }
-
-    return '${interpretationLines.join('\n')}\nRaw result:\n${toolResult.result}';
-  }
-
-  List<ChatMessage> _buildToolImageObservationMessages(
-    List<ToolResultInfo> toolResults,
-  ) {
-    final messages = <ChatMessage>[];
-    for (final toolResult in toolResults) {
-      final decoded = _tryDecodeToolResultJson(toolResult.result);
-      if (decoded == null) continue;
-      final imageBase64 = decoded['imageBase64'];
-      if (imageBase64 is! String || imageBase64.isEmpty) continue;
-
-      final mimeType = decoded['imageMimeType'] as String? ?? 'image/png';
-      final metadata = Map<String, dynamic>.from(decoded)
-        ..remove('imageBase64');
-      final text =
-          'Visual observation from ${toolResult.name}. '
-          'Use this screenshot and any actionProposalPolicy metadata to decide '
-          'the next computer-use action. Preserve required target metadata, '
-          'exact text, and public action boundaries when proposing actions. '
-          'Metadata: ${dart_convert.jsonEncode(metadata)}';
-      messages.add(
-        ChatMessage.user([
-          ContentPart.text(text),
-          ContentPart.imageBase64(data: imageBase64, mediaType: mimeType),
-        ]),
-      );
-    }
-    return messages;
-  }
-
-  Map<String, dynamic>? _tryDecodeToolResultJson(String value) {
-    try {
-      final decoded = dart_convert.jsonDecode(value.trim());
-      return decoded is Map<String, dynamic> ? decoded : null;
-    } catch (_) {
-      return null;
-    }
+    return _toolResultFormatter
+        .buildImageObservationMessages(toolResults)
+        .length;
   }
 }
