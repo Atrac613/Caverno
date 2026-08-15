@@ -4,6 +4,7 @@ import '../../../chat/data/datasources/apple_foundation_models_datasource.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/mcp_tool_provider.dart';
 import '../../data/live_llm_benchmark_artifact_file_service.dart';
+import '../../data/live_llm_diagnostic_history_repository.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
@@ -18,9 +19,20 @@ final liveLlmDiagnosticNotifierProvider =
 
 class LiveLlmDiagnosticNotifier extends Notifier<LiveLlmDiagnosticState> {
   int _generation = 0;
+  late final LiveLlmDiagnosticHistoryRepository _historyRepository;
 
   @override
-  LiveLlmDiagnosticState build() => LiveLlmDiagnosticState.initial;
+  LiveLlmDiagnosticState build() {
+    _historyRepository = LiveLlmDiagnosticHistoryRepository(
+      ref.read(sharedPreferencesProvider),
+    );
+    return LiveLlmDiagnosticState(
+      history: _historyRepository
+          .load()
+          .map((entry) => entry.report)
+          .toList(growable: false),
+    );
+  }
 
   Future<void> run() async {
     final generation = ++_generation;
@@ -62,9 +74,14 @@ class LiveLlmDiagnosticNotifier extends Notifier<LiveLlmDiagnosticState> {
       if (!ref.mounted || generation != _generation) {
         return;
       }
+      final history = await _historyRepository.append(report);
+      if (!ref.mounted || generation != _generation) {
+        return;
+      }
       state = state.copyWith(
         isRunning: false,
         report: report,
+        history: history.map((entry) => entry.report).toList(growable: false),
         clearError: true,
       );
     } catch (error) {
@@ -73,6 +90,10 @@ class LiveLlmDiagnosticNotifier extends Notifier<LiveLlmDiagnosticState> {
       }
       state = state.copyWith(isRunning: false, error: error.toString());
     }
+  }
+
+  void showHistoricalReport(LiveLlmDiagnosticReport report) {
+    state = state.copyWith(report: report, clearError: true);
   }
 
   /// Imports physical and bounded evidence produced by the headless LL39

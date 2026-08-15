@@ -950,6 +950,8 @@
     "live_llm_diag_probe_remote_mcp_desc": "trusted remote MCP server の tool が harness に読み込まれているか報告します。",
     "live_llm_diag_profile_history": "プロファイル履歴",
     "live_llm_diag_profile_history_empty": "このモデルのプロファイル改訂はまだ記録されていません。プローブを実行すると履歴の記録が始まります。",
+    "live_llm_diag_history": "診断履歴",
+    "live_llm_diag_history_empty": "このモデルで完了した診断結果はまだ保存されていません。",
     "live_llm_diag_profile_capability_change": "能力の変化を検出 (モデル差し替えの可能性)",
     "live_llm_diag_profile_source_initial": "初回プローブ",
     "live_llm_diag_profile_source_probe": "プローブ",

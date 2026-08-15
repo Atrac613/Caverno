@@ -950,6 +950,8 @@
     "live_llm_diag_probe_remote_mcp_desc": "Reports whether trusted remote MCP servers loaded tools into the harness.",
     "live_llm_diag_profile_history": "Profile History",
     "live_llm_diag_profile_history_empty": "No profile revisions recorded yet for this model. Run a probe to start tracking history.",
+    "live_llm_diag_history": "Diagnostic History",
+    "live_llm_diag_history_empty": "No completed diagnostic runs have been saved for this model yet.",
     "live_llm_diag_profile_capability_change": "Capability change detected (possible model swap)",
     "live_llm_diag_profile_source_initial": "Initial probe",
     "live_llm_diag_profile_source_probe": "Probe",

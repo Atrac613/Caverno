@@ -46,6 +46,56 @@ void main() {
     expect(find.byTooltip('Import benchmark artifact'), findsOneWidget);
   });
 
+  testWidgets('opens a saved diagnostic report from history', (tester) async {
+    final settings = AppSettings.defaults();
+    final startedAt = DateTime(2026, 8, 15, 9, 30);
+    final historicalReport = LiveLlmDiagnosticReport(
+      startedAt: startedAt,
+      finishedAt: startedAt.add(const Duration(seconds: 2)),
+      baseUrl: settings.baseUrl,
+      model: settings.effectiveModel,
+      demoMode: false,
+      mcpEnabled: false,
+      results: const [
+        LiveLlmDiagnosticProbeResult(
+          id: 'instruction_echo',
+          status: LiveLlmDiagnosticStatus.passed,
+          summary: 'Saved probe passed',
+        ),
+      ],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          () => _FixedSettingsNotifier(settings),
+        ),
+        liveLlmDiagnosticNotifierProvider.overrideWith(
+          () => _FixedLiveLlmDiagnosticNotifier(
+            LiveLlmDiagnosticState(history: [historicalReport]),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await _pumpPageWithContainer(tester, container);
+
+    expect(find.text('Diagnostic History'), findsOneWidget);
+    expect(find.textContaining('1/1'), findsOneWidget);
+
+    final historyCard = find.byKey(
+      ValueKey('live-llm-diag-history-${startedAt.toIso8601String()}'),
+    );
+    await tester.ensureVisible(historyCard);
+    await tester.tap(
+      find.descendant(of: historyCard, matching: find.byType(ListTile)),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      container.read(liveLlmDiagnosticNotifierProvider).report,
+      same(historicalReport),
+    );
+  });
+
   testWidgets('imports two v9 artifacts and announces saturation', (
     tester,
   ) async {

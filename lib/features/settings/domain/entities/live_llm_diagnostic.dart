@@ -682,11 +682,13 @@ class LiveLlmDiagnosticState {
   const LiveLlmDiagnosticState({
     this.isRunning = false,
     this.report,
+    this.history = const <LiveLlmDiagnosticReport>[],
     this.error,
   });
 
   final bool isRunning;
   final LiveLlmDiagnosticReport? report;
+  final List<LiveLlmDiagnosticReport> history;
   final String? error;
 
   static const initial = LiveLlmDiagnosticState();
@@ -694,12 +696,14 @@ class LiveLlmDiagnosticState {
   LiveLlmDiagnosticState copyWith({
     bool? isRunning,
     LiveLlmDiagnosticReport? report,
+    List<LiveLlmDiagnosticReport>? history,
     String? error,
     bool clearError = false,
   }) {
     return LiveLlmDiagnosticState(
       isRunning: isRunning ?? this.isRunning,
       report: report ?? this.report,
+      history: history ?? this.history,
       error: clearError ? null : error ?? this.error,
     );
   }

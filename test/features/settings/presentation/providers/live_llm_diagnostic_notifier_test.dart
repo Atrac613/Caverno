@@ -12,6 +12,7 @@ import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart'
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/settings/data/settings_repository.dart';
 import 'package:caverno/features/settings/data/live_llm_benchmark_artifact_file_service.dart';
+import 'package:caverno/features/settings/data/live_llm_diagnostic_history_repository.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_preset_profile.dart';
@@ -67,6 +68,10 @@ void main() {
     expect(profile.probeMetadata['probe.instruction_echo.status'], 'passed');
     // Both vision shapes read the image, and the no-image control arm did not.
     expect(profile.visionSupport, ModelVisionSupport.reliable);
+    final history = LiveLlmDiagnosticHistoryRepository(prefs).load();
+    expect(history, hasLength(1));
+    expect(history.single.report.model, 'diagnostic-model');
+    expect(history.single.report.finishedAt, isNotNull);
   });
 
   test('run persists sampler metadata from diagnostic trials', () async {

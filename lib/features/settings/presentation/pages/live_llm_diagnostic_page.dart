@@ -31,6 +31,13 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
     final state = ref.watch(liveLlmDiagnosticNotifierProvider);
     final report = state.report;
     final settings = ref.watch(settingsNotifierProvider);
+    final diagnosticHistory = state.history
+        .where(
+          (item) =>
+              item.baseUrl.trim() == settings.baseUrl.trim() &&
+              item.model.trim() == settings.effectiveModel.trim(),
+        )
+        .toList(growable: false);
     final saturationWatchdog = ModelBenchmarkSaturationWatchdog.evaluate(
       profiles: settings.modelCapabilityProfiles,
       suite: '${LiveLlmDiagnosticSuite.id}-v${LiveLlmDiagnosticSuite.version}',
@@ -113,6 +120,13 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
             _ProbeResultsSection(report: report),
           ],
           const SizedBox(height: 16),
+          _DiagnosticHistorySection(
+            reports: diagnosticHistory,
+            onOpen: (report) => ref
+                .read(liveLlmDiagnosticNotifierProvider.notifier)
+                .showHistoricalReport(report),
+          ),
+          const SizedBox(height: 16),
           _ProfileHistorySection(
             revisions: settings.effectiveModelProfileRevisions,
           ),
@@ -165,6 +179,57 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
         );
       }
     }
+  }
+}
+
+class _DiagnosticHistorySection extends StatelessWidget {
+  const _DiagnosticHistorySection({
+    required this.reports,
+    required this.onOpen,
+  });
+
+  final List<LiveLlmDiagnosticReport> reports;
+  final ValueChanged<LiveLlmDiagnosticReport> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      key: const ValueKey('live-llm-diag-history'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(label: 'settings.live_llm_diag_history'.tr()),
+        const SizedBox(height: 8),
+        if (reports.isEmpty)
+          Text(
+            'settings.live_llm_diag_history_empty'.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else
+          for (final report in reports)
+            Card(
+              key: ValueKey(
+                'live-llm-diag-history-${report.startedAt.toIso8601String()}',
+              ),
+              child: ListTile(
+                leading: Icon(
+                  _statusIcon(report.overallStatus),
+                  color: _statusColor(context, report.overallStatus),
+                ),
+                title: Text(_formatTimestamp(report.startedAt)),
+                subtitle: Text(
+                  '${_statusLabel(report.overallStatus)} • '
+                  '${report.passedProbeCount}/${report.scoredProbeCount} • '
+                  '${report.elapsed.inMilliseconds} ms',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => onOpen(report),
+              ),
+            ),
+      ],
+    );
   }
 }
 
