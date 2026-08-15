@@ -203,6 +203,47 @@ void main() {
     );
   });
 
+  test(
+    'scores visible content when diagnostic responses include reasoning',
+    () async {
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false),
+        chatDataSource: _ReasoningWrappedDiagnosticDataSource(),
+        mcpToolService: McpToolService(),
+      );
+
+      final report = await service.run(
+        probeIds: const {
+          'streaming_response',
+          'exact_preservation',
+          'edit_format_fidelity',
+        },
+      );
+
+      for (final probeId in const {
+        'streaming_response',
+        'exact_preservation',
+        'edit_format_fidelity',
+      }) {
+        final result = _result(report, probeId);
+        expect(result.status, LiveLlmDiagnosticStatus.passed);
+        expect(
+          result.modelContent,
+          contains('<think>diagnostic reasoning</think>'),
+        );
+      }
+      expect(_result(report, 'streaming_response').passedChecks, 40);
+      expect(_result(report, 'exact_preservation').passedChecks, 3);
+      expect(
+        _result(
+          report,
+          'edit_format_fidelity',
+        ).metadata['editFormatPreference'],
+        'unifiedDiff',
+      );
+    },
+  );
+
   test('selects the strongest exactly reproduced edit format', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
@@ -441,6 +482,32 @@ void main() {
     expect(report.effectiveContextMetrics!.reachedConfiguredMaximum, isTrue);
   });
 
+  test('scores visible effective-context markers after reasoning', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+      effectiveContextMaxTokens: 2048,
+      runEffectiveContextTrial: (target, _) async => ChatCompletionResult(
+        content:
+            '<think>diagnostic reasoning</think>'
+            'CTX_BEGIN_$target|CTX_END_$target',
+        finishReason: 'stop',
+        usage: TokenUsage(
+          promptTokens: target + 50,
+          completionTokens: 16,
+          totalTokens: target + 66,
+        ),
+      ),
+    );
+
+    final report = await service.run(probeIds: {'effective_context'});
+    final result = _result(report, 'effective_context');
+
+    expect(result.status, LiveLlmDiagnosticStatus.passed);
+    expect(report.effectiveContextMetrics!.trials.single.passed, isTrue);
+  });
+
   test('stops the context ladder at the first failed boundary', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
@@ -649,6 +716,10 @@ void main() {
     expect(result.details, contains('Expected: 12 GiB, \u00a53,980'));
     expect(result.details, contains('Actual: 12 GiB, \u00a53,980.'));
     expect(result.modelContent, contains('direct_echo_money_unit:'));
+    expect(
+      result.modelContent,
+      contains('<think>diagnostic reasoning</think>'),
+    );
     expect(result.modelContent, contains('12 GiB, \u00a53,980.'));
   });
 
@@ -1240,6 +1311,54 @@ class _FakeDiagnosticDataSource
   }
 }
 
+class _ReasoningWrappedDiagnosticDataSource extends _FakeDiagnosticDataSource {
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    final result = await super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+    return ChatCompletionResult(
+      content: '<think>diagnostic reasoning</think>${result.content}',
+      toolCalls: result.toolCalls,
+      finishReason: result.finishReason,
+      usage: result.usage,
+    );
+  }
+
+  @override
+  StreamedChatCompletion streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    requestedModels.add(model);
+    final lines = [for (var value = 1; value <= 40; value += 1) '$value\n'];
+    return StreamedChatCompletion.fromStream(
+      Stream.fromIterable([
+        '<think>diagnostic reasoning</think>${lines.take(20).join()}',
+        lines.skip(20).join(),
+      ]),
+      finishReason: 'stop',
+      usage: const TokenUsage(
+        promptTokens: 12,
+        completionTokens: 48,
+        totalTokens: 60,
+      ),
+    );
+  }
+}
+
 const _editFormatWholeFile = '''String buildLabel(String name) {
   final trimmed = name.trim();
   return 'Welcome, \$trimmed!';
@@ -1566,7 +1685,9 @@ class _ExactPreservationMismatchDataSource extends _FakeDiagnosticDataSource {
         user.contains('12 GiB')) {
       requestedModels.add(model);
       return ChatCompletionResult(
-        content: '12 GiB, \u00a53,980.',
+        content:
+            '<think>diagnostic reasoning</think>'
+            '12 GiB, \u00a53,980.',
         finishReason: 'stop',
       );
     }

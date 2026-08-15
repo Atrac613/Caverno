@@ -1037,7 +1037,8 @@ class LiveLlmDiagnosticService {
     final terminal = await streamed.terminal;
 
     final content = buffer.toString();
-    final matched = _matchedIntegerSequence(content);
+    final visibleContent = _visibleDiagnosticContent(content);
+    final matched = _matchedIntegerSequence(visibleContent);
     final metrics = LiveLlmDiagnosticStreamingMetrics(
       timeToFirstToken: timeToFirstToken ?? totalElapsed,
       totalElapsed: totalElapsed,
@@ -1170,17 +1171,20 @@ class LiveLlmDiagnosticService {
       _ExactPreservationProbeOutcome(
         label: 'direct_echo_money_unit',
         expected: _exactDirectEchoValue,
-        actual: directResult.content.trim(),
+        actual: _visibleDiagnosticContent(directResult.content),
+        rawActual: directResult.content.trim(),
       ),
       _ExactPreservationProbeOutcome(
         label: 'tool_result_raw_value',
         expected: _exactToolResultValue,
-        actual: toolResult.content.trim(),
+        actual: _visibleDiagnosticContent(toolResult.content),
+        rawActual: toolResult.content.trim(),
       ),
       _ExactPreservationProbeOutcome(
         label: 'url_preservation',
         expected: _exactUrlValue,
-        actual: urlResult.content.trim(),
+        actual: _visibleDiagnosticContent(urlResult.content),
+        rawActual: urlResult.content.trim(),
       ),
     ];
     final failed = outcomes.where((outcome) => !outcome.passed).toList();
@@ -1203,7 +1207,7 @@ class LiveLlmDiagnosticService {
       modelContent: outcomes
           .map(
             (outcome) =>
-                '${outcome.label}: ${_preview(outcome.actual, maxChars: 360)}',
+                '${outcome.label}: ${_preview(outcome.rawActual, maxChars: 360)}',
           )
           .join('\n'),
       usage: _totalUsage([directResult, toolResult, urlResult]),
@@ -1251,7 +1255,9 @@ class LiveLlmDiagnosticService {
         temperature: _diagnosticTemperature,
         maxTokens: _diagnosticMaxTokens,
       );
-      final normalized = _stripSingleCodeFence(result.content);
+      final normalized = _stripSingleCodeFence(
+        _visibleDiagnosticContent(result.content),
+      );
       final failureDetail = _firstEditFormatMismatch(
         expected: testCase.expected,
         actual: normalized,
@@ -1590,10 +1596,11 @@ class LiveLlmDiagnosticService {
         completed.add(result);
         stopwatch.stop();
         final expected = _effectiveContextExpectedReply(target);
-        final recallPassed = result.content.trim() == expected;
+        final visibleContent = _visibleDiagnosticContent(result.content);
+        final recallPassed = visibleContent == expected;
         final usageReported = result.usage.promptTokens > 0;
         final failureKind = !recallPassed
-            ? _effectiveContextResponseFailureKind(target, result.content)
+            ? _effectiveContextResponseFailureKind(target, visibleContent)
             : !usageReported
             ? 'prompt_usage_missing'
             : '';
@@ -3225,6 +3232,12 @@ class LiveLlmDiagnosticService {
     return null;
   }
 
+  /// Scores the same text that production consumers display or parse while
+  /// retaining the raw response separately for evidence and physical metrics.
+  String _visibleDiagnosticContent(String content) {
+    return ContentParser.parse(content).text.trim();
+  }
+
   bool _stringListEquals(Object? actual, List<String> expected) {
     if (actual is! List || actual.length != expected.length) {
       return false;
@@ -3341,11 +3354,13 @@ class _ExactPreservationProbeOutcome {
     required this.label,
     required this.expected,
     required this.actual,
+    required this.rawActual,
   });
 
   final String label;
   final String expected;
   final String actual;
+  final String rawActual;
 
   bool get passed => actual == expected;
 }
