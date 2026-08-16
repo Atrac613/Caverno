@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import '../../domain/entities/chat_turn_owner.dart';
+import 'background_process_monitor_snapshot.dart';
 import 'background_process_tools.dart';
+
+export 'background_process_monitor_snapshot.dart';
 
 typedef BackgroundProcessStatusReader =
     Future<String> Function({
@@ -15,114 +18,6 @@ typedef _OwnedBackgroundProcessMonitorSnapshot = ({
   ChatTurnOwner owner,
   BackgroundProcessMonitorSnapshot snapshot,
 });
-
-class BackgroundProcessMonitorSnapshot {
-  const BackgroundProcessMonitorSnapshot({
-    required this.jobId,
-    required this.status,
-    required this.command,
-    required this.workingDirectory,
-    required this.startedAt,
-    required this.lastCheckedAt,
-    this.ok = true,
-    this.label,
-    this.pid,
-    this.exitCode,
-    this.elapsedMs,
-    this.finishedAt,
-    this.stdoutTail = '',
-    this.stderrTail = '',
-    this.stdoutTruncated = false,
-    this.stderrTruncated = false,
-    this.error,
-  });
-
-  final String jobId;
-  final String status;
-  final String command;
-  final String workingDirectory;
-  final String? label;
-  final int? pid;
-  final int? exitCode;
-  final int? elapsedMs;
-  final DateTime startedAt;
-  final DateTime? finishedAt;
-  final DateTime lastCheckedAt;
-  final String stdoutTail;
-  final String stderrTail;
-  final bool stdoutTruncated;
-  final bool stderrTruncated;
-  final bool ok;
-  final String? error;
-
-  bool get isRunning => status == 'running';
-
-  bool get isTerminal => status == 'exited' || status == 'unknown';
-
-  bool get hasFailedExit => exitCode != null && exitCode != 0;
-
-  BackgroundProcessMonitorSnapshot copyWith({
-    String? jobId,
-    String? status,
-    String? command,
-    String? workingDirectory,
-    String? label,
-    int? pid,
-    int? exitCode,
-    int? elapsedMs,
-    DateTime? startedAt,
-    DateTime? finishedAt,
-    DateTime? lastCheckedAt,
-    String? stdoutTail,
-    String? stderrTail,
-    bool? stdoutTruncated,
-    bool? stderrTruncated,
-    bool? ok,
-    String? error,
-  }) {
-    return BackgroundProcessMonitorSnapshot(
-      jobId: jobId ?? this.jobId,
-      status: status ?? this.status,
-      command: command ?? this.command,
-      workingDirectory: workingDirectory ?? this.workingDirectory,
-      label: label ?? this.label,
-      pid: pid ?? this.pid,
-      exitCode: exitCode ?? this.exitCode,
-      elapsedMs: elapsedMs ?? this.elapsedMs,
-      startedAt: startedAt ?? this.startedAt,
-      finishedAt: finishedAt ?? this.finishedAt,
-      lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
-      stdoutTail: stdoutTail ?? this.stdoutTail,
-      stderrTail: stderrTail ?? this.stderrTail,
-      stdoutTruncated: stdoutTruncated ?? this.stdoutTruncated,
-      stderrTruncated: stderrTruncated ?? this.stderrTruncated,
-      ok: ok ?? this.ok,
-      error: error ?? this.error,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'job_id': jobId,
-      'status': status,
-      'command': command,
-      'working_directory': workingDirectory,
-      if (label != null && label!.isNotEmpty) 'label': label,
-      if (pid != null) 'pid': pid,
-      if (exitCode != null) 'exit_code': exitCode,
-      if (elapsedMs != null) 'elapsed_ms': elapsedMs,
-      'started_at': startedAt.toIso8601String(),
-      if (finishedAt != null) 'finished_at': finishedAt!.toIso8601String(),
-      'last_checked_at': lastCheckedAt.toIso8601String(),
-      'stdout_tail': stdoutTail,
-      'stderr_tail': stderrTail,
-      'stdout_truncated': stdoutTruncated,
-      'stderr_truncated': stderrTruncated,
-      'ok': ok,
-      if (error != null && error!.isNotEmpty) 'error': error,
-    };
-  }
-}
 
 class BackgroundProcessMonitorService {
   BackgroundProcessMonitorService({
@@ -148,6 +43,14 @@ class BackgroundProcessMonitorService {
   final Map<ChatTurnOwner, Timer> _timersByOwner = {};
   final Set<ChatTurnOwner> _pollingOwners = {};
   final Set<ChatTurnOwner> _retiredOwners = {};
+
+  /// Snapshots of jobs still running when their owner retired, by conversation.
+  ///
+  /// The mirror of `BackgroundProcessTools._carriedJobs`: the process survives
+  /// the turn, so the record of it has to as well, or `process_list` reports an
+  /// empty registry for a job that is very much alive.
+  final Map<String, Map<String, BackgroundProcessMonitorSnapshot>>
+  _carriedSnapshots = {};
   bool _disposed = false;
 
   Stream<BackgroundProcessMonitorSnapshot> eventsFor(ChatTurnOwner owner) =>
@@ -197,7 +100,7 @@ class BackgroundProcessMonitorService {
       );
 
   BackgroundProcessMonitorSnapshot? byJobId(ChatTurnOwner owner, String jobId) {
-    return _snapshotsByOwner[owner]?[jobId];
+    return _snapshotsFor(owner)[jobId];
   }
 
   BackgroundProcessMonitorSnapshot? registerProcessStartResult({
@@ -230,7 +133,7 @@ class BackgroundProcessMonitorService {
     if (!_accepts(owner)) {
       return null;
     }
-    final previous = _snapshotsByOwner[owner]?[jobId];
+    final previous = _snapshotsFor(owner)[jobId];
     final statusResult = await _statusReader(owner: owner, jobId: jobId);
     if (!_accepts(owner)) {
       return null;
@@ -309,9 +212,30 @@ class BackgroundProcessMonitorService {
 
   void clearOwner(ChatTurnOwner owner) {
     _retiredOwners.add(owner);
-    _snapshotsByOwner.remove(owner);
+    final snapshots = _snapshotsByOwner.remove(owner);
     _timersByOwner.remove(owner)?.cancel();
     _pollingOwners.remove(owner);
+    if (_disposed || snapshots == null) {
+      return;
+    }
+    final running = {
+      for (final entry in snapshots.entries)
+        if (entry.value.isRunning) entry.key: entry.value,
+    };
+    if (running.isEmpty) {
+      return;
+    }
+    _carriedSnapshots
+        .putIfAbsent(
+          owner.conversationId,
+          () => <String, BackgroundProcessMonitorSnapshot>{},
+        )
+        .addAll(running);
+  }
+
+  /// Drops the carried snapshots for a conversation that has ended.
+  void clearConversation(String conversationId) {
+    _carriedSnapshots.remove(conversationId);
   }
 
   void dispose() {
@@ -325,6 +249,7 @@ class BackgroundProcessMonitorService {
     _timersByOwner.clear();
     _pollingOwners.clear();
     _snapshotsByOwner.clear();
+    _carriedSnapshots.clear();
     if (!_events.isClosed) {
       unawaited(_events.close());
     }
@@ -336,8 +261,29 @@ class BackgroundProcessMonitorService {
     if (!_accepts(owner)) {
       return const <String, BackgroundProcessMonitorSnapshot>{};
     }
+    _adoptCarriedSnapshots(owner);
     return _snapshotsByOwner[owner] ??
         const <String, BackgroundProcessMonitorSnapshot>{};
+  }
+
+  /// Hands a live owner the jobs its conversation left running.
+  ///
+  /// Lazy rather than eager because a turn that never asks about background
+  /// work should not start a poll timer for it; the first read is what makes
+  /// the owner responsible for the job.
+  void _adoptCarriedSnapshots(ChatTurnOwner owner) {
+    final carried = _carriedSnapshots.remove(owner.conversationId);
+    if (carried == null || carried.isEmpty) {
+      return;
+    }
+    final target = _snapshotsByOwner.putIfAbsent(
+      owner,
+      () => <String, BackgroundProcessMonitorSnapshot>{},
+    );
+    for (final entry in carried.entries) {
+      target.putIfAbsent(entry.key, () => entry.value);
+    }
+    _updateTimer(owner);
   }
 
   bool _accepts(ChatTurnOwner owner) {

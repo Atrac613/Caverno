@@ -424,6 +424,107 @@ void main() {
       expect(status['ok'], isFalse);
       expect(status['code'], 'job_not_found');
     });
+
+    test('a later turn adopts a job the previous turn left running', () async {
+      final started = await _startLongRunningJob(tools, owner, tempDir);
+      final jobId = started['job_id'] as String;
+      final successor = ChatTurnOwner(
+        conversationId: owner.conversationId,
+        interactionGeneration: owner.interactionGeneration + 1,
+      );
+
+      await tools.clearOwner(owner: owner);
+      expect(tools.carriedJobIds(owner: successor), [jobId]);
+
+      final adopted =
+          jsonDecode(await tools.status(owner: successor, jobId: jobId))
+              as Map<String, dynamic>;
+
+      expect(adopted['ok'], isTrue);
+      expect(adopted['status'], 'running');
+      expect(adopted['pid'], started['pid']);
+      expect(tools.carriedJobIds(owner: successor), isEmpty);
+
+      await tools.cancel(owner: successor, jobId: jobId);
+    });
+
+    test('another conversation cannot adopt a carried job', () async {
+      final started = await _startLongRunningJob(tools, owner, tempDir);
+      final jobId = started['job_id'] as String;
+      final stranger = ChatTurnOwner(
+        conversationId: 'conversation-b',
+        interactionGeneration: 1,
+      );
+
+      await tools.clearOwner(owner: owner);
+
+      expect(tools.carriedJobIds(owner: stranger), isEmpty);
+      final status =
+          jsonDecode(await tools.status(owner: stranger, jobId: jobId))
+              as Map<String, dynamic>;
+      expect(status['code'], 'job_not_found');
+    });
+
+    test('restarting a carried command adopts it instead of forking', () async {
+      final started = await _startLongRunningJob(tools, owner, tempDir);
+      final successor = ChatTurnOwner(
+        conversationId: owner.conversationId,
+        interactionGeneration: owner.interactionGeneration + 1,
+      );
+
+      await tools.clearOwner(owner: owner);
+      final restarted = await _startLongRunningJob(tools, successor, tempDir);
+
+      expect(restarted['job_id'], started['job_id']);
+      expect(restarted['pid'], started['pid']);
+      expect(restarted['duplicate_existing'], isTrue);
+      expect(restarted['carried_from_earlier_turn'], isTrue);
+
+      await tools.cancel(
+        owner: successor,
+        jobId: restarted['job_id'] as String,
+      );
+    });
+
+    test('clearConversation terminates what clearOwner carried', () async {
+      final started = await _startLongRunningJob(tools, owner, tempDir);
+      final successor = ChatTurnOwner(
+        conversationId: owner.conversationId,
+        interactionGeneration: owner.interactionGeneration + 1,
+      );
+
+      await tools.clearOwner(owner: owner);
+      await tools.clearConversation(conversationId: owner.conversationId);
+
+      expect(tools.carriedJobIds(owner: successor), isEmpty);
+      final status =
+          jsonDecode(
+                await tools.status(
+                  owner: successor,
+                  jobId: started['job_id'] as String,
+                ),
+              )
+              as Map<String, dynamic>;
+      expect(status['code'], 'job_not_found');
+      final probe = await Process.run('/bin/kill', ['-0', '${started['pid']}']);
+      expect(probe.exitCode, isNot(0));
+    });
+
+    test('wait_ms below the floor still waits the floor', () async {
+      final started = await _startLongRunningJob(tools, owner, tempDir);
+      final jobId = started['job_id'] as String;
+      final elapsed = Stopwatch()..start();
+
+      final waited =
+          jsonDecode(await tools.wait(owner: owner, jobId: jobId, waitMs: 1))
+              as Map<String, dynamic>;
+      elapsed.stop();
+
+      expect(waited['status'], 'running');
+      expect(elapsed.elapsedMilliseconds, greaterThanOrEqualTo(4500));
+
+      await tools.cancel(owner: owner, jobId: jobId);
+    });
   });
 }
 

@@ -394,6 +394,13 @@ class SystemPromptBuilder {
           'Do not claim task completion from prose or tool argument success '
           'until the relevant background job has exited with exit_code 0.',
         );
+        buffer.writeln(
+          'Background jobs outlive the turn that started them. When a turn '
+          'ends or fails while a job is still running, the process keeps '
+          'going, so begin a follow-up turn about long-running work with '
+          'process_list(refresh: true) and resume monitoring the job_id it '
+          'reports instead of starting the command again.',
+        );
       }
       if (hasSubagentTools) {
         buffer.writeln(

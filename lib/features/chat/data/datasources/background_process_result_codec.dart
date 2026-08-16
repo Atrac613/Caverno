@@ -108,6 +108,21 @@ extension _BackgroundProcessResultCodec on BackgroundProcessTools {
           .clamp(1, BackgroundProcessTools._maxTailChars)
           .toInt();
 
-  int _normalizeWaitMs(int? value) =>
-      (value ?? 1000).clamp(0, BackgroundProcessTools._maxWaitMs).toInt();
+  /// Clamps `wait_ms` up as well as down.
+  ///
+  /// A wait returns as soon as the process exits, so the floor only costs
+  /// latency while the job is genuinely still running -- and that is the case
+  /// worth slowing down. Every poll re-sends the whole conversation, so the
+  /// 1s waits the model tends to choose cost roughly 16k prompt tokens per
+  /// second of waiting; session a00b77ce burned an organization's entire
+  /// per-minute token budget on 15 such polls and lost the release the polling
+  /// was watching.
+  int _normalizeWaitMs(int? value) => (value ?? _defaultWaitMs)
+      .clamp(
+        BackgroundProcessTools._minWaitMs,
+        BackgroundProcessTools._maxWaitMs,
+      )
+      .toInt();
+
+  static const int _defaultWaitMs = 15000;
 }

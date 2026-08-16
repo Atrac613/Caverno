@@ -569,6 +569,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   /// Deletes a conversation.
   Future<void> deleteConversation(String id) async {
     await _retireRollbacks([id]);
+    await _retireBackgroundProcesses([id]);
     await _repository.delete(id);
     await _deleteToolResultArtifactsForIds([id]);
     _removeSemanticIndex([id]);
@@ -593,6 +594,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         .map((conversation) => conversation.id)
         .toList(growable: false);
     await _retireRollbacks(visibleConversationIds);
+    await _retireBackgroundProcesses(visibleConversationIds);
     for (final id in visibleConversationIds) {
       await _repository.delete(id);
     }
@@ -623,6 +625,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         .map((conversation) => conversation.id)
         .toList(growable: false);
     await _retireRollbacks(targetIds);
+    await _retireBackgroundProcesses(targetIds);
     for (final id in targetIds) {
       await _repository.delete(id);
     }
@@ -824,6 +827,30 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final store = ref.read(fileRollbackCheckpointStoreProvider);
     for (final id in conversationIds) {
       await store.retireConversation(id);
+    }
+  }
+
+  /// Kills background jobs the deleted conversations left running.
+  ///
+  /// Jobs outlive the turn that started them, so deletion is the boundary that
+  /// ends them: nothing else will ever ask about a conversation that is gone.
+  /// Reached through the two owning providers rather than [McpToolService],
+  /// which would drag settings and every tool service into a delete.
+  Future<void> _retireBackgroundProcesses(
+    Iterable<String> conversationIds,
+  ) async {
+    final tools = ref.read(backgroundProcessToolsProvider);
+    final monitor = ref.read(backgroundProcessMonitorServiceProvider);
+    for (final id in conversationIds) {
+      try {
+        monitor.clearConversation(id);
+        await tools.clearConversation(conversationId: id);
+      } catch (error) {
+        appLog(
+          '[ConversationsNotifier] Failed to retire background processes for '
+          '$id: $error',
+        );
+      }
     }
   }
 

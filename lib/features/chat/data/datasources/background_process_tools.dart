@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
+import '../../../../core/utils/logger.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import 'background_process_tools_legacy_api.dart';
 import 'background_process_types.dart';
@@ -15,6 +16,7 @@ export 'background_process_tools_legacy_api.dart';
 export 'background_process_types.dart'
     show BackgroundProcessRuntimeIdentity, BackgroundProcessStarter;
 
+part 'background_process_carry_over.dart';
 part 'background_process_job.dart';
 part 'background_process_launch_recovery.dart';
 part 'background_process_recovery_registry.dart';
@@ -31,7 +33,12 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
   static const int _maxBufferChars = 24000;
   static const int _defaultTailChars = 4000;
   static const int _maxTailChars = 12000;
+  static const int _minWaitMs = 5000;
   static const int _maxWaitMs = 30000;
+  static const String _duplicateNote = 'A matching command is already running.';
+  static const String _carriedNote =
+      'This command is still running from an earlier turn and has been '
+      'adopted.';
 
   final BackgroundProcessStarter _processStarter;
   final BackgroundProcessTerminator _processTerminator;
@@ -40,6 +47,11 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
   final Map<String, Set<String>> _resourceFences = {};
   final Map<String, _BackgroundProcessRecoveryRecord> _recoveries = {};
   final Map<String, _ResolvedBackgroundProcessRecovery> _resolvedRecoveries =
+      {};
+
+  /// Still-running jobs whose starting turn has ended, by conversation.
+  /// See [BackgroundProcessCarryOver] for why they survive it.
+  final Map<String, Map<String, _CarriedBackgroundProcessJob>> _carriedJobs =
       {};
   final Random _random = Random.secure();
   int _nextId = 0;
@@ -86,12 +98,18 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
     }
 
     final state = _ownerStates.putIfAbsent(owner, _OwnerProcessState.new);
-    final existing = _runningJobFor(state, normalizedCommand, cwd);
+    final running = _runningJobFor(state, normalizedCommand, cwd);
+    final carried = running == null
+        ? _adoptCarriedRunningJob(owner, normalizedCommand, cwd)
+        : null;
+    final existing = running ?? carried;
     if (existing != null) {
       return _statusResult(existing, {
         'duplicate_existing': true,
+        if (carried != null) 'carried_from_earlier_turn': true,
         'note':
-            'A matching command is already running. Reuse this job_id and monitor it instead of starting another process.',
+            '${carried != null ? _carriedNote : _duplicateNote} Reuse this '
+            'job_id and monitor it instead of starting another process.',
       });
     }
 
@@ -223,10 +241,12 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
     final job = _jobFor(owner, jobId);
     if (job == null) return _notFound(jobId);
     if (job.isRunning) {
+      final retiredSignal = _ownerStates[owner]?.retiredSignal.future;
       try {
-        await job.done.timeout(
-          Duration(milliseconds: _normalizeWaitMs(waitMs)),
-        );
+        await Future.any(<Future<void>>[
+          job.done,
+          ?retiredSignal,
+        ]).timeout(Duration(milliseconds: _normalizeWaitMs(waitMs)));
       } on TimeoutException {
         // Returning the current running status is the expected outcome.
       }
@@ -260,96 +280,6 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
             processId: job.process.pid,
             isRunning: recovery != null || job.isRunning,
           );
-  }
-
-  BackgroundProcessRecoveryReceipt? recoveryReceipt({
-    required ChatTurnOwner owner,
-    required String jobId,
-    required int processId,
-    required String recoveryToken,
-  }) {
-    final record = _recoveries[recoveryToken];
-    if (record == null) return null;
-    final receipt = record.receipt;
-    return receipt.owner == owner &&
-            receipt.jobId == jobId &&
-            receipt.processId == processId
-        ? receipt
-        : null;
-  }
-
-  List<BackgroundProcessRecoveryReceipt> pendingRecoveryReceipts({
-    required ChatTurnOwner owner,
-  }) {
-    return List<BackgroundProcessRecoveryReceipt>.unmodifiable(
-      _recoveries.values
-          .map((record) => record.receipt)
-          .where((receipt) => receipt.owner == owner),
-    );
-  }
-
-  Future<BackgroundProcessRecoveryAcknowledgement> reconcileTermination(
-    BackgroundProcessRecoveryReceipt receipt,
-  ) {
-    final record = _recoveries[receipt.recoveryToken];
-    if (record != null && record.receipt.matches(receipt)) {
-      return _attemptRecovery(record);
-    }
-    final resolved = _resolvedRecoveries[receipt.recoveryToken];
-    if (resolved != null && resolved.receipt.matches(receipt)) {
-      return Future.value(
-        BackgroundProcessRecoveryAcknowledgement(
-          disposition: resolved.forceAcknowledged
-              ? BackgroundProcessRecoveryDisposition.riskAcknowledged
-              : BackgroundProcessRecoveryDisposition.alreadyResolved,
-          receipt: receipt,
-        ),
-      );
-    }
-    return Future.value(
-      BackgroundProcessRecoveryAcknowledgement(
-        disposition: BackgroundProcessRecoveryDisposition.receiptMismatch,
-        receipt: receipt,
-      ),
-    );
-  }
-
-  Future<BackgroundProcessRecoveryAcknowledgement>
-  acknowledgeUnconfirmedTermination(
-    BackgroundProcessRecoveryReceipt receipt,
-  ) async {
-    final record = _recoveries[receipt.recoveryToken];
-    if (record == null) {
-      final resolved = _resolvedRecoveries[receipt.recoveryToken];
-      return BackgroundProcessRecoveryAcknowledgement(
-        disposition:
-            resolved != null &&
-                resolved.forceAcknowledged &&
-                resolved.receipt.matches(receipt)
-            ? BackgroundProcessRecoveryDisposition.riskAcknowledged
-            : BackgroundProcessRecoveryDisposition.receiptMismatch,
-        receipt: receipt,
-      );
-    }
-    if (!record.receipt.matches(receipt)) {
-      return BackgroundProcessRecoveryAcknowledgement(
-        disposition: BackgroundProcessRecoveryDisposition.receiptMismatch,
-        receipt: receipt,
-      );
-    }
-    return record.serialize(() async {
-      if (record.released) {
-        return BackgroundProcessRecoveryAcknowledgement(
-          disposition: BackgroundProcessRecoveryDisposition.alreadyResolved,
-          receipt: receipt,
-        );
-      }
-      await _releaseRecovery(record, forceAcknowledged: true);
-      return BackgroundProcessRecoveryAcknowledgement(
-        disposition: BackgroundProcessRecoveryDisposition.riskAcknowledged,
-        receipt: receipt,
-      );
-    });
   }
 
   @override
@@ -401,12 +331,33 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
   bool isOwnerRetired(ChatTurnOwner owner) =>
       _disposed || _retiredOwners.contains(owner);
 
+  /// Retires [owner]. A retired turn stays retired, but its still-running jobs
+  /// are carried for the conversation rather than killed; see
+  /// [BackgroundProcessCarryOver].
   Future<void> clearOwner({required ChatTurnOwner owner}) {
     _retiredOwners.add(owner);
     final state = _ownerStates[owner];
     if (state == null) return Future<void>.value();
-    state.retired = true;
+    state.markRetired();
+    _carryRunningJobs(owner, state);
     return state.retirement ??= _retireState(owner, state);
+  }
+
+  /// Terminates every job carried past a turn in [conversationId].
+  ///
+  /// The exit that `clearOwner` no longer performs. Carried jobs outlive
+  /// turns, so something has to end them when the conversation itself does.
+  Future<void> clearConversation({required String conversationId}) =>
+      _terminateCarriedJobs(conversationId: conversationId);
+
+  /// Job IDs still running from an earlier turn of the owner's conversation.
+  ///
+  /// Reporting, not adoption: these are what the next reference would adopt.
+  List<String> carriedJobIds({required ChatTurnOwner owner}) {
+    if (!_canAdopt(owner)) return const <String>[];
+    return List<String>.unmodifiable(
+      _carriedJobs[owner.conversationId]?.keys ?? const <String>[],
+    );
   }
 
   Future<void> dispose() {
@@ -414,16 +365,16 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
       _disposed = true;
       for (final entry in _ownerStates.entries) {
         _retiredOwners.add(entry.key);
-        entry.value
-          ..retired = true
-          ..retirement ??= _retireState(entry.key, entry.value);
+        entry.value.markRetired();
+        entry.value.retirement ??= _retireState(entry.key, entry.value);
       }
     }
-    return Future.wait<void>(
-      _ownerStates.values
+    return Future.wait<void>([
+      ..._ownerStates.values
           .map((state) => state.retirement)
           .whereType<Future<void>>(),
-    );
+      _terminateCarriedJobs(),
+    ]);
   }
 
   FirstPartyToolExecutionResult _withJob(
@@ -437,7 +388,8 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
 
   _BackgroundProcessJob? _jobFor(ChatTurnOwner owner, String jobId) {
     final state = _ownerStates[owner];
-    return state == null || state.retired ? null : state.jobs[jobId];
+    final owned = state == null || state.retired ? null : state.jobs[jobId];
+    return owned ?? _adoptCarriedJob(owner, jobId);
   }
 
   _BackgroundProcessJob? _runningJobFor(

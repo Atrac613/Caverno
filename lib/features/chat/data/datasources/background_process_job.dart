@@ -5,6 +5,18 @@ final class _OwnerProcessState {
   final Map<String, _PendingProcessLaunchLease> pendingStarts = {};
   bool retired = false;
   Future<void>? retirement;
+
+  /// Completes the moment the owner retires, so an in-flight `process_wait`
+  /// can stop waiting on a job it will no longer be allowed to report.
+  ///
+  /// Needed once carried jobs keep running past retirement: without it the
+  /// wait would block for its full `wait_ms` and then answer `job_not_found`.
+  final Completer<void> retiredSignal = Completer<void>();
+
+  void markRetired() {
+    retired = true;
+    if (!retiredSignal.isCompleted) retiredSignal.complete();
+  }
 }
 
 final class _BackgroundProcessJob {

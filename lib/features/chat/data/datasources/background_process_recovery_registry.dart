@@ -224,3 +224,99 @@ extension _BackgroundProcessRecoveryRegistry on BackgroundProcessTools {
     return base64UrlEncode(bytes).replaceAll('=', '');
   }
 }
+
+/// The caller-facing half of the recovery machinery.
+///
+/// Public because a receipt is a capability handed out to whoever must settle
+/// an unconfirmed termination; it lives beside the internals it settles.
+extension BackgroundProcessRecoveryApi on BackgroundProcessTools {
+  BackgroundProcessRecoveryReceipt? recoveryReceipt({
+    required ChatTurnOwner owner,
+    required String jobId,
+    required int processId,
+    required String recoveryToken,
+  }) {
+    final record = _recoveries[recoveryToken];
+    if (record == null) return null;
+    final receipt = record.receipt;
+    return receipt.owner == owner &&
+            receipt.jobId == jobId &&
+            receipt.processId == processId
+        ? receipt
+        : null;
+  }
+
+  List<BackgroundProcessRecoveryReceipt> pendingRecoveryReceipts({
+    required ChatTurnOwner owner,
+  }) {
+    return List<BackgroundProcessRecoveryReceipt>.unmodifiable(
+      _recoveries.values
+          .map((record) => record.receipt)
+          .where((receipt) => receipt.owner == owner),
+    );
+  }
+
+  Future<BackgroundProcessRecoveryAcknowledgement> reconcileTermination(
+    BackgroundProcessRecoveryReceipt receipt,
+  ) {
+    final record = _recoveries[receipt.recoveryToken];
+    if (record != null && record.receipt.matches(receipt)) {
+      return _attemptRecovery(record);
+    }
+    final resolved = _resolvedRecoveries[receipt.recoveryToken];
+    if (resolved != null && resolved.receipt.matches(receipt)) {
+      return Future.value(
+        BackgroundProcessRecoveryAcknowledgement(
+          disposition: resolved.forceAcknowledged
+              ? BackgroundProcessRecoveryDisposition.riskAcknowledged
+              : BackgroundProcessRecoveryDisposition.alreadyResolved,
+          receipt: receipt,
+        ),
+      );
+    }
+    return Future.value(
+      BackgroundProcessRecoveryAcknowledgement(
+        disposition: BackgroundProcessRecoveryDisposition.receiptMismatch,
+        receipt: receipt,
+      ),
+    );
+  }
+
+  Future<BackgroundProcessRecoveryAcknowledgement>
+  acknowledgeUnconfirmedTermination(
+    BackgroundProcessRecoveryReceipt receipt,
+  ) async {
+    final record = _recoveries[receipt.recoveryToken];
+    if (record == null) {
+      final resolved = _resolvedRecoveries[receipt.recoveryToken];
+      return BackgroundProcessRecoveryAcknowledgement(
+        disposition:
+            resolved != null &&
+                resolved.forceAcknowledged &&
+                resolved.receipt.matches(receipt)
+            ? BackgroundProcessRecoveryDisposition.riskAcknowledged
+            : BackgroundProcessRecoveryDisposition.receiptMismatch,
+        receipt: receipt,
+      );
+    }
+    if (!record.receipt.matches(receipt)) {
+      return BackgroundProcessRecoveryAcknowledgement(
+        disposition: BackgroundProcessRecoveryDisposition.receiptMismatch,
+        receipt: receipt,
+      );
+    }
+    return record.serialize(() async {
+      if (record.released) {
+        return BackgroundProcessRecoveryAcknowledgement(
+          disposition: BackgroundProcessRecoveryDisposition.alreadyResolved,
+          receipt: receipt,
+        );
+      }
+      await _releaseRecovery(record, forceAcknowledged: true);
+      return BackgroundProcessRecoveryAcknowledgement(
+        disposition: BackgroundProcessRecoveryDisposition.riskAcknowledged,
+        receipt: receipt,
+      );
+    });
+  }
+}

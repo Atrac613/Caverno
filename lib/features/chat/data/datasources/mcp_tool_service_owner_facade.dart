@@ -11,8 +11,6 @@ import 'owner_tool_routing.dart';
 mixin McpToolServiceOwnerFacade {
   BuiltInFilesystemToolHandler get filesystemToolHandler;
   BuiltInLocalCommandToolHandler get localCommandToolHandler;
-  BackgroundProcessMonitorService? get backgroundProcessMonitorService;
-  BackgroundProcessTools? get backgroundProcessTools;
 
   Future<McpToolResult> executeFileTool({
     required ChatTurnOwner owner,
@@ -34,9 +32,23 @@ mixin McpToolServiceOwnerFacade {
     arguments: arguments,
   );
 
+  BackgroundProcessMonitorService? get backgroundProcessMonitorService;
+  BackgroundProcessTools? get backgroundProcessTools;
+
+  /// Ends the turn's ownership; jobs still running are carried, not killed.
   Future<void> clearBackgroundProcessOwner(ChatTurnOwner owner) {
     backgroundProcessMonitorService?.clearOwner(owner);
     return backgroundProcessTools?.clearOwner(owner: owner) ??
+        Future<void>.value();
+  }
+
+  /// Ends the conversation's ownership, terminating anything it carried. Not
+  /// the same boundary: releasing a turn is not releasing its processes.
+  Future<void> clearBackgroundProcessConversation(String conversationId) {
+    backgroundProcessMonitorService?.clearConversation(conversationId);
+    return backgroundProcessTools?.clearConversation(
+          conversationId: conversationId,
+        ) ??
         Future<void>.value();
   }
 
@@ -44,51 +56,4 @@ mixin McpToolServiceOwnerFacade {
       filesystemToolHandler.checkpointStore.previewLastFileRollbackChange(
         owner,
       );
-
-  void beginFileTurnCheckpoint(ChatTurnOwner owner, String turnId) =>
-      filesystemToolHandler.checkpointStore.beginFileTurnCheckpoint(
-        owner,
-        turnId,
-      );
-
-  void beginChatFileTurnCheckpoint(ChatTurnOwner owner) =>
-      beginFileTurnCheckpoint(
-        owner,
-        'chat_generation_${owner.interactionGeneration}',
-      );
-
-  bool endFileTurnCheckpoint(ChatTurnOwner owner) =>
-      filesystemToolHandler.checkpointStore.endFileTurnCheckpoint(owner);
-
-  Future<FileTurnRollbackPreview?> previewLastFileTurnCheckpoint(
-    ChatTurnOwner owner,
-  ) => filesystemToolHandler.checkpointStore.previewLastFileTurnCheckpoint(
-    owner,
-  );
-
-  Future<McpToolResult> rollbackLastFileTurnCheckpoint(
-    ChatTurnOwner owner,
-    int expectedCheckpointToken,
-  ) {
-    return filesystemToolHandler.checkpointStore.rollbackLastFileTurnCheckpoint(
-      owner,
-      expectedCheckpointToken,
-    );
-  }
-
-  /// The recovery half of [rollbackLastFileTurnCheckpoint]: both are exposed
-  /// here so a caller holding the service can finish a rollback it started.
-  Future<McpToolResult> reconcileFileTurnRollbackRecovery({
-    required ChatTurnOwner owner,
-    required String recoveryReceipt,
-  }) => filesystemToolHandler.checkpointStore.reconcileFileTurnRollbackRecovery(
-    owner: owner,
-    recoveryReceipt: recoveryReceipt,
-  );
-
-  Future<FileTurnRollbackPreview?> previewFsTurn(String? conversationId) async {
-    final owner = filesystemToolHandler.checkpointStore
-        .latestCompletedCheckpointOwner(conversationId ?? '');
-    return owner == null ? null : previewLastFileTurnCheckpoint(owner);
-  }
 }

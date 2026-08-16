@@ -1417,7 +1417,9 @@ void main() {
         sha256
             .convert(utf8.encode(jsonEncode(localCommandDefinitions)))
             .toString(),
-        '51b7845c3a6e82fb09864eb00debfad4c480f80dabd857f09dff9d36a0fb89b1',
+        // Changed deliberately: process_wait now documents the clamp and tells
+        // the model to prefer one long wait over repeated short polls.
+        '181c7c2387ab4ce7b9b3d98fb51d7ed4c5eda7c380fde6ecd1a66bfd1e7b8e21',
       );
 
       final localCommandStart = names.indexOf(_localCommandToolNames.first);

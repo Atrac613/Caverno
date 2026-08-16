@@ -190,8 +190,11 @@ const Map<String, int> _lineBudgets = {
       4,
   'lib/features/chat/data/datasources/mcp_tool_service_file_mutation_facade.dart':
       34,
+  // +49 is the receiving half of a move, not growth: the file-turn checkpoint
+  // delegation came from mcp_tool_service_owner_facade.dart, whose budget drops
+  // 94 -> 59 in the same change. The concern was already this file's.
   'lib/features/chat/data/datasources/mcp_tool_service_file_rollback_facade.dart':
-      37,
+      86,
   'lib/features/chat/presentation/providers/file_mutation_approval_cache_runtime_adapter.dart':
       101,
   'lib/features/chat/presentation/providers/model_edit_apply_telemetry_runtime_adapter.dart':
@@ -230,7 +233,11 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/python_attachment_repair_policy.dart': 145,
   'lib/features/chat/domain/services/coding_verification_feedback_presentation.dart':
       206,
-  'lib/features/chat/domain/services/duplicate_tool_result_recovery.dart': 209,
+  // Reuse-payload construction extracted: matching a duplicate and deciding
+  // what to echo back for it are separate jobs.
+  'lib/features/chat/domain/services/duplicate_tool_result_recovery.dart': 176,
+  'lib/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart':
+      78,
   'lib/core/security/conversation_taint_state.dart': 82,
   'lib/core/services/ssh_service.dart': 317,
   'lib/features/chat/presentation/providers/subagent_task_notifier.dart': 210,
@@ -300,7 +307,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/flutter_run_process_runner.dart': 140,
   // The run flow moved to flutter_run_launcher.dart when it grew the
   // diagnostics that a silent stall needs.
-  'lib/features/chat/presentation/widgets/flutter_run_control_section.dart': 140,
+  'lib/features/chat/presentation/widgets/flutter_run_control_section.dart':
+      140,
   'lib/features/chat/presentation/widgets/flutter_run_launcher.dart': 80,
   'lib/features/chat/presentation/widgets/flutter_run_device_sheet.dart': 130,
   // The standalone run panel became panes of the shared bottom dock, so the
@@ -377,14 +385,23 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/slash_commands/worktree_agent_command_args.dart':
       63,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1131,
-  'lib/features/chat/data/datasources/mcp_tool_service_owner_facade.dart': 94,
+  // File-turn checkpoint delegation moved to the rollback facade that already
+  // owns that concern, leaving this one to owner-bound tool dispatch.
+  'lib/features/chat/data/datasources/mcp_tool_service_owner_facade.dart': 59,
   'lib/features/chat/data/datasources/mcp_tool_service_ssh_facade.dart': 14,
   'lib/features/chat/data/datasources/mcp_tool_service_facades.dart': 1,
   'lib/features/chat/data/datasources/chat_turn_owner_required_tool_result.dart':
       17,
-  'lib/features/chat/data/datasources/background_process_tools.dart': 471,
+  // Carry-over (background_process_carry_over.dart) extracted alongside the
+  // public recovery API, which moved next to the registry internals it settles.
+  'lib/features/chat/data/datasources/background_process_tools.dart': 415,
+  'lib/features/chat/data/datasources/background_process_carry_over.dart': 141,
+  // The snapshot is a value, not behaviour, and three callers read it without
+  // touching polling.
   'lib/features/chat/data/datasources/background_process_monitor_service.dart':
-      457,
+      403,
+  'lib/features/chat/data/datasources/background_process_monitor_snapshot.dart':
+      111,
   'lib/features/chat/data/datasources/background_process_tool_executor.dart':
       206,
   'lib/features/chat/data/datasources/background_process_completion_monitor.dart':

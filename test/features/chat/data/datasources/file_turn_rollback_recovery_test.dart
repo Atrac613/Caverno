@@ -8,6 +8,7 @@ import 'package:caverno/features/chat/data/datasources/built_in_filesystem_tool_
 import 'package:caverno/features/chat/data/datasources/built_in_local_command_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/file_rollback_checkpoint_store.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
+import 'package:caverno/features/chat/data/datasources/mcp_tool_service_file_rollback_facade.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service_owner_facade.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:test/test.dart';
@@ -386,7 +387,8 @@ Future<void> _completeTurn({
   expect(store.endFileTurnCheckpoint(owner), isTrue);
 }
 
-final class _RecoveryOwnerFacade with McpToolServiceOwnerFacade {
+final class _RecoveryOwnerFacade
+    with McpToolServiceOwnerFacade, McpToolServiceFileRollbackFacade {
   _RecoveryOwnerFacade(this.filesystemToolHandler);
 
   @override
