@@ -215,6 +215,91 @@ void main() {
       );
     });
 
+    test('keeps an answer that only says what it is about to run', () {
+      // Session c7917056: the reply listed the release steps it was about to
+      // take and was replaced wholesale, so the user watched the transcript go
+      // blank. Nothing in it was false, so there was nothing to remove.
+      final intention = String.fromCharCodes(const [
+        0x30ea, 0x30ea, 0x30fc, 0x30b9, 0x624b, 0x9806, 0x306b, 0x5f93, 0x3063,
+        0x3066, 0x4ee5, 0x4e0b, 0x3092, 0x5b9f, 0x884c, 0x3057, 0x307e, 0x3059,
+        0x3002, // リリース手順に従って以下を実行します。
+      ]);
+
+      expect(detector.looksLikeAssertedCommandExecution(intention), isFalse);
+      // Still worth a notice, and still flagged for the retry: only the
+      // erasure changes.
+      expect(
+        detector.looksLikeUnsupportedCommandExecutionAction(intention),
+        isTrue,
+      );
+
+      final withNotice = detector
+          .messageContentWithUnexecutedCommandActionNotice(intention);
+      expect(withNotice, startsWith(intention));
+      expect(
+        withNotice,
+        endsWith(FinalAnswerClaimDetector.unexecutedCommandActionNotice),
+      );
+    });
+
+    test('still erases a past-tense release start it cannot back up', () {
+      // 開始しました is the one past assertion inside the otherwise future-tense
+      // CJK list, and it has to keep being removed rather than footnoted.
+      final started = String.fromCharCodes(const [
+        0x672c, 0x756a, 0x30ea, 0x30ea, 0x30fc, 0x30b9, 0x3092, 0x958b, 0x59cb,
+        0x3057, 0x307e, 0x3057, 0x305f, 0x3002, // 本番リリースを開始しました。
+      ]);
+
+      expect(detector.looksLikeAssertedCommandExecution(started), isTrue);
+      expect(
+        detector.messageContentWithUnexecutedCommandActionNotice(started),
+        FinalAnswerClaimDetector.unexecutedCommandActionNotice,
+      );
+    });
+
+    test('accepts a process_list report as read-only inspection evidence', () {
+      // Session a00b77ce gen-9: the model reported an empty background-job
+      // registry, accurately, and was told the claim was unverified. A listing
+      // has no exit code, and process_list was on neither evidence list, so the
+      // one tool that backed the answer counted for nothing.
+      final report = String.fromCharCodes(const [
+        0x78ba, 0x8a8d, 0x3057, 0x307e, 0x3057, 0x305f, 0x304c, 0x3001, 0x76e3,
+        0x8996, 0x5bfe, 0x8c61, 0x306e, 0x30d7, 0x30ed, 0x30bb, 0x30b9, 0x306f,
+        0x3042, 0x308a, 0x307e, 0x305b, 0x3093, 0x3002,
+        // 確認しましたが、監視対象のプロセスはありません。
+      ]);
+      final listing = ToolResultInfo(
+        id: 'call_process_list',
+        name: 'process_list',
+        arguments: const {'refresh': true},
+        result:
+            '{"ok":true,"job_count":0,"jobs":[],"active_count":0,'
+            '"finished_count":0}',
+      );
+
+      expect(detector.hasSuccessfulReadOnlyInspectionResult([listing]), isTrue);
+      expect(
+        detector.buildUnverifiedReadOnlyInspectionClaimToolResult(
+          candidateResponse: report,
+          toolResults: [listing],
+        ),
+        isNull,
+      );
+    });
+
+    test('a failed job still backs the claim that the job was inspected', () {
+      // The tool succeeding and the process succeeding are different questions,
+      // and only the first one is what "did you look?" asks.
+      final status = ToolResultInfo(
+        id: 'call_process_status',
+        name: 'process_status',
+        arguments: const {'job_id': 'proc_1'},
+        result: '{"ok":true,"job_id":"proc_1","status":"exited","exit_code":1}',
+      );
+
+      expect(detector.hasSuccessfulReadOnlyInspectionResult([status]), isTrue);
+    });
+
     test('prepends claim correction notices without dropping content', () {
       final content = detector.messageContentWithPrependedClaimCorrectionNotice(
         'All tests passed.',

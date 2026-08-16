@@ -265,9 +265,14 @@ void registerChatNotifierGitGuardrailTests() {
           'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action.',
         ),
       );
+      // Kept, unlike the completion claim above: saying it is about to stage
+      // and commit asserts nothing the tool results contradict, so the notice
+      // follows it instead of taking its place. Session c7917056 is what an
+      // erased intention looks like from the user's side -- a transcript
+      // holding one English sentence about a claim no longer in it.
       expect(
         chatNotifier.state.messages.last.content,
-        isNot(contains(finalContent)),
+        startsWith(finalContent),
       );
     },
   );

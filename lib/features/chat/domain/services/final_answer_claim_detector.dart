@@ -238,6 +238,21 @@ class FinalAnswerClaimDetector {
       }.contains(normalizedName)) {
         return toolResultLooksSuccessfulForFinalAnswer(toolResult.result);
       }
+      // Observing a job is inspection, and it succeeds or fails on its own
+      // terms -- not on the exit code of whatever it observed. Routing these
+      // through the command branch below asked the wrong question: session
+      // a00b77ce gen-9 reported `process_list`'s empty registry accurately and
+      // was told the claim was unverified, because a listing has no exit code
+      // to be zero. `process_list` was not on either list at all.
+      if (toolCallExecutionPolicy.isRepeatableBackgroundProcessInspectionTool(
+        ToolCallInfo(
+          id: toolResult.id,
+          name: toolResult.name,
+          arguments: toolResult.arguments,
+        ),
+      )) {
+        return toolResultLooksSuccessfulForFinalAnswer(toolResult.result);
+      }
       if (toolCallExecutionPolicy.isCommandExecutionTool(normalizedName)) {
         return toolCallExecutionPolicy.toolResultHasSuccessfulExit(toolResult);
       }
@@ -443,6 +458,14 @@ class FinalAnswerClaimDetector {
     return 'browser_click';
   }
 
+  /// Adds [notice] to [content], replacing it only when it asserts a falsehood.
+  ///
+  /// The replacement exists so a fabricated "the release completed" cannot be
+  /// read as if it were true, and that stays. What it used to also swallow was
+  /// the answer that merely said which steps it was *about to* take: session
+  /// c7917056 lost a whole reply that way, leaving a transcript of one English
+  /// sentence telling the reader to distrust a claim that was no longer above
+  /// it. An intention asserts nothing, so it keeps the notice as a footer.
   String messageContentWithUnexecutedCommandActionNotice(
     String content, {
     String notice = unexecutedCommandActionNotice,
@@ -450,7 +473,7 @@ class FinalAnswerClaimDetector {
     if (content.contains(notice)) {
       return content;
     }
-    if (looksLikeUnsupportedCommandExecutionAction(content.trim())) {
+    if (looksLikeAssertedCommandExecution(content.trim())) {
       return notice;
     }
     return '${content.trimRight()}\n\n$notice';
@@ -685,6 +708,30 @@ class FinalAnswerClaimDetector {
     return looksLikeFutureCommandExecutionAction(content) ||
         looksLikeCompletedCommandExecutionClaim(content);
   }
+
+  /// Whether [content] says a command *did* run, rather than that one is about
+  /// to.
+  ///
+  /// Narrower than [looksLikeUnsupportedCommandExecutionAction], and the two
+  /// are deliberately not interchangeable. Both shapes deserve the notice, but
+  /// only this one is a statement the tool results contradict, so only this one
+  /// is worth removing from what the user reads. Saying "I will run the release
+  /// script" and then not running it wastes the turn; it does not assert
+  /// anything false, and deleting it leaves the reader an English sentence
+  /// about a claim that is no longer there (session c7917056).
+  ///
+  /// [containsCjkFutureCommandExecutionAction] is the reason this cannot simply
+  /// be "not future": its list is future-tense apart from 開始しました, a past
+  /// assertion that has to stay detected and has to stay removable.
+  bool looksLikeAssertedCommandExecution(String content) {
+    return looksLikeCompletedCommandExecutionClaim(content) ||
+        (containsCommandExecutionContext(content) &&
+            containsAnyCodeUnitSequence(content, _cjkAssertedExecutionActions));
+  }
+
+  static const List<List<int>> _cjkAssertedExecutionActions = [
+    [0x958b, 0x59cb, 0x3057, 0x307e, 0x3057, 0x305f], // 開始しました
+  ];
 
   bool looksLikeFutureCommandExecutionAction(String content) {
     if (content.isEmpty || content.length > 1200) {
