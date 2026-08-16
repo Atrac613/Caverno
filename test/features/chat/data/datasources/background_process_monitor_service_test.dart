@@ -606,6 +606,83 @@ void main() {
       );
       expect(monitor.snapshots(owner), isEmpty);
     });
+
+    test('a running job stays listable in the next turn', () async {
+      final owner = _owner('conversation-a', 1);
+      final successor = _owner('conversation-a', 2);
+      monitor.registerProcessStartResult(
+        owner: owner,
+        result: _payload(
+          jobId: 'job-a',
+          status: 'running',
+          command: 'long release',
+        ),
+        arguments: {'working_directory': tempDir.path},
+      );
+
+      monitor.clearOwner(owner);
+
+      expect(monitor.listJobs(owner), isEmpty);
+      expect(monitor.listJobs(successor).single.jobId, 'job-a');
+      expect(monitor.activeSnapshots(successor).single.command, 'long release');
+      expect(monitor.byJobId(successor, 'job-a'), isNotNull);
+    });
+
+    test('a finished job is not carried into the next turn', () async {
+      final owner = _owner('conversation-a', 1);
+      final successor = _owner('conversation-a', 2);
+      monitor.registerProcessStartResult(
+        owner: owner,
+        result: _payload(
+          jobId: 'job-a',
+          status: 'exited',
+          command: 'quick command',
+          exitCode: 0,
+        ),
+        arguments: {'working_directory': tempDir.path},
+      );
+
+      monitor.clearOwner(owner);
+
+      expect(monitor.listJobs(successor), isEmpty);
+    });
+
+    test('another conversation never inherits a carried job', () async {
+      final owner = _owner('conversation-a', 1);
+      final stranger = _owner('conversation-b', 1);
+      monitor.registerProcessStartResult(
+        owner: owner,
+        result: _payload(
+          jobId: 'job-a',
+          status: 'running',
+          command: 'long release',
+        ),
+        arguments: {'working_directory': tempDir.path},
+      );
+
+      monitor.clearOwner(owner);
+
+      expect(monitor.listJobs(stranger), isEmpty);
+    });
+
+    test('clearConversation drops what clearOwner carried', () async {
+      final owner = _owner('conversation-a', 1);
+      final successor = _owner('conversation-a', 2);
+      monitor.registerProcessStartResult(
+        owner: owner,
+        result: _payload(
+          jobId: 'job-a',
+          status: 'running',
+          command: 'long release',
+        ),
+        arguments: {'working_directory': tempDir.path},
+      );
+
+      monitor.clearOwner(owner);
+      monitor.clearConversation('conversation-a');
+
+      expect(monitor.listJobs(successor), isEmpty);
+    });
   });
 }
 

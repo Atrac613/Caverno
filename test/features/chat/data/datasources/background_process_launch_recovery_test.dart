@@ -299,7 +299,12 @@ void main() {
             as Map<String, dynamic>;
     expect(started['ok'], isTrue);
 
-    final clearFuture = tools.clearOwner(owner: owner);
+    // Retiring the turn only carries the running job; the conversation ending
+    // is what terminates it, so that is where the recovery receipt appears.
+    await tools.clearOwner(owner: owner);
+    final clearFuture = tools.clearConversation(
+      conversationId: owner.conversationId,
+    );
     await Future<void>.delayed(const Duration(milliseconds: 30));
     final receipt = tools.pendingRecoveryReceipts(owner: owner).single;
     final retry = await tools.reconcileTermination(receipt);
@@ -344,9 +349,12 @@ void main() {
     )!;
 
     var clearCompleted = false;
-    final clearFuture = tools.clearOwner(owner: owner).then((_) {
-      clearCompleted = true;
-    });
+    await tools.clearOwner(owner: owner);
+    final clearFuture = tools
+        .clearConversation(conversationId: owner.conversationId)
+        .then((_) {
+          clearCompleted = true;
+        });
     await Future<void>.delayed(const Duration(milliseconds: 30));
     expect(clearCompleted, isFalse);
     final receipts = tools.pendingRecoveryReceipts(owner: owner);

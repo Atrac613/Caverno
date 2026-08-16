@@ -138,10 +138,13 @@ abstract final class BuiltInLocalCommandToolDefinitions {
     'function': {
       'name': 'process_wait',
       'description':
-          'Wait briefly for a background process and return its current status. Keep '
-          'wait_ms short and call process_status/process_tail again as needed '
-          'instead of starting the command again. Use the returned status and '
-          'output tails to report concise progress before continuing to wait.',
+          'Wait for a background process and return its current status. The '
+          'wait returns as soon as the process exits, so prefer a long wait_ms '
+          '(5000-30000) over repeated short polls: every poll re-sends the '
+          'whole conversation and costs far more than the wait itself. Call '
+          'process_status/process_tail again as needed instead of starting the '
+          'command again. Use the returned status and output tails to report '
+          'concise progress before continuing to wait.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -153,7 +156,9 @@ abstract final class BuiltInLocalCommandToolDefinitions {
           },
           'wait_ms': {
             'type': 'integer',
-            'description': 'Milliseconds to wait, capped by the app.',
+            'description':
+                'Milliseconds to wait. Clamped by the app to 5000-30000, so a '
+                'smaller value still waits 5000.',
           },
         },
         'required': ['job_id'],

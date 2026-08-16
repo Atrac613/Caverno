@@ -1,7 +1,6 @@
-import 'dart:convert';
-
 import '../../data/datasources/filesystem_path_resolver.dart';
 import '../entities/tool_call_info.dart';
+import 'duplicate_tool_result_reuse_payload.dart';
 import 'tool_call_execution_policy.dart';
 
 // ChatNotifier decomposition collaborator: duplicate-tool-result-recovery
@@ -71,6 +70,7 @@ final class DuplicateToolResultRecoveryInput {
 final class DuplicateToolResultRecovery {
   const DuplicateToolResultRecovery();
   static const _executionPolicy = ToolCallExecutionPolicy();
+  static const _reusePayload = DuplicateToolResultReusePayload();
 
   List<ToolResultInfo> recover(DuplicateToolResultRecoveryInput input) {
     final resolveProjectPath = _projectPathResolver(input.projectRoot);
@@ -89,7 +89,7 @@ final class DuplicateToolResultRecovery {
           id: toolCall.id,
           name: toolCall.name,
           arguments: toolCall.arguments,
-          result: _buildReusePayload(
+          result: _reusePayload.build(
             matchingResult,
             currentToolCallId: toolCall.id,
           ),
@@ -151,30 +151,6 @@ final class DuplicateToolResultRecovery {
     resolveProjectPath: resolveProjectPath,
   );
 
-  String _buildReusePayload(
-    ToolResultInfo previousResult, {
-    required String currentToolCallId,
-  }) {
-    final decoded = _tryDecodeMap(previousResult.result);
-    if (decoded != null) {
-      return jsonEncode({
-        ...decoded,
-        'code': 'duplicate_tool_call_result_reused',
-        'execution_reused': true,
-        'prior_tool_call_id': previousResult.id,
-        'current_tool_call_id': currentToolCallId,
-      });
-    }
-    return jsonEncode({
-      'ok': true,
-      'code': 'duplicate_tool_call_result_reused',
-      'execution_reused': true,
-      'prior_tool_call_id': previousResult.id,
-      'current_tool_call_id': currentToolCallId,
-      'prior_result': previousResult.result,
-    });
-  }
-
   List<ToolResultInfo> _dedupe(
     List<ToolResultInfo> toolResults, {
     required ProjectPathResolver resolveProjectPath,
@@ -197,13 +173,4 @@ final class DuplicateToolResultRecovery {
       (path) =>
           FilesystemPathResolver.resolve(path, defaultRoot: projectRoot) ??
           path;
-
-  Map<String, dynamic>? _tryDecodeMap(String value) {
-    try {
-      final decoded = jsonDecode(value);
-      return decoded is Map<String, dynamic> ? decoded : null;
-    } catch (_) {
-      return null;
-    }
-  }
 }

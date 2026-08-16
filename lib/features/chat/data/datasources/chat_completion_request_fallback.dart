@@ -7,12 +7,24 @@ import 'chat_completion_parameter_compat.dart';
 
 /// Adapts chat-completion requests after an endpoint rejects parameters.
 final class ChatCompletionRequestFallback {
-  ChatCompletionRequestFallback(String? reasoningEffort)
-    : _reasoningEffort = _normalizeReasoningEffort(reasoningEffort);
+  ChatCompletionRequestFallback(
+    String? reasoningEffort, {
+    Future<void> Function(Duration)? delay,
+  }) : _reasoningEffort = _normalizeReasoningEffort(reasoningEffort),
+       _delay = delay ?? Future<void>.delayed;
 
   final String? _reasoningEffort;
+  final Future<void> Function(Duration) _delay;
   final ChatCompletionParameterCompat _parameterCompat =
       ChatCompletionParameterCompat();
+
+  /// A 429 says "not now", not "not ever", and the server usually says exactly
+  /// how long to wait. Failing the whole turn on it throws away the tool
+  /// results the turn already produced -- in session a00b77ce that meant
+  /// abandoning an in-flight production release over a 3.3 second wait.
+  static const int _maxRateLimitRetries = 4;
+  static const Duration _maxRateLimitDelay = Duration(seconds: 30);
+  static const Duration _initialRateLimitDelay = Duration(seconds: 1);
 
   ReasoningEffort? reasoningEffortForRequest(bool includeReasoning) {
     if (_parameterCompat.forceReasoningEffortNone) return ReasoningEffort.none;
@@ -49,11 +61,19 @@ final class ChatCompletionRequestFallback {
     required Future<T> Function(bool includeReasoning) send,
   }) async {
     var includeReasoning = _reasoningEffort != null;
+    var rateLimitAttempt = 0;
     while (true) {
       try {
         return await boundedCompletion(send(includeReasoning), operation);
       } on ApiException catch (error, stackTrace) {
         if (_absorb(error, operation)) continue;
+        final backoff = _rateLimitBackoff(error, rateLimitAttempt);
+        if (backoff != null) {
+          rateLimitAttempt += 1;
+          _logRateLimitRetry(operation, backoff, rateLimitAttempt);
+          await _delay(backoff);
+          continue;
+        }
         if (!includeReasoning || !_shouldRetryWithoutReasoning(error)) {
           Error.throwWithStackTrace(error, stackTrace);
         }
@@ -68,6 +88,7 @@ final class ChatCompletionRequestFallback {
     required Stream<T> Function(bool includeReasoning) send,
   }) async* {
     var includeReasoning = _reasoningEffort != null;
+    var rateLimitAttempt = 0;
     while (true) {
       var emittedEvent = false;
       try {
@@ -82,6 +103,13 @@ final class ChatCompletionRequestFallback {
       } on ApiException catch (error, stackTrace) {
         if (emittedEvent) Error.throwWithStackTrace(error, stackTrace);
         if (_absorb(error, operation)) continue;
+        final backoff = _rateLimitBackoff(error, rateLimitAttempt);
+        if (backoff != null) {
+          rateLimitAttempt += 1;
+          _logRateLimitRetry(operation, backoff, rateLimitAttempt);
+          await _delay(backoff);
+          continue;
+        }
         if (!includeReasoning || !_shouldRetryWithoutReasoning(error)) {
           Error.throwWithStackTrace(error, stackTrace);
         }
@@ -90,6 +118,50 @@ final class ChatCompletionRequestFallback {
       }
     }
   }
+
+  /// How long to wait before retrying [error], or null if it is not a
+  /// retryable rate limit.
+  ///
+  /// Never shortens what the server asked for: the wait is the larger of the
+  /// server's own figure and the local backoff, so a retry cannot arrive
+  /// earlier than the endpoint said it would be accepted.
+  Duration? _rateLimitBackoff(ApiException error, int attempt) {
+    if (error.statusCode != 429 || attempt >= _maxRateLimitRetries) return null;
+    final localBackoff = _initialRateLimitDelay * (1 << attempt);
+    final serverRequest = _serverRequestedDelay(error);
+    final backoff = serverRequest == null || serverRequest < localBackoff
+        ? localBackoff
+        : serverRequest;
+    return backoff > _maxRateLimitDelay ? _maxRateLimitDelay : backoff;
+  }
+
+  /// The endpoint's own retry hint: the `Retry-After` header when the client
+  /// parsed one, and otherwise the figure OpenAI-compatible servers put in the
+  /// message body ("Please try again in 3.336s").
+  Duration? _serverRequestedDelay(ApiException error) {
+    if (error case RateLimitException(retryAfter: final retryAfter?)) {
+      return retryAfter;
+    }
+    final match = RegExp(
+      r'try again in\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|m)\b',
+      caseSensitive: false,
+    ).firstMatch(error.message);
+    final value = double.tryParse(match?.group(1) ?? '');
+    if (match == null || value == null) return null;
+    final microseconds = switch (match.group(2)!.toLowerCase()) {
+      'ms' => value * Duration.microsecondsPerMillisecond,
+      'm' => value * Duration.microsecondsPerMinute,
+      _ => value * Duration.microsecondsPerSecond,
+    };
+    return Duration(microseconds: microseconds.ceil());
+  }
+
+  void _logRateLimitRetry(String operation, Duration backoff, int attempt) =>
+      appLog(
+        '[LLM] $operation hit a rate limit (HTTP 429); retrying in '
+        '${backoff.inMilliseconds}ms '
+        '(attempt $attempt of $_maxRateLimitRetries)',
+      );
 
   bool _absorb(ApiException error, String operation) {
     if (!_parameterCompat.absorb(error)) return false;
