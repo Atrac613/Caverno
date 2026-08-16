@@ -1451,6 +1451,51 @@ void main() {
       );
     });
 
+    // Regression: the chat tool registry sent process_status/tail/wait/list to
+    // executeFileTool, which delegated to the filesystem handler unconditionally
+    // and threw "Unknown filesystem tool". The throw escaped tool dispatch and
+    // killed the whole turn, leaving the already-started background job
+    // unattended. Both owner-bound entry points now reject a name they do not
+    // own as an ordinary failed result.
+    test('reports a misrouted tool instead of throwing', () async {
+      final service = McpToolService(
+        backgroundProcessTools: _FakeBackgroundProcessTools(
+          statusResults: const {},
+        ),
+      );
+
+      for (final name in const [
+        'process_status',
+        'process_tail',
+        'process_wait',
+        'process_list',
+      ]) {
+        final result = await service.executeFileTool(
+          owner: processOwner,
+          name: name,
+          arguments: const {'job_id': 'job'},
+        );
+        expect(result.isSuccess, isFalse, reason: name);
+        expect(result.toolName, name);
+        expect(
+          jsonDecode(result.result),
+          containsPair('code', 'tool_misrouted'),
+          reason: name,
+        );
+      }
+
+      final misroutedFile = await service.executeProcessTool(
+        owner: processOwner,
+        name: 'read_file',
+        arguments: const {'path': '/tmp/example.txt'},
+      );
+      expect(misroutedFile.isSuccess, isFalse);
+      expect(
+        jsonDecode(misroutedFile.result),
+        containsPair('code', 'tool_misrouted'),
+      );
+    });
+
     test('requires an owner on the generic process dispatch surface', () async {
       final service = McpToolService(
         backgroundProcessTools: _FakeBackgroundProcessTools(
