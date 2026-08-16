@@ -109,6 +109,7 @@ import '../../domain/services/goal_continuation_log_record_builder.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../../../core/security/conversation_taint_state.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
+import '../../domain/services/sticky_tool_result_policy.dart';
 import '../../domain/services/tool_loop_context_digest.dart';
 import '../../domain/services/tool_loop_exit_reason.dart';
 import '../../domain/services/truncated_tool_call_arguments_guard.dart';
@@ -5799,7 +5800,7 @@ class ChatNotifier extends Notifier<ChatState> {
         return;
       }
       final tools = selectedDefinitionsFor(mcpToolService);
-      final followUpToolResults = _toolResultsForFollowUpRequest(
+      final followUpToolResults = _stickyToolResultPolicy.resolve(
         batchToolResults: batchToolResults,
         executedToolResults: executedToolResults,
       );
@@ -6968,32 +6969,7 @@ class ChatNotifier extends Notifier<ChatState> {
     await _finishStreaming(interactionGeneration: interactionGeneration);
   }
 
-  List<ToolResultInfo> _toolResultsForFollowUpRequest({
-    required List<ToolResultInfo> batchToolResults,
-    required List<ToolResultInfo> executedToolResults,
-  }) {
-    if (batchToolResults.isEmpty) {
-      return batchToolResults;
-    }
-    if (batchToolResults.any(
-      (toolResult) => toolResult.name == 'ask_user_question',
-    )) {
-      return batchToolResults;
-    }
-    final batchToolResultIds = batchToolResults
-        .map((toolResult) => toolResult.id)
-        .toSet();
-    final stickyToolResults = executedToolResults
-        .where((toolResult) {
-          return toolResult.name == 'ask_user_question' &&
-              !batchToolResultIds.contains(toolResult.id);
-        })
-        .toList(growable: false);
-    if (stickyToolResults.isEmpty) {
-      return batchToolResults;
-    }
-    return <ToolResultInfo>[...stickyToolResults, ...batchToolResults];
-  }
+  static const _stickyToolResultPolicy = StickyToolResultPolicy();
 
   void _appendToLastMessageForGeneration(
     int generation,

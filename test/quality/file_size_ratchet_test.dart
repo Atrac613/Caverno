@@ -33,7 +33,7 @@ const Map<String, int> _lineBudgets = {
   // assigning: the callback form costs three lines per write and there are
   // seven of them. Nothing was extractable; the alternative is the bug.
   // +1 import for the shadow comparator.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8984,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8908,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -115,6 +115,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/file_rollback_tool_contract.dart': 304,
   'lib/features/chat/domain/services/file_rollback_tool_handler.dart': 225,
   'lib/features/chat/domain/services/file_turn_rollback_service.dart': 111,
+  // Sticky follow-up results extracted from ChatNotifier: which earlier tool
+  // results a follow-up must carry again is a decision over results, not a
+  // step of the loop.
+  'lib/features/chat/domain/services/sticky_tool_result_policy.dart': 54,
   'lib/features/chat/domain/services/process_start_result_policy.dart': 73,
   'lib/features/chat/domain/services/referenced_specification_loader.dart': 75,
   // Route value types moved to secondary_completion_route_snapshot.dart when

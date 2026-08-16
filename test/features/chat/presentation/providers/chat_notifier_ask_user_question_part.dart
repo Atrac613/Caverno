@@ -489,6 +489,81 @@ void registerChatNotifierAskUserQuestionTests() {
     },
   );
 
+  test('a loaded skill is retained across later tool follow-ups', () async {
+    // Session f3ec19ca: the follow-up request carried only the batch that had
+    // just run, so the skill body vanished one step after it arrived and the
+    // model asked for it again -- 16 times, 27.5% of the session's tokens, each
+    // one a full round trip answered by duplicate recovery re-sending what the
+    // request should have carried in the first place.
+    final dataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-load-skill',
+          name: 'load_skill',
+          arguments: const {'id': 'skill-release'},
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content: '',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-read-pubspec',
+              name: 'read_file',
+              arguments: const {'path': 'pubspec.yaml'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      ],
+      finalAnswerChunks: const ['Release steps loaded.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'load_skill': '{"id":"skill-release","content":"Run the dry run first"}',
+        'read_file': '{"path":"pubspec.yaml","content":"version: 1.3.16+28"}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final threadContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(threadContainer.dispose);
+
+    final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage('Release iOS and macOS');
+
+    expect(dataSource.toolResultBatches, hasLength(2));
+    expect(dataSource.toolResultBatches.first.map((result) => result.name), [
+      'load_skill',
+    ]);
+    expect(dataSource.toolResultBatches.last.map((result) => result.name), [
+      'load_skill',
+      'read_file',
+    ]);
+    expect(
+      dataSource.toolResultBatches.last.first.result,
+      contains('Run the dry run first'),
+    );
+    expect(toolService.executedToolNames, ['load_skill', 'read_file']);
+  });
+
   test(
     'parallel ask-user-question responses survive same prompt in a new thread',
     () async {
