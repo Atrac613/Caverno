@@ -770,7 +770,21 @@ class FinalAnswerClaimDetector {
       return false;
     }
 
-    final lowerContent = content.toLowerCase();
+    // Line by line, because the disclaimer and the claim are rarely the same
+    // sentence. A whole-message exemption let session 783fd214 report
+    // "macOS: failed ... overall: partial_failure" -- accurate, tool-backed --
+    // in the same answer as "iOS: uploaded to App Store Connect", which never
+    // happened and which the turn had no iOS tool result for at all. The word
+    // `partial_failure` is emitted by the release script itself, so quoting the
+    // real outcome faithfully was what switched the guard off.
+    for (final line in content.split('\n')) {
+      if (_claimsCompletedCommandExecution(line)) return true;
+    }
+    return false;
+  }
+
+  bool _claimsCompletedCommandExecution(String line) {
+    final lowerContent = line.toLowerCase();
     if (containsAny(lowerContent, const [
       'not completed',
       'not successful',
@@ -796,7 +810,7 @@ class FinalAnswerClaimDetector {
           'upload succeeded',
           'release complete',
         ]) ||
-        containsAnyCodeUnitSequence(content, const [
+        containsAnyCodeUnitSequence(line, const [
           [0x6210, 0x529f],
           [0x5b8c, 0x4e86],
           [0x6e08, 0x307f],

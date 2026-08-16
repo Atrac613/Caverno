@@ -300,6 +300,38 @@ void main() {
       expect(detector.hasSuccessfulReadOnlyInspectionResult([status]), isTrue);
     });
 
+    test('a real failure elsewhere does not excuse a fabricated success', () {
+      // Session 783fd214 gen-7: the answer reported the macOS failure
+      // accurately and tool-backed, and beside it claimed an iOS App Store
+      // upload the turn had no iOS tool result for. The exemption was
+      // whole-message, and `partial_failure` is a token the release script
+      // itself prints -- so quoting the real outcome faithfully is what
+      // switched the guard off.
+      const uploaded = 'iOS: uploaded to App Store Connect';
+      expect(detector.looksLikeCompletedCommandExecutionClaim(uploaded), isTrue);
+      expect(
+        detector.looksLikeCompletedCommandExecutionClaim(
+          '$uploaded\nmacOS: failed\n- overall: `partial_failure`',
+        ),
+        isTrue,
+      );
+    });
+
+    test('a failure report on its own is still not a completion claim', () {
+      expect(
+        detector.looksLikeCompletedCommandExecutionClaim(
+          'The macOS release failed.\n- overall: `partial_failure`',
+        ),
+        isFalse,
+      );
+      expect(
+        detector.looksLikeCompletedCommandExecutionClaim(
+          'The release has not completed yet.',
+        ),
+        isFalse,
+      );
+    });
+
     test('prepends claim correction notices without dropping content', () {
       final content = detector.messageContentWithPrependedClaimCorrectionNotice(
         'All tests passed.',
