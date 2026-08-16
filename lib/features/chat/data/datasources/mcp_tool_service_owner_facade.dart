@@ -5,6 +5,7 @@ import 'background_process_tools.dart';
 import 'built_in_filesystem_tool_handler.dart';
 import 'built_in_local_command_tool_handler.dart';
 import 'file_rollback_checkpoint_store.dart';
+import 'owner_tool_routing.dart';
 
 /// Owner-bound operations implemented as overridable service instance methods.
 mixin McpToolServiceOwnerFacade {
@@ -17,17 +18,17 @@ mixin McpToolServiceOwnerFacade {
     required ChatTurnOwner owner,
     required String name,
     required Map<String, dynamic> arguments,
-  }) => filesystemToolHandler.execute(
+  }) => filesystemToolHandler.executeOwned(
+    owner: owner,
     name: name,
     arguments: arguments,
-    owner: owner,
   );
 
   Future<McpToolResult> executeProcessTool({
     required ChatTurnOwner owner,
     required String name,
     required Map<String, dynamic> arguments,
-  }) => localCommandToolHandler.execute(
+  }) => localCommandToolHandler.executeOwned(
     owner: owner,
     name: name,
     arguments: arguments,

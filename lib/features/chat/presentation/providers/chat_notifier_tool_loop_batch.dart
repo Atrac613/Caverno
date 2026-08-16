@@ -425,9 +425,11 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       if (scheduledResult.error != null) {
         final error = scheduledResult.error!;
         appLog('[Tool] Error: $error');
+        // The turn ends and the call stays unexecuted on purpose, so handlers
+        // must return failures rather than throw and take the turn with them.
         _appendToLastMessageForGeneration(
           interactionGeneration,
-          '[Search error: $error]\n',
+          '[Tool dispatch error: $error]\n',
         );
         return _ToolLoopBatchExecutionResult.textResponse(
           batchToolResults: batchToolResults,

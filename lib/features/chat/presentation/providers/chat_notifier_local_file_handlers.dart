@@ -476,6 +476,16 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     );
   }
 
+  /// Read-only job observation: no approval, no path — the owner scopes it.
+  Future<McpToolResult> _handleProcessObservation(
+    ToolCallInfo toolCall,
+    OwnerToolApprovalCache approvalCache,
+  ) => _mcpToolService!.executeProcessTool(
+    owner: approvalCache.owner,
+    name: toolCall.name,
+    arguments: toolCall.arguments,
+  );
+
   Future<McpToolResult> _handleProcessStart(
     ToolCallInfo toolCall,
     OwnerToolApprovalCache approvalCache,

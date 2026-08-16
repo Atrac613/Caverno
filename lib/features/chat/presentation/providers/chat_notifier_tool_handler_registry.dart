@@ -428,21 +428,14 @@ final class _OwnerToolHandlerModule implements ChatToolHandlerModule {
     'local_execute_command': _bind(_notifier._handleLocalExecuteCommand),
     'process_start': _bind(_notifier._handleProcessStart),
     'process_cancel': _bind(_notifier._handleProcessCancel),
+    // Job observation addresses a job_id, not a path: local command handler.
     for (final toolName in const [
       'process_status',
       'process_tail',
       'process_wait',
       'process_list',
     ])
-      toolName: _bind(
-        (toolCall, approvalCache) => _notifier._handleProjectScopedTool(
-          toolCall,
-          approvalCache.owner,
-          _notifier._projectRootForGeneration(
-            approvalCache.owner.interactionGeneration,
-          ),
-        ),
-      ),
+      toolName: _bind(_notifier._handleProcessObservation),
     'run_tests': _bind(_notifier._handleRunTests),
     'run_python_script': _bind((toolCall, approvalCache) async {
       final completion = await _notifier._pythonScriptRuntime.handle(

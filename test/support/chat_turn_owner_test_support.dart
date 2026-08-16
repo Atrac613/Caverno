@@ -29,12 +29,18 @@ mixin OwnerAwareMcpToolTestDelegate on McpToolService {
   final Map<FileMutationRuntimeIdentity, String> _fileMutationFingerprints = {};
   final Set<FileMutationRuntimeIdentity> _fileMutationEffectsApplied = {};
 
+  // Owner-bound entry points keep the real service's routing: each one serves
+  // only the tools its handler owns. Forwarding every name unconditionally is
+  // what hid the process_* misrouting from every notifier test — the fake
+  // answered a call the real filesystem handler rejects by throwing.
   @override
   Future<McpToolResult> executeFileTool({
     required ChatTurnOwner owner,
     required String name,
     required Map<String, dynamic> arguments,
-  }) => executeTool(name: name, arguments: arguments);
+  }) => filesystemToolHandler.handles(name)
+      ? executeTool(name: name, arguments: arguments)
+      : super.executeFileTool(owner: owner, name: name, arguments: arguments);
 
   @override
   Future<FileMutationRuntimeAcknowledgement<String>>
@@ -155,7 +161,13 @@ mixin OwnerAwareMcpToolTestDelegate on McpToolService {
     required ChatTurnOwner owner,
     required String name,
     required Map<String, dynamic> arguments,
-  }) => executeTool(name: name, arguments: arguments);
+  }) => localCommandToolHandler.handles(name)
+      ? executeTool(name: name, arguments: arguments)
+      : super.executeProcessTool(
+          owner: owner,
+          name: name,
+          arguments: arguments,
+        );
 
   @override
   Future<McpToolResult> executeSshTool({
