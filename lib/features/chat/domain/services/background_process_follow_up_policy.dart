@@ -75,7 +75,10 @@ class BackgroundProcessFollowUpPolicy {
   }
 
   /// Backs off as the loop iterates, so a long job is not polled tightly.
+  ///
+  /// Kept above the tool's own floor so the backoff still means something: with
+  /// a 15s clamp on `wait_ms`, the old 5s-to-15s ramp flattened into a constant.
   static int waitMsForIteration(int iteration) {
-    return (5000 + iteration * 1000).clamp(5000, 15000).toInt();
+    return (15000 + iteration * 15000).clamp(15000, 120000).toInt();
   }
 }

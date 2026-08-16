@@ -1417,9 +1417,10 @@ void main() {
         sha256
             .convert(utf8.encode(jsonEncode(localCommandDefinitions)))
             .toString(),
-        // Changed deliberately: process_wait now documents the clamp and tells
-        // the model to prefer one long wait over repeated short polls.
-        '181c7c2387ab4ce7b9b3d98fb51d7ed4c5eda7c380fde6ecd1a66bfd1e7b8e21',
+        // Changed deliberately: process_wait documents the clamp (now
+        // 15000-120000) and tells the model to watch a multi-minute build in a
+        // handful of long waits rather than dozens of short ones.
+        '9930b97a9e6a53697a9d846fb7625d9984954ed5f5c3598b9e2d3b0512e1b87b',
       );
 
       final localCommandStart = names.indexOf(_localCommandToolNames.first);

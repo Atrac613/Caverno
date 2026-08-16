@@ -139,12 +139,15 @@ abstract final class BuiltInLocalCommandToolDefinitions {
       'name': 'process_wait',
       'description':
           'Wait for a background process and return its current status. The '
-          'wait returns as soon as the process exits, so prefer a long wait_ms '
-          '(5000-30000) over repeated short polls: every poll re-sends the '
-          'whole conversation and costs far more than the wait itself. Call '
-          'process_status/process_tail again as needed instead of starting the '
-          'command again. Use the returned status and output tails to report '
-          'concise progress before continuing to wait.',
+          'wait returns as soon as the process exits, so a long wait costs '
+          'nothing when the job finishes early. Prefer the longest wait_ms the '
+          'task allows (up to 120000) over repeated short polls: every poll '
+          're-sends the whole conversation and costs far more than the wait '
+          'itself, so a multi-minute build should be watched in a handful of '
+          'long waits, not dozens of short ones. Call process_status/process_tail '
+          'again as needed instead of starting the command again. Use the '
+          'returned status and output tails to report concise progress before '
+          'continuing to wait.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -157,8 +160,8 @@ abstract final class BuiltInLocalCommandToolDefinitions {
           'wait_ms': {
             'type': 'integer',
             'description':
-                'Milliseconds to wait. Clamped by the app to 5000-30000, so a '
-                'smaller value still waits 5000.',
+                'Milliseconds to wait. Clamped by the app to 15000-120000, so a '
+                'smaller value still waits 15000.',
           },
         },
         'required': ['job_id'],

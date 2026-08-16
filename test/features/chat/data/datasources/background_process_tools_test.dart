@@ -392,6 +392,7 @@ void main() {
 
         final running = await _startLongRunningJob(tools, owner, tempDir);
         final runningJobId = running['job_id'] as String;
+        final elapsed = Stopwatch()..start();
         final timedOut =
             jsonDecode(
                   await tools.wait(
@@ -401,7 +402,12 @@ void main() {
                   ),
                 )
                 as Map<String, dynamic>;
+        elapsed.stop();
         expect(timedOut['status'], 'running');
+        // Clamped up, not honoured: the floor is what the model actually picks,
+        // so it decides how many 16k-token polls a long build costs. Session
+        // 783fd214 spent 55% of a million-token session at the previous 5s one.
+        expect(elapsed.elapsedMilliseconds, greaterThanOrEqualTo(14500));
         await tools.cancel(owner: owner, jobId: runningJobId);
       },
     );
@@ -510,21 +516,6 @@ void main() {
       expect(probe.exitCode, isNot(0));
     });
 
-    test('wait_ms below the floor still waits the floor', () async {
-      final started = await _startLongRunningJob(tools, owner, tempDir);
-      final jobId = started['job_id'] as String;
-      final elapsed = Stopwatch()..start();
-
-      final waited =
-          jsonDecode(await tools.wait(owner: owner, jobId: jobId, waitMs: 1))
-              as Map<String, dynamic>;
-      elapsed.stop();
-
-      expect(waited['status'], 'running');
-      expect(elapsed.elapsedMilliseconds, greaterThanOrEqualTo(4500));
-
-      await tools.cancel(owner: owner, jobId: jobId);
-    });
   });
 }
 
@@ -536,7 +527,7 @@ Future<Map<String, dynamic>> _startLongRunningJob(
   return jsonDecode(
         await tools.start(
           owner: owner,
-          command: 'sleep 10',
+          command: 'sleep 60',
           workingDirectory: workingDirectory.path,
         ),
       )

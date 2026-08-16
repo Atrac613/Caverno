@@ -112,11 +112,16 @@ extension _BackgroundProcessResultCodec on BackgroundProcessTools {
   ///
   /// A wait returns as soon as the process exits, so the floor only costs
   /// latency while the job is genuinely still running -- and that is the case
-  /// worth slowing down. Every poll re-sends the whole conversation, so the
-  /// 1s waits the model tends to choose cost roughly 16k prompt tokens per
-  /// second of waiting; session a00b77ce burned an organization's entire
-  /// per-minute token budget on 15 such polls and lost the release the polling
-  /// was watching.
+  /// worth slowing down. Every poll re-sends the whole conversation, so a poll
+  /// costs roughly 16k prompt tokens no matter how briefly it waits.
+  ///
+  /// The first floor (5s, replacing no floor at all) stopped session a00b77ce's
+  /// 1s polling from burning an organization's per-minute token budget. It did
+  /// not stop the polling from dominating the session: 783fd214 watched a 392
+  /// second build with 27 observations, 26 of them at exactly the 5s floor the
+  /// model anchored on, and spent 55% of a million-token session waiting. The
+  /// floor is what the model actually picks, so it has to be a duration worth
+  /// paying 16k tokens for.
   int _normalizeWaitMs(int? value) => (value ?? _defaultWaitMs)
       .clamp(
         BackgroundProcessTools._minWaitMs,
@@ -124,5 +129,5 @@ extension _BackgroundProcessResultCodec on BackgroundProcessTools {
       )
       .toInt();
 
-  static const int _defaultWaitMs = 15000;
+  static const int _defaultWaitMs = 30000;
 }

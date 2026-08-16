@@ -33,8 +33,8 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
   static const int _maxBufferChars = 24000;
   static const int _defaultTailChars = 4000;
   static const int _maxTailChars = 12000;
-  static const int _minWaitMs = 5000;
-  static const int _maxWaitMs = 30000;
+  static const int _minWaitMs = 15000;
+  static const int _maxWaitMs = 120000;
   static const String _duplicateNote = 'A matching command is already running.';
   static const String _carriedNote =
       'This command is still running from an earlier turn and has been '
