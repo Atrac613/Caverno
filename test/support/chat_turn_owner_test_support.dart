@@ -7,6 +7,7 @@ import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
+import 'package:caverno/features/chat/domain/entities/ssh_auth_credential.dart';
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/subagent_task_notifier.dart';
@@ -23,6 +24,9 @@ void registerChatTurnOwnerFallback() {
       interactionGeneration: 1,
     ),
   );
+  // SshService.connect takes a credential, so any(named: 'credential') needs
+  // a fallback instance mocktail can hand the matcher.
+  registerFallbackValue(const SshPasswordCredential('mock-password'));
 }
 
 mixin OwnerAwareMcpToolTestDelegate on McpToolService {

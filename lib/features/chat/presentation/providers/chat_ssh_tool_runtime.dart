@@ -22,7 +22,7 @@ abstract interface class ChatSshTransport {
   Future<void> connect(
     ChatTurnOwner owner,
     SshCredentialKey target,
-    String password,
+    SshAuthCredential credential,
   );
 
   Future<String> execute(
@@ -112,7 +112,7 @@ final class ChatSshToolRuntime {
 
   Future<SshOperationCompletion<void>> _connect(
     SshOperationIdentity operation, {
-    required String password,
+    required SshAuthCredential credential,
   }) async {
     final identity = _connectionOperation(operation);
     final begun = _ownership.beginConnect(identity);
@@ -133,7 +133,7 @@ final class ChatSshToolRuntime {
     }
 
     try {
-      await _transport.connect(operation.owner, operation.target, password);
+      await _transport.connect(operation.owner, operation.target, credential);
     } catch (_) {
       _ownership.finishConnect(identity, attempt.token);
       rethrow;
@@ -344,8 +344,8 @@ final class _RuntimeConnectionPort implements SshConnectionPort {
   @override
   Future<SshOperationCompletion<void>> connect(
     SshOperationIdentity operation, {
-    required String password,
-  }) => runtime._connect(operation, password: password);
+    required SshAuthCredential credential,
+  }) => runtime._connect(operation, credential: credential);
 
   @override
   Future<SshOperationCompletion<void>> disconnect(

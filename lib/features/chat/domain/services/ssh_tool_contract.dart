@@ -2,7 +2,12 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/chat_turn_owner.dart';
 import '../entities/mcp_tool_entity.dart';
+import '../entities/ssh_auth_credential.dart';
 import 'immutable_json_snapshot.dart';
+
+/// Re-exported because every port below speaks in credentials: an adapter can
+/// implement this contract without separately importing the entity.
+export '../entities/ssh_auth_credential.dart';
 
 String _requiredIdentity(String value, String name) {
   final normalized = value.trim();
@@ -50,6 +55,21 @@ final class SshCredentialKey {
     return host == other.host &&
         port == other.port &&
         username == other.username;
+  }
+
+  /// Whether [other] is this target with an omitted username filled in.
+  ///
+  /// `ssh_connect` declares username optional and documents that the dialog
+  /// will ask for it, so a target approved with an empty username is partial,
+  /// not final. Treating the dialog's answer as an edit is what rejected every
+  /// call that let the user supply the username. Host and port must still
+  /// match exactly, and a username that was already set may not change: those
+  /// pick the destination, and the destination is what approval was for.
+  bool isCompletedBy(SshCredentialKey other) {
+    return host == other.host &&
+        port == other.port &&
+        (username == other.username ||
+            (username.isEmpty && other.username.isNotEmpty));
   }
 }
 
@@ -160,6 +180,19 @@ final class SshOperationIdentity {
   String get toolCallId => request.toolCallId;
   String get toolName => request.toolName;
 
+  /// This identity retargeted at [target], which must complete the approved
+  /// one. Returns `this` when nothing was filled in, so the ordinary path
+  /// keeps the identity object every port completion is compared against.
+  SshOperationIdentity completedWith(SshCredentialKey target) {
+    if (this.target.hasSameTarget(target)) return this;
+    return SshOperationIdentity(
+      request: request,
+      connectionIdentity: connectionIdentity,
+      sessionToolCallId: sessionToolCallId,
+      target: target,
+    );
+  }
+
   bool hasSameIdentity(SshOperationIdentity other) {
     return request.hasSameCall(other.request) &&
         connectionIdentity.value == other.connectionIdentity.value &&
@@ -193,25 +226,25 @@ final class SshOperationCompletion<T> {
 final class SshConnectCredentialRequest {
   const SshConnectCredentialRequest({
     required this.operation,
-    required this.savedPassword,
+    required this.savedCredential,
   });
 
   final SshOperationIdentity operation;
-  final String? savedPassword;
+  final SshAuthCredential? savedCredential;
   SshCredentialKey get approvedTarget => operation.target;
 }
 
-/// Password behavior selected by the user or saved credential path.
+/// Authentication chosen by the user or replayed from a saved credential.
 final class SshConnectCredentialSelection {
   const SshConnectCredentialSelection({
     required this.key,
-    required this.password,
-    required this.savePassword,
+    required this.credential,
+    required this.remember,
   });
 
   final SshCredentialKey key;
-  final String password;
-  final bool savePassword;
+  final SshAuthCredential credential;
+  final bool remember;
 }
 
 enum SshCredentialSelectionResultKind {
@@ -225,7 +258,7 @@ final class SshCredentialSelectionResult {
   SshCredentialSelectionResult.fromSelection({
     required this.operation,
     required SshConnectCredentialSelection selection,
-  }) : kind = operation.target.hasSameTarget(selection.key)
+  }) : kind = operation.target.isCompletedBy(selection.key)
            ? SshCredentialSelectionResultKind.selected
            : SshCredentialSelectionResultKind.reapprovalRequired,
        selection = selection;
@@ -258,7 +291,7 @@ final class SshApprovalRequest {
 }
 
 abstract interface class SshCredentialPort {
-  Future<SshOperationCompletion<String?>> loadSavedPassword(
+  Future<SshOperationCompletion<SshAuthCredential?>> loadSavedCredential(
     SshOperationIdentity operation,
   );
 
@@ -266,12 +299,12 @@ abstract interface class SshCredentialPort {
     SshConnectCredentialRequest request,
   );
 
-  Future<SshOperationCompletion<void>> savePassword(
+  Future<SshOperationCompletion<void>> saveCredential(
     SshOperationIdentity operation,
-    String password,
+    SshAuthCredential credential,
   );
 
-  Future<SshOperationCompletion<void>> deletePassword(
+  Future<SshOperationCompletion<void>> deleteCredential(
     SshOperationIdentity operation,
   );
 }
@@ -283,7 +316,7 @@ abstract interface class SshConnectionPort {
   /// Revalidates [operation] immediately before opening the transport.
   Future<SshOperationCompletion<void>> connect(
     SshOperationIdentity operation, {
-    required String password,
+    required SshAuthCredential credential,
   });
 
   /// Revalidates [operation] immediately before conditionally closing it.

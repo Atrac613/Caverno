@@ -3,15 +3,22 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../features/chat/domain/entities/ssh_auth_credential.dart';
+
 /// Per-host credential store for SSH connections.
 ///
-/// Passwords are written to [FlutterSecureStorage] keyed by a URL-safe
-/// base64 encoding of the `host:port:username` triplet. Only passwords are
-/// stored here — host / port / username are ephemeral values the user
-/// types into the connect dialog on demand.
+/// One [SshAuthCredential] record is written to [FlutterSecureStorage] per
+/// `host:port:username` triplet, keyed by a URL-safe base64 encoding of it.
+/// Host / port / username stay ephemeral values the user types into the
+/// connect dialog on demand.
+///
+/// Key credentials persist a path and optional passphrase, never the private
+/// key itself, so the file on disk remains the source of truth. Records
+/// written before key authentication existed hold a bare password string and
+/// are decoded as such by [SshAuthCredential.decode].
 class SshCredentialsManager {
   SshCredentialsManager({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _storage;
 
@@ -23,27 +30,28 @@ class SshCredentialsManager {
     return '$_keyPrefix$encoded';
   }
 
-  Future<void> savePassword({
+  Future<void> saveCredential({
     required String host,
     required int port,
     required String username,
-    required String password,
+    required SshAuthCredential credential,
   }) {
     return _storage.write(
       key: _keyFor(host, port, username),
-      value: password,
+      value: credential.encode(),
     );
   }
 
-  Future<String?> loadPassword({
+  Future<SshAuthCredential?> loadCredential({
     required String host,
     required int port,
     required String username,
-  }) {
-    return _storage.read(key: _keyFor(host, port, username));
+  }) async {
+    final raw = await _storage.read(key: _keyFor(host, port, username));
+    return SshAuthCredential.decode(raw);
   }
 
-  Future<void> deletePassword({
+  Future<void> deleteCredential({
     required String host,
     required int port,
     required String username,
@@ -51,17 +59,17 @@ class SshCredentialsManager {
     return _storage.delete(key: _keyFor(host, port, username));
   }
 
-  Future<bool> hasPassword({
+  Future<bool> hasCredential({
     required String host,
     required int port,
     required String username,
   }) async {
-    final value = await loadPassword(
+    final credential = await loadCredential(
       host: host,
       port: port,
       username: username,
     );
-    return value != null && value.isNotEmpty;
+    return credential != null;
   }
 }
 

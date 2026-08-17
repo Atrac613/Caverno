@@ -13,8 +13,8 @@ const _keyA = SshCredentialKey(
 );
 const _manualSelection = SshConnectCredentialSelection(
   key: _keyA,
-  password: 'manual-secret',
-  savePassword: false,
+  credential: SshPasswordCredential('manual-secret'),
+  remember: false,
 );
 
 void main() {
@@ -135,7 +135,9 @@ void main() {
 
     test('uses one exact approved target through cache and connect', () async {
       final fixture = _fixture();
-      fixture.credential.savedPasswords[ownerA] = 'saved-secret';
+      fixture.credential.savedCredentials[ownerA] = const SshPasswordCredential(
+        'saved-secret',
+      );
       fixture.approval.gates[ownerA] = ToolApprovalGateDecision.fullAccess;
 
       final result = await fixture.handler.handle(
@@ -178,17 +180,19 @@ void main() {
           port: 2222,
           username: 'operator',
         ),
-        password: 'edited-secret',
-        savePassword: true,
+        credential: SshPasswordCredential('edited-secret'),
+        remember: true,
       );
       final fixture = _fixture();
       fixture.credential.selections[ownerA] = editedSelection;
 
       final result = await fixture.handler.handle(_connectRequest(ownerA));
 
+      // The message must name the destination the user chose; without it the
+      // model has nothing to change and resubmits the identical call.
       expect(
         result.errorMessage,
-        contains('SSH target changed after approval'),
+        contains('changed after approval to operator@edited.example:2222'),
       );
       expect(
         fixture.credential.results.single.kind,
@@ -198,6 +202,62 @@ void main() {
       expect(fixture.credential.saves, isEmpty);
       expect(fixture.credential.deletes, isEmpty);
     });
+
+    // The reported abort: the model omitted the optional username, the dialog
+    // asked the user for it as documented, and supplying it was classified as
+    // an edit -- so the connection was refused and the retry aborted the turn.
+    test('accepts a username the dialog supplies for an omitted one', () async {
+      final fixture = _fixture();
+      fixture.credential.selections[ownerA] =
+          const SshConnectCredentialSelection(
+            key: SshCredentialKey(
+              host: 'host-a.example',
+              port: 22,
+              username: 'operator',
+            ),
+            credential: SshPasswordCredential('dialog-secret'),
+            remember: true,
+          );
+
+      final result = await fixture.handler.handle(
+        _connectRequest(ownerA, arguments: const {'host': 'host-a.example'}),
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(result.result, 'Connected to operator@host-a.example:22');
+      // The session and the stored credential must both use the completed
+      // target; the approved one names no user to log in as.
+      expect(
+        fixture.connection.connects.single.operation.target.username,
+        'operator',
+      );
+      expect(
+        fixture.credential.saves.single.operation.target.username,
+        'operator',
+      );
+    });
+
+    test(
+      'still rejects a dialog that changes a username already given',
+      () async {
+        final fixture = _fixture();
+        fixture.credential.selections[ownerA] =
+            const SshConnectCredentialSelection(
+              key: SshCredentialKey(
+                host: 'host-a.example',
+                port: 22,
+                username: 'someone-else',
+              ),
+              credential: SshPasswordCredential('dialog-secret'),
+              remember: true,
+            );
+
+        final result = await fixture.handler.handle(_connectRequest(ownerA));
+
+        expect(result.isSuccess, isFalse);
+        expect(fixture.connection.connects, isEmpty);
+      },
+    );
 
     test('keeps cancellation and auto-review denials call-scoped', () async {
       final cancelled = _fixture();
@@ -231,8 +291,15 @@ void main() {
       final result = await fixture.handler.handle(_connectRequest(ownerA));
 
       expect(result.isSuccess, isTrue);
-      expect(fixture.credential.requests.single.savedPassword, isNull);
-      expect(fixture.connection.connects.single.password, 'manual-secret');
+      expect(fixture.credential.requests.single.savedCredential, isNull);
+      expect(
+        fixture.connection.connects.single.credential,
+        isA<SshPasswordCredential>().having(
+          (c) => c.password,
+          'password',
+          'manual-secret',
+        ),
+      );
     });
 
     test('rejects poisoned async identities before connecting', () async {
@@ -655,10 +722,13 @@ SshToolRequest _poisonRequest(SshToolRequest request) {
 }
 
 typedef _CredentialRequestUse = SshConnectCredentialRequest;
-typedef _PasswordUse = ({SshOperationIdentity operation, String password});
+typedef _CredentialUse = ({
+  SshOperationIdentity operation,
+  SshAuthCredential credential,
+});
 
 final class _CredentialPort implements SshCredentialPort {
-  final Map<ChatTurnOwner, String?> savedPasswords = {};
+  final Map<ChatTurnOwner, SshAuthCredential?> savedCredentials = {};
   final Map<ChatTurnOwner, Object> loadErrors = {};
   final Map<ChatTurnOwner, SshConnectCredentialSelection> selections = {};
   final Set<ChatTurnOwner> cancelledOwners = {};
@@ -666,12 +736,12 @@ final class _CredentialPort implements SshCredentialPort {
   final Map<ChatTurnOwner, Object> deleteErrors = {};
   final List<_CredentialRequestUse> requests = [];
   final List<SshCredentialSelectionResult> results = [];
-  final List<_PasswordUse> saves = [];
+  final List<_CredentialUse> saves = [];
   final List<SshOperationIdentity> deletes = [];
   String? poisonStage;
 
   @override
-  Future<SshOperationCompletion<String?>> loadSavedPassword(
+  Future<SshOperationCompletion<SshAuthCredential?>> loadSavedCredential(
     SshOperationIdentity operation,
   ) async {
     final error = loadErrors[operation.owner];
@@ -680,7 +750,7 @@ final class _CredentialPort implements SshCredentialPort {
       operation: poisonStage == 'load'
           ? _poisonOperation(operation)
           : operation,
-      value: savedPasswords[operation.owner],
+      value: savedCredentials[operation.owner],
     );
   }
 
@@ -703,18 +773,18 @@ final class _CredentialPort implements SshCredentialPort {
   }
 
   @override
-  Future<SshOperationCompletion<void>> savePassword(
+  Future<SshOperationCompletion<void>> saveCredential(
     SshOperationIdentity operation,
-    String password,
+    SshAuthCredential credential,
   ) async {
-    saves.add((operation: operation, password: password));
+    saves.add((operation: operation, credential: credential));
     final error = saveErrors[operation.owner];
     if (error != null) throw error;
     return SshOperationCompletion(operation: operation, value: null);
   }
 
   @override
-  Future<SshOperationCompletion<void>> deletePassword(
+  Future<SshOperationCompletion<void>> deleteCredential(
     SshOperationIdentity operation,
   ) async {
     deletes.add(operation);
@@ -724,7 +794,10 @@ final class _CredentialPort implements SshCredentialPort {
   }
 }
 
-typedef _ConnectUse = ({SshOperationIdentity operation, String password});
+typedef _ConnectUse = ({
+  SshOperationIdentity operation,
+  SshAuthCredential credential,
+});
 
 final class _ConnectionPort implements SshConnectionPort {
   final Map<ChatTurnOwner, SshOwnedConnection> activeConnections = {};
@@ -744,9 +817,9 @@ final class _ConnectionPort implements SshConnectionPort {
   @override
   Future<SshOperationCompletion<void>> connect(
     SshOperationIdentity operation, {
-    required String password,
+    required SshAuthCredential credential,
   }) async {
-    connects.add((operation: operation, password: password));
+    connects.add((operation: operation, credential: credential));
     activeConnections[operation.owner] = SshOwnedConnection(
       owner: operation.owner,
       connectToolCallId: operation.sessionToolCallId,

@@ -123,7 +123,7 @@ final class _FakeTransport implements ChatSshTransport {
   Future<void> connect(
     ChatTurnOwner owner,
     SshCredentialKey target,
-    String password,
+    SshAuthCredential credential,
   ) async {
     sessions[owner] = (
       host: target.host,
@@ -174,9 +174,12 @@ final class _FakeTransport implements ChatSshTransport {
 
 final class _Ports implements SshCredentialPort, SshCommandApprovalPort {
   @override
-  Future<SshOperationCompletion<String?>> loadSavedPassword(
+  Future<SshOperationCompletion<SshAuthCredential?>> loadSavedCredential(
     SshOperationIdentity operation,
-  ) async => SshOperationCompletion(operation: operation, value: 'secret');
+  ) async => SshOperationCompletion(
+    operation: operation,
+    value: const SshPasswordCredential('secret'),
+  );
 
   @override
   Future<SshCredentialSelectionResult> requestCredential(
@@ -184,13 +187,13 @@ final class _Ports implements SshCredentialPort, SshCommandApprovalPort {
   ) => throw StateError('full access uses the saved credential');
 
   @override
-  Future<SshOperationCompletion<void>> savePassword(
+  Future<SshOperationCompletion<void>> saveCredential(
     SshOperationIdentity operation,
-    String password,
+    SshAuthCredential credential,
   ) async => SshOperationCompletion(operation: operation, value: null);
 
   @override
-  Future<SshOperationCompletion<void>> deletePassword(
+  Future<SshOperationCompletion<void>> deleteCredential(
     SshOperationIdentity operation,
   ) async => SshOperationCompletion(operation: operation, value: null);
 

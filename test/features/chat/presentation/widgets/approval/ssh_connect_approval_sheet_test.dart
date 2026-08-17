@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
+import 'package:caverno/features/chat/domain/entities/ssh_auth_credential.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/widgets/approval/ssh_connect_approval_sheet.dart';
 
@@ -40,7 +41,9 @@ void main() {
     SshConnectApproval? result;
     await _pumpHarness(
       tester,
-      pending: _buildPending(savedPassword: 'secret-password'),
+      pending: _buildPending(
+        savedCredential: const SshPasswordCredential('secret-password'),
+      ),
       onResult: (approval) => result = approval,
     );
     await tester.pumpAndSettle();
@@ -59,8 +62,72 @@ void main() {
     expect(result!.host, 'remote.example');
     expect(result!.port, 2222);
     expect(result!.username, 'deploy');
-    expect(result!.password, 'secret-password');
-    expect(result!.savePassword, isTrue);
+    expect(result!.credential, const SshPasswordCredential('secret-password'));
+    expect(result!.remember, isTrue);
+  });
+
+  // The reported failure: a key-authenticated host left the sheet with no way
+  // to approve, because Connect refused to close while the password box was
+  // empty. Cancel was the only exit, and the model was told the user had
+  // cancelled.
+  testWidgets('approves private-key auth with no password entered', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 1200);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    SshConnectApproval? result;
+    await _pumpHarness(
+      tester,
+      pending: _buildPending(
+        savedCredential: null,
+        identityCandidates: const ['/home/deploy/.ssh/id_ed25519'],
+      ),
+      onResult: (approval) => result = approval,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Open Sheet'));
+    await tester.pumpAndSettle();
+
+    // A discovered default identity selects key auth and pre-fills the path.
+    expect(find.text('/home/deploy/.ssh/id_ed25519'), findsOneWidget);
+
+    await tester.tap(find.text('Connect'));
+    await tester.pumpAndSettle();
+
+    expect(
+      result!.credential,
+      const SshPrivateKeyCredential(keyPath: '/home/deploy/.ssh/id_ed25519'),
+    );
+  });
+
+  testWidgets('rejects key auth with no key file chosen', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 1200);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    var resolved = false;
+    await _pumpHarness(
+      tester,
+      pending: _buildPending(savedCredential: null),
+      onResult: (_) => resolved = true,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Open Sheet'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Private key'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Connect'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Choose a private key file'), findsOneWidget);
+    expect(resolved, isFalse);
   });
 
   testWidgets('cancel returns null', (tester) async {
@@ -68,12 +135,12 @@ void main() {
       host: 'unchanged',
       port: 22,
       username: 'unchanged',
-      password: 'unchanged',
-      savePassword: false,
+      credential: const SshPasswordCredential('unchanged'),
+      remember: false,
     );
     await _pumpHarness(
       tester,
-      pending: _buildPending(savedPassword: null),
+      pending: _buildPending(savedCredential: null),
       onResult: (approval) => result = approval,
     );
     await tester.pumpAndSettle();
@@ -134,7 +201,10 @@ Future<void> _pumpHarness(
   );
 }
 
-PendingSshConnect _buildPending({required String? savedPassword}) {
+PendingSshConnect _buildPending({
+  required SshAuthCredential? savedCredential,
+  List<String> identityCandidates = const [],
+}) {
   return PendingSshConnect(
     owner: ChatTurnOwner(
       conversationId: 'ssh-sheet-test',
@@ -144,7 +214,8 @@ PendingSshConnect _buildPending({required String? savedPassword}) {
     host: 'remote.example',
     port: 2222,
     username: 'deploy',
-    savedPassword: savedPassword,
+    savedCredential: savedCredential,
+    identityCandidates: identityCandidates,
     completer: Completer<SshConnectApproval?>(),
   );
 }

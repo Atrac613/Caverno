@@ -30,13 +30,13 @@ final class SshServiceChatTransport implements ChatSshTransport {
   Future<void> connect(
     ChatTurnOwner owner,
     SshCredentialKey target,
-    String password,
+    SshAuthCredential credential,
   ) => _service.connect(
     owner: owner,
     host: target.host,
     port: target.port,
     username: target.username,
-    password: password,
+    credential: credential,
   );
 
   /// Runs [command] only while the session still carries

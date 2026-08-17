@@ -112,11 +112,11 @@ final class BuiltInSshToolHandler {
       'name': 'ssh_connect',
       'description':
           "Open an interactive SSH session to a remote host. The user will "
-          "see a dialog to confirm or edit the connection details and enter "
-          "the password (pre-filled if previously saved for this host). "
-          "Keeps the session alive for subsequent ssh_execute_command calls "
-          "until ssh_disconnect is called. Use this when the user asks to "
-          "connect to a server via SSH.",
+          "see a dialog to confirm the details and choose password or "
+          "private-key authentication (pre-filled when saved for this host, "
+          "so passwordless key setups need no password). Keeps the session "
+          "alive for later ssh_execute_command calls until ssh_disconnect. "
+          "Use this when the user asks to connect to a server via SSH.",
       'parameters': {
         'type': 'object',
         'properties': {

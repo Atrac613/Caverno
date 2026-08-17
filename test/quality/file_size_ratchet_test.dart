@@ -80,7 +80,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/serial_connection_tool_handler.dart': 462,
   'lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart':
       493,
-  'lib/features/chat/domain/services/ssh_tool_handler.dart': 348,
+  // -37: the failure-result vocabulary moved to the ssh_tool_failures part.
+  // The flow file now carries the flow; the words the model plans against sit
+  // together where they can be compared.
+  'lib/features/chat/domain/services/ssh_tool_handler.dart': 311,
   'lib/features/chat/domain/services/subagent_tool_handler.dart': 419,
   'lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart':
       69,
@@ -244,7 +247,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart':
       78,
   'lib/core/security/conversation_taint_state.dart': 82,
-  'lib/core/services/ssh_service.dart': 317,
+  // -10: credential-to-client construction (key loading, password handler)
+  // moved to ssh_client_connector.dart. The service now owns session
+  // ownership only, not file IO and PEM parsing.
+  'lib/core/services/ssh_service.dart': 307,
   'lib/features/chat/presentation/providers/subagent_task_notifier.dart': 210,
   'lib/features/chat/domain/entities/chat_turn_owner.dart': 43,
   // TokenUsage moved to token_usage.dart when it grew the full provider

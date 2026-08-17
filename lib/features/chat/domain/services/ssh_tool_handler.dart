@@ -3,6 +3,8 @@ import 'ssh_tool_contract.dart';
 
 export 'ssh_tool_contract.dart';
 
+part 'ssh_tool_failures.dart';
+
 // ChatNotifier decomposition collaborator: ssh-tool-handler
 
 /// Coordinates exact-call SSH connection and command flows.
@@ -16,12 +18,6 @@ final class SshToolHandler {
        _connectionPort = connectionPort,
        _executionPort = executionPort,
        _approvalPort = approvalPort;
-
-  static const _identityChanged =
-      'SSH operation identity changed before completion';
-  static const _effectsUncertain =
-      'The SSH operation may have completed after its owner expired or its '
-      'identity changed; inspect possible side effects before retrying';
 
   final SshCredentialPort _credentialPort;
   final SshConnectionPort _connectionPort;
@@ -57,22 +53,22 @@ final class SshToolHandler {
     if (!cached.belongsTo(operation)) return _identityFailure(request.toolName);
     if (cached.value case final denial?) return denial;
 
-    String? savedPassword;
+    SshAuthCredential? savedCredential;
     if (username.isNotEmpty) {
       try {
-        final completion = await _credentialPort.loadSavedPassword(operation);
+        final completion = await _credentialPort.loadSavedCredential(operation);
         if (!completion.belongsTo(operation)) {
           return _identityFailure(request.toolName);
         }
-        savedPassword = completion.value;
+        savedCredential = completion.value;
       } catch (_) {
         // Credential storage failures preserve the interactive fallback.
       }
     }
-    final hasSavedPassword = savedPassword?.isNotEmpty ?? false;
+    final hasSavedCredential = savedCredential != null;
     final gateCompletion = await _approvalPort.resolveGate(
       approval,
-      fullAccessEligible: hasSavedPassword,
+      fullAccessEligible: hasSavedCredential,
     );
     if (!gateCompletion.belongsTo(operation)) {
       return _identityFailure(request.toolName);
@@ -86,17 +82,17 @@ final class SshToolHandler {
     }
 
     final SshConnectCredentialSelection selection;
-    if (gate.runsDirectly && hasSavedPassword) {
+    if (gate.runsDirectly && hasSavedCredential) {
       selection = SshConnectCredentialSelection(
         key: target,
-        password: savedPassword!,
-        savePassword: true,
+        credential: savedCredential,
+        remember: true,
       );
     } else {
       final credential = await _credentialPort.requestCredential(
         SshConnectCredentialRequest(
           operation: operation,
-          savedPassword: savedPassword,
+          savedCredential: savedCredential,
         ),
       );
       if (!credential.belongsTo(operation)) {
@@ -104,10 +100,9 @@ final class SshToolHandler {
       }
       if (credential.kind ==
           SshCredentialSelectionResultKind.reapprovalRequired) {
-        return _failure(
+        return _targetChangedFailure(
           request.toolName,
-          'SSH target changed after approval; submit a new ssh_connect call '
-          'to approve the edited host, port, and username',
+          credential.selection!.key,
         );
       }
       if (credential.kind == SshCredentialSelectionResultKind.cancelled) {
@@ -119,26 +114,30 @@ final class SshToolHandler {
       selection = credential.selection!;
     }
 
-    final expired = _expiration(operation);
+    // The dialog may have supplied a username the call omitted, which the tool
+    // asks it to do. The session must then be opened and its credential stored
+    // under the completed target: the approved one names no user to log in as.
+    final session = operation.completedWith(selection.key);
+    final expired = _expiration(session);
     if (expired case final result?) return result;
     var connected = false;
     try {
       final connectCompletion = await _connectionPort.connect(
-        operation,
-        password: selection.password,
+        session,
+        credential: selection.credential,
       );
-      if (!connectCompletion.belongsTo(operation)) {
+      if (!connectCompletion.belongsTo(session)) {
         return _effectsFailure(request.toolName);
       }
       connected = true;
-      if (_expiration(operation) != null) {
-        await _rollbackExpiredConnect(operation);
+      if (_expiration(session) != null) {
+        await _rollbackExpiredConnect(session);
         return _effectsFailure(request.toolName);
       }
-      final persisted = selection.savePassword
-          ? await _credentialPort.savePassword(operation, selection.password)
-          : await _credentialPort.deletePassword(operation);
-      if (!persisted.belongsTo(operation)) {
+      final persisted = selection.remember
+          ? await _credentialPort.saveCredential(session, selection.credential)
+          : await _credentialPort.deleteCredential(session);
+      if (!persisted.belongsTo(session)) {
         return _connectedPersistenceFailure(
           request.toolName,
           'credential completion identity changed',
@@ -151,14 +150,14 @@ final class SshToolHandler {
       final result = _failure(request.toolName, 'SSH connect failed: $error');
       return gate.bypassedApproval ? result : _rememberResult(approval, result);
     }
-    if (_expiration(operation) != null) {
-      await _rollbackExpiredConnect(operation);
+    if (_expiration(session) != null) {
+      await _rollbackExpiredConnect(session);
       return _effectsFailure(request.toolName);
     }
 
     final result = McpToolResult(
       toolName: request.toolName,
-      result: 'Connected to $username@$host:$port',
+      result: 'Connected to ${session.target.username}@$host:$port',
       isSuccess: true,
     );
     return gate.bypassedApproval
@@ -307,42 +306,5 @@ final class SshToolHandler {
     return effectsPossible
         ? _effectsFailure(request.toolName)
         : _identityFailure(request.toolName);
-  }
-
-  McpToolResult _noActiveSession(String toolName) {
-    return _failure(toolName, 'No active SSH session — call ssh_connect first');
-  }
-
-  McpToolResult _connectedPersistenceFailure(String toolName, String detail) {
-    return _failure(
-      toolName,
-      'The SSH connection succeeded, but credential persistence failed '
-      '($detail); the session may still be active. Inspect possible side '
-      'effects before retrying',
-    );
-  }
-
-  McpToolResult _identityFailure(String toolName) =>
-      _failure(toolName, _identityChanged);
-
-  McpToolResult _effectsFailure(String toolName) =>
-      _failure(toolName, _effectsUncertain);
-
-  McpToolResult _failure(String toolName, String message) {
-    return McpToolResult(
-      toolName: toolName,
-      result: '',
-      isSuccess: false,
-      errorMessage: message,
-    );
-  }
-
-  McpToolResult _autoReviewDeniedResult(String toolName, String rationale) {
-    return McpToolResult(
-      toolName: toolName,
-      result: 'Auto-review denied this action. Rationale: $rationale',
-      isSuccess: false,
-      errorMessage: 'Auto-review denied: $rationale',
-    );
   }
 }

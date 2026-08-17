@@ -3334,23 +3334,23 @@ void main() {
           host: any(named: 'host'),
           port: any(named: 'port'),
           username: any(named: 'username'),
-          password: any(named: 'password'),
+          credential: any(named: 'credential'),
         ),
       ).thenAnswer((_) async {});
       final creds = _MockSshCredentialsManager();
       when(
-        () => creds.loadPassword(
+        () => creds.loadCredential(
           host: any(named: 'host'),
           port: any(named: 'port'),
           username: any(named: 'username'),
         ),
-      ).thenAnswer((_) async => 'secret');
+      ).thenAnswer((_) async => const SshPasswordCredential('secret'));
       when(
-        () => creds.savePassword(
+        () => creds.saveCredential(
           host: any(named: 'host'),
           port: any(named: 'port'),
           username: any(named: 'username'),
-          password: any(named: 'password'),
+          credential: any(named: 'credential'),
         ),
       ).thenAnswer((_) async {});
       final appLifecycleService = _MockAppLifecycleService();
@@ -3392,7 +3392,7 @@ void main() {
           host: 'example.com',
           port: 22,
           username: 'me',
-          password: 'secret',
+          credential: const SshPasswordCredential('secret'),
         ),
       ).called(1);
       expect(dataSource.autoReviewRequestMessages, isEmpty);
@@ -3424,7 +3424,7 @@ void main() {
       final sshService = _MockSshService();
       final creds = _MockSshCredentialsManager();
       when(
-        () => creds.loadPassword(
+        () => creds.loadCredential(
           host: any(named: 'host'),
           port: any(named: 'port'),
           username: any(named: 'username'),
@@ -3480,7 +3480,7 @@ void main() {
           host: any(named: 'host'),
           port: any(named: 'port'),
           username: any(named: 'username'),
-          password: any(named: 'password'),
+          credential: any(named: 'credential'),
         ),
       );
     },

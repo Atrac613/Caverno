@@ -11,6 +11,7 @@ import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/ssh_auth_credential.dart';
 import '../../domain/entities/workflow_proposal_draft.dart';
 import '../../domain/services/context_surgery_observation_service.dart';
 
@@ -56,15 +57,19 @@ class SshConnectApproval {
     required this.host,
     required this.port,
     required this.username,
-    required this.password,
-    required this.savePassword,
+    required this.credential,
+    required this.remember,
   });
 
   final String host;
   final int port;
   final String username;
-  final String password;
-  final bool savePassword;
+
+  /// Password or private-key material chosen in the dialog.
+  final SshAuthCredential credential;
+
+  /// Whether to keep [credential] in the secure keychain for this target.
+  final bool remember;
 }
 
 /// Pending SSH connect request awaiting user confirmation in the UI.
@@ -80,7 +85,8 @@ class PendingSshConnect extends PendingToolApproval<SshConnectApproval?> {
     required this.host,
     required this.port,
     required this.username,
-    required this.savedPassword,
+    required this.savedCredential,
+    required this.identityCandidates,
     required super.completer,
   });
 
@@ -88,9 +94,16 @@ class PendingSshConnect extends PendingToolApproval<SshConnectApproval?> {
   final int port;
   final String username;
 
-  /// Pre-loaded password for this (host, port, username) if one was saved
-  /// previously in secure storage.
-  final String? savedPassword;
+  /// Credential saved previously for this (host, port, username), if any.
+  final SshAuthCredential? savedCredential;
+
+  /// Private keys to offer for this host, best first.
+  ///
+  /// `~/.ssh/config` identities for the host come first when it has any,
+  /// otherwise the existing default `~/.ssh/id_*` files. Resolved outside the
+  /// widget so the dialog stays free of file IO and can be pumped in tests
+  /// without depending on the host's real key files.
+  final List<String> identityCandidates;
 
   @override
   SshConnectApproval? get cancellationValue => null;

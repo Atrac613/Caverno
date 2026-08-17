@@ -7,13 +7,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/chat/domain/entities/chat_turn_owner.dart';
 import '../utils/logger.dart';
+import 'ssh_client_connector.dart';
 
-typedef SshClientConnector =
+// [connect] speaks in credentials, so callers get the credential types and
+// the identity errors they must report without a second import.
+export 'ssh_client_connector.dart';
+
+typedef SshConnectorFn =
     Future<SSHClient> Function({
       required String host,
       required int port,
       required String username,
-      required String password,
+      required SshAuthCredential credential,
       required Duration timeout,
     });
 
@@ -64,10 +69,10 @@ class SshExecutionResult {
 
 /// Owns independent SSH sessions keyed by exact chat turn identity.
 class SshService {
-  SshService({SshClientConnector? connector})
-    : _connector = connector ?? _connectClient;
+  SshService({SshConnectorFn? connector})
+    : _connector = connector ?? SshClientConnector.connect;
 
-  final SshClientConnector _connector;
+  final SshConnectorFn _connector;
   final Map<ChatTurnOwner, _SshOwnerState> _states = {};
   final Set<ChatTurnOwner> _retiredOwners = {};
   int _nextSessionFingerprint = 0;
@@ -91,7 +96,7 @@ class SshService {
     required String host,
     required int port,
     required String username,
-    required String password,
+    required SshAuthCredential credential,
     Duration timeout = const Duration(seconds: 15),
   }) async {
     if (_disposed || _retiredOwners.contains(owner)) {
@@ -118,7 +123,7 @@ class SshService {
         host: host,
         port: port,
         username: username,
-        password: password,
+        credential: credential,
         timeout: timeout,
       );
       _ensureActive(owner, state);
@@ -139,10 +144,10 @@ class SshService {
       await _closeClient(client);
       _removePendingState(owner, state);
       throw Exception('SSH connect timed out after ${timeout.inSeconds}s');
-    } on SSHAuthFailError catch (error) {
+    } on SSHAuthFailError {
       await _closeClient(client);
       _removePendingState(owner, state);
-      throw Exception('SSH authentication failed: $error');
+      throw Exception('SSH auth failed: $username@$host:$port, $credential');
     } on SSHAuthAbortError catch (error) {
       await _closeClient(client);
       _removePendingState(owner, state);
@@ -284,21 +289,6 @@ class SshService {
     } catch (error) {
       appLog('[SshService] Error while closing client: $error');
     }
-  }
-
-  static Future<SSHClient> _connectClient({
-    required String host,
-    required int port,
-    required String username,
-    required String password,
-    required Duration timeout,
-  }) async {
-    final socket = await SSHSocket.connect(host, port, timeout: timeout);
-    return SSHClient(
-      socket,
-      username: username,
-      onPasswordRequest: () => password,
-    );
   }
 }
 

@@ -45,15 +45,26 @@ extension ChatNotifierSshHandlers on ChatNotifier {
     required String host,
     required int port,
     required String username,
+    SshConfigHostSettings config = SshConfigHostSettings.empty,
   }) async {
-    String? savedPassword;
-    if (username.isNotEmpty) {
+    // A host the user describes as "connects without a password" is usually
+    // configured in ~/.ssh/config. Its user and identity fill in only what the
+    // call left out, so a value the model did state still stands.
+    final effectiveUsername = username.isNotEmpty
+        ? username
+        : (config.user ?? '');
+    SshAuthCredential? savedCredential;
+    if (effectiveUsername.isNotEmpty) {
       try {
-        savedPassword = await ref
+        savedCredential = await ref
             .read(sshCredentialsManagerProvider)
-            .loadPassword(host: host, port: port, username: username);
+            .loadCredential(
+              host: host,
+              port: port,
+              username: effectiveUsername,
+            );
       } catch (e) {
-        appLog('[SSH] Failed to load saved password: $e');
+        appLog('[SSH] Failed to load saved credential: $e');
       }
     }
     final completer = Completer<SshConnectApproval?>();
@@ -61,9 +72,12 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       owner: owner,
       id: const Uuid().v4(),
       host: host,
-      port: port,
-      username: username,
-      savedPassword: savedPassword,
+      port: config.port ?? port,
+      username: effectiveUsername,
+      savedCredential: savedCredential,
+      identityCandidates: config.identityFiles.isNotEmpty
+          ? config.identityFiles
+          : SshClientConnector.discoverDefaultIdentities(),
       completer: completer,
     );
     return _registerPendingToolApproval(
@@ -124,20 +138,20 @@ final class _ChatNotifierSshPorts
   final OwnerToolApprovalCache cache;
 
   @override
-  Future<SshOperationCompletion<String?>> loadSavedPassword(
+  Future<SshOperationCompletion<SshAuthCredential?>> loadSavedCredential(
     SshOperationIdentity operation,
   ) async {
     final key = operation.target;
-    final password = key.username.isEmpty
+    final credential = key.username.isEmpty
         ? null
         : await notifier.ref
               .read(sshCredentialsManagerProvider)
-              .loadPassword(
+              .loadCredential(
                 host: key.host,
                 port: key.port,
                 username: key.username,
               );
-    return SshOperationCompletion(operation: operation, value: password);
+    return SshOperationCompletion(operation: operation, value: credential);
   }
 
   @override
@@ -150,6 +164,7 @@ final class _ChatNotifierSshPorts
       host: key.host,
       port: key.port,
       username: key.username,
+      config: SshConfigReader.resolve(key.host),
     );
     if (approval == null) {
       return SshCredentialSelectionResult.cancelled(
@@ -164,37 +179,41 @@ final class _ChatNotifierSshPorts
           port: approval.port,
           username: approval.username.trim(),
         ),
-        password: approval.password,
-        savePassword: approval.savePassword,
+        credential: approval.credential,
+        remember: approval.remember,
       ),
     );
   }
 
   @override
-  Future<SshOperationCompletion<void>> savePassword(
+  Future<SshOperationCompletion<void>> saveCredential(
     SshOperationIdentity operation,
-    String password,
+    SshAuthCredential credential,
   ) async {
     final key = operation.target;
     await notifier.ref
         .read(sshCredentialsManagerProvider)
-        .savePassword(
+        .saveCredential(
           host: key.host,
           port: key.port,
           username: key.username,
-          password: password,
+          credential: credential,
         );
     return SshOperationCompletion(operation: operation, value: null);
   }
 
   @override
-  Future<SshOperationCompletion<void>> deletePassword(
+  Future<SshOperationCompletion<void>> deleteCredential(
     SshOperationIdentity operation,
   ) async {
     final key = operation.target;
     await notifier.ref
         .read(sshCredentialsManagerProvider)
-        .deletePassword(host: key.host, port: key.port, username: key.username);
+        .deleteCredential(
+          host: key.host,
+          port: key.port,
+          username: key.username,
+        );
     return SshOperationCompletion(operation: operation, value: null);
   }
 

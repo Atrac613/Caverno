@@ -164,7 +164,7 @@ void main() {
               required host,
               required port,
               required username,
-              required password,
+              required credential,
               required timeout,
             }) {
               connectCount += 1;
@@ -293,7 +293,7 @@ void main() {
               required host,
               required port,
               required username,
-              required password,
+              required credential,
               required timeout,
             }) {
               connectorEntered.complete();
@@ -352,7 +352,7 @@ void main() {
               required host,
               required port,
               required username,
-              required password,
+              required credential,
               required timeout,
             }) {
               connectCount += 1;
@@ -436,7 +436,7 @@ void main() {
               required host,
               required port,
               required username,
-              required password,
+              required credential,
               required timeout,
             }) async => throw const SocketException('refused'),
       );
@@ -474,8 +474,10 @@ void main() {
               (exception) => exception.toString(),
               'message',
               contains(
+                // A rejection names the target and the method offered, so
+                // the next attempt can change something.
                 error is SSHAuthFailError
-                    ? 'SSH authentication failed'
+                    ? 'SSH auth failed: tester@ssh.example:22, password auth'
                     : 'SSH authentication aborted',
               ),
             ),
@@ -515,7 +517,7 @@ void main() {
               required host,
               required port,
               required username,
-              required password,
+              required credential,
               required timeout,
             }) async => throw StateError('unexpected'),
       );
@@ -556,7 +558,7 @@ Future<void> _connect(
     host: host,
     port: 22,
     username: 'tester',
-    password: 'secret',
+    credential: const SshPasswordCredential('secret'),
     timeout: timeout,
   );
 }
@@ -583,7 +585,7 @@ final class _ClientQueueConnector {
     required String host,
     required int port,
     required String username,
-    required String password,
+    required SshAuthCredential credential,
     required Duration timeout,
   }) async {
     return _clients.removeFirst();

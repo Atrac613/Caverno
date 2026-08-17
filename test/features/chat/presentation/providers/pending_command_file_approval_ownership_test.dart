@@ -323,7 +323,8 @@ PendingSshConnect _sshConnect({
     host: 'host.example',
     port: 22,
     username: 'developer',
-    savedPassword: null,
+    savedCredential: null,
+    identityCandidates: const [],
     completer: Completer<SshConnectApproval?>(),
   );
 }

@@ -15,6 +15,7 @@ import '../../../../core/services/browser_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/notification_providers.dart';
+import '../../../../core/services/ssh_config.dart';
 import '../../../../core/services/ssh_credentials_manager.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/tool_approval_audit_log.dart';
