@@ -342,7 +342,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/flutter_run_issue_store.dart': 70,
   'lib/features/chat/domain/entities/flutter_run_issue.dart': 125,
   // Lowered from 2332 by the same extraction (label, colour and icon).
-  'lib/features/chat/presentation/widgets/message_input.dart': 2368,
+  // Lowered after the slash-command completion list moved to
+  // message_input_slash_suggestion_list.dart, which paid for the shortcut bar
+  // hook-up several times over.
+  'lib/features/chat/presentation/widgets/message_input.dart': 2298,
   'lib/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart':
       131,
   'lib/features/chat/presentation/coordinators/chat_page_workspace_navigation_coordinator.dart':

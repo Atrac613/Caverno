@@ -931,6 +931,9 @@ abstract class AppSettings with _$AppSettings {
     @Default(90) int codingVerificationTimeoutSeconds,
     @Default(5) int codingVerificationMaxFailures,
     @Default(true) bool enableAgentsMd,
+    // Shortcut chips above the composer, drafted by a small secondary
+    // completion after each turn. Off means no extra completion is made.
+    @Default(true) bool composerShortcutsEnabled,
     @Default(false) bool enablePrefixStableToolLoop,
     // LL5: opt-in local semantic search. When enabled and an embeddings model
     // is configured, conversation history is embedded for semantic search;

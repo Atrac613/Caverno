@@ -959,6 +959,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateComposerShortcutsEnabled(bool value) async {
+    state = state.copyWith(composerShortcutsEnabled: value);
+    await _repository.save(state);
+  }
+
   Future<void> updateEnablePrefixStableToolLoop(bool value) async {
     state = state.copyWith(enablePrefixStableToolLoop: value);
     await _repository.save(state);

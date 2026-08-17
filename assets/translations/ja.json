@@ -667,7 +667,8 @@
     "slash_unknown_command": "不明なスラッシュコマンドです: /{command}",
     "slash_missing_arguments": "/{command} の詳細を入力してください。使い方: {usage}",
     "slash_unexpected_arguments": "/{command} に引数は指定できません。",
-    "slash_command_failed": "スラッシュコマンドの実行に失敗しました。"
+    "slash_command_failed": "スラッシュコマンドの実行に失敗しました。",
+    "composer_shortcuts_generating": "次のアクションを検討中…"
   },
   "content": {
     "thinking": "思考",
@@ -1497,7 +1498,9 @@
     "personal_eval_record_action": "ケースを記録",
     "personal_eval_record_success": "評価ケースを記録しました",
     "model_routing_log_analysis": "実行ログ解析",
-    "model_routing_log_analysis_desc": "実行中アプリの失敗ブロックを issue に変換します。アプリを触っている最中に走るため、強いモデルより速いモデルが向きます。"
+    "model_routing_log_analysis_desc": "実行中アプリの失敗ブロックを issue に変換します。アプリを触っている最中に走るため、強いモデルより速いモデルが向きます。",
+    "composer_shortcuts": "コンポーザーのショートカットボタン",
+    "composer_shortcuts_desc": "回答のあとに次のアクション候補を入力欄の上に表示します。1ターンごとに軽量なモデル呼び出しを1回行います。"
   },
   "routines": {
     "title": "Routines",

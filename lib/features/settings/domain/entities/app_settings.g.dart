@@ -621,6 +621,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   codingVerificationMaxFailures:
       (json['codingVerificationMaxFailures'] as num?)?.toInt() ?? 5,
   enableAgentsMd: json['enableAgentsMd'] as bool? ?? true,
+  composerShortcutsEnabled: json['composerShortcutsEnabled'] as bool? ?? true,
   enablePrefixStableToolLoop:
       json['enablePrefixStableToolLoop'] as bool? ?? false,
   enableSemanticSearch: json['enableSemanticSearch'] as bool? ?? false,
@@ -750,6 +751,7 @@ Map<String, dynamic> _$AppSettingsToJson(
   'codingVerificationTimeoutSeconds': instance.codingVerificationTimeoutSeconds,
   'codingVerificationMaxFailures': instance.codingVerificationMaxFailures,
   'enableAgentsMd': instance.enableAgentsMd,
+  'composerShortcutsEnabled': instance.composerShortcutsEnabled,
   'enablePrefixStableToolLoop': instance.enablePrefixStableToolLoop,
   'enableSemanticSearch': instance.enableSemanticSearch,
   'embeddingsModel': instance.embeddingsModel,

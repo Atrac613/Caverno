@@ -20,10 +20,12 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/conversation_goal.dart';
+import 'composer_shortcut_bar.dart';
 import 'conversation_goal_status_presentation.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../slash_commands/slash_command.dart';
 import 'message_input_control_labels.dart';
+import 'message_input_slash_suggestion_list.dart';
 import 'message_input_slash_suggestion_state.dart';
 import 'pro_reasoning_mode_button.dart';
 import 'voice_mode_overlay.dart';
@@ -567,6 +569,13 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       text: text,
       selection: TextSelection.collapsed(offset: text.length),
     );
+  }
+
+  // Shortcut prompts go through the ordinary send path, so slash expansion,
+  // worktree sessions and Pro reasoning treat them as typed input.
+  void _sendComposerShortcut(String prompt) {
+    _setComposerText(prompt);
+    unawaited(_handleSendAsync());
   }
 
   void _pushToHistory(String text) {
@@ -1346,90 +1355,15 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   Widget _buildSlashCommandSuggestions(BuildContext context, ThemeData theme) {
-    final suggestions = _slashSuggestionState.suggestions;
-    if (suggestions.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      key: const ValueKey('slash-command-suggestions'),
-      margin: const EdgeInsets.only(bottom: 8),
-      constraints: const BoxConstraints(maxHeight: 240),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: theme.shadowColor.withValues(alpha: 0.08),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        shrinkWrap: true,
-        itemCount: suggestions.length,
-        itemBuilder: (context, index) {
-          final command = suggestions[index];
-          final selected = index == _slashSuggestionState.selectedIndex;
-          return Material(
-            color: selected
-                ? theme.colorScheme.primaryContainer
-                : Colors.transparent,
-            child: InkWell(
-              key: ValueKey('slash-command-suggestion-${command.name}'),
-              onTap: () {
-                setState(() {
-                  _slashSuggestionState = _slashSuggestionState.selectIndex(
-                    index,
-                  );
-                });
-                _submitSlashCommandFromComposer(allowSelectedSuggestion: true);
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 148,
-                      child: Text(
-                        command.usage,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: selected
-                              ? theme.colorScheme.onPrimaryContainer
-                              : theme.colorScheme.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        command.description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: selected
-                              ? theme.colorScheme.onPrimaryContainer
-                              : theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+    return MessageInputSlashSuggestionList(
+      suggestions: _slashSuggestionState.suggestions,
+      selectedIndex: _slashSuggestionState.selectedIndex,
+      onSelected: (index) {
+        setState(() {
+          _slashSuggestionState = _slashSuggestionState.selectIndex(index);
+        });
+        _submitSlashCommandFromComposer(allowSelectedSuggestion: true);
+      },
     );
   }
 
@@ -1775,8 +1709,15 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   ),
                 ),
               ),
+            // Never both at once: the slash list owns this space when open.
             if (_slashSuggestionState.hasSuggestions)
-              _buildSlashCommandSuggestions(context, theme),
+              _buildSlashCommandSuggestions(context, theme)
+            else
+              ComposerShortcutBar(
+                isBusy: widget.isLoading,
+                onSelected: _sendComposerShortcut,
+                onPrefill: _setComposerText,
+              ),
             // Composer container: full-width TextField on top,
             // action row on the bottom — both inside one rounded surface.
             Container(

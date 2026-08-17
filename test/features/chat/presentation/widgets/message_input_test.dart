@@ -11,10 +11,36 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
+import 'package:caverno/features/chat/presentation/providers/composer_shortcuts_notifier.dart';
 import 'package:caverno/features/chat/presentation/slash_commands/slash_command.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+
+/// Seeds the shortcut bar without running a completion, and records what the
+/// composer clears.
+class _SeededComposerShortcutsNotifier extends ComposerShortcutsNotifier {
+  _SeededComposerShortcutsNotifier({
+    this.shortcuts = const <ComposerShortcut>[],
+    this.isGenerating = false,
+  });
+
+  final List<ComposerShortcut> shortcuts;
+  final bool isGenerating;
+  int clearCount = 0;
+
+  @override
+  ComposerShortcutsState build() => const ComposerShortcutsState();
+
+  @override
+  List<ComposerShortcut> get visibleShortcuts => shortcuts;
+
+  @override
+  bool get isGeneratingForVisibleThread => isGenerating;
+
+  @override
+  void clear([String? threadId]) => clearCount++;
+}
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();
@@ -56,6 +82,7 @@ Future<SharedPreferences> _pumpMessageInput(
   List<SlashCommandDefinition> slashCommands = const <SlashCommandDefinition>[],
   SlashCommandHandler? onSlashCommand,
   bool Function(String question)? onProReasoningSend,
+  _SeededComposerShortcutsNotifier? composerShortcuts,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     if (initialSettings != null)
@@ -78,6 +105,11 @@ Future<SharedPreferences> _pumpMessageInput(
             return ProviderScope(
               overrides: [
                 sharedPreferencesProvider.overrideWithValue(preferences),
+                // The composer reads the shortcut bar from this provider, whose
+                // real notifier observes the whole chat graph.
+                composerShortcutsNotifierProvider.overrideWith(
+                  () => composerShortcuts ?? _SeededComposerShortcutsNotifier(),
+                ),
               ],
               child: MaterialApp(
                 localizationsDelegates: context.localizationDelegates,
@@ -157,6 +189,19 @@ const _testSlashCommands = <SlashCommandDefinition>[
     aliases: ['rev'],
     argumentHint: '<target>',
     argumentRequirement: SlashCommandArgumentRequirement.required,
+  ),
+];
+
+const _testShortcuts = <ComposerShortcut>[
+  ComposerShortcut(
+    kind: ComposerShortcutKind.git,
+    label: 'Commit',
+    prompt: 'Commit the composer shortcut changes.',
+  ),
+  ComposerShortcut(
+    kind: ComposerShortcutKind.verify,
+    label: 'Run tests',
+    prompt: 'Run flutter test and report the failures.',
   ),
 ];
 
@@ -1024,5 +1069,172 @@ void main() {
       find.text('Switched to worktree: feature/composer-ui'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('sends the tapped shortcut prompt through the composer', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final shortcuts = _SeededComposerShortcutsNotifier(
+      shortcuts: _testShortcuts,
+    );
+    final sentMessages = <String>[];
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      onSend: (message, _, _, _, _) => sentMessages.add(message),
+      composerShortcuts: shortcuts,
+    );
+
+    expect(find.byKey(const ValueKey('composer-shortcut-bar')), findsOneWidget);
+    expect(find.text('Commit'), findsOneWidget);
+    expect(find.text('Run tests'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('composer-shortcut-1')));
+    await tester.pumpAndSettle();
+
+    expect(sentMessages, [_testShortcuts[1].prompt]);
+    expect(shortcuts.clearCount, 1);
+    final textField = tester.widget<TextField>(find.byType(TextField));
+    expect(textField.controller?.text, isEmpty);
+  });
+
+  testWidgets('lays the shortcut chips out from the leading edge', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      composerShortcuts: _SeededComposerShortcutsNotifier(
+        shortcuts: _testShortcuts,
+      ),
+    );
+
+    final bar = tester.getRect(
+      find.byKey(const ValueKey('composer-shortcut-bar')),
+    );
+    final firstChip = tester.getRect(
+      find.byKey(const ValueKey('composer-shortcut-0')),
+    );
+
+    expect(firstChip.left, closeTo(bar.left, 0.5));
+    expect(bar.width, greaterThan(firstChip.width * 2));
+  });
+
+  testWidgets('long press puts the shortcut prompt in the composer', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final sentMessages = <String>[];
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      onSend: (message, _, _, _, _) => sentMessages.add(message),
+      composerShortcuts: _SeededComposerShortcutsNotifier(
+        shortcuts: _testShortcuts,
+      ),
+    );
+
+    await tester.longPress(find.byKey(const ValueKey('composer-shortcut-0')));
+    await tester.pumpAndSettle();
+
+    expect(sentMessages, isEmpty);
+    final textField = tester.widget<TextField>(find.byType(TextField));
+    expect(textField.controller?.text, _testShortcuts[0].prompt);
+  });
+
+  testWidgets('shows a generating chip before any shortcut arrives', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      composerShortcuts: _SeededComposerShortcutsNotifier(isGenerating: true),
+    );
+
+    expect(
+      find.byKey(const ValueKey('composer-shortcut-generating')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('hides the shortcut bar when nothing is suggested', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      composerShortcuts: _SeededComposerShortcutsNotifier(),
+    );
+
+    expect(find.byKey(const ValueKey('composer-shortcut-bar')), findsNothing);
+  });
+
+  testWidgets('slash suggestions replace the shortcut bar', (tester) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      slashCommands: _testSlashCommands,
+      onSlashCommand: (_) => SlashCommandExecutionResult.handled,
+      composerShortcuts: _SeededComposerShortcutsNotifier(
+        shortcuts: _testShortcuts,
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('composer-shortcut-bar')), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '/');
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('slash-command-suggestions')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('composer-shortcut-bar')), findsNothing);
+  });
+
+  testWidgets('disables shortcut chips while a response is running', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(true);
+    addTearDown(isLoading.dispose);
+
+    final sentMessages = <String>[];
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      onSend: (message, _, _, _, _) => sentMessages.add(message),
+      composerShortcuts: _SeededComposerShortcutsNotifier(
+        shortcuts: _testShortcuts,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('composer-shortcut-0')));
+    await tester.pump();
+
+    expect(sentMessages, isEmpty);
   });
 }

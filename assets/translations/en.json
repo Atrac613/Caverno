@@ -667,7 +667,8 @@
     "slash_unknown_command": "Unknown slash command: /{command}",
     "slash_missing_arguments": "Add details for /{command}. Usage: {usage}",
     "slash_unexpected_arguments": "/{command} does not take arguments.",
-    "slash_command_failed": "Failed to run slash command."
+    "slash_command_failed": "Failed to run slash command.",
+    "composer_shortcuts_generating": "Finding next steps…"
   },
   "content": {
     "thinking": "Thinking",
@@ -1497,7 +1498,9 @@
     "personal_eval_record_action": "Record case",
     "personal_eval_record_success": "Eval case recorded",
     "model_routing_log_analysis": "Run log analysis",
-    "model_routing_log_analysis_desc": "Turns failure blocks from a running app into issues. Runs while you exercise the app, so a fast model suits it better than a strong one."
+    "model_routing_log_analysis_desc": "Turns failure blocks from a running app into issues. Runs while you exercise the app, so a fast model suits it better than a strong one.",
+    "composer_shortcuts": "Composer shortcut buttons",
+    "composer_shortcuts_desc": "Suggest next-step buttons above the composer after each answer. Uses one small extra model call per turn."
   },
   "routines": {
     "title": "Routines",

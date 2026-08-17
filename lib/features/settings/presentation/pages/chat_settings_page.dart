@@ -251,6 +251,14 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
               ),
             ),
           ],
+          const SizedBox(height: 8),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text('settings.composer_shortcuts'.tr()),
+            subtitle: Text('settings.composer_shortcuts_desc'.tr()),
+            value: settings.composerShortcutsEnabled,
+            onChanged: notifier.updateComposerShortcutsEnabled,
+          ),
           const SizedBox(height: 24),
 
           // Conversation memory section
