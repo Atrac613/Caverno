@@ -1098,10 +1098,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ),
                       if (!shouldShowCodingDraftComposer &&
                           canCompose &&
-                          shouldShowContextStatusWidget(chatState))
-                        _buildTokenUsageBar(context, chatState, settings),
-                      if (!shouldShowCodingDraftComposer &&
-                          canCompose &&
                           (chatState.queuedMessages.isNotEmpty ||
                               chatState.steeringMessages.isNotEmpty))
                         QueuedMessagesStrip(
@@ -1111,6 +1107,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ),
                       if (canCompose && !shouldShowCodingDraftComposer)
                         buildMessageInput(),
+                      if (!shouldShowCodingDraftComposer &&
+                          canCompose &&
+                          shouldShowContextStatusWidget(chatState))
+                        _buildTokenUsageBar(context, chatState, settings),
                     ],
                   );
                   final coreBody = showCompanionSidebar

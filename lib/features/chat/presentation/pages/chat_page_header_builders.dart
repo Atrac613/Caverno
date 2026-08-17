@@ -312,7 +312,6 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
     ChatState chatState,
     AppSettings settings,
   ) {
-    final theme = Theme.of(context);
     final modelConfig = ModelListConfig(
       baseUrl: settings.baseUrl.trim().isEmpty
           ? ApiConstants.defaultBaseUrl
@@ -330,18 +329,15 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
               .firstOrNull,
         );
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-      ),
+    // Sits under the composer, right-aligned: a readout of what the last turn
+    // cost belongs after the thing that spends it, and no longer needs the
+    // divider it carried while it separated the transcript from the composer.
+    return Padding(
+      padding: const EdgeInsets.only(right: 16, bottom: 8),
       child: Align(
         alignment: Alignment.centerRight,
         child: TokenUsageIndicator(
           chatState: chatState,
-          model: settings.model,
           contextWindowTokens: selectedCatalogEntry?.contextWindowTokens,
           contextWindowSource: selectedCatalogEntry?.contextWindowSource,
           formatTokenCount: _formatTokenCount,

@@ -18,7 +18,7 @@ void main() {
     return count.toString();
   }
 
-  testWidgets('shows compact model label and circular prompt usage progress', (
+  testWidgets('shows circular prompt usage progress without a model label', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -33,7 +33,6 @@ void main() {
               totalTokens: 1500,
               estimatedPromptTokens: 3000,
             ),
-            model: 'anthropic/claude-opus-4.7',
             contextWindowTokens: 6000,
             formatTokenCount: formatTokenCount,
           ),
@@ -41,7 +40,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Claude Opus 4.7'), findsOneWidget);
+    expect(find.text('Claude Opus 4.7'), findsNothing);
     expect(find.text('1.2k / 6.0k (20%)'), findsNothing);
     expect(find.text(' / Max'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -66,7 +65,6 @@ void main() {
                 totalTokens: 1500,
                 estimatedPromptTokens: 3000,
               ),
-              model: 'anthropic/claude-opus-4.7',
               contextWindowTokens: 6000,
               formatTokenCount: formatTokenCount,
             ),
@@ -130,7 +128,6 @@ void main() {
                   staleToolResultEstimatedTokens: 30,
                 ),
               ),
-              model: 'anthropic/claude-opus-4.7',
               contextWindowTokens: 6000,
               formatTokenCount: formatTokenCount,
             ),
@@ -200,7 +197,6 @@ void main() {
                   ],
                 ),
               ),
-              model: 'anthropic/claude-opus-4.7',
               contextWindowTokens: 8000,
               formatTokenCount: formatTokenCount,
             ),
@@ -236,7 +232,6 @@ void main() {
                 totalTokens: 0,
                 estimatedPromptTokens: 3000,
               ),
-              model: 'anthropic/claude-opus-4.7',
               contextWindowTokens: 6000,
               formatTokenCount: formatTokenCount,
             ),
@@ -276,7 +271,6 @@ void main() {
               ],
               isLoading: true,
             ),
-            model: 'qwen/qwen3-vl',
             contextWindowTokens: 65536,
             formatTokenCount: formatTokenCount,
           ),
@@ -310,7 +304,6 @@ void main() {
               totalTokens: 9020,
               estimatedPromptTokens: 9002,
             ),
-            model: 'gpt-5.6-luna',
             contextWindowTokens: 1050000,
             contextWindowSource: ModelContextWindowSource.publishedSpec,
             formatTokenCount: formatTokenCount,
@@ -352,7 +345,6 @@ void main() {
               contextTokenPressureLevel: ContextTokenPressureLevel.warning,
               promptCompactionActive: true,
             ),
-            model: 'mlx-community/gemma-4-26B-A4B-it-Q4_K_M.gguf',
             contextWindowTokens: null,
             formatTokenCount: formatTokenCount,
           ),
@@ -360,7 +352,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Gemma 4 26B'), findsOneWidget);
+    expect(find.text('Gemma 4 26B'), findsNothing);
     expect(find.text('5.2k / 6.0k (87%)'), findsNothing);
 
     final progress = tester.widget<CircularProgressIndicator>(
