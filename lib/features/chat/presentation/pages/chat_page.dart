@@ -854,7 +854,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         composerPrefillText: _composerPrefillText,
         composerPrefillVersion: _composerPrefillVersion,
         droppedImageAttachment: _droppedImageAttachment,
-        onWorktreeSessionSend: isCodingWorkspace && activeProject != null
+        // Where a session starts is a choice about a session that has not run
+        // yet, so the selector shows only while the thread is still empty.
+        // Offering it inside a thread already under way implies that thread
+        // could move to a worktree, which it cannot.
+        onWorktreeSessionSend:
+            isCodingWorkspace &&
+                activeProject != null &&
+                chatState.messages.isEmpty
             ? (prompt) => _startWorktreeSessionFromComposer(
                 prompt,
                 activeProject,

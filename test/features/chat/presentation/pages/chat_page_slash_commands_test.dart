@@ -28,6 +28,8 @@ import 'package:caverno/features/chat/presentation/slash_commands/slash_command_
 import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno/features/settings/domain/entities/model_catalog_entry.dart';
+import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -72,16 +74,23 @@ class _SlashSettingsNotifier extends SettingsNotifier {
 }
 
 class _SlashChatNotifier extends ChatNotifier {
-  _SlashChatNotifier({this.initialLoading = false});
+  _SlashChatNotifier({
+    this.initialLoading = false,
+    this.initialMessages = const <Message>[],
+  });
 
   final bool initialLoading;
+  final List<Message> initialMessages;
   int cancelCount = 0;
   int clearCount = 0;
   final List<String> sentMessages = <String>[];
 
   @override
   ChatState build() {
-    return ChatState.initial().copyWith(isLoading: initialLoading);
+    return ChatState.initial().copyWith(
+      isLoading: initialLoading,
+      messages: initialMessages,
+    );
   }
 
   @override
@@ -1436,6 +1445,44 @@ void main() {
     );
   });
 
+  testWidgets('worktree start-in selector is gone once the thread has run', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = _codingProject();
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      modelCatalog: const [ModelCatalogEntry(id: 'model-a')],
+      chatNotifier: _SlashChatNotifier(
+        initialMessages: [
+          Message(
+            id: 'message-1',
+            content: 'Already under way',
+            role: MessageRole.user,
+            timestamp: DateTime(2026, 5, 31, 10),
+          ),
+        ],
+      ),
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+    );
+
+    expect(find.byKey(const ValueKey('worktree-mode-selector')), findsNothing);
+  });
+
   testWidgets('composer new worktree starts a normal coding session', (
     tester,
   ) async {
@@ -1929,6 +1976,7 @@ Future<ProviderContainer> _pumpSlashChatPage(
   WorktreeAgentGitWorktreePreparer? worktreeAgentPreparer,
   WorktreeAgentTaskExecutionDelegate? worktreeAgentDelegate,
   _SlashProReasoningRunNotifier? proReasoningNotifier,
+  List<ModelCatalogEntry>? modelCatalog,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
   final preferences = await SharedPreferences.getInstance();
@@ -1959,6 +2007,10 @@ Future<ProviderContainer> _pumpSlashChatPage(
         () => codingProjectsNotifier ?? _SlashCodingProjectsNotifier(),
       ),
       chatNotifierProvider.overrideWith(() => chatNotifier),
+      // The token-usage bar and the composer model picker both read the
+      // endpoint catalog; keep the page test off the network.
+      if (modelCatalog != null)
+        modelCatalogProvider.overrideWith((ref, config) async => modelCatalog),
       if (proReasoningNotifier != null)
         proReasoningRunProvider.overrideWith(() => proReasoningNotifier),
       routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
