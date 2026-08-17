@@ -1475,6 +1475,12 @@ void main() {
       ),
     );
 
+    // The control bar scrolls horizontally; the worktree chip sits past the
+    // model picker at the test viewport width.
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('worktree-mode-selector')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('worktree-mode-selector')));
     await tester.pumpAndSettle();
     await tester.tap(

@@ -345,7 +345,14 @@ const Map<String, int> _lineBudgets = {
   // Lowered after the slash-command completion list moved to
   // message_input_slash_suggestion_list.dart, which paid for the shortcut bar
   // hook-up several times over.
-  'lib/features/chat/presentation/widgets/message_input.dart': 2298,
+  // Lowered from 2298 when the model/effort picker landed as its own widget
+  // and took the shared control chip, the reasoning-effort menu and the
+  // attachments button out with it, so the merged control and the reordered
+  // action row cost the composer nothing.
+  'lib/features/chat/presentation/widgets/message_input.dart': 2203,
+  'lib/features/chat/presentation/widgets/composer_model_selector.dart': 275,
+  'lib/features/chat/presentation/widgets/composer_control_chip.dart': 65,
+  'lib/features/chat/presentation/widgets/composer_attachment_button.dart': 53,
   'lib/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart':
       131,
   'lib/features/chat/presentation/coordinators/chat_page_workspace_navigation_coordinator.dart':

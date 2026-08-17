@@ -17,9 +17,11 @@ import '../../../../core/services/macos_main_app_permissions_service.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/types/assistant_mode.dart';
-import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/conversation_goal.dart';
+import 'composer_attachment_button.dart';
+import 'composer_control_chip.dart';
+import 'composer_model_selector.dart';
 import 'composer_shortcut_bar.dart';
 import 'conversation_goal_status_presentation.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
@@ -1239,9 +1241,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   String _assistantModeLabel(AssistantMode mode) =>
       messageInputAssistantModeLabel(mode);
 
-  String _reasoningEffortLabel(ReasoningEffortPreference value) =>
-      messageInputReasoningEffortLabel(value);
-
   String _codingApprovalModeLabel(ToolApprovalMode mode) =>
       messageInputCodingApprovalLabel(mode);
 
@@ -1314,42 +1313,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
               ),
             ),
         ],
-        child: _buildComposerControlChip(
+        child: buildComposerControlChip(
           theme: theme,
           icon: _worktreeModeIcon(_worktreeMode),
           label: _worktreeModeLabel(_worktreeMode),
           key: const ValueKey('worktree-mode-selector'),
         ),
-      ),
-    );
-  }
-
-  Widget _buildComposerControlChip({
-    required ThemeData theme,
-    required IconData icon,
-    required String label,
-    Key? key,
-    bool showChevron = true,
-  }) {
-    return Container(
-      key: key,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18),
-          const SizedBox(width: 6),
-          Text(label, style: theme.textTheme.labelLarge),
-          if (showChevron) ...[
-            const SizedBox(width: 4),
-            const Icon(Icons.keyboard_arrow_down, size: 18),
-          ],
-        ],
       ),
     );
   }
@@ -1625,9 +1594,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final settings = ref.watch(settingsNotifierProvider);
     final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
     final assistantMode = widget.assistantMode;
-    final reasoningEffort = settings.reasoningEffort;
     final codingApprovalMode = settings.codingApprovalMode;
     final chatApprovalMode = settings.chatApprovalMode;
+    // A narrow window cannot fit model + effort beside the send controls.
+    final isNarrowComposer = MediaQuery.sizeOf(context).width < 480;
     final canSend =
         _hasText ||
         _selectedImageBytes != null ||
@@ -1843,81 +1813,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              ComposerAttachmentButton(
+                                onPickImage: _pickImage,
+                                onPickFile: _pickFile,
+                              ),
+                              const SizedBox(width: 4),
                               if (widget.isCodingWorkspace) ...[
-                                Opacity(
-                                  opacity: widget.isLoading ? 0.6 : 1.0,
-                                  child: PopupMenuButton<AssistantMode>(
-                                    enabled: !widget.isLoading,
-                                    tooltip: 'message.mode_tooltip'.tr(),
-                                    padding: EdgeInsets.zero,
-                                    onSelected: widget.onAssistantModeSelected,
-                                    itemBuilder: (context) => [
-                                      CheckedPopupMenuItem<AssistantMode>(
-                                        value: AssistantMode.general,
-                                        checked:
-                                            assistantMode ==
-                                            AssistantMode.general,
-                                        child: Text(
-                                          _assistantModeLabel(
-                                            AssistantMode.general,
-                                          ),
-                                        ),
-                                      ),
-                                      CheckedPopupMenuItem<AssistantMode>(
-                                        value: AssistantMode.coding,
-                                        checked:
-                                            assistantMode ==
-                                            AssistantMode.coding,
-                                        child: Text(
-                                          _assistantModeLabel(
-                                            AssistantMode.coding,
-                                          ),
-                                        ),
-                                      ),
-                                      CheckedPopupMenuItem<AssistantMode>(
-                                        value: AssistantMode.plan,
-                                        checked:
-                                            assistantMode == AssistantMode.plan,
-                                        child: Text(
-                                          _assistantModeLabel(
-                                            AssistantMode.plan,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: theme
-                                            .colorScheme
-                                            .surfaceContainerHigh,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color:
-                                              theme.colorScheme.outlineVariant,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            _assistantModeLabel(assistantMode),
-                                            style: theme.textTheme.labelLarge,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          const Icon(
-                                            Icons.keyboard_arrow_down,
-                                            size: 18,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
                                 Opacity(
                                   opacity: widget.isLoading ? 0.6 : 1.0,
                                   child: PopupMenuButton<ToolApprovalMode>(
@@ -2007,12 +1908,86 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
+                                Opacity(
+                                  opacity: widget.isLoading ? 0.6 : 1.0,
+                                  child: PopupMenuButton<AssistantMode>(
+                                    enabled: !widget.isLoading,
+                                    tooltip: 'message.mode_tooltip'.tr(),
+                                    padding: EdgeInsets.zero,
+                                    onSelected: widget.onAssistantModeSelected,
+                                    itemBuilder: (context) => [
+                                      CheckedPopupMenuItem<AssistantMode>(
+                                        value: AssistantMode.general,
+                                        checked:
+                                            assistantMode ==
+                                            AssistantMode.general,
+                                        child: Text(
+                                          _assistantModeLabel(
+                                            AssistantMode.general,
+                                          ),
+                                        ),
+                                      ),
+                                      CheckedPopupMenuItem<AssistantMode>(
+                                        value: AssistantMode.coding,
+                                        checked:
+                                            assistantMode ==
+                                            AssistantMode.coding,
+                                        child: Text(
+                                          _assistantModeLabel(
+                                            AssistantMode.coding,
+                                          ),
+                                        ),
+                                      ),
+                                      CheckedPopupMenuItem<AssistantMode>(
+                                        value: AssistantMode.plan,
+                                        checked:
+                                            assistantMode == AssistantMode.plan,
+                                        child: Text(
+                                          _assistantModeLabel(
+                                            AssistantMode.plan,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme
+                                            .colorScheme
+                                            .surfaceContainerHigh,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color:
+                                              theme.colorScheme.outlineVariant,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            _assistantModeLabel(assistantMode),
+                                            style: theme.textTheme.labelLarge,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          const Icon(
+                                            Icons.keyboard_arrow_down,
+                                            size: 18,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
                                 if (_worktreeControlsEnabled) ...[
                                   _buildWorktreeModeSelector(context, theme),
                                   if (_worktreeMode ==
                                       MessageInputWorktreeMode.newWorktree) ...[
                                     const SizedBox(width: 8),
-                                    _buildComposerControlChip(
+                                    buildComposerControlChip(
                                       theme: theme,
                                       icon: Icons.call_split_outlined,
                                       label: 'main',
@@ -2122,85 +2097,18 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                                 ),
                                 const SizedBox(width: 4),
                               ],
-                              Opacity(
-                                opacity: widget.isLoading ? 0.6 : 1.0,
-                                child:
-                                    PopupMenuButton<ReasoningEffortPreference>(
-                                      enabled: !widget.isLoading,
-                                      tooltip:
-                                          'message.reasoning_effort_tooltip'.tr(
-                                            namedArgs: {
-                                              'value': _reasoningEffortLabel(
-                                                reasoningEffort,
-                                              ),
-                                            },
-                                          ),
-                                      icon: const Icon(
-                                        Icons.psychology_alt_outlined,
-                                      ),
-                                      onSelected: (value) {
-                                        settingsNotifier.updateReasoningEffort(
-                                          value,
-                                        );
-                                      },
-                                      itemBuilder: (context) =>
-                                          ReasoningEffortPreference.values
-                                              .map(
-                                                (value) =>
-                                                    CheckedPopupMenuItem<
-                                                      ReasoningEffortPreference
-                                                    >(
-                                                      value: value,
-                                                      checked:
-                                                          reasoningEffort ==
-                                                          value,
-                                                      child: Text(
-                                                        _reasoningEffortLabel(
-                                                          value,
-                                                        ),
-                                                      ),
-                                                    ),
-                                              )
-                                              .toList(),
-                                    ),
-                              ),
-                              const SizedBox(width: 4),
-                              // Attachments menu (image / file)
-                              PopupMenuButton<_AttachmentAction>(
-                                tooltip: 'message.attachments'.tr(),
-                                icon: const Icon(Icons.add),
-                                onSelected: (action) {
-                                  switch (action) {
-                                    case _AttachmentAction.image:
-                                      _pickImage();
-                                    case _AttachmentAction.file:
-                                      _pickFile();
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  PopupMenuItem<_AttachmentAction>(
-                                    value: _AttachmentAction.image,
-                                    child: ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: const Icon(Icons.image),
-                                      title: Text('message.attach_image'.tr()),
-                                    ),
-                                  ),
-                                  PopupMenuItem<_AttachmentAction>(
-                                    value: _AttachmentAction.file,
-                                    child: ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: const Icon(Icons.attach_file),
-                                      title: Text('message.attach_file'.tr()),
-                                    ),
-                                  ),
-                                ],
-                              ),
                             ],
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
+                      // Model + effort, mic and voice/send are pinned right:
+                      // only the chip row flexes, so no slack opens after them.
+                      ComposerModelSelector(
+                        enabled: !widget.isLoading,
+                        compact: isNarrowComposer,
+                      ),
+                      const SizedBox(width: 4),
                       // Microphone (STT)
                       IconButton(
                         onPressed: widget.isLoading ? null : _toggleRecording,
@@ -2293,6 +2201,3 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     );
   }
 }
-
-/// Actions available from the composer's "+" attachments menu.
-enum _AttachmentAction { image, file }

@@ -15,6 +15,8 @@ import 'package:caverno/features/chat/presentation/providers/composer_shortcuts_
 import 'package:caverno/features/chat/presentation/slash_commands/slash_command.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno/features/settings/domain/entities/model_catalog_entry.dart';
+import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
 /// Seeds the shortcut bar without running a completion, and records what the
@@ -83,6 +85,7 @@ Future<SharedPreferences> _pumpMessageInput(
   SlashCommandHandler? onSlashCommand,
   bool Function(String question)? onProReasoningSend,
   _SeededComposerShortcutsNotifier? composerShortcuts,
+  List<ModelCatalogEntry>? modelCatalog,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     if (initialSettings != null)
@@ -110,6 +113,12 @@ Future<SharedPreferences> _pumpMessageInput(
                 composerShortcutsNotifierProvider.overrideWith(
                   () => composerShortcuts ?? _SeededComposerShortcutsNotifier(),
                 ),
+                // The composer model picker reads the endpoint catalog; keep
+                // the widget test off the network.
+                if (modelCatalog != null)
+                  modelCatalogProvider.overrideWith(
+                    (ref, config) async => modelCatalog,
+                  ),
               ],
               child: MaterialApp(
                 localizationsDelegates: context.localizationDelegates,
@@ -621,42 +630,6 @@ void main() {
     expect(sentImageMimeType, 'image/png');
   });
 
-  testWidgets('updates reasoning effort from the composer menu', (
-    tester,
-  ) async {
-    final isLoading = ValueNotifier<bool>(false);
-    addTearDown(isLoading.dispose);
-
-    final preferences = await _pumpMessageInput(
-      tester,
-      isLoading: isLoading,
-      onCancel: () {},
-    );
-
-    expect(find.byIcon(Icons.psychology_alt_outlined), findsOneWidget);
-    expect(find.byTooltip('Reasoning effort: API default'), findsOneWidget);
-
-    await tester.tap(find.byIcon(Icons.psychology_alt_outlined));
-    await tester.pumpAndSettle();
-
-    await tester.tap(
-      find.widgetWithText(
-        CheckedPopupMenuItem<ReasoningEffortPreference>,
-        'High',
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    final storedJson = preferences.getString('app_settings');
-    expect(storedJson, isNotNull);
-
-    final storedSettings = AppSettings.fromJson(
-      jsonDecode(storedJson!) as Map<String, dynamic>,
-    );
-    expect(storedSettings.reasoningEffort, ReasoningEffortPreference.high);
-    expect(find.byTooltip('Reasoning effort: High'), findsOneWidget);
-  });
-
   testWidgets('persists Pro Reasoning depth from the chat composer', (
     tester,
   ) async {
@@ -996,6 +969,10 @@ void main() {
       findsOneWidget,
     );
 
+    // The control bar scrolls horizontally; the approval chip sits past the
+    // model picker at the test viewport width.
+    await tester.ensureVisible(find.text('Default permissions'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Default permissions'));
     await tester.pumpAndSettle();
 
@@ -1015,6 +992,75 @@ void main() {
     );
     expect(storedSettings.codingApprovalMode, ToolApprovalMode.autoReview);
     expect(find.byTooltip('Permission mode: Auto-review'), findsOneWidget);
+  });
+
+  testWidgets('switches the chat model from the composer picker', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final preferences = await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      modelCatalog: const [
+        ModelCatalogEntry(id: 'model-a'),
+        ModelCatalogEntry(id: 'model-b'),
+      ],
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('composer-model-chip')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(SubmenuButton, 'Model'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(MenuItemButton, 'model-b'));
+    await tester.pumpAndSettle();
+
+    final storedJson = preferences.getString('app_settings');
+    expect(storedJson, isNotNull);
+    final storedSettings = AppSettings.fromJson(
+      jsonDecode(storedJson!) as Map<String, dynamic>,
+    );
+    expect(storedSettings.model, 'model-b');
+    expect(
+      find.byTooltip('Model: model-b / Effort: API default'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('sets reasoning effort from the same composer chip', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final preferences = await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      modelCatalog: const [ModelCatalogEntry(id: 'model-a')],
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('composer-model-chip')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(SubmenuButton, 'Effort'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(MenuItemButton, 'High'));
+    await tester.pumpAndSettle();
+
+    final storedJson = preferences.getString('app_settings');
+    expect(storedJson, isNotNull);
+    final storedSettings = AppSettings.fromJson(
+      jsonDecode(storedJson!) as Map<String, dynamic>,
+    );
+    expect(storedSettings.reasoningEffort, ReasoningEffortPreference.high);
+    // The chip carries the effort next to the model name.
+    expect(find.text('High'), findsOneWidget);
   });
 
   testWidgets('starts a new worktree session from composer text', (
@@ -1042,6 +1088,12 @@ void main() {
     expect(find.text('Work locally'), findsOneWidget);
     expect(find.byTooltip('Start in: Work locally'), findsOneWidget);
 
+    // The control bar scrolls horizontally; the worktree chip sits past the
+    // model picker at the test viewport width.
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('worktree-mode-selector')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('worktree-mode-selector')));
     await tester.pumpAndSettle();
     await tester.tap(
