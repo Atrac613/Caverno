@@ -125,6 +125,62 @@ void main() {
       expect(writeKey, isNot(contains('commandRetryGeneration=2')));
     });
 
+    test('scopes a read-only command key to the observed state', () {
+      final status = _toolCall('git_execute_command', {
+        'command': 'status --short --branch',
+      });
+
+      final before = policy.toolExecutionKey(status);
+      final after = policy.toolExecutionKey(status, stateChangeGeneration: 1);
+
+      // `git status` before and after a checkout are different questions, so
+      // the earlier answer must not be replayed for the later one.
+      expect(before, isNot(after));
+      expect(after, contains('stateChangeGeneration=1'));
+    });
+
+    test('keeps a mutating command key stable across state changes', () {
+      final push = _toolCall('git_execute_command', {
+        'command': 'push origin HEAD',
+      });
+
+      // Side-effect deduplication must survive: a repeated push still
+      // collides with its own earlier key.
+      expect(
+        policy.toolExecutionKey(push, stateChangeGeneration: 3),
+        policy.toolExecutionKey(push),
+      );
+      expect(
+        policy.toolExecutionKey(push),
+        isNot(contains('stateChangeGeneration')),
+      );
+    });
+
+    test('advances the state-change generation only on mutating commands', () {
+      expect(
+        policy.advancesStateChangeGeneration(
+          _toolCall('local_execute_command', {'command': 'gh pr checkout 276'}),
+        ),
+        isTrue,
+      );
+      expect(
+        policy.advancesStateChangeGeneration(
+          _toolCall('git_execute_command', {'command': 'status --short'}),
+        ),
+        isFalse,
+      );
+      expect(
+        policy.advancesStateChangeGeneration(
+          _toolCall('local_execute_command', {'command': 'pwd'}),
+        ),
+        isFalse,
+      );
+      expect(
+        policy.advancesStateChangeGeneration(_toolCall('read_file')),
+        isFalse,
+      );
+    });
+
     test('allows repeated inspection and process monitor calls', () {
       expect(
         policy.shouldAllowRepeatedToolExecution(_toolCall('read_file')),

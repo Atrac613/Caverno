@@ -257,6 +257,7 @@ void main() {
         'unexecuted-command-action-retry-policy',
         'unexecuted-file-mutation-before-command-guard',
         'unexecuted-final-answer-tool-request-policy',
+        'uninspected-commit-guard',
         'verifier-replay-candidate-policy',
       });
       expect(

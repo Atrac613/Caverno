@@ -7,6 +7,7 @@ import 'background_process_tools.dart';
 import 'built_in_local_command_read_preflight.dart';
 import 'built_in_local_command_runner.dart';
 import 'built_in_local_command_tool_definitions.dart';
+import 'local_shell_git_write_guard.dart';
 import 'local_shell_tools.dart';
 import 'mcp_tool_result_normalizer.dart';
 
@@ -109,13 +110,13 @@ class BuiltInLocalCommandToolHandler {
             'command and working_directory are required',
           );
         }
-        final gitWriteBlockedResult =
-            LocalShellTools.gitWriteCommandBlockedResult(
-              command: command,
-              workingDirectory: workingDirectory,
-            );
-        if (gitWriteBlockedResult != null) {
-          return _gitWriteFailure(name, gitWriteBlockedResult);
+        final gitWriteBlocked = LocalShellGitWriteGuard.resultFor(
+          toolName: name,
+          command: command,
+          workingDirectory: workingDirectory,
+        );
+        if (gitWriteBlocked != null) {
+          return gitWriteBlocked;
         }
         if (argumentIsTruthy(arguments['background'])) {
           return _backgroundProcessExecutor.start(
@@ -169,14 +170,6 @@ class BuiltInLocalCommandToolHandler {
     return McpToolResultNormalizer.failure(
       toolName: name,
       errorMessage: message,
-    );
-  }
-
-  McpToolResult _gitWriteFailure(String name, String result) {
-    return McpToolResultNormalizer.failure(
-      toolName: name,
-      result: result,
-      errorMessage: 'Use git_execute_command for git write commands',
     );
   }
 }

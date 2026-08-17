@@ -474,6 +474,16 @@ class GitTools {
       if (worktreeRemovePreflightError != null) {
         return worktreeRemovePreflightError;
       }
+
+      final forcePushPreflightError = await _forcePushPreflightError(
+        args: args,
+        normalizedCommand: normalizedCommand,
+        workingDirectory: workingDirectory,
+        environment: environment,
+      );
+      if (forcePushPreflightError != null) {
+        return forcePushPreflightError;
+      }
     }
 
     try {
@@ -885,6 +895,282 @@ class GitTools {
       }
     }
     return 0;
+  }
+
+  /// Blocks a forced push that would drop commits the remote branch already
+  /// has.
+  ///
+  /// Plain pushes need no guard: git rejects them when they are not
+  /// fast-forward. `--force-with-lease` looks like a guard but only answers
+  /// "is the remote where I last saw it" — a bare `git fetch` refreshes the
+  /// remote-tracking ref and silently re-arms the lease without integrating
+  /// anything, so a stale local branch can then overwrite newer remote work.
+  /// This preflight asks the question the lease does not: would the push
+  /// discard commits reachable from the remote-tracking ref?
+  ///
+  /// The check reads refs that are already on disk and never fetches, since
+  /// fetching is precisely what defeats the lease.
+  static Future<FirstPartyToolExecutionResult?> _forcePushPreflightError({
+    required List<String> args,
+    required String normalizedCommand,
+    required String workingDirectory,
+    required Map<String, String> environment,
+  }) async {
+    final push = _forcePushPlan(args);
+    if (push == null) {
+      return null;
+    }
+
+    try {
+      for (final refspec in push.refspecs) {
+        final remoteRef = await _remoteTrackingRef(
+          remote: push.remote,
+          destination: refspec.destination,
+          workingDirectory: workingDirectory,
+          environment: environment,
+        );
+        if (remoteRef == null) {
+          // No remote-tracking ref: a brand-new branch, or a destination this
+          // clone has never seen. Nothing on record can be discarded.
+          continue;
+        }
+        final remoteSha = await _revParse(
+          revision: remoteRef,
+          workingDirectory: workingDirectory,
+          environment: environment,
+        );
+        final localSha = await _revParse(
+          revision: refspec.source,
+          workingDirectory: workingDirectory,
+          environment: environment,
+        );
+        if (remoteSha == null || localSha == null || remoteSha == localSha) {
+          continue;
+        }
+
+        final remoteIsAncestor = await Process.run(
+          'git',
+          ['merge-base', '--is-ancestor', remoteSha, localSha],
+          workingDirectory: workingDirectory,
+          environment: environment,
+        ).timeout(_kTimeout);
+        if (remoteIsAncestor.exitCode == 0) {
+          // Fast-forward: the push only adds commits.
+          continue;
+        }
+        if (remoteIsAncestor.exitCode != 1) {
+          // merge-base could not decide (missing object, corrupt ref). Leave
+          // the call to git itself rather than blocking on an unknown.
+          continue;
+        }
+
+        final discardedCount = await _revListCount(
+          range: '$localSha..$remoteSha',
+          workingDirectory: workingDirectory,
+          environment: environment,
+        );
+        return _failureExecution({
+          'command': 'git $normalizedCommand',
+          'working_directory': workingDirectory,
+          'exit_code': 2,
+          'code': 'git_force_push_discards_remote_commits',
+          'error':
+              'git push was blocked because it would force "$remoteRef" back '
+              'to a commit that does not contain the remote branch history. '
+              '${discardedCount == null ? 'Commits' : '$discardedCount commit(s)'} '
+              'reachable from $remoteRef would be discarded, including any '
+              'rebase or conflict resolution performed on the remote branch.',
+          'required_action':
+              'Integrate the remote commits before pushing: run '
+              'git_execute_command with "pull --rebase '
+              '${push.remote} ${_normalizeBranchName(refspec.destination ?? '')}" '
+              '(or reset the local branch onto the remote head), then push '
+              'again. Do NOT run a bare fetch and retry --force-with-lease: '
+              'fetching only refreshes the lease reference and still discards '
+              'the remote commits. If the remote branch is genuinely the one '
+              'to throw away, say so explicitly and ask the user to confirm.',
+          'remote_ref': remoteRef,
+          'remote_commit': remoteSha,
+          'local_commit': localSha,
+          'discarded_commit_count': ?discardedCount,
+        });
+      }
+      return null;
+    } on TimeoutException {
+      return _failureExecution({
+        'command': 'git $normalizedCommand',
+        'working_directory': workingDirectory,
+        'exit_code': 2,
+        'code': 'git_force_push_preflight_timeout',
+        'error':
+            'Timed out while checking whether the forced push would discard '
+            'remote commits.',
+      });
+    } catch (e) {
+      return _failureExecution({
+        'command': 'git $normalizedCommand',
+        'working_directory': workingDirectory,
+        'exit_code': 2,
+        'code': 'git_force_push_preflight_failed',
+        'error':
+            'Failed to check whether the forced push would discard remote '
+            'commits: $e',
+      });
+    }
+  }
+
+  /// Parses `push` arguments into the remote and the refspecs it force-updates.
+  ///
+  /// Returns null when the command is not a push, or when nothing about it is
+  /// forced — including `--delete`, which removes a ref rather than rewriting
+  /// one and is outside this preflight's scope.
+  static _ForcePushPlan? _forcePushPlan(List<String> args) {
+    if (args.isEmpty || args.first != 'push') {
+      return null;
+    }
+    const valueFlags = {
+      '--repo',
+      '--receive-pack',
+      '--exec',
+      '-o',
+      '--push-option',
+    };
+    var forcedByFlag = false;
+    final positional = <String>[];
+    for (var index = 1; index < args.length; index++) {
+      final arg = args[index];
+      if (arg == '--') {
+        positional.addAll(args.skip(index + 1));
+        break;
+      }
+      if (arg == '--delete' || arg == '-d') {
+        return null;
+      }
+      if (arg == '--force' ||
+          arg == '-f' ||
+          arg == '--force-with-lease' ||
+          arg.startsWith('--force-with-lease=') ||
+          arg.startsWith('--force-if-includes')) {
+        forcedByFlag = true;
+        continue;
+      }
+      if (valueFlags.contains(arg)) {
+        index += 1;
+        continue;
+      }
+      if (arg.startsWith('-')) {
+        continue;
+      }
+      positional.add(arg);
+    }
+
+    final remote = positional.isEmpty ? 'origin' : positional.first;
+    final rawRefspecs = positional.skip(1).toList();
+    final refspecs = <_PushRefspec>[];
+    for (final raw in rawRefspecs) {
+      // A leading "+" forces that refspec even without --force.
+      final forcedByRefspec = raw.startsWith('+');
+      if (!forcedByFlag && !forcedByRefspec) {
+        continue;
+      }
+      final spec = forcedByRefspec ? raw.substring(1) : raw;
+      if (spec.isEmpty) {
+        continue;
+      }
+      final separator = spec.indexOf(':');
+      if (separator < 0) {
+        refspecs.add(_PushRefspec(source: spec, destination: spec));
+        continue;
+      }
+      final source = spec.substring(0, separator);
+      final destination = spec.substring(separator + 1);
+      if (source.isEmpty) {
+        // ":branch" deletes the remote ref; out of scope like --delete.
+        continue;
+      }
+      refspecs.add(
+        _PushRefspec(
+          source: source,
+          destination: destination.isEmpty ? null : destination,
+        ),
+      );
+    }
+    if (rawRefspecs.isEmpty && forcedByFlag) {
+      // "git push --force [remote]" pushes HEAD to its upstream.
+      refspecs.add(const _PushRefspec(source: 'HEAD', destination: null));
+    }
+    if (refspecs.isEmpty) {
+      return null;
+    }
+    return _ForcePushPlan(remote: remote, refspecs: refspecs);
+  }
+
+  /// Resolves the remote-tracking ref a push destination would overwrite.
+  ///
+  /// "HEAD" and an omitted destination both mean the current branch's
+  /// upstream, which is the form the model reaches for most often.
+  static Future<String?> _remoteTrackingRef({
+    required String remote,
+    required String? destination,
+    required String workingDirectory,
+    required Map<String, String> environment,
+  }) async {
+    final branch = _normalizeBranchName(destination ?? '');
+    if (branch.isNotEmpty && branch != 'HEAD') {
+      final ref = 'refs/remotes/$remote/$branch';
+      final exists = await _revParse(
+        revision: ref,
+        workingDirectory: workingDirectory,
+        environment: environment,
+      );
+      return exists == null ? null : ref;
+    }
+    final upstream = await Process.run(
+      'git',
+      ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
+      workingDirectory: workingDirectory,
+      environment: environment,
+    ).timeout(_kTimeout);
+    if (upstream.exitCode != 0) {
+      return null;
+    }
+    final resolved = (upstream.stdout as String).trim();
+    return resolved.isEmpty ? null : resolved;
+  }
+
+  static Future<String?> _revParse({
+    required String revision,
+    required String workingDirectory,
+    required Map<String, String> environment,
+  }) async {
+    final result = await Process.run(
+      'git',
+      ['rev-parse', '--verify', '--quiet', '$revision^{commit}'],
+      workingDirectory: workingDirectory,
+      environment: environment,
+    ).timeout(_kTimeout);
+    if (result.exitCode != 0) {
+      return null;
+    }
+    final sha = (result.stdout as String).trim();
+    return sha.isEmpty ? null : sha;
+  }
+
+  static Future<int?> _revListCount({
+    required String range,
+    required String workingDirectory,
+    required Map<String, String> environment,
+  }) async {
+    final result = await Process.run(
+      'git',
+      ['rev-list', '--count', range],
+      workingDirectory: workingDirectory,
+      environment: environment,
+    ).timeout(_kTimeout);
+    if (result.exitCode != 0) {
+      return null;
+    }
+    return int.tryParse((result.stdout as String).trim());
   }
 
   static Future<FirstPartyToolExecutionResult?> _mergePreflightError({
@@ -1541,4 +1827,23 @@ class _GitWorktreeEntry {
   Map<String, dynamic> toJson() {
     return {'path': path, if (branch.isNotEmpty) 'branch': branch};
   }
+}
+
+/// A single refspec of a forced `git push`.
+final class _PushRefspec {
+  const _PushRefspec({required this.source, required this.destination});
+
+  /// Local revision being pushed, e.g. "HEAD" or a branch name.
+  final String source;
+
+  /// Remote branch being overwritten; null means the source's upstream.
+  final String? destination;
+}
+
+/// The remote and refspecs a forced `git push` would rewrite.
+final class _ForcePushPlan {
+  const _ForcePushPlan({required this.remote, required this.refspecs});
+
+  final String remote;
+  final List<_PushRefspec> refspecs;
 }

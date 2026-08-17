@@ -207,6 +207,82 @@ void main() {
 
       expect(changed, isNot(contains('unchanged')));
     });
+
+    test('lists commands already run this turn', () {
+      // Session 655e367f: the same gh investigation was re-issued because the
+      // digest never mentioned commands, only file reads.
+      const runLog =
+          'gh run view 31986552620 --repo Shiftall/gs1_flutter_app --log-failed';
+      final block = digest.build([
+        _result('local_execute_command', {
+          'command': runLog,
+          'reason': 'CIログから失敗ステップを抽出するため',
+        }, result: 'pub get failed'),
+        _result('local_execute_command', {
+          'command': runLog,
+          'reason': '失敗ステップだけを抽出して根本原因を確認するため',
+        }, result: 'pub get failed'),
+        _result('git_execute_command', {
+          'command': 'status --short --branch',
+        }, result: '## main'),
+      ]);
+
+      expect(block, contains('Commands already run this turn'));
+      expect(block, contains('ran `$runLog`'));
+      expect(block, contains('already run 2x this turn'));
+      expect(block, contains('ran `git status --short --branch`'));
+      // A reworded reason must not split one command into two entries.
+      expect('ran `$runLog`'.allMatches(block).length, 1);
+    });
+
+    test('never claims a command was unchanged', () {
+      final block = digest.build([
+        _result('local_execute_command', {
+          'command': 'fvm flutter test',
+        }, result: 'All tests passed!'),
+        _result('local_execute_command', {
+          'command': 'fvm flutter test',
+        }, result: 'All tests passed!'),
+        // A second distinct entry: one label alone stays below minEntries.
+        _result('local_execute_command', {'command': 'fvm flutter analyze'}),
+      ]);
+
+      // Identical output does not license "do not repeat": a verification
+      // command must stay repeatable after an edit.
+      expect(block, isNot(contains('unchanged')));
+      expect(block, isNot(contains('do not repeat')));
+      expect(block, contains('run it again only when you need its output'));
+      // The output is not carried into the next request, so the digest must
+      // not present it as still readable.
+      expect(block, contains('not carried into this request'));
+      expect(block, isNot(contains('Use what they returned')));
+    });
+
+    test('keeps command and inspection sections separate', () {
+      final block = digest.build([
+        _result('read_file', {'path': 'pubspec.yaml'}),
+        _result('local_execute_command', {'command': 'gh pr checks 276'}),
+      ]);
+
+      expect(block, contains('Context already gathered this turn'));
+      expect(block, contains('Commands already run this turn'));
+      expect(
+        block.indexOf('Context already gathered'),
+        lessThan(block.indexOf('Commands already run')),
+      );
+    });
+
+    test('truncates an oversized command label', () {
+      final long = 'gh api ${'x' * 400}';
+      final block = digest.build([
+        _result('local_execute_command', {'command': long}),
+        _result('read_file', {'path': 'a.dart'}),
+      ]);
+
+      final label = RegExp(r'ran `([^`]*)`').firstMatch(block)!.group(1)!;
+      expect(label, endsWith('…'));
+      expect(label.length, lessThanOrEqualTo(121));
+    });
   });
 }
 

@@ -62,6 +62,7 @@ import '../../data/datasources/file_rollback_checkpoint_store.dart';
 import '../../data/datasources/file_mutation_tool_runtime_adapter.dart';
 import '../../data/datasources/filesystem_tools.dart';
 import '../../data/datasources/git_tools.dart';
+import '../../data/datasources/local_shell_git_write_guard.dart';
 import '../../data/datasources/local_shell_tools.dart';
 import '../../data/datasources/lsp_go_to_definition_runtime_adapter.dart';
 import '../../data/datasources/mcp_tool_service.dart';
@@ -125,6 +126,7 @@ import '../../domain/services/model_switch_settings_policy.dart';
 import '../../domain/services/saved_task_target_scope_guard.dart';
 import '../../domain/services/saved_validation_command_guard.dart';
 import '../../domain/services/timed_out_command_retry_guard.dart';
+import '../../domain/services/uninspected_commit_guard.dart';
 import '../../domain/services/tool_loop_exhaustion_policy.dart';
 import '../../domain/services/unexecuted_file_mutation_before_command_guard.dart';
 import '../../domain/services/coding_diagnostic_feedback_service.dart';
@@ -144,6 +146,7 @@ import '../../domain/services/final_answer_claim_detector.dart';
 import '../../domain/services/final_answer_claim_notice_applicator.dart';
 import '../../domain/services/final_answer_message_notice_service.dart';
 import '../../domain/services/final_answer_recovery_policy.dart';
+import '../../domain/services/duplicate_recovery_prompt_builder.dart';
 import '../../domain/services/file_mutation_evidence_policy.dart';
 import '../../domain/services/file_mutation_tool_handler.dart';
 import '../../domain/services/file_turn_rollback_service.dart';
@@ -179,6 +182,7 @@ import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
 import '../../domain/services/tool_failure_classifier.dart';
+import '../../domain/services/tool_loop_abort_notice.dart';
 import '../../domain/services/tool_loop_recovery_policy.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import '../../domain/services/tool_result_taint_recorder.dart';
@@ -218,6 +222,7 @@ import 'thread_scoped_chat_state.dart';
 import 'thread_scoped_message_queue.dart';
 import 'tool_approval_cache.dart';
 import 'tool_dedupe_keys.dart';
+import 'tool_loop_batch_execution_result.dart';
 import 'turn_coding_project_resolver.dart';
 import 'turn_context_retry_coordinator.dart';
 import 'turn_runtime_goal_safe_boundary_adapter.dart';
@@ -1925,10 +1930,12 @@ class ChatNotifier extends Notifier<ChatState> {
   String buildDuplicateFollowUpRecoveryPromptForTest(
     List<ToolCallInfo> toolCalls, {
     List<ToolResultInfo> previousToolResults = const [],
+    bool hasSavedTask = true,
   }) {
     return _buildDuplicateFollowUpRecoveryPrompt(
       toolCalls,
       previousToolResults: previousToolResults,
+      hasSavedTask: hasSavedTask,
     );
   }
 
@@ -1936,10 +1943,12 @@ class ChatNotifier extends Notifier<ChatState> {
   String buildDuplicateInspectionRecoveryPromptForTest(
     List<ToolCallInfo> toolCalls, {
     List<ToolResultInfo> previousToolResults = const [],
+    bool hasSavedTask = true,
   }) {
     return _buildDuplicateInspectionRecoveryPrompt(
       toolCalls,
       previousToolResults: previousToolResults,
+      hasSavedTask: hasSavedTask,
     );
   }
 
@@ -5429,6 +5438,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final toolFailureCounts = <String, int>{};
     final executedToolResults = <ToolResultInfo>[];
     var commandRetryGeneration = 0;
+    var stateChangeGeneration = 0;
     var attemptedDuplicateInspectionRecovery = false;
     var attemptedDuplicateFollowUpRecovery = false;
     var attemptedToolLoopExhaustionRecovery = false;
@@ -5496,12 +5506,14 @@ class ChatNotifier extends Notifier<ChatState> {
         executedToolCallKeys: executedToolCallKeys,
         toolFailureCounts: toolFailureCounts,
         commandRetryGeneration: commandRetryGeneration,
+        stateChangeGeneration: stateChangeGeneration,
         iteration: iteration,
         interactionGeneration: interactionGeneration,
         verifierOnlyContinuation: verifierOnlyContinuation,
       );
       if (batchResult.didCancel) return;
       commandRetryGeneration = batchResult.commandRetryGeneration;
+      stateChangeGeneration = batchResult.stateChangeGeneration;
       final batchToolResults = batchResult.batchToolResults;
       final pendingBatchCalls = batchResult.pendingBatchCalls;
       final terminalSuccessMessage = batchResult.terminalSuccessMessage;
@@ -5630,6 +5642,9 @@ class ChatNotifier extends Notifier<ChatState> {
                   content: _buildDuplicateInspectionRecoveryPrompt(
                     currentToolCalls,
                     previousToolResults: recovered,
+                    hasSavedTask: _hasSavedTaskForGeneration(
+                      interactionGeneration,
+                    ),
                   ),
                   timestamp: DateTime.now(),
                 ),
@@ -5710,6 +5725,9 @@ class ChatNotifier extends Notifier<ChatState> {
                   content: _buildDuplicateFollowUpRecoveryPrompt(
                     currentToolCalls,
                     previousToolResults: recovered,
+                    hasSavedTask: _hasSavedTaskForGeneration(
+                      interactionGeneration,
+                    ),
                   ),
                   timestamp: DateTime.now(),
                 ),
@@ -6496,6 +6514,7 @@ class ChatNotifier extends Notifier<ChatState> {
         executedToolCallKeys: executedToolCallKeys,
         toolFailureCounts: toolFailureCounts,
         commandRetryGeneration: commandRetryGeneration,
+        stateChangeGeneration: stateChangeGeneration,
         iteration: iteration + 1,
         interactionGeneration: interactionGeneration,
         verifierOnlyContinuation: verifierOnlyContinuation,
@@ -7256,24 +7275,13 @@ class ChatNotifier extends Notifier<ChatState> {
     ToolCallInfo toolCall, {
     required String? projectRoot,
     int commandRetryGeneration = 0,
+    int stateChangeGeneration = 0,
   }) => ToolDedupeKeys.toolExecution(
     toolCall,
     projectRoot: projectRoot,
     commandRetryGeneration: commandRetryGeneration,
+    stateChangeGeneration: stateChangeGeneration,
   );
-
-  String _toolFailureKey(
-    ToolCallInfo toolCall, {
-    required String? projectRoot,
-    int commandRetryGeneration = 0,
-  }) => ToolDedupeKeys.toolFailure(
-    toolCall,
-    projectRoot: projectRoot,
-    commandRetryGeneration: commandRetryGeneration,
-  );
-
-  bool _shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) =>
-      _toolCallExecutionPolicy.shouldAllowRepeatedToolExecution(toolCall);
 
   bool _containsOnlyReadOnlyInspectionToolCalls(List<ToolCallInfo> toolCalls) =>
       _toolLoopRecoveryPolicy.containsOnlyReadOnlyInspectionToolCalls(
@@ -7427,6 +7435,9 @@ class ChatNotifier extends Notifier<ChatState> {
     normalizedValidationCommand: normalizedValidationCommand,
   );
 
+  bool _hasSavedTaskForGeneration(int interactionGeneration) =>
+      _turnOwnerSnapshotForGeneration(interactionGeneration)?.savedTask != null;
+
   String? _savedValidationCommandForGeneration(int interactionGeneration) {
     final command = _turnOwnerSnapshotForGeneration(
       interactionGeneration,
@@ -7468,62 +7479,34 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  /// Redirects a model that keeps re-inspecting instead of acting.
   String _buildDuplicateInspectionRecoveryPrompt(
     List<ToolCallInfo> toolCalls, {
     List<ToolResultInfo> previousToolResults = const [],
-  }) {
-    final repeatedToolNames = toolCalls
-        .map((toolCall) => toolCall.name.trim())
-        .where((name) => name.isNotEmpty)
-        .toSet()
-        .join(', ');
-    final previousCommandValidationFailed =
-        _toolResultsContainFailedCommandValidation(previousToolResults);
-    final previousExactExitCodeExpectationFailed =
-        _toolResultsMentionExactNonZeroExitCodeExpectation(previousToolResults);
-    return [
-      'You already inspected the same local files for the current saved task.',
-      if (repeatedToolNames.isNotEmpty)
-        'Do not repeat identical read-only inspection tools again in this turn: $repeatedToolNames.',
-      if (previousCommandValidationFailed)
-        'The latest validation command failed; use that failure output now instead of inspecting the directory again.',
-      if (previousExactExitCodeExpectationFailed)
-        'If the failure is only an exact non-zero exit-code mismatch, edit the verification target to accept any non-zero failure code before rerunning validation.',
-      'Take the next concrete saved-task action now.',
-      'Your next reply must either modify a saved target file or run the saved validation command.',
-      'Do not restate the plan, do not ask for confirmation, and do not switch to a future saved task.',
-    ].join('\n');
-  }
+    bool hasSavedTask = true,
+  }) => const DuplicateRecoveryPromptBuilder().buildInspectionPrompt(
+    toolCalls: toolCalls,
+    hasSavedTask: hasSavedTask,
+    previousCommandValidationFailed: _toolResultsContainFailedCommandValidation(
+      previousToolResults,
+    ),
+    previousExactExitCodeExpectationFailed:
+        _toolResultsMentionExactNonZeroExitCodeExpectation(previousToolResults),
+  );
 
+  /// Redirects a model that re-issues the same follow-up call.
   String _buildDuplicateFollowUpRecoveryPrompt(
     List<ToolCallInfo> toolCalls, {
     List<ToolResultInfo> previousToolResults = const [],
-  }) {
-    final repeatedToolNames = toolCalls
-        .map((toolCall) => toolCall.name.trim())
-        .where((name) => name.isNotEmpty)
-        .toSet()
-        .join(', ');
-    final repeatedValidationTool = toolCalls.any(_isRepeatableCommandTool);
-    final inspectedFailingFile = previousToolResults.any(
+    bool hasSavedTask = true,
+  }) => const DuplicateRecoveryPromptBuilder().buildFollowUpPrompt(
+    toolCalls: toolCalls,
+    hasSavedTask: hasSavedTask,
+    repeatedValidationTool: toolCalls.any(_isRepeatableCommandTool),
+    inspectedFailingFile: previousToolResults.any(
       (toolResult) => toolResult.name == 'read_file',
-    );
-    return [
-      'You already attempted the same follow-up tool call for the current task.',
-      if (repeatedToolNames.isNotEmpty)
-        'Do not repeat identical tool calls again in this turn: $repeatedToolNames.',
-      'Use the previous tool results and take the next concrete task step now.',
-      'If the user requested local file creation or modification and no successful file mutation result is already provided, your next action must be write_file or edit_file, or a concise blocker that clearly says no files were created.',
-      'Do not claim that files were created, edited, saved, moved, or deleted unless the provided tool results include the successful file operation.',
-      'If the current saved task still needs work, create or edit the saved target file.',
-      if (inspectedFailingFile && repeatedValidationTool)
-        'If you just read a failing saved target file, your next action must modify that same file before rerunning the saved validation command.',
-      if (repeatedValidationTool)
-        'Do not rerun the same validation command until a saved target file edit changes the current task.',
-      'If validation already succeeded, reply with a brief completion statement instead of repeating the same tool call.',
-      'Do not restate the plan, do not ask for confirmation, and do not switch to a future saved task.',
-    ].join('\n');
-  }
+    ),
+  );
 
   String _buildToolLoopExhaustionRecoveryPrompt(
     List<ToolCallInfo> toolCalls, {
@@ -7592,9 +7575,6 @@ class ChatNotifier extends Notifier<ChatState> {
 
   bool _isRepeatableCommandTool(ToolCallInfo toolCall) =>
       _toolCallExecutionPolicy.isRepeatableCommandTool(toolCall);
-
-  bool _advancesCommandRetryGeneration(ToolCallInfo toolCall) =>
-      _toolCallExecutionPolicy.advancesCommandRetryGeneration(toolCall);
 
   String _toolCallDedupKey(
     String name,

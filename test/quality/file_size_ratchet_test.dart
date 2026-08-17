@@ -140,6 +140,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/saved_validation_command_guard.dart': 178,
   'lib/features/chat/domain/services/saved_task_target_scope_guard.dart': 135,
   'lib/features/chat/domain/services/timed_out_command_retry_guard.dart': 96,
+  'lib/features/chat/domain/services/uninspected_commit_guard.dart': 144,
   'lib/features/chat/domain/services/git_write_confirmation_policy.dart': 93,
   'lib/features/chat/domain/services/context_surgery_observation_accumulator.dart':
       130,

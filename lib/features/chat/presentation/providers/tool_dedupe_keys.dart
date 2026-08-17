@@ -8,51 +8,48 @@ import '../../domain/services/tool_call_execution_policy.dart';
 abstract final class ToolDedupeKeys {
   static const ToolCallExecutionPolicy _policy = ToolCallExecutionPolicy();
 
+  static ProjectPathResolver _resolver(String? projectRoot) =>
+      (path) => resolvePath(path, projectRoot: projectRoot);
+
   static String toolExecution(
     ToolCallInfo toolCall, {
     required String? projectRoot,
     int commandRetryGeneration = 0,
-  }) {
-    return _policy.toolExecutionKey(
-      toolCall,
-      commandRetryGeneration: commandRetryGeneration,
-      resolveProjectPath: (path) => resolvePath(path, projectRoot: projectRoot),
-    );
-  }
+    int stateChangeGeneration = 0,
+  }) => _policy.toolExecutionKey(
+    toolCall,
+    commandRetryGeneration: commandRetryGeneration,
+    stateChangeGeneration: stateChangeGeneration,
+    resolveProjectPath: _resolver(projectRoot),
+  );
 
   static String toolFailure(
     ToolCallInfo toolCall, {
     required String? projectRoot,
     int commandRetryGeneration = 0,
-  }) {
-    return _policy.toolFailureKey(
-      toolCall,
-      commandRetryGeneration: commandRetryGeneration,
-      resolveProjectPath: (path) => resolvePath(path, projectRoot: projectRoot),
-    );
-  }
+  }) => _policy.toolFailureKey(
+    toolCall,
+    commandRetryGeneration: commandRetryGeneration,
+    resolveProjectPath: _resolver(projectRoot),
+  );
 
   static String toolCall(
     String name,
     Object? arguments, {
     required String? projectRoot,
-  }) {
-    return _policy.toolCallDedupKey(
-      name,
-      arguments,
-      resolveProjectPath: (path) => resolvePath(path, projectRoot: projectRoot),
-    );
-  }
+  }) => _policy.toolCallDedupKey(
+    name,
+    arguments,
+    resolveProjectPath: _resolver(projectRoot),
+  );
 
   static String toolResult(
     ToolResultInfo toolResult, {
     required String? projectRoot,
-  }) {
-    return _policy.toolResultDedupKey(
-      toolResult,
-      resolveProjectPath: (path) => resolvePath(path, projectRoot: projectRoot),
-    );
-  }
+  }) => _policy.toolResultDedupKey(
+    toolResult,
+    resolveProjectPath: _resolver(projectRoot),
+  );
 
   static String contentExecution(String name, Object? arguments) =>
       '$name:${jsonEncode(arguments)}';

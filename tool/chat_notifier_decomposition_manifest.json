@@ -231,6 +231,11 @@
           "sizeBudgetKey": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart"
         },
         {
+          "id": "uninspected-commit-guard",
+          "path": "lib/features/chat/domain/services/uninspected_commit_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/uninspected_commit_guard.dart"
+        },
+        {
           "id": "production-release-approval-policy",
           "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/production_release_approval_policy.dart"

@@ -84,6 +84,7 @@ part 'chat_notifier_final_answer_recovery_part.dart';
 part 'chat_notifier_continuation_recovery_part.dart';
 part 'chat_notifier_auto_review_escalation_part.dart';
 part 'chat_notifier_approval_cache_part.dart';
+part 'chat_notifier_command_dedup_part.dart';
 part 'chat_notifier_pending_batch_part.dart';
 part 'chat_notifier_participant_turns_part.dart';
 part 'chat_notifier_goal_auto_continue_part.dart';
@@ -153,6 +154,7 @@ void main() {
   registerChatNotifierContinuationRecoveryTests();
   registerChatNotifierAutoReviewEscalationTests();
   registerChatNotifierApprovalCacheTests();
+  registerChatNotifierCommandDedupTests();
   registerChatNotifierPendingBatchTests();
   registerChatNotifierParticipantTurnTests();
   registerChatNotifierGoalAutoContinueTests();
@@ -14145,7 +14147,11 @@ with open(path, "rb") as file:
   test(
     'sendMessage flags CJK committed claim after non-zero command exit',
     () async {
-      const command = 'git commit -m "fix: update settings"';
+      // A direct git write cannot reach local_execute_command in production
+      // (the shell layer routes those to git_execute_command), so the fixture
+      // commits through a project script. The guard's subject is the exit code
+      // and the claim, not the command being git.
+      const command = './tool/commit_all.sh "fix: update settings"';
       final committedClaim = String.fromCharCodes(const [
         0x524d,
         0x306e,
@@ -14369,7 +14375,7 @@ with open(path, "rb") as file:
           id: 'create-branch',
           name: 'local_execute_command',
           arguments: const {
-            'command': 'git checkout -b chore/update-fvm-3.44.1',
+            'command': './tool/new_branch.sh chore/update-fvm-3.44.1',
             'working_directory': '/tmp/project',
             'label': 'Create branch',
           },
@@ -14383,7 +14389,7 @@ with open(path, "rb") as file:
               id: 'stage-ignored-file',
               name: 'local_execute_command',
               arguments: const {
-                'command': 'git add .fvm/fvm_config.json AGENTS.md',
+                'command': './tool/stage.sh .fvm/fvm_config.json AGENTS.md',
                 'working_directory': '/tmp/project',
                 'label': 'Stage files',
               },
@@ -14398,7 +14404,7 @@ with open(path, "rb") as file:
               id: 'stage-agents',
               name: 'local_execute_command',
               arguments: const {
-                'command': 'git add AGENTS.md',
+                'command': './tool/stage.sh AGENTS.md',
                 'working_directory': '/tmp/project',
                 'label': 'Stage AGENTS.md',
               },
@@ -14414,7 +14420,7 @@ with open(path, "rb") as file:
               name: 'local_execute_command',
               arguments: const {
                 'command':
-                    'git commit -m "chore: update FVM Flutter version from 3.44.0 to 3.44.1"',
+                    './tool/commit_all.sh "chore: update FVM Flutter version from 3.44.0 to 3.44.1"',
                 'working_directory': '/tmp/project',
                 'label': 'Commit AGENTS.md',
               },
@@ -14433,14 +14439,14 @@ with open(path, "rb") as file:
       queuedResults: {
         'local_execute_command': [
           jsonEncode({
-            'command': 'git checkout -b chore/update-fvm-3.44.1',
+            'command': './tool/new_branch.sh chore/update-fvm-3.44.1',
             'working_directory': '/tmp/project',
             'exit_code': 0,
             'stdout': '',
             'stderr': "Switched to a new branch 'chore/update-fvm-3.44.1'\n",
           }),
           jsonEncode({
-            'command': 'git add .fvm/fvm_config.json AGENTS.md',
+            'command': './tool/stage.sh .fvm/fvm_config.json AGENTS.md',
             'working_directory': '/tmp/project',
             'exit_code': 1,
             'stdout': '',
@@ -14448,7 +14454,7 @@ with open(path, "rb") as file:
                 'The following paths are ignored by one of your .gitignore files:\n.fvm\n',
           }),
           jsonEncode({
-            'command': 'git add AGENTS.md',
+            'command': './tool/stage.sh AGENTS.md',
             'working_directory': '/tmp/project',
             'exit_code': 0,
             'stdout': '',
@@ -14456,7 +14462,7 @@ with open(path, "rb") as file:
           }),
           jsonEncode({
             'command':
-                'git commit -m "chore: update FVM Flutter version from 3.44.0 to 3.44.1"',
+                './tool/commit_all.sh "chore: update FVM Flutter version from 3.44.0 to 3.44.1"',
             'working_directory': '/tmp/project',
             'exit_code': 0,
             'stdout':

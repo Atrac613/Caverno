@@ -36,6 +36,33 @@ class ToolLoopContextDigest {
     'search_files',
   };
 
+  /// Command tools, digested separately from file inspections.
+  ///
+  /// A turn spent investigating through the shell (`gh`, `git log`, a build)
+  /// was invisible here until these were added, because the follow-up request
+  /// carries only the *current* batch's results: at loop 10 the model could no
+  /// longer see what a command returned at loop 3, so it re-issued it. Session
+  /// 655e367f re-ran two `gh run view` calls and four `gh pr view` calls that
+  /// way, 27 executions for 18 distinct calls, while the CI root cause sat in
+  /// the loop-3 output.
+  ///
+  /// Commands are never flagged `unchanged`: that claim is about file content
+  /// and says nothing about a command whose output depends on the world. These
+  /// lines report history, they never forbid a re-run — a verification command
+  /// must stay repeatable after an edit.
+  ///
+  /// The wording must not imply the earlier output is still readable, because
+  /// it is not: only the current batch's results reach the model, which is the
+  /// very gap this digest exists to name. Telling the model to "use what they
+  /// returned" would invite it to answer from output it cannot see.
+  static const Set<String> _digestableCommandTools = <String>{
+    'local_execute_command',
+    'git_execute_command',
+  };
+
+  /// Longest command echoed into a digest line.
+  static const int _maxCommandLabelChars = 120;
+
   /// Returns a short markdown block listing the read-only context already
   /// gathered this turn, or an empty string when there is nothing worth
   /// repeating (fewer than [minEntries] distinct reads).
@@ -62,15 +89,22 @@ class ToolLoopContextDigest {
     final resultsByLabel = <String, List<String>>{};
     final hashesByLabel = <String, List<String?>>{};
     final lastSeen = <String, int>{};
+    final commandLabels = <String>{};
     var index = 0;
     for (final result in results) {
       final name = result.name.trim().toLowerCase();
-      if (!_digestableTools.contains(name)) {
+      final isCommand = _digestableCommandTools.contains(name);
+      if (!isCommand && !_digestableTools.contains(name)) {
         continue;
       }
-      final label = _labelFor(name, result.arguments);
+      final label = isCommand
+          ? _commandLabelFor(name, result.arguments)
+          : _labelFor(name, result.arguments);
       if (label == null) {
         continue;
+      }
+      if (isCommand) {
+        commandLabels.add(label);
       }
       final bodies = resultsByLabel.putIfAbsent(label, () {
         order.add(label);
@@ -104,13 +138,23 @@ class ToolLoopContextDigest {
       }
     }
 
-    // Emit the surviving labels in first-seen order for a stable, readable block.
+    // Emit the surviving labels in first-seen order for a stable, readable
+    // block, inspections and commands in their own sections.
     final lines = <String>[];
+    final commandLines = <String>[];
     for (final label in order) {
       if (!kept.contains(label)) {
         continue;
       }
       final bodies = resultsByLabel[label]!;
+      if (commandLabels.contains(label)) {
+        commandLines.add(
+          bodies.length < 2
+              ? '- $label'
+              : '- $label (already run ${bodies.length}x this turn)',
+        );
+        continue;
+      }
       final unchanged = _isUnchanged(bodies, hashesByLabel[label]!);
       lines.add(
         unchanged
@@ -120,11 +164,36 @@ class ToolLoopContextDigest {
             : '- $label',
       );
     }
-    if (lines.length < minEntries) {
+    if (lines.length + commandLines.length < minEntries) {
       return '';
     }
-    return 'Context already gathered this turn (do not re-read these unless a '
-        'file was modified since):\n${lines.join('\n')}';
+    final sections = <String>[
+      if (lines.isNotEmpty)
+        'Context already gathered this turn (do not re-read these unless a '
+            'file was modified since):\n${lines.join('\n')}',
+      if (commandLines.isNotEmpty)
+        'Commands already run this turn — their output is not carried into '
+            'this request. Do not re-issue one by reflex; run it again only '
+            'when you need its output again or something it depends on has '
+            'changed:\n${commandLines.join('\n')}',
+    ];
+    return sections.join('\n\n');
+  }
+
+  /// Label for a command execution, normalized so a reworded `reason` does not
+  /// split one command into two entries.
+  String? _commandLabelFor(String name, Map<String, dynamic> arguments) {
+    final raw = arguments['command']?.toString().trim();
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    final command = raw.replaceAll(RegExp(r'\s+'), ' ');
+    final prefix = name == 'git_execute_command' ? 'git ' : '';
+    final full = '$prefix$command';
+    final label = full.length > _maxCommandLabelChars
+        ? '${full.substring(0, _maxCommandLabelChars)}…'
+        : full;
+    return 'ran `$label`';
   }
 
   /// Whether every repeat of one label saw the same file.

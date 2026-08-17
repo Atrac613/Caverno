@@ -641,4 +641,148 @@ void main() {
       expect(nonVersion['code'], isNull);
     });
   });
+
+  group('GitTools force-push preflight', () {
+    late Directory root;
+    late String remotePath;
+    late String localPath;
+
+    Map<String, dynamic> decode(String raw) =>
+        jsonDecode(raw) as Map<String, dynamic>;
+
+    Future<Map<String, dynamic>> runIn(String cwd, String command) async =>
+        decode(await GitTools.execute(command: command, workingDirectory: cwd));
+
+    /// Runs git outside the tool so setup can use commands the tool blocks.
+    Future<void> raw(String cwd, List<String> args) async {
+      final result = await Process.run('git', args, workingDirectory: cwd);
+      expect(
+        result.exitCode,
+        0,
+        reason: 'git ${args.join(' ')} failed: ${result.stderr}',
+      );
+    }
+
+    Future<void> commit(String cwd, String name) async {
+      await File('$cwd/$name.txt').writeAsString('$name\n');
+      await raw(cwd, ['add', '$name.txt']);
+      await raw(cwd, ['commit', '-m', name]);
+    }
+
+    setUp(() async {
+      root = await Directory.systemTemp.createTemp('git_tools_force_push_');
+      remotePath = '${root.path}/remote.git';
+      localPath = '${root.path}/local';
+      await raw(root.path, [
+        'init',
+        '--bare',
+        '--initial-branch=main',
+        remotePath,
+      ]);
+      await raw(root.path, ['clone', remotePath, localPath]);
+      await raw(localPath, ['config', 'user.email', 'canary@example.com']);
+      await raw(localPath, ['config', 'user.name', 'Canary Bot']);
+      await commit(localPath, 'base');
+      await commit(localPath, 'second');
+      await raw(localPath, ['push', '-u', 'origin', 'main']);
+    });
+
+    tearDown(() async {
+      if (root.existsSync()) {
+        await root.delete(recursive: true);
+      }
+    });
+
+    /// Rewrites the remote branch from a second clone, standing in for the
+    /// server-side rebase that `gh pr update-branch --rebase` performs.
+    Future<void> rewriteRemoteHistory() async {
+      final other = '${root.path}/other';
+      await raw(root.path, ['clone', remotePath, other]);
+      await raw(other, ['config', 'user.email', 'other@example.com']);
+      await raw(other, ['config', 'user.name', 'Other Bot']);
+      await raw(other, ['reset', '--hard', 'HEAD~1']);
+      await commit(other, 'rebased');
+      await raw(other, ['push', '--force', 'origin', 'main']);
+    }
+
+    test('blocks a force-with-lease push re-armed by a bare fetch', () async {
+      await rewriteRemoteHistory();
+
+      // The bare fetch that re-arms the lease without integrating anything.
+      expect((await runIn(localPath, 'fetch origin main'))['exit_code'], 0);
+
+      final blocked = await runIn(
+        localPath,
+        'push --force-with-lease origin HEAD:main',
+      );
+
+      expect(blocked['exit_code'], 2);
+      expect(blocked['code'], 'git_force_push_discards_remote_commits');
+      expect(blocked['remote_ref'], 'refs/remotes/origin/main');
+      expect(blocked['discarded_commit_count'], 1);
+      expect(blocked['required_action'], contains('pull --rebase'));
+      expect(blocked['required_action'], contains('bare fetch'));
+
+      // The remote still holds the rewritten history.
+      final remoteHead = await Process.run('git', [
+        'rev-parse',
+        'main',
+      ], workingDirectory: remotePath);
+      final localHead = await Process.run('git', [
+        'rev-parse',
+        'HEAD',
+      ], workingDirectory: localPath);
+      expect(
+        (remoteHead.stdout as String).trim(),
+        isNot((localHead.stdout as String).trim()),
+      );
+    });
+
+    test('blocks the bare "push --force" form against the upstream', () async {
+      await rewriteRemoteHistory();
+      expect((await runIn(localPath, 'fetch origin main'))['exit_code'], 0);
+
+      final blocked = await runIn(localPath, 'push --force');
+
+      expect(blocked['code'], 'git_force_push_discards_remote_commits');
+      expect(blocked['remote_ref'], 'origin/main');
+    });
+
+    test('allows a force push that only adds commits', () async {
+      await commit(localPath, 'next');
+
+      final pushed = await runIn(
+        localPath,
+        'push --force-with-lease origin HEAD:main',
+      );
+
+      expect(pushed['exit_code'], 0);
+      expect(pushed['code'], isNull);
+    });
+
+    test('allows a force push to a branch the remote does not have', () async {
+      await raw(localPath, ['checkout', '-b', 'feature/new']);
+      await commit(localPath, 'feature');
+
+      final pushed = await runIn(
+        localPath,
+        'push --force origin HEAD:feature/new',
+      );
+
+      expect(pushed['exit_code'], 0);
+      expect(pushed['code'], isNull);
+    });
+
+    test('leaves non-forced pushes to git itself', () async {
+      await rewriteRemoteHistory();
+      expect((await runIn(localPath, 'fetch origin main'))['exit_code'], 0);
+
+      final rejected = await runIn(localPath, 'push origin HEAD:main');
+
+      // git rejects it as non-fast-forward; the preflight stays out of the way.
+      expect(rejected['code'], isNull);
+      expect(rejected['exit_code'], 1);
+      expect(rejected['stderr'], contains('rejected'));
+    });
+  });
 }

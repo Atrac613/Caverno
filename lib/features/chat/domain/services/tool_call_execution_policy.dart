@@ -26,6 +26,7 @@ class ToolCallExecutionPolicy {
   String toolExecutionKey(
     ToolCallInfo toolCall, {
     int commandRetryGeneration = 0,
+    int stateChangeGeneration = 0,
     ProjectPathResolver? resolveProjectPath,
   }) {
     final baseKey = toolCallDedupKey(
@@ -34,11 +35,29 @@ class ToolCallExecutionPolicy {
       resolveProjectPath: resolveProjectPath,
       excludeNonSemanticKeys: isFileMutationToolCall(toolCall),
     );
-    if (isRepeatableCommandTool(toolCall)) {
-      return '$baseKey#commandRetryGeneration=$commandRetryGeneration';
+    if (!isRepeatableCommandTool(toolCall)) {
+      return baseKey;
     }
-    return baseKey;
+    final key = '$baseKey#commandRetryGeneration=$commandRetryGeneration';
+    if (!isReadOnlyCommandExecutionToolCall(toolCall)) {
+      return key;
+    }
+    // An observation is only valid for the state it observed. `git status`
+    // before a `gh pr checkout` and `git status` after it are different
+    // questions, so replaying the first as the answer to the second reports a
+    // branch the workspace already left. Scoping the generation to read-only
+    // calls keeps side-effect deduplication intact: a repeated mutating
+    // command still collides with its own earlier key.
+    return '$key#stateChangeGeneration=$stateChangeGeneration';
   }
+
+  /// Whether executing [toolCall] invalidates earlier workspace observations.
+  ///
+  /// A command tool that is not read-only can move the branch, the working
+  /// tree, or any other state a previous inspection reported.
+  bool advancesStateChangeGeneration(ToolCallInfo toolCall) =>
+      isRepeatableCommandTool(toolCall) &&
+      !isReadOnlyCommandExecutionToolCall(toolCall);
 
   /// Key for consecutive-failure tracking, distinct from [toolExecutionKey].
   ///

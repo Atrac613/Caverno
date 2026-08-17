@@ -3,77 +3,38 @@
 
 part of 'chat_notifier.dart';
 
-enum _ToolLoopBatchStatus { completed, textResponse, cancelled }
-
 const _toolFailureClassifier = ToolFailureClassifier();
 
-class _ToolLoopBatchExecutionResult {
-  const _ToolLoopBatchExecutionResult({
-    required this.status,
-    required this.batchToolResults,
-    required this.pendingBatchCalls,
-    required this.commandRetryGeneration,
-    this.terminalSuccessMessage,
-  });
-
-  factory _ToolLoopBatchExecutionResult.completed({
-    required List<ToolResultInfo> batchToolResults,
-    required List<ToolCallInfo> pendingBatchCalls,
-    required int commandRetryGeneration,
-    String? terminalSuccessMessage,
-  }) {
-    return _ToolLoopBatchExecutionResult(
-      status: _ToolLoopBatchStatus.completed,
-      batchToolResults: batchToolResults,
-      pendingBatchCalls: pendingBatchCalls,
-      commandRetryGeneration: commandRetryGeneration,
-      terminalSuccessMessage: terminalSuccessMessage,
-    );
-  }
-
-  factory _ToolLoopBatchExecutionResult.textResponse({
-    required List<ToolResultInfo> batchToolResults,
-    required List<ToolCallInfo> pendingBatchCalls,
-    required int commandRetryGeneration,
-  }) {
-    return _ToolLoopBatchExecutionResult(
-      status: _ToolLoopBatchStatus.textResponse,
-      batchToolResults: batchToolResults,
-      pendingBatchCalls: pendingBatchCalls,
-      commandRetryGeneration: commandRetryGeneration,
-    );
-  }
-
-  factory _ToolLoopBatchExecutionResult.cancelled({
-    required int commandRetryGeneration,
-  }) {
-    return _ToolLoopBatchExecutionResult(
-      status: _ToolLoopBatchStatus.cancelled,
-      batchToolResults: const [],
-      pendingBatchCalls: const [],
-      commandRetryGeneration: commandRetryGeneration,
-    );
-  }
-
-  final _ToolLoopBatchStatus status;
-  final List<ToolResultInfo> batchToolResults;
-  final List<ToolCallInfo> pendingBatchCalls;
-  final int commandRetryGeneration;
-  final String? terminalSuccessMessage;
-
-  bool get didCancel => status == _ToolLoopBatchStatus.cancelled;
-
-  bool get hasTextResponse => status == _ToolLoopBatchStatus.textResponse;
-}
-
 extension ChatNotifierToolLoopBatch on ChatNotifier {
-  Future<_ToolLoopBatchExecutionResult> _executeToolLoopBatch({
+  // Tool-loop identity and generation helpers. They live with their only
+  // caller so the notifier library's aggregate stays within its ratchet.
+  String _toolFailureKey(
+    ToolCallInfo toolCall, {
+    required String? projectRoot,
+    int commandRetryGeneration = 0,
+  }) => ToolDedupeKeys.toolFailure(
+    toolCall,
+    projectRoot: projectRoot,
+    commandRetryGeneration: commandRetryGeneration,
+  );
+
+  bool _shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) =>
+      _toolCallExecutionPolicy.shouldAllowRepeatedToolExecution(toolCall);
+
+  bool _advancesCommandRetryGeneration(ToolCallInfo toolCall) =>
+      _toolCallExecutionPolicy.advancesCommandRetryGeneration(toolCall);
+
+  bool _advancesStateChangeGeneration(ToolCallInfo toolCall) =>
+      _toolCallExecutionPolicy.advancesStateChangeGeneration(toolCall);
+
+  Future<ToolLoopBatchExecutionResult> _executeToolLoopBatch({
     required List<ToolCallInfo> currentToolCalls,
     required String? currentAssistantContent,
     required List<ToolResultInfo> executedToolResults,
     required Set<String> executedToolCallKeys,
     required Map<String, int> toolFailureCounts,
     required int commandRetryGeneration,
+    required int stateChangeGeneration,
     required int iteration,
     required int interactionGeneration,
     required bool verifierOnlyContinuation,
@@ -81,18 +42,21 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     final batchToolResults = <ToolResultInfo>[];
     final pendingBatchCalls = <ToolCallInfo>[];
     var nextCommandRetryGeneration = commandRetryGeneration;
+    var nextStateChangeGeneration = stateChangeGeneration;
     final terminalSuccessState = ToolTerminalSuccessBatchState();
     final projectRoot = _projectRootForGeneration(interactionGeneration);
     final owner = _turnOwnerForGeneration(interactionGeneration);
     if (owner == null) {
-      return _ToolLoopBatchExecutionResult.cancelled(
+      return ToolLoopBatchExecutionResult.cancelled(
         commandRetryGeneration: nextCommandRetryGeneration,
+        stateChangeGeneration: nextStateChangeGeneration,
       );
     }
     final ownerConversation = _conversationForId(owner.conversationId);
     if (ownerConversation == null) {
-      return _ToolLoopBatchExecutionResult.cancelled(
+      return ToolLoopBatchExecutionResult.cancelled(
         commandRetryGeneration: nextCommandRetryGeneration,
+        stateChangeGeneration: nextStateChangeGeneration,
       );
     }
     final ownerWorkspaceMode = ownerConversation.workspaceMode;
@@ -119,6 +83,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         toolCall,
         projectRoot: projectRoot,
         commandRetryGeneration: nextCommandRetryGeneration,
+        stateChangeGeneration: nextStateChangeGeneration,
       );
       final shouldBlockTimedOutCommandRetry =
           const TimedOutCommandRetryGuard().evaluate(
@@ -174,8 +139,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       interactionGeneration: interactionGeneration,
     );
     if (!_isCurrentInteractionGeneration(interactionGeneration)) {
-      return _ToolLoopBatchExecutionResult.cancelled(
+      return ToolLoopBatchExecutionResult.cancelled(
         commandRetryGeneration: nextCommandRetryGeneration,
+        stateChangeGeneration: nextStateChangeGeneration,
       );
     }
 
@@ -238,6 +204,16 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
             );
         if (timeoutRetryGuardResult != null) {
           return timeoutRetryGuardResult;
+        }
+        final uninspectedCommitGuardResult = const UninspectedCommitGuard()
+            .evaluate(
+              UninspectedCommitInput(
+                toolCall: toolCall,
+                executedToolResults: executedToolResults,
+              ),
+            );
+        if (uninspectedCommitGuardResult != null) {
+          return uninspectedCommitGuardResult;
         }
         final productionReleaseGuardResult = _productionReleaseApprovals
             .buildGuardResult(
@@ -393,8 +369,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     );
 
     if (!_isCurrentInteractionGeneration(interactionGeneration)) {
-      return _ToolLoopBatchExecutionResult.cancelled(
+      return ToolLoopBatchExecutionResult.cancelled(
         commandRetryGeneration: nextCommandRetryGeneration,
+        stateChangeGeneration: nextStateChangeGeneration,
       );
     }
 
@@ -404,6 +381,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         toolCall,
         projectRoot: projectRoot,
         commandRetryGeneration: nextCommandRetryGeneration,
+        stateChangeGeneration: nextStateChangeGeneration,
       );
       // Failure identity ignores narration; mutations also strip it so a
       // reworded reason cannot repeat the same side effect.
@@ -431,10 +409,11 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           interactionGeneration,
           '[Tool dispatch error: $error]\n',
         );
-        return _ToolLoopBatchExecutionResult.textResponse(
+        return ToolLoopBatchExecutionResult.textResponse(
           batchToolResults: batchToolResults,
           pendingBatchCalls: pendingBatchCalls,
           commandRetryGeneration: nextCommandRetryGeneration,
+          stateChangeGeneration: nextStateChangeGeneration,
         );
       }
 
@@ -473,8 +452,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         recordModelEditApplyTelemetry: true,
       );
       if (promptToolResult == null) {
-        return _ToolLoopBatchExecutionResult.cancelled(
+        return ToolLoopBatchExecutionResult.cancelled(
           commandRetryGeneration: nextCommandRetryGeneration,
+          stateChangeGeneration: nextStateChangeGeneration,
         );
       }
       batchToolResults.add(promptToolResult);
@@ -532,6 +512,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         if (_advancesCommandRetryGeneration(toolCall)) {
           nextCommandRetryGeneration += 1;
         }
+        if (_advancesStateChangeGeneration(toolCall)) {
+          nextStateChangeGeneration += 1;
+        }
       } else if (disposition ==
           ToolResultDisposition.actionableCommandFailure) {
         toolFailureCounts.remove(toolFailureKey);
@@ -567,18 +550,20 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           // the user to check their server configuration.
           _appendToLastMessageForGeneration(
             interactionGeneration,
-            isDenial
-                ? '\nThe command (${toolCall.name}) was blocked by approval and '
-                      'will keep being blocked if re-issued unchanged. Approve it '
-                      'manually or take a different approach.\n'
-                      'Reason: ${result.errorMessage}\n'
-                : '\nFailed to execute tool (${toolCall.name}). Please check your server configuration.\nError: ${result.errorMessage}\n',
+            const ToolLoopAbortNotice().build(
+              toolName: toolCall.name,
+              errorMessage: result.errorMessage,
+              isApprovalDenial: isDenial,
+              isExternalMcpResult: result.isExternalMcpResult,
+              executedToolResults: executedToolResults,
+            ),
           );
           _turnEnd.setHint(owner, ToolLoopExitReason.toolFailureAbort);
-          return _ToolLoopBatchExecutionResult.textResponse(
+          return ToolLoopBatchExecutionResult.textResponse(
             batchToolResults: batchToolResults,
             pendingBatchCalls: pendingBatchCalls,
             commandRetryGeneration: nextCommandRetryGeneration,
+            stateChangeGeneration: nextStateChangeGeneration,
           );
         }
       }
@@ -590,8 +575,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       baseline: diagnosticBaseline,
     );
     if (!_isCurrentInteractionGeneration(interactionGeneration)) {
-      return _ToolLoopBatchExecutionResult.cancelled(
+      return ToolLoopBatchExecutionResult.cancelled(
         commandRetryGeneration: nextCommandRetryGeneration,
+        stateChangeGeneration: nextStateChangeGeneration,
       );
     }
     if (diagnosticFeedback != null) {
@@ -600,8 +586,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         interactionGeneration: interactionGeneration,
       );
       if (promptDiagnosticFeedback == null) {
-        return _ToolLoopBatchExecutionResult.cancelled(
+        return ToolLoopBatchExecutionResult.cancelled(
           commandRetryGeneration: nextCommandRetryGeneration,
+          stateChangeGeneration: nextStateChangeGeneration,
         );
       }
       batchToolResults.add(promptDiagnosticFeedback);
@@ -614,8 +601,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           interactionGeneration: interactionGeneration,
         );
     if (!_isCurrentInteractionGeneration(interactionGeneration)) {
-      return _ToolLoopBatchExecutionResult.cancelled(
+      return ToolLoopBatchExecutionResult.cancelled(
         commandRetryGeneration: nextCommandRetryGeneration,
+        stateChangeGeneration: nextStateChangeGeneration,
       );
     }
     if (commandOutputFeedback != null) {
@@ -624,18 +612,20 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         interactionGeneration: interactionGeneration,
       );
       if (promptCommandOutputFeedback == null) {
-        return _ToolLoopBatchExecutionResult.cancelled(
+        return ToolLoopBatchExecutionResult.cancelled(
           commandRetryGeneration: nextCommandRetryGeneration,
+          stateChangeGeneration: nextStateChangeGeneration,
         );
       }
       batchToolResults.add(promptCommandOutputFeedback);
       executedToolResults.add(promptCommandOutputFeedback);
     }
 
-    return _ToolLoopBatchExecutionResult.completed(
+    return ToolLoopBatchExecutionResult.completed(
       batchToolResults: batchToolResults,
       pendingBatchCalls: pendingBatchCalls,
       commandRetryGeneration: nextCommandRetryGeneration,
+      stateChangeGeneration: nextStateChangeGeneration,
       terminalSuccessMessage: terminalSuccessState.message,
     );
   }

@@ -348,6 +348,14 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     if (snapshot == null) {
       return _turnOwnerSnapshotUnavailableResult(toolCall.name);
     }
+    // The shell layer rejects embedded git writes unconditionally, so asking
+    // for approval first spends an auto-review round trip on a call that can
+    // never run. Decide it here, where the answer is already known.
+    final gitWriteBlocked = LocalShellGitWriteGuard.evaluate(
+      toolName: toolCall.name,
+      arguments: toolCall.arguments,
+    );
+    if (gitWriteBlocked != null) return gitWriteBlocked;
     final approvalMode = _settings.codingApprovalMode;
     final approvalPort = CallbackLocalCommandApprovalPort(
       ownerIsCurrent: (candidate) =>
