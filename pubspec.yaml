@@ -203,6 +203,10 @@ flutter:
     # Bundled Python worker for the run_python_script tool. Regenerate after
     # editing lib/core/services/script_runtime/worker/ — see CLAUDE.md.
     - assets/python/app.zip
+    # Prebuilt skills offered in Settings > Skills. Each file is skill markdown
+    # (front matter + body) parsed by SkillMarkdownParser, the same format the
+    # skill editor edits.
+    - assets/skills/
 
   fonts:
     - family: JetBrainsMono

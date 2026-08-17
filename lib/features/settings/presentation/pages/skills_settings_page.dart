@@ -5,6 +5,7 @@ import '../../../chat/domain/entities/skill.dart';
 import '../../../chat/domain/services/skill_markdown_parser.dart';
 import '../../../chat/presentation/providers/skills_notifier.dart';
 import '../../../../core/theme/app_tokens.dart';
+import 'skill_catalog_sheet.dart';
 
 class SkillsSettingsPage extends ConsumerWidget {
   const SkillsSettingsPage({super.key});
@@ -19,10 +20,12 @@ class SkillsSettingsPage extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),
         label: const Text('Add Skill'),
-        onPressed: () => _showSkillEditor(context, notifier),
+        onPressed: () => _startNewSkill(context, notifier),
       ),
       body: skillsState.skills.isEmpty
-          ? const _EmptySkillsView()
+          ? _EmptySkillsView(
+              onBrowseCatalog: () => _startNewSkill(context, notifier),
+            )
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               itemCount: skillsState.skills.length,
@@ -42,16 +45,38 @@ class SkillsSettingsPage extends ConsumerWidget {
     );
   }
 
+  /// Offers the prebuilt catalog, then opens the editor on whatever was
+  /// picked. The catalog only chooses the editor's starting text; saving still
+  /// goes through the one existing path.
+  static Future<void> _startNewSkill(
+    BuildContext context,
+    SkillsNotifier notifier,
+  ) async {
+    final selection = await SkillCatalogSheet.show(context);
+    if (selection == null || !context.mounted) {
+      return;
+    }
+    await _showSkillEditor(
+      context,
+      notifier,
+      initialMarkdown: selection.markdown,
+    );
+  }
+
   static Future<void> _showSkillEditor(
     BuildContext context,
     SkillsNotifier notifier, {
     Skill? existingSkill,
+    String? initialMarkdown,
   }) async {
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) => _SkillEditorSheet(existingSkill: existingSkill),
+      builder: (context) => _SkillEditorSheet(
+        existingSkill: existingSkill,
+        initialMarkdown: initialMarkdown,
+      ),
     );
     if (saved != true || !context.mounted) {
       return;
@@ -100,7 +125,9 @@ class SkillsSettingsPage extends ConsumerWidget {
 }
 
 class _EmptySkillsView extends StatelessWidget {
-  const _EmptySkillsView();
+  const _EmptySkillsView({required this.onBrowseCatalog});
+
+  final VoidCallback onBrowseCatalog;
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +157,14 @@ class _EmptySkillsView extends StatelessWidget {
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
+            ),
+            const SizedBox(height: 20),
+            // The catalog is worth the most here, where a new user has nothing
+            // to copy from yet.
+            FilledButton.tonalIcon(
+              onPressed: onBrowseCatalog,
+              icon: const Icon(Icons.auto_awesome_outlined),
+              label: const Text('Browse prebuilt skills'),
             ),
           ],
         ),
@@ -231,9 +266,12 @@ class _SkillCard extends StatelessWidget {
 }
 
 class _SkillEditorSheet extends ConsumerStatefulWidget {
-  const _SkillEditorSheet({this.existingSkill});
+  const _SkillEditorSheet({this.existingSkill, this.initialMarkdown});
 
   final Skill? existingSkill;
+
+  /// Markdown a catalog entry supplied; null falls back to the placeholder.
+  final String? initialMarkdown;
 
   @override
   ConsumerState<_SkillEditorSheet> createState() => _SkillEditorSheetState();
@@ -247,9 +285,10 @@ class _SkillEditorSheetState extends ConsumerState<_SkillEditorSheet> {
   void initState() {
     super.initState();
     _markdownController = TextEditingController(
-      text: widget.existingSkill == null
-          ? _defaultMarkdown()
-          : SkillMarkdownParser.toMarkdown(widget.existingSkill!),
+      text: switch (widget.existingSkill) {
+        final existing? => SkillMarkdownParser.toMarkdown(existing),
+        _ => widget.initialMarkdown ?? _defaultMarkdown(),
+      },
     );
   }
 
