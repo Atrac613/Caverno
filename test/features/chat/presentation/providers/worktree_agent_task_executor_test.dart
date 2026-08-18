@@ -310,7 +310,12 @@ void main() {
       expect(readResult.isSuccess, isTrue);
       expect(searchResult.isSuccess, isTrue);
       expect(outsideResult.isSuccess, isFalse);
-      expect(outsideResult.errorMessage, contains('outside'));
+      // `../outside.dart` is refused as a traversal, not as an out-of-root
+      // target -- the shared "outside the authorized project" sentence used to
+      // cover both and so described this one wrongly. What the test is really
+      // about is confinement, so assert the refusal names the worktree it is
+      // confining the read to.
+      expect(outsideResult.errorMessage, contains(worktree.path));
       expect(toolService.executedToolNames, ['read_file', 'search_files']);
       final canonicalWorktree = await worktree.resolveSymbolicLinks();
       expect(

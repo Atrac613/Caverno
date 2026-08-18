@@ -9,6 +9,7 @@ import 'package:openai_dart/openai_dart.dart' hide MessageRole;
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/model_usage_sink.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/chat_request_prefix_stability_service.dart';
@@ -80,10 +81,19 @@ class ChatRemoteDataSource
   final ChatResponseTelemetry _telemetry;
   final double? defaultTopP;
 
+  /// The overrides the policy client will apply to an equivalent request.
+  ///
+  /// Reads the ambient [ModelUsageRole] for the same reason the client does:
+  /// the role decides whether the request may think, so a caller mirroring the
+  /// effective request (session logging) has to resolve it in the same zone.
   Qwen38RequestOverrides? qwen38RequestOverrides({
     required String model,
     required int? maxTokens,
-  }) => _qwen38RequestPolicy.resolve(model: model, maxTokens: maxTokens);
+  }) => _qwen38RequestPolicy.resolve(
+    model: model,
+    maxTokens: maxTokens,
+    role: ModelUsageRole.current,
+  );
 
   static const _responseNormalizer = ChatCompletionResponseNormalizer();
   static const _logger = ChatRequestLogger();

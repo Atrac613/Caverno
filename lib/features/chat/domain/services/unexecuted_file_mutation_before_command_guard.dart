@@ -1,14 +1,14 @@
 // ChatNotifier decomposition collaborator: unexecuted-file-mutation-before-command-guard
 
-import 'dart:convert';
-
 import '../entities/chat_turn_owner.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'final_answer_claim_detector.dart';
+import 'git_working_tree_change_evidence.dart';
 import 'immutable_json_snapshot.dart';
 import 'tool_call_execution_policy.dart';
+import 'unexecuted_file_mutation_block_payload.dart';
 
 /// Immutable owner-turn evidence used before executing one command.
 final class UnexecutedFileMutationGuardInput {
@@ -43,6 +43,8 @@ final class UnexecutedFileMutationBeforeCommandGuard {
       FileMutationEvidencePolicy();
   static const FinalAnswerClaimDetector _claimDetector =
       FinalAnswerClaimDetector();
+  static const GitWorkingTreeChangeEvidence _gitChangeEvidence =
+      GitWorkingTreeChangeEvidence();
 
   McpToolResult? evaluate(UnexecutedFileMutationGuardInput input) {
     final toolCall = input.toolCall;
@@ -61,37 +63,24 @@ final class UnexecutedFileMutationBeforeCommandGuard {
     )) {
       return null;
     }
+    if (_gitChangeEvidence.covers(toolCall, input.executedToolResults)) {
+      return null;
+    }
 
     final candidate = input.currentAssistantContent?.trim() ?? '';
     if (!_claimDetector.looksLikeFutureFileSideEffectAction(candidate)) {
       return null;
     }
 
-    final blockedCommand = _executionPolicy.toolCommandArgument(
-      toolCall.arguments,
-    );
-    final payloadMap = <String, Object?>{
-      'ok': false,
-      'code': 'unexecuted_file_save',
-      'error':
-          'A command was blocked because the assistant claimed a local file '
-          'would be changed, but no successful write_file, edit_file, or '
-          'rollback_last_file_change result is available for that claimed '
-          'mutation.',
-      'missing_tool': 'edit_file',
-      'blocked_tool': toolCall.name,
-      'claimedResponse': _claimDetector.clipForDiagnostic(candidate),
-      'required_action':
-          'Use write_file or edit_file to perform the claimed file mutation '
-          'before running the command, or explain that the command remains '
-          'blocked because the file change was not executed.',
-    };
-    if (blockedCommand != null) {
-      payloadMap['blocked_command'] = blockedCommand;
-    }
     return McpToolResult(
       toolName: toolCall.name,
-      result: jsonEncode(payloadMap),
+      result: const UnexecutedFileMutationBlockPayload().encode(
+        blockedTool: toolCall.name,
+        claimedResponse: _claimDetector.clipForDiagnostic(candidate),
+        blockedCommand: _executionPolicy.toolCommandArgument(
+          toolCall.arguments,
+        ),
+      ),
       isSuccess: true,
     );
   }

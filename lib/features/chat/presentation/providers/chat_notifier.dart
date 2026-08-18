@@ -113,6 +113,8 @@ import '../../../../core/security/conversation_taint_state.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/sticky_tool_result_policy.dart';
 import '../../domain/services/tool_loop_context_digest.dart';
+import '../../domain/services/out_of_root_command_paths.dart';
+import '../../domain/services/outside_root_read_grants.dart';
 import '../../domain/services/tool_loop_exit_reason.dart';
 import '../../domain/services/truncated_tool_call_arguments_guard.dart';
 import 'tool_argument_json.dart';
@@ -170,6 +172,7 @@ import '../../domain/services/ble_connect_attempt_coordinator.dart';
 import '../../domain/services/blocked_production_release_retry_policy.dart';
 import '../../domain/services/fenced_tool_arguments_detector.dart';
 import '../../domain/services/turn_tool_catalog_cache.dart';
+import '../../domain/services/turn_tool_catalog_source.dart';
 import '../../domain/services/unexecuted_command_action_retry_policy.dart';
 import '../../domain/services/production_release_approval_coordinator.dart';
 import '../../domain/services/proposal_option_extraction.dart';
@@ -354,6 +357,8 @@ class ChatNotifier extends Notifier<ChatState> {
     questionResults: _askUserQuestionTurnCache,
   );
   final _unexecutedCommandRetries = const UnexecutedCommandActionRetryPolicy();
+
+  final _outsideRootReadGrants = OutsideRootReadGrants();
   final _unexecutedCommandRetryOwners = <String>{};
   final _blockedReleaseRetrySignatures = <String>{};
   final _planningToolPolicy = const PlanningToolPolicy();
@@ -5459,6 +5464,7 @@ class ChatNotifier extends Notifier<ChatState> {
     // One catalogue per selection for this loop; see TurnToolCatalogCache for
     // why rebuilding it per request let tools vanish mid-turn.
     final toolCatalogCache = TurnToolCatalogCache();
+    final toolCatalogSource = TurnToolCatalogSource();
 
     List<Map<String, dynamic>> selectedDefinitionsFor(
       McpToolService mcpToolService,
@@ -5470,7 +5476,7 @@ class ChatNotifier extends Notifier<ChatState> {
       return toolCatalogCache.resolve(
         selection: activeToolNames,
         compute: () => ToolDefinitionSearchService.definitionsForSelectedTools(
-          mcpToolService.getOpenAiToolDefinitions(),
+          toolCatalogSource.read(mcpToolService.getOpenAiToolDefinitions),
           selectedToolNames: activeToolNames,
           toolSearchEnabled: toolSearchEnabled,
         ),
@@ -6416,7 +6422,10 @@ class ChatNotifier extends Notifier<ChatState> {
           hasTextResponse = true;
           break;
         }
-        if (_shouldAcceptTerminalToolRoleFinalTextResponse(fallbackResponse)) {
+        if (_shouldAcceptTerminalToolRoleFinalTextResponse(
+          fallbackResponse,
+          batchToolResults,
+        )) {
           appLog(
             '[Tool] Accepting terminal tool-role final text response without final answer fallback',
           );
@@ -7291,12 +7300,9 @@ class ChatNotifier extends Notifier<ChatState> {
             _toolCallExecutionPolicy.isReadOnlyInspectionToolCall,
       );
 
-  bool _looksLikePendingToolActionResponse(String response) {
-    final normalized = response.toLowerCase();
-    return RegExp(
-      r"\b(?:now\s+)?let me\b|\bi (?:will|need to|should|am going to)\b|\bi(?:'ll| will)\b",
-    ).hasMatch(normalized);
-  }
+  bool _looksLikePendingToolActionResponse(String response) => RegExp(
+    r"\b(?:now\s+)?let me\b|\bi (?:will|need to|should|am going to)\b|\bi(?:'ll| will)\b",
+  ).hasMatch(response.toLowerCase());
 
   bool _containsOnlyPreviouslySuccessfulCurrentSavedValidationToolCalls(
     List<ToolCallInfo> toolCalls,
@@ -7798,11 +7804,15 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  /// [owner] selects the owner-bound execution facade, which dispatches by
+  /// identity rather than tool name; [approvalOwner] only says who to ask when
+  /// a read needs releasing. They are not interchangeable.
   Future<McpToolResult> _handleProjectScopedTool(
-    ToolCallInfo toolCall, [
+    ToolCallInfo toolCall, {
     ChatTurnOwner? owner,
     String? projectRoot,
-  ]) async {
+    ChatTurnOwner? approvalOwner,
+  }) async {
     final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
     if (accessFailure != null) return accessFailure;
 
@@ -7812,14 +7822,21 @@ class ChatNotifier extends Notifier<ChatState> {
     );
     var authorizedArguments = arguments;
     if (_mcpToolService!.ownsBuiltInFilesystemEffects) {
-      final authorization = await const ProjectReadToolAuthorizer().authorize(
+      final authorization = await _outsideRootReadGrants.authorizeRead(
         toolName: toolCall.name,
         arguments: arguments,
         projectRoot: projectRoot,
+        owner: approvalOwner,
+        requestApproval: requestFileOperation,
+        onDecision: ({required path, required approved}) =>
+            _recordOutsideRootReadAudit(
+              owner: approvalOwner!,
+              toolName: toolCall.name,
+              path: path,
+              approved: approved,
+            ),
       );
-      if (!authorization.isAllowed) {
-        return authorization.deniedResult!;
-      }
+      if (!authorization.isAllowed) return authorization.deniedResult!;
       authorizedArguments = authorization.arguments!;
     }
     if (owner != null) {

@@ -95,7 +95,13 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/local_command_execution_authority.dart':
       258,
   'lib/features/chat/domain/services/local_command_tool_contract.dart': 320,
-  'lib/features/chat/domain/services/local_command_tool_handler.dart': 417,
+  // +6 so a shell command naming a path outside the project root cannot be
+  // auto-approved. The scan and the resulting decision were extracted to
+  // LocalCommandApprovalScope and one local was inlined to pay for part of it;
+  // what remains is the call, its import, and passing the paths on to the
+  // approval request. Session db878d3a read a file under ~/.caverno through a
+  // python heredoc with no path check at all, so the alternative is the hole.
+  'lib/features/chat/domain/services/local_command_tool_handler.dart': 423,
   'lib/features/chat/domain/services/turn_finalization_recovery_policy.dart':
       268,
   'lib/features/chat/domain/services/coding_verification_mutation_signature.dart':
@@ -158,8 +164,14 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/proposal_option_extraction.dart': 621,
   'lib/features/chat/domain/services/proposal_parsing_text_utils.dart': 693,
   'lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart': 55,
+  // -11: the block payload and the Git working-tree evidence check moved to
+  // their own collaborators.
   'lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart':
-      115,
+      104,
+  'lib/features/chat/domain/services/git_working_tree_change_evidence.dart': 87,
+  'lib/features/chat/domain/services/unexecuted_file_mutation_block_payload.dart':
+      36,
+  'lib/features/chat/domain/services/turn_tool_catalog_source.dart': 31,
   'lib/features/chat/data/datasources/execution_snapshot_log_runtime_adapter.dart':
       32,
   'lib/features/chat/data/datasources/turn_tool_approval_runtime_ports.dart':
@@ -269,7 +281,7 @@ const Map<String, int> _lineBudgets = {
       361,
   'lib/features/chat/presentation/providers/thread_scoped_chat_state.dart': 238,
   'lib/features/chat/domain/services/tool_approval_auto_review_service.dart':
-      339,
+      331,
   'lib/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart':
       290,
   'lib/features/chat/presentation/providers/turn_tool_result_ledger.dart': 151,
@@ -594,7 +606,13 @@ const Map<String, int> _libraryLineBudgets = {
   // +13 for the tool-loop shadow point. No canary reaches the validation
   // consumer, so this is the only place a live run can answer whether the
   // producer attaches an exit status a consumer would otherwise re-derive.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19840,
+  // +39 to make an out-of-project read auditable and to keep an out-of-root
+  // shell command off the auto-approval path: the audit recorder, the decision
+  // callback, and one import a part needs. The gate now takes a single
+  // ToolApprovalGateDecision instead of a boolean and two strings, which paid
+  // back four of the lines; the rest needs `ref` and the settings, so it
+  // cannot leave the notifier.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19879,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

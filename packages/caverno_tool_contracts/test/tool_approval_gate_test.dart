@@ -45,6 +45,40 @@ void main() {
       expect(decision.autoReviewEscalationRationale, isNull);
     });
 
+    test('a gate that demanded a person carries its reason to the prompt', () {
+      final decision = ToolApprovalGateDecision.manualApprovalRequired(
+        title: 'Reaches outside the project',
+        rationale: 'It names /etc/hosts.',
+      );
+
+      expect(decision.needsManual, isTrue);
+      expect(decision.approvalPromptTitle, 'Reaches outside the project');
+      expect(decision.approvalPromptRationale, 'It names /etc/hosts.');
+      expect(
+        decision.escalatedFromAutoReviewDenial,
+        isFalse,
+        reason: 'no reviewer denied anything here',
+      );
+      expect(decision.deniedRationale, isNull);
+    });
+
+    test('an escalated denial still supplies the prompt text', () {
+      final decision =
+          ToolApprovalGateDecision.autoReviewDenialEscalatedToManual(
+            'looks destructive',
+          );
+
+      expect(decision.approvalPromptTitle, 'Auto-review flagged this action');
+      expect(decision.approvalPromptRationale, 'looks destructive');
+    });
+
+    test('a plain manual gate has no prompt text to offer', () {
+      const decision = ToolApprovalGateDecision.needsManualApproval;
+
+      expect(decision.approvalPromptTitle, isNull);
+      expect(decision.approvalPromptRationale, isNull);
+    });
+
     test('hard deny carries rationale but no escalation', () {
       final decision = ToolApprovalGateDecision.denied('blocked');
 

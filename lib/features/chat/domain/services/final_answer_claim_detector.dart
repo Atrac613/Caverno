@@ -147,6 +147,16 @@ class FinalAnswerClaimDetector {
         hasSuccessfulReadOnlyInspectionResult(toolResults)) {
       return null;
     }
+    // An answer built from the web is not a claim about local state, and no
+    // read-only inspection result can ever back it -- the verification set is
+    // read_file/inspect_file/list_directory/find_files/search_files, none of
+    // which a web-research turn would call. Judging that answer on the text
+    // alone means judging it on nothing. The turn's own tool results already
+    // say which domain it was working in, so ask them instead of the prose.
+    if (hasSuccessfulWebRetrievalResult(toolResults) &&
+        !mentionsLocalFilesystemPath(candidate)) {
+      return null;
+    }
 
     return ToolResultInfo(
       id: 'unverified_read_only_inspection_claim_${DateTime.now().microsecondsSinceEpoch}',
@@ -260,6 +270,78 @@ class FinalAnswerClaimDetector {
     });
   }
 
+  /// Tools that answer a question out of the network rather than the disk.
+  ///
+  /// Deliberately excludes the mutating HTTP verbs: `http_post` and friends
+  /// act on a remote system, so a turn that used one is not simply "reading
+  /// the web" and should stay subject to the ordinary claim checks.
+  static const _webRetrievalToolNames = <String>{
+    'search_web',
+    'web_search',
+    'search_images',
+    'search_videos',
+    'search_news',
+    'fetch_url',
+    'http_get',
+    'http_head',
+    'http_status',
+    'browser_get_content',
+    'browser_snapshot',
+  };
+
+  bool hasSuccessfulWebRetrievalResult(List<ToolResultInfo> toolResults) {
+    return toolResults.any((toolResult) {
+      if (!_webRetrievalToolNames.contains(
+        toolResult.name.trim().toLowerCase(),
+      )) {
+        return false;
+      }
+      return toolResultLooksSuccessfulForFinalAnswer(toolResult.result);
+    });
+  }
+
+  /// Whether [content] names something that actually lives on this machine.
+  ///
+  /// URLs are removed first: a web answer is full of slashes and dotted names
+  /// that look exactly like paths, and counting those would defeat the point.
+  /// What remains has to be a real path (`lib/foo.dart`, `~/x`, `C:\dir`) or a
+  /// filename carrying a local-source extension.
+  bool mentionsLocalFilesystemPath(String content) {
+    final withoutUrls = content
+        .replaceAll(
+          RegExp(r'\b[a-z][a-z0-9+.\-]*://\S+', caseSensitive: false),
+          ' ',
+        )
+        .replaceAll(
+          RegExp(
+            r'\b[\w\-]+(?:\.[\w\-]+)*\.(?:com|org|net|io|dev|ai|app|co|jp|edu|gov)\b\S*',
+            caseSensitive: false,
+          ),
+          ' ',
+        );
+    final patterns = <RegExp>[
+      // Absolute, home-relative, or dot-relative path with at least one slash.
+      RegExp(
+        r'(?:^|[\s"'
+        "'"
+        r'`(\[<])(?:~|\.{1,2})?/[\w.\-]+(?:/[\w.\-]+)*',
+      ),
+      // Windows drive or UNC path.
+      RegExp(
+        r'(?:^|[\s"'
+        "'"
+        r'`(\[<])(?:[A-Za-z]:\\|\\\\)[\w.\-\\]+',
+      ),
+      // A bare filename whose extension implies a file in this project.
+      RegExp(
+        r'\b[\w\-]+\.(?:dart|yaml|yml|json|jsonl|md|plist|lock|kt|kts|swift|'
+        r'py|ts|tsx|js|gradle|podspec|xcconfig|sh|toml|ini|cfg|pbxproj)\b',
+        caseSensitive: false,
+      ),
+    ];
+    return patterns.any((pattern) => pattern.hasMatch(withoutUrls));
+  }
+
   String fileSideEffectToolNameForResults(List<ToolResultInfo> toolResults) {
     final sawBrowserContext = toolResults.any(
       (toolResult) =>
@@ -307,6 +389,13 @@ class FinalAnswerClaimDetector {
         hasCompletedReadOnlyInspectionMarker(normalized, trimmed);
   }
 
+  /// Whether the text names something a read-only inspection could have been
+  /// about.
+  ///
+  /// A backtick used to be on this list, which made every inline code span a
+  /// "local target": in session 165f1371 gen-7 the sole marker in a web answer
+  /// was the backtick around `reasoning_effort`, and the answer was destroyed
+  /// for it. Formatting is not evidence about the filesystem.
   bool hasReadOnlyInspectionTargetMarker(String normalized, String original) {
     final hasEnglishTarget = containsAny(normalized, const [
       'file',
@@ -328,7 +417,6 @@ class FinalAnswerClaimDetector {
       '.plist',
       '/',
       '\\',
-      '`',
     ]);
     if (hasEnglishTarget) {
       return true;
@@ -493,6 +581,17 @@ class FinalAnswerClaimDetector {
     return '$notice\n\n$trimmed';
   }
 
+  /// Appends [notice] to [content]; never replaces it.
+  ///
+  /// This used to return the bare notice whenever the content itself still
+  /// matched [looksLikeCompletedReadOnlyInspectionClaim] -- which is true of
+  /// every answer the guard fires on, so a false positive always took the
+  /// destructive path and the reader saw an English warning where their answer
+  /// had been. Session 165f1371 gen-7 lost a correct, web-sourced answer that
+  /// way: the target marker had matched only the backtick around a code span.
+  /// The notice qualifies a claim, so the claim has to survive for it to
+  /// qualify anything; a misfire now costs a stray paragraph instead of the
+  /// whole turn.
   String messageContentWithUnverifiedReadOnlyInspectionNotice(
     String content, {
     String notice = unverifiedReadOnlyInspectionNotice,
@@ -500,10 +599,11 @@ class FinalAnswerClaimDetector {
     if (content.contains(notice)) {
       return content;
     }
-    if (looksLikeCompletedReadOnlyInspectionClaim(content.trim())) {
+    final trimmed = content.trimRight();
+    if (trimmed.isEmpty) {
       return notice;
     }
-    return '${content.trimRight()}\n\n$notice';
+    return '$trimmed\n\n$notice';
   }
 
   bool looksLikeUnsupportedFileSideEffectClaim(

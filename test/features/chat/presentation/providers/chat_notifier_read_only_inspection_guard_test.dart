@@ -65,6 +65,83 @@ void main() {
       expect(fired, isNotNull);
     });
 
+    test('does NOT fire on a web-sourced answer that names no local path '
+        '(regression: session 165f1371 gen-7)', () {
+      // The answer below is correct and fully tool-backed -- search_web plus
+      // http_get against the OpenAI docs -- but it was erased by this guard.
+      // The only target marker it carried was the backtick around a code span,
+      // and the completed marker was 「確認しました」; the negative guard missed
+      // because the sentence negates with 「含まれていませんでした」.
+      const answer =
+          '検索結果とOpenAI公式モデルページを確認しましたが、取得できた内容には '
+          'GPT-5.6 Luna のデフォルトの `reasoning_effort` の具体的な値が'
+          '含まれていませんでした。';
+
+      final fired = detector.buildUnverifiedReadOnlyInspectionClaimToolResult(
+        candidateResponse: answer,
+        toolResults: [
+          _result('search_web', '{"ok":true,"results":[]}'),
+          _result('http_get', '{"ok":true,"status":200,"body":"..."}'),
+        ],
+      );
+
+      expect(fired, isNull);
+    });
+
+    test('still fires when a web turn also makes a local file claim', () {
+      // The web exemption is about the domain of the claim, not about the
+      // presence of a web tool: naming a project file is still a claim about
+      // this machine, and no inspection result backs it here.
+      final fired = detector.buildUnverifiedReadOnlyInspectionClaimToolResult(
+        candidateResponse:
+            'I checked lib/main.dart against the docs; the file exists.',
+        toolResults: [_result('search_web', '{"ok":true,"results":[]}')],
+      );
+
+      expect(fired, isNotNull);
+    });
+
+    test('a backtick alone is not a local target marker', () {
+      expect(
+        detector.looksLikeCompletedReadOnlyInspectionClaim(
+          'I checked and confirmed the `reasoning_effort` value.',
+        ),
+        isFalse,
+      );
+    });
+
+    test('mentionsLocalFilesystemPath ignores URLs but sees real paths', () {
+      expect(
+        detector.mentionsLocalFilesystemPath(
+          'See https://developers.openai.com/api/docs/models for details.',
+        ),
+        isFalse,
+      );
+      expect(detector.mentionsLocalFilesystemPath('lib/main.dart'), isTrue);
+      expect(
+        detector.mentionsLocalFilesystemPath('~/.caverno/app_logs'),
+        isTrue,
+      );
+      expect(detector.mentionsLocalFilesystemPath('pubspec.yaml'), isTrue);
+    });
+
+    test('the notice is appended, never replacing the answer', () {
+      const answer = 'I checked the repository: the latest commit is c7d4341.';
+
+      final withNotice = detector
+          .messageContentWithUnverifiedReadOnlyInspectionNotice(answer);
+
+      expect(
+        withNotice,
+        startsWith(answer),
+        reason: 'a misfire must cost a paragraph, not the whole answer',
+      );
+      expect(
+        withNotice,
+        contains(FinalAnswerClaimDetector.unverifiedReadOnlyInspectionNotice),
+      );
+    });
+
     test('does NOT fire when a repo-state claim is backed by a successful '
         'git_execute_command (regression: the git false positive)', () {
       final gitResult = _result(

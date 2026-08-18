@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 import '../entities/tool_call_info.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'hidden_assistant_evidence_scorer.dart';
@@ -27,6 +29,24 @@ class ToolTerminalResponsePolicy {
 
   static const _fileMutationEvidencePolicy = FileMutationEvidencePolicy();
 
+  /// File-inspection tools whose successful results can ground a final answer
+  /// without a second generation. Process-status tools are read-only but are
+  /// not enough on their own to skip the user-role tool-result stream.
+  static const _inspectionToolNames = {
+    'list_directory',
+    'read_file',
+    'inspect_file',
+    'find_files',
+    'search_files',
+    'lsp_go_to_definition',
+    'resolve_installed_dependency',
+  };
+
+  /// Visible answers shorter than this still go through the tool-result
+  /// stream: a stub can look "done" while the model still needed that second
+  /// pass. Session 9ca277d5's discarded review was 2276 visible characters.
+  static const _minInspectionAnswerChars = 400;
+
   final ToolResponseTextPredicate _looksLikeUnexecutedToolRequest;
   final ToolResponseTextPredicate _looksLikePlanOnlyFinalToolAnswer;
   final ToolResponseTextPredicate _looksLikePendingToolActionResponse;
@@ -45,6 +65,28 @@ class ToolTerminalResponsePolicy {
 
   bool shouldAcceptTerminalToolRoleFinalTextResponse(String response) {
     return _shouldAcceptTerminalToolRoleFinalTextResponse(response);
+  }
+
+  /// A finished inspection answer from the tool loop, grounded in successful
+  /// file reads. Skipping the user-role tool-result stream avoids rewriting
+  /// the same review; session 9ca277d5 spent 133s on a complete review and
+  /// then 308s generating a different one.
+  bool shouldAcceptTerminalInspectionFinalTextResponse(
+    String response,
+    List<ToolResultInfo> toolResults,
+  ) {
+    return _shouldAcceptTerminalInspectionFinalTextResponse(
+      response,
+      toolResults,
+    );
+  }
+
+  bool shouldAcceptTerminalLoopFinalText(
+    String response, [
+    List<ToolResultInfo> toolResults = const [],
+  ]) {
+    return _shouldAcceptTerminalToolRoleFinalTextResponse(response) ||
+        _shouldAcceptTerminalInspectionFinalTextResponse(response, toolResults);
   }
 
   bool shouldAcceptTerminalFileMutationFinalTextResponse(
@@ -191,6 +233,37 @@ class ToolTerminalResponsePolicy {
       return false;
     }
     return true;
+  }
+
+  bool _shouldAcceptTerminalInspectionFinalTextResponse(
+    String response,
+    List<ToolResultInfo> toolResults,
+  ) {
+    if (toolResults.isEmpty) {
+      return false;
+    }
+    if (!toolResults.every(_isSuccessfulInspectionResult)) {
+      return false;
+    }
+
+    final visible = ContentParser.stripModelHistoryArtifacts(response).trim();
+    if (visible.length < _minInspectionAnswerChars) {
+      return false;
+    }
+    if (_looksLikeUnexecutedToolRequest(visible) ||
+        _looksLikePlanOnlyFinalToolAnswer(visible) ||
+        _looksLikePendingToolActionResponse(visible) ||
+        _looksLikeStructuredToolRequest(visible)) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _isSuccessfulInspectionResult(ToolResultInfo toolResult) {
+    return _inspectionToolNames.contains(
+          toolResult.name.trim().toLowerCase(),
+        ) &&
+        _toolResultLooksSuccessfulForFinalAnswer(toolResult.result);
   }
 
   bool _shouldAcceptTerminalFileMutationFinalTextResponse(

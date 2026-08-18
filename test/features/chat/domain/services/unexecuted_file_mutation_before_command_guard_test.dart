@@ -73,6 +73,95 @@ void main() {
     expect(guard.evaluate(input), isNotNull);
   });
 
+  group('git already sees the change', () {
+    // Session d904b342 wrote pubspec.yaml and the release notes in one turn,
+    // then tried to stage them in the next. `git status` and `git diff` both
+    // listed the files, but the stage was blocked for want of a same-turn
+    // edit_file and the whole turn was spent re-verifying.
+    final statusResult = _gitResult(
+      'status --short',
+      ' M pubspec.yaml\n?? docs/releases/caverno-1.3.17.md',
+    );
+
+    test('allows staging paths a status report already lists as changed', () {
+      final stage = _call(
+        'git_execute_command',
+        command: 'add pubspec.yaml docs/releases/caverno-1.3.17.md',
+      );
+
+      expect(
+        guard.evaluate(
+          _input(toolCall: stage, executedToolResults: [statusResult]),
+        ),
+        isNull,
+      );
+    });
+
+    test('still blocks a path the report does not mention', () {
+      final stage = _call(
+        'git_execute_command',
+        command: 'add pubspec.yaml lib/never_written.dart',
+      );
+
+      expect(
+        guard.evaluate(
+          _input(toolCall: stage, executedToolResults: [statusResult]),
+        ),
+        isNotNull,
+      );
+    });
+
+    test('takes no evidence from a wildcard or unnamed target', () {
+      for (final command in ['add .', 'add *', 'commit -m "prepare release"']) {
+        expect(
+          guard.evaluate(
+            _input(
+              toolCall: _call('git_execute_command', command: command),
+              executedToolResults: [statusResult],
+            ),
+          ),
+          isNotNull,
+          reason: command,
+        );
+      }
+    });
+
+    test('ignores a failed inspection and a non-inspection command', () {
+      final stage = _call('git_execute_command', command: 'add pubspec.yaml');
+      final failedStatus = ToolResultInfo(
+        id: 'result',
+        name: 'git_execute_command',
+        arguments: const {'command': 'status --short'},
+        result: ' M pubspec.yaml\nexit_code: 128',
+      );
+      final unrelated = _gitResult('log --oneline -1', 'abc1234 pubspec.yaml');
+
+      for (final evidence in [failedStatus, unrelated]) {
+        expect(
+          guard.evaluate(
+            _input(toolCall: stage, executedToolResults: [evidence]),
+          ),
+          isNotNull,
+          reason: evidence.arguments['command'] as String,
+        );
+      }
+    });
+
+    test('does not relax the guard for a non-git command', () {
+      final command = _call(
+        'local_execute_command',
+        command: 'bash tool/release.sh pubspec.yaml',
+      );
+
+      expect(
+        guard.evaluate(
+          _input(toolCall: command, executedToolResults: [statusResult]),
+        ),
+        isNotNull,
+      );
+    });
+  });
+
   test(
     'bypasses blank content and content without a future mutation claim',
     () {
@@ -323,6 +412,15 @@ UnexecutedFileMutationGuardInput _input({
 
 ToolCallInfo _call(String name, {String id = 'command', String? command}) {
   return ToolCallInfo(id: id, name: name, arguments: {'command': ?command});
+}
+
+ToolResultInfo _gitResult(String command, String output) {
+  return ToolResultInfo(
+    id: 'result',
+    name: 'git_execute_command',
+    arguments: {'command': command},
+    result: '$output\nexit_code: 0',
+  );
 }
 
 ToolResultInfo _result(String name, String result) {

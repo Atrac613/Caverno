@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../domain/entities/model_usage_role.dart';
 import '../../domain/services/qwen38_request_thinking_policy.dart';
 
 /// Adds Qwen3.8 llama.cpp template controls without changing proxy behavior.
@@ -37,6 +38,7 @@ final class Qwen38RequestPolicyClient extends http.BaseClient {
     final overrides = _policy.resolve(
       model: model,
       maxTokens: _asInt(body['max_tokens']),
+      role: ModelUsageRole.current,
     );
     if (overrides == null) return;
     request.body = jsonEncode(overrides.applyTo(body));

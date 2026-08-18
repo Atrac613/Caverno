@@ -202,7 +202,15 @@ extension ChatNotifierToolHandlerRegistry on ChatNotifier {
             ? null
             : _projectRootForGeneration(interactionGeneration));
     return ChatToolHandlerRegistry.fromModules([
-      _ProjectScopedToolHandlerModule(this, projectRoot: resolvedProjectRoot),
+      _ProjectScopedToolHandlerModule(
+        this,
+        projectRoot: resolvedProjectRoot,
+        // The owner is what makes an out-of-project read approvable: without a
+        // live turn there is nobody to ask, and the fence stays absolute.
+        owner: interactionGeneration == null
+            ? null
+            : _turnOwnerForGeneration(interactionGeneration),
+      ),
       _OwnerToolHandlerModule(this, approvalCache),
       _ConversationToolHandlerModule(
         this,
@@ -216,10 +224,13 @@ final class _ProjectScopedToolHandlerModule implements ChatToolHandlerModule {
   const _ProjectScopedToolHandlerModule(
     this._notifier, {
     required String? projectRoot,
-  }) : _projectRoot = projectRoot;
+    required ChatTurnOwner? owner,
+  }) : _projectRoot = projectRoot,
+       _owner = owner;
 
   final ChatNotifier _notifier;
   final String? _projectRoot;
+  final ChatTurnOwner? _owner;
 
   @override
   Map<String, ChatToolHandler> get handlers => {
@@ -230,8 +241,11 @@ final class _ProjectScopedToolHandlerModule implements ChatToolHandlerModule {
       'find_files',
       'search_files',
     ])
-      toolName: (toolCall) =>
-          _notifier._handleProjectScopedTool(toolCall, null, _projectRoot),
+      toolName: (toolCall) => _notifier._handleProjectScopedTool(
+        toolCall,
+        projectRoot: _projectRoot,
+        approvalOwner: _owner,
+      ),
   };
 }
 

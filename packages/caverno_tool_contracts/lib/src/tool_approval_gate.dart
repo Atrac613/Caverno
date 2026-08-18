@@ -27,6 +27,8 @@ class ToolApprovalGateDecision {
     this.deniedRationale,
     this.bypassedApproval = false,
     this.escalatedFromAutoReviewDenial = false,
+    this.manualApprovalTitle,
+    this.manualApprovalRationale,
   });
 
   final ToolApprovalGateOutcome outcome;
@@ -48,6 +50,17 @@ class ToolApprovalGateDecision {
   /// skip storing a same-turn approval grant because no approval occurred.
   final bool bypassedApproval;
 
+  /// Why the human is being asked, when the gate itself required a person
+  /// rather than a reviewer denying the action.
+  ///
+  /// Someone deciding an approval needs the fact that triggered it. Without
+  /// these, a gate raised for a specific reason -- a shell command naming a
+  /// path outside the project, say -- reaches the user as an ordinary prompt
+  /// with the reason recorded only in the audit log, which trains the reader
+  /// to click through.
+  final String? manualApprovalTitle;
+  final String? manualApprovalRationale;
+
   /// Ran directly via full access — no approval step occurred.
   static const ToolApprovalGateDecision fullAccess = ToolApprovalGateDecision._(
     ToolApprovalGateOutcome.runDirectly,
@@ -64,6 +77,22 @@ class ToolApprovalGateDecision {
 
   static const ToolApprovalGateDecision needsManualApproval =
       ToolApprovalGateDecision._(ToolApprovalGateOutcome.needsManualApproval);
+
+  /// A person must decide, for the stated reason. Behaves as
+  /// [needsManualApproval] and carries text for the prompt.
+  ///
+  /// A null [rationale] collapses to the plain [needsManualApproval] singleton:
+  /// a caller with nothing to say should not have to branch to say nothing.
+  factory ToolApprovalGateDecision.manualApprovalRequired({
+    String? title,
+    String? rationale,
+  }) => rationale == null
+      ? needsManualApproval
+      : ToolApprovalGateDecision._(
+          ToolApprovalGateOutcome.needsManualApproval,
+          manualApprovalTitle: title ?? 'This action needs your decision',
+          manualApprovalRationale: rationale,
+        );
 
   factory ToolApprovalGateDecision.denied(String rationale) =>
       ToolApprovalGateDecision._(
@@ -112,4 +141,13 @@ class ToolApprovalGateDecision {
   /// escalated from an auto-review denial; null otherwise.
   String? get autoReviewEscalationRationale =>
       escalatedFromAutoReviewDenial ? deniedRationale : null;
+
+  /// Heading for the manual prompt, whatever sent it there.
+  String? get approvalPromptTitle => escalatedFromAutoReviewDenial
+      ? 'Auto-review flagged this action'
+      : manualApprovalTitle;
+
+  /// Explanation for the manual prompt, whatever sent it there.
+  String? get approvalPromptRationale =>
+      autoReviewEscalationRationale ?? manualApprovalRationale;
 }

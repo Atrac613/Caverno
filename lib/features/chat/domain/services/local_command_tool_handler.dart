@@ -5,6 +5,7 @@ import '../../../settings/domain/services/local_command_permission_service.dart'
 import '../entities/mcp_tool_entity.dart';
 import 'dart_project_tooling.dart';
 import 'local_command_tool_contract.dart';
+import 'out_of_root_command_paths.dart';
 
 export 'local_command_tool_contract.dart';
 
@@ -69,9 +70,13 @@ final class LocalCommandToolHandler {
       request.owner,
       ruleRequest,
     );
-    final requiresExplicitApproval =
-        LocalCommandPermissionService.requiresExplicitApproval(command);
-    final background = argumentIsTruthy(request.arguments['background']);
+    final approvalScope = LocalCommandApprovalScope.of(
+      command: command,
+      projectRoot: request.allowedWorkingDirectoryRoot,
+      commandShapeRequiresApproval:
+          LocalCommandPermissionService.requiresExplicitApproval,
+    );
+    final requiresExplicitApproval = approvalScope.requiresExplicitApproval;
     if (permission == CommandPermissionRuleDecision.deny) {
       return _failure(
         request.toolName,
@@ -84,7 +89,7 @@ final class LocalCommandToolHandler {
         !requiresExplicitApproval) {
       return _execute(request, execution);
     }
-    if (!background &&
+    if (!argumentIsTruthy(request.arguments['background']) &&
         LocalShellTools.isReadOnly(command) &&
         !requiresExplicitApproval) {
       return _execute(request, execution);
@@ -97,6 +102,7 @@ final class LocalCommandToolHandler {
       reason: request.arguments['reason'] as String?,
       warningTitle: riskWarning?.title,
       warningMessage: riskWarning?.message,
+      outOfRootPaths: approvalScope.outOfRootPaths,
     );
     final cachedDenial = _approvalPort.lookupDenial(
       request.owner,

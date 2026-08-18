@@ -28,8 +28,24 @@ final class ProjectReadPathAuthorization {
     canonicalPath: canonicalPath,
   );
 
-  factory ProjectReadPathAuthorization.denied(ProjectReadPathDenial denial) =>
-      ProjectReadPathAuthorization._(denial: denial);
+  /// A denial carries [canonicalRoot] whenever the root is known.
+  ///
+  /// A refusal that does not name the boundary cannot be complied with: in
+  /// session 12b739d6 the caller was told only that its target was "outside
+  /// the authorized project", could not tell whether the path form or the tool
+  /// was at fault, and spent four `tool_search` calls hunting for a way in.
+  /// The root is the one fact that makes the refusal actionable, so it travels
+  /// with the denial. It is canonical when it could be resolved, and the
+  /// configured value otherwise.
+  factory ProjectReadPathAuthorization.denied(
+    ProjectReadPathDenial denial, {
+    String? canonicalRoot,
+    String? canonicalPath,
+  }) => ProjectReadPathAuthorization._(
+    denial: denial,
+    canonicalRoot: canonicalRoot,
+    canonicalPath: canonicalPath,
+  );
 
   final String? canonicalRoot;
   final String? canonicalPath;
@@ -58,6 +74,7 @@ final class ProjectReadPathFence {
     if (_isHomeRelative(path) || _containsParentTraversal(path)) {
       return ProjectReadPathAuthorization.denied(
         ProjectReadPathDenial.traversalNotAllowed,
+        canonicalRoot: root,
       );
     }
 
@@ -69,6 +86,7 @@ final class ProjectReadPathFence {
       if (!DartProjectPath.isInsideRoot(canonicalBase, canonicalRoot)) {
         return ProjectReadPathAuthorization.denied(
           ProjectReadPathDenial.outsideProject,
+          canonicalRoot: canonicalRoot,
         );
       }
       final candidate = DartProjectPath.isAbsolutePath(path)
@@ -76,8 +94,13 @@ final class ProjectReadPathFence {
           : File.fromUri(Directory(canonicalBase).uri.resolve(path)).path;
       final canonicalPath = await _resolveExistingPath(candidate);
       if (!DartProjectPath.isInsideRoot(canonicalPath, canonicalRoot)) {
+        // Report the resolved target, not the requested one: an approval has
+        // to name the file that would actually be read, or a symlink could be
+        // repointed between the prompt and the read.
         return ProjectReadPathAuthorization.denied(
           ProjectReadPathDenial.outsideProject,
+          canonicalRoot: canonicalRoot,
+          canonicalPath: canonicalPath,
         );
       }
       return ProjectReadPathAuthorization.allowed(
@@ -87,6 +110,7 @@ final class ProjectReadPathFence {
     } on FileSystemException {
       return ProjectReadPathAuthorization.denied(
         ProjectReadPathDenial.pathUnavailable,
+        canonicalRoot: root,
       );
     }
   }

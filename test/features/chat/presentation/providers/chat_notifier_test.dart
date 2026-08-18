@@ -5462,7 +5462,12 @@ void main() {
 
         expect(toolService.executedToolNames, isEmpty);
         final finalContent = toolNotifier.state.messages.last.content;
-        expect(finalContent, isNot(contains('I confirmed the paths')));
+        // The claim is genuinely unverified, so the notice belongs here -- but
+        // it qualifies the claim rather than deleting it. Erasing the answer
+        // made a misfire indistinguishable from a crash (session 165f1371
+        // gen-7), so the guard now appends and the reader keeps the text being
+        // warned about.
+        expect(finalContent, contains('I confirmed the paths'));
         expect(
           finalContent,
           contains('local file or project state claim above is unverified'),

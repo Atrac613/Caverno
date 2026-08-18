@@ -23,53 +23,49 @@ extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
         containsCjkMissingEvidenceMarker: _containsCjkMissingEvidenceMarker,
       );
 
-  bool _shouldAcceptTerminalToolRoleFinalTextResponse(String response) {
-    return _terminalToolResponsePolicy
-        .shouldAcceptTerminalToolRoleFinalTextResponse(response);
-  }
+  bool _shouldAcceptTerminalToolRoleFinalTextResponse(
+    String response, [
+    List<ToolResultInfo> toolResults = const [],
+  ]) => _terminalToolResponsePolicy.shouldAcceptTerminalLoopFinalText(
+    response,
+    toolResults,
+  );
 
   bool _shouldAcceptTerminalFileMutationFinalTextResponse(
     String response,
     List<ToolResultInfo> toolResults,
-  ) {
-    return _terminalToolResponsePolicy
-        .shouldAcceptTerminalFileMutationFinalTextResponse(
-          response,
-          toolResults,
-        );
-  }
+  ) => _terminalToolResponsePolicy
+      .shouldAcceptTerminalFileMutationFinalTextResponse(response, toolResults);
 
   bool _shouldAcceptTerminalBrowserSaveDataResponse(
     String response,
     List<ToolResultInfo> toolResults,
-  ) {
-    return _terminalToolResponsePolicy
-        .shouldAcceptTerminalBrowserSaveDataResponse(response, toolResults);
-  }
+  ) => _terminalToolResponsePolicy.shouldAcceptTerminalBrowserSaveDataResponse(
+    response,
+    toolResults,
+  );
 
   bool _shouldAcceptTerminalSkillToolRoleResponse(
     String response,
     List<ToolResultInfo> toolResults,
-  ) {
-    return _terminalToolResponsePolicy
-        .shouldAcceptTerminalSkillToolRoleResponse(response, toolResults);
-  }
+  ) => _terminalToolResponsePolicy.shouldAcceptTerminalSkillToolRoleResponse(
+    response,
+    toolResults,
+  );
 
   bool _shouldAcceptConstrainedSkillResponseBeforeFollowUpTools(
     String response,
     List<ToolResultInfo> toolResults,
     List<ToolCallInfo> followUpToolCalls,
-  ) {
-    return _terminalToolResponsePolicy
-        .shouldAcceptConstrainedSkillResponseBeforeFollowUpTools(
-          response,
-          toolResults,
-          followUpToolCalls,
-        );
-  }
+  ) => _terminalToolResponsePolicy
+      .shouldAcceptConstrainedSkillResponseBeforeFollowUpTools(
+        response,
+        toolResults,
+        followUpToolCalls,
+      );
 
-  bool _shouldAcceptTerminalToolRoleBlockerResponse(String response) {
-    return _terminalToolResponsePolicy
-        .shouldAcceptTerminalToolRoleBlockerResponse(response);
-  }
+  bool _shouldAcceptTerminalToolRoleBlockerResponse(String response) =>
+      _terminalToolResponsePolicy.shouldAcceptTerminalToolRoleBlockerResponse(
+        response,
+      );
 }

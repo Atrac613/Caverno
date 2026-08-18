@@ -377,6 +377,11 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
           mode: approvalMode,
           reviewDomain: ToolApprovalAutoReviewDomain.coding,
           fullAccessEligible: true,
+          requiredManualDecision:
+              LocalCommandApprovalScope.outsideProjectApproval(
+                request.outOfRootPaths,
+                request.execution.command,
+              ),
           approvalCacheArguments: request.execution.arguments,
           buildReviewRequest: () async => _buildAutoReviewRequest(
             candidate,
@@ -387,6 +392,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
             reason: request.reason,
             warningTitle: request.warningTitle,
             warningMessage: request.warningMessage,
+            outOfRootPaths: request.outOfRootPaths,
           ),
         );
       },
@@ -952,9 +958,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
   }
 
   String _shellQuoteRunTestsArgument(String value) {
-    if (value.isEmpty) {
-      return "''";
-    }
+    if (value.isEmpty) return "''";
     return "'${value.replaceAll("'", "'\"'\"'")}'";
   }
 

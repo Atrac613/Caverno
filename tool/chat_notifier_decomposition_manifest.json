@@ -196,6 +196,16 @@
           "sizeBudgetKey": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart"
         },
         {
+          "id": "git-working-tree-change-evidence",
+          "path": "lib/features/chat/domain/services/git_working_tree_change_evidence.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/git_working_tree_change_evidence.dart"
+        },
+        {
+          "id": "unexecuted-file-mutation-block-payload",
+          "path": "lib/features/chat/domain/services/unexecuted_file_mutation_block_payload.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/unexecuted_file_mutation_block_payload.dart"
+        },
+        {
           "id": "tool-loop-exhaustion-policy",
           "path": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart"
@@ -1224,6 +1234,11 @@
           "id": "turn-tool-catalog-cache",
           "path": "lib/features/chat/domain/services/turn_tool_catalog_cache.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/turn_tool_catalog_cache.dart"
+        },
+        {
+          "id": "turn-tool-catalog-source",
+          "path": "lib/features/chat/domain/services/turn_tool_catalog_source.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/turn_tool_catalog_source.dart"
         }
       ]
     },

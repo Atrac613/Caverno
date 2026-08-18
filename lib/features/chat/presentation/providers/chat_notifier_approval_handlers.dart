@@ -210,6 +210,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
     required ToolApprovalMode mode,
     required ToolApprovalAutoReviewDomain reviewDomain,
     required bool fullAccessEligible,
+    ToolApprovalGateDecision? requiredManualDecision,
     Map<String, dynamic>? approvalCacheArguments,
     String? approvalCacheStateFingerprint,
     Map<String, dynamic>? auditArguments,
@@ -242,6 +243,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
       hasCachedApproval: hasCachedApproval,
       mode: mode,
       fullAccessEligible: fullAccessEligible,
+      requiredManualDecision: requiredManualDecision,
       review: () async => _runApprovalAutoReview(
         await buildReviewRequest(),
         domain: reviewDomain,
@@ -310,6 +312,33 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
         );
   }
 
+  /// Records one out-of-project read release; see [OutsideRootReadGrants].
+  void _recordOutsideRootReadAudit({
+    required ChatTurnOwner owner,
+    required String toolName,
+    required String path,
+    required bool approved,
+  }) {
+    unawaited(
+      _recordApprovalAudit(
+        owner,
+        toolCall: ToolCallInfo(
+          id: 'outside_root_read',
+          name: toolName,
+          arguments: {'path': path},
+        ),
+        actionKind: 'project_read_outside_root',
+        domain: ToolApprovalAutoReviewDomain.coding,
+        mode: _settings.codingApprovalMode,
+        outcome: approved ? 'allowed' : 'denied',
+        decisionSource: 'manual_outside_root_read',
+        rationale: approved
+            ? 'The user released one file outside the project root.'
+            : 'The user declined to release a file outside the project root.',
+      ),
+    );
+  }
+
   /// Assembles an auto-review request, attaching the recent conversation tail.
   /// Shared by every gated tool's `buildReviewRequest` callback.
   ToolApprovalAutoReviewRequest _buildAutoReviewRequest(
@@ -323,6 +352,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
     String? warningTitle,
     String? warningMessage,
     String? preview,
+    List<String> outOfRootPaths = const [],
     List<Message>? conversationMessages,
   }) {
     return ToolApprovalAutoReviewRequest(
@@ -335,6 +365,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
       warningTitle: warningTitle,
       warningMessage: warningMessage,
       preview: preview,
+      outOfRootPaths: outOfRootPaths,
       conversationTail: ToolApprovalAutoReviewService.buildConversationTail(
         conversationMessages ??
             _activeResponseRegistry.messagesForOwner(owner) ??
@@ -394,22 +425,20 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
     return domain == ToolApprovalAutoReviewDomain.coding;
   }
 
-  /// Uses a dedicated title when auto-review escalated the prompt.
+  /// The heading for a manual prompt: whatever the gate says, else [fallback].
   String? _escalatedApprovalWarningTitle(
     ToolApprovalGateDecision gate,
     String? fallback,
   ) {
-    return gate.escalatedFromAutoReviewDenial
-        ? 'Auto-review flagged this action'
-        : fallback;
+    return gate.approvalPromptTitle ?? fallback;
   }
 
-  /// Prepends the review rationale to an escalated manual prompt.
+  /// Prepends the gate's reason for asking, whatever route sent it here.
   String? _escalatedApprovalWarningMessage(
     ToolApprovalGateDecision gate,
     String? fallback,
   ) {
-    final rationale = gate.autoReviewEscalationRationale;
+    final rationale = gate.approvalPromptRationale;
     if (rationale == null) {
       return fallback;
     }

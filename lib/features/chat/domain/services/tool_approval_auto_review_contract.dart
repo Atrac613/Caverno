@@ -57,6 +57,7 @@ class ToolApprovalAutoReviewRequest {
     this.warningMessage,
     this.preview,
     this.hasUntrustedInfluence = false,
+    this.outOfRootPaths = const [],
   });
 
   final String actionKind;
@@ -70,4 +71,12 @@ class ToolApprovalAutoReviewRequest {
   final String? warningMessage;
   final String? preview;
   final bool hasUntrustedInfluence;
+
+  /// Path tokens that triggered an outside-project check.
+  ///
+  /// Hints for the reviewer to verify against the command, not a claim that
+  /// those locations exist. Session db878d3a still applies: without the hint
+  /// the reviewer allowed a read under `~/.caverno` and described it as
+  /// operating "within the selected project".
+  final List<String> outOfRootPaths;
 }

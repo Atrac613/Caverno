@@ -165,6 +165,7 @@ final class LocalCommandApprovalRequest {
     required this.reason,
     required this.warningTitle,
     required this.warningMessage,
+    this.outOfRootPaths = const [],
   });
 
   final String toolCallId;
@@ -172,6 +173,13 @@ final class LocalCommandApprovalRequest {
   final String? reason;
   final String? warningTitle;
   final String? warningMessage;
+
+  /// Path tokens that triggered an outside-project check.
+  ///
+  /// Non-empty means a person has to decide: the shell may reach outside with
+  /// no path fence in front of it. The tokens are why the ask fired, not a
+  /// claim that those locations exist.
+  final List<String> outOfRootPaths;
 }
 
 final class LocalCommandManualApproval {

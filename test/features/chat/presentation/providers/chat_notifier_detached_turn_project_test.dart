@@ -877,6 +877,116 @@ class _ProtectedPathToolService extends McpToolService {
   }
 }
 
+/// Owns the built-in filesystem effects, so the project read fence actually
+/// runs. Every other double in this file reports `false`, which is why the
+/// fence had no notifier-level coverage at all before session 12b739d6.
+final class _FenceOwningReadToolService extends McpToolService {
+  final List<Map<String, dynamic>> executedArguments = <Map<String, dynamic>>[];
+
+  @override
+  bool get ownsBuiltInFilesystemEffects => true;
+
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() => [
+    {
+      'type': 'function',
+      'function': {
+        'name': 'read_file',
+        'description': 'Read a file',
+        'parameters': const <String, dynamic>{'type': 'object'},
+      },
+    },
+  ];
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedArguments.add(Map<String, dynamic>.unmodifiable(arguments));
+    return McpToolResult(
+      toolName: name,
+      result: '{"content":"released"}',
+      isSuccess: true,
+    );
+  }
+}
+
+final class _SingleReadCallDataSource implements ChatDataSource {
+  _SingleReadCallDataSource(this.path);
+
+  final String path;
+  final List<List<ToolResultInfo>> toolResultBatches = [];
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) => StreamWithToolsResult(
+    stream: const Stream<String>.empty(),
+    completion: Future<ChatCompletionResult>.value(
+      ChatCompletionResult(
+        content: '',
+        finishReason: 'tool_calls',
+        toolCalls: [
+          ToolCallInfo(
+            id: 'call-read-outside',
+            name: 'read_file',
+            arguments: {'path': path},
+          ),
+        ],
+      ),
+    ),
+  );
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    toolResultBatches.add(List<ToolResultInfo>.unmodifiable(toolResults));
+    return ChatCompletionResult(content: 'done', finishReason: 'stop');
+  }
+
+  @override
+  StreamedChatCompletion streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) => StreamedChatCompletion.fromStream(
+    Stream<String>.value('done'),
+    finishReason: 'stop',
+  );
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async => ChatCompletionResult(content: 'done', finishReason: 'stop');
+
+  @override
+  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 class _ProtectedPathRetryDataSource implements ChatDataSource {
   _ProtectedPathRetryDataSource({
     required this.mode,
@@ -6759,11 +6869,10 @@ void main() {
     await firstB;
 
     conversations.selectConversation(threadA);
-    expect(
-      notifier.state.queuedMessages.map((message) => message.content),
-      ['a-queued-1', 'a-queued-2'],
-      reason: 'selecting idle A must first restore its exact FIFO projection',
-    );
+    expect(notifier.state.queuedMessages.map((message) => message.content), [
+      'a-queued-1',
+      'a-queued-2',
+    ], reason: 'selecting idle A must first restore its exact FIFO projection');
     await dataSource
         .waitForRequest('a-queued-1')
         .timeout(const Duration(seconds: 2));
@@ -7133,11 +7242,10 @@ void main() {
       runtimeRepository.releaseFlush.complete();
 
       conversations.selectConversation(threadA);
-      expect(
-        notifier.state.queuedMessages.map((message) => message.content),
-        ['runtime-a-queued-1', 'runtime-a-queued-2'],
-        reason: 'the dequeued item must be restored at the front',
-      );
+      expect(notifier.state.queuedMessages.map((message) => message.content), [
+        'runtime-a-queued-1',
+        'runtime-a-queued-2',
+      ], reason: 'the dequeued item must be restored at the front');
       await dataSource
           .waitForRequest('runtime-a-queued-1')
           .timeout(const Duration(seconds: 2));
@@ -10373,6 +10481,123 @@ void main() {
       expect(dataSource.toolResultBatches, isEmpty);
     },
   );
+
+  group('out-of-project read approval', () {
+    late Directory outsideDir;
+    late File outsideFile;
+
+    setUp(() async {
+      // The fence resolves the root, so it has to exist on disk.
+      await Directory(_projectARoot).create(recursive: true);
+      outsideDir = await Directory.systemTemp.createTemp('outside-read-');
+      outsideFile = File('${outsideDir.path}/session.jsonl');
+      await outsideFile.writeAsString('{"turn":"gen-1"}\n');
+    });
+
+    tearDown(() => outsideDir.delete(recursive: true));
+
+    Future<(ChatNotifier, _FenceOwningReadToolService)> startRead({
+      ToolApprovalAuditLog? auditLog,
+    }) async {
+      final dataSource = _SingleReadCallDataSource(outsideFile.path);
+      final toolService = _FenceOwningReadToolService();
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        toolApprovalAuditLog: auditLog,
+      );
+      addTearDown(container.dispose);
+      container
+          .read(conversationsNotifierProvider.notifier)
+          .createNewConversation(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: 'project-a',
+          );
+      final notifier = container.read(chatNotifierProvider.notifier);
+      unawaited(
+        notifier.sendMessage('Investigate that log.', bypassPlanMode: true),
+      );
+      await _waitUntil(() => notifier.state.pendingFileOperation != null);
+      return (notifier, toolService);
+    }
+
+    test(
+      'asks before releasing the file, and reads it once approved',
+      () async {
+        final (notifier, toolService) = await startRead();
+
+        final pending = notifier.state.pendingFileOperation!;
+        expect(
+          pending.path,
+          await outsideFile.resolveSymbolicLinks(),
+          reason: 'the prompt must name the file that would actually be read',
+        );
+        expect(
+          pending.preview,
+          contains('gen-1'),
+          reason: 'the reader decides on contents, not on a filename',
+        );
+
+        notifier.resolveFileOperation(id: pending.id, approved: true);
+        await _waitUntil(() => toolService.executedArguments.isNotEmpty);
+
+        expect(
+          toolService.executedArguments.single['path'],
+          await outsideFile.resolveSymbolicLinks(),
+        );
+      },
+    );
+
+    test('both outcomes reach the approval audit trail', () async {
+      // This was the one approval in the app that left no record, which is
+      // backwards for the narrowest permission Caverno asks for.
+      final auditRoot = await Directory.systemTemp.createTemp('read-audit-');
+      addTearDown(() => auditRoot.delete(recursive: true));
+      final auditLog = ToolApprovalAuditLog(
+        rootDirectoryProvider: () async => auditRoot,
+      );
+      final (notifier, _) = await startRead(auditLog: auditLog);
+
+      final pending = notifier.state.pendingFileOperation!;
+      notifier.resolveFileOperation(id: pending.id, approved: true);
+      await _waitUntil(
+        () => auditRoot
+            .listSync(recursive: true)
+            .whereType<File>()
+            .any(
+              (file) =>
+                  file.readAsStringSync().contains('project_read_outside_root'),
+            ),
+      );
+
+      final entry =
+          jsonDecode(
+                auditRoot
+                    .listSync(recursive: true)
+                    .whereType<File>()
+                    .map((file) => file.readAsStringSync())
+                    .join()
+                    .trim()
+                    .split('\n')
+                    .last,
+              )
+              as Map<String, dynamic>;
+
+      expect(entry['actionKind'], 'project_read_outside_root');
+      expect(entry['outcome'], 'allowed');
+      expect(entry['decisionSource'], 'manual_outside_root_read');
+    });
+
+    test('a declined release refuses the read and never executes it', () async {
+      final (notifier, toolService) = await startRead();
+
+      final pending = notifier.state.pendingFileOperation!;
+      notifier.resolveFileOperation(id: pending.id, approved: false);
+      await _waitUntil(() => notifier.state.pendingFileOperation == null);
+
+      expect(toolService.executedArguments, isEmpty);
+    });
+  });
 
   test('detached accepted goal claim completes only its exact owner', () async {
     final ownerAClaimReady = Completer<void>();

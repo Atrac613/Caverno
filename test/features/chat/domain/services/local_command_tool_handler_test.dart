@@ -454,6 +454,131 @@ void main() {
       expect(harness.approval.manualCalls, isEmpty);
     });
 
+    test('a read-only command naming a path outside the root still needs '
+        'approval', () async {
+      // `cat` is read-only and would normally skip approval entirely. The path
+      // is what matters here: the shell fence only inspects paths for the few
+      // commands run internally, so nothing downstream will look at this one.
+      final owner = _owner('owner-a');
+      final harness = _Harness()
+        ..approval.gates[owner] = ToolApprovalGateDecision.fullAccess;
+
+      await harness.handler.handle(
+        _request(owner: owner, arguments: const {'command': 'cat /etc/hosts'}),
+      );
+
+      expect(harness.approval.resolveCalls, hasLength(1));
+      expect(harness.approval.resolveCalls.single.request.outOfRootPaths, [
+        '/etc/hosts',
+      ]);
+    });
+
+    test('a shell command that reaches outside the root cannot be waved '
+        'through by a saved allow rule', () async {
+      // Session db878d3a: a python heredoc read a file under ~/.caverno with
+      // no path check at all, and auto-review allowed it while calling it
+      // "within the selected project".
+      const command =
+          "python3 -c \"print(open('/Users/dev/.caverno/log.jsonl').read())\"";
+      final owner = _owner('owner-a');
+      final harness = _Harness()
+        ..rules.decisions[owner] = CommandPermissionRuleDecision.allow
+        ..approval.gates[owner] = ToolApprovalGateDecision.fullAccess;
+
+      await harness.handler.handle(
+        _request(owner: owner, arguments: const {'command': command}),
+      );
+
+      expect(
+        harness.approval.resolveCalls,
+        hasLength(1),
+        reason: 'a saved allow rule must not skip the boundary decision',
+      );
+      expect(harness.approval.resolveCalls.single.request.outOfRootPaths, [
+        '/Users/dev/.caverno/log.jsonl',
+      ]);
+    });
+
+    test('the manual prompt receives the reason it was asked for', () async {
+      // The reason lived only in the audit file at first, so the person being
+      // asked saw an ordinary command prompt and no mention of the path.
+      final owner = _owner('owner-a');
+      final harness = _Harness()
+        ..approval.gates[owner] =
+            ToolApprovalGateDecision.manualApprovalRequired(
+              title: 'This command may reach outside the project',
+              rationale:
+                  'It may touch a path outside the open project.\n\n'
+                  'cat /etc/hosts',
+            )
+        ..approval.manualDecisions[owner] = const LocalCommandManualApproval(
+          approved: true,
+        );
+
+      await harness.handler.handle(
+        _request(owner: owner, arguments: const {'command': 'cat /etc/hosts'}),
+      );
+
+      final gate = harness.approval.manualCalls.single.gate;
+      expect(gate.approvalPromptTitle, contains('outside the project'));
+      expect(gate.approvalPromptRationale, contains('/etc/hosts'));
+    });
+
+    test('a command staying inside the root keeps its fast path', () async {
+      final owner = _owner('owner-a');
+      final harness = _Harness();
+
+      await harness.handler.handle(
+        _request(
+          owner: owner,
+          arguments: const {'command': 'cat $_ownerARoot/pubspec.yaml'},
+        ),
+      );
+
+      expect(harness.execution.calls, hasLength(1));
+      expect(
+        harness.approval.resolveCalls,
+        isEmpty,
+        reason: 'in-project reads must not start costing an approval round',
+      );
+    });
+
+    test('a quoted in-project path with spaces keeps its fast path', () async {
+      // The unquoted token regex stops at spaces, so a root like
+      // `3D Sea Qwen` used to be reported as the non-existent `/.../Web/3D`.
+      const spacedRoot = '/Users/dev/Web/3D Sea Qwen';
+      final owner = _owner('owner-a');
+      final harness = _Harness();
+
+      await harness.handler.handle(
+        _request(
+          owner: owner,
+          allowedRoot: spacedRoot,
+          arguments: const {
+            'command': 'cat "/Users/dev/Web/3D Sea Qwen/sea.js"',
+          },
+        ),
+      );
+
+      expect(harness.execution.calls, hasLength(1));
+      expect(harness.approval.resolveCalls, isEmpty);
+    });
+
+    test(
+      'a read-only command targeting /dev/null does not need path approval',
+      () async {
+        final owner = _owner('owner-a');
+        final harness = _Harness();
+
+        await harness.handler.handle(
+          _request(owner: owner, arguments: const {'command': 'cat /dev/null'}),
+        );
+
+        expect(harness.execution.calls, hasLength(1));
+        expect(harness.approval.resolveCalls, isEmpty);
+      },
+    );
+
     test('routes remote shell-backed commands through approval', () async {
       final owner = _owner('owner-a');
 
