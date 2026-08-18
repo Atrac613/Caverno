@@ -187,6 +187,29 @@ void main() {
       expect(decision.code, 'browser_peer_verification_unavailable');
     });
 
+    test('allows only the active loopback HTML preview origin', () {
+      final service = BrowserSessionService();
+      final preview = Uri.parse('http://127.0.0.1:4321/index.html');
+      service.armLocalPreviewOriginForTest(preview);
+
+      final allowed = service.navigationDecision(preview.toString());
+      expect(allowed.allowed, isTrue);
+      expect(allowed.code, 'local_preview');
+      expect(
+        service.navigationDecision('http://127.0.0.1:4321/other.html').allowed,
+        isTrue,
+      );
+      expect(
+        service.navigationDecision('http://127.0.0.1:9999/index.html').allowed,
+        isFalse,
+      );
+      expect(
+        service.navigationDecision('https://example.com/').allowed,
+        isFalse,
+      );
+      expect(service.navigationDecision('file:///etc/passwd').allowed, isFalse);
+    });
+
     test(
       'browser_open fails before mounting a WebView or resolving DNS',
       () async {

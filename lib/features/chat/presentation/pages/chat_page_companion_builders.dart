@@ -68,6 +68,12 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
       );
       final worktreeDiffAsync = ref.watch(codingWorktreeDiffProvider(rootPath));
       final branchListAsync = ref.watch(codingGitBranchListProvider(rootPath));
+      final flutterRunSupported = ref.watch(
+        flutterRunSupportedProvider(rootPath),
+      );
+      final htmlPreviewSupported = ref.watch(
+        htmlPreviewSupportedProvider(rootPath),
+      );
 
       sections.addAll([
         _buildCompanionSection(
@@ -85,8 +91,10 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
           context,
           title: 'chat.companion_changes'.tr(),
           trailing: IconButton(
-            onPressed: () =>
-                ref.invalidate(codingWorktreeDiffProvider(rootPath)),
+            onPressed: () {
+              ref.invalidate(codingWorktreeDiffProvider(rootPath));
+              ref.read(htmlPreviewWorkspaceEpochProvider.notifier).bump();
+            },
             icon: const Icon(Icons.refresh, size: 18),
             tooltip: 'Refresh changes',
           ),
@@ -119,19 +127,22 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
           ],
         ),
         const SizedBox(height: 18),
-        if (ref.watch(flutterRunSupportedProvider(rootPath)))
+        if (flutterRunSupported || htmlPreviewSupported) ...[
           _buildCompanionSection(
             context,
             title: 'chat.companion_flutter_run'.tr(),
             children: [
-              FlutterRunControlSection(
-                projectRoot: rootPath,
-                threadId: currentConversation.id,
-              ),
+              if (flutterRunSupported)
+                FlutterRunControlSection(
+                  projectRoot: rootPath,
+                  threadId: currentConversation.id,
+                )
+              else
+                HtmlPreviewControlSection(projectRoot: rootPath),
             ],
           ),
-        if (ref.watch(flutterRunSupportedProvider(rootPath)))
           const SizedBox(height: 18),
+        ],
         _buildCompanionSection(
           context,
           title: 'chat.companion_sources'.tr(),

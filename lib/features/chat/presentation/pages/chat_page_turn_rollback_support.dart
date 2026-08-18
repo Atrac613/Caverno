@@ -120,6 +120,7 @@ extension _ChatPageTurnRollbackSupport on _ChatPageState {
     if (rootPath.isEmpty) return;
     ref.invalidate(codingEnvironmentSnapshotProvider(rootPath));
     ref.invalidate(codingWorktreeDiffProvider(rootPath));
+    ref.read(htmlPreviewWorkspaceEpochProvider.notifier).bump();
   }
 
   void _showTurnRollbackSnackBar(String message) {

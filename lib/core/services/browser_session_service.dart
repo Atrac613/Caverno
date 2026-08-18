@@ -51,6 +51,13 @@ class BrowserNavigationDecision {
         message: 'Internal blank-page initialization is allowed.',
       );
 
+  const BrowserNavigationDecision.allowLocalPreview()
+    : this._(
+        allowed: true,
+        code: 'local_preview',
+        message: 'User-initiated local HTML preview is allowed.',
+      );
+
   const BrowserNavigationDecision.deny(this.code, this.message)
     : allowed = false;
 
@@ -152,6 +159,7 @@ class BrowserSessionService extends ChangeNotifier {
   String? _lastError;
   bool _canGoBack = false;
   bool _canGoForward = false;
+  Uri? _localPreviewOrigin;
 
   /// Default cap on elements returned by [snapshot] to keep results compact.
   static const int _defaultSnapshotElements = 80;
@@ -175,6 +183,25 @@ class BrowserSessionService extends ChangeNotifier {
   bool get canGoBack => _canGoBack;
   bool get canGoForward => _canGoForward;
 
+  /// Whether the on-screen pane should mount. Agent browser tools still
+  /// require [isAvailable]; a user-started HTML preview can show the pane
+  /// even when those tools are disabled.
+  bool get shouldShowPanel =>
+      _isPanelOpen &&
+      isPlatformSupported &&
+      (_enabled || _localPreviewOrigin != null);
+
+  Uri? get localPreviewOrigin => _localPreviewOrigin;
+
+  @visibleForTesting
+  void armLocalPreviewOriginForTest(Uri url) {
+    _localPreviewOrigin = Uri(
+      scheme: 'http',
+      host: '127.0.0.1',
+      port: url.hasPort ? url.port : 80,
+    );
+  }
+
   /// Pushed in from the settings listener without recreating this singleton.
   void updateEnabled(bool enabled) {
     if (_enabled == enabled) return;
@@ -182,6 +209,7 @@ class BrowserSessionService extends ChangeNotifier {
     if (!enabled) {
       // Tear down the session so a disabled feature holds no live page.
       _isPanelOpen = false;
+      _localPreviewOrigin = null;
       _resetController();
     }
     notifyListeners();
@@ -258,15 +286,22 @@ class BrowserSessionService extends ChangeNotifier {
         'A non-empty URL is required.',
       );
     }
+    final Uri parsed;
     try {
-      _destinationPolicy.validateUri(Uri.parse(normalized));
-    } on EgressPolicyException catch (error) {
-      return BrowserNavigationDecision.deny(error.code, error.message);
+      parsed = Uri.parse(normalized);
     } on FormatException {
       return const BrowserNavigationDecision.deny(
         'invalid_url',
         'The browser destination URL is invalid.',
       );
+    }
+    if (_isAllowedLocalPreview(parsed)) {
+      return const BrowserNavigationDecision.allowLocalPreview();
+    }
+    try {
+      _destinationPolicy.validateUri(parsed);
+    } on EgressPolicyException catch (error) {
+      return BrowserNavigationDecision.deny(error.code, error.message);
     }
     return const BrowserNavigationDecision.deny(
       'browser_peer_verification_unavailable',
@@ -293,14 +328,79 @@ class BrowserSessionService extends ChangeNotifier {
   }
 
   String closePanel() {
+    final hadPreview = _localPreviewOrigin != null;
+    _localPreviewOrigin = null;
     if (_isPanelOpen) {
       _isPanelOpen = false;
       // The webview unmounts when the pane closes, disposing its controller;
       // drop the now-stale reference so a later browser_open re-arms readiness.
       _resetController();
       notifyListeners();
+    } else if (hadPreview) {
+      notifyListeners();
     }
     return jsonEncode({'ok': true, 'closed': true});
+  }
+
+  /// Opens the built-in browser onto a loopback HTML preview started by the
+  /// user from the companion panel. Not a tool action: agent `browser_open`
+  /// still cannot choose this origin until a preview is already running.
+  Future<void> openLocalPreview(
+    Uri url, {
+    Duration readyTimeout = const Duration(seconds: 12),
+  }) async {
+    if (!isPlatformSupported) {
+      throw const BrowserUnavailableException();
+    }
+    if (!_isLoopbackHttp(url)) {
+      throw ArgumentError.value(
+        url,
+        'url',
+        'Local preview URLs must be loopback HTTP.',
+      );
+    }
+    _localPreviewOrigin = Uri(
+      scheme: 'http',
+      host: '127.0.0.1',
+      port: url.hasPort ? url.port : 80,
+    );
+    _currentUrl = url.toString();
+    _lastError = null;
+    open();
+    try {
+      final controller = await _ensureReady(
+        timeout: readyTimeout,
+        requireEnabled: false,
+      );
+      _loadCompleter = Completer<void>();
+      await controller.loadUrl(
+        urlRequest: URLRequest(url: WebUri(url.toString())),
+      );
+      await _waitForLoad();
+    } catch (_) {
+      _localPreviewOrigin = null;
+      if (!_enabled) {
+        closePanel();
+      } else {
+        notifyListeners();
+      }
+      rethrow;
+    }
+  }
+
+  /// Drops the preview origin and closes the pane.
+  Future<void> clearLocalPreview() async {
+    closePanel();
+  }
+
+  /// Reloads the user-started HTML preview without requiring browser tools.
+  Future<void> reloadLocalPreview() async {
+    if (_localPreviewOrigin == null) return;
+    final controller = _controller;
+    if (controller == null) return;
+    _loadCompleter = Completer<void>();
+    await controller.reload();
+    await _waitForLoad();
   }
 
   // ---------------------------------------------------------------------------
@@ -509,7 +609,9 @@ class BrowserSessionService extends ChangeNotifier {
       return _error(decision.code, decision.message);
     }
     return _guard('browser_navigate_history', () async {
-      final controller = await _ensureReady();
+      final controller = await _ensureReady(
+        requireEnabled: _localPreviewOrigin == null,
+      );
       _loadCompleter = Completer<void>();
       switch (direction) {
         case 'back':
@@ -600,8 +702,12 @@ class BrowserSessionService extends ChangeNotifier {
 
   Future<InAppWebViewController> _ensureReady({
     Duration timeout = const Duration(seconds: 12),
+    bool requireEnabled = true,
   }) async {
-    if (!isAvailable) throw const BrowserUnavailableException();
+    if (!isPlatformSupported) throw const BrowserUnavailableException();
+    if (requireEnabled && !_enabled) {
+      throw const BrowserUnavailableException();
+    }
     final existing = _controller;
     if (existing != null) return existing;
     if (!_isPanelOpen) open();
@@ -706,6 +812,25 @@ class BrowserSessionService extends ChangeNotifier {
     final parsed = Uri.tryParse(trimmed);
     if (parsed != null && parsed.hasScheme) return trimmed;
     return 'https://$trimmed';
+  }
+
+  bool _isLoopbackHttp(Uri url) {
+    if (url.scheme.toLowerCase() != 'http') return false;
+    if (url.userInfo.isNotEmpty) return false;
+    if (!_isLoopbackHost(url.host)) return false;
+    return url.hasPort && url.port > 0 && url.port <= 65535;
+  }
+
+  bool _isAllowedLocalPreview(Uri url) {
+    final origin = _localPreviewOrigin;
+    if (origin == null) return false;
+    if (!_isLoopbackHttp(url)) return false;
+    return url.port == origin.port;
+  }
+
+  static bool _isLoopbackHost(String host) {
+    final normalized = host.trim().toLowerCase();
+    return normalized == '127.0.0.1' || normalized == 'localhost';
   }
 
   Future<_ResolvedBrowserSaveDirectory> _saveDirectory(

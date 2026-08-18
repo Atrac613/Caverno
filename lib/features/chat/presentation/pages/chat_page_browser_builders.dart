@@ -21,7 +21,7 @@ extension _ChatPageBrowserBuilders on _ChatPageState {
     return ListenableBuilder(
       listenable: service,
       builder: (context, _) {
-        if (!service.isAvailable || !service.isPanelOpen) {
+        if (!service.shouldShowPanel) {
           return coreBody;
         }
         if (availableWidth >= _ChatPageState._browserPanelBreakpoint) {

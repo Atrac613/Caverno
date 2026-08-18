@@ -209,6 +209,7 @@ import 'content_tool_turn_state_registry.dart';
 import 'conversations_notifier_goal_runtime_store.dart';
 import 'caverno_execution_runtime_provider.dart';
 import 'conversations_notifier.dart';
+import 'html_preview_provider.dart';
 import 'create_routine_notifier_runtime_store.dart';
 import 'hidden_assistant_evidence_registry.dart';
 import 'file_mutation_approval_cache_runtime_adapter.dart';
@@ -789,6 +790,7 @@ class ChatNotifier extends Notifier<ChatState> {
     await ref
         .read(conversationsNotifierProvider.notifier)
         .recordCurrentTurnDiff(turnDiff);
+    ref.read(htmlPreviewWorkspaceEpochProvider.notifier).bump();
   }
 
   String? _buildSkillsPromptContext(List<String> toolNames) {
