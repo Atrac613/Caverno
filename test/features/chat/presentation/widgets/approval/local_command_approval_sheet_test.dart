@@ -44,11 +44,39 @@ void main() {
     expect(result!.rememberedRuleAction, LocalCommandPermissionAction.deny);
     expect(result!.rememberedRuleMatch, LocalCommandPermissionMatch.exact);
   });
+
+  testWidgets('keeps action buttons visible for a long command', (
+    tester,
+  ) async {
+    final longCommand = List.generate(
+      200,
+      (index) => 'echo line $index: verify scroll behavior',
+    ).join('\n');
+
+    await _pumpHarness(tester, command: longCommand, onResult: (_) {});
+
+    await tester.tap(find.text('Open Sheet'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      find.byKey(const ValueKey('local-command-approval-scroll')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('echo line 0:'), findsOneWidget);
+    expect(find.text('Approve & Run'), findsOneWidget);
+    expect(find.text('Deny'), findsOneWidget);
+    expect(
+      tester.getRect(find.text('Approve & Run')).bottom,
+      lessThanOrEqualTo(tester.view.physicalSize.height),
+    );
+  });
 }
 
 Future<void> _pumpHarness(
   WidgetTester tester, {
   required ValueChanged<LocalCommandApproval?> onResult,
+  String command = 'rm -rf build',
 }) {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(1000, 900);
@@ -72,7 +100,7 @@ Future<void> _pumpHarness(
                           interactionGeneration: 1,
                         ),
                         id: 'local-command-test',
-                        command: 'rm -rf build',
+                        command: command,
                         workingDirectory: '/repo/caverno',
                         reason: 'Run verification',
                         warningTitle: null,
