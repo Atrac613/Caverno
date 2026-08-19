@@ -51,7 +51,6 @@ import 'mcp_tool_result_normalizer.dart';
 import 'os_log_tools.dart';
 import 'python_script_tools.dart';
 import 'remote_mcp_connection_manager.dart';
-import 'searxng_client.dart';
 
 /// Manages built-in and remote MCP tool discovery and execution.
 part 'mcp_tool_service_builtin_tool_definitions.dart';
@@ -86,7 +85,6 @@ class McpToolService extends McpToolServiceFacadeBase {
   static final RegExp _whitespaceRun = RegExp(r'\s+');
   McpToolService({
     this.mcpClients = const [],
-    this.searxngClient,
     this.conversationRepository,
     this.memoryRepository,
     this.skillRepository,
@@ -164,7 +162,6 @@ class McpToolService extends McpToolServiceFacadeBase {
            const InstalledDependencyGroundingService();
 
   final List<McpClientBase> mcpClients;
-  final SearxngClient? searxngClient;
   final ConversationRepositoryApi? conversationRepository;
   final ChatMemoryRepository? memoryRepository;
   final SkillRepository? skillRepository;
@@ -383,12 +380,7 @@ class McpToolService extends McpToolServiceFacadeBase {
       toolDefinitions.addAll(tools.map((tool) => tool.toOpenAiTool()));
     }
 
-    return McpToolSearchCatalog.finalize(
-      toolDefinitions,
-      hasSearxngClient: searxngClient != null,
-      webSearchFallback: _mcpToolWebSearchToolFallback,
-      disabledBuiltInTools: disabledBuiltInTools,
-    );
+    return McpToolSearchCatalog.finalize(toolDefinitions);
   }
 
   void _addIfEnabled(
@@ -703,35 +695,7 @@ class McpToolService extends McpToolServiceFacadeBase {
       return remoteResult;
     }
 
-    // 2. SearXNG fallback for `web_search` only.
-    if (name == 'web_search' && searxngClient != null) {
-      try {
-        final query = arguments['query'] as String? ?? '';
-        if (query.isEmpty) {
-          return McpToolResult(
-            toolName: name,
-            result: '',
-            isSuccess: false,
-            errorMessage: 'Search query is empty',
-          );
-        }
-        final result = await searxngClient!.searchAsText(query: query);
-        appLog(
-          '[McpToolService] SearXNG execution succeeded: ${result.length} chars',
-        );
-        return McpToolResult(toolName: name, result: result, isSuccess: true);
-      } catch (e) {
-        appLog('[McpToolService] SearXNG error: $e');
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: e.toString(),
-        );
-      }
-    }
-
-    // 3. No matching tool available.
+    // 2. No matching tool available.
     appLog('[McpToolService] No matching tool available: $name');
     return McpToolResult(
       toolName: name,

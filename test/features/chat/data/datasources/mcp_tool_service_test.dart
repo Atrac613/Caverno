@@ -25,7 +25,6 @@ import 'package:caverno/features/chat/data/datasources/file_rollback_checkpoint_
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
-import 'package:caverno/features/chat/data/datasources/searxng_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/skill_repository.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
@@ -3225,83 +3224,25 @@ BuildVersion: 23F79
       expect(service.serverStates, isEmpty);
     });
 
-    test('keeps SearXNG available with unrelated remote tools', () async {
-      final clients = <McpClientBase>[
-        _FakeMcpClient(baseUrl: 'https://empty.example/mcp', tools: const []),
-      ];
-      final service = McpToolService(
-        mcpClients: clients,
-        searxngClient: SearxngClient(baseUrl: 'https://search.example'),
-      );
-
-      await service.connect();
-
-      expect(service.status, McpConnectionStatus.connected);
-      expect(service.tools, isEmpty);
-      expect(
-        service.getOpenAiToolDefinitions().map(_openAiFunctionName),
-        contains('web_search'),
-      );
-
-      clients[0] = _FakeMcpClient(
-        baseUrl: 'https://tools.example/mcp',
-        tools: [
-          McpTool(
-            name: 'remote_catalog',
-            description: 'Remote catalog tool',
-            inputSchema: const {'type': 'object'},
-          ),
-        ],
-      );
-      await service.connect();
-
-      final names = service
-          .getOpenAiToolDefinitions()
-          .map(_openAiFunctionName)
-          .toList();
-      expect(names, contains('remote_catalog'));
-      expect(names, contains('web_search'));
-    });
-
-    test('reports a SearXNG HTTP failure as a failed tool result', () async {
-      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      addTearDown(() => server.close(force: true));
-      final subscription = server.listen((request) async {
-        request.response.statusCode = HttpStatus.notFound;
-        await request.response.close();
-      });
-      addTearDown(subscription.cancel);
-      final service = McpToolService(
-        searxngClient: SearxngClient(
-          baseUrl: 'http://${server.address.host}:${server.port}',
-        ),
-      );
-
-      final result = await service.executeTool(
-        name: 'web_search',
-        arguments: const {'query': 'missing model'},
-      );
-
-      expect(result.isSuccess, isFalse);
-      expect(result.result, isEmpty);
-      expect(result.errorMessage, contains('SearXNG search failed: 404'));
-    });
-
-    test('does not duplicate a remote canonical web search tool', () async {
+    test('does not synthesize a web search tool of its own', () async {
+      // Caverno used to append a `web_search` backed by a SearXNG client
+      // pointed at the primary MCP URL. The guard meant to suppress it matched
+      // that exact name, and the SearXNG MCP wrapper calls its tool
+      // `search_web`, so both were offered and session cad9b37c picked the one
+      // that could only 404.
       final service = McpToolService(
         mcpClients: [
           _FakeMcpClient(
-            baseUrl: 'https://tools.example/mcp',
+            baseUrl: 'https://search.example/mcp',
             tools: [
               McpTool(
-                name: 'web_search',
+                name: 'search_web',
                 description: 'Remote web search',
                 inputSchema: const {'type': 'object'},
               ),
             ],
           ),
         ],
-        searxngClient: SearxngClient(baseUrl: 'https://search.example'),
       );
 
       await service.connect();
@@ -3310,7 +3251,8 @@ BuildVersion: 23F79
           .getOpenAiToolDefinitions()
           .map(_openAiFunctionName)
           .toList();
-      expect(names.where((name) => name == 'web_search'), hasLength(1));
+      expect(names, contains('search_web'));
+      expect(names, isNot(contains('web_search')));
     });
 
     test('namespaces duplicate remote tools in client order', () async {

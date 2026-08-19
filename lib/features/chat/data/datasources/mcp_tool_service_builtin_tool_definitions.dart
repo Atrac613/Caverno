@@ -1,22 +1,5 @@
 part of 'mcp_tool_service.dart';
 
-/// Fallback `web_search` tool definition for SearXNG.
-Map<String, dynamic> get _mcpToolWebSearchToolFallback => {
-  'type': 'function',
-  'function': {
-    'name': 'web_search',
-    'description':
-        'Perform a web search on the Internet. Use this to look up the latest information, news, weather, etc.',
-    'parameters': {
-      'type': 'object',
-      'properties': {
-        'query': {'type': 'string', 'description': 'Search query'},
-      },
-      'required': ['query'],
-    },
-  },
-};
-
 /// Built-in local datetime tool definition.
 Map<String, dynamic> get _mcpToolCurrentDatetimeTool => {
   'type': 'function',

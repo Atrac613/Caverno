@@ -43,8 +43,11 @@ void main() {
             .whereType<String>()
             .toSet();
 
-        expect(definitions, hasLength(118));
-        expect(initial.toolDefinitions, hasLength(38));
+        // Both counts drop by one: Caverno no longer publishes a `web_search`
+        // of its own, so it is neither in the catalog nor forced into the
+        // initial selection.
+        expect(definitions, hasLength(117));
+        expect(initial.toolDefinitions, hasLength(37));
         expect(
           names,
           containsAll(<String>{
@@ -61,7 +64,6 @@ void main() {
             'serial_list_ports',
             'computer_screenshot',
             'browser_snapshot',
-            'web_search',
           }),
         );
         expect(
@@ -74,8 +76,12 @@ void main() {
             'process_start',
             'wifi_scan',
             'lan_scan',
-            'web_search',
           }),
+        );
+        expect(
+          names,
+          isNot(contains('web_search')),
+          reason: 'search comes from MCP now, not from a Caverno built-in',
         );
         expect(initialNames, isNot(contains('ping6')));
         expect(initialNames, isNot(contains('browser_snapshot')));

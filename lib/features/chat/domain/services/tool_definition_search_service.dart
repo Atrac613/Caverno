@@ -50,6 +50,10 @@ class ToolDefinitionSearchService {
     'search_news',
     'search_images',
     'searxng_web_search',
+    // Reached the initial selection through the built-in registry until the
+    // Caverno-side `web_search` was removed. A remote server may still publish
+    // that name, and it should be treated like every other search variant.
+    'web_search',
     'process_start',
     'process_status',
     'process_tail',

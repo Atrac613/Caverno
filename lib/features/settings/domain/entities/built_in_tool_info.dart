@@ -24,7 +24,6 @@ class BuiltInToolRegistry {
   static const String categoryCoding = 'coding';
   static const String categorySsh = 'ssh';
   static const String categoryGit = 'git';
-  static const String categoryWebSearch = 'web_search';
   static const String categoryBle = 'ble';
   static const String categorySystem = 'system';
   static const String categoryComputerUse = 'computer_use';
@@ -43,7 +42,6 @@ class BuiltInToolRegistry {
     categoryCoding,
     categorySsh,
     categoryGit,
-    categoryWebSearch,
     categoryBle,
     categorySystem,
     categoryComputerUse,
@@ -462,12 +460,6 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_git_finish_worktree_session',
       category: categoryGit,
     ),
-    // Web Search
-    BuiltInToolInfo(
-      name: 'web_search',
-      descriptionKey: 'settings.tool_web_search',
-      category: categoryWebSearch,
-    ),
     // BLE
     BuiltInToolInfo(
       name: 'ble_start_scan',
@@ -695,7 +687,6 @@ class BuiltInToolRegistry {
       categoryCoding => Icons.code,
       categorySsh => Icons.terminal,
       categoryGit => Icons.merge_type,
-      categoryWebSearch => Icons.search,
       categoryBle => Icons.bluetooth,
       categorySystem => Icons.computer,
       categoryComputerUse => Icons.ads_click,

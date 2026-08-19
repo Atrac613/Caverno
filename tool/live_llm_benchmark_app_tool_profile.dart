@@ -11,7 +11,6 @@ import 'package:caverno/features/chat/data/datasources/background_process_tools.
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_stdio_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
-import 'package:caverno/features/chat/data/datasources/searxng_client.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository_api.dart';
 import 'package:caverno/features/chat/data/repositories/key_value_store.dart';
@@ -84,7 +83,6 @@ final class LiveLlmBenchmarkToolProfile {
     return LiveLlmBenchmarkToolProfile._(
       service: McpToolService(
         mcpClients: clients,
-        searxngClient: SearxngClient(baseUrl: 'http://127.0.0.1'),
         conversationRepository: const _EmptyConversationRepository(),
         memoryRepository: ChatMemoryRepository(_EmptyKeyValueStore()),
         skillRepository: skillRepository,

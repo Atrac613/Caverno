@@ -20,7 +20,6 @@ import '../../data/datasources/mcp_stdio_client.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../data/repositories/semantic_search_service.dart';
 import 'semantic_search_provider.dart';
-import '../../data/datasources/searxng_client.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/conversation_repository.dart';
 import '../../data/repositories/skill_repository.dart';
@@ -65,18 +64,6 @@ final mcpClientsProvider = Provider<List<McpClientBase>>((ref) {
   return clients;
 });
 
-/// Provides the SearXNG client.
-///
-/// Uses the primary MCP URL for the legacy SearXNG fallback path.
-final searxngClientProvider = Provider<SearxngClient?>((ref) {
-  final settings = ref.watch(settingsNotifierProvider);
-  final primaryMcpUrl = settings.primaryMcpUrl;
-  if (!settings.mcpEnabled || primaryMcpUrl.isEmpty) {
-    return null;
-  }
-  return SearxngClient(baseUrl: primaryMcpUrl);
-});
-
 final backgroundProcessToolsProvider = Provider<BackgroundProcessTools>((ref) {
   final tools = BackgroundProcessTools();
   ref.onDispose(() {
@@ -107,7 +94,6 @@ final fileRollbackCheckpointStoreProvider =
 /// Includes the SearXNG fallback path.
 final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final mcpClients = ref.watch(mcpClientsProvider);
-  final searxngClient = ref.watch(searxngClientProvider);
   final conversationRepo = ref.watch(conversationRepositoryProvider);
   final memoryRepo = ref.watch(chatMemoryRepositoryProvider);
   SkillRepository? skillRepo;
@@ -152,7 +138,6 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   // Always provide the service so built-in local tools remain available.
   return McpToolService(
     mcpClients: mcpClients,
-    searxngClient: searxngClient,
     conversationRepository: conversationRepo,
     memoryRepository: memoryRepo,
     skillRepository: skillRepo,
