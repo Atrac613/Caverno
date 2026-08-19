@@ -36,7 +36,7 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       _sshToolRuntime.clearOwner(owner);
 
   ChatSshToolRuntime get _sshToolRuntime => _sshToolRuntimes[this] ??=
-      ChatSshToolRuntime(SshServiceChatTransport(_sshService));
+      ChatSshToolRuntime(sshHostKeyAwareTransport(_sshService, ref));
 
   /// Puts a pending SSH connect request into state and returns a future
   /// that completes when the user confirms or cancels the dialog.

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dartssh2/dartssh2.dart';
 
 import '../../features/chat/domain/entities/ssh_auth_credential.dart';
+import 'ssh_host_key_verifier.dart';
 
 export '../../features/chat/domain/entities/ssh_auth_credential.dart';
 
@@ -106,20 +107,28 @@ class SshClientConnector {
   /// Opens a client authenticating with [credential].
   ///
   /// Identities are resolved before the socket so an unreadable or
-  /// passphrase-protected key fails without touching the network.
+  /// passphrase-protected key fails without touching the network. Host-key
+  /// verification runs during the handshake, before password or public-key
+  /// proof is sent. Omitting [verifier] is fail-closed: the host is unknown.
   static Future<SSHClient> connect({
     required String host,
     required int port,
     required String username,
     required SshAuthCredential credential,
     required Duration timeout,
+    SshHostKeyVerifier verifier = const SshHostKeyVerifier.failClosed(),
   }) async {
     final identities = switch (credential) {
       SshPrivateKeyCredential() => loadIdentities(credential),
       SshPasswordCredential() => null,
     };
+    final handshake = SshHostKeyHandshake(
+      verifier: verifier,
+      host: host,
+      port: port,
+    );
     final socket = await SSHSocket.connect(host, port, timeout: timeout);
-    return SSHClient(
+    final client = SSHClient(
       socket,
       username: username,
       identities: identities,
@@ -127,7 +136,18 @@ class SshClientConnector {
         SshPasswordCredential(:final password) => () => password,
         SshPrivateKeyCredential() => null,
       },
+      onVerifyHostKey: handshake.verify,
     );
+    try {
+      await client.authenticated.timeout(timeout);
+    } catch (error) {
+      try {
+        client.close();
+      } catch (_) {}
+      handshake.rethrowIfRejected(error);
+      rethrow;
+    }
+    return client;
   }
 
   static bool _isEncrypted(String pem) {

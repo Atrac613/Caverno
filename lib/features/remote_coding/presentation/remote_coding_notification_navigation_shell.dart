@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/types/workspace_mode.dart';
 import '../../chat/presentation/pages/chat_page.dart';
 import '../../chat/presentation/providers/conversations_notifier.dart';
+import '../../chat/presentation/widgets/approval/ssh_host_key_prompt_host.dart';
 import 'remote_coding_mobile_notification_notifier.dart';
 import 'remote_coding_platform.dart';
 
@@ -30,9 +31,11 @@ final class _RemoteCodingNotificationNavigationShellState
       );
       _scheduleNavigation(notificationState);
     }
-    return ChatPage(
-      key: ValueKey<int>(_navigationRevision),
-      showDashboardOnStartup: _showDashboardOnStartup,
+    return SshHostKeyPromptHost(
+      child: ChatPage(
+        key: ValueKey<int>(_navigationRevision),
+        showDashboardOnStartup: _showDashboardOnStartup,
+      ),
     );
   }
 

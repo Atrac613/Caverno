@@ -20,7 +20,7 @@ import '../../../../core/services/ssh_credentials_manager.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/tool_approval_audit_log.dart';
 import 'chat_ssh_tool_runtime.dart';
-import 'ssh_service_chat_transport.dart';
+import 'ssh_host_key_prompting_transport.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';

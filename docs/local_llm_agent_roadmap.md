@@ -5020,7 +5020,7 @@ Slice plan:
    Any restored routine grant binds server identity, tool name, schema digest,
    and reviewed intent.
 5. **SEC4.5 — Authenticated transport.** Land as focused sub-slices:
-   **SEC4.5a (P0)** implements SSH known-host verification;
+   **SEC4.5a (P0, completed 2026-08-19)** implements SSH known-host verification;
    **SEC4.5b (P0)** makes the release gate and artifact/runtime smoke fail if a
    plaintext non-loopback Remote Coding listener can start;
    **SEC4.5c (P1, required before enabling Remote Coding)** adds pinned

@@ -262,7 +262,9 @@ const Map<String, int> _lineBudgets = {
   // -10: credential-to-client construction (key loading, password handler)
   // moved to ssh_client_connector.dart. The service now owns session
   // ownership only, not file IO and PEM parsing.
-  'lib/core/services/ssh_service.dart': 307,
+  // -5: production provider moved next to the host-key verifier it now
+  // requires, so a missing callback cannot be the default connect path.
+  'lib/core/services/ssh_service.dart': 302,
   'lib/features/chat/presentation/providers/subagent_task_notifier.dart': 210,
   'lib/features/chat/domain/entities/chat_turn_owner.dart': 43,
   // TokenUsage moved to token_usage.dart when it grew the full provider
