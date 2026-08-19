@@ -70,6 +70,111 @@ void main() {
     expect(requestBody?['top_p'], 0.95);
   });
 
+  group('image attachments across a tool-using turn', () {
+    Message imageMessage({String content = 'これは何？'}) => Message(
+      id: 'message-image',
+      content: content,
+      role: MessageRole.user,
+      timestamp: DateTime(2026),
+      imageBase64: 'AAAA',
+      imageMimeType: 'image/png',
+    );
+
+    Future<Map<String, dynamic>> sendToolResults(List<Message> messages) async {
+      late Map<String, dynamic> body;
+      final client = MockClient((request) async {
+        body = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'id': 'completion-1',
+            'object': 'chat.completion',
+            'created': 0,
+            'model': 'test-model',
+            'choices': [
+              {
+                'index': 0,
+                'message': {'role': 'assistant', 'content': 'done'},
+                'finish_reason': 'stop',
+              },
+            ],
+          }),
+          200,
+          headers: const {'content-type': 'application/json'},
+        );
+      });
+      final source = ChatRemoteDataSource(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'no-key',
+        httpClient: client,
+      );
+      await source.createChatCompletionWithToolResults(
+        messages: messages,
+        toolResults: [
+          ToolResultInfo(
+            id: 'call-1',
+            name: 'web_search',
+            arguments: const {'query': 'x'},
+            result: 'Error: search failed',
+          ),
+        ],
+        model: 'test-model',
+      );
+      return body;
+    }
+
+    bool carriesImage(Map<String, dynamic> body) {
+      final messages = body['messages'] as List<dynamic>;
+      return messages.whereType<Map<String, dynamic>>().any((message) {
+        final content = message['content'];
+        if (content is! List) return false;
+        return content.whereType<Map<String, dynamic>>().any(
+          (part) => part['type'] == 'image_url',
+        );
+      });
+    }
+
+    String userText(Map<String, dynamic> body) {
+      final messages = (body['messages'] as List<dynamic>)
+          .whereType<Map<String, dynamic>>();
+      final user = messages.firstWhere((m) => m['role'] == 'user');
+      final content = user['content'];
+      if (content is String) return content;
+      return (content as List<dynamic>)
+          .whereType<Map<String, dynamic>>()
+          .where((part) => part['type'] == 'text')
+          .map((part) => part['text'])
+          .join();
+    }
+
+    test('a tool-result follow-up keeps the attachment', () async {
+      // Session cad9b37c: this path dropped the image, so the model answered a
+      // screenshot question from an empty context and invented the screen --
+      // "No sessions yet" about one it had just read as holding 106.
+      final body = await sendToolResults([imageMessage()]);
+
+      expect(carriesImage(body), isTrue);
+    });
+
+    test('an attachment left behind is named, not silently removed', () async {
+      final body = await sendToolResults([
+        imageMessage(),
+        Message(
+          id: 'message-2',
+          content: 'And now?',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 1, 2),
+        ),
+      ]);
+
+      expect(
+        carriesImage(body),
+        isFalse,
+        reason: 'the latest user message carries no image',
+      );
+      expect(userText(body), contains('omitted from this request'));
+    });
+  });
+
   group('Qwen3.8 request thinking policy', () {
     test('serializes the exact disabled tool-request shape', () async {
       final requestBodies = <Map<String, dynamic>>[];

@@ -200,13 +200,7 @@ class ChatRemoteDataSource
 
     Stream<String> contentStream() async* {
       timer.start();
-      // Strip images from history if the latest user message has no image,
-      // allowing conversation to continue on non-Vision servers
-      final lastUserMessage = messages.lastWhere(
-        (m) => m.role == MessageRole.user,
-        orElse: () => messages.last,
-      );
-      final stripImages = lastUserMessage.imageBase64 == null;
+      final stripImages = _shouldStripImages(messages);
       if (stripImages) {
         final hasHistoryImages = messages.any((m) => m.imageBase64 != null);
         if (hasHistoryImages) {
@@ -351,14 +345,9 @@ class ChatRemoteDataSource
   }) {
     _resetResponseTelemetry();
     var usage = TokenUsage.zero;
-    final lastUserMessage = messages.lastWhere(
-      (m) => m.role == MessageRole.user,
-      orElse: () => messages.last,
-    );
-    final stripImages = lastUserMessage.imageBase64 == null;
     final formattedMessages = _formatMessages(
       messages,
-      stripImages: stripImages,
+      stripImages: _shouldStripImages(messages),
     );
     final modelId = model ?? ApiConstants.defaultModel;
 
@@ -574,15 +563,9 @@ class ChatRemoteDataSource
     ResponseFormat? responseFormat,
   }) async {
     _resetResponseTelemetry();
-    // Strip images from history if the latest user message has no image
-    final lastUserMessage = messages.lastWhere(
-      (m) => m.role == MessageRole.user,
-      orElse: () => messages.last,
-    );
-    final stripImages = lastUserMessage.imageBase64 == null;
     final formattedMessages = _formatMessages(
       messages,
-      stripImages: stripImages,
+      stripImages: _shouldStripImages(messages),
     );
     final modelId = model ?? ApiConstants.defaultModel;
 
@@ -707,8 +690,10 @@ class ChatRemoteDataSource
     int? maxTokens,
   }) async* {
     _resetResponseTelemetry();
-    // Strip images when sending tool results (images were already processed at tool call time)
-    final formattedMessages = _formatMessages(messages, stripImages: true);
+    final formattedMessages = _formatMessages(
+      messages,
+      stripImages: _shouldStripImages(messages),
+    );
     final modelId = model ?? ApiConstants.defaultModel;
 
     appLog('[LLM] ========== streamWithToolResult ==========');
@@ -910,7 +895,10 @@ class ChatRemoteDataSource
     int? maxTokens,
   }) async {
     _resetResponseTelemetry();
-    final formattedMessages = _formatMessages(messages, stripImages: true);
+    final formattedMessages = _formatMessages(
+      messages,
+      stripImages: _shouldStripImages(messages),
+    );
     final modelId = model ?? ApiConstants.defaultModel;
 
     appLog('[LLM] ========== createChatCompletionWithToolResults ==========');
@@ -1069,6 +1057,26 @@ class ChatRemoteDataSource
     }
   }
 
+  /// Whether images should be left out of this request.
+  ///
+  /// They ride along only while the latest user message still carries one, so
+  /// a conversation can continue against a non-vision endpoint once the
+  /// attachment is behind it.
+  ///
+  /// The tool-result paths hardcoded this to true, on the theory that images
+  /// had "already been processed at tool call time". They had not: a follow-up
+  /// carries the newest assistant text, not the first-pass reading, so any
+  /// vision turn that touched a tool answered blind -- session cad9b37c said
+  /// "No sessions yet" about a screenshot it had just read as holding 106.
+  /// Re-sending costs ~1k prompt tokens and sits in the cached prefix.
+  bool _shouldStripImages(List<Message> messages) {
+    final lastUserMessage = messages.lastWhere(
+      (m) => m.role == MessageRole.user,
+      orElse: () => messages.last,
+    );
+    return lastUserMessage.imageBase64 == null;
+  }
+
   List<ChatMessage> _formatMessages(
     List<Message> messages, {
     bool stripImages = false,
@@ -1091,11 +1099,13 @@ class ChatRemoteDataSource
             );
             return ChatMessage.user(parts);
           }
-          // Text only (or images stripped)
-          final content = m.content.isNotEmpty
-              ? m.content
-              : (m.imageBase64 != null ? '[image]' : '');
-          return ChatMessage.user(content);
+          if (m.imageBase64 == null) return ChatMessage.user(m.content);
+          // Name the removal. Saying nothing is what let a model answer a
+          // screenshot question from an empty context and invent the screen.
+          const omitted = '[image attachment omitted from this request]';
+          return ChatMessage.user(
+            m.content.isEmpty ? omitted : '${m.content}\n\n$omitted',
+          );
         case MessageRole.assistant:
           return ChatMessage.assistant(content: m.content);
         case MessageRole.system:
