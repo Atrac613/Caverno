@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartssh2/dartssh2.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/chat/domain/entities/chat_turn_owner.dart';
 import '../utils/logger.dart';
@@ -12,6 +11,7 @@ import 'ssh_client_connector.dart';
 // [connect] speaks in credentials, so callers get the credential types and
 // the identity errors they must report without a second import.
 export 'ssh_client_connector.dart';
+export 'ssh_host_key_providers.dart' show sshServiceProvider;
 
 typedef SshConnectorFn =
     Future<SSHClient> Function({
@@ -300,8 +300,3 @@ class _SshOwnerState {
   SshSessionInfo? sessionInfo;
 }
 
-final sshServiceProvider = Provider<SshService>((ref) {
-  final service = SshService();
-  ref.onDispose(() => unawaited(service.dispose()));
-  return service;
-});

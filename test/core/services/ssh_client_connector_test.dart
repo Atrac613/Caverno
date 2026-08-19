@@ -92,4 +92,13 @@ void main() {
       );
     });
   });
+
+  test('production connect always installs a host-key callback', () {
+    final source = File('lib/core/services/ssh_client_connector.dart')
+        .readAsStringSync();
+
+    expect(source, contains('onVerifyHostKey: handshake.verify'));
+    expect(source, contains('handshake.rethrowIfRejected(error)'));
+    expect(source, isNot(contains('disableHostkeyVerification: true')));
+  });
 }
