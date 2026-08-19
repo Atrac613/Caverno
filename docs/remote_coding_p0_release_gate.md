@@ -31,18 +31,22 @@ modify pairing, authentication, snapshots, prompts, and approval traffic. The
 2026-08-14 audit records this as SA-06 in
 `docs/security_audit_2026-08-14.md`.
 
-Until RC1/SEC4.5 ships authenticated confidential transport and downgrade
+Until RC1/SEC4.5c ships authenticated confidential transport and downgrade
 rejection, a release build must not expose a plaintext non-loopback Remote
 Coding listener. Disable or remove the feature from the release artifact; an
 isolated-LAN assumption is not closure because the reusable credential and
-approval channel remain plaintext. The current P0 checker does not verify this
-containment, so its report is necessary but not sufficient for product
-promotion.
+approval channel remain plaintext.
 
-SEC4.5b must extend the generated checklist/schema and Dart gate with a required
-`transportContainment` result, add a focused gate test, and run a release-mode
-artifact/runtime smoke that proves a plaintext non-loopback listener cannot
-start. Documentation or a default-off UI setting is not evidence for this gate.
+SEC4.5b adds a required `transportContainment` result to this gate. The Dart
+checker fails when the production server can still bind `InternetAddress.anyIPv4`
+directly. The product-isolate smoke must also print
+`plaintext_non_loopback_listener_can_start=false`:
+
+```bash
+dart run --define=dart.vm.product=true tool/remote_coding_plaintext_lan_smoke.dart
+```
+
+Documentation or a default-off UI setting is not evidence for this gate.
 
 ## Command
 
@@ -73,6 +77,7 @@ JSON report when preparing a release candidate.
 
 Required sections:
 
+- `transportContainment` (automated; schema version 2)
 - `realDeviceMatrix`
 - `failureUxMatrix`
 - `releaseSigning`

@@ -38,6 +38,7 @@ class RemoteCodingP0ReleaseGateResult {
     required this.manualGates,
     required this.blockedGateIds,
     required this.nextAction,
+    required this.transportContainment,
   });
 
   final DateTime generatedAt;
@@ -46,16 +47,21 @@ class RemoteCodingP0ReleaseGateResult {
   final List<RemoteCodingP0Gate> manualGates;
   final List<String> blockedGateIds;
   final String nextAction;
+  final RemoteCodingP0Gate transportContainment;
 
   Map<String, Object?> toJson() => {
     'schemaName': 'remote_coding_p0_release_gate',
-    'schemaVersion': 1,
+    'schemaVersion': 2,
     'generatedAt': generatedAt.toIso8601String(),
     'status': status,
     'blockedGateIds': blockedGateIds,
     'nextAction': nextAction,
     'operationBoundary':
         'Static checks are automated; device, signing, and migration evidence remains user-operated.',
+    'transportContainment': {
+      ...transportContainment.toJson(),
+      'plaintextNonLoopbackListenerCanStart': !transportContainment.isReady,
+    },
     'staticGates': staticGates.map((gate) => gate.toJson()).toList(),
     'manualGates': manualGates.map((gate) => gate.toJson()).toList(),
   };
@@ -68,8 +74,29 @@ class RemoteCodingP0ReleaseGateResult {
       ..writeln('- Generated at: `${generatedAt.toIso8601String()}`')
       ..writeln('- Next action: $nextAction')
       ..writeln()
+      ..writeln('## Transport Containment')
+      ..writeln()
+      ..writeln(
+        '- `${transportContainment.id}`: `${transportContainment.status}`',
+      )
+      ..writeln(
+        '- plaintextNonLoopbackListenerCanStart: '
+        '`${!transportContainment.isReady}`',
+      )
+      ..writeln('  - ${transportContainment.label}');
+    for (final evidence in transportContainment.evidence) {
+      buffer.writeln('  - Evidence: $evidence');
+    }
+    if (transportContainment.nextAction != null) {
+      buffer.writeln('  - Next action: ${transportContainment.nextAction}');
+    }
+    buffer
+      ..writeln()
       ..writeln('## Static Gates');
     for (final gate in staticGates) {
+      if (gate.id == transportContainment.id) {
+        continue;
+      }
       buffer
         ..writeln()
         ..writeln('- `${gate.id}`: `${gate.status}`')
@@ -106,7 +133,8 @@ RemoteCodingP0ReleaseGateResult buildRemoteCodingP0ReleaseGate({
   DateTime? generatedAt,
 }) {
   final checklist = _readChecklist(manualChecklistFile);
-  final staticGates = _buildStaticGates(repoRoot);
+  final transportContainment = _buildTransportContainmentGate(repoRoot);
+  final staticGates = [transportContainment, ..._buildStaticGates(repoRoot)];
   final manualGates = _buildManualGates(checklist);
   final blockedGateIds = [
     for (final gate in [...staticGates, ...manualGates])
@@ -124,6 +152,7 @@ RemoteCodingP0ReleaseGateResult buildRemoteCodingP0ReleaseGate({
     nextAction: blockedGateIds.isEmpty
         ? 'Remote Coding P0 release evidence is complete.'
         : 'Resolve blocked Remote Coding P0 gates before product release.',
+    transportContainment: transportContainment,
   );
 }
 
@@ -169,6 +198,41 @@ Map<String, Object?> remoteCodingP0ManualChecklistTemplate({
       'existingUserStartupCompatibilityVerified': false,
     },
   };
+}
+
+RemoteCodingP0Gate _buildTransportContainmentGate(Directory repoRoot) {
+  final notifier = _read(
+    repoRoot,
+    'lib/features/remote_coding/presentation/remote_coding_server_notifier.dart',
+  );
+  final policy = _read(
+    repoRoot,
+    'lib/features/remote_coding/domain/remote_coding_listen_policy.dart',
+  );
+  final smoke = _read(repoRoot, 'tool/remote_coding_plaintext_lan_smoke.dart');
+  final ready =
+      policy.contains("bool.fromEnvironment('dart.vm.product')") &&
+      policy.contains('RemoteCodingPlaintextLanForbiddenException') &&
+      policy.contains('isRelease && !address.isLoopback') &&
+      notifier.contains('RemoteCodingListenPolicy.current()') &&
+      notifier.contains('bindAddress(') &&
+      !notifier.contains('HttpServer.bind(InternetAddress.anyIPv4') &&
+      smoke.contains("bool.fromEnvironment('dart.vm.product')") &&
+      smoke.contains('plaintext_non_loopback_listener_can_start') &&
+      smoke.contains('RemoteCodingListenPolicy.current()');
+  return _staticGate(
+    id: 'transport_containment',
+    label:
+        'Release builds cannot start a plaintext non-loopback Remote Coding listener.',
+    ready: ready,
+    evidence: const [
+      'Production server binds only through RemoteCodingListenPolicy.current().',
+      'Product policy throws before HttpServer.bind for non-loopback addresses.',
+      'tool/remote_coding_plaintext_lan_smoke.dart is the product-isolate runtime proof.',
+    ],
+    nextAction:
+        'Bind Remote Coding through the listen policy and keep the product-isolate smoke.',
+  );
 }
 
 List<RemoteCodingP0Gate> _buildStaticGates(Directory repoRoot) {

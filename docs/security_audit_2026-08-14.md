@@ -81,7 +81,7 @@ conventions:
 | SA-03 | High | Built-in HTTP and browser tools bypass a complete egress/SSRF boundary (destination boundary fixed 2026-08-14; resource limits pending) | SEC1, SEC4.3 |
 | SA-04 | High | Project-scoped reads accept arbitrary absolute and home paths (fixed 2026-08-14) | SEC1, SEC4.4 |
 | SA-05 | High | SSH host keys are accepted without known-host verification (fixed 2026-08-19) | SEC4.5 |
-| SA-06 | High | Remote Coding credentials and control traffic use plaintext WebSockets | RC1, SEC4.5 |
+| SA-06 | High | Remote Coding credentials and control traffic use plaintext WebSockets (release non-loopback bind contained 2026-08-19; confidential transport pending) | RC1, SEC4.5 |
 | SA-07 | High | Taint policy is advisory before cache and full-access decisions (fixed 2026-08-14) | SEC2.3b |
 | SA-08 | Medium | File mutations can escape project scope through missing or lexical-only containment | SEC4.4 |
 | SA-09 | Medium | Routines treat every external MCP tool as read-only | SEC4.4 |
@@ -320,7 +320,7 @@ construction always installs `onVerifyHostKey`. Unknown hosts require a Trust
 confirmation that shows the SHA-256 fingerprint; mismatches require an explicit
 Replace confirmation. Neither path authenticates before the callback returns
 true, and the session-ownership `ssh-session:N` label remains a generation
-token rather than a host key. SA-06 / SEC4.5b remains open.
+token rather than a host key. SA-06 / SEC4.5b is release-contained.
 
 ### SA-06: Plaintext Remote Coding Control Channel
 
@@ -333,8 +333,8 @@ Evidence:
 
 - `lib/features/remote_coding/domain/remote_coding_models.dart:204-264` creates
   `ws://` endpoints;
-- `lib/features/remote_coding/presentation/remote_coding_server_notifier.dart:310-386`
-  binds the server to all IPv4 interfaces;
+- `lib/features/remote_coding/presentation/remote_coding_server_notifier.dart`
+  still requests `InternetAddress.anyIPv4`, and debug/profile builds bind it;
 - `lib/features/remote_coding/presentation/remote_coding_client_notifier.dart:435-466`
   sends pairing secrets or bearer tokens on that channel;
 - `lib/features/remote_coding/presentation/remote_coding_server_notifier.dart:548-646`
@@ -353,6 +353,14 @@ Required remediation: prevent non-loopback plaintext binding in release builds,
 then introduce pinned authenticated WSS or equivalent application-layer
 authenticated encryption, reject downgrade, and replace reusable transport
 tokens with short-lived channel-bound session authorization.
+
+Remediation status (2026-08-19): SEC4.5b is complete. Production start goes
+through `RemoteCodingListenPolicy.current()`. A product isolate throws
+`RemoteCodingPlaintextLanForbiddenException` before `HttpServer.bind` for any
+non-loopback address. The P0 gate requires a `transportContainment` result, and
+`tool/remote_coding_plaintext_lan_smoke.dart` compiled with
+`dart.vm.product=true` prints `plaintext_non_loopback_listener_can_start=false`.
+Debug LAN pairing is unchanged. Confidential transport remains SEC4.5c.
 
 ### SA-07: Advisory Taint Policy Before Trusted Execution
 
@@ -572,7 +580,7 @@ Add negative coverage for:
 | P0-2 | SEC4.2 executable configuration quarantine (completed 2026-08-14) | SA-02 | File, QR, onboarding, and external-config fixtures persist sanitized state and cause zero process/client starts across import, rebuild, next turn, restart, and resync before exact expiring review. |
 | P0-3 | SEC1 + SEC2.3b + SEC4.3a-SEC4.3c network authority (completed 2026-08-14) | SA-03, SA-07 | Every HTTP/browser request uses one classifier, remote provenance, approval, destination, DNS/peer, and redirect policy; unverifiable external WebView navigation is absent; taint precedes cache/full access. |
 | P0-4 | SEC4.4a project read containment (completed 2026-08-14) | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
-| P0-5 | SEC4.5a-SEC4.5b authenticated transport containment (SEC4.5a completed 2026-08-19) | SA-05, SA-06 | SSH known-host mismatch fails before authentication. SEC4.5b still must prove that a plaintext non-loopback Remote Coding listener cannot start in a release build. |
+| P0-5 | SEC4.5a-SEC4.5b authenticated transport containment (completed 2026-08-19) | SA-05, SA-06 | SSH known-host mismatch fails before authentication. A release build cannot start a plaintext non-loopback Remote Coding listener. |
 | P1-1 | SEC4.4b mutation and autonomous containment | SA-08, SA-09 | Symlink-aware write fences and routine MCP deny-by-default tests pass. |
 | P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport | SA-10, SA-12 | HTTP and Remote Coding limits pass; credential-bearing non-loopback LLM endpoints require HTTPS. |
 | P1-3 | SEC4.6 data protection and lifecycle | SA-11, SA-13, SA-14, SA-15, SA-17, SA-18 | Secret-free storage/export, recursive redaction, opt-out, migration, backup, and deletion tests pass. |

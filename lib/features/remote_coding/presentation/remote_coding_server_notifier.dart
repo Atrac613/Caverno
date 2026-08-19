@@ -30,6 +30,7 @@ import '../data/remote_coding_repository.dart';
 import '../data/remote_coding_security.dart';
 import '../data/remote_coding_terminal_notification_mapper.dart';
 import '../data/remote_coding_terminal_notification_delivery.dart';
+import '../domain/remote_coding_listen_policy.dart';
 import '../domain/remote_coding_models.dart';
 
 final remoteCodingServerProvider =
@@ -313,7 +314,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     }
     _startInProgress = true;
     try {
-      final server = await HttpServer.bind(InternetAddress.anyIPv4, port);
+      final address = RemoteCodingListenPolicy.current().bindAddress(
+        requested: InternetAddress.anyIPv4,
+      );
+      final server = await HttpServer.bind(address, port);
       _server = server;
       state = state.copyWith(
         isRunning: true,
@@ -321,6 +325,8 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         clearError: true,
       );
       unawaited(_serve(server));
+    } on RemoteCodingPlaintextLanForbiddenException catch (error) {
+      state = state.copyWith(isRunning: false, error: error.toString());
     } catch (error) {
       state = state.copyWith(
         isRunning: false,
