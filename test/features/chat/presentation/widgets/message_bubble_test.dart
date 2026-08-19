@@ -12,6 +12,7 @@ import 'package:caverno/core/services/tts_service.dart';
 import 'package:caverno/core/services/voice_providers.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_bubble.dart';
+import 'package:caverno/features/chat/presentation/widgets/message_image_viewer.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
 class _TestTranslationLoader extends AssetLoader {
@@ -184,6 +185,31 @@ void main() {
     expect(secondImage.width, 200);
     expect(secondImage.height, 140);
     expect(secondImage.gaplessPlayback, isTrue);
+  });
+
+  testWidgets('opens the image viewer when an attached image is tapped', (
+    tester,
+  ) async {
+    const imageBase64 =
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUl'
+        'EQVR42mP8z8BQDwAFgwJ/lA0T8QAAAABJRU5ErkJggg==';
+    final message = Message(
+      id: 'image-message',
+      content: 'Describe this image',
+      role: MessageRole.user,
+      timestamp: DateTime(2026, 5, 28, 21),
+      imageBase64: imageBase64,
+      imageMimeType: 'image/png',
+    );
+
+    await _pumpMessageBubble(tester, message: message);
+    await tester.tap(find.byType(Image));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(kMessageImageViewerKey), findsOneWidget);
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    expect(find.byTooltip('Copy image'), findsOneWidget);
+    expect(find.byTooltip('Download'), findsOneWidget);
   });
 
   testWidgets('shows assistant response metrics after completion', (

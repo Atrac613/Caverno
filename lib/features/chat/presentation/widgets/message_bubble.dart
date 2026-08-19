@@ -16,6 +16,8 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../providers/coding_projects_notifier.dart';
 import 'file_workspace_viewer_sheet.dart';
+import 'message_image_io.dart';
+import 'message_image_viewer.dart';
 import 'parsed_content_view.dart';
 import '../../../../core/theme/app_tokens.dart';
 
@@ -49,6 +51,7 @@ class MessageBubble extends ConsumerStatefulWidget {
 class _MessageBubbleState extends ConsumerState<MessageBubble> {
   bool _isHovering = false;
   bool _isActionRowPinned = false;
+  bool _suppressActionRowToggle = false;
   bool _copied = false;
   int _copyFeedbackToken = 0;
   String? _cachedImageBase64;
@@ -121,10 +124,29 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
   }
 
   void _handleBubblePointerUp(PointerUpEvent event) {
+    if (_suppressActionRowToggle) {
+      _suppressActionRowToggle = false;
+      return;
+    }
     if (event.kind == PointerDeviceKind.mouse) {
       return;
     }
     setState(() => _isActionRowPinned = !_isActionRowPinned);
+  }
+
+  void _openImageViewer(Uint8List bytes) {
+    final message = widget.message;
+    showMessageImageViewer(
+      context: context,
+      previewBytes: bytes,
+      previewMimeType: message.imageMimeType,
+      originalImagePath: message.originalImagePath,
+      originalMimeType: message.originalImageMimeType,
+      suggestedFileName: suggestedMessageImageFileName(
+        originalImagePath: message.originalImagePath,
+        mimeType: message.originalImageMimeType ?? message.imageMimeType,
+      ),
+    );
   }
 
   Uint8List? _imageBytesFor(String? imageBase64) {
@@ -246,21 +268,13 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
           if (message.imageBase64 != null)
             Padding(
               padding: EdgeInsets.only(bottom: hasBodyContent ? 8 : 0),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: imageBytes == null
-                    ? _BrokenImagePreview(theme: theme)
-                    : Image.memory(
-                        imageBytes,
-                        fit: BoxFit.cover,
-                        width: _messageImagePreviewWidth,
-                        height: _messageImagePreviewHeight,
-                        gaplessPlayback: true,
-                        errorBuilder: (context, error, stackTrace) {
-                          return _BrokenImagePreview(theme: theme);
-                        },
-                      ),
-              ),
+              child: imageBytes == null
+                  ? _BrokenImagePreview(theme: theme)
+                  : _MessageImageThumbnail(
+                      bytes: imageBytes,
+                      onOpen: () => _openImageViewer(imageBytes),
+                      onPointerDown: () => _suppressActionRowToggle = true,
+                    ),
             ),
           if (hasBodyContent)
             isUser
@@ -883,6 +897,72 @@ class _MessageActionRow extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _MessageImageThumbnail extends StatelessWidget {
+  const _MessageImageThumbnail({
+    required this.bytes,
+    required this.onOpen,
+    required this.onPointerDown,
+  });
+
+  final Uint8List bytes;
+  final VoidCallback onOpen;
+  final VoidCallback onPointerDown;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: 'message.view_image'.tr(),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.zoomIn,
+        child: GestureDetector(
+          onTap: onOpen,
+          child: Listener(
+            onPointerDown: (_) => onPointerDown(),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Stack(
+                children: [
+                  Image.memory(
+                    bytes,
+                    fit: BoxFit.cover,
+                    width: _messageImagePreviewWidth,
+                    height: _messageImagePreviewHeight,
+                    gaplessPlayback: true,
+                    errorBuilder: (context, error, stackTrace) {
+                      return _BrokenImagePreview(theme: theme);
+                    },
+                  ),
+                  const Positioned(
+                    right: 6,
+                    bottom: 6,
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Color(0x8C000000),
+                          borderRadius: BorderRadius.all(Radius.circular(8)),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.zoom_in,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
