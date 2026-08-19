@@ -61,27 +61,39 @@ final class OutOfRootCommandPaths {
       if (token.isEmpty || outside.contains(token)) return;
       if (_isDeviceFile(token)) return;
       if (_isInside(token, root)) return;
-      if (_isTruncatedRootPrefix(token, root)) return;
+      if (_isSpaceTruncatedPrefixOf(token, root)) return;
+      // The raw pass re-finds a quoted path's head, stopping at its first
+      // space. Dropping it keeps a phantom directory out of the hint list the
+      // reviewer sees -- naming a location that does not exist is what started
+      // all this.
+      if (outside.any((seen) => _isSpaceTruncatedPrefixOf(token, seen))) return;
       outside.add(token);
     }
 
-    final quotedSpans = <({int start, int end})>[];
+    // Quoted contents first, because a quote carries the shell's own path
+    // boundaries and is the only way a path containing spaces survives whole.
+    // Quote types are scanned independently so an inner `'...'` inside a
+    // `"..."` argument (or the reverse) is still seen.
     void collectQuoted(RegExp pattern) {
       for (final match in pattern.allMatches(command)) {
-        quotedSpans.add((start: match.start, end: match.end));
         final content = match.group(1) ?? '';
         if (_looksLikeAbsolutePath(content)) consider(content);
       }
     }
 
-    // Quote types are scanned independently so an inner `'...'` inside a
-    // `"..."` argument (or the reverse) is still a path, not swallowed by the
-    // outer span.
     collectQuoted(_doubleQuoted);
     collectQuoted(_singleQuoted);
 
-    final unquoted = _blankQuotedRegions(command, quotedSpans);
-    for (final match in _pathToken.allMatches(unquoted)) {
+    // Then the raw command, quoted regions included. Blanking them out first
+    // looked tidier and was the bug: `'([^']*)'` pairs the apostrophes in
+    // `echo "it's"` and `echo "that's"`, and blanking that span erased an
+    // unquoted `cat /etc/passwd` sitting between them, so the scan returned
+    // nothing and the command skipped approval. Scanning the raw text as well
+    // means a token can only ever be added, never disappear; `consider`
+    // already drops duplicates. The cost is that a quoted path with spaces
+    // also yields its truncated head as a second token, which is noise in a
+    // hint list the prompt no longer presents as fact.
+    for (final match in _pathToken.allMatches(command)) {
       consider(match.group(0)!);
     }
     return List<String>.unmodifiable(outside);
@@ -102,18 +114,19 @@ final class OutOfRootCommandPaths {
     return path == root || path.startsWith('$root/');
   }
 
-  /// A token that is a prefix of [root] at a non-separator is a truncated
-  /// in-project path, not evidence of an outside one.
+  /// Whether [path] is [full] cut short at a space -- the head the token regex
+  /// produces for any path containing one.
   ///
-  /// `/Users/.../Web/3D` is a prefix of `/Users/.../Web/3D Sea Qwen` because
-  /// the unquoted token regex stops at spaces. A parent directory
-  /// (`/Users/dev` vs `/Users/dev/project`) continues at `/` and stays
-  /// outside.
-  bool _isTruncatedRootPrefix(String path, String root) {
+  /// `/Users/.../Web/3D` is such a head of `/Users/.../Web/3D Sea Qwen`. The
+  /// break has to be at a space: accepting any non-separator swallowed real
+  /// files too, so `/Users/dev/pro` passed as in-project under a
+  /// `/Users/dev/project` root. A parent directory continues at `/` and stays
+  /// outside either way.
+  bool _isSpaceTruncatedPrefixOf(String path, String full) {
     if (path.startsWith('~')) return false;
-    if (path.length >= root.length) return false;
-    if (!root.startsWith(path)) return false;
-    return root[path.length] != '/';
+    if (path.length >= full.length) return false;
+    if (!full.startsWith(path)) return false;
+    return full[path.length] == ' ';
   }
 
   bool _isDeviceFile(String path) =>
@@ -122,25 +135,6 @@ final class OutOfRootCommandPaths {
   bool _looksLikeAbsolutePath(String value) {
     final trimmed = value.trim();
     return trimmed.startsWith('/') || trimmed.startsWith('~/');
-  }
-
-  String _blankQuotedRegions(
-    String command,
-    List<({int start, int end})> spans,
-  ) {
-    if (spans.isEmpty) return command;
-    final marked = List<bool>.filled(command.length, false);
-    for (final span in spans) {
-      final end = span.end < command.length ? span.end : command.length;
-      for (var i = span.start; i < end; i++) {
-        marked[i] = true;
-      }
-    }
-    final buffer = StringBuffer();
-    for (var i = 0; i < command.length; i++) {
-      buffer.write(marked[i] ? ' ' : command[i]);
-    }
-    return buffer.toString();
   }
 
   String _normalize(String value) {
@@ -187,19 +181,22 @@ final class LocalCommandApprovalScope {
   /// The approval a person must give when [outOfRootPaths] is non-empty, or
   /// null when the command stays inside the project.
   ///
-  /// The prompt shows [command], not the extracted tokens. Those tokens are
-  /// why the ask fired; they are not a claim that those locations exist.
-  /// Recording the reason only in the audit file leaves the reader deciding
-  /// blind, which is how a prompt becomes a reflex.
+  /// Deliberately says only that the command *may* reach outside, and names no
+  /// token: the tokens are why the ask fired, not a claim that those locations
+  /// exist -- a regex that stopped at spaces once named a directory that did
+  /// not. The command itself is the evidence, and the approval sheet already
+  /// renders it in its own block; repeating it here duplicated the text and
+  /// pushed an uncapped copy into the audit log's `rationale`, which is
+  /// written verbatim while `arguments` is truncated at 240 characters.
   static ToolApprovalGateDecision? outsideProjectApproval(
     List<String> outOfRootPaths,
-    String command,
   ) => outOfRootPaths.isEmpty
       ? null
       : ToolApprovalGateDecision.manualApprovalRequired(
           title: 'This command may reach outside the project',
           rationale:
               'It may touch a path outside the open project. Nothing else '
-              'checks these paths before the shell runs.\n\n$command',
+              'checks these paths before the shell runs. Read the command '
+              'below before approving.',
         );
 }

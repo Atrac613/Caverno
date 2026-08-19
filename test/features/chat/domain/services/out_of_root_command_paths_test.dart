@@ -115,28 +115,47 @@ void main() {
     expect(scan('cat /dev/fd/2'), isEmpty);
   });
 
-  test('the approval prompt shows the command, not extracted tokens', () {
-    const command = 'cat /etc/hosts';
+  test('an unquoted path between contraction apostrophes is still found', () {
+    // Regression: `'([^']*)'` pairs the apostrophes in `it's` and `that's`,
+    // and blanking that span erased the path between them, so the scan
+    // returned nothing and the command skipped approval entirely.
+    expect(
+      scan(r'''echo "it's fine" && cat /etc/hosts && echo "that's all"'''),
+      ['/etc/hosts'],
+    );
+    expect(scan(r'''bash -c "echo it's; cat /etc/passwd; echo that's"'''), [
+      '/etc/passwd',
+    ]);
+  });
+
+  test(
+    'a real path that prefixes the root is not mistaken for a truncation',
+    () {
+      // `/Users/dev/pro` breaks the root at `j`, not at a space, so it is a
+      // different file rather than the head of an in-project path.
+      expect(scan('cat /Users/dev/pro'), ['/Users/dev/pro']);
+    },
+  );
+
+  test('the approval prompt asserts no token and repeats no command', () {
     final decision = LocalCommandApprovalScope.outsideProjectApproval(const [
       '/etc/hosts',
-    ], command);
+    ]);
 
     expect(decision, isNotNull);
     expect(decision!.approvalPromptTitle, contains('may reach outside'));
-    expect(decision.approvalPromptRationale, contains(command));
     expect(
       decision.approvalPromptRationale,
-      isNot(contains('It names /etc/hosts, which is outside')),
+      isNot(contains('/etc/hosts')),
+      reason: 'the token is why the ask fired, not a claim about the disk',
     );
+    // The sheet renders pending.command in its own block. Carrying it here too
+    // showed it twice and pushed an uncapped copy into the audit rationale,
+    // which is written verbatim while arguments truncate at 240 characters.
+    expect(decision.approvalPromptRationale, isNot(contains('cat ')));
   });
 
   test('outsideProjectApproval is silent when nothing is outside', () {
-    expect(
-      LocalCommandApprovalScope.outsideProjectApproval(
-        const [],
-        'cat lib/main.dart',
-      ),
-      isNull,
-    );
+    expect(LocalCommandApprovalScope.outsideProjectApproval(const []), isNull);
   });
 }

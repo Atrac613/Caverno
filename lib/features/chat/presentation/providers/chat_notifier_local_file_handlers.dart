@@ -380,7 +380,6 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
           requiredManualDecision:
               LocalCommandApprovalScope.outsideProjectApproval(
                 request.outOfRootPaths,
-                request.execution.command,
               ),
           approvalCacheArguments: request.execution.arguments,
           buildReviewRequest: () async => _buildAutoReviewRequest(
