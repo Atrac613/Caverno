@@ -115,6 +115,41 @@ void main() {
     expect(scan('cat /dev/fd/2'), isEmpty);
   });
 
+  test('a sibling that merely starts with the root is still outside', () {
+    // Masking the root out of the command is what lets an in-project path
+    // stay silent whatever its quoting. Masking it blindly would rewrite
+    // `/Users/dev/project-secrets/key.pem` to `ROOT-secrets/key.pem` and hide
+    // it, so the boundary lookahead requires the root to end there.
+    expect(scan('cat /Users/dev/project-secrets/key.pem'), [
+      '/Users/dev/project-secrets/key.pem',
+    ]);
+    expect(scan('cat /Users/dev/projectile/x.txt'), [
+      '/Users/dev/projectile/x.txt',
+    ]);
+  });
+
+  test('an in-project absolute path is silent however it is written', () {
+    expect(scan('cat $root/lib/main.dart'), isEmpty);
+    expect(scan('cat "$root/lib/main.dart"'), isEmpty);
+    expect(scan('ls $root'), isEmpty);
+    expect(scan('ls $root/'), isEmpty);
+    expect(
+      scan('node --check < "$spacedRoot/sea.js"', projectRoot: spacedRoot),
+      isEmpty,
+    );
+    expect(
+      scan('node --check < $spacedRoot/sea.js', projectRoot: spacedRoot),
+      isEmpty,
+    );
+  });
+
+  test(
+    'naming the root does not excuse an outside path in the same command',
+    () {
+      expect(scan('cd $root && cat /etc/hosts'), ['/etc/hosts']);
+    },
+  );
+
   test('an unquoted path between contraction apostrophes is still found', () {
     // Regression: `'([^']*)'` pairs the apostrophes in `it's` and `that's`,
     // and blanking that span erased the path between them, so the scan
