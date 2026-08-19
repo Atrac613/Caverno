@@ -319,7 +319,7 @@ const Map<String, int> _lineBudgets = {
   // -97: the ten approval dialogs moved to chat_page_approval_listeners.dart,
   // where the listeners that raise them already live. The page keeps the
   // layout; the part keeps the approval flow.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1975,
+  'lib/features/chat/presentation/pages/chat_page.dart': 1971,
   'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
   // The device listing moved to flutter_run_device_lister.dart when it grew
   // a stream, a timeout and a drain.
@@ -616,7 +616,10 @@ const Map<String, int> _libraryLineBudgets = {
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8899,
+  // -4: the companion panel asked which runner a project supports by watching
+  // both families and branching between two widgets. ProjectRunControlSection
+  // owns that choice now, so the panel asks one question instead.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8895,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };

@@ -65,3 +65,13 @@ final htmlPreviewSupportedProvider = Provider.family<bool, String>((
   if (ref.watch(flutterRunSupportedProvider(projectRoot))) return false;
   return const HtmlProjectDetector().detect(projectRoot) != null;
 });
+
+/// Whether the project has any run control at all.
+///
+/// The companion panel needs one answer, not two: it renders a section when a
+/// runner exists and lets [ProjectRunControlSection] pick which.
+final projectRunControlSupportedProvider = Provider.family<bool, String>(
+  (ref, projectRoot) =>
+      ref.watch(flutterRunSupportedProvider(projectRoot)) ||
+      ref.watch(htmlPreviewSupportedProvider(projectRoot)),
+);

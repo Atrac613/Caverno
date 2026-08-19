@@ -68,11 +68,8 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
       );
       final worktreeDiffAsync = ref.watch(codingWorktreeDiffProvider(rootPath));
       final branchListAsync = ref.watch(codingGitBranchListProvider(rootPath));
-      final flutterRunSupported = ref.watch(
-        flutterRunSupportedProvider(rootPath),
-      );
-      final htmlPreviewSupported = ref.watch(
-        htmlPreviewSupportedProvider(rootPath),
+      final runControlSupported = ref.watch(
+        projectRunControlSupportedProvider(rootPath),
       );
 
       sections.addAll([
@@ -127,18 +124,15 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
           ],
         ),
         const SizedBox(height: 18),
-        if (flutterRunSupported || htmlPreviewSupported) ...[
+        if (runControlSupported) ...[
           _buildCompanionSection(
             context,
             title: 'chat.companion_flutter_run'.tr(),
             children: [
-              if (flutterRunSupported)
-                FlutterRunControlSection(
-                  projectRoot: rootPath,
-                  threadId: currentConversation.id,
-                )
-              else
-                HtmlPreviewControlSection(projectRoot: rootPath),
+              ProjectRunControlSection(
+                projectRoot: rootPath,
+                threadId: currentConversation.id,
+              ),
             ],
           ),
           const SizedBox(height: 18),
