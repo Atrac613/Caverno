@@ -5015,8 +5015,9 @@ Slice plan:
    total-time ceilings.
 4. **SEC4.4 — Project and autonomous containment.** Split implementation into
    **SEC4.4a (P0, completed 2026-08-14)**, applying one canonical, symlink-aware fence to every
-   approval-free read, and **SEC4.4b (P1)**, applying the same authorization to
-   every file mutation and denying external MCP tools in routines by default.
+   approval-free read, and **SEC4.4b (P1, mutation fence completed 2026-08-19)**,
+   applying the same authorization to every file mutation. Denying external MCP
+   tools in routines by default (SA-09) remains a follow-up.
    Any restored routine grant binds server identity, tool name, schema digest,
    and reviewed intent.
 5. **SEC4.5 — Authenticated transport.** Land as focused sub-slices:

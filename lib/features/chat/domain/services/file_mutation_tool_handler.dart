@@ -2,10 +2,11 @@ import 'dart:convert';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
+import '../../data/datasources/project_mutation_path_fence.dart';
 import '../entities/chat_turn_owner.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/message.dart';
-import 'dart_project_tooling.dart';
+import 'file_mutation_result_builders.dart';
 import 'immutable_json_snapshot.dart';
 
 // ChatNotifier decomposition collaborator: file-mutation-tool-handler
@@ -198,13 +199,17 @@ final class FileMutationToolHandler<Snapshot extends Object> {
     required FileMutationExecutionPort executionPort,
     required FileMutationApprovalPort approvalPort,
     required FileMutationRollbackCapturePort<Snapshot> rollbackCapturePort,
+    FileMutationPathAuthorizer authorizePath =
+        ProjectMutationPathFence.authorizeCall,
   }) : _executionPort = executionPort,
        _approvalPort = approvalPort,
-       _rollbackCapturePort = rollbackCapturePort;
+       _rollbackCapturePort = rollbackCapturePort,
+       _authorizePath = authorizePath;
 
   final FileMutationExecutionPort _executionPort;
   final FileMutationApprovalPort _approvalPort;
   final FileMutationRollbackCapturePort<Snapshot> _rollbackCapturePort;
+  final FileMutationPathAuthorizer _authorizePath;
 
   Future<McpToolResult> handle(FileMutationToolRequest request) async {
     final owner = request.owner;
@@ -212,14 +217,29 @@ final class FileMutationToolHandler<Snapshot extends Object> {
     final path = operation.path;
 
     if (operation.kind != FileMutationKind.deleteFile && path.isEmpty) {
-      return _failure(operation.toolName, 'path is required');
+      return fileMutationFailure(operation.toolName, 'path is required');
     }
 
+    final pathAuth = await _authorizePath(
+      toolName: operation.toolName,
+      projectRoot: request.projectRoot,
+      rawPath: path,
+    );
+    if (!pathAuth.isAllowed) {
+      return pathAuth.deniedResult!;
+    }
+    final resolvedOperation = FileMutationOperation(
+      kind: operation.kind,
+      arguments: {...operation.arguments, 'path': pathAuth.canonicalPath!},
+      reason: operation.reason,
+    );
+    final resolvedPath = resolvedOperation.path;
+
     String? deleteContent;
-    if (operation.kind == FileMutationKind.editFile) {
+    if (resolvedOperation.kind == FileMutationKind.editFile) {
       final preflightResult = await _executionPort.preflightEdit(
         owner,
-        operation,
+        resolvedOperation,
       );
       if (preflightResult != null) {
         final error = _tryDecodeMap(preflightResult)?['error']?.toString();
@@ -230,25 +250,30 @@ final class FileMutationToolHandler<Snapshot extends Object> {
           errorMessage: error,
         );
       }
-    } else if (operation.kind == FileMutationKind.deleteFile) {
-      final projectRoot = request.projectRoot;
-      if (projectRoot == null ||
-          projectRoot.isEmpty ||
-          path.isEmpty ||
-          !DartProjectPath.isInsideRoot(path, projectRoot)) {
-        return _deleteOutsideProjectResult(operation.toolName, path);
+    } else if (resolvedOperation.kind == FileMutationKind.deleteFile) {
+      if (!await _executionPort.isRegularFile(owner, resolvedPath)) {
+        return fileMutationDeleteNotRegularFile(
+          resolvedOperation.toolName,
+          resolvedPath,
+        );
       }
-      if (!await _executionPort.isRegularFile(owner, path)) {
-        return _deleteNotRegularFileResult(operation.toolName, path);
-      }
-      final snapshot = await _executionPort.captureDeleteSnapshot(owner, path);
+      final snapshot = await _executionPort.captureDeleteSnapshot(
+        owner,
+        resolvedPath,
+      );
       if (snapshot.error != null) {
-        return _deleteSnapshotUnavailableResult(operation.toolName, path);
+        return fileMutationDeleteSnapshotUnavailable(
+          resolvedOperation.toolName,
+          resolvedPath,
+        );
       }
       deleteContent = snapshot.content;
     }
 
-    final stateFingerprint = await _executionPort.fingerprint(owner, path);
+    final stateFingerprint = await _executionPort.fingerprint(
+      owner,
+      resolvedPath,
+    );
     final approvalRequest = FileMutationApprovalRequest(
       toolRequest: request,
       stateFingerprint: stateFingerprint,
@@ -262,7 +287,7 @@ final class FileMutationToolHandler<Snapshot extends Object> {
     Future<String> ensurePreview() async {
       return previewCache ??= await _executionPort.buildPreview(
         owner,
-        operation,
+        resolvedOperation,
         deleteContent: deleteContent,
       );
     }
@@ -276,7 +301,10 @@ final class FileMutationToolHandler<Snapshot extends Object> {
       return _approvalPort.rememberDenial(
         owner,
         approvalRequest,
-        _autoReviewDeniedResult(operation.toolName, gate.deniedRationale!),
+        fileMutationAutoReviewDenied(
+          resolvedOperation.toolName,
+          gate.deniedRationale!,
+        ),
       );
     }
     if (gate.needsManual) {
@@ -289,7 +317,10 @@ final class FileMutationToolHandler<Snapshot extends Object> {
         return _approvalPort.rememberDenial(
           owner,
           approvalRequest,
-          _failure(operation.toolName, operation.kind.manualDenialMessage),
+          fileMutationFailure(
+            resolvedOperation.toolName,
+            resolvedOperation.kind.manualDenialMessage,
+          ),
         );
       }
     }
@@ -297,8 +328,8 @@ final class FileMutationToolHandler<Snapshot extends Object> {
     if (!gate.bypassedApproval) {
       final staleResult = await fileChangedSinceApprovalResult(
         owner: owner,
-        toolName: operation.toolName,
-        path: path,
+        toolName: resolvedOperation.toolName,
+        path: resolvedPath,
         approvedStateFingerprint: stateFingerprint,
       );
       if (staleResult != null) {
@@ -306,17 +337,23 @@ final class FileMutationToolHandler<Snapshot extends Object> {
       }
     }
 
-    final before = await _rollbackCapturePort.captureBefore(owner, path);
-    final expired = _approvalPort.expiredResult(owner, operation.toolName);
+    final before = await _rollbackCapturePort.captureBefore(
+      owner,
+      resolvedPath,
+    );
+    final expired = _approvalPort.expiredResult(
+      owner,
+      resolvedOperation.toolName,
+    );
     if (expired != null) {
       return expired;
     }
-    final result = await _executionPort.execute(owner, operation);
-    if (isSuccessfulMutationResult(result)) {
+    final result = await _executionPort.execute(owner, resolvedOperation);
+    if (isSuccessfulFileMutationResult(result)) {
       await _rollbackCapturePort.recordSuccessfulMutation(
         owner,
         before: before,
-        path: path,
+        path: resolvedPath,
       );
     }
     return gate.bypassedApproval
@@ -334,31 +371,11 @@ final class FileMutationToolHandler<Snapshot extends Object> {
     if (currentFingerprint == approvedStateFingerprint) {
       return null;
     }
-    return McpToolResult(
-      toolName: toolName,
-      result: jsonEncode({
-        'ok': false,
-        'code': 'file_changed_since_approval',
-        'error':
-            'The target file changed after the approval preview was prepared. Re-read the file and submit a fresh mutation.',
-        'path': path,
-      }),
-      isSuccess: false,
-      errorMessage: 'The target file changed after approval',
-    );
+    return fileMutationChangedSinceApproval(toolName: toolName, path: path);
   }
 
   bool isSuccessfulMutationResult(McpToolResult result) {
-    if (!result.isSuccess) {
-      return false;
-    }
-    try {
-      final decoded = jsonDecode(result.result);
-      return decoded is! Map<String, dynamic> ||
-          (decoded['error'] == null && decoded['already_applied'] != true);
-    } catch (_) {
-      return true;
-    }
+    return isSuccessfulFileMutationResult(result);
   }
 
   Map<String, dynamic>? _tryDecodeMap(String value) {
@@ -368,67 +385,5 @@ final class FileMutationToolHandler<Snapshot extends Object> {
     } catch (_) {
       return null;
     }
-  }
-
-  McpToolResult _failure(String toolName, String message) {
-    return McpToolResult(
-      toolName: toolName,
-      result: '',
-      isSuccess: false,
-      errorMessage: message,
-    );
-  }
-
-  McpToolResult _autoReviewDeniedResult(String toolName, String rationale) {
-    return McpToolResult(
-      toolName: toolName,
-      result: 'Auto-review denied this action. Rationale: $rationale',
-      isSuccess: false,
-      errorMessage: 'Auto-review denied: $rationale',
-    );
-  }
-
-  McpToolResult _deleteOutsideProjectResult(String toolName, String path) {
-    return McpToolResult(
-      toolName: toolName,
-      result: jsonEncode({
-        'ok': false,
-        'code': 'delete_path_outside_project',
-        'error':
-            'delete_file requires a regular file inside the selected coding project.',
-        if (path.isNotEmpty) 'path': path,
-      }),
-      isSuccess: false,
-      errorMessage: 'Delete path must stay inside the coding project',
-    );
-  }
-
-  McpToolResult _deleteNotRegularFileResult(String toolName, String path) {
-    return McpToolResult(
-      toolName: toolName,
-      result: jsonEncode({
-        'ok': false,
-        'code': 'delete_target_not_regular_file',
-        'error': 'delete_file supports existing regular files only.',
-        'path': path,
-      }),
-      isSuccess: false,
-      errorMessage: 'Delete target must be a regular file',
-    );
-  }
-
-  McpToolResult _deleteSnapshotUnavailableResult(String toolName, String path) {
-    return McpToolResult(
-      toolName: toolName,
-      result: jsonEncode({
-        'ok': false,
-        'code': 'delete_snapshot_unavailable',
-        'error':
-            'The file cannot be deleted because a rollback snapshot could not be captured.',
-        'path': path,
-      }),
-      isSuccess: false,
-      errorMessage: 'A rollback snapshot is required before deletion',
-    );
   }
 }

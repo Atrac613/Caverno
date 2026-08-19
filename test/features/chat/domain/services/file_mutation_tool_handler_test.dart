@@ -1,8 +1,10 @@
 import 'dart:convert';
 
+import 'package:caverno/features/chat/data/datasources/project_mutation_path_fence.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/dart_project_tooling.dart';
 import 'package:caverno/features/chat/domain/services/file_mutation_tool_handler.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
@@ -306,7 +308,7 @@ void main() {
       );
       expect(
         jsonDecode(outsideDelete.result),
-        containsPair('code', 'delete_path_outside_project'),
+        containsPair('code', 'project_mutation_outside_root'),
       );
       expect(
         jsonDecode(outsideDelete.result),
@@ -690,11 +692,39 @@ _Fixture _fixture({
       executionPort: execution,
       approvalPort: approval,
       rollbackCapturePort: rollback,
+      authorizePath: _lexicalMutationAuthorizer,
     ),
     execution: execution,
     approval: approval,
     rollback: rollback,
     events: events,
+  );
+}
+
+Future<ProjectMutationPathAuthorization> _lexicalMutationAuthorizer({
+  required String toolName,
+  required String? projectRoot,
+  required String rawPath,
+}) async {
+  final root = projectRoot?.trim() ?? '';
+  final path = rawPath.trim();
+  if (root.isEmpty) {
+    return ProjectMutationPathAuthorization.denied(
+      ProjectMutationPathDenial.projectRootRequired,
+      toolName: toolName,
+    );
+  }
+  if (path.isEmpty || !DartProjectPath.isInsideRoot(path, root)) {
+    return ProjectMutationPathAuthorization.denied(
+      ProjectMutationPathDenial.outsideProject,
+      toolName: toolName,
+      canonicalRoot: root,
+      rawPath: path,
+    );
+  }
+  return ProjectMutationPathAuthorization.allowed(
+    canonicalRoot: root,
+    canonicalPath: path,
   );
 }
 

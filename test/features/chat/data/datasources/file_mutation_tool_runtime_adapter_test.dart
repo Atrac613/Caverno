@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno/features/chat/data/datasources/file_mutation_tool_runtime_adapter.dart';
+import 'package:caverno/features/chat/data/datasources/project_mutation_path_fence.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
@@ -333,6 +334,7 @@ void main() {
 final class _Fixture {
   _Fixture(this.owner) {
     adapter = FileMutationToolRuntimeAdapter<String>(
+      authorizePath: _allowAdapterMutationPath,
       acknowledgeLifecycle: (identity) {
         identities.add(identity);
         final remaining = lifecycleChecksUntilExpiry;
@@ -596,5 +598,26 @@ FileMutationRuntimeIdentity _mismatchedIdentity(
     projectRoot: identity.projectRoot,
     canonicalPath: identity.canonicalPath,
     approvalContextDigest: identity.approvalContextDigest,
+  );
+}
+
+Future<ProjectMutationPathAuthorization> _allowAdapterMutationPath({
+  required String toolName,
+  required String? projectRoot,
+  required String rawPath,
+}) async {
+  final path = rawPath.trim();
+  final root = projectRoot?.trim() ?? '/workspace/a';
+  if (path.isEmpty) {
+    return ProjectMutationPathAuthorization.denied(
+      ProjectMutationPathDenial.outsideProject,
+      toolName: toolName,
+      canonicalRoot: root,
+      rawPath: path,
+    );
+  }
+  return ProjectMutationPathAuthorization.allowed(
+    canonicalRoot: root,
+    canonicalPath: path,
   );
 }

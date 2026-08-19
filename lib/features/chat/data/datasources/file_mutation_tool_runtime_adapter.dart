@@ -10,6 +10,7 @@ import 'file_mutation_runtime_approval_port.dart';
 import 'file_mutation_runtime_contract.dart';
 import 'file_mutation_runtime_ports.dart';
 import 'file_mutation_runtime_state.dart';
+import 'project_mutation_path_fence.dart';
 
 export 'file_mutation_runtime_contract.dart';
 
@@ -32,6 +33,8 @@ final class FileMutationToolRuntimeAdapter<Snapshot extends Object> {
     required FileMutationExecutionCallback<Snapshot> execute,
     required FileMutationCompensationCallback<Snapshot> compensate,
     FileMutationEffectCoordinator? effectCoordinator,
+    FileMutationPathAuthorizer authorizePath =
+        ProjectMutationPathFence.authorizeCall,
   }) : _acknowledgeLifecycle = acknowledgeLifecycle,
        _preflightEdit = preflightEdit,
        _fingerprint = fingerprint,
@@ -48,7 +51,8 @@ final class FileMutationToolRuntimeAdapter<Snapshot extends Object> {
        _execute = execute,
        _compensate = compensate,
        _effectCoordinator =
-           effectCoordinator ?? FileMutationEffectCoordinator();
+           effectCoordinator ?? FileMutationEffectCoordinator(),
+       _authorizePath = authorizePath;
 
   final FileMutationLifecycleCallback _acknowledgeLifecycle;
   final FileMutationPreflightCallback _preflightEdit;
@@ -66,6 +70,7 @@ final class FileMutationToolRuntimeAdapter<Snapshot extends Object> {
   final FileMutationExecutionCallback<Snapshot> _execute;
   final FileMutationCompensationCallback<Snapshot> _compensate;
   final FileMutationEffectCoordinator _effectCoordinator;
+  final FileMutationPathAuthorizer _authorizePath;
 
   Future<FileMutationRuntimeCompletion> handle({
     required ChatTurnOwner owner,
@@ -119,6 +124,7 @@ final class FileMutationToolRuntimeAdapter<Snapshot extends Object> {
           executionPort: filesystemPorts,
           approvalPort: approvalPort,
           rollbackCapturePort: filesystemPorts,
+          authorizePath: _authorizePath,
         );
 
     McpToolResult? result;

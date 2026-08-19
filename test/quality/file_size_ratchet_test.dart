@@ -120,7 +120,7 @@ const Map<String, int> _lineBudgets = {
       179,
   'lib/features/chat/domain/services/file_mutation_effect_coordinator.dart':
       371,
-  'lib/features/chat/domain/services/file_mutation_tool_handler.dart': 434,
+  'lib/features/chat/domain/services/file_mutation_tool_handler.dart': 389,
   'lib/features/chat/domain/services/file_rollback_tool_contract.dart': 304,
   'lib/features/chat/domain/services/file_rollback_tool_handler.dart': 225,
   'lib/features/chat/domain/services/file_turn_rollback_service.dart': 111,
@@ -202,7 +202,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/file_mutation_runtime_ports.dart': 395,
   'lib/features/chat/data/datasources/file_mutation_runtime_state.dart': 171,
   'lib/features/chat/data/datasources/file_mutation_tool_runtime_adapter.dart':
-      180,
+      186,
   'lib/features/chat/data/datasources/filesystem_text_snapshot.dart': 108,
   'lib/features/chat/data/datasources/file_rollback_store_lifecycle.dart': 50,
   'lib/features/chat/data/datasources/mcp_tool_service_facade_base.dart': 10,

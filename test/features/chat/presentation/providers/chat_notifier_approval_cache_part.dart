@@ -405,7 +405,7 @@ void registerChatNotifierApprovalCacheTests() {
     expect(outsideFile.existsSync(), isTrue);
     expect(
       dataSource.toolResultBatches.single.single.result,
-      contains('delete_path_outside_project'),
+      contains('project_mutation_outside_root'),
     );
   });
 
