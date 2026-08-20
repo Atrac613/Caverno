@@ -7,10 +7,9 @@ import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/file_mutation_effect_coordinator.dart';
 import '../../domain/services/file_mutation_tool_handler.dart';
 import 'file_mutation_runtime_approval_port.dart';
-import 'file_mutation_runtime_contract.dart';
+import 'file_mutation_authorized_input.dart';
 import 'file_mutation_runtime_ports.dart';
 import 'file_mutation_runtime_state.dart';
-import 'project_mutation_path_fence.dart';
 
 export 'file_mutation_runtime_contract.dart';
 
@@ -81,7 +80,7 @@ final class FileMutationToolRuntimeAdapter<Snapshot extends Object> {
     required List<Message> conversationMessages,
     required bool hasUntrustedInfluence,
   }) async {
-    final input = FileMutationRuntimeInput(
+    final input = await authorizedFileMutationInput(
       owner: owner,
       toolCall: toolCall,
       approvalMode: approvalMode,
@@ -89,6 +88,7 @@ final class FileMutationToolRuntimeAdapter<Snapshot extends Object> {
       resolvedArguments: resolvedArguments,
       conversationMessages: conversationMessages,
       hasUntrustedInfluence: hasUntrustedInfluence,
+      authorizePath: _authorizePath,
     );
     final identity = input.identity;
     final state = FileMutationRuntimeState(

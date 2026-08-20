@@ -112,6 +112,46 @@ void main() {
       },
     );
 
+    test('binds the attempt to the path the fence authorized', () async {
+      // SEC4.4b rewrites the operation path to the fence's canonical form, but
+      // the identity was minted from the pre-canonical arguments, so
+      // _requirePath compared a resolved path against an unresolved one. Every
+      // mutation under a symlinked root -- anything under /tmp on macOS --
+      // died as "File mutation path identity mismatch".
+      final fixture = _Fixture(
+        owner,
+        authorizePath:
+            ({
+              required String toolName,
+              required String? projectRoot,
+              required String rawPath,
+            }) async => ProjectMutationPathAuthorization.allowed(
+              canonicalRoot: '/private/workspace/a',
+              // Idempotent, like the real fence: canonicalizing an already
+              // canonical path returns it unchanged.
+              canonicalPath: rawPath.startsWith('/private/')
+                  ? rawPath
+                  : '/private$rawPath',
+            ),
+      );
+
+      final completion = await fixture.run();
+
+      expect(
+        completion.disposition,
+        FileMutationRuntimeDisposition.completed,
+        reason: 'a symlinked root must not read as a boundary mismatch',
+      );
+      expect(
+        completion.identity.canonicalPath,
+        '/private/workspace/a/lib/main.dart',
+      );
+      expect(
+        fixture.effectRequests.single.operationRequest.operation.path,
+        '/private/workspace/a/lib/main.dart',
+      );
+    });
+
     test('rejects non-JSON arguments before runtime callbacks', () async {
       final fixture = _Fixture(owner);
 
@@ -332,9 +372,10 @@ void main() {
 }
 
 final class _Fixture {
-  _Fixture(this.owner) {
+  _Fixture(this.owner, {FileMutationPathAuthorizer? authorizePath})
+    : _authorizePath = authorizePath ?? _allowAdapterMutationPath {
     adapter = FileMutationToolRuntimeAdapter<String>(
-      authorizePath: _allowAdapterMutationPath,
+      authorizePath: _authorizePath,
       acknowledgeLifecycle: (identity) {
         identities.add(identity);
         final remaining = lifecycleChecksUntilExpiry;
@@ -514,6 +555,8 @@ final class _Fixture {
   }
 
   final ChatTurnOwner owner;
+
+  final FileMutationPathAuthorizer _authorizePath;
   late final FileMutationToolRuntimeAdapter<String> adapter;
   bool current = true;
   bool expireAfterCapture = false;
