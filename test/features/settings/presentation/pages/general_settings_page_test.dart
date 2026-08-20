@@ -9,6 +9,7 @@ import 'package:caverno/features/settings/presentation/pages/general_settings_pa
 import 'package:caverno/features/settings/presentation/providers/apple_foundation_models_availability_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/mesh_endpoint_provider.dart';
+import 'package:caverno/features/settings/presentation/pages/model_routing_settings_page.dart';
 import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -63,6 +64,27 @@ class _TestTranslationLoader extends AssetLoader {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
+
+  // Model selection is owned by Model routing; General settings only points at
+  // it, so the primary model and the per-role routes are chosen on one screen.
+  testWidgets('opens model routing instead of picking a model here', (
+    tester,
+  ) async {
+    final settings = AppSettings.defaults().copyWith(model: 'selected-model');
+
+    await _pumpGeneralSettingsPage(
+      tester,
+      settings: settings,
+      loadModels: () async => ['selected-model'],
+    );
+
+    expect(find.byType(ModelRoutingSettingsPage), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('settings-open-model-routing')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ModelRoutingSettingsPage), findsOneWidget);
+  });
 
   testWidgets('explains endpoint preflight failures with repair guidance', (
     tester,

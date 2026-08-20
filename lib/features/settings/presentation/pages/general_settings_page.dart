@@ -19,6 +19,7 @@ import '../providers/model_capability_auto_probe_notifier.dart';
 import '../providers/model_list_provider.dart';
 import '../providers/settings_notifier.dart';
 import '../widgets/macos_update_tile.dart';
+import 'model_routing_settings_page.dart';
 
 class GeneralSettingsPage extends ConsumerStatefulWidget {
   const GeneralSettingsPage({super.key});
@@ -552,7 +553,39 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
           ),
         );
       },
-      loading: () => const SizedBox.shrink(),
+      // Preflight in progress. This used to render nothing, which left the
+      // section blank between opening it and the model list landing.
+      loading: () => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.45,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+          ),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'settings.compatibility_checking'.tr(),
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
       error: (_, _) => Container(
         width: double.infinity,
         padding: const EdgeInsets.all(12),
@@ -813,105 +846,50 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     );
   }
 
-  Widget _buildModelSelector({
-    required AsyncValue<List<String>> asyncModels,
-    required LlmProvider llmProvider,
-    required String selectedModel,
-  }) {
-    if (llmProvider == LlmProvider.appleFoundationModels) {
-      return InputDecorator(
-        decoration: InputDecoration(
-          labelText: 'settings.model_name'.tr(),
-          border: const OutlineInputBorder(),
-          helperText: 'settings.apple_model_helper'.tr(),
+  /// Model selection lives in Model routing, not here.
+  ///
+  /// General settings used to own the primary model picker while every other
+  /// model choice (per mode, per role) lived on the routing page, so the two
+  /// halves of one decision sat on different screens. This tile keeps the
+  /// primary model visible next to the connection status and hands the choice
+  /// itself to the page that owns it.
+  Widget _buildModelRoutingLink(String selectedModel) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.35,
         ),
-        child: Text(selectedModel, overflow: TextOverflow.ellipsis),
-      );
-    }
-    return asyncModels.when(
-      data: (models) {
-        final options = [...models];
-        if (!options.contains(selectedModel)) {
-          options.insert(0, selectedModel);
-        }
-
-        return DropdownButtonFormField<String>(
-          initialValue: selectedModel,
-          decoration: InputDecoration(
-            labelText: 'settings.model_name'.tr(),
-            border: const OutlineInputBorder(),
-            helperText: 'settings.model_list_helper'.tr(),
-          ),
-          items: options
-              .map(
-                (model) => DropdownMenuItem<String>(
-                  value: model,
-                  child: Text(model, overflow: TextOverflow.ellipsis),
-                ),
-              )
-              .toList(),
-          onChanged: (value) async {
-            if (value == null) return;
-            await ref
-                .read(settingsNotifierProvider.notifier)
-                .updateModel(value.trim());
-            if (!mounted) return;
-            _runModelCapabilityAutoProbe();
-          },
-        );
-      },
-      loading: () => InputDecorator(
-        decoration: InputDecoration(
-          labelText: 'settings.model_name'.tr(),
-          border: const OutlineInputBorder(),
-          helperText: 'settings.model_loading'.tr(),
-        ),
-        child: Row(
-          children: [
-            const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Text('settings.model_loading_message'.tr())),
-          ],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
         ),
       ),
-      error: (error, _) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          DropdownButtonFormField<String>(
-            initialValue: selectedModel,
-            decoration: InputDecoration(
-              labelText: 'settings.model_name'.tr(),
-              border: const OutlineInputBorder(),
-              helperText: 'settings.model_error_helper'.tr(),
+      // Material keeps the tile's ink splash visible above the decoration.
+      child: Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+          key: const ValueKey('settings-open-model-routing'),
+          leading: Icon(
+            Icons.alt_route_outlined,
+            color: theme.colorScheme.primary,
+          ),
+          title: Text('settings.model_routing_title'.tr()),
+          subtitle: Text(
+            'settings.model_routing_open_desc'.tr(
+              namedArgs: {'model': selectedModel},
             ),
-            items: [
-              DropdownMenuItem<String>(
-                value: selectedModel,
-                child: Text(selectedModel, overflow: TextOverflow.ellipsis),
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ModelRoutingSettingsPage(),
               ),
-            ],
-            onChanged: (value) async {
-              if (value == null) return;
-              await ref
-                  .read(settingsNotifierProvider.notifier)
-                  .updateModel(value.trim());
-              if (!mounted) return;
-              _runModelCapabilityAutoProbe();
-            },
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'settings.model_error_message'.tr(),
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.error,
-              fontSize: 12,
-            ),
-          ),
-        ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -1214,11 +1192,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  _buildModelSelector(
-                    asyncModels: asyncModels,
-                    llmProvider: visibleSettings.llmProvider,
-                    selectedModel: selectedModel,
-                  ),
+                  _buildModelRoutingLink(selectedModel),
                   const SizedBox(height: 12),
                   _buildCompatibilityStatus(
                     asyncModels: asyncModels,
