@@ -65,6 +65,38 @@ void main() {
       expect(fired, isNotNull);
     });
 
+    test('an explicit "error": null does not make a result unsuccessful', () {
+      // Session cf8f8d20: the SearXNG MCP search returns
+      // {"query":..., "results":[...], "error": null}. The success check read
+      // the mere presence of the key as failure, so the web exemption never
+      // applied and a correct web-sourced answer drew the notice anyway.
+      final searchResult = _result(
+        'search_web',
+        '{"query":"Claude Opus 4.8","total_results":27,'
+            '"results":[{"title":"Introducing Claude Opus 4.8"}],"error":null}',
+      );
+
+      expect(detector.hasSuccessfulWebRetrievalResult([searchResult]), isTrue);
+      expect(
+        detector.buildUnverifiedReadOnlyInspectionClaimToolResult(
+          candidateResponse:
+              'Claude Opus 4.8 は 2026年5月28日に発表されたモデルです。'
+              '検索結果を確認しました。',
+          toolResults: [searchResult],
+        ),
+        isNull,
+      );
+    });
+
+    test('an error with an actual value still fails the result', () {
+      final failed = _result(
+        'search_web',
+        '{"query":"x","results":[],"error":"SearXNG search failed: 404"}',
+      );
+
+      expect(detector.hasSuccessfulWebRetrievalResult([failed]), isFalse);
+    });
+
     test('does NOT fire on a web-sourced answer that names no local path '
         '(regression: session 165f1371 gen-7)', () {
       // The answer below is correct and fully tool-backed -- search_web plus

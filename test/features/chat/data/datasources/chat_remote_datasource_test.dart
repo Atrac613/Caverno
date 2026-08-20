@@ -155,6 +155,32 @@ void main() {
       expect(carriesImage(body), isTrue);
     });
 
+    test(
+      'the final re-send keeps the attachment behind its envelope',
+      () async {
+        // Session 3c1f6c02: the tool loop kept the image (cached prefix held),
+        // but the final answer the reader sees is built as
+        // [system, user(question+image), user(tool-result envelope)]. The
+        // envelope is Caverno's own message and carries no attachment, so
+        // counting it as the latest user turn stripped the screenshot from the
+        // one call whose output reaches the user.
+        final body = await sendToolResults([
+          imageMessage(),
+          Message(
+            id: 'tool_result_1',
+            content:
+                "Please answer the user's question based on the following "
+                'tool results.',
+            role: MessageRole.user,
+            timestamp: DateTime(2026, 1, 2),
+            isSynthesizedPrompt: true,
+          ),
+        ]);
+
+        expect(carriesImage(body), isTrue);
+      },
+    );
+
     test('an attachment left behind is named, not silently removed', () async {
       final body = await sendToolResults([
         imageMessage(),

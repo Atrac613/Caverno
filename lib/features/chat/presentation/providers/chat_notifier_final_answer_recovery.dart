@@ -245,9 +245,15 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
             toolResults: toolResults,
             interactionGeneration: interactionGeneration,
           );
-          final strippedStreamedAnswer = ContentParser.stripToolArtifacts(
-            rawStreamedAnswer,
-          ).trim();
+          // Text only. stripToolArtifacts keeps thinking segments and drops
+          // just tool tags, leaving reasoning with nothing to mark it: session
+          // e40965bc handed that to the unexecuted-command guard, which read a
+          // product release out of the model's deliberation as a command run.
+          // Every consumer here asks what the assistant asserted.
+          final strippedStreamedAnswer =
+              ContentParser.stripModelHistoryArtifacts(
+                rawStreamedAnswer,
+              ).trim();
           if (strippedStreamedAnswer.isNotEmpty) {
             _lastStreamedToolResultFinalAnswersByGeneration[interactionGeneration] =
                 strippedStreamedAnswer;

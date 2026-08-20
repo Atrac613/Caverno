@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
@@ -39,6 +40,74 @@ void main() {
         expect(result, isNull);
       },
     );
+
+    test('flattening thinking into the answer must not create a claim', () {
+      // Session e40965bc: the streamed final answer was built with
+      // ContentParser.stripToolArtifacts, which keeps thinking segments and
+      // only drops tool tags. The reasoning survived with nothing marking it,
+      // so claimCandidate had nothing to remove and the guard read a product
+      // release out of the model's deliberation as a command run.
+      const raw =
+          '<think>Opus 4.8 was released on 2026-05-28. Let me answer from the '
+          'web search results.</think>'
+          'Claude Opus 4.8 は 2026年5月28日にリリースされたモデルです。';
+
+      final flattened = ContentParser.stripToolArtifacts(raw).trim();
+      final visible = ContentParser.stripModelHistoryArtifacts(raw).trim();
+
+      expect(
+        flattened.toLowerCase(),
+        contains('released'),
+        reason: 'this is the trap: the reasoning is still there, untagged',
+      );
+      expect(visible.toLowerCase(), isNot(contains('released')));
+      expect(
+        detector.buildUnexecutedCommandActionToolResult(
+          candidateResponse: visible,
+          toolResults: const [],
+        ),
+        isNull,
+      );
+    });
+
+    test('reasoning is not judged as a claim', () {
+      // Session 3c1f6c02: the question was 「Opus 4.8って何？」. The answer
+      // mentioned a product release and the English word "released" appeared
+      // only inside the <think> block; together they read as a completed
+      // command run, costing three LLM calls, 87 seconds, and a notice on a
+      // correct answer.
+      const withThinking =
+          '<think>Opus 4.8 was released on 2026-05-28. I should answer in '
+          'Japanese.</think>'
+          'Claude Opus 4.8は、Anthropicが2026年5月28日にリリースした'
+          'モデルです。';
+
+      expect(
+        detector.looksLikeCompletedCommandExecutionClaim(
+          FinalAnswerClaimDetector.claimCandidate(withThinking),
+        ),
+        isFalse,
+      );
+      expect(
+        detector.buildUnexecutedCommandActionToolResult(
+          candidateResponse: withThinking,
+          toolResults: const [],
+        ),
+        isNull,
+      );
+    });
+
+    test('a claim in the visible answer still counts', () {
+      // The guard exists for this: dd8a8909 promised a release run and did
+      // nothing. Stripping the thinking must not blunt that.
+      final result = detector.buildUnexecutedCommandActionToolResult(
+        candidateResponse:
+            '<think>weighing options</think>I will run the release script now.',
+        toolResults: const [],
+      );
+
+      expect(result, isNotNull);
+    });
 
     test('still flags a promised run when nothing ran', () {
       // Session dd8a8909 gen-8: the whole answer was 「本番リリースを実行します。」

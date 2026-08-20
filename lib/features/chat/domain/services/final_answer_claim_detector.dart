@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 import '../entities/tool_call_info.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'tool_call_execution_policy.dart';
@@ -102,11 +104,28 @@ class FinalAnswerClaimDetector {
     );
   }
 
+  /// The text a claim is judged against: what the reader actually sees.
+  ///
+  /// Reasoning is not an assertion. A `<think>` block is exploratory by
+  /// construction -- it says "released", "let me run", "I'll check" precisely
+  /// because it is thinking aloud -- so judging it as a claim over-fires
+  /// systematically. Session 3c1f6c02 lost three LLM calls and 87 seconds to
+  /// exactly that: the answer to 「Opus 4.8って何？」 mentioned a product
+  /// release, the English word "released" appeared only inside the reasoning,
+  /// and together they read as a completed command run. Stripped of the
+  /// thinking the same answer does not match at all.
+  ///
+  /// `stripToolArtifacts` is not enough here: it keeps thinking segments on
+  /// purpose, because its job is to drop tool tags rather than to decide what
+  /// the user was told.
+  static String claimCandidate(String content) =>
+      ContentParser.stripModelHistoryArtifacts(content);
+
   ToolResultInfo? buildUnexecutedCommandActionToolResult({
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
   }) {
-    final candidate = candidateResponse.trim();
+    final candidate = claimCandidate(candidateResponse).trim();
     final looksLikeFutureAction = looksLikeFutureCommandExecutionAction(
       candidate,
     );
@@ -142,7 +161,7 @@ class FinalAnswerClaimDetector {
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
   }) {
-    final candidate = candidateResponse.trim();
+    final candidate = claimCandidate(candidateResponse).trim();
     if (!looksLikeCompletedReadOnlyInspectionClaim(candidate) ||
         hasSuccessfulReadOnlyInspectionResult(toolResults)) {
       return null;
@@ -1248,11 +1267,21 @@ class FinalAnswerClaimDetector {
     try {
       final decoded = jsonDecode(trimmed);
       if (decoded is Map<Object?, Object?>) {
-        final keys = decoded.keys
-            .whereType<String>()
-            .map((key) => key.toLowerCase())
-            .toSet();
-        if (keys.contains('error')) {
+        // Key presence is not failure. A great many successful payloads carry
+        // an explicit `"error": null` to say so -- the SearXNG MCP search
+        // result does -- and reading that as an error marked every such tool
+        // unsuccessful, which is how a web-sourced answer in session cf8f8d20
+        // still drew the unverified-inspection notice the web exemption was
+        // written to prevent.
+        Object? errorValue;
+        for (final entry in decoded.entries) {
+          final key = entry.key;
+          if (key is String && key.toLowerCase() == 'error') {
+            errorValue = entry.value;
+            break;
+          }
+        }
+        if (errorValue != null && errorValue.toString().trim().isNotEmpty) {
           return false;
         }
         Object? codeValue;

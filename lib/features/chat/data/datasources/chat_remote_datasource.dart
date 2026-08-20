@@ -201,11 +201,8 @@ class ChatRemoteDataSource
     Stream<String> contentStream() async* {
       timer.start();
       final stripImages = _shouldStripImages(messages);
-      if (stripImages) {
-        final hasHistoryImages = messages.any((m) => m.imageBase64 != null);
-        if (hasHistoryImages) {
-          appLog('[LLM] Stripping images from history before sending');
-        }
+      if (stripImages && messages.any((m) => m.imageBase64 != null)) {
+        appLog('[LLM] Stripping images from history before sending');
       }
       final formattedMessages = _formatMessages(
         messages,
@@ -1070,8 +1067,11 @@ class ChatRemoteDataSource
   /// "No sessions yet" about a screenshot it had just read as holding 106.
   /// Re-sending costs ~1k prompt tokens and sits in the cached prefix.
   bool _shouldStripImages(List<Message> messages) {
+    // Caverno's own prompts are not the person's turn. Treating the
+    // tool-result envelope as the latest user message stripped the screenshot
+    // from the answer the reader sees (session 3c1f6c02).
     final lastUserMessage = messages.lastWhere(
-      (m) => m.role == MessageRole.user,
+      (m) => m.role == MessageRole.user && !m.isSynthesizedPrompt,
       orElse: () => messages.last,
     );
     return lastUserMessage.imageBase64 == null;

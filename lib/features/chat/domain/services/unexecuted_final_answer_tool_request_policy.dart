@@ -206,7 +206,7 @@ final class UnexecutedFinalAnswerToolRequestPolicy {
       return false;
     }
 
-    final candidate = ContentParser.stripToolArtifacts(input.content).trim();
+    final candidate = FinalAnswerClaimDetector.claimCandidate(input.content);
     if (candidate.isEmpty ||
         looksLikeStructuredToolRequest(candidate) ||
         looksLikePlanOnlyFinalToolAnswer(candidate) ||

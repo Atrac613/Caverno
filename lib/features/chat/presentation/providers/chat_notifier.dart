@@ -115,6 +115,7 @@ import '../../domain/services/sticky_tool_result_policy.dart';
 import '../../domain/services/tool_loop_context_digest.dart';
 import '../../domain/services/out_of_root_command_paths.dart';
 import '../../domain/services/outside_root_read_grants.dart';
+import '../../domain/services/assistant_stream_delta.dart';
 import '../../domain/services/tool_loop_exit_reason.dart';
 import '../../domain/services/truncated_tool_call_arguments_guard.dart';
 import 'tool_argument_json.dart';
@@ -5277,9 +5278,13 @@ class ChatNotifier extends Notifier<ChatState> {
     final messages = <Message>[
       Message(
         id: 'tool_result_${timestamp.microsecondsSinceEpoch}',
+        isSynthesizedPrompt: true,
         content: ToolResultPromptBuilder.buildAnswerPrompt(
           budgetedToolResults,
-          descriptionsByName: _toolDescriptionsByName(),
+          descriptionsByName:
+              ToolResultPromptBuilder.descriptionsByNameFromDefinitions(
+                _mcpToolService?.getOpenAiToolDefinitions() ?? const [],
+              ),
           completionEvidence: completionEvidence,
         ),
         role: MessageRole.user,
@@ -5319,12 +5324,6 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     return messages;
-  }
-
-  Map<String, String> _toolDescriptionsByName() {
-    return ToolResultPromptBuilder.descriptionsByNameFromDefinitions(
-      _mcpToolService?.getOpenAiToolDefinitions() ?? const [],
-    );
   }
 
   void _logScheduledToolLifecycleEvent(
@@ -5647,6 +5646,7 @@ class ChatNotifier extends Notifier<ChatState> {
               messages.add(
                 Message(
                   id: 'tool_recovery_${DateTime.now().millisecondsSinceEpoch}',
+                  isSynthesizedPrompt: true,
                   role: MessageRole.user,
                   content: _buildDuplicateInspectionRecoveryPrompt(
                     currentToolCalls,
@@ -5730,6 +5730,7 @@ class ChatNotifier extends Notifier<ChatState> {
               messages.add(
                 Message(
                   id: 'tool_followup_recovery_${DateTime.now().millisecondsSinceEpoch}',
+                  isSynthesizedPrompt: true,
                   role: MessageRole.user,
                   content: _buildDuplicateFollowUpRecoveryPrompt(
                     currentToolCalls,
@@ -7547,14 +7548,11 @@ class ChatNotifier extends Notifier<ChatState> {
     required int messageIndex,
     required int startingLength,
   }) {
-    if (messageIndex < 0 || messageIndex >= state.messages.length) {
-      return '';
-    }
-    final content = state.messages[messageIndex].content;
-    if (startingLength >= content.length) {
-      return '';
-    }
-    return content.substring(startingLength).trim();
+    if (messageIndex < 0 || messageIndex >= state.messages.length) return '';
+    return const AssistantStreamDelta().since(
+      content: state.messages[messageIndex].content,
+      startingLength: startingLength,
+    );
   }
 
   void _removeAssistantStreamDeltaForGeneration({

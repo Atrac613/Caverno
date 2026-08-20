@@ -30,6 +30,16 @@ abstract class Message with _$Message {
     String? error,
     String? imageBase64,
     String? imageMimeType,
+
+    /// True when Caverno composed this message rather than the person.
+    ///
+    /// The tool-result envelope and the in-turn recovery prompts are sent with
+    /// `MessageRole.user` because that is the only role a model will act on,
+    /// but they are not the human's turn. Anything reasoning about "what the
+    /// user last said" has to skip them: session 3c1f6c02 dropped an attached
+    /// screenshot from the final answer because the envelope had become the
+    /// latest user message and carried no image.
+    @Default(false) bool isSynthesizedPrompt,
     String? originalImagePath,
     String? originalImageMimeType,
     String? participantId,
