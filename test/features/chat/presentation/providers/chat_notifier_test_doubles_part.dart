@@ -19,6 +19,52 @@ AppSettings _baseTestSettings() {
   return AppSettings.defaults().copyWith(enableLlmSessionLogs: false);
 }
 
+/// Conversation project ids that `_TestCodingProjectsNotifier` must resolve
+/// to an on-disk root. SEC4.4b denies mutations when the selected project is
+/// missing, so workflow fixtures that write files need these entries.
+const _fixtureCodingProjectRootsById = <String, String>{
+  'project-1': '/tmp',
+  'todo-project': '/tmp',
+  'git-lifecycle': '/tmp/project',
+};
+
+CodingProject _fixtureCodingProject({
+  String id = 'project-1',
+  String? rootPath,
+}) {
+  return CodingProject(
+    id: id,
+    name: id,
+    rootPath: rootPath ?? _fixtureCodingProjectRootsById[id] ?? '/tmp/project',
+    createdAt: DateTime(2026, 1, 1),
+    updatedAt: DateTime(2026, 1, 1),
+  );
+}
+
+/// SEC4.4b rewrites mutation paths through symlinks, so `/tmp/...` on macOS
+/// becomes `/private/tmp/...`. Assertions that name a fixture path have to
+/// compare against that canonical form.
+String resolvedFixturePath(String path) {
+  final file = File(path);
+  var current = file.parent;
+  final remaining = <String>[file.uri.pathSegments.last];
+  while (true) {
+    if (current.existsSync()) {
+      var joined = current.resolveSymbolicLinksSync();
+      for (final segment in remaining.reversed) {
+        joined = '$joined${Platform.pathSeparator}$segment';
+      }
+      return joined;
+    }
+    remaining.add(current.path.split(Platform.pathSeparator).last);
+    final parent = current.parent;
+    if (parent.path == current.path) {
+      return file.absolute.path;
+    }
+    current = parent;
+  }
+}
+
 class _TestSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
@@ -336,7 +382,8 @@ class _GitLifecycleGoalConversationsNotifier
       messages: const <Message>[],
       createdAt: now,
       updatedAt: now,
-      workspaceMode: WorkspaceMode.chat,
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'git-lifecycle',
       goal: ConversationGoal(
         id: 'goal-1',
         objective:
@@ -353,8 +400,8 @@ class _GitLifecycleGoalConversationsNotifier
     return ConversationsState(
       conversations: [conversation],
       currentConversationId: conversation.id,
-      activeWorkspaceMode: WorkspaceMode.chat,
-      activeProjectId: null,
+      activeWorkspaceMode: WorkspaceMode.coding,
+      activeProjectId: 'git-lifecycle',
     );
   }
 
@@ -513,7 +560,22 @@ class _WorkflowTestConversationsNotifier extends ConversationsNotifier {
 
 class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
   @override
-  CodingProjectsState build() => CodingProjectsState.initial();
+  CodingProjectsState build() {
+    final now = DateTime(2026, 1, 1);
+    return CodingProjectsState(
+      projects: [
+        for (final entry in _fixtureCodingProjectRootsById.entries)
+          CodingProject(
+            id: entry.key,
+            name: entry.key,
+            rootPath: entry.value,
+            createdAt: now,
+            updatedAt: now,
+          ),
+      ],
+      selectedProjectId: null,
+    );
+  }
 }
 
 class _FixedConversationsNotifier extends ConversationsNotifier {
@@ -2762,6 +2824,7 @@ class _ContentToolSettingsNotifier extends SettingsNotifier {
       assistantMode: AssistantMode.general,
       mcpEnabled: false,
       demoMode: false,
+      codingApprovalMode: ToolApprovalMode.defaultPermissions,
       confirmFileMutations: true,
       confirmLocalCommands: true,
     );
@@ -3037,10 +3100,12 @@ class _WritingFileMcpToolService extends McpToolService
         errorMessage: 'path is required',
       );
     }
+    final rootPath = await Directory(root.path).resolveSymbolicLinks();
     final targetPath = File(resolvedPath).absolute.path;
-    final rootPath = root.absolute.path;
-    if (targetPath != rootPath &&
-        !targetPath.startsWith('$rootPath${Platform.pathSeparator}')) {
+    final rootPrefix = rootPath.endsWith(Platform.pathSeparator)
+        ? rootPath
+        : '$rootPath${Platform.pathSeparator}';
+    if (targetPath != rootPath && !targetPath.startsWith(rootPrefix)) {
       return McpToolResult(
         toolName: name,
         result: jsonEncode({'error': 'Path must stay inside the fixture.'}),

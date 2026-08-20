@@ -2925,7 +2925,7 @@ void main() {
       ]);
       expect(
         toolService.executedToolArguments.last,
-        containsPair('path', sourceFile.path),
+        containsPair('path', resolvedFixturePath(sourceFile.path)),
       );
       expect(dataSource.finalAnswerTemperatures, hasLength(2));
       expect(dataSource.toolResultBatches, hasLength(3));
@@ -8756,7 +8756,20 @@ with open(path, "rb") as file:
             _ToolEnabledNoVerificationSettingsNotifier.new,
           ),
           conversationsNotifierProvider.overrideWith(
-            _TestConversationsNotifier.new,
+            () => _WorkflowTestConversationsNotifier(
+              Conversation(
+                id: 'terminal-tool-role-optional-follow-up',
+                title: 'Weather',
+                messages: const <Message>[],
+                createdAt: DateTime(2026, 1, 1),
+                updatedAt: DateTime(2026, 1, 1),
+                workspaceMode: WorkspaceMode.coding,
+                projectId: 'project-1',
+              ),
+            ),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(_fixtureCodingProject()),
           ),
           chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
           sessionMemoryServiceProvider.overrideWithValue(
@@ -9872,6 +9885,11 @@ with open(path, "rb") as file:
         ),
         conversationsNotifierProvider.overrideWith(
           _GitLifecycleGoalConversationsNotifier.new,
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(
+            _fixtureCodingProject(id: 'git-lifecycle'),
+          ),
         ),
         chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
         sessionMemoryServiceProvider.overrideWithValue(
@@ -12705,29 +12723,44 @@ with open(path, "rb") as file:
             );
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
-        await toolNotifier.sendMessage('Create the ping utility files');
-        await Future<void>.delayed(Duration.zero);
+        final sendFuture = toolNotifier.sendMessage(
+          'Create the ping utility files',
+        );
+        await _waitForCondition(
+          () => toolNotifier.state.pendingFileOperation != null,
+        );
 
         final firstPending = toolNotifier.state.pendingFileOperation;
         expect(firstPending, isNotNull);
         expect(
           firstPending!.path,
-          '/tmp/content-tools-project/src/ping_utils.py',
+          resolvedFixturePath(
+            '/tmp/content-tools-project/src/ping_utils.py',
+          ),
         );
 
         toolNotifier.resolveFileOperation(id: firstPending.id, approved: true);
-        await Future<void>.delayed(Duration.zero);
+        await _waitForCondition(() {
+          final pending = toolNotifier.state.pendingFileOperation;
+          return pending != null && pending.id != firstPending.id;
+        });
 
         final secondPending = toolNotifier.state.pendingFileOperation;
         expect(secondPending, isNotNull);
         expect(
           secondPending!.path,
-          '/tmp/content-tools-project/tests/test_ping_utils.py',
+          resolvedFixturePath(
+            '/tmp/content-tools-project/tests/test_ping_utils.py',
+          ),
         );
 
         toolNotifier.resolveFileOperation(id: secondPending.id, approved: true);
-        await Future<void>.delayed(Duration.zero);
-        await Future<void>.delayed(Duration.zero);
+        await _waitForCondition(
+          () =>
+              toolNotifier.state.pendingFileOperation == null &&
+              !toolNotifier.state.isLoading,
+        );
+        await sendFuture;
 
         expect(toolNotifier.state.pendingFileOperation, isNull);
         expect(toolNotifier.state.isLoading, isFalse);
@@ -12796,14 +12829,20 @@ with open(path, "rb") as file:
           );
       final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
-      await toolNotifier.sendMessage('Create the config files');
-      await Future<void>.delayed(Duration.zero);
+      final sendFuture = toolNotifier.sendMessage('Create the config files');
+      await _waitForCondition(
+        () => toolNotifier.state.pendingFileOperation != null,
+      );
 
       final pending = toolNotifier.state.pendingFileOperation;
       expect(pending, isNotNull);
       toolNotifier.resolveFileOperation(id: pending!.id, approved: true);
-      await Future<void>.delayed(Duration.zero);
-      await Future<void>.delayed(Duration.zero);
+      await _waitForCondition(
+        () =>
+            streamingDataSource.requests.length >= 2 &&
+            !toolNotifier.state.isLoading,
+      );
+      await sendFuture;
 
       expect(streamingDataSource.requests, hasLength(2));
       final continuationPrompt = streamingDataSource.requests.last.last.content;
@@ -15226,14 +15265,20 @@ with open(path, "rb") as file:
           );
       final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
-      await toolNotifier.sendMessage('Create the config files');
-      await Future<void>.delayed(Duration.zero);
+      final sendFuture = toolNotifier.sendMessage('Create the config files');
+      await _waitForCondition(
+        () => toolNotifier.state.pendingFileOperation != null,
+      );
 
       final pending = toolNotifier.state.pendingFileOperation;
       expect(pending, isNotNull);
       toolNotifier.resolveFileOperation(id: pending!.id, approved: true);
-      await Future<void>.delayed(Duration.zero);
-      await Future<void>.delayed(Duration.zero);
+      await _waitForCondition(
+        () =>
+            streamingDataSource.requests.length >= 2 &&
+            !toolNotifier.state.isLoading,
+      );
+      await sendFuture;
 
       expect(streamingDataSource.requests, hasLength(2));
       final continuationPrompt = streamingDataSource.requests.last.last.content;
@@ -16315,13 +16360,9 @@ with open(path, "rb") as file:
           bypassPlanMode: true,
           origin: ChatInteractionOrigin.remote,
         );
-        for (
-          var i = 0;
-          i < 10 && toolNotifier.state.pendingFileOperation == null;
-          i += 1
-        ) {
-          await Future<void>.delayed(Duration.zero);
-        }
+        await _waitForCondition(
+          () => toolNotifier.state.pendingFileOperation != null,
+        );
 
         final pending = toolNotifier.state.pendingFileOperation;
         expect(pending, isNotNull);
@@ -17401,10 +17442,11 @@ name: caverno_diagnostic_feedback_fixture
 environment:
   sdk: '>=3.0.0 <4.0.0'
 ''');
+      final canonicalRoot = Directory(projectRoot.resolveSymbolicLinksSync());
       final project = CodingProject(
         id: 'project-1',
         name: 'Project',
-        rootPath: projectRoot.path,
+        rootPath: canonicalRoot.path,
         createdAt: DateTime(2026, 5, 26),
         updatedAt: DateTime(2026, 5, 26),
       );
@@ -17424,7 +17466,7 @@ void main() {
           ),
         ],
       );
-      final toolService = _WritingFileMcpToolService(projectRoot);
+      final toolService = _WritingFileMcpToolService(canonicalRoot);
       final appLifecycleService = _MockAppLifecycleService();
       when(() => appLifecycleService.isInBackground).thenReturn(false);
       final toolContainer = ProviderContainer(

@@ -69,7 +69,20 @@ void registerChatNotifierExecutionRuntimeTests() {
             _ToolEnabledNoConfirmSettingsNotifier.new,
           ),
           conversationsNotifierProvider.overrideWith(
-            _TestConversationsNotifier.new,
+            () => _WorkflowTestConversationsNotifier(
+              Conversation(
+                id: 'read-file-replay-recovery',
+                title: 'CLI',
+                messages: const <Message>[],
+                createdAt: DateTime(2026, 1, 1),
+                updatedAt: DateTime(2026, 1, 1),
+                workspaceMode: WorkspaceMode.coding,
+                projectId: 'project-1',
+              ),
+            ),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(_fixtureCodingProject()),
           ),
           chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
           sessionMemoryServiceProvider.overrideWithValue(
