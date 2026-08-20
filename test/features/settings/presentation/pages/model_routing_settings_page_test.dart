@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/pages/model_routing_settings_page.dart';
+import 'package:caverno/features/settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -27,9 +28,39 @@ class _TestTranslationLoader extends AssetLoader {
   }
 }
 
+class _StubModelCapabilityAutoProbeNotifier
+    extends ModelCapabilityAutoProbeNotifier {
+  @override
+  Future<void> runForCurrentModel({
+    bool force = false,
+    String source = 'probe',
+  }) async {}
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
+
+  // The base model picker moved here from General settings, so this page is
+  // now the only place a model is chosen.
+  testWidgets('picking the base model persists it in settings', (tester) async {
+    final settings = AppSettings.defaults().copyWith(model: 'main-model');
+
+    await _pumpModelRoutingPage(
+      tester,
+      settings: settings,
+      loadModels: () async => ['main-model', 'small-model'],
+    );
+
+    await tester.tap(find.byKey(const ValueKey('model-routing-base-model')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('small-model').last);
+    await tester.pumpAndSettle();
+
+    final element = tester.element(find.byType(ModelRoutingSettingsPage));
+    final container = ProviderScope.containerOf(element);
+    expect(container.read(settingsNotifierProvider).model, 'small-model');
+  });
 
   testWidgets('assigning a role model persists it in settings', (tester) async {
     final settings = AppSettings.defaults().copyWith(model: 'main-model');
@@ -293,6 +324,9 @@ Future<void> _pumpModelRoutingPage(
           return ProviderScope(
             overrides: [
               sharedPreferencesProvider.overrideWithValue(prefs),
+              modelCapabilityAutoProbeNotifierProvider.overrideWith(
+                _StubModelCapabilityAutoProbeNotifier.new,
+              ),
               modelListProvider(
                 modelConfig,
               ).overrideWith((ref) => loadModels()),
