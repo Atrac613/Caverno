@@ -327,7 +327,9 @@ void registerChatNotifierGoalAutoContinueTests() {
       final project = CodingProject(
         id: 'goal-auto-continue',
         name: 'Goal Auto Continue',
-        rootPath: '/tmp/goal-auto-continue',
+        rootPath: (Directory(
+          '/tmp/goal-auto-continue',
+        )..createSync(recursive: true)).path,
         createdAt: DateTime(2026, 5, 25, 10),
         updatedAt: DateTime(2026, 5, 25, 10),
       );
@@ -2393,10 +2395,13 @@ ProviderContainer _goalAutoContinueContainer({
 }) {
   final appLifecycleService = _MockAppLifecycleService();
   when(() => appLifecycleService.isInBackground).thenReturn(false);
+  // The mutation fence resolves this root before any write and denies one
+  // that is not on disk, so the fixture has to create it.
+  final root = Directory('/tmp/$projectId')..createSync(recursive: true);
   final project = CodingProject(
     id: projectId,
     name: projectId,
-    rootPath: '/tmp/$projectId',
+    rootPath: root.path,
     createdAt: DateTime(2026, 5, 25, 10),
     updatedAt: DateTime(2026, 5, 25, 10),
   );

@@ -101,9 +101,32 @@ part 'chat_notifier_network_mutation_part.dart';
 part 'chat_notifier_unexecuted_action_retry_part.dart';
 part 'chat_notifier_printed_tool_call_part.dart';
 
+/// Project roots the fixtures below name by literal path.
+const _fixtureProjectRoots = <String>[
+  '/tmp/project',
+  '/tmp/project-1',
+  '/tmp/content-tools-project',
+  '/tmp/planning-project',
+  '/tmp/thread-switch-project',
+  '/tmp/caverno',
+  '/tmp/caverno-path-dedupe',
+  '/tmp/goal-auto-content-tool',
+  '/tmp/goal-auto-continue-off',
+  '/tmp/question-switch-project',
+];
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(registerChatTurnOwnerFallback);
+  // SEC4.4b resolves a project root through symlinks before any write and
+  // denies one that does not exist, so fixtures naming a root have to put it
+  // on disk. Without this the suite passes or fails by whatever happens to be
+  // in /tmp, which is how these four tests drifted in the first place.
+  setUpAll(() {
+    for (final path in _fixtureProjectRoots) {
+      Directory(path).createSync(recursive: true);
+    }
+  });
 
   late ProviderContainer container;
   late ChatNotifier notifier;
