@@ -25,6 +25,8 @@ It also records a future platform vision layer. These milestones are deliberatel
   compatibility diagnostics.
 - `HOOK<number>` — External config hooks and lifecycle integration points for
   local automation, agent-kb, and future Claude-like hook flexibility.
+- `RAG<number>` — Local project knowledge retrieval, grounding, and federation
+  with durable external knowledge layers such as agent-kb.
 - `EDGE<number>` — Embedded on-device runtime adapters and offline fallback.
 - `EVAL-MOBILE<number>` — Flutter/mobile coding eval packs and visual
   regression harnesses.
@@ -141,7 +143,7 @@ structurally unmotivated to build:
 | Local LLM | LL2 | done | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |
 | Local LLM | LL3 | done | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
 | Local LLM | LL4 | done | M | LL3 | Repo map v1: ranked, compressed symbol outline injected into the system prompt. |
-| Local LLM | LL5 | done | M | F4, LL4 | Local semantic history search via `/v1/embeddings`, stored in the drift database. Semantic *code* search is a deferred follow-up. |
+| Local LLM | LL5 | done | M | F4, LL4 | Local semantic history search via `/v1/embeddings`, stored in the drift database. Semantic *code* search is owned by RAG1-RAG3. |
 | Local LLM | LL6 | done | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
 | Local LLM | LL7 | done | M | F2, LL3 | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. |
 | Local LLM | LL8 | done | M | LL1 | LAN inference mesh: discover/register OpenAI-compatible endpoints and route secondary calls per role with health fallback. Main-conversation fan-out is a deferred follow-up; task-based primary-model routing is tracked as LL24/LL25. |
@@ -177,6 +179,12 @@ structurally unmotivated to build:
 | Local LLM | LL38 | done | S-M | LL31, LL33 | Mid-turn interruption (steering): an opt-in `interrupt: true` send joins the running turn instead of queueing behind it. Committed into the turn history at the top of `_prepareMessagesForLLM`, so every request path (native tools, content-tag tools, plain streaming) carries it without a per-site injection; rules in `TurnSteeringPolicy`, per-owner state in `TurnSteeringRegistry`, uncarried steers returned to `ThreadScopedMessageQueue` by the turn release scope. Ground-truth live canary with a queued control arm. |
 | Local LLM | LL39 | done | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
+| Retrieval | RAG1 | next | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract before production code or ranking changes. |
+| Retrieval | RAG2 | later | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects and an incremental SQLite/FTS5 index over active-project code and Markdown. |
+| Retrieval | RAG3 | later | M | RAG2, LL5, F6, LL39 | Bounded local vector retrieval, weighted RRF, context budgeting, and an active-project `search_knowledge` tool. |
+| Retrieval | RAG4 | blocked | M | RAG1, RAG3, HOOK1, SEC1, SEC2, agent-kb provenance | Federate agent-kb memories and wiki pages without copying its raw archive or database into Caverno. Blocked upstream: `kb_search` exposes no timestamp, wiki hits carry no confidence or source agent, and archiving rejects any agent outside `{claude, codex}`. |
+| Retrieval | RAG5 | later | S-M | RAG3, RAG4, LL23 | Evaluate deterministic local/agent-kb routing in shadow before automatic retrieval changes prompts or turn cost. |
+| Retrieval | RAG6 | later | S-M | RAG5, COMPAT1, LL39 | Make evidence-backed Go/No-Go decisions for optional reranking and ANN vector search. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: the baseline is implemented, but the 2026-08-14 audit reopened classifier exhaustiveness, host-read trust, and external-MCP routine policy. |
@@ -883,15 +891,266 @@ Implementation slices:
   `McpToolService` to stay within the F1 line budget).
 
 Deferred follow-up:
-- Semantic *code* search (embedding workspace files) — see the cost/benefit
-  notes; lexical search-strengthening (ripgrep/symbol search) is the
-  recommended cheaper alternative.
+- Semantic *code* search (embedding workspace files) is now owned by RAG1-RAG3.
+  The new track preserves the original evidence-first rule: baseline lexical
+  retrieval before adding vector cost.
 - Optional rerank stage via llama.cpp `POST /reranking` (reranker model with
-  `--pooling rank`) when the endpoint advertises it.
+  `--pooling rank`) is owned by the RAG6 Go/No-Go gate.
 - An ANN vector index (e.g. `sqlite-vec`) if the brute-force store ever needs
-  to scale beyond conversation history.
+  to scale beyond conversation history is also owned by RAG6.
 - A separate embeddings base-URL/key (today embeddings reuse the chat
   endpoint), to support a dedicated single-model llama.cpp embeddings server.
+
+## Local Knowledge Retrieval Track (RAG1-RAG6)
+
+This track turns LL5's deferred semantic code search into a measured local
+grounding system without duplicating agent-kb. Caverno owns the current project
+snapshot: code, Markdown, revision, content hash, and line spans. agent-kb keeps
+ownership of raw Codex/Claude/Caverno archives, derived memories, generated wiki
+pages, confidence, and supersession. The databases remain separate; Caverno
+federates agent-kb through its existing reviewed stdio MCP boundary.
+
+The first user-visible entry point is an explicit read-only
+`search_knowledge` tool. Automatic retrieval remains shadow-only until RAG5's
+precision, quality, latency, and token gates pass. Retrieved text is evidence,
+not user authority, and must retain SEC1/SEC2 provenance and taint semantics.
+
+Placement rule: **retrieval over state Caverno itself mutates lives in the app;
+retrieval over knowledge that outlives the app and is shared with other agents
+lives behind external middleware.** That is why RAG2/RAG3 are in-app and RAG4 is
+federated, and the split rests on four properties rather than on preference.
+Invalidation is the decisive one: the events that stale an index — `edit_file`
+mutations, LL2 checkpoints and reverts, branch switches, project-root changes —
+all originate inside Caverno, so an external indexer would race the app's own
+writes through a file watcher and would still miss the semantics of a revert.
+Trust is the second: local project files can be cited as `projectTrusted` with
+line spans and content hashes, while the same content arriving through an MCP
+boundary becomes external evidence that RAG4 explicitly refuses to promote.
+Cost is the third and it cuts against a new service: the heavy stages are
+already out of process — embeddings over `/v1/embeddings`, optional reranking
+over llama.cpp `/reranking` — so what remains in-app is chunking, SQLite/FTS5,
+bounded cosine, fusion, and budgeting, none of which a sidecar would accelerate.
+Availability is the fourth: a sidecar that must be running to answer turns
+contradicts the graceful-degradation rule the rest of this roadmap follows.
+
+Corollary: do not stand up a third knowledge store. Caverno owns one database
+and agent-kb owns another; a separate retrieval service would add a third
+schema and lifecycle. Knowledge that belongs outside the app — durable history,
+cross-repository documentation, LLM-synthesized pages — is extended in agent-kb,
+which already carries FTS5 with a Japanese LIKE fallback, wiki generation, a
+reviewed MCP surface, and its own dashboard.
+
+Placement is therefore an adapter choice, not an architectural one.
+`KnowledgeRetriever` is a port with local-drift and agent-kb-MCP adapters, so
+RAG1 can measure `H(local)`, `H(agent-kb)`, and `H+AK` as separate arms and the
+in-app-versus-external question is settled by the report rather than by
+discussion.
+
+### RAG1: Retrieval Evaluation Contract
+
+Status: `next`
+
+Scope:
+- Add a versioned mini-repository, query/qrels/answer-key schemas, and
+  deterministic JSON plus Markdown reports.
+- Compare lexical (`L`), vector (`V`), local hybrid (`H`), agent-kb (`AK`),
+  federated (`H+AK`), no-retrieval, and small-corpus full-context controls.
+- Measure object/chunk Recall@K, Hit@K, MRR, nDCG, grounded answer and citation
+  quality, latency, RSS/VRAM, and prompt/context tokens.
+- Separate current implementation facts, historical decisions, cross-source
+  conflicts, Japanese queries, and unanswerable/adversarial cases.
+- Attribute every Japanese lexical miss to either FTS5 tokenization or ranking.
+  The conversation index tokenizes with `unicode61`, which does not segment
+  Japanese, so an unattributed lexical score would measure the tokenizer and
+  read as a retrieval result.
+
+Acceptance criteria:
+- A deterministic 20-case seed records the corpus hash, build commit/dirty
+  state, embedding fingerprint, hardware, and warm/cold state.
+- `not_available` is distinct from a zero score when agent-kb or embeddings are
+  absent.
+- Every case declares whether current source or historical memory is
+  authoritative; current code and historical rationale are never silently
+  treated as interchangeable.
+- A negative control passes: a deliberately broken arm (empty index, shuffled
+  ranking, stubbed-out fusion) makes the suite fail. An instrument that cannot
+  detect a known-bad retriever is never reported as green.
+- Downstream gates are expressed at the seed's resolution. A 20-case seed moves
+  Recall@K in five-point steps, so comparative tolerances are written as case
+  counts, never as sub-case percentages.
+- Production retrieval behavior is unchanged in this milestone.
+
+Promotion gate:
+- RAG2 stays `later` until lexical misses, the metric policy version, and the
+  current-versus-historical authority rules are reviewable in one report.
+
+### RAG2: Local Project Knowledge Index
+
+Status: `later`
+
+Scope:
+- Add storage-independent Knowledge Object, Chunk, Provenance, retriever, fusion,
+  reranker, and router contracts under a dedicated `features/knowledge` boundary.
+- Add additive drift tables and an FTS5 index to the existing Caverno database;
+  do not change LL5 conversation-search behavior or repurpose its embedding rows.
+- Record the vector-storage decision explicitly. The existing `Embeddings` table
+  is already source-generic (`sourceType`, `sourceId`, `chunkIndex`, `model`,
+  `dim`), so the default is a new `sourceType` plus additive columns rather than
+  a parallel table. Either way, LL5 rows are appended alongside, never rewritten.
+- Choose the FTS5 tokenizer for CJK before measuring lexical quality. The
+  conversation index uses `unicode61`, which cannot segment Japanese; a
+  `trigram` tokenizer or an explicit bigram index is a prerequisite for the
+  lexical-first rule below to hold for Japanese queries.
+- Index active-project code and Markdown incrementally with content hashes,
+  revision, repo-relative location, one-based line spans, and source trust.
+- Use symbol/heading-aware chunking with bounded file count, file bytes, corpus
+  bytes, symlink containment, binary detection, and generated-file exclusions.
+- Ship lexical-only indexing/search first; embedding availability is not a
+  prerequisite for correctness.
+
+Acceptance criteria:
+- Migration preserves all existing conversation, memory, LL5 embedding, and
+  usage rows.
+- Re-index is atomic, unchanged content is skipped, delete/disable removes FTS
+  visibility, and rebuild/reopen are deterministic.
+- Absolute home paths are not rendered into prompts or normal result logs.
+- Root escape, secret-like content, partial failure, and UI-isolate blocking have
+  focused tests and measured baselines.
+
+Promotion gate:
+- Lexical-only retrieval beats the RAG1 no-retrieval and small-corpus
+  full-context controls on the fixture. If full-context wins at project scale,
+  a documented No-Go for RAG3 is a valid outcome, as it is for RAG6.
+- The SEC1 classification items reopened by the 2026-08-14 audit are closed,
+  since this milestone reads project files under that perimeter.
+
+### RAG3: Hybrid Retrieval And `search_knowledge`
+
+Status: `later`
+
+Scope:
+- Reuse `EmbeddingsClient` transport behind a Knowledge embedding port and
+  store vectors with a model/endpoint/dimension fingerprint.
+- Add bounded brute-force cosine retrieval, lexical/vector parallel retrieval,
+  weighted reciprocal-rank fusion (`k=60`), deterministic deduplication,
+  adjacent-chunk merging, source diversity, and a hard context-token budget.
+- Expose active-project results through a read-only `search_knowledge` built-in
+  tool with stable citation IDs and explicit degraded reasons. Degraded reasons
+  come from the existing `EmbeddingsFailure` (`EmbeddingsClient.lastFailure`),
+  which today only diagnostics read; production callers discard the cause.
+- Classify `search_knowledge` in `BuiltInToolRegistry` as initial-load or
+  intentionally deferred, per F6. The catalog is prefix-stable under LL22, so
+  the choice is a per-request token cost on every turn, not a one-time cost.
+- Keep the default reranker as no-op and fall back to lexical retrieval when
+  embeddings fail or the bounded vector corpus cannot be searched safely.
+
+Initial gates on the versioned fixture:
+- Hybrid object Recall@10 >= 0.85, Hit@5 >= 0.85, and MRR@10 >= 0.65.
+- Hybrid loses to the better lexical/vector arm on at most one fixture case.
+  Stated in cases because the 20-case seed cannot resolve a smaller difference.
+- Context-budget violations and unnecessary search calls on no-search turns are
+  both zero.
+- The prompt-token delta of adding `search_knowledge` to the stable prefix is
+  measured and recorded, against the eight tools that already carry roughly
+  two-thirds of all tool results.
+- A local-LLM canary completes tool call -> provenance-bearing evidence ->
+  cited answer without making an embedding endpoint mandatory.
+
+### RAG4: Federated agent-kb Retrieval
+
+Status: `blocked`
+
+Blocked on (verified against agent-kb on 2026-08-20):
+- `kb_search` memory hits return `id`, `kind`, `repo_root`, `text`, `rationale`,
+  `tags`, `source_agent`, `source_session_id`, and `confidence` — but no
+  timestamp. The conflict-surfacing criterion below needs one.
+- Wiki-page hits return `title`, `path`, `page`, `snippet`, and `score` only:
+  no confidence, no source agent, no timestamp.
+- Archiving rejects any agent outside `{claude, codex}`, so Caverno sessions
+  have no distinct source identity.
+
+These are agent-kb changes, not Caverno changes. Track them as a milestone in
+agent-kb's own `ROADMAP.md`; a cross-repository dependency recorded on one side
+only does not survive.
+
+Platform reach:
+- The reviewed agent-kb boundary is stdio, and `McpStdioClient` spawns it with
+  an unguarded `Process.start`. Subprocess spawning is unavailable on iOS and
+  effectively unavailable on Android, so this milestone as scoped reaches
+  desktop only. Caverno ships five platforms; the gap has to be a decision, not
+  an omission.
+- Pick one before implementation: declare RAG4 desktop-only, have agent-kb
+  expose an HTTP/SSE MCP surface next to its stdio server, or reach it through
+  the Remote Coding paired desktop. The third option composes with the
+  placement rule above — on mobile the coding workspace is already remote, so
+  the index belongs on the paired desktop rather than on the phone.
+
+Scope:
+- Add an `AgentKbKnowledgeRetriever` over the existing reviewed stdio MCP
+  connection and the existing `kb_search` surface; do not add another network
+  API or read `~/.kb` directly.
+- Map memories and wiki pages to stable `agent-kb://` citations carrying repo,
+  source agent/session, confidence, timestamp, and historical/generated status.
+- Fuse local and agent-kb rankings while retaining each source rank and trust.
+- Treat current project files as authority for current implementation, and
+  agent-kb as authority for historical decisions. Surface conflicts with both
+  timestamps/revisions instead of choosing silently.
+- Fail open to local retrieval on process absence, timeout, malformed response,
+  or a legacy response without the new provenance fields.
+
+Acceptance criteria:
+- No raw hook archive, transcript, prompt, or git diff is copied into Caverno's
+  database or sent to an embeddings endpoint by this integration.
+- Repo-scope leakage is zero, superseded memories stay excluded by agent-kb,
+  and mixed MCP evidence is not globally promoted to `projectTrusted`.
+- agent-kb failure does not fail local search or the chat turn.
+- `H+AK` preserves agent-kb's historical Hit@5 and improves the cross-source
+  conflict/consistency pack over either source alone.
+
+Dependency note:
+- HOOK1 supplies the current reviewed MCP and basic archive bridge. HOOK2 is not
+  required for read-only federation; it later improves the completeness of
+  tool-outcome-derived memories.
+- Before production wiring, agent-kb must expose additive, versioned provenance
+  on `kb_search` and recognize new Caverno sessions as a distinct source rather
+  than archiving them under the Codex namespace. The specific gaps are listed
+  under "Blocked on" above; this milestone stays `blocked` until they ship.
+
+### RAG5: Router Shadow Mode
+
+Status: `later`
+
+Scope:
+- Classify each turn as `none`, `local`, `agentKb`, or `both` using deterministic
+  rules and stable reason codes.
+- Record shadow decisions and estimated cost without retrieving, changing the
+  prompt, or delaying the turn.
+- Evaluate coding/general/plan modes separately.
+
+Activation gate:
+- Should-retrieve precision >= 0.90 and recall >= 0.85.
+- Unnecessary retrieval rate <= 0.05 and source-selection accuracy >= 0.85.
+- A separate active canary shows answer-quality non-regression and reports the
+  added latency and tokens before any automatic route becomes default.
+
+### RAG6: Scale And Reranking Decision
+
+Status: `later`
+
+Scope:
+- Benchmark 1k/10k/20k/50k chunks with cold/warm p50/p95 latency, Caverno RSS,
+  embedding/reranker VRAM, storage bytes, and chat-model eviction events.
+- Compare no-op/RRF against an optional capability-confirmed local reranker.
+- Replace only the vector-retriever adapter with ANN if measurements justify it;
+  preserve the Knowledge schema and retrieval contracts.
+
+Decision gates:
+- Consider ANN when 20k hybrid p95 exceeds 350 ms or retrieval increases peak
+  RSS by more than 128 MiB.
+- Consider a reranker only when quality improves within 1,200 ms added p95 with
+  zero OOM or chat-model eviction.
+- If neither gate clears, record No-Go evidence and complete the milestone
+  without adding either dependency.
 
 ### LL6: KV-Cache-Friendly Mode
 
