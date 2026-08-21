@@ -6,6 +6,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/services/login_shell_environment.dart';
 import 'first_party_tool_execution_result.dart';
+import 'git_command_path_escape_guard.dart';
 import 'project_mutation_path_fence.dart';
 import 'turn_project_root.dart';
 
@@ -429,7 +430,17 @@ class GitTools {
       });
     }
 
-    final environment = await LoginShellEnvironment.instance.environment();
+    final relocation = GitCommandPathEscapeGuard.relocationPayload(
+      args: args,
+      workingDirectory: authorizedWorkingDirectory,
+    );
+    if (relocation != null) {
+      return _failureExecution(relocation);
+    }
+
+    final environment = GitCommandPathEscapeGuard.sanitizedEnvironment(
+      await LoginShellEnvironment.instance.environment(),
+    );
 
     // `git init` is the one write operation that must run before a repository
     // exists. All other subcommands keep the repository preflight.
@@ -501,6 +512,16 @@ class GitTools {
       if (forcePushPreflightError != null) {
         return forcePushPreflightError;
       }
+    }
+
+    final pathEscape = await GitCommandPathEscapeGuard.evaluate(
+      args: args,
+      toolName: 'git_execute_command',
+      projectRoot: _authorizedProjectRoot(projectRoot),
+      workingDirectory: authorizedWorkingDirectory,
+    );
+    if (pathEscape != null) {
+      return _failureExecution(pathEscape);
     }
 
     try {
