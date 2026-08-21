@@ -18,6 +18,7 @@ import '../../../../core/services/voice_providers.dart';
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/utils/attachment_format.dart';
+import '../../../settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/conversation_goal.dart';
 import 'composer_attachment_button.dart';
@@ -228,6 +229,16 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     _controller.addListener(_handleTextChanged);
     _handleDroppedImageAttachment();
     _handleDroppedVideoAttachment();
+    // Whether this endpoint takes video decides whether the attachments menu
+    // offers it, and nothing resolves that at launch: the capability probe runs
+    // on a model switch or from a settings screen, so somebody who opens the
+    // app and keeps using the model they had would never see the entry appear.
+    // Idempotent, and costs one HTTP read rather than a generation.
+    unawaited(
+      ref
+          .read(modelCapabilityAutoProbeNotifierProvider.notifier)
+          .ensureVideoInputSupport(),
+    );
   }
 
   @override

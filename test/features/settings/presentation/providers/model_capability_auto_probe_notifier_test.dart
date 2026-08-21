@@ -266,6 +266,63 @@ void main() {
     );
   });
 
+  test('ensureVideoInputSupport resolves without running a probe', () async {
+    final initialSettings = AppSettings.defaults().copyWith(
+      model: 'known-model',
+      modelCapabilityProfiles: [
+        ModelCapabilityProfile(
+          id: '',
+          baseUrl: AppSettings.defaults().baseUrl,
+          model: 'known-model',
+          toolCallStyle: ModelToolCallStyle.nativeToolCalls,
+        ).normalizedForPersistence(),
+      ],
+    );
+    SharedPreferences.setMockInitialValues({
+      'app_settings': jsonEncode(initialSettings.toJson()),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final dataSource = _InstructionOnlyDataSource();
+    var reads = 0;
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        mcpToolServiceProvider.overrideWithValue(null),
+        modalitiesProbeClientProvider.overrideWithValue(
+          () => MockClient((_) async {
+            reads += 1;
+            return http.Response(
+              jsonEncode({
+                'modalities': {'vision': true, 'video': true},
+              }),
+              200,
+              headers: const {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(
+      modelCapabilityAutoProbeNotifierProvider.notifier,
+    );
+    await notifier.ensureVideoInputSupport();
+    // The composer calls this on every mount; the answer does not change.
+    await notifier.ensureVideoInputSupport();
+    await notifier.ensureVideoInputSupport();
+
+    expect(dataSource.requestCount, 0, reason: 'must not spend LLM calls');
+    expect(reads, 1, reason: 'one read per profile, not one per mount');
+    expect(
+      SettingsRepository(
+        prefs,
+      ).load().effectiveModelCapabilityProfile?.videoInputSupport,
+      ModelVideoInputSupport.supported,
+    );
+  });
+
   test('an endpoint that says nothing leaves the profile alone', () async {
     final initialSettings = AppSettings.defaults().copyWith(
       model: 'known-model',

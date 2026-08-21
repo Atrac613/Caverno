@@ -375,7 +375,13 @@ const Map<String, int> _lineBudgets = {
   // composer_video_picker.dart, and the chip's label is on the draft itself.
   // What is left is the composer's own share -- one state field, the send
   // callbacks' new named parameter, and four short actions that delegate.
-  'lib/features/chat/presentation/widgets/message_input.dart': 2265,
+  // +11 to resolve, on mount, whether this endpoint takes video. Nothing runs
+  // the capability probe at launch -- it fires on a model switch or from a
+  // settings screen -- so an endpoint already in use never gained the axis and
+  // the menu entry stayed invisible. The composer is the only consumer of the
+  // answer, so moving the call elsewhere only moves the lines to another
+  // ratcheted file.
+  'lib/features/chat/presentation/widgets/message_input.dart': 2276,
   'lib/features/chat/presentation/widgets/composer_model_selector.dart': 275,
   'lib/features/chat/presentation/widgets/composer_control_chip.dart': 65,
   // +37 for the two video entries and the flag that hides them. This file is

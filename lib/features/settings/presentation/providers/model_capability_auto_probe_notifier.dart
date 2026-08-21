@@ -71,6 +71,8 @@ class ModelCapabilityAutoProbeNotifier
     extends Notifier<ModelCapabilityAutoProbeState> {
   static const autoProbeTimeout = Duration(seconds: 45);
 
+  final Set<String> _videoBackfillAttempted = <String>{};
+
   @override
   ModelCapabilityAutoProbeState build() =>
       ModelCapabilityAutoProbeState.initial;
@@ -176,6 +178,21 @@ class ModelCapabilityAutoProbeNotifier
   /// see a composer button appear, which is not a thing anyone would guess.
   ///
   /// Costs no tokens: asking the endpoint what it accepts is one HTTP read.
+  /// Resolves the video modality for the active model if it is still unknown.
+  ///
+  /// Safe to call from a widget that needs the answer to render: it is
+  /// idempotent, never starts a generation run, and does nothing at all once
+  /// the profile has one. Nothing calls the auto-probe at launch -- it fires on
+  /// a model switch or a settings screen -- so without a caller like that, a
+  /// capability added after a profile was written is never resolved for
+  /// somebody who simply opens the app and keeps using the model they had.
+  Future<void> ensureVideoInputSupport() async {
+    final settings = ref.read(settingsNotifierProvider);
+    final storedProfile = settings.effectiveModelCapabilityProfile;
+    if (storedProfile == null) return;
+    await _backfillVideoInputSupport(settings, storedProfile);
+  }
+
   Future<void> _backfillVideoInputSupport(
     AppSettings settings,
     ModelCapabilityProfile storedProfile,
@@ -183,6 +200,9 @@ class ModelCapabilityAutoProbeNotifier
     if (storedProfile.videoInputSupport != ModelVideoInputSupport.unknown) {
       return;
     }
+    // One read per profile per session. The composer asks on every build of a
+    // fresh conversation, and the answer does not change under us.
+    if (!_videoBackfillAttempted.add(storedProfile.id)) return;
     final client = ref.read(modalitiesProbeClientProvider)();
     final EndpointModalitySupport support;
     try {
