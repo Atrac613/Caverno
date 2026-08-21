@@ -370,6 +370,48 @@ void main() {
       expect(result.stderr, contains('requires an HTTP base URL'));
     });
 
+    test('refuses to become ready when the origin is unreachable', () async {
+      final temporaryDirectory = Directory.systemTemp.createTempSync(
+        'live-llm-loopback-relay-unreachable-test-',
+      );
+      addTearDown(() => temporaryDirectory.deleteSync(recursive: true));
+      // Bind and release a port so nothing is listening on it: the relay can
+      // still bind its own loopback socket, which is exactly the case that used
+      // to be reported as ready.
+      final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final deadPort = probe.port;
+      await probe.close();
+      final readyFile = '${temporaryDirectory.path}/ready';
+
+      final result = await Process.run(_dartExecutable(), [
+        '--disable-dart-dev',
+        'tool/live_llm_loopback_relay.dart',
+        '--base-url',
+        'http://127.0.0.1:$deadPort/v1',
+        '--ready-file',
+        readyFile,
+      ]);
+
+      expect(result.exitCode, 69);
+      expect(result.stderr, contains('cannot reach 127.0.0.1:$deadPort'));
+      expect(
+        File(readyFile).existsSync(),
+        isFalse,
+        reason: 'a relay that cannot reach its origin must not claim readiness',
+      );
+    });
+
+    test('wrapper hands over the relay log when the child fails', () {
+      // Without this the child sees unexplained connection resets and the one
+      // line saying why is deleted during cleanup.
+      final script = File('tool/with_live_llm_loopback.sh').readAsStringSync();
+      expect(script, contains('Live LLM loopback relay log:'));
+      expect(
+        script.indexOf('COMMAND_STATUS=\$?'),
+        lessThan(script.indexOf('Live LLM loopback relay log:')),
+      );
+    });
+
     test('wrapper uses the repository-managed Dart runtime when available', () {
       final script = File('tool/with_live_llm_loopback.sh').readAsStringSync();
       expect(script, contains('[[ -f "\${ROOT_DIR}/.fvmrc" ]]'));
