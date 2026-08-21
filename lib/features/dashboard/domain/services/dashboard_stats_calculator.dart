@@ -8,8 +8,8 @@ class DashboardStatsCalculator {
   // Approximate token count for "Harry Potter and the Philosopher's Stone".
   static const int philosopherStoneTokenReference = 135000;
   static const String _defaultConversationTitle = '__new_conversation__';
-  static const int _minimumAllRangeWeeks = 16;
-  static const int _maximumAllRangeWeeks = 53;
+  /// Sunday-aligned contribution window ending at today (GitHub-style year).
+  static const int _heatmapWeeks = 53;
   static const int _weekLengthDays = 7;
   static const int _sunday = DateTime.sunday;
 
@@ -32,24 +32,25 @@ class DashboardStatsCalculator {
 
     for (final entry in entries) {
       fullActiveDays.add(_dayNumber(entry.day));
+      // Heatmap always covers the past year, independent of the metric range.
+      heatmapCounts.update(
+        _dayNumber(entry.day),
+        (value) => value + 1,
+        ifAbsent: () => 1,
+      );
     }
 
     for (final entry in filteredEntries) {
       sessionIds.add(entry.conversationId);
       final dayNumber = _dayNumber(entry.day);
       activeDays.add(dayNumber);
-      heatmapCounts.update(dayNumber, (value) => value + 1, ifAbsent: () => 1);
       hourCounts[entry.timestamp.hour]++;
       if (entry.message.role == MessageRole.assistant) {
         totalTokens += entry.message.responseMetrics?.totalTokens ?? 0;
       }
     }
 
-    final heatmap = _buildHeatmap(
-      range: range,
-      today: today,
-      countsByDay: heatmapCounts,
-    );
+    final heatmap = _buildHeatmap(today: today, countsByDay: heatmapCounts);
     return DashboardStats(
       sessionCount: sessionIds.length,
       messageCount: filteredEntries.length,
@@ -109,14 +110,16 @@ class DashboardStatsCalculator {
   }
 
   static ActivityHeatmap _buildHeatmap({
-    required DashboardRange range,
     required DateTime today,
     required Map<int, int> countsByDay,
   }) {
-    final startDay = _heatmapStartDay(
-      range: range,
-      today: today,
-      countsByDay: countsByDay,
+    // Oldest on the left, newest (today) on the right.
+    final startDay = _startOfWeek(
+      DateTime(
+        today.year,
+        today.month,
+        today.day - (_heatmapWeeks * _weekLengthDays - 1),
+      ),
     );
     final dayCount = _dayNumber(today) - _dayNumber(startDay) + 1;
     final dailyCounts = List<int>.generate(dayCount, (index) {
@@ -130,58 +133,6 @@ class DashboardStatsCalculator {
       dailyCounts: dailyCounts,
       dailyBuckets: buckets,
     );
-  }
-
-  static DateTime _heatmapStartDay({
-    required DashboardRange range,
-    required DateTime today,
-    required Map<int, int> countsByDay,
-  }) {
-    final todayNumber = _dayNumber(today);
-    return switch (range) {
-      DashboardRange.last7Days => _startOfWeek(
-        DateTime(today.year, today.month, today.day - 7),
-      ),
-      DashboardRange.last30Days => _startOfWeek(
-        DateTime(today.year, today.month, today.day - 30),
-      ),
-      DashboardRange.all => () {
-        final maximumStart = _startOfWeek(
-          DateTime(
-            today.year,
-            today.month,
-            today.day - (_maximumAllRangeWeeks * _weekLengthDays - 1),
-          ),
-        );
-        final minimumStart = _startOfWeek(
-          DateTime(
-            today.year,
-            today.month,
-            today.day - (_minimumAllRangeWeeks * _weekLengthDays - 1),
-          ),
-        );
-        if (countsByDay.isEmpty) {
-          return minimumStart;
-        }
-        final firstActiveNumber = countsByDay.keys.reduce(
-          (value, element) => value < element ? value : element,
-        );
-        final firstActiveDay = _dayFromNumber(firstActiveNumber);
-        final activityStart = _startOfWeek(firstActiveDay);
-        final cappedForMinimum =
-            _dayNumber(activityStart) > _dayNumber(minimumStart)
-            ? minimumStart
-            : activityStart;
-        final cappedForMaximum =
-            _dayNumber(cappedForMinimum) < _dayNumber(maximumStart)
-            ? maximumStart
-            : cappedForMinimum;
-        if (_dayNumber(cappedForMaximum) > todayNumber) {
-          return _startOfWeek(today);
-        }
-        return cappedForMaximum;
-      }(),
-    };
   }
 
   static List<int> _bucketCounts(List<int> counts) {
@@ -291,14 +242,6 @@ class DashboardStatsCalculator {
           normalizedDay.day,
         ).millisecondsSinceEpoch ~/
         Duration.millisecondsPerDay;
-  }
-
-  static DateTime _dayFromNumber(int dayNumber) {
-    final utcDay = DateTime.fromMillisecondsSinceEpoch(
-      dayNumber * Duration.millisecondsPerDay,
-      isUtc: true,
-    );
-    return DateTime(utcDay.year, utcDay.month, utcDay.day);
   }
 }
 

@@ -123,7 +123,31 @@ void main() {
       expect(stats.peakHour, isNull);
       expect(stats.currentStreakDays, 0);
       expect(stats.longestStreakDays, 1);
-      expect(stats.heatmap.dailyCounts.any((count) => count > 0), isFalse);
+      // Heatmap is always a past-year window, so older activity still appears.
+      expect(stats.heatmap.dailyCounts.any((count) => count > 0), isTrue);
+      expect(stats.heatmap.endDay, DateTime(2026, 6, 27));
+    });
+
+    test('heatmap always spans a Sunday-aligned past-year window', () {
+      final all = DashboardStatsCalculator.compute(
+        conversations: const [],
+        range: DashboardRange.all,
+        now: now,
+      );
+      final last7Days = DashboardStatsCalculator.compute(
+        conversations: const [],
+        range: DashboardRange.last7Days,
+        now: now,
+      );
+
+      expect(all.heatmap.startDay, DateTime(2025, 6, 22));
+      expect(all.heatmap.endDay, DateTime(2026, 6, 27));
+      expect(all.heatmap.dailyCounts.length, 371);
+      expect(last7Days.heatmap.startDay, all.heatmap.startDay);
+      expect(
+        last7Days.heatmap.dailyCounts.length,
+        all.heatmap.dailyCounts.length,
+      );
     });
 
     test('buckets heatmap counts with an adaptive intensity ramp', () {
