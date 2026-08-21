@@ -107,7 +107,15 @@ support a model decode-rate claim, even when the probe content passed.
 ## Failure Triage
 
 - `relay exited before becoming ready`: inspect the printed relay error; common
-  causes are an unsupported URL or unavailable Dart runtime.
+  causes are an unsupported URL, an unavailable Dart runtime, or an origin the
+  relay cannot reach.
+- `the loopback relay cannot reach HOST:PORT` with `errno = 65`
+  (`No route to host`) on macOS: this is Local Network Privacy denying the
+  `dart` binary, not a routing fault. Confirm by reaching the same host with
+  `curl` (an Apple binary, exempt) and with `python3`; if those succeed while
+  `dart` and `flutter_tester` fail, enable `dart` under System Settings >
+  Privacy & Security > Local Network. Relaying does not work around this on its
+  own: the relay is itself a Dart binary and is denied the same way.
 - `timed out waiting for the relay`: check local process limits and retry once;
   do not switch to a fixed port.
 - connection failures inside every probe: confirm the wrapper printed both the

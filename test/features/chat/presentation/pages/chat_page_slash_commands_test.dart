@@ -112,6 +112,7 @@ class _SlashChatNotifier extends ChatNotifier {
     String? imageMimeType,
     String? originalImagePath,
     String? originalImageMimeType,
+    VideoAttachmentDraft? video,
     String languageCode = 'en',
     bool isVoiceMode = false,
     bool bypassPlanMode = false,

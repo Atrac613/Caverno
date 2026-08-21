@@ -107,11 +107,14 @@ void main() {
       _result(report, 'vision_tool_observation').status,
       LiveLlmDiagnosticStatus.passed,
     );
+    // Five, not four: video_input_modality skips as well. The fake endpoint
+    // answers no /props, which is the same silence a proxy or a cloud provider
+    // gives, and silence is "not measured" rather than "refused".
     expect(
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.skipped)
           .length,
-      4,
+      5,
     );
   });
 

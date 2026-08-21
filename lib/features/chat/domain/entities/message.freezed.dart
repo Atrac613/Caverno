@@ -298,7 +298,14 @@ mixin _$Message {
 /// user last said" has to skip them: session 3c1f6c02 dropped an attached
 /// screenshot from the final answer because the envelope had become the
 /// latest user message and carried no image.
- bool get isSynthesizedPrompt; String? get originalImagePath; String? get originalImageMimeType; String? get participantId; String? get participantDisplayName; String? get participantRoleLabel; int? get participantColorValue; List<String> get participantToolNames; String? get handoffTargetParticipantId; String? get handoffTargetDisplayName; String? get handoffTargetRoleLabel; MessageResponseMetrics? get responseMetrics;
+ bool get isSynthesizedPrompt; String? get originalImagePath; String? get originalImageMimeType;/// Video attachment, kept out of band.
+///
+/// Unlike [imageBase64] the payload is never stored on the message: a
+/// multi-megabyte base64 string would be rewritten into the conversation's
+/// Hive JSON on every save. The bytes stay in the attachment directory and
+/// are encoded (or served) only at send time.
+ String? get videoPath;/// Set instead of [videoPath] when the person typed a URL by hand.
+ String? get videoUrl; String? get videoMimeType; int? get videoSizeBytes; int? get videoDurationMs; String? get participantId; String? get participantDisplayName; String? get participantRoleLabel; int? get participantColorValue; List<String> get participantToolNames; String? get handoffTargetParticipantId; String? get handoffTargetDisplayName; String? get handoffTargetRoleLabel; MessageResponseMetrics? get responseMetrics;
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -311,16 +318,16 @@ $MessageCopyWith<Message> get copyWith => _$MessageCopyWithImpl<Message>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.isSynthesizedPrompt, isSynthesizedPrompt) || other.isSynthesizedPrompt == isSynthesizedPrompt)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType)&&(identical(other.participantId, participantId) || other.participantId == participantId)&&(identical(other.participantDisplayName, participantDisplayName) || other.participantDisplayName == participantDisplayName)&&(identical(other.participantRoleLabel, participantRoleLabel) || other.participantRoleLabel == participantRoleLabel)&&(identical(other.participantColorValue, participantColorValue) || other.participantColorValue == participantColorValue)&&const DeepCollectionEquality().equals(other.participantToolNames, participantToolNames)&&(identical(other.handoffTargetParticipantId, handoffTargetParticipantId) || other.handoffTargetParticipantId == handoffTargetParticipantId)&&(identical(other.handoffTargetDisplayName, handoffTargetDisplayName) || other.handoffTargetDisplayName == handoffTargetDisplayName)&&(identical(other.handoffTargetRoleLabel, handoffTargetRoleLabel) || other.handoffTargetRoleLabel == handoffTargetRoleLabel)&&(identical(other.responseMetrics, responseMetrics) || other.responseMetrics == responseMetrics));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.isSynthesizedPrompt, isSynthesizedPrompt) || other.isSynthesizedPrompt == isSynthesizedPrompt)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType)&&(identical(other.videoPath, videoPath) || other.videoPath == videoPath)&&(identical(other.videoUrl, videoUrl) || other.videoUrl == videoUrl)&&(identical(other.videoMimeType, videoMimeType) || other.videoMimeType == videoMimeType)&&(identical(other.videoSizeBytes, videoSizeBytes) || other.videoSizeBytes == videoSizeBytes)&&(identical(other.videoDurationMs, videoDurationMs) || other.videoDurationMs == videoDurationMs)&&(identical(other.participantId, participantId) || other.participantId == participantId)&&(identical(other.participantDisplayName, participantDisplayName) || other.participantDisplayName == participantDisplayName)&&(identical(other.participantRoleLabel, participantRoleLabel) || other.participantRoleLabel == participantRoleLabel)&&(identical(other.participantColorValue, participantColorValue) || other.participantColorValue == participantColorValue)&&const DeepCollectionEquality().equals(other.participantToolNames, participantToolNames)&&(identical(other.handoffTargetParticipantId, handoffTargetParticipantId) || other.handoffTargetParticipantId == handoffTargetParticipantId)&&(identical(other.handoffTargetDisplayName, handoffTargetDisplayName) || other.handoffTargetDisplayName == handoffTargetDisplayName)&&(identical(other.handoffTargetRoleLabel, handoffTargetRoleLabel) || other.handoffTargetRoleLabel == handoffTargetRoleLabel)&&(identical(other.responseMetrics, responseMetrics) || other.responseMetrics == responseMetrics));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,isSynthesizedPrompt,originalImagePath,originalImageMimeType,participantId,participantDisplayName,participantRoleLabel,participantColorValue,const DeepCollectionEquality().hash(participantToolNames),handoffTargetParticipantId,handoffTargetDisplayName,handoffTargetRoleLabel,responseMetrics]);
+int get hashCode => Object.hashAll([runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,isSynthesizedPrompt,originalImagePath,originalImageMimeType,videoPath,videoUrl,videoMimeType,videoSizeBytes,videoDurationMs,participantId,participantDisplayName,participantRoleLabel,participantColorValue,const DeepCollectionEquality().hash(participantToolNames),handoffTargetParticipantId,handoffTargetDisplayName,handoffTargetRoleLabel,responseMetrics]);
 
 @override
 String toString() {
-  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, isSynthesizedPrompt: $isSynthesizedPrompt, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType, participantId: $participantId, participantDisplayName: $participantDisplayName, participantRoleLabel: $participantRoleLabel, participantColorValue: $participantColorValue, participantToolNames: $participantToolNames, handoffTargetParticipantId: $handoffTargetParticipantId, handoffTargetDisplayName: $handoffTargetDisplayName, handoffTargetRoleLabel: $handoffTargetRoleLabel, responseMetrics: $responseMetrics)';
+  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, isSynthesizedPrompt: $isSynthesizedPrompt, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType, videoPath: $videoPath, videoUrl: $videoUrl, videoMimeType: $videoMimeType, videoSizeBytes: $videoSizeBytes, videoDurationMs: $videoDurationMs, participantId: $participantId, participantDisplayName: $participantDisplayName, participantRoleLabel: $participantRoleLabel, participantColorValue: $participantColorValue, participantToolNames: $participantToolNames, handoffTargetParticipantId: $handoffTargetParticipantId, handoffTargetDisplayName: $handoffTargetDisplayName, handoffTargetRoleLabel: $handoffTargetRoleLabel, responseMetrics: $responseMetrics)';
 }
 
 
@@ -331,7 +338,7 @@ abstract mixin class $MessageCopyWith<$Res>  {
   factory $MessageCopyWith(Message value, $Res Function(Message) _then) = _$MessageCopyWithImpl;
 @useResult
 $Res call({
- String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, bool isSynthesizedPrompt, String? originalImagePath, String? originalImageMimeType, String? participantId, String? participantDisplayName, String? participantRoleLabel, int? participantColorValue, List<String> participantToolNames, String? handoffTargetParticipantId, String? handoffTargetDisplayName, String? handoffTargetRoleLabel, MessageResponseMetrics? responseMetrics
+ String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, bool isSynthesizedPrompt, String? originalImagePath, String? originalImageMimeType, String? videoPath, String? videoUrl, String? videoMimeType, int? videoSizeBytes, int? videoDurationMs, String? participantId, String? participantDisplayName, String? participantRoleLabel, int? participantColorValue, List<String> participantToolNames, String? handoffTargetParticipantId, String? handoffTargetDisplayName, String? handoffTargetRoleLabel, MessageResponseMetrics? responseMetrics
 });
 
 
@@ -348,7 +355,7 @@ class _$MessageCopyWithImpl<$Res>
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? isSynthesizedPrompt = null,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,Object? participantId = freezed,Object? participantDisplayName = freezed,Object? participantRoleLabel = freezed,Object? participantColorValue = freezed,Object? participantToolNames = null,Object? handoffTargetParticipantId = freezed,Object? handoffTargetDisplayName = freezed,Object? handoffTargetRoleLabel = freezed,Object? responseMetrics = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? isSynthesizedPrompt = null,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,Object? videoPath = freezed,Object? videoUrl = freezed,Object? videoMimeType = freezed,Object? videoSizeBytes = freezed,Object? videoDurationMs = freezed,Object? participantId = freezed,Object? participantDisplayName = freezed,Object? participantRoleLabel = freezed,Object? participantColorValue = freezed,Object? participantToolNames = null,Object? handoffTargetParticipantId = freezed,Object? handoffTargetDisplayName = freezed,Object? handoffTargetRoleLabel = freezed,Object? responseMetrics = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
@@ -361,7 +368,12 @@ as String?,imageMimeType: freezed == imageMimeType ? _self.imageMimeType : image
 as String?,isSynthesizedPrompt: null == isSynthesizedPrompt ? _self.isSynthesizedPrompt : isSynthesizedPrompt // ignore: cast_nullable_to_non_nullable
 as bool,originalImagePath: freezed == originalImagePath ? _self.originalImagePath : originalImagePath // ignore: cast_nullable_to_non_nullable
 as String?,originalImageMimeType: freezed == originalImageMimeType ? _self.originalImageMimeType : originalImageMimeType // ignore: cast_nullable_to_non_nullable
-as String?,participantId: freezed == participantId ? _self.participantId : participantId // ignore: cast_nullable_to_non_nullable
+as String?,videoPath: freezed == videoPath ? _self.videoPath : videoPath // ignore: cast_nullable_to_non_nullable
+as String?,videoUrl: freezed == videoUrl ? _self.videoUrl : videoUrl // ignore: cast_nullable_to_non_nullable
+as String?,videoMimeType: freezed == videoMimeType ? _self.videoMimeType : videoMimeType // ignore: cast_nullable_to_non_nullable
+as String?,videoSizeBytes: freezed == videoSizeBytes ? _self.videoSizeBytes : videoSizeBytes // ignore: cast_nullable_to_non_nullable
+as int?,videoDurationMs: freezed == videoDurationMs ? _self.videoDurationMs : videoDurationMs // ignore: cast_nullable_to_non_nullable
+as int?,participantId: freezed == participantId ? _self.participantId : participantId // ignore: cast_nullable_to_non_nullable
 as String?,participantDisplayName: freezed == participantDisplayName ? _self.participantDisplayName : participantDisplayName // ignore: cast_nullable_to_non_nullable
 as String?,participantRoleLabel: freezed == participantRoleLabel ? _self.participantRoleLabel : participantRoleLabel // ignore: cast_nullable_to_non_nullable
 as String?,participantColorValue: freezed == participantColorValue ? _self.participantColorValue : participantColorValue // ignore: cast_nullable_to_non_nullable
@@ -467,10 +479,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  bool isSynthesizedPrompt,  String? originalImagePath,  String? originalImageMimeType,  String? participantId,  String? participantDisplayName,  String? participantRoleLabel,  int? participantColorValue,  List<String> participantToolNames,  String? handoffTargetParticipantId,  String? handoffTargetDisplayName,  String? handoffTargetRoleLabel,  MessageResponseMetrics? responseMetrics)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  bool isSynthesizedPrompt,  String? originalImagePath,  String? originalImageMimeType,  String? videoPath,  String? videoUrl,  String? videoMimeType,  int? videoSizeBytes,  int? videoDurationMs,  String? participantId,  String? participantDisplayName,  String? participantRoleLabel,  int? participantColorValue,  List<String> participantToolNames,  String? handoffTargetParticipantId,  String? handoffTargetDisplayName,  String? handoffTargetRoleLabel,  MessageResponseMetrics? responseMetrics)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Message() when $default != null:
-return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.isSynthesizedPrompt,_that.originalImagePath,_that.originalImageMimeType,_that.participantId,_that.participantDisplayName,_that.participantRoleLabel,_that.participantColorValue,_that.participantToolNames,_that.handoffTargetParticipantId,_that.handoffTargetDisplayName,_that.handoffTargetRoleLabel,_that.responseMetrics);case _:
+return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.isSynthesizedPrompt,_that.originalImagePath,_that.originalImageMimeType,_that.videoPath,_that.videoUrl,_that.videoMimeType,_that.videoSizeBytes,_that.videoDurationMs,_that.participantId,_that.participantDisplayName,_that.participantRoleLabel,_that.participantColorValue,_that.participantToolNames,_that.handoffTargetParticipantId,_that.handoffTargetDisplayName,_that.handoffTargetRoleLabel,_that.responseMetrics);case _:
   return orElse();
 
 }
@@ -488,10 +500,10 @@ return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStream
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  bool isSynthesizedPrompt,  String? originalImagePath,  String? originalImageMimeType,  String? participantId,  String? participantDisplayName,  String? participantRoleLabel,  int? participantColorValue,  List<String> participantToolNames,  String? handoffTargetParticipantId,  String? handoffTargetDisplayName,  String? handoffTargetRoleLabel,  MessageResponseMetrics? responseMetrics)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  bool isSynthesizedPrompt,  String? originalImagePath,  String? originalImageMimeType,  String? videoPath,  String? videoUrl,  String? videoMimeType,  int? videoSizeBytes,  int? videoDurationMs,  String? participantId,  String? participantDisplayName,  String? participantRoleLabel,  int? participantColorValue,  List<String> participantToolNames,  String? handoffTargetParticipantId,  String? handoffTargetDisplayName,  String? handoffTargetRoleLabel,  MessageResponseMetrics? responseMetrics)  $default,) {final _that = this;
 switch (_that) {
 case _Message():
-return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.isSynthesizedPrompt,_that.originalImagePath,_that.originalImageMimeType,_that.participantId,_that.participantDisplayName,_that.participantRoleLabel,_that.participantColorValue,_that.participantToolNames,_that.handoffTargetParticipantId,_that.handoffTargetDisplayName,_that.handoffTargetRoleLabel,_that.responseMetrics);case _:
+return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.isSynthesizedPrompt,_that.originalImagePath,_that.originalImageMimeType,_that.videoPath,_that.videoUrl,_that.videoMimeType,_that.videoSizeBytes,_that.videoDurationMs,_that.participantId,_that.participantDisplayName,_that.participantRoleLabel,_that.participantColorValue,_that.participantToolNames,_that.handoffTargetParticipantId,_that.handoffTargetDisplayName,_that.handoffTargetRoleLabel,_that.responseMetrics);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -508,10 +520,10 @@ return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStream
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  bool isSynthesizedPrompt,  String? originalImagePath,  String? originalImageMimeType,  String? participantId,  String? participantDisplayName,  String? participantRoleLabel,  int? participantColorValue,  List<String> participantToolNames,  String? handoffTargetParticipantId,  String? handoffTargetDisplayName,  String? handoffTargetRoleLabel,  MessageResponseMetrics? responseMetrics)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  bool isSynthesizedPrompt,  String? originalImagePath,  String? originalImageMimeType,  String? videoPath,  String? videoUrl,  String? videoMimeType,  int? videoSizeBytes,  int? videoDurationMs,  String? participantId,  String? participantDisplayName,  String? participantRoleLabel,  int? participantColorValue,  List<String> participantToolNames,  String? handoffTargetParticipantId,  String? handoffTargetDisplayName,  String? handoffTargetRoleLabel,  MessageResponseMetrics? responseMetrics)?  $default,) {final _that = this;
 switch (_that) {
 case _Message() when $default != null:
-return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.isSynthesizedPrompt,_that.originalImagePath,_that.originalImageMimeType,_that.participantId,_that.participantDisplayName,_that.participantRoleLabel,_that.participantColorValue,_that.participantToolNames,_that.handoffTargetParticipantId,_that.handoffTargetDisplayName,_that.handoffTargetRoleLabel,_that.responseMetrics);case _:
+return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.isSynthesizedPrompt,_that.originalImagePath,_that.originalImageMimeType,_that.videoPath,_that.videoUrl,_that.videoMimeType,_that.videoSizeBytes,_that.videoDurationMs,_that.participantId,_that.participantDisplayName,_that.participantRoleLabel,_that.participantColorValue,_that.participantToolNames,_that.handoffTargetParticipantId,_that.handoffTargetDisplayName,_that.handoffTargetRoleLabel,_that.responseMetrics);case _:
   return null;
 
 }
@@ -523,7 +535,7 @@ return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStream
 @JsonSerializable()
 
 class _Message implements Message {
-  const _Message({required this.id, required this.content, required this.role, required this.timestamp, this.isStreaming = false, this.error, this.imageBase64, this.imageMimeType, this.isSynthesizedPrompt = false, this.originalImagePath, this.originalImageMimeType, this.participantId, this.participantDisplayName, this.participantRoleLabel, this.participantColorValue, final  List<String> participantToolNames = const <String>[], this.handoffTargetParticipantId, this.handoffTargetDisplayName, this.handoffTargetRoleLabel, this.responseMetrics}): _participantToolNames = participantToolNames;
+  const _Message({required this.id, required this.content, required this.role, required this.timestamp, this.isStreaming = false, this.error, this.imageBase64, this.imageMimeType, this.isSynthesizedPrompt = false, this.originalImagePath, this.originalImageMimeType, this.videoPath, this.videoUrl, this.videoMimeType, this.videoSizeBytes, this.videoDurationMs, this.participantId, this.participantDisplayName, this.participantRoleLabel, this.participantColorValue, final  List<String> participantToolNames = const <String>[], this.handoffTargetParticipantId, this.handoffTargetDisplayName, this.handoffTargetRoleLabel, this.responseMetrics}): _participantToolNames = participantToolNames;
   factory _Message.fromJson(Map<String, dynamic> json) => _$MessageFromJson(json);
 
 @override final  String id;
@@ -545,6 +557,18 @@ class _Message implements Message {
 @override@JsonKey() final  bool isSynthesizedPrompt;
 @override final  String? originalImagePath;
 @override final  String? originalImageMimeType;
+/// Video attachment, kept out of band.
+///
+/// Unlike [imageBase64] the payload is never stored on the message: a
+/// multi-megabyte base64 string would be rewritten into the conversation's
+/// Hive JSON on every save. The bytes stay in the attachment directory and
+/// are encoded (or served) only at send time.
+@override final  String? videoPath;
+/// Set instead of [videoPath] when the person typed a URL by hand.
+@override final  String? videoUrl;
+@override final  String? videoMimeType;
+@override final  int? videoSizeBytes;
+@override final  int? videoDurationMs;
 @override final  String? participantId;
 @override final  String? participantDisplayName;
 @override final  String? participantRoleLabel;
@@ -574,16 +598,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.isSynthesizedPrompt, isSynthesizedPrompt) || other.isSynthesizedPrompt == isSynthesizedPrompt)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType)&&(identical(other.participantId, participantId) || other.participantId == participantId)&&(identical(other.participantDisplayName, participantDisplayName) || other.participantDisplayName == participantDisplayName)&&(identical(other.participantRoleLabel, participantRoleLabel) || other.participantRoleLabel == participantRoleLabel)&&(identical(other.participantColorValue, participantColorValue) || other.participantColorValue == participantColorValue)&&const DeepCollectionEquality().equals(other._participantToolNames, _participantToolNames)&&(identical(other.handoffTargetParticipantId, handoffTargetParticipantId) || other.handoffTargetParticipantId == handoffTargetParticipantId)&&(identical(other.handoffTargetDisplayName, handoffTargetDisplayName) || other.handoffTargetDisplayName == handoffTargetDisplayName)&&(identical(other.handoffTargetRoleLabel, handoffTargetRoleLabel) || other.handoffTargetRoleLabel == handoffTargetRoleLabel)&&(identical(other.responseMetrics, responseMetrics) || other.responseMetrics == responseMetrics));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.isSynthesizedPrompt, isSynthesizedPrompt) || other.isSynthesizedPrompt == isSynthesizedPrompt)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType)&&(identical(other.videoPath, videoPath) || other.videoPath == videoPath)&&(identical(other.videoUrl, videoUrl) || other.videoUrl == videoUrl)&&(identical(other.videoMimeType, videoMimeType) || other.videoMimeType == videoMimeType)&&(identical(other.videoSizeBytes, videoSizeBytes) || other.videoSizeBytes == videoSizeBytes)&&(identical(other.videoDurationMs, videoDurationMs) || other.videoDurationMs == videoDurationMs)&&(identical(other.participantId, participantId) || other.participantId == participantId)&&(identical(other.participantDisplayName, participantDisplayName) || other.participantDisplayName == participantDisplayName)&&(identical(other.participantRoleLabel, participantRoleLabel) || other.participantRoleLabel == participantRoleLabel)&&(identical(other.participantColorValue, participantColorValue) || other.participantColorValue == participantColorValue)&&const DeepCollectionEquality().equals(other._participantToolNames, _participantToolNames)&&(identical(other.handoffTargetParticipantId, handoffTargetParticipantId) || other.handoffTargetParticipantId == handoffTargetParticipantId)&&(identical(other.handoffTargetDisplayName, handoffTargetDisplayName) || other.handoffTargetDisplayName == handoffTargetDisplayName)&&(identical(other.handoffTargetRoleLabel, handoffTargetRoleLabel) || other.handoffTargetRoleLabel == handoffTargetRoleLabel)&&(identical(other.responseMetrics, responseMetrics) || other.responseMetrics == responseMetrics));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,isSynthesizedPrompt,originalImagePath,originalImageMimeType,participantId,participantDisplayName,participantRoleLabel,participantColorValue,const DeepCollectionEquality().hash(_participantToolNames),handoffTargetParticipantId,handoffTargetDisplayName,handoffTargetRoleLabel,responseMetrics]);
+int get hashCode => Object.hashAll([runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,isSynthesizedPrompt,originalImagePath,originalImageMimeType,videoPath,videoUrl,videoMimeType,videoSizeBytes,videoDurationMs,participantId,participantDisplayName,participantRoleLabel,participantColorValue,const DeepCollectionEquality().hash(_participantToolNames),handoffTargetParticipantId,handoffTargetDisplayName,handoffTargetRoleLabel,responseMetrics]);
 
 @override
 String toString() {
-  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, isSynthesizedPrompt: $isSynthesizedPrompt, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType, participantId: $participantId, participantDisplayName: $participantDisplayName, participantRoleLabel: $participantRoleLabel, participantColorValue: $participantColorValue, participantToolNames: $participantToolNames, handoffTargetParticipantId: $handoffTargetParticipantId, handoffTargetDisplayName: $handoffTargetDisplayName, handoffTargetRoleLabel: $handoffTargetRoleLabel, responseMetrics: $responseMetrics)';
+  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, isSynthesizedPrompt: $isSynthesizedPrompt, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType, videoPath: $videoPath, videoUrl: $videoUrl, videoMimeType: $videoMimeType, videoSizeBytes: $videoSizeBytes, videoDurationMs: $videoDurationMs, participantId: $participantId, participantDisplayName: $participantDisplayName, participantRoleLabel: $participantRoleLabel, participantColorValue: $participantColorValue, participantToolNames: $participantToolNames, handoffTargetParticipantId: $handoffTargetParticipantId, handoffTargetDisplayName: $handoffTargetDisplayName, handoffTargetRoleLabel: $handoffTargetRoleLabel, responseMetrics: $responseMetrics)';
 }
 
 
@@ -594,7 +618,7 @@ abstract mixin class _$MessageCopyWith<$Res> implements $MessageCopyWith<$Res> {
   factory _$MessageCopyWith(_Message value, $Res Function(_Message) _then) = __$MessageCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, bool isSynthesizedPrompt, String? originalImagePath, String? originalImageMimeType, String? participantId, String? participantDisplayName, String? participantRoleLabel, int? participantColorValue, List<String> participantToolNames, String? handoffTargetParticipantId, String? handoffTargetDisplayName, String? handoffTargetRoleLabel, MessageResponseMetrics? responseMetrics
+ String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, bool isSynthesizedPrompt, String? originalImagePath, String? originalImageMimeType, String? videoPath, String? videoUrl, String? videoMimeType, int? videoSizeBytes, int? videoDurationMs, String? participantId, String? participantDisplayName, String? participantRoleLabel, int? participantColorValue, List<String> participantToolNames, String? handoffTargetParticipantId, String? handoffTargetDisplayName, String? handoffTargetRoleLabel, MessageResponseMetrics? responseMetrics
 });
 
 
@@ -611,7 +635,7 @@ class __$MessageCopyWithImpl<$Res>
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? isSynthesizedPrompt = null,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,Object? participantId = freezed,Object? participantDisplayName = freezed,Object? participantRoleLabel = freezed,Object? participantColorValue = freezed,Object? participantToolNames = null,Object? handoffTargetParticipantId = freezed,Object? handoffTargetDisplayName = freezed,Object? handoffTargetRoleLabel = freezed,Object? responseMetrics = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? isSynthesizedPrompt = null,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,Object? videoPath = freezed,Object? videoUrl = freezed,Object? videoMimeType = freezed,Object? videoSizeBytes = freezed,Object? videoDurationMs = freezed,Object? participantId = freezed,Object? participantDisplayName = freezed,Object? participantRoleLabel = freezed,Object? participantColorValue = freezed,Object? participantToolNames = null,Object? handoffTargetParticipantId = freezed,Object? handoffTargetDisplayName = freezed,Object? handoffTargetRoleLabel = freezed,Object? responseMetrics = freezed,}) {
   return _then(_Message(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
@@ -624,7 +648,12 @@ as String?,imageMimeType: freezed == imageMimeType ? _self.imageMimeType : image
 as String?,isSynthesizedPrompt: null == isSynthesizedPrompt ? _self.isSynthesizedPrompt : isSynthesizedPrompt // ignore: cast_nullable_to_non_nullable
 as bool,originalImagePath: freezed == originalImagePath ? _self.originalImagePath : originalImagePath // ignore: cast_nullable_to_non_nullable
 as String?,originalImageMimeType: freezed == originalImageMimeType ? _self.originalImageMimeType : originalImageMimeType // ignore: cast_nullable_to_non_nullable
-as String?,participantId: freezed == participantId ? _self.participantId : participantId // ignore: cast_nullable_to_non_nullable
+as String?,videoPath: freezed == videoPath ? _self.videoPath : videoPath // ignore: cast_nullable_to_non_nullable
+as String?,videoUrl: freezed == videoUrl ? _self.videoUrl : videoUrl // ignore: cast_nullable_to_non_nullable
+as String?,videoMimeType: freezed == videoMimeType ? _self.videoMimeType : videoMimeType // ignore: cast_nullable_to_non_nullable
+as String?,videoSizeBytes: freezed == videoSizeBytes ? _self.videoSizeBytes : videoSizeBytes // ignore: cast_nullable_to_non_nullable
+as int?,videoDurationMs: freezed == videoDurationMs ? _self.videoDurationMs : videoDurationMs // ignore: cast_nullable_to_non_nullable
+as int?,participantId: freezed == participantId ? _self.participantId : participantId // ignore: cast_nullable_to_non_nullable
 as String?,participantDisplayName: freezed == participantDisplayName ? _self.participantDisplayName : participantDisplayName // ignore: cast_nullable_to_non_nullable
 as String?,participantRoleLabel: freezed == participantRoleLabel ? _self.participantRoleLabel : participantRoleLabel // ignore: cast_nullable_to_non_nullable
 as String?,participantColorValue: freezed == participantColorValue ? _self.participantColorValue : participantColorValue // ignore: cast_nullable_to_non_nullable

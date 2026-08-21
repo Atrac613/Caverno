@@ -12,15 +12,19 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/model_usage_sink.dart';
 import '../../domain/entities/tool_call_info.dart';
+import '../../domain/entities/video_delivery.dart';
 import '../../domain/services/chat_request_prefix_stability_service.dart';
 import '../../domain/services/qwen38_request_thinking_policy.dart';
 import 'chat_completion_request_fallback.dart';
 import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
+import 'chat_message_payload_formatter.dart';
 import 'chat_request_logger.dart';
+import 'video_delivery_ledger.dart';
 import 'chat_response_telemetry.dart';
 import 'chat_tool_result_message_formatter.dart';
 import 'qwen38_request_policy_client.dart';
+import 'video_content_part_client.dart';
 
 export '../../domain/entities/chat_completion_terminal_metadata.dart';
 export '../../domain/entities/tool_call_info.dart'
@@ -31,6 +35,14 @@ export 'chat_datasource.dart'
         ChatCompletionStreamCancelledException,
         StreamWithToolsResult,
         StreamedChatCompletion;
+
+/// Turns the videos attached to [messages] into URLs the endpoint can fetch,
+/// keyed by the id of the message each one belongs to.
+///
+/// Returning an entry is what makes a video ride along with the request; a
+/// message absent from the map is sent with an omission notice instead.
+typedef VideoAttachmentResolver =
+    Future<Map<String, VideoDelivery>> Function(List<Message> messages);
 
 class ChatRemoteDataSource
     implements
@@ -47,8 +59,10 @@ class ChatRemoteDataSource
     ModelUsageSink? usageSink,
     String endpointId = '',
     String? Function()? usageLabelResolver,
+    VideoAttachmentResolver? videoAttachmentResolver,
     this.defaultTopP,
-  }) : _qwen38RequestPolicy = Qwen38RequestThinkingPolicy(
+  }) : _videoAttachmentResolver = videoAttachmentResolver,
+       _qwen38RequestPolicy = Qwen38RequestThinkingPolicy(
          reasoningEffort: reasoningEffort,
        ),
        _requestFallback = ChatCompletionRequestFallback(reasoningEffort),
@@ -61,21 +75,29 @@ class ChatRemoteDataSource
          apiKey ?? ApiConstants.defaultApiKey,
          baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
          defaultHeaders: ApiConstants.userAgentHeaders,
-         httpClient: Qwen38RequestPolicyClient(
-           delegate: httpClient ?? http.Client(),
-           policy: Qwen38RequestThinkingPolicy(
-             reasoningEffort: reasoningEffort,
+         // Both clients are wrapped: video parts are written into the JSON
+         // body, so a stream path left unwrapped would silently drop the
+         // attachment and answer blind.
+         httpClient: VideoContentPartClient(
+           delegate: Qwen38RequestPolicyClient(
+             delegate: httpClient ?? http.Client(),
+             policy: Qwen38RequestThinkingPolicy(
+               reasoningEffort: reasoningEffort,
+             ),
            ),
          ),
-         streamClientFactory: () => Qwen38RequestPolicyClient(
-           delegate: streamClientFactory?.call() ?? http.Client(),
-           policy: Qwen38RequestThinkingPolicy(
-             reasoningEffort: reasoningEffort,
+         streamClientFactory: () => VideoContentPartClient(
+           delegate: Qwen38RequestPolicyClient(
+             delegate: streamClientFactory?.call() ?? http.Client(),
+             policy: Qwen38RequestThinkingPolicy(
+               reasoningEffort: reasoningEffort,
+             ),
            ),
          ),
        );
 
   final OpenAIClient _client;
+  final VideoAttachmentResolver? _videoAttachmentResolver;
   final Qwen38RequestThinkingPolicy _qwen38RequestPolicy;
   final ChatCompletionRequestFallback _requestFallback;
   final ChatResponseTelemetry _telemetry;
@@ -98,6 +120,7 @@ class ChatRemoteDataSource
   static const _responseNormalizer = ChatCompletionResponseNormalizer();
   static const _logger = ChatRequestLogger();
   static const _toolResultFormatter = ChatToolResultMessageFormatter();
+  static const _payloadFormatter = ChatMessagePayloadFormatter();
 
   static bool isNativeToolStreamFormatError(Object error) {
     final message = error.toString().toLowerCase();
@@ -207,6 +230,7 @@ class ChatRemoteDataSource
       final formattedMessages = _formatMessages(
         messages,
         stripImages: stripImages,
+        videoUrls: await _resolveVideoUrls(messages),
       );
 
       appLog('[LLM] ========== streamChatCompletion ==========');
@@ -342,10 +366,6 @@ class ChatRemoteDataSource
   }) {
     _resetResponseTelemetry();
     var usage = TokenUsage.zero;
-    final formattedMessages = _formatMessages(
-      messages,
-      stripImages: _shouldStripImages(messages),
-    );
     final modelId = model ?? ApiConstants.defaultModel;
 
     appLog('[LLM] ========== streamChatCompletionWithTools ==========');
@@ -365,6 +385,13 @@ class ChatRemoteDataSource
     Stream<String> contentStream() async* {
       timer.start();
       try {
+        // Formatted here rather than above: this method hands back a stream
+        // synchronously, and resolving a video attachment needs an await.
+        final formattedMessages = _formatMessages(
+          messages,
+          stripImages: _shouldStripImages(messages),
+          videoUrls: await _resolveVideoUrls(messages),
+        );
         final stream = _streamWithReasoningFallback(
           operation: 'streamChatCompletionWithTools',
           send: (includeReasoning) => _client.chat.completions.createStream(
@@ -563,6 +590,7 @@ class ChatRemoteDataSource
     final formattedMessages = _formatMessages(
       messages,
       stripImages: _shouldStripImages(messages),
+      videoUrls: await _resolveVideoUrls(messages),
     );
     final modelId = model ?? ApiConstants.defaultModel;
 
@@ -690,6 +718,7 @@ class ChatRemoteDataSource
     final formattedMessages = _formatMessages(
       messages,
       stripImages: _shouldStripImages(messages),
+      videoUrls: await _resolveVideoUrls(messages),
     );
     final modelId = model ?? ApiConstants.defaultModel;
 
@@ -895,6 +924,7 @@ class ChatRemoteDataSource
     final formattedMessages = _formatMessages(
       messages,
       stripImages: _shouldStripImages(messages),
+      videoUrls: await _resolveVideoUrls(messages),
     );
     final modelId = model ?? ApiConstants.defaultModel;
 
@@ -1054,65 +1084,35 @@ class ChatRemoteDataSource
     }
   }
 
-  /// Whether images should be left out of this request.
-  ///
-  /// They ride along only while the latest user message still carries one, so
-  /// a conversation can continue against a non-vision endpoint once the
-  /// attachment is behind it.
-  ///
-  /// The tool-result paths hardcoded this to true, on the theory that images
-  /// had "already been processed at tool call time". They had not: a follow-up
-  /// carries the newest assistant text, not the first-pass reading, so any
-  /// vision turn that touched a tool answered blind -- session cad9b37c said
-  /// "No sessions yet" about a screenshot it had just read as holding 106.
-  /// Re-sending costs ~1k prompt tokens and sits in the cached prefix.
-  bool _shouldStripImages(List<Message> messages) {
-    // Caverno's own prompts are not the person's turn. Treating the
-    // tool-result envelope as the latest user message stripped the screenshot
-    // from the answer the reader sees (session 3c1f6c02).
-    final lastUserMessage = messages.lastWhere(
-      (m) => m.role == MessageRole.user && !m.isSynthesizedPrompt,
-      orElse: () => messages.last,
-    );
-    return lastUserMessage.imageBase64 == null;
+  final _videoDeliveries = VideoDeliveryLedger();
+
+  /// How the video on [id] went out, or null if that message carried none.
+  VideoDelivery? videoDeliveryFor(String id) => _videoDeliveries[id];
+
+  /// The videos this request may carry, keyed by message id. Empty when no
+  /// resolver was supplied, which keeps existing callers on the same request.
+  Future<Map<String, String>> _resolveVideoUrls(List<Message> messages) async {
+    final resolver = _videoAttachmentResolver;
+    const none = <String, String>{};
+    if (resolver == null) return none;
+    if (!messages.any((m) => m.hasVideoAttachment)) return none;
+    final deliveries = await resolver(messages);
+    _videoDeliveries.recordAll(deliveries);
+    return deliveries.map((id, delivery) => MapEntry(id, delivery.url));
   }
+
+  bool _shouldStripImages(List<Message> messages) =>
+      _payloadFormatter.shouldStripImages(messages);
 
   List<ChatMessage> _formatMessages(
     List<Message> messages, {
     bool stripImages = false,
-  }) {
-    return messages.map<ChatMessage>((m) {
-      switch (m.role) {
-        case MessageRole.user:
-          // Use parts format (multimodal) when image is present
-          // Skip images if stripImages=true
-          if (m.imageBase64 != null && !stripImages) {
-            final parts = <ContentPart>[];
-            if (m.content.isNotEmpty) {
-              parts.add(ContentPart.text(m.content));
-            }
-            parts.add(
-              ContentPart.imageBase64(
-                data: m.imageBase64!,
-                mediaType: m.imageMimeType ?? 'image/jpeg',
-              ),
-            );
-            return ChatMessage.user(parts);
-          }
-          if (m.imageBase64 == null) return ChatMessage.user(m.content);
-          // Name the removal. Saying nothing is what let a model answer a
-          // screenshot question from an empty context and invent the screen.
-          const omitted = '[image attachment omitted from this request]';
-          return ChatMessage.user(
-            m.content.isEmpty ? omitted : '${m.content}\n\n$omitted',
-          );
-        case MessageRole.assistant:
-          return ChatMessage.assistant(content: m.content);
-        case MessageRole.system:
-          return ChatMessage.system(m.content);
-      }
-    }).toList();
-  }
+    Map<String, String> videoUrls = const <String, String>{},
+  }) => _payloadFormatter.format(
+    messages,
+    stripImages: stripImages,
+    videoUrls: videoUrls,
+  );
 
   @visibleForTesting
   String? tryRecoverRawAssistantTextFromError(Object error) {

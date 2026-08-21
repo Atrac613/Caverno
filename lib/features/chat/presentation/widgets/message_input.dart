@@ -17,12 +17,16 @@ import '../../../../core/services/macos_main_app_permissions_service.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/types/assistant_mode.dart';
+import '../../../../core/utils/attachment_format.dart';
+import '../../../settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/conversation_goal.dart';
 import 'composer_attachment_button.dart';
 import 'composer_control_chip.dart';
 import 'composer_model_selector.dart';
 import 'composer_shortcut_bar.dart';
+import 'composer_video_picker.dart';
+import '../../domain/entities/video_attachment_draft.dart';
 import 'conversation_goal_status_presentation.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../slash_commands/slash_command.dart';
@@ -65,6 +69,7 @@ class MessageInput extends ConsumerStatefulWidget {
     this.composerPrefillText,
     this.composerPrefillVersion = 0,
     this.droppedImageAttachment,
+    this.droppedVideoAttachment,
     this.codingGoal,
     this.onCodingGoalEdit,
     this.onCodingGoalMarkComplete,
@@ -86,8 +91,9 @@ class MessageInput extends ConsumerStatefulWidget {
     String? imageBase64,
     String? imageMimeType,
     String? originalImagePath,
-    String? originalImageMimeType,
-  )
+    String? originalImageMimeType, {
+    VideoAttachmentDraft? video,
+  })
   onSend;
 
   /// Same payload as [onSend], but asking to join the reply already running
@@ -97,8 +103,9 @@ class MessageInput extends ConsumerStatefulWidget {
     String? imageBase64,
     String? imageMimeType,
     String? originalImagePath,
-    String? originalImageMimeType,
-  )?
+    String? originalImageMimeType, {
+    VideoAttachmentDraft? video,
+  })?
   onInterrupt;
   final VoidCallback onCancel;
   final bool isLoading;
@@ -114,6 +121,7 @@ class MessageInput extends ConsumerStatefulWidget {
   final String? composerPrefillText;
   final int composerPrefillVersion;
   final MessageInputImageAttachment? droppedImageAttachment;
+  final MessageInputVideoAttachment? droppedVideoAttachment;
   final ConversationGoal? codingGoal;
   final VoidCallback? onCodingGoalEdit;
   final VoidCallback? onCodingGoalMarkComplete;
@@ -137,11 +145,13 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   final _controller = TextEditingController();
   late final FocusNode _focusNode;
   final _imagePicker = ImagePicker();
+  final _videoPicker = const ComposerVideoPicker();
 
   Uint8List? _selectedImageBytes;
   String? _selectedImageMimeType;
   String? _selectedOriginalImagePath;
   String? _selectedOriginalImageMimeType;
+  VideoAttachmentDraft? _selectedVideo;
   String? _selectedFileName;
   String? _selectedFileContent;
   int? _selectedFileSize;
@@ -151,6 +161,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   bool _isRecording = false;
   bool _hasText = false;
   int? _handledDroppedImageAttachmentId;
+  int? _handledDroppedVideoAttachmentId;
   MessageInputSlashSuggestionState _slashSuggestionState =
       MessageInputSlashSuggestionState.empty;
   MessageInputWorktreeMode _worktreeMode = MessageInputWorktreeMode.local;
@@ -217,6 +228,17 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     );
     _controller.addListener(_handleTextChanged);
     _handleDroppedImageAttachment();
+    _handleDroppedVideoAttachment();
+    // Whether this endpoint takes video decides whether the attachments menu
+    // offers it, and nothing resolves that at launch: the capability probe runs
+    // on a model switch or from a settings screen, so somebody who opens the
+    // app and keeps using the model they had would never see the entry appear.
+    // Idempotent, and costs one HTTP read rather than a generation.
+    unawaited(
+      ref
+          .read(modelCapabilityAutoProbeNotifierProvider.notifier)
+          .ensureVideoInputSupport(),
+    );
   }
 
   @override
@@ -231,6 +253,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   void didUpdateWidget(covariant MessageInput oldWidget) {
     super.didUpdateWidget(oldWidget);
     _handleDroppedImageAttachment();
+    _handleDroppedVideoAttachment();
 
     if (!identical(widget.slashCommands, oldWidget.slashCommands)) {
       _refreshSlashSuggestions();
@@ -253,6 +276,21 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       }
       _focusNode.requestFocus();
     });
+  }
+
+  void _handleDroppedVideoAttachment() {
+    final attachment = widget.droppedVideoAttachment;
+    if (attachment == null ||
+        attachment.id == _handledDroppedVideoAttachmentId) {
+      return;
+    }
+
+    _handledDroppedVideoAttachmentId = attachment.id;
+    unawaited(() async {
+      final choice = await _videoPicker.fromDroppedFile(attachment);
+      if (!mounted || _handledDroppedVideoAttachmentId != attachment.id) return;
+      _applyVideoChoice(choice, focusComposer: true);
+    }());
   }
 
   void _handleDroppedImageAttachment() {
@@ -316,6 +354,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
   bool get _hasAttachment {
     return _selectedImageBytes != null ||
+        _selectedVideo != null ||
         _selectedFileContent != null ||
         _selectedFileDurablePath != null;
   }
@@ -783,6 +822,32 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     }
   }
 
+  void _clearVideo() {
+    setState(() => _selectedVideo = null);
+    _refreshSlashSuggestions();
+  }
+
+  Future<void> _pickVideo() async =>
+      _applyVideoChoice(await _videoPicker.pick());
+
+  Future<void> _enterVideoUrl() async =>
+      _applyVideoChoice(await _videoPicker.promptForUrl(context));
+
+  /// Takes the attachment a [ComposerVideoChoice] produced, says what it said.
+  void _applyVideoChoice(
+    ComposerVideoChoice choice, {
+    bool focusComposer = false,
+  }) {
+    if (!mounted) return;
+    if (choice.video != null) {
+      setState(() => _selectedVideo = choice.video);
+      _refreshSlashSuggestions();
+      if (focusComposer) _focusNode.requestFocus();
+    }
+    final notice = choice.notice;
+    if (notice != null) _showSlashCommandFeedback(notice);
+  }
+
   void _clearImage() {
     setState(() {
       _selectedImageBytes = null;
@@ -1059,12 +1124,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     }
   }
 
-  String _formattedFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-
   void _handleSend() {
     unawaited(_handleSendAsync());
   }
@@ -1077,6 +1136,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final text = _controller.text.trim();
     if (text.isEmpty &&
         _selectedImageBytes == null &&
+        _selectedVideo == null &&
         _selectedFileContent == null &&
         _selectedFileDurablePath == null) {
       return;
@@ -1093,7 +1153,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       final fileBlock = '[File: $_selectedFileName]\n$_selectedFileContent';
       finalText = text.isEmpty ? fileBlock : '$fileBlock\n\n$text';
     } else if (_selectedFileDurablePath != null) {
-      final human = _formattedFileSize(_selectedFileSize ?? 0);
+      final human = formatAttachmentSize(_selectedFileSize ?? 0);
       final ref =
           '[Attached file: $_selectedFileDurablePath ($human)]\n'
           'This file is large and is available on disk at the path above. '
@@ -1103,7 +1163,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     }
 
     if (_shouldSendWorktreeSession) {
-      if (_selectedImageBytes != null) {
+      if (_selectedImageBytes != null || _selectedVideo != null) {
         _showSlashCommandFeedback('message.worktree_image_unavailable'.tr());
         _focusNode.requestFocus();
         return;
@@ -1149,10 +1209,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       _selectedImageMimeType,
       _selectedOriginalImagePath,
       _selectedOriginalImageMimeType,
+      video: _selectedVideo,
     );
     _pushToHistory(text);
     _controller.clear();
     _clearImage();
+    _clearVideo();
     _clearFile();
     _focusNode.requestFocus();
   }
@@ -1601,6 +1663,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final canSend =
         _hasText ||
         _selectedImageBytes != null ||
+        _selectedVideo != null ||
         _selectedFileContent != null ||
         _selectedFileDurablePath != null;
 
@@ -1654,6 +1717,11 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   ],
                 ),
               ),
+            if (_selectedVideo != null)
+              ComposerVideoChip(
+                video: _selectedVideo!,
+                onCleared: _clearVideo,
+              ),
             // File preview
             if (_selectedFileName != null)
               Container(
@@ -1671,7 +1739,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                     ),
                     label: Text(
                       '$_selectedFileName '
-                      '(${_formattedFileSize(_selectedFileSize ?? 0)})',
+                      '(${formatAttachmentSize(_selectedFileSize ?? 0)})',
                       overflow: TextOverflow.ellipsis,
                     ),
                     deleteIcon: const Icon(Icons.close, size: 18),
@@ -1816,6 +1884,11 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                               ComposerAttachmentButton(
                                 onPickImage: _pickImage,
                                 onPickFile: _pickFile,
+                                onPickVideo: _pickVideo,
+                                onEnterVideoUrl: _enterVideoUrl,
+                                videoEnabled: ref
+                                    .watch(settingsNotifierProvider)
+                                    .videoAttachmentsAvailable,
                               ),
                               const SizedBox(width: 4),
                               if (widget.isCodingWorkspace) ...[

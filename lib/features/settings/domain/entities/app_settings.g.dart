@@ -230,6 +230,13 @@ _ModelCapabilityProfile _$ModelCapabilityProfileFromJson(
         unknownValue: ModelVisionSupport.unknown,
       ) ??
       ModelVisionSupport.unknown,
+  videoInputSupport:
+      $enumDecodeNullable(
+        _$ModelVideoInputSupportEnumMap,
+        json['videoInputSupport'],
+        unknownValue: ModelVideoInputSupport.unknown,
+      ) ??
+      ModelVideoInputSupport.unknown,
   usableContextTokens: (json['usableContextTokens'] as num?)?.toInt() ?? 0,
   probedAt: json['probedAt'] == null
       ? null
@@ -257,6 +264,8 @@ Map<String, dynamic> _$ModelCapabilityProfileToJson(
   'editFormatPreference':
       _$ModelEditFormatPreferenceEnumMap[instance.editFormatPreference]!,
   'visionSupport': _$ModelVisionSupportEnumMap[instance.visionSupport]!,
+  'videoInputSupport':
+      _$ModelVideoInputSupportEnumMap[instance.videoInputSupport]!,
   'usableContextTokens': instance.usableContextTokens,
   'probedAt': instance.probedAt?.toIso8601String(),
   'probeSummary': instance.probeSummary,
@@ -301,6 +310,12 @@ const _$ModelVisionSupportEnumMap = {
   ModelVisionSupport.ignored: 'ignored',
   ModelVisionSupport.basic: 'basic',
   ModelVisionSupport.reliable: 'reliable',
+};
+
+const _$ModelVideoInputSupportEnumMap = {
+  ModelVideoInputSupport.unknown: 'unknown',
+  ModelVideoInputSupport.unsupported: 'unsupported',
+  ModelVideoInputSupport.supported: 'supported',
 };
 
 _ModelHarnessConfig _$ModelHarnessConfigFromJson(Map<String, dynamic> json) =>
@@ -395,6 +410,13 @@ _ModelCapabilityProfileRevision _$ModelCapabilityProfileRevisionFromJson(
         unknownValue: ModelVisionSupport.unknown,
       ) ??
       ModelVisionSupport.unknown,
+  videoInputSupport:
+      $enumDecodeNullable(
+        _$ModelVideoInputSupportEnumMap,
+        json['videoInputSupport'],
+        unknownValue: ModelVideoInputSupport.unknown,
+      ) ??
+      ModelVideoInputSupport.unknown,
   usableContextTokens: (json['usableContextTokens'] as num).toInt(),
   probeSummary: json['probeSummary'] as String? ?? '',
   benchmarkPoints: (json['benchmarkPoints'] as num?)?.toInt(),
@@ -437,6 +459,8 @@ Map<String, dynamic> _$ModelCapabilityProfileRevisionToJson(
   'editFormatPreference':
       _$ModelEditFormatPreferenceEnumMap[instance.editFormatPreference]!,
   'visionSupport': _$ModelVisionSupportEnumMap[instance.visionSupport]!,
+  'videoInputSupport':
+      _$ModelVideoInputSupportEnumMap[instance.videoInputSupport]!,
   'usableContextTokens': instance.usableContextTokens,
   'probeSummary': instance.probeSummary,
   'benchmarkPoints': instance.benchmarkPoints,
@@ -466,6 +490,7 @@ _LlmEndpoint _$LlmEndpointFromJson(Map<String, dynamic> json) => _LlmEndpoint(
   apiKey: json['apiKey'] as String? ?? '',
   model: json['model'] as String? ?? '',
   enabled: json['enabled'] as bool? ?? true,
+  videoInputEnabled: json['videoInputEnabled'] as bool? ?? false,
   source:
       $enumDecodeNullable(
         _$LlmEndpointSourceEnumMap,
@@ -486,6 +511,7 @@ Map<String, dynamic> _$LlmEndpointToJson(_LlmEndpoint instance) =>
       'apiKey': instance.apiKey,
       'model': instance.model,
       'enabled': instance.enabled,
+      'videoInputEnabled': instance.videoInputEnabled,
       'source': _$LlmEndpointSourceEnumMap[instance.source]!,
       'createdAt': instance.createdAt?.toIso8601String(),
     };

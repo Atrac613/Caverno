@@ -1193,7 +1193,7 @@ as DateTime?,
 /// @nodoc
 mixin _$ModelCapabilityProfile {
 
- String get id;@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider get provider; String get baseUrl; String get model;@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle get toolCallStyle;@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport get structuredOutputSupport;@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity get goalUpdateFidelity;@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference get editFormatPreference;@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport get visionSupport; int get usableContextTokens; DateTime? get probedAt; String get probeSummary; Map<String, String> get probeMetadata;
+ String get id;@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider get provider; String get baseUrl; String get model;@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle get toolCallStyle;@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport get structuredOutputSupport;@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity get goalUpdateFidelity;@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference get editFormatPreference;@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport get visionSupport;@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) ModelVideoInputSupport get videoInputSupport; int get usableContextTokens; DateTime? get probedAt; String get probeSummary; Map<String, String> get probeMetadata;
 /// Create a copy of ModelCapabilityProfile
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1206,16 +1206,16 @@ $ModelCapabilityProfileCopyWith<ModelCapabilityProfile> get copyWith => _$ModelC
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other.probeMetadata, probeMetadata));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.videoInputSupport, videoInputSupport) || other.videoInputSupport == videoInputSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other.probeMetadata, probeMetadata));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,usableContextTokens,probedAt,probeSummary,const DeepCollectionEquality().hash(probeMetadata));
+int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,videoInputSupport,usableContextTokens,probedAt,probeSummary,const DeepCollectionEquality().hash(probeMetadata));
 
 @override
 String toString() {
-  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, usableContextTokens: $usableContextTokens, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
+  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, videoInputSupport: $videoInputSupport, usableContextTokens: $usableContextTokens, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
 }
 
 
@@ -1226,7 +1226,7 @@ abstract mixin class $ModelCapabilityProfileCopyWith<$Res>  {
   factory $ModelCapabilityProfileCopyWith(ModelCapabilityProfile value, $Res Function(ModelCapabilityProfile) _then) = _$ModelCapabilityProfileCopyWithImpl;
 @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport, int usableContextTokens, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
+ String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport,@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) ModelVideoInputSupport videoInputSupport, int usableContextTokens, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
 });
 
 
@@ -1243,7 +1243,7 @@ class _$ModelCapabilityProfileCopyWithImpl<$Res>
 
 /// Create a copy of ModelCapabilityProfile
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? usableContextTokens = null,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? videoInputSupport = null,Object? usableContextTokens = null,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,provider: null == provider ? _self.provider : provider // ignore: cast_nullable_to_non_nullable
@@ -1254,7 +1254,8 @@ as ModelToolCallStyle,structuredOutputSupport: null == structuredOutputSupport ?
 as ModelStructuredOutputSupport,goalUpdateFidelity: null == goalUpdateFidelity ? _self.goalUpdateFidelity : goalUpdateFidelity // ignore: cast_nullable_to_non_nullable
 as ModelGoalUpdateFidelity,editFormatPreference: null == editFormatPreference ? _self.editFormatPreference : editFormatPreference // ignore: cast_nullable_to_non_nullable
 as ModelEditFormatPreference,visionSupport: null == visionSupport ? _self.visionSupport : visionSupport // ignore: cast_nullable_to_non_nullable
-as ModelVisionSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
+as ModelVisionSupport,videoInputSupport: null == videoInputSupport ? _self.videoInputSupport : videoInputSupport // ignore: cast_nullable_to_non_nullable
+as ModelVideoInputSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
 as int,probedAt: freezed == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,probeSummary: null == probeSummary ? _self.probeSummary : probeSummary // ignore: cast_nullable_to_non_nullable
 as String,probeMetadata: null == probeMetadata ? _self.probeMetadata : probeMetadata // ignore: cast_nullable_to_non_nullable
@@ -1343,10 +1344,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)  ModelVideoInputSupport videoInputSupport,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfile() when $default != null:
-return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.videoInputSupport,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
   return orElse();
 
 }
@@ -1364,10 +1365,10 @@ return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCall
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)  ModelVideoInputSupport videoInputSupport,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)  $default,) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfile():
-return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.videoInputSupport,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1384,10 +1385,10 @@ return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCall
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)  ModelVideoInputSupport videoInputSupport,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfile() when $default != null:
-return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.videoInputSupport,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
   return null;
 
 }
@@ -1399,7 +1400,7 @@ return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCall
 @JsonSerializable()
 
 class _ModelCapabilityProfile extends ModelCapabilityProfile {
-  const _ModelCapabilityProfile({required this.id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.provider = LlmProvider.openAiCompatible, this.baseUrl = '', required this.model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) this.toolCallStyle = ModelToolCallStyle.unknown, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) this.structuredOutputSupport = ModelStructuredOutputSupport.unknown, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) this.goalUpdateFidelity = ModelGoalUpdateFidelity.unknown, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) this.editFormatPreference = ModelEditFormatPreference.unknown, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown) this.visionSupport = ModelVisionSupport.unknown, this.usableContextTokens = 0, this.probedAt, this.probeSummary = '', final  Map<String, String> probeMetadata = const <String, String>{}}): _probeMetadata = probeMetadata,super._();
+  const _ModelCapabilityProfile({required this.id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.provider = LlmProvider.openAiCompatible, this.baseUrl = '', required this.model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) this.toolCallStyle = ModelToolCallStyle.unknown, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) this.structuredOutputSupport = ModelStructuredOutputSupport.unknown, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) this.goalUpdateFidelity = ModelGoalUpdateFidelity.unknown, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) this.editFormatPreference = ModelEditFormatPreference.unknown, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown) this.visionSupport = ModelVisionSupport.unknown, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) this.videoInputSupport = ModelVideoInputSupport.unknown, this.usableContextTokens = 0, this.probedAt, this.probeSummary = '', final  Map<String, String> probeMetadata = const <String, String>{}}): _probeMetadata = probeMetadata,super._();
   factory _ModelCapabilityProfile.fromJson(Map<String, dynamic> json) => _$ModelCapabilityProfileFromJson(json);
 
 @override final  String id;
@@ -1411,6 +1412,7 @@ class _ModelCapabilityProfile extends ModelCapabilityProfile {
 @override@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) final  ModelGoalUpdateFidelity goalUpdateFidelity;
 @override@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) final  ModelEditFormatPreference editFormatPreference;
 @override@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) final  ModelVisionSupport visionSupport;
+@override@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) final  ModelVideoInputSupport videoInputSupport;
 @override@JsonKey() final  int usableContextTokens;
 @override final  DateTime? probedAt;
 @override@JsonKey() final  String probeSummary;
@@ -1435,16 +1437,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other._probeMetadata, _probeMetadata));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.videoInputSupport, videoInputSupport) || other.videoInputSupport == videoInputSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other._probeMetadata, _probeMetadata));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,usableContextTokens,probedAt,probeSummary,const DeepCollectionEquality().hash(_probeMetadata));
+int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,videoInputSupport,usableContextTokens,probedAt,probeSummary,const DeepCollectionEquality().hash(_probeMetadata));
 
 @override
 String toString() {
-  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, usableContextTokens: $usableContextTokens, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
+  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, videoInputSupport: $videoInputSupport, usableContextTokens: $usableContextTokens, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
 }
 
 
@@ -1455,7 +1457,7 @@ abstract mixin class _$ModelCapabilityProfileCopyWith<$Res> implements $ModelCap
   factory _$ModelCapabilityProfileCopyWith(_ModelCapabilityProfile value, $Res Function(_ModelCapabilityProfile) _then) = __$ModelCapabilityProfileCopyWithImpl;
 @override @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport, int usableContextTokens, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
+ String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport,@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) ModelVideoInputSupport videoInputSupport, int usableContextTokens, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
 });
 
 
@@ -1472,7 +1474,7 @@ class __$ModelCapabilityProfileCopyWithImpl<$Res>
 
 /// Create a copy of ModelCapabilityProfile
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? usableContextTokens = null,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? videoInputSupport = null,Object? usableContextTokens = null,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
   return _then(_ModelCapabilityProfile(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,provider: null == provider ? _self.provider : provider // ignore: cast_nullable_to_non_nullable
@@ -1483,7 +1485,8 @@ as ModelToolCallStyle,structuredOutputSupport: null == structuredOutputSupport ?
 as ModelStructuredOutputSupport,goalUpdateFidelity: null == goalUpdateFidelity ? _self.goalUpdateFidelity : goalUpdateFidelity // ignore: cast_nullable_to_non_nullable
 as ModelGoalUpdateFidelity,editFormatPreference: null == editFormatPreference ? _self.editFormatPreference : editFormatPreference // ignore: cast_nullable_to_non_nullable
 as ModelEditFormatPreference,visionSupport: null == visionSupport ? _self.visionSupport : visionSupport // ignore: cast_nullable_to_non_nullable
-as ModelVisionSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
+as ModelVisionSupport,videoInputSupport: null == videoInputSupport ? _self.videoInputSupport : videoInputSupport // ignore: cast_nullable_to_non_nullable
+as ModelVideoInputSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
 as int,probedAt: freezed == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,probeSummary: null == probeSummary ? _self.probeSummary : probeSummary // ignore: cast_nullable_to_non_nullable
 as String,probeMetadata: null == probeMetadata ? _self._probeMetadata : probeMetadata // ignore: cast_nullable_to_non_nullable
@@ -1805,7 +1808,7 @@ as GoalCompletionPolicy,
 /// @nodoc
 mixin _$ModelCapabilityProfileRevision {
 
- String get profileId; DateTime get probedAt;@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle get toolCallStyle;@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport get structuredOutputSupport;@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity get goalUpdateFidelity;@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference get editFormatPreference;@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport get visionSupport; int get usableContextTokens; String get probeSummary;/// LL39 bounded conformance score for this revision, and the suite that
+ String get profileId; DateTime get probedAt;@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle get toolCallStyle;@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport get structuredOutputSupport;@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity get goalUpdateFidelity;@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference get editFormatPreference;@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport get visionSupport;@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) ModelVideoInputSupport get videoInputSupport; int get usableContextTokens; String get probeSummary;/// LL39 bounded conformance score for this revision, and the suite that
 /// produced it. Null means the revision predates the benchmark or came from
 /// a path that does not score (a settings import, a bounded re-probe with
 /// no scored probes) — which is not the same as scoring zero, so a missing
@@ -1845,16 +1848,16 @@ $ModelCapabilityProfileRevisionCopyWith<ModelCapabilityProfileRevision> get copy
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelCapabilityProfileRevision&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&(identical(other.benchmarkPoints, benchmarkPoints) || other.benchmarkPoints == benchmarkPoints)&&(identical(other.benchmarkAttemptedPoints, benchmarkAttemptedPoints) || other.benchmarkAttemptedPoints == benchmarkAttemptedPoints)&&(identical(other.benchmarkMaxPoints, benchmarkMaxPoints) || other.benchmarkMaxPoints == benchmarkMaxPoints)&&(identical(other.benchmarkSuite, benchmarkSuite) || other.benchmarkSuite == benchmarkSuite)&&(identical(other.difficultyLadder, difficultyLadder) || other.difficultyLadder == difficultyLadder)&&(identical(other.difficultyLadderAxis, difficultyLadderAxis) || other.difficultyLadderAxis == difficultyLadderAxis)&&(identical(other.difficultyLadderMeasuredPromptTokens, difficultyLadderMeasuredPromptTokens) || other.difficultyLadderMeasuredPromptTokens == difficultyLadderMeasuredPromptTokens)&&(identical(other.difficultyLadderHighestStagePromptTokens, difficultyLadderHighestStagePromptTokens) || other.difficultyLadderHighestStagePromptTokens == difficultyLadderHighestStagePromptTokens)&&(identical(other.difficultyLadderNextStagePromptTokens, difficultyLadderNextStagePromptTokens) || other.difficultyLadderNextStagePromptTokens == difficultyLadderNextStagePromptTokens)&&(identical(other.difficultyLadderPassedStageCount, difficultyLadderPassedStageCount) || other.difficultyLadderPassedStageCount == difficultyLadderPassedStageCount)&&(identical(other.difficultyLadderStageCount, difficultyLadderStageCount) || other.difficultyLadderStageCount == difficultyLadderStageCount)&&const DeepCollectionEquality().equals(other.physicalCapabilityMetrics, physicalCapabilityMetrics)&&(identical(other.benchmarkRegressionDetected, benchmarkRegressionDetected) || other.benchmarkRegressionDetected == benchmarkRegressionDetected)&&(identical(other.source, source) || other.source == source)&&(identical(other.capabilityChangeDetected, capabilityChangeDetected) || other.capabilityChangeDetected == capabilityChangeDetected));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelCapabilityProfileRevision&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.videoInputSupport, videoInputSupport) || other.videoInputSupport == videoInputSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&(identical(other.benchmarkPoints, benchmarkPoints) || other.benchmarkPoints == benchmarkPoints)&&(identical(other.benchmarkAttemptedPoints, benchmarkAttemptedPoints) || other.benchmarkAttemptedPoints == benchmarkAttemptedPoints)&&(identical(other.benchmarkMaxPoints, benchmarkMaxPoints) || other.benchmarkMaxPoints == benchmarkMaxPoints)&&(identical(other.benchmarkSuite, benchmarkSuite) || other.benchmarkSuite == benchmarkSuite)&&(identical(other.difficultyLadder, difficultyLadder) || other.difficultyLadder == difficultyLadder)&&(identical(other.difficultyLadderAxis, difficultyLadderAxis) || other.difficultyLadderAxis == difficultyLadderAxis)&&(identical(other.difficultyLadderMeasuredPromptTokens, difficultyLadderMeasuredPromptTokens) || other.difficultyLadderMeasuredPromptTokens == difficultyLadderMeasuredPromptTokens)&&(identical(other.difficultyLadderHighestStagePromptTokens, difficultyLadderHighestStagePromptTokens) || other.difficultyLadderHighestStagePromptTokens == difficultyLadderHighestStagePromptTokens)&&(identical(other.difficultyLadderNextStagePromptTokens, difficultyLadderNextStagePromptTokens) || other.difficultyLadderNextStagePromptTokens == difficultyLadderNextStagePromptTokens)&&(identical(other.difficultyLadderPassedStageCount, difficultyLadderPassedStageCount) || other.difficultyLadderPassedStageCount == difficultyLadderPassedStageCount)&&(identical(other.difficultyLadderStageCount, difficultyLadderStageCount) || other.difficultyLadderStageCount == difficultyLadderStageCount)&&const DeepCollectionEquality().equals(other.physicalCapabilityMetrics, physicalCapabilityMetrics)&&(identical(other.benchmarkRegressionDetected, benchmarkRegressionDetected) || other.benchmarkRegressionDetected == benchmarkRegressionDetected)&&(identical(other.source, source) || other.source == source)&&(identical(other.capabilityChangeDetected, capabilityChangeDetected) || other.capabilityChangeDetected == capabilityChangeDetected));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,profileId,probedAt,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,usableContextTokens,probeSummary,benchmarkPoints,benchmarkAttemptedPoints,benchmarkMaxPoints,benchmarkSuite,difficultyLadder,difficultyLadderAxis,difficultyLadderMeasuredPromptTokens,difficultyLadderHighestStagePromptTokens,difficultyLadderNextStagePromptTokens,difficultyLadderPassedStageCount,difficultyLadderStageCount,const DeepCollectionEquality().hash(physicalCapabilityMetrics),benchmarkRegressionDetected,source,capabilityChangeDetected]);
+int get hashCode => Object.hashAll([runtimeType,profileId,probedAt,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,videoInputSupport,usableContextTokens,probeSummary,benchmarkPoints,benchmarkAttemptedPoints,benchmarkMaxPoints,benchmarkSuite,difficultyLadder,difficultyLadderAxis,difficultyLadderMeasuredPromptTokens,difficultyLadderHighestStagePromptTokens,difficultyLadderNextStagePromptTokens,difficultyLadderPassedStageCount,difficultyLadderStageCount,const DeepCollectionEquality().hash(physicalCapabilityMetrics),benchmarkRegressionDetected,source,capabilityChangeDetected]);
 
 @override
 String toString() {
-  return 'ModelCapabilityProfileRevision(profileId: $profileId, probedAt: $probedAt, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, usableContextTokens: $usableContextTokens, probeSummary: $probeSummary, benchmarkPoints: $benchmarkPoints, benchmarkAttemptedPoints: $benchmarkAttemptedPoints, benchmarkMaxPoints: $benchmarkMaxPoints, benchmarkSuite: $benchmarkSuite, difficultyLadder: $difficultyLadder, difficultyLadderAxis: $difficultyLadderAxis, difficultyLadderMeasuredPromptTokens: $difficultyLadderMeasuredPromptTokens, difficultyLadderHighestStagePromptTokens: $difficultyLadderHighestStagePromptTokens, difficultyLadderNextStagePromptTokens: $difficultyLadderNextStagePromptTokens, difficultyLadderPassedStageCount: $difficultyLadderPassedStageCount, difficultyLadderStageCount: $difficultyLadderStageCount, physicalCapabilityMetrics: $physicalCapabilityMetrics, benchmarkRegressionDetected: $benchmarkRegressionDetected, source: $source, capabilityChangeDetected: $capabilityChangeDetected)';
+  return 'ModelCapabilityProfileRevision(profileId: $profileId, probedAt: $probedAt, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, videoInputSupport: $videoInputSupport, usableContextTokens: $usableContextTokens, probeSummary: $probeSummary, benchmarkPoints: $benchmarkPoints, benchmarkAttemptedPoints: $benchmarkAttemptedPoints, benchmarkMaxPoints: $benchmarkMaxPoints, benchmarkSuite: $benchmarkSuite, difficultyLadder: $difficultyLadder, difficultyLadderAxis: $difficultyLadderAxis, difficultyLadderMeasuredPromptTokens: $difficultyLadderMeasuredPromptTokens, difficultyLadderHighestStagePromptTokens: $difficultyLadderHighestStagePromptTokens, difficultyLadderNextStagePromptTokens: $difficultyLadderNextStagePromptTokens, difficultyLadderPassedStageCount: $difficultyLadderPassedStageCount, difficultyLadderStageCount: $difficultyLadderStageCount, physicalCapabilityMetrics: $physicalCapabilityMetrics, benchmarkRegressionDetected: $benchmarkRegressionDetected, source: $source, capabilityChangeDetected: $capabilityChangeDetected)';
 }
 
 
@@ -1865,7 +1868,7 @@ abstract mixin class $ModelCapabilityProfileRevisionCopyWith<$Res>  {
   factory $ModelCapabilityProfileRevisionCopyWith(ModelCapabilityProfileRevision value, $Res Function(ModelCapabilityProfileRevision) _then) = _$ModelCapabilityProfileRevisionCopyWithImpl;
 @useResult
 $Res call({
- String profileId, DateTime probedAt,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport, int usableContextTokens, String probeSummary, int? benchmarkPoints, int? benchmarkAttemptedPoints, int? benchmarkMaxPoints, String benchmarkSuite, String difficultyLadder, String difficultyLadderAxis, int? difficultyLadderMeasuredPromptTokens, int? difficultyLadderHighestStagePromptTokens, int? difficultyLadderNextStagePromptTokens, int? difficultyLadderPassedStageCount, int? difficultyLadderStageCount, Map<String, String> physicalCapabilityMetrics, bool benchmarkRegressionDetected, String source, bool capabilityChangeDetected
+ String profileId, DateTime probedAt,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport,@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) ModelVideoInputSupport videoInputSupport, int usableContextTokens, String probeSummary, int? benchmarkPoints, int? benchmarkAttemptedPoints, int? benchmarkMaxPoints, String benchmarkSuite, String difficultyLadder, String difficultyLadderAxis, int? difficultyLadderMeasuredPromptTokens, int? difficultyLadderHighestStagePromptTokens, int? difficultyLadderNextStagePromptTokens, int? difficultyLadderPassedStageCount, int? difficultyLadderStageCount, Map<String, String> physicalCapabilityMetrics, bool benchmarkRegressionDetected, String source, bool capabilityChangeDetected
 });
 
 
@@ -1882,7 +1885,7 @@ class _$ModelCapabilityProfileRevisionCopyWithImpl<$Res>
 
 /// Create a copy of ModelCapabilityProfileRevision
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? profileId = null,Object? probedAt = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? usableContextTokens = null,Object? probeSummary = null,Object? benchmarkPoints = freezed,Object? benchmarkAttemptedPoints = freezed,Object? benchmarkMaxPoints = freezed,Object? benchmarkSuite = null,Object? difficultyLadder = null,Object? difficultyLadderAxis = null,Object? difficultyLadderMeasuredPromptTokens = freezed,Object? difficultyLadderHighestStagePromptTokens = freezed,Object? difficultyLadderNextStagePromptTokens = freezed,Object? difficultyLadderPassedStageCount = freezed,Object? difficultyLadderStageCount = freezed,Object? physicalCapabilityMetrics = null,Object? benchmarkRegressionDetected = null,Object? source = null,Object? capabilityChangeDetected = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? profileId = null,Object? probedAt = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? videoInputSupport = null,Object? usableContextTokens = null,Object? probeSummary = null,Object? benchmarkPoints = freezed,Object? benchmarkAttemptedPoints = freezed,Object? benchmarkMaxPoints = freezed,Object? benchmarkSuite = null,Object? difficultyLadder = null,Object? difficultyLadderAxis = null,Object? difficultyLadderMeasuredPromptTokens = freezed,Object? difficultyLadderHighestStagePromptTokens = freezed,Object? difficultyLadderNextStagePromptTokens = freezed,Object? difficultyLadderPassedStageCount = freezed,Object? difficultyLadderStageCount = freezed,Object? physicalCapabilityMetrics = null,Object? benchmarkRegressionDetected = null,Object? source = null,Object? capabilityChangeDetected = null,}) {
   return _then(_self.copyWith(
 profileId: null == profileId ? _self.profileId : profileId // ignore: cast_nullable_to_non_nullable
 as String,probedAt: null == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
@@ -1891,7 +1894,8 @@ as ModelToolCallStyle,structuredOutputSupport: null == structuredOutputSupport ?
 as ModelStructuredOutputSupport,goalUpdateFidelity: null == goalUpdateFidelity ? _self.goalUpdateFidelity : goalUpdateFidelity // ignore: cast_nullable_to_non_nullable
 as ModelGoalUpdateFidelity,editFormatPreference: null == editFormatPreference ? _self.editFormatPreference : editFormatPreference // ignore: cast_nullable_to_non_nullable
 as ModelEditFormatPreference,visionSupport: null == visionSupport ? _self.visionSupport : visionSupport // ignore: cast_nullable_to_non_nullable
-as ModelVisionSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
+as ModelVisionSupport,videoInputSupport: null == videoInputSupport ? _self.videoInputSupport : videoInputSupport // ignore: cast_nullable_to_non_nullable
+as ModelVideoInputSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
 as int,probeSummary: null == probeSummary ? _self.probeSummary : probeSummary // ignore: cast_nullable_to_non_nullable
 as String,benchmarkPoints: freezed == benchmarkPoints ? _self.benchmarkPoints : benchmarkPoints // ignore: cast_nullable_to_non_nullable
 as int?,benchmarkAttemptedPoints: freezed == benchmarkAttemptedPoints ? _self.benchmarkAttemptedPoints : benchmarkAttemptedPoints // ignore: cast_nullable_to_non_nullable
@@ -1993,10 +1997,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String profileId,  DateTime probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport,  int usableContextTokens,  String probeSummary,  int? benchmarkPoints,  int? benchmarkAttemptedPoints,  int? benchmarkMaxPoints,  String benchmarkSuite,  String difficultyLadder,  String difficultyLadderAxis,  int? difficultyLadderMeasuredPromptTokens,  int? difficultyLadderHighestStagePromptTokens,  int? difficultyLadderNextStagePromptTokens,  int? difficultyLadderPassedStageCount,  int? difficultyLadderStageCount,  Map<String, String> physicalCapabilityMetrics,  bool benchmarkRegressionDetected,  String source,  bool capabilityChangeDetected)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String profileId,  DateTime probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)  ModelVideoInputSupport videoInputSupport,  int usableContextTokens,  String probeSummary,  int? benchmarkPoints,  int? benchmarkAttemptedPoints,  int? benchmarkMaxPoints,  String benchmarkSuite,  String difficultyLadder,  String difficultyLadderAxis,  int? difficultyLadderMeasuredPromptTokens,  int? difficultyLadderHighestStagePromptTokens,  int? difficultyLadderNextStagePromptTokens,  int? difficultyLadderPassedStageCount,  int? difficultyLadderStageCount,  Map<String, String> physicalCapabilityMetrics,  bool benchmarkRegressionDetected,  String source,  bool capabilityChangeDetected)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfileRevision() when $default != null:
-return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.usableContextTokens,_that.probeSummary,_that.benchmarkPoints,_that.benchmarkAttemptedPoints,_that.benchmarkMaxPoints,_that.benchmarkSuite,_that.difficultyLadder,_that.difficultyLadderAxis,_that.difficultyLadderMeasuredPromptTokens,_that.difficultyLadderHighestStagePromptTokens,_that.difficultyLadderNextStagePromptTokens,_that.difficultyLadderPassedStageCount,_that.difficultyLadderStageCount,_that.physicalCapabilityMetrics,_that.benchmarkRegressionDetected,_that.source,_that.capabilityChangeDetected);case _:
+return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.videoInputSupport,_that.usableContextTokens,_that.probeSummary,_that.benchmarkPoints,_that.benchmarkAttemptedPoints,_that.benchmarkMaxPoints,_that.benchmarkSuite,_that.difficultyLadder,_that.difficultyLadderAxis,_that.difficultyLadderMeasuredPromptTokens,_that.difficultyLadderHighestStagePromptTokens,_that.difficultyLadderNextStagePromptTokens,_that.difficultyLadderPassedStageCount,_that.difficultyLadderStageCount,_that.physicalCapabilityMetrics,_that.benchmarkRegressionDetected,_that.source,_that.capabilityChangeDetected);case _:
   return orElse();
 
 }
@@ -2014,10 +2018,10 @@ return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structu
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String profileId,  DateTime probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport,  int usableContextTokens,  String probeSummary,  int? benchmarkPoints,  int? benchmarkAttemptedPoints,  int? benchmarkMaxPoints,  String benchmarkSuite,  String difficultyLadder,  String difficultyLadderAxis,  int? difficultyLadderMeasuredPromptTokens,  int? difficultyLadderHighestStagePromptTokens,  int? difficultyLadderNextStagePromptTokens,  int? difficultyLadderPassedStageCount,  int? difficultyLadderStageCount,  Map<String, String> physicalCapabilityMetrics,  bool benchmarkRegressionDetected,  String source,  bool capabilityChangeDetected)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String profileId,  DateTime probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)  ModelVideoInputSupport videoInputSupport,  int usableContextTokens,  String probeSummary,  int? benchmarkPoints,  int? benchmarkAttemptedPoints,  int? benchmarkMaxPoints,  String benchmarkSuite,  String difficultyLadder,  String difficultyLadderAxis,  int? difficultyLadderMeasuredPromptTokens,  int? difficultyLadderHighestStagePromptTokens,  int? difficultyLadderNextStagePromptTokens,  int? difficultyLadderPassedStageCount,  int? difficultyLadderStageCount,  Map<String, String> physicalCapabilityMetrics,  bool benchmarkRegressionDetected,  String source,  bool capabilityChangeDetected)  $default,) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfileRevision():
-return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.usableContextTokens,_that.probeSummary,_that.benchmarkPoints,_that.benchmarkAttemptedPoints,_that.benchmarkMaxPoints,_that.benchmarkSuite,_that.difficultyLadder,_that.difficultyLadderAxis,_that.difficultyLadderMeasuredPromptTokens,_that.difficultyLadderHighestStagePromptTokens,_that.difficultyLadderNextStagePromptTokens,_that.difficultyLadderPassedStageCount,_that.difficultyLadderStageCount,_that.physicalCapabilityMetrics,_that.benchmarkRegressionDetected,_that.source,_that.capabilityChangeDetected);case _:
+return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.videoInputSupport,_that.usableContextTokens,_that.probeSummary,_that.benchmarkPoints,_that.benchmarkAttemptedPoints,_that.benchmarkMaxPoints,_that.benchmarkSuite,_that.difficultyLadder,_that.difficultyLadderAxis,_that.difficultyLadderMeasuredPromptTokens,_that.difficultyLadderHighestStagePromptTokens,_that.difficultyLadderNextStagePromptTokens,_that.difficultyLadderPassedStageCount,_that.difficultyLadderStageCount,_that.physicalCapabilityMetrics,_that.benchmarkRegressionDetected,_that.source,_that.capabilityChangeDetected);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -2034,10 +2038,10 @@ return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structu
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String profileId,  DateTime probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport,  int usableContextTokens,  String probeSummary,  int? benchmarkPoints,  int? benchmarkAttemptedPoints,  int? benchmarkMaxPoints,  String benchmarkSuite,  String difficultyLadder,  String difficultyLadderAxis,  int? difficultyLadderMeasuredPromptTokens,  int? difficultyLadderHighestStagePromptTokens,  int? difficultyLadderNextStagePromptTokens,  int? difficultyLadderPassedStageCount,  int? difficultyLadderStageCount,  Map<String, String> physicalCapabilityMetrics,  bool benchmarkRegressionDetected,  String source,  bool capabilityChangeDetected)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String profileId,  DateTime probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)  ModelVideoInputSupport videoInputSupport,  int usableContextTokens,  String probeSummary,  int? benchmarkPoints,  int? benchmarkAttemptedPoints,  int? benchmarkMaxPoints,  String benchmarkSuite,  String difficultyLadder,  String difficultyLadderAxis,  int? difficultyLadderMeasuredPromptTokens,  int? difficultyLadderHighestStagePromptTokens,  int? difficultyLadderNextStagePromptTokens,  int? difficultyLadderPassedStageCount,  int? difficultyLadderStageCount,  Map<String, String> physicalCapabilityMetrics,  bool benchmarkRegressionDetected,  String source,  bool capabilityChangeDetected)?  $default,) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfileRevision() when $default != null:
-return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.usableContextTokens,_that.probeSummary,_that.benchmarkPoints,_that.benchmarkAttemptedPoints,_that.benchmarkMaxPoints,_that.benchmarkSuite,_that.difficultyLadder,_that.difficultyLadderAxis,_that.difficultyLadderMeasuredPromptTokens,_that.difficultyLadderHighestStagePromptTokens,_that.difficultyLadderNextStagePromptTokens,_that.difficultyLadderPassedStageCount,_that.difficultyLadderStageCount,_that.physicalCapabilityMetrics,_that.benchmarkRegressionDetected,_that.source,_that.capabilityChangeDetected);case _:
+return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.videoInputSupport,_that.usableContextTokens,_that.probeSummary,_that.benchmarkPoints,_that.benchmarkAttemptedPoints,_that.benchmarkMaxPoints,_that.benchmarkSuite,_that.difficultyLadder,_that.difficultyLadderAxis,_that.difficultyLadderMeasuredPromptTokens,_that.difficultyLadderHighestStagePromptTokens,_that.difficultyLadderNextStagePromptTokens,_that.difficultyLadderPassedStageCount,_that.difficultyLadderStageCount,_that.physicalCapabilityMetrics,_that.benchmarkRegressionDetected,_that.source,_that.capabilityChangeDetected);case _:
   return null;
 
 }
@@ -2049,7 +2053,7 @@ return $default(_that.profileId,_that.probedAt,_that.toolCallStyle,_that.structu
 @JsonSerializable()
 
 class _ModelCapabilityProfileRevision extends ModelCapabilityProfileRevision {
-  const _ModelCapabilityProfileRevision({required this.profileId, required this.probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) required this.toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) required this.structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) this.goalUpdateFidelity = ModelGoalUpdateFidelity.unknown, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) required this.editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown) this.visionSupport = ModelVisionSupport.unknown, required this.usableContextTokens, this.probeSummary = '', this.benchmarkPoints, this.benchmarkAttemptedPoints, this.benchmarkMaxPoints, this.benchmarkSuite = '', this.difficultyLadder = '', this.difficultyLadderAxis = '', this.difficultyLadderMeasuredPromptTokens, this.difficultyLadderHighestStagePromptTokens, this.difficultyLadderNextStagePromptTokens, this.difficultyLadderPassedStageCount, this.difficultyLadderStageCount, final  Map<String, String> physicalCapabilityMetrics = const <String, String>{}, this.benchmarkRegressionDetected = false, this.source = 'probe', this.capabilityChangeDetected = false}): _physicalCapabilityMetrics = physicalCapabilityMetrics,super._();
+  const _ModelCapabilityProfileRevision({required this.profileId, required this.probedAt, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) required this.toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) required this.structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) this.goalUpdateFidelity = ModelGoalUpdateFidelity.unknown, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) required this.editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown) this.visionSupport = ModelVisionSupport.unknown, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) this.videoInputSupport = ModelVideoInputSupport.unknown, required this.usableContextTokens, this.probeSummary = '', this.benchmarkPoints, this.benchmarkAttemptedPoints, this.benchmarkMaxPoints, this.benchmarkSuite = '', this.difficultyLadder = '', this.difficultyLadderAxis = '', this.difficultyLadderMeasuredPromptTokens, this.difficultyLadderHighestStagePromptTokens, this.difficultyLadderNextStagePromptTokens, this.difficultyLadderPassedStageCount, this.difficultyLadderStageCount, final  Map<String, String> physicalCapabilityMetrics = const <String, String>{}, this.benchmarkRegressionDetected = false, this.source = 'probe', this.capabilityChangeDetected = false}): _physicalCapabilityMetrics = physicalCapabilityMetrics,super._();
   factory _ModelCapabilityProfileRevision.fromJson(Map<String, dynamic> json) => _$ModelCapabilityProfileRevisionFromJson(json);
 
 @override final  String profileId;
@@ -2059,6 +2063,7 @@ class _ModelCapabilityProfileRevision extends ModelCapabilityProfileRevision {
 @override@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) final  ModelGoalUpdateFidelity goalUpdateFidelity;
 @override@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) final  ModelEditFormatPreference editFormatPreference;
 @override@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) final  ModelVisionSupport visionSupport;
+@override@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) final  ModelVideoInputSupport videoInputSupport;
 @override final  int usableContextTokens;
 @override@JsonKey() final  String probeSummary;
 /// LL39 bounded conformance score for this revision, and the suite that
@@ -2127,16 +2132,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelCapabilityProfileRevision&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&(identical(other.benchmarkPoints, benchmarkPoints) || other.benchmarkPoints == benchmarkPoints)&&(identical(other.benchmarkAttemptedPoints, benchmarkAttemptedPoints) || other.benchmarkAttemptedPoints == benchmarkAttemptedPoints)&&(identical(other.benchmarkMaxPoints, benchmarkMaxPoints) || other.benchmarkMaxPoints == benchmarkMaxPoints)&&(identical(other.benchmarkSuite, benchmarkSuite) || other.benchmarkSuite == benchmarkSuite)&&(identical(other.difficultyLadder, difficultyLadder) || other.difficultyLadder == difficultyLadder)&&(identical(other.difficultyLadderAxis, difficultyLadderAxis) || other.difficultyLadderAxis == difficultyLadderAxis)&&(identical(other.difficultyLadderMeasuredPromptTokens, difficultyLadderMeasuredPromptTokens) || other.difficultyLadderMeasuredPromptTokens == difficultyLadderMeasuredPromptTokens)&&(identical(other.difficultyLadderHighestStagePromptTokens, difficultyLadderHighestStagePromptTokens) || other.difficultyLadderHighestStagePromptTokens == difficultyLadderHighestStagePromptTokens)&&(identical(other.difficultyLadderNextStagePromptTokens, difficultyLadderNextStagePromptTokens) || other.difficultyLadderNextStagePromptTokens == difficultyLadderNextStagePromptTokens)&&(identical(other.difficultyLadderPassedStageCount, difficultyLadderPassedStageCount) || other.difficultyLadderPassedStageCount == difficultyLadderPassedStageCount)&&(identical(other.difficultyLadderStageCount, difficultyLadderStageCount) || other.difficultyLadderStageCount == difficultyLadderStageCount)&&const DeepCollectionEquality().equals(other._physicalCapabilityMetrics, _physicalCapabilityMetrics)&&(identical(other.benchmarkRegressionDetected, benchmarkRegressionDetected) || other.benchmarkRegressionDetected == benchmarkRegressionDetected)&&(identical(other.source, source) || other.source == source)&&(identical(other.capabilityChangeDetected, capabilityChangeDetected) || other.capabilityChangeDetected == capabilityChangeDetected));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelCapabilityProfileRevision&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.videoInputSupport, videoInputSupport) || other.videoInputSupport == videoInputSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&(identical(other.benchmarkPoints, benchmarkPoints) || other.benchmarkPoints == benchmarkPoints)&&(identical(other.benchmarkAttemptedPoints, benchmarkAttemptedPoints) || other.benchmarkAttemptedPoints == benchmarkAttemptedPoints)&&(identical(other.benchmarkMaxPoints, benchmarkMaxPoints) || other.benchmarkMaxPoints == benchmarkMaxPoints)&&(identical(other.benchmarkSuite, benchmarkSuite) || other.benchmarkSuite == benchmarkSuite)&&(identical(other.difficultyLadder, difficultyLadder) || other.difficultyLadder == difficultyLadder)&&(identical(other.difficultyLadderAxis, difficultyLadderAxis) || other.difficultyLadderAxis == difficultyLadderAxis)&&(identical(other.difficultyLadderMeasuredPromptTokens, difficultyLadderMeasuredPromptTokens) || other.difficultyLadderMeasuredPromptTokens == difficultyLadderMeasuredPromptTokens)&&(identical(other.difficultyLadderHighestStagePromptTokens, difficultyLadderHighestStagePromptTokens) || other.difficultyLadderHighestStagePromptTokens == difficultyLadderHighestStagePromptTokens)&&(identical(other.difficultyLadderNextStagePromptTokens, difficultyLadderNextStagePromptTokens) || other.difficultyLadderNextStagePromptTokens == difficultyLadderNextStagePromptTokens)&&(identical(other.difficultyLadderPassedStageCount, difficultyLadderPassedStageCount) || other.difficultyLadderPassedStageCount == difficultyLadderPassedStageCount)&&(identical(other.difficultyLadderStageCount, difficultyLadderStageCount) || other.difficultyLadderStageCount == difficultyLadderStageCount)&&const DeepCollectionEquality().equals(other._physicalCapabilityMetrics, _physicalCapabilityMetrics)&&(identical(other.benchmarkRegressionDetected, benchmarkRegressionDetected) || other.benchmarkRegressionDetected == benchmarkRegressionDetected)&&(identical(other.source, source) || other.source == source)&&(identical(other.capabilityChangeDetected, capabilityChangeDetected) || other.capabilityChangeDetected == capabilityChangeDetected));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,profileId,probedAt,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,usableContextTokens,probeSummary,benchmarkPoints,benchmarkAttemptedPoints,benchmarkMaxPoints,benchmarkSuite,difficultyLadder,difficultyLadderAxis,difficultyLadderMeasuredPromptTokens,difficultyLadderHighestStagePromptTokens,difficultyLadderNextStagePromptTokens,difficultyLadderPassedStageCount,difficultyLadderStageCount,const DeepCollectionEquality().hash(_physicalCapabilityMetrics),benchmarkRegressionDetected,source,capabilityChangeDetected]);
+int get hashCode => Object.hashAll([runtimeType,profileId,probedAt,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,videoInputSupport,usableContextTokens,probeSummary,benchmarkPoints,benchmarkAttemptedPoints,benchmarkMaxPoints,benchmarkSuite,difficultyLadder,difficultyLadderAxis,difficultyLadderMeasuredPromptTokens,difficultyLadderHighestStagePromptTokens,difficultyLadderNextStagePromptTokens,difficultyLadderPassedStageCount,difficultyLadderStageCount,const DeepCollectionEquality().hash(_physicalCapabilityMetrics),benchmarkRegressionDetected,source,capabilityChangeDetected]);
 
 @override
 String toString() {
-  return 'ModelCapabilityProfileRevision(profileId: $profileId, probedAt: $probedAt, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, usableContextTokens: $usableContextTokens, probeSummary: $probeSummary, benchmarkPoints: $benchmarkPoints, benchmarkAttemptedPoints: $benchmarkAttemptedPoints, benchmarkMaxPoints: $benchmarkMaxPoints, benchmarkSuite: $benchmarkSuite, difficultyLadder: $difficultyLadder, difficultyLadderAxis: $difficultyLadderAxis, difficultyLadderMeasuredPromptTokens: $difficultyLadderMeasuredPromptTokens, difficultyLadderHighestStagePromptTokens: $difficultyLadderHighestStagePromptTokens, difficultyLadderNextStagePromptTokens: $difficultyLadderNextStagePromptTokens, difficultyLadderPassedStageCount: $difficultyLadderPassedStageCount, difficultyLadderStageCount: $difficultyLadderStageCount, physicalCapabilityMetrics: $physicalCapabilityMetrics, benchmarkRegressionDetected: $benchmarkRegressionDetected, source: $source, capabilityChangeDetected: $capabilityChangeDetected)';
+  return 'ModelCapabilityProfileRevision(profileId: $profileId, probedAt: $probedAt, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, videoInputSupport: $videoInputSupport, usableContextTokens: $usableContextTokens, probeSummary: $probeSummary, benchmarkPoints: $benchmarkPoints, benchmarkAttemptedPoints: $benchmarkAttemptedPoints, benchmarkMaxPoints: $benchmarkMaxPoints, benchmarkSuite: $benchmarkSuite, difficultyLadder: $difficultyLadder, difficultyLadderAxis: $difficultyLadderAxis, difficultyLadderMeasuredPromptTokens: $difficultyLadderMeasuredPromptTokens, difficultyLadderHighestStagePromptTokens: $difficultyLadderHighestStagePromptTokens, difficultyLadderNextStagePromptTokens: $difficultyLadderNextStagePromptTokens, difficultyLadderPassedStageCount: $difficultyLadderPassedStageCount, difficultyLadderStageCount: $difficultyLadderStageCount, physicalCapabilityMetrics: $physicalCapabilityMetrics, benchmarkRegressionDetected: $benchmarkRegressionDetected, source: $source, capabilityChangeDetected: $capabilityChangeDetected)';
 }
 
 
@@ -2147,7 +2152,7 @@ abstract mixin class _$ModelCapabilityProfileRevisionCopyWith<$Res> implements $
   factory _$ModelCapabilityProfileRevisionCopyWith(_ModelCapabilityProfileRevision value, $Res Function(_ModelCapabilityProfileRevision) _then) = __$ModelCapabilityProfileRevisionCopyWithImpl;
 @override @useResult
 $Res call({
- String profileId, DateTime probedAt,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport, int usableContextTokens, String probeSummary, int? benchmarkPoints, int? benchmarkAttemptedPoints, int? benchmarkMaxPoints, String benchmarkSuite, String difficultyLadder, String difficultyLadderAxis, int? difficultyLadderMeasuredPromptTokens, int? difficultyLadderHighestStagePromptTokens, int? difficultyLadderNextStagePromptTokens, int? difficultyLadderPassedStageCount, int? difficultyLadderStageCount, Map<String, String> physicalCapabilityMetrics, bool benchmarkRegressionDetected, String source, bool capabilityChangeDetected
+ String profileId, DateTime probedAt,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport,@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) ModelVideoInputSupport videoInputSupport, int usableContextTokens, String probeSummary, int? benchmarkPoints, int? benchmarkAttemptedPoints, int? benchmarkMaxPoints, String benchmarkSuite, String difficultyLadder, String difficultyLadderAxis, int? difficultyLadderMeasuredPromptTokens, int? difficultyLadderHighestStagePromptTokens, int? difficultyLadderNextStagePromptTokens, int? difficultyLadderPassedStageCount, int? difficultyLadderStageCount, Map<String, String> physicalCapabilityMetrics, bool benchmarkRegressionDetected, String source, bool capabilityChangeDetected
 });
 
 
@@ -2164,7 +2169,7 @@ class __$ModelCapabilityProfileRevisionCopyWithImpl<$Res>
 
 /// Create a copy of ModelCapabilityProfileRevision
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? profileId = null,Object? probedAt = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? usableContextTokens = null,Object? probeSummary = null,Object? benchmarkPoints = freezed,Object? benchmarkAttemptedPoints = freezed,Object? benchmarkMaxPoints = freezed,Object? benchmarkSuite = null,Object? difficultyLadder = null,Object? difficultyLadderAxis = null,Object? difficultyLadderMeasuredPromptTokens = freezed,Object? difficultyLadderHighestStagePromptTokens = freezed,Object? difficultyLadderNextStagePromptTokens = freezed,Object? difficultyLadderPassedStageCount = freezed,Object? difficultyLadderStageCount = freezed,Object? physicalCapabilityMetrics = null,Object? benchmarkRegressionDetected = null,Object? source = null,Object? capabilityChangeDetected = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? profileId = null,Object? probedAt = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? videoInputSupport = null,Object? usableContextTokens = null,Object? probeSummary = null,Object? benchmarkPoints = freezed,Object? benchmarkAttemptedPoints = freezed,Object? benchmarkMaxPoints = freezed,Object? benchmarkSuite = null,Object? difficultyLadder = null,Object? difficultyLadderAxis = null,Object? difficultyLadderMeasuredPromptTokens = freezed,Object? difficultyLadderHighestStagePromptTokens = freezed,Object? difficultyLadderNextStagePromptTokens = freezed,Object? difficultyLadderPassedStageCount = freezed,Object? difficultyLadderStageCount = freezed,Object? physicalCapabilityMetrics = null,Object? benchmarkRegressionDetected = null,Object? source = null,Object? capabilityChangeDetected = null,}) {
   return _then(_ModelCapabilityProfileRevision(
 profileId: null == profileId ? _self.profileId : profileId // ignore: cast_nullable_to_non_nullable
 as String,probedAt: null == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
@@ -2173,7 +2178,8 @@ as ModelToolCallStyle,structuredOutputSupport: null == structuredOutputSupport ?
 as ModelStructuredOutputSupport,goalUpdateFidelity: null == goalUpdateFidelity ? _self.goalUpdateFidelity : goalUpdateFidelity // ignore: cast_nullable_to_non_nullable
 as ModelGoalUpdateFidelity,editFormatPreference: null == editFormatPreference ? _self.editFormatPreference : editFormatPreference // ignore: cast_nullable_to_non_nullable
 as ModelEditFormatPreference,visionSupport: null == visionSupport ? _self.visionSupport : visionSupport // ignore: cast_nullable_to_non_nullable
-as ModelVisionSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
+as ModelVisionSupport,videoInputSupport: null == videoInputSupport ? _self.videoInputSupport : videoInputSupport // ignore: cast_nullable_to_non_nullable
+as ModelVideoInputSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
 as int,probeSummary: null == probeSummary ? _self.probeSummary : probeSummary // ignore: cast_nullable_to_non_nullable
 as String,benchmarkPoints: freezed == benchmarkPoints ? _self.benchmarkPoints : benchmarkPoints // ignore: cast_nullable_to_non_nullable
 as int?,benchmarkAttemptedPoints: freezed == benchmarkAttemptedPoints ? _self.benchmarkAttemptedPoints : benchmarkAttemptedPoints // ignore: cast_nullable_to_non_nullable
@@ -2201,7 +2207,13 @@ as bool,
 /// @nodoc
 mixin _$LlmEndpoint {
 
- String get id; String get label; String get baseUrl; String get apiKey; String get model; bool get enabled;@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource get source; DateTime? get createdAt;
+ String get id; String get label; String get baseUrl; String get apiKey; String get model; bool get enabled;/// Manual opt-in for video attachments.
+///
+/// The probe can only auto-detect endpoints that advertise their input
+/// modalities. A proxy that rewrites requests for a video-capable server
+/// usually advertises nothing, and there is no way to tell that apart from
+/// a server that simply cannot take video -- so the person says.
+ bool get videoInputEnabled;@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource get source; DateTime? get createdAt;
 /// Create a copy of LlmEndpoint
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2214,16 +2226,16 @@ $LlmEndpointCopyWith<LlmEndpoint> get copyWith => _$LlmEndpointCopyWithImpl<LlmE
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is LlmEndpoint&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.model, model) || other.model == model)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LlmEndpoint&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.model, model) || other.model == model)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.videoInputEnabled, videoInputEnabled) || other.videoInputEnabled == videoInputEnabled)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,model,enabled,source,createdAt);
+int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,model,enabled,videoInputEnabled,source,createdAt);
 
 @override
 String toString() {
-  return 'LlmEndpoint(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, model: $model, enabled: $enabled, source: $source, createdAt: $createdAt)';
+  return 'LlmEndpoint(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, model: $model, enabled: $enabled, videoInputEnabled: $videoInputEnabled, source: $source, createdAt: $createdAt)';
 }
 
 
@@ -2234,7 +2246,7 @@ abstract mixin class $LlmEndpointCopyWith<$Res>  {
   factory $LlmEndpointCopyWith(LlmEndpoint value, $Res Function(LlmEndpoint) _then) = _$LlmEndpointCopyWithImpl;
 @useResult
 $Res call({
- String id, String label, String baseUrl, String apiKey, String model, bool enabled,@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource source, DateTime? createdAt
+ String id, String label, String baseUrl, String apiKey, String model, bool enabled, bool videoInputEnabled,@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource source, DateTime? createdAt
 });
 
 
@@ -2251,7 +2263,7 @@ class _$LlmEndpointCopyWithImpl<$Res>
 
 /// Create a copy of LlmEndpoint
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? model = null,Object? enabled = null,Object? source = null,Object? createdAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? model = null,Object? enabled = null,Object? videoInputEnabled = null,Object? source = null,Object? createdAt = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
@@ -2259,6 +2271,7 @@ as String,baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nul
 as String,apiKey: null == apiKey ? _self.apiKey : apiKey // ignore: cast_nullable_to_non_nullable
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
 as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
+as bool,videoInputEnabled: null == videoInputEnabled ? _self.videoInputEnabled : videoInputEnabled // ignore: cast_nullable_to_non_nullable
 as bool,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
 as LlmEndpointSource,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
@@ -2346,10 +2359,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled,  bool videoInputEnabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _LlmEndpoint() when $default != null:
-return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.source,_that.createdAt);case _:
+return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.videoInputEnabled,_that.source,_that.createdAt);case _:
   return orElse();
 
 }
@@ -2367,10 +2380,10 @@ return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled,  bool videoInputEnabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)  $default,) {final _that = this;
 switch (_that) {
 case _LlmEndpoint():
-return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.source,_that.createdAt);case _:
+return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.videoInputEnabled,_that.source,_that.createdAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -2387,10 +2400,10 @@ return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled,  bool videoInputEnabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)?  $default,) {final _that = this;
 switch (_that) {
 case _LlmEndpoint() when $default != null:
-return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.source,_that.createdAt);case _:
+return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.videoInputEnabled,_that.source,_that.createdAt);case _:
   return null;
 
 }
@@ -2402,7 +2415,7 @@ return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_tha
 @JsonSerializable()
 
 class _LlmEndpoint extends LlmEndpoint {
-  const _LlmEndpoint({required this.id, this.label = '', this.baseUrl = '', this.apiKey = '', this.model = '', this.enabled = true, @JsonKey(unknownEnumValue: LlmEndpointSource.manual) this.source = LlmEndpointSource.manual, this.createdAt}): super._();
+  const _LlmEndpoint({required this.id, this.label = '', this.baseUrl = '', this.apiKey = '', this.model = '', this.enabled = true, this.videoInputEnabled = false, @JsonKey(unknownEnumValue: LlmEndpointSource.manual) this.source = LlmEndpointSource.manual, this.createdAt}): super._();
   factory _LlmEndpoint.fromJson(Map<String, dynamic> json) => _$LlmEndpointFromJson(json);
 
 @override final  String id;
@@ -2411,6 +2424,13 @@ class _LlmEndpoint extends LlmEndpoint {
 @override@JsonKey() final  String apiKey;
 @override@JsonKey() final  String model;
 @override@JsonKey() final  bool enabled;
+/// Manual opt-in for video attachments.
+///
+/// The probe can only auto-detect endpoints that advertise their input
+/// modalities. A proxy that rewrites requests for a video-capable server
+/// usually advertises nothing, and there is no way to tell that apart from
+/// a server that simply cannot take video -- so the person says.
+@override@JsonKey() final  bool videoInputEnabled;
 @override@JsonKey(unknownEnumValue: LlmEndpointSource.manual) final  LlmEndpointSource source;
 @override final  DateTime? createdAt;
 
@@ -2427,16 +2447,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LlmEndpoint&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.model, model) || other.model == model)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LlmEndpoint&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.model, model) || other.model == model)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.videoInputEnabled, videoInputEnabled) || other.videoInputEnabled == videoInputEnabled)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,model,enabled,source,createdAt);
+int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,model,enabled,videoInputEnabled,source,createdAt);
 
 @override
 String toString() {
-  return 'LlmEndpoint(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, model: $model, enabled: $enabled, source: $source, createdAt: $createdAt)';
+  return 'LlmEndpoint(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, model: $model, enabled: $enabled, videoInputEnabled: $videoInputEnabled, source: $source, createdAt: $createdAt)';
 }
 
 
@@ -2447,7 +2467,7 @@ abstract mixin class _$LlmEndpointCopyWith<$Res> implements $LlmEndpointCopyWith
   factory _$LlmEndpointCopyWith(_LlmEndpoint value, $Res Function(_LlmEndpoint) _then) = __$LlmEndpointCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String label, String baseUrl, String apiKey, String model, bool enabled,@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource source, DateTime? createdAt
+ String id, String label, String baseUrl, String apiKey, String model, bool enabled, bool videoInputEnabled,@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource source, DateTime? createdAt
 });
 
 
@@ -2464,7 +2484,7 @@ class __$LlmEndpointCopyWithImpl<$Res>
 
 /// Create a copy of LlmEndpoint
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? model = null,Object? enabled = null,Object? source = null,Object? createdAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? model = null,Object? enabled = null,Object? videoInputEnabled = null,Object? source = null,Object? createdAt = freezed,}) {
   return _then(_LlmEndpoint(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
@@ -2472,6 +2492,7 @@ as String,baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nul
 as String,apiKey: null == apiKey ? _self.apiKey : apiKey // ignore: cast_nullable_to_non_nullable
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
 as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
+as bool,videoInputEnabled: null == videoInputEnabled ? _self.videoInputEnabled : videoInputEnabled // ignore: cast_nullable_to_non_nullable
 as bool,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
 as LlmEndpointSource,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,

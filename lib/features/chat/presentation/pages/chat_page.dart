@@ -81,6 +81,7 @@ import '../widgets/file_workspace_viewer_sheet.dart';
 import '../widgets/subagent_task_banner.dart';
 import '../widgets/worktree_agent_task_banner.dart';
 import '../widgets/message_bubble.dart';
+import '../widgets/composer_video_picker.dart';
 import '../widgets/message_input.dart';
 import '../widgets/participant_roster_bar.dart';
 import '../widgets/pro_reasoning_progress_card.dart';
@@ -91,7 +92,7 @@ import '../widgets/workflow_status_presentation.dart';
 import '../widgets/workflow/workflow_editor_sheet.dart';
 import '../widgets/workflow/workflow_task_editor_sheet.dart';
 import '../widgets/chat_error_banner.dart';
-import '../widgets/chat_image_drop_target.dart';
+import '../widgets/chat_media_drop_target.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
 import '../providers/html_preview_provider.dart';
@@ -157,6 +158,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   int _droppedImageAttachmentId = 0;
   String? _switchingCompanionBranchName;
   MessageInputImageAttachment? _droppedImageAttachment;
+  MessageInputVideoAttachment? _droppedVideoAttachment;
+  int _droppedVideoAttachmentId = 0;
   static const double _browserPanelBreakpoint = 1280;
   static const double _browserPanelWidth = 480;
   static const double _compactBrowserPanelHeightFraction = 0.55;
@@ -495,14 +498,26 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  Widget _buildImageDropTarget(
+  Widget _buildMediaDropTarget(
     BuildContext context, {
     required bool enabled,
     required Widget child,
   }) {
-    return ChatImageDropTarget(
+    return ChatMediaDropTarget(
       enabled: enabled,
-      child: child,
+      videoEnabled: ref
+          .watch(settingsNotifierProvider)
+          .videoAttachmentsAvailable,
+      onVideoDropped: (filePath, mimeType) {
+        if (!mounted) return;
+        setState(() {
+          _droppedVideoAttachment = MessageInputVideoAttachment(
+            id: ++_droppedVideoAttachmentId,
+            filePath: filePath,
+            mimeType: mimeType,
+          );
+        });
+      },
       onImageDropped: (bytes, mimeType, filePath) {
         if (!mounted) return;
         final attachment = MessageInputImageAttachment(
@@ -515,6 +530,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           _droppedImageAttachment = attachment;
         });
       },
+      child: child,
     );
   }
 
@@ -761,6 +777,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       String? imageMimeType,
       String? originalImagePath,
       String? originalImageMimeType, {
+      VideoAttachmentDraft? video,
       bool interrupt = false,
     }) {
       setState(() {
@@ -776,6 +793,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           imageMimeType: imageMimeType,
           originalImagePath: originalImagePath,
           originalImageMimeType: originalImageMimeType,
+          video: video,
           languageCode: languageCode,
           interrupt: interrupt,
         ),
@@ -787,13 +805,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       String? imageBase64,
       String? imageMimeType,
       String? originalImagePath,
-      String? originalImageMimeType,
-    ) => submitComposerMessage(
+      String? originalImageMimeType, {
+      VideoAttachmentDraft? video,
+    }) => submitComposerMessage(
       message,
       imageBase64,
       imageMimeType,
       originalImagePath,
       originalImageMimeType,
+      video: video,
     );
 
     bool handleProReasoningSend(String question) =>
@@ -804,13 +824,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       String? imageBase64,
       String? imageMimeType,
       String? originalImagePath,
-      String? originalImageMimeType,
-    ) => submitComposerMessage(
+      String? originalImageMimeType, {
+      VideoAttachmentDraft? video,
+    }) => submitComposerMessage(
       message,
       imageBase64,
       imageMimeType,
       originalImagePath,
       originalImageMimeType,
+      video: video,
       interrupt: true,
     );
 
@@ -854,6 +876,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         composerPrefillText: _composerPrefillText,
         composerPrefillVersion: _composerPrefillVersion,
         droppedImageAttachment: _droppedImageAttachment,
+        droppedVideoAttachment: _droppedVideoAttachment,
         // Where a session starts is a choice about a session that has not run
         // yet, so the selector shows only while the thread is still empty.
         // Offering it inside a thread already under way implies that thread
@@ -984,7 +1007,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 : const RoutinesHomePage())
           : isMobileRemoteCoding
           ? const RemoteCodingPage()
-          : _buildImageDropTarget(
+          : _buildMediaDropTarget(
               context,
               enabled: canCompose,
               child: LayoutBuilder(

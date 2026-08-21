@@ -1498,6 +1498,7 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
   late final TextEditingController _apiKeyController;
   late final TextEditingController _modelController;
   late bool _enabled;
+  late bool _videoInputEnabled;
   final _formKey = GlobalKey<FormState>();
 
   @override
@@ -1515,6 +1516,7 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
       text: existing?.normalizedModel ?? '',
     );
     _enabled = existing?.enabled ?? true;
+    _videoInputEnabled = existing?.videoInputEnabled ?? false;
   }
 
   @override
@@ -1548,6 +1550,7 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
         apiKey: apiKey.isEmpty ? ApiConstants.defaultApiKey : apiKey,
         model: _modelController.text,
         enabled: _enabled,
+        videoInputEnabled: _videoInputEnabled,
         source: existing?.source ?? LlmEndpointSource.manual,
         createdAt: existing?.createdAt,
       ),
@@ -1621,6 +1624,15 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
               title: Text('settings.endpoint_enabled_field'.tr()),
               value: _enabled,
               onChanged: (value) => setState(() => _enabled = value),
+            ),
+            SwitchListTile(
+              key: const ValueKey('settings-endpoint-video-input-toggle'),
+              contentPadding: EdgeInsets.zero,
+              title: Text('settings.endpoint_video_input_field'.tr()),
+              subtitle: Text('settings.endpoint_video_input_hint'.tr()),
+              value: _videoInputEnabled,
+              onChanged: (value) =>
+                  setState(() => _videoInputEnabled = value),
             ),
           ],
         ),
