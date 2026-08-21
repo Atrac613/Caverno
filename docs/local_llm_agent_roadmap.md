@@ -5276,11 +5276,14 @@ Slice plan:
 4. **SEC4.4 — Project and autonomous containment.** Split implementation into
    **SEC4.4a (P0, completed 2026-08-14)**, applying one canonical, symlink-aware fence to every
    approval-free read, **SEC4.4b (P1, mutation fence completed 2026-08-19)**,
-   applying the same authorization to every file mutation, and **SEC4.4c (P1,
+   applying the same authorization to every file mutation, **SEC4.4c (P1,
    completed 2026-08-21)**, denying unclassified external MCP tools in
-   unattended routines by default. Any restored routine grant binds server
-   identity, tool name, schema digest, and reviewed intent. Git and
-   local-command write fencing remain follow-ups.
+   unattended routines by default, and **SEC4.4d (P1, completed 2026-08-21)**,
+   fencing `git_execute_command` working directories with
+   `ProjectMutationPathFence`. Any restored routine grant binds server
+   identity, tool name, schema digest, and reviewed intent. Git pathspecs,
+   `--git-dir` / `--work-tree` / `-C`, and local-command write fencing remain
+   follow-ups.
 5. **SEC4.5 — Authenticated transport.** Land as focused sub-slices:
    **SEC4.5a (P0, completed 2026-08-19)** implements SSH known-host verification;
    **SEC4.5b (P0, completed 2026-08-19)** makes the release gate and

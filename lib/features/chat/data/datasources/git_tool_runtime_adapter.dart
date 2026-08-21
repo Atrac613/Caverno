@@ -19,6 +19,7 @@ typedef GitRuntimeCommandRunner =
     Future<String> Function({
       required String command,
       required String workingDirectory,
+      required String? projectRoot,
       String? reason,
       GitProcessHandoff? beforeProcessStart,
     });
@@ -36,6 +37,7 @@ typedef GitRuntimeCommandResultRunner =
     Future<FirstPartyToolExecutionResult> Function({
       required String command,
       required String workingDirectory,
+      required String? projectRoot,
       String? reason,
       GitProcessHandoff? beforeProcessStart,
     });
@@ -176,12 +178,14 @@ final class GitToolRuntimeAdapter
                : ({
                    required command,
                    required workingDirectory,
+                   projectRoot,
                    reason,
                    beforeProcessStart,
                  }) async => FirstPartyToolExecutionResult.payloadOnly(
                    await commandRunner(
                      command: command,
                      workingDirectory: workingDirectory,
+                     projectRoot: projectRoot,
                      reason: reason,
                      beforeProcessStart: beforeProcessStart,
                    ),
@@ -226,6 +230,9 @@ final class GitToolRuntimeAdapter
     final execution = await _commandResultRunner(
       command: request.command,
       workingDirectory: request.workingDirectory,
+      projectRoot:
+          request.source.ownerWorktreePath ??
+          request.source.ownerRepositoryPath,
       reason: request.reason,
       beforeProcessStart: authorization.beginProcessHandoff,
     );

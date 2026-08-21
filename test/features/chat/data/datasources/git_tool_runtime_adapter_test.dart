@@ -34,6 +34,7 @@ void main() {
           ({
             required command,
             required workingDirectory,
+            projectRoot,
             reason,
             beforeProcessStart,
           }) async {
@@ -66,6 +67,7 @@ void main() {
           ({
             required command,
             required workingDirectory,
+            projectRoot,
             reason,
             beforeProcessStart,
           }) async => _commandExecution(exitCode: 2),
@@ -123,6 +125,7 @@ void main() {
               await GitTools.execute(
                 command: 'status --short',
                 workingDirectory: Directory.current.path,
+                projectRoot: Directory.current.path,
                 beforeProcessStart: () {
                   handoffCount += 1;
                   return false;
@@ -148,6 +151,7 @@ GitToolRuntimeAdapter _commandAdapter({
         ({
           required command,
           required workingDirectory,
+          projectRoot,
           reason,
           beforeProcessStart,
         }) async {
