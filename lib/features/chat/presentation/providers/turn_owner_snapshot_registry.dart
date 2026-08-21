@@ -220,7 +220,9 @@ final class TurnOwnerSnapshot {
 
   static bool _messageHasAttachment(Message? message) {
     return (message?.imageBase64?.isNotEmpty ?? false) ||
-        (message?.originalImagePath?.isNotEmpty ?? false);
+        (message?.originalImagePath?.isNotEmpty ?? false) ||
+        // Omitting video made a turn carrying one look like bare text here.
+        (message?.hasVideoAttachment ?? false);
   }
 
   static bool _hasPendingAutoContinueExecutionWorkflow(

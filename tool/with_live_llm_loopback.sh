@@ -149,4 +149,12 @@ set +e
 "$@"
 COMMAND_STATUS=$?
 set -e
+
+# A relay that dies mid-run leaves the child with unexplained connection
+# resets, so hand over the reason rather than deleting it during cleanup.
+if [[ "${COMMAND_STATUS}" -ne 0 && -s "${RELAY_LOG}" ]]; then
+  echo "Live LLM loopback relay log:" >&2
+  sed -n '1,120p' "${RELAY_LOG}" >&2
+fi
+
 exit "${COMMAND_STATUS}"

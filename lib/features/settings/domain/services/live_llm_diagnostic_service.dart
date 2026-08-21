@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
+import '../../../../core/constants/api_constants.dart';
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../../../../core/services/apple_foundation_models_platform_client.dart';
 import '../../../chat/data/datasources/chat_datasource.dart';
@@ -12,6 +14,7 @@ import '../../../chat/data/datasources/embeddings_client.dart';
 import '../../../chat/data/datasources/embeddings_math.dart';
 import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
+import '../../../chat/data/datasources/openai_modalities_probe.dart';
 import '../../../chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/domain/entities/message.dart';
@@ -94,6 +97,11 @@ class LiveLlmDiagnosticService {
       descriptionKey: 'settings.live_llm_diag_probe_vision_attachment_desc',
     ),
     LiveLlmDiagnosticProbeDefinition(
+      id: _videoInputModalityProbeId,
+      titleKey: 'settings.live_llm_diag_probe_video_input_title',
+      descriptionKey: 'settings.live_llm_diag_probe_video_input_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
       id: _visionToolObservationProbeId,
       titleKey: 'settings.live_llm_diag_probe_vision_observation_title',
       descriptionKey: 'settings.live_llm_diag_probe_vision_observation_desc',
@@ -150,6 +158,7 @@ class LiveLlmDiagnosticService {
   static const _foundationModelsLanguageMatrixProbeId =
       'foundation_models_language_matrix';
   static const _visionAttachmentProbeId = 'vision_attachment';
+  static const _videoInputModalityProbeId = 'video_input_modality';
   static const _visionToolObservationProbeId = 'vision_tool_observation';
   static const _narrowToolCallProbeId = 'narrow_tool_call';
   static const _goalUpdateFidelityProbeId = 'update_goal_fidelity';
@@ -180,6 +189,7 @@ class LiveLlmDiagnosticService {
     _effectiveContextProbeId,
     _visionAttachmentProbeId,
     _visionToolObservationProbeId,
+    _videoInputModalityProbeId,
     _narrowToolCallProbeId,
     _goalUpdateFidelityProbeId,
     _toolResultProbeId,
@@ -313,6 +323,10 @@ class LiveLlmDiagnosticService {
 
   /// Vision outcome labels. Emitted into probe details so the profile builder
   /// and a human reading the report classify a miss the same way.
+  static const _videoModalitySupported = 'video_input_supported';
+  static const _videoModalityUnsupported = 'video_input_unsupported';
+  static const _videoModalityUnknown = 'video_input_unknown';
+
   static const _visionClassificationRejected = 'endpoint_rejected';
   static const _visionClassificationIgnored = 'model_ignored_the_image';
   static const _visionClassificationPartial = 'partially_read';
@@ -2016,7 +2030,69 @@ class LiveLlmDiagnosticService {
       onReport: onReport,
       run: _runVisionToolObservationProbe,
     );
+    updated = await _runSelectedProbe(
+      report: updated,
+      probeId: _videoInputModalityProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: _runVideoInputModalityProbe,
+    );
     return updated;
+  }
+
+  /// Asks the endpoint whether it accepts video, rather than sending one.
+  ///
+  /// Every other probe here spends a generation to find out what a model does.
+  /// This one is a single GET: uploading a clip to learn the answer would cost
+  /// far more than the question is worth, and a server that decodes video says
+  /// so in its own metadata. Silence is reported as unknown, never as a denial
+  /// -- a proxy in front of a capable server answers nothing at all.
+  Future<LiveLlmDiagnosticProbeResult> _runVideoInputModalityProbe() async {
+    final timer = Stopwatch()..start();
+    final client = http.Client();
+    final EndpointModalitySupport support;
+    try {
+      support = await const OpenAiModalitiesProbe().videoSupport(
+        baseUrl: settings.baseUrl,
+        model: settings.effectiveModel,
+        client: client,
+        headers: ApiConstants.userAgentHeaders,
+      );
+    } finally {
+      client.close();
+      timer.stop();
+    }
+
+    return switch (support) {
+      EndpointModalitySupport.supported => LiveLlmDiagnosticProbeResult(
+        id: _videoInputModalityProbeId,
+        status: LiveLlmDiagnosticStatus.passed,
+        summary: 'The endpoint accepts video input.',
+        details: 'Classification: $_videoModalitySupported',
+        elapsed: timer.elapsed,
+      ),
+      EndpointModalitySupport.unsupported => LiveLlmDiagnosticProbeResult(
+        id: _videoInputModalityProbeId,
+        status: LiveLlmDiagnosticStatus.failed,
+        summary: 'The endpoint lists its modalities and video is not among them.',
+        details: 'Classification: $_videoModalityUnsupported',
+        elapsed: timer.elapsed,
+      ),
+      // Skipped, not failed and not a warning: most endpoints never advertise
+      // their modalities, and nothing in the OpenAI specification asks them to.
+      // Warning here would fire on every run against every cloud provider and
+      // mean nothing by the second time anyone saw it.
+      EndpointModalitySupport.unknown => LiveLlmDiagnosticProbeResult(
+        id: _videoInputModalityProbeId,
+        status: LiveLlmDiagnosticStatus.skipped,
+        summary: 'The endpoint does not advertise its input modalities.',
+        details:
+            'Classification: $_videoModalityUnknown\n'
+            'Turn video on for this endpoint by hand if the server behind it '
+            'decodes video.',
+        elapsed: timer.elapsed,
+      ),
+    };
   }
 
   /// Reads the image through the user-attachment path: a user message carrying

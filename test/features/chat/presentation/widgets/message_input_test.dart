@@ -13,6 +13,7 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/presentation/providers/composer_shortcuts_notifier.dart';
 import 'package:caverno/features/chat/presentation/slash_commands/slash_command.dart';
+import 'package:caverno/features/chat/domain/entities/video_attachment_draft.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/model_catalog_entry.dart';
@@ -68,8 +69,9 @@ Future<SharedPreferences> _pumpMessageInput(
     String? imageBase64,
     String? imageMimeType,
     String? originalImagePath,
-    String? originalImageMimeType,
-  )?
+    String? originalImageMimeType, {
+    VideoAttachmentDraft? video,
+  })?
   onSend,
   MessageInputImageAttachment? droppedImageAttachment,
   AppSettings? initialSettings,
@@ -129,7 +131,7 @@ Future<SharedPreferences> _pumpMessageInput(
                     valueListenable: isLoading,
                     builder: (context, loading, child) {
                       return MessageInput(
-                        onSend: onSend ?? (_, _, _, _, _) {},
+                        onSend: onSend ?? (_, _, _, _, _, {video}) {},
                         onCancel: onCancel,
                         isLoading: loading,
                         assistantMode: AssistantMode.general,
@@ -232,7 +234,7 @@ void main() {
       onCancel: () {
         cancelCount += 1;
       },
-      onSend: (message, _, _, _, _) {
+      onSend: (message, _, _, _, _, {video}) {
         sentMessages.add(message);
       },
     );
@@ -360,7 +362,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _) {
+      onSend: (message, _, _, _, _, {video}) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -396,7 +398,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _) {
+      onSend: (message, _, _, _, _, {video}) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -435,7 +437,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _) {
+      onSend: (message, _, _, _, _, {video}) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -474,7 +476,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _) {
+      onSend: (message, _, _, _, _, {video}) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -508,7 +510,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _) {
+      onSend: (message, _, _, _, _, {video}) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -552,7 +554,7 @@ void main() {
         tester,
         isLoading: isLoading,
         onCancel: () {},
-        onSend: (message, imageBase64, _, _, _) {
+        onSend: (message, imageBase64, _, _, _, {video}) {
           sentMessage = message;
           sentImageBase64 = imageBase64;
         },
@@ -602,7 +604,7 @@ void main() {
         tester,
         isLoading: isLoading,
         onCancel: () {},
-        onSend: (message, imageBase64, imageMimeType, _, _) {
+        onSend: (message, imageBase64, imageMimeType, _, _, {video}) {
           sentMessage = message;
           sentImageBase64 = imageBase64;
           sentImageMimeType = imageMimeType;
@@ -680,7 +682,7 @@ void main() {
       initialSettings: AppSettings.defaults().copyWith(
         proReasoningEnabled: true,
       ),
-      onSend: (message, _, _, _, _) => ordinaryMessages.add(message),
+      onSend: (message, _, _, _, _, {video}) => ordinaryMessages.add(message),
       onProReasoningSend: (question) {
         proQuestions.add(question);
         return true;
@@ -768,7 +770,7 @@ void main() {
       initialSettings: AppSettings.defaults().copyWith(
         proReasoningEnabled: true,
       ),
-      onSend: (message, _, _, _, _) => ordinaryMessages.add(message),
+      onSend: (message, _, _, _, _, {video}) => ordinaryMessages.add(message),
       onProReasoningSend: (_) => true,
     );
 
@@ -1076,7 +1078,7 @@ void main() {
       isLoading: isLoading,
       onCancel: () {},
       isCodingWorkspace: true,
-      onSend: (message, _, _, _, _) {
+      onSend: (message, _, _, _, _, {video}) {
         localMessages.add(message);
       },
       onWorktreeSessionSend: (prompt) async {
@@ -1137,7 +1139,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _) => sentMessages.add(message),
+      onSend: (message, _, _, _, _, {video}) => sentMessages.add(message),
       composerShortcuts: shortcuts,
     );
 
@@ -1191,7 +1193,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _) => sentMessages.add(message),
+      onSend: (message, _, _, _, _, {video}) => sentMessages.add(message),
       composerShortcuts: _SeededComposerShortcutsNotifier(
         shortcuts: _testShortcuts,
       ),
@@ -1278,7 +1280,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _) => sentMessages.add(message),
+      onSend: (message, _, _, _, _, {video}) => sentMessages.add(message),
       composerShortcuts: _SeededComposerShortcutsNotifier(
         shortcuts: _testShortcuts,
       ),

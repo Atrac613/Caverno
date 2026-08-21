@@ -86,6 +86,7 @@ class ModelCapabilityProfileBuilder {
       goalUpdateFidelity: _goalUpdateFidelity(report),
       editFormatPreference: _editFormatPreference(report),
       visionSupport: _visionSupport(report),
+      videoInputSupport: _videoInputSupport(report),
       usableContextTokens: _effectiveContextTokens(
         report,
         advertisedTokens: usableContextTokens,
@@ -256,6 +257,23 @@ class ModelCapabilityProfileBuilder {
       return ModelVisionSupport.reliable;
     }
     return ModelVisionSupport.basic;
+  }
+
+  /// Reads the advertised-modality probe.
+  ///
+  /// Only an explicit listing counts as a denial. The probe warns when the
+  /// endpoint says nothing, and that stays [ModelVideoInputSupport.unknown] so
+  /// the manual per-endpoint opt-in remains the answer for proxied setups.
+  static ModelVideoInputSupport _videoInputSupport(
+    LiveLlmDiagnosticReport report,
+  ) {
+    final result = _result(report, 'video_input_modality');
+    if (result == null) return ModelVideoInputSupport.unknown;
+    return switch (result.status) {
+      LiveLlmDiagnosticStatus.passed => ModelVideoInputSupport.supported,
+      LiveLlmDiagnosticStatus.failed => ModelVideoInputSupport.unsupported,
+      _ => ModelVideoInputSupport.unknown,
+    };
   }
 
   static LiveLlmDiagnosticProbeResult? _result(

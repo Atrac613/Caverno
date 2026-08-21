@@ -7,7 +7,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:caverno/features/chat/presentation/widgets/chat_image_drop_target.dart';
+import 'package:caverno/features/chat/presentation/widgets/chat_media_drop_target.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();
@@ -42,8 +42,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final state = tester.state<ChatImageDropTargetState>(
-      find.byType(ChatImageDropTarget),
+    final state = tester.state<ChatMediaDropTargetState>(
+      find.byType(ChatMediaDropTarget),
     );
     await state.handleDrop([
       DropItemFile.fromData(
@@ -71,8 +71,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final state = tester.state<ChatImageDropTargetState>(
-      find.byType(ChatImageDropTarget),
+    final state = tester.state<ChatMediaDropTargetState>(
+      find.byType(ChatMediaDropTarget),
     );
     await state.handleDrop([
       DropItemFile.fromData(
@@ -87,12 +87,71 @@ void main() {
     expect(dropped, isFalse);
     expect(find.text('Drop an image file to attach it'), findsOneWidget);
   });
+
+  testWidgets('video drop hands over the path, not the bytes', (tester) async {
+    String? droppedPath;
+    String? droppedMimeType;
+    await _pumpHarness(
+      tester,
+      videoEnabled: true,
+      onImageDropped: (_, _, _) {},
+      onVideoDropped: (filePath, mimeType) {
+        droppedPath = filePath;
+        droppedMimeType = mimeType;
+      },
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state<ChatMediaDropTargetState>(
+      find.byType(ChatMediaDropTarget),
+    );
+    await state.handleDrop([
+      DropItemFile.fromData(
+        Uint8List.fromList([1, 2, 3]),
+        name: 'clip.mov',
+        path: '/tmp/clip.mov',
+      ),
+    ]);
+    await tester.pumpAndSettle();
+
+    expect(droppedPath, '/tmp/clip.mov');
+    expect(droppedMimeType, 'video/quicktime');
+  });
+
+  testWidgets('video drop is refused when the endpoint cannot take one', (
+    tester,
+  ) async {
+    var dropped = false;
+    await _pumpHarness(
+      tester,
+      onImageDropped: (_, _, _) {},
+      onVideoDropped: (_, _) => dropped = true,
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state<ChatMediaDropTargetState>(
+      find.byType(ChatMediaDropTarget),
+    );
+    await state.handleDrop([
+      DropItemFile.fromData(
+        Uint8List.fromList([1, 2, 3]),
+        name: 'clip.mp4',
+        path: '/tmp/clip.mp4',
+      ),
+    ]);
+    await tester.pumpAndSettle();
+
+    expect(dropped, isFalse);
+    expect(find.text('Drop an image file to attach it'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpHarness(
   WidgetTester tester, {
   required void Function(Uint8List bytes, String mimeType, String filePath)
   onImageDropped,
+  void Function(String filePath, String mimeType)? onVideoDropped,
+  bool videoEnabled = false,
 }) {
   return tester.pumpWidget(
     EasyLocalization(
@@ -110,9 +169,11 @@ Future<void> _pumpHarness(
             supportedLocales: context.supportedLocales,
             locale: context.locale,
             home: Scaffold(
-              body: ChatImageDropTarget(
+              body: ChatMediaDropTarget(
                 enabled: true,
                 onImageDropped: onImageDropped,
+                onVideoDropped: onVideoDropped,
+                videoEnabled: videoEnabled,
                 child: const SizedBox.expand(),
               ),
             ),

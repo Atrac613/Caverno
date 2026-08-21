@@ -2579,6 +2579,7 @@ class ChatNotifier extends Notifier<ChatState> {
     String? imageMimeType,
     String? originalImagePath,
     String? originalImageMimeType,
+    VideoAttachmentDraft? video,
     String languageCode = 'en',
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
@@ -2589,7 +2590,8 @@ class ChatNotifier extends Notifier<ChatState> {
     // three fall back to the queue rather than dropping the message.
     bool interrupt = false,
   }) async {
-    if (content.trim().isEmpty && imageBase64 == null) return null;
+    final hasBody = content.trim().isNotEmpty || imageBase64 != null;
+    if (!hasBody && video == null) return null;
     if (!ref.mounted) return null;
     final wasLoading = state.isLoading;
     var ownerConversationId = conversationId;
@@ -2611,6 +2613,7 @@ class ChatNotifier extends Notifier<ChatState> {
       imageMimeType: imageMimeType,
       originalImagePath: originalImagePath,
       originalImageMimeType: originalImageMimeType,
+      video: video,
       languageCode: languageCode,
       isVoiceMode: isVoiceMode,
       bypassPlanMode: bypassPlanMode,
@@ -2803,7 +2806,7 @@ class ChatNotifier extends Notifier<ChatState> {
         imageMimeType: imageMimeType,
         originalImagePath: originalImagePath,
         originalImageMimeType: originalImageMimeType,
-      );
+      ).withVideoAttachment(queuedMessage.video);
 
       if (!ref.mounted) return turnOwner;
       state = state.copyWith(

@@ -8,6 +8,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/entities/video_attachment_draft.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart';
@@ -185,6 +186,7 @@ class _ValidationChatNotifier extends ChatNotifier {
     String? imageMimeType,
     String? originalImagePath,
     String? originalImageMimeType,
+    VideoAttachmentDraft? video,
     String languageCode = 'en',
     bool isVoiceMode = false,
     bool bypassPlanMode = false,

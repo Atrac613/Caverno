@@ -8,12 +8,14 @@ import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/demo_datasource.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import 'model_usage_providers.dart';
+import 'video_attachment_providers.dart';
 
 /// Creates a chat data source from an immutable settings snapshot.
 typedef ChatDataSourceFactory = ChatDataSource Function(AppSettings settings);
 
 final chatDataSourceFactoryProvider = Provider<ChatDataSourceFactory>((ref) {
   final usageSink = ref.watch(modelUsageSinkProvider);
+  final videoDelivery = ref.watch(videoAttachmentDeliveryProvider);
   return (settings) {
     if (settings.demoMode) {
       return DemoDataSource();
@@ -28,6 +30,10 @@ final chatDataSourceFactoryProvider = Provider<ChatDataSourceFactory>((ref) {
       usageSink: usageSink,
       endpointId: settings.activeLlmEndpointId,
       usageLabelResolver: () => LlmSessionLogContext.current?.requestLabel,
+      videoAttachmentResolver: (messages) => videoDelivery.resolve(
+        messages,
+        endpoint: Uri.parse(settings.baseUrl),
+      ),
     );
   };
 });
@@ -52,6 +58,7 @@ final primaryRouteEndpointDataSourceFactoryProvider =
     Provider<PrimaryRouteEndpointDataSourceFactory>((ref) {
       final settings = ref.watch(settingsNotifierProvider);
       final usageSink = ref.watch(modelUsageSinkProvider);
+      final videoDelivery = ref.watch(videoAttachmentDeliveryProvider);
       return ({
         required String baseUrl,
         required String apiKey,
@@ -63,5 +70,7 @@ final primaryRouteEndpointDataSourceFactoryProvider =
         usageSink: usageSink,
         endpointId: endpointId,
         usageLabelResolver: () => LlmSessionLogContext.current?.requestLabel,
+        videoAttachmentResolver: (messages) =>
+            videoDelivery.resolve(messages, endpoint: Uri.parse(baseUrl)),
       );
     });

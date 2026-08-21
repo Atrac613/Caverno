@@ -45,6 +45,11 @@ class LiveLlmDiagnosticSuite {
     'foundation_models_language_matrix': 20,
     'vision_attachment': 50,
     'vision_tool_observation': 35,
+    // Zero for the same reason as effective_context: this reports what the
+    // endpoint accepts, not what the model can do, so it must not move a
+    // model's score. Keeping it weightless also leaves probePointsTotal and
+    // the suite version alone, so existing score history stays comparable.
+    'video_input_modality': 0,
     'narrow_tool_call': 65,
     'update_goal_fidelity': 60,
     'tool_result_integration': 75,

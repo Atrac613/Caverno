@@ -48,6 +48,17 @@ Future<void> main(List<String> args) async {
     ProcessSignal.sigterm.watch().listen((_) => unawaited(stop())),
   ];
 
+  // The signal watchers hold the event loop open, so a bare `return` leaves the
+  // process alive with nothing to do. The wrapper would then poll for a ready
+  // file that is never coming and report a timeout, burying the real reason
+  // under the wrong headline.
+  Future<void> shutDownAndDetach() async {
+    await stop();
+    for (final subscription in signalSubscriptions) {
+      await subscription.cancel();
+    }
+  }
+
   server.listen((client) async {
     Socket? upstream;
     activeSockets.add(client);
@@ -82,6 +93,41 @@ Future<void> main(List<String> args) async {
       closePair();
     }
   });
+
+  // Reach upstream once before claiming to be ready.
+  //
+  // Binding loopback proves nothing about the origin: without this the relay
+  // announces itself, the child's requests all die as "connection reset by
+  // peer", and the one line saying why sits in a log the wrapper deletes on
+  // exit. Failing here instead turns an unreachable origin into a single
+  // legible error before any work is attempted.
+  try {
+    final preflight = await Socket.connect(
+      origin.host,
+      origin.port,
+      timeout: const Duration(seconds: 10),
+    );
+    preflight.destroy();
+  } on SocketException catch (error) {
+    stderr.writeln(
+      'The loopback relay cannot reach ${origin.host}:${origin.port}: $error',
+    );
+    if (Platform.isMacOS && error.osError?.errorCode == 65) {
+      // EHOSTUNREACH from a signed binary that is not Apple's is what macOS
+      // Local Network Privacy looks like: the connection is reported
+      // unreachable rather than refused, and no prompt is shown for a CLI.
+      // curl reaching the same host proves the route exists.
+      stderr.writeln(
+        'On macOS this is usually Local Network Privacy denying the dart '
+        'binary, not a routing problem. Check that curl reaches the same '
+        'host, then enable dart under System Settings > Privacy & Security > '
+        'Local Network.',
+      );
+    }
+    await shutDownAndDetach();
+    exitCode = 69;
+    return;
+  }
 
   final effectiveBaseUrl = origin
       .replace(host: InternetAddress.loopbackIPv4.address, port: server.port)
