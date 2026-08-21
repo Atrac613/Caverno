@@ -1357,6 +1357,37 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
             },
           ),
           const SizedBox(height: 16),
+
+          // Appearance section
+          _buildSectionHeader('settings.appearance_section'.tr()),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<AppThemePreference>(
+            initialValue: settings.themePreference,
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              helperText: 'settings.appearance_helper'.tr(),
+            ),
+            items: [
+              DropdownMenuItem(
+                value: AppThemePreference.system,
+                child: Text('onboarding.theme_system'.tr()),
+              ),
+              DropdownMenuItem(
+                value: AppThemePreference.dark,
+                child: Text('onboarding.theme_dark'.tr()),
+              ),
+              DropdownMenuItem(
+                value: AppThemePreference.light,
+                child: Text('onboarding.theme_light'.tr()),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                notifier.updateThemePreference(value);
+              }
+            },
+          ),
+          const SizedBox(height: 16),
           // App update section: macOS only, because Sparkle is the only update
           // channel Caverno ships. Other platforms update through their store.
           if (updateService.isAvailable) ...[

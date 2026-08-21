@@ -23,6 +23,7 @@ import 'features/chat/data/repositories/chat_memory_repository.dart';
 import 'features/chat/data/repositories/conversation_repository.dart';
 import 'features/chat/data/repositories/skill_repository.dart';
 import 'features/chat/data/repositories/tool_result_artifact_store.dart';
+import 'features/onboarding/presentation/pages/onboarding_page.dart';
 import 'features/remote_coding/presentation/remote_coding_notification_navigation_shell.dart';
 import 'features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'features/chat/presentation/providers/semantic_search_provider.dart';
@@ -30,7 +31,6 @@ import 'features/maintenance/presentation/providers/maintenance_scheduler_provid
 import 'features/settings/data/settings_repository.dart';
 import 'features/settings/domain/services/app_language_resolver.dart';
 import 'features/settings/presentation/providers/settings_notifier.dart';
-import 'features/settings/presentation/widgets/onboarding_dialog.dart';
 import 'features/settings/presentation/widgets/settings_modal.dart';
 import 'features/remote_coding/presentation/remote_coding_server_notifier.dart';
 import 'features/terminal/application/caverno_cli_arguments.dart';
@@ -178,8 +178,6 @@ class MyApp extends ConsumerStatefulWidget {
 
 class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   bool _localeSyncScheduled = false;
-  bool _onboardingCheckScheduled = false;
-  bool _onboardingChecked = false;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   late final MacosAppMenuService _appMenuService;
   bool _settingsModalOpen = false;
@@ -297,34 +295,6 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     });
   }
 
-  void _scheduleFirstLaunchOnboarding() {
-    if (_onboardingChecked || _onboardingCheckScheduled) {
-      return;
-    }
-
-    _onboardingCheckScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      _onboardingCheckScheduled = false;
-      if (!mounted || _onboardingChecked) {
-        return;
-      }
-
-      _onboardingChecked = true;
-      if (ref.read(settingsNotifierProvider).onboardingCompleted) {
-        return;
-      }
-
-      final navigatorContext = _navigatorKey.currentContext;
-      if (navigatorContext == null) {
-        _onboardingChecked = false;
-        _scheduleFirstLaunchOnboarding();
-        return;
-      }
-
-      await showOnboardingDialog(navigatorContext);
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
@@ -346,10 +316,9 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
         (settings) => settings.onboardingCompleted,
       ),
     );
-    if (!onboardingCompleted) {
-      _scheduleFirstLaunchOnboarding();
-    }
-
+    final themePreference = ref.watch(
+      settingsNotifierProvider.select((settings) => settings.themePreference),
+    );
     return Shortcuts(
       shortcuts: const <ShortcutActivator, Intent>{
         SingleActivator(LogicalKeyboardKey.keyQ, control: true):
@@ -375,8 +344,10 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
           locale: context.locale,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
-          themeMode: ThemeMode.dark,
-          home: const RemoteCodingNotificationNavigationShell(),
+          themeMode: themePreference.themeMode,
+          home: onboardingCompleted
+              ? const RemoteCodingNotificationNavigationShell()
+              : const OnboardingPage(),
         ),
       ),
     );
