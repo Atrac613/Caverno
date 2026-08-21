@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -21,6 +21,7 @@ import '../providers/coding_projects_notifier.dart';
 import 'file_workspace_viewer_sheet.dart';
 import 'message_image_io.dart';
 import 'message_image_viewer.dart';
+import 'message_video_poster.dart';
 import 'message_video_viewer.dart';
 import 'parsed_content_view.dart';
 import '../../../../core/theme/app_tokens.dart';
@@ -1225,6 +1226,11 @@ class _MessageVideoChip extends StatelessWidget {
     );
   }
 
+  /// Whether a still can be shown: there has to be a local file to read a
+  /// frame from, so a video given only as a URL keeps the plain chip.
+  bool get _canShowPoster =>
+      (message.videoPath?.isNotEmpty ?? false) && File(message.videoPath!).existsSync();
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1234,34 +1240,91 @@ class _MessageVideoChip extends StatelessWidget {
     return InkWell(
       key: const ValueKey('message-video-chip'),
       onTap: () => unawaited(_open(context)),
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // A play glyph rather than a film reel: the chip is now a control,
-            // and the icon is what says so before anything is tapped.
-            Icon(
-              message.videoUrl != null
-                  ? Icons.play_circle_outline
-                  : Icons.play_circle_fill,
-              size: 18,
-              color: foreground,
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                _label(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: foreground,
+      borderRadius: BorderRadius.circular(_canShowPoster ? 12 : 8),
+      child: _canShowPoster
+          ? _buildPoster(theme, foreground)
+          : _buildChipOnly(theme, foreground),
+    );
+  }
+
+  /// The still, with the play affordance over it.
+  Widget _buildPoster(ThemeData theme, Color foreground) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              MessageVideoPoster(
+                key: const ValueKey('message-video-poster'),
+                filePath: message.videoPath!,
+                width: _messageImagePreviewWidth,
+                height: _messageImagePreviewHeight,
+                placeholder: ColoredBox(
+                  color: theme.colorScheme.surfaceContainerHighest,
                 ),
               ),
-            ),
-          ],
+              const IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black45,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(6),
+                    child: Icon(
+                      Icons.play_arrow,
+                      size: 30,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
+        const SizedBox(height: 4),
+        SizedBox(
+          width: _messageImagePreviewWidth,
+          child: Text(
+            _label(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(color: foreground),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Fallback when there is no frame to read: a URL attachment, or a file the
+  /// attachments sweep has since removed.
+  Widget _buildChipOnly(ThemeData theme, Color foreground) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            message.videoUrl != null
+                ? Icons.play_circle_outline
+                : Icons.play_circle_fill,
+            size: 18,
+            color: foreground,
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              _label(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(color: foreground),
+            ),
+          ),
+        ],
       ),
     );
   }

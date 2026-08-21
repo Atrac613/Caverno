@@ -96,9 +96,9 @@ Future<bool> shareVideoWithSystemSheet({
   required String mimeType,
 }) async {
   try {
-    final result = await Share.shareXFiles([
-      XFile(sourcePath, mimeType: mimeType),
-    ]);
+    final result = await SharePlus.instance.share(
+      ShareParams(files: [XFile(sourcePath, mimeType: mimeType)]),
+    );
     return result.status == ShareResultStatus.success;
   } catch (error) {
     appLog('[MessageVideoIo] Share failed: $error');
