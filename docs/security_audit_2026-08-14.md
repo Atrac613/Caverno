@@ -81,7 +81,7 @@ conventions:
 | SA-03 | High | Built-in HTTP and browser tools bypass a complete egress/SSRF boundary (destination boundary fixed 2026-08-14; resource limits pending) | SEC1, SEC4.3 |
 | SA-04 | High | Project-scoped reads accept arbitrary absolute and home paths (fixed 2026-08-14) | SEC1, SEC4.4 |
 | SA-05 | High | SSH host keys are accepted without known-host verification (fixed 2026-08-19) | SEC4.5 |
-| SA-06 | High | Remote Coding credentials and control traffic use plaintext WebSockets (release non-loopback bind contained 2026-08-19; pinned WSS landed 2026-08-21; short-lived session tokens pending) | RC1, SEC4.5 |
+| SA-06 | High | Remote Coding credentials and control traffic use plaintext WebSockets (release non-loopback bind contained 2026-08-19; pinned WSS landed 2026-08-21; challenge-bound sessions landed 2026-08-21) | RC1, SEC4.5 |
 | SA-07 | High | Taint policy is advisory before cache and full-access decisions (fixed 2026-08-14) | SEC2.3b |
 | SA-08 | Medium | File mutations can escape project scope through missing or lexical-only containment (write/edit/delete fence landed 2026-08-19; git cwd fence landed 2026-08-21; git pathspec fence landed 2026-08-21; local-command write fence landed 2026-08-21) | SEC4.4 |
 | SA-09 | Medium | Routines treat every external MCP tool as read-only (denied by default 2026-08-21; reviewed grants pending) | SEC4.4 |
@@ -363,8 +363,12 @@ non-loopback address. The P0 gate requires a `transportContainment` result, and
 SEC4.5c (completed 2026-08-21) binds `HttpServer.bindSecure` with a persisted
 self-signed identity, puts the SHA-256 pin on pairing QR codes, and refuses
 `ws://` or a missing pin before sending pairing secrets or device tokens.
-Release LAN binds are allowed only when confidential. Reusable transport tokens
-remain SEC4.5d.
+Release LAN binds are allowed only when confidential. SEC4.5d (completed
+2026-08-21) issues a per-socket `authChallenge` and requires an HMAC proof
+bound to that challenge, nonce, and certificate pin before pairing or token
+lookup. Token-only `auth`, replayed challenges, and foreign-socket challenges
+fail closed. The in-memory session dies with the socket. Connection, frame,
+and rate limits remain SEC4.5e.
 
 ### SA-07: Advisory Taint Policy Before Trusted Execution
 
@@ -608,7 +612,7 @@ Add negative coverage for:
 | P0-4 | SEC4.4a project read containment (completed 2026-08-14) | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
 | P0-5 | SEC4.5a-SEC4.5b authenticated transport containment (completed 2026-08-19) | SA-05, SA-06 | SSH known-host mismatch fails before authentication. A release build cannot start a plaintext non-loopback Remote Coding listener. |
 | P1-1 | SEC4.4b/SEC4.4c/SEC4.4d/SEC4.4e/SEC4.4f mutation and autonomous containment (mutation fence completed 2026-08-19; routine MCP deny-by-default completed 2026-08-21; git cwd fence completed 2026-08-21; git pathspec fence completed 2026-08-21; local-command write fence completed 2026-08-21) | SA-08, SA-09 | Write/edit/delete go through a symlink-aware project fence. Unclassified external MCP tools are omitted from routine catalogs and denied at dispatch. Git working directories use the same fence. Relocating git globals and escaping pathspecs are denied. Local-command writes use the same fence when a project is selected. |
-| P1-2 | SEC4.5d/SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (SEC4.5c pinned WSS completed 2026-08-21) | SA-06 remainder, SA-10, SA-12 | Short-lived channel-bound session tokens replace reusable Remote Coding transport tokens. HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
+| P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (SEC4.5c pinned WSS completed 2026-08-21; SEC4.5d challenge-bound sessions completed 2026-08-21) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
 | P1-3 | SEC4.6 data protection and lifecycle | SA-11, SA-13, SA-14, SA-15, SA-17, SA-18 | Secret-free storage/export, recursive redaction, opt-out, migration, backup, and deletion tests pass. |
 | P1-4 | SEC4.7 release supply-chain hardening | SA-16 | Immutable actions, pinned toolchain, checksum, dependency monitoring, and fail-closed release signing are enforced. |
 

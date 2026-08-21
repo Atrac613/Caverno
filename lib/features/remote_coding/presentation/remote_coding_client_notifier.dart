@@ -19,6 +19,7 @@ import '../data/remote_coding_repository.dart';
 import '../data/remote_coding_security.dart';
 import '../data/remote_coding_websocket_connector.dart';
 import '../domain/remote_coding_models.dart';
+import '../domain/remote_coding_session_policy.dart';
 import '../domain/remote_coding_transport_policy.dart';
 
 final remoteCodingClientProvider =
@@ -156,6 +157,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   Timer? _reconnectTimer;
   final Map<String, Timer> _pendingCommandTimers = <String, Timer>{};
   bool _manualDisconnectRequested = false;
+  Completer<RemoteCodingSessionChallenge>? _pendingAuthChallenge;
 
   @override
   RemoteCodingClientState build() {
@@ -328,12 +330,48 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   }
 
   Future<void> _closeSocket() async {
+    _failPendingAuthChallenge();
     await _subscription?.cancel();
     _subscription = null;
     final socket = _socket;
     _socket = null;
     if (socket != null) {
       await socket.close(WebSocketStatus.goingAway);
+    }
+  }
+
+  Future<RemoteCodingSessionChallenge> _awaitAuthChallenge() {
+    final pending = _pendingAuthChallenge;
+    if (pending == null) {
+      throw const RemoteCodingAuthChallengeRequiredException();
+    }
+    return pending.future.timeout(const Duration(seconds: 8));
+  }
+
+  void _completeAuthChallenge(Map<String, dynamic> payload) {
+    final pending = _pendingAuthChallenge;
+    if (pending == null || pending.isCompleted) {
+      return;
+    }
+    try {
+      pending.complete(
+        RemoteCodingSessionChallenge.fromPayload(
+          payload,
+          certificatePin: state.host?.certificatePin ?? '',
+        ),
+      );
+    } catch (error) {
+      pending.completeError(error);
+    }
+  }
+
+  void _failPendingAuthChallenge() {
+    final pending = _pendingAuthChallenge;
+    _pendingAuthChallenge = null;
+    if (pending != null && !pending.isCompleted) {
+      pending.completeError(
+        const RemoteCodingAuthChallengeRequiredException(),
+      );
     }
   }
 
@@ -449,6 +487,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       ).timeout(const Duration(seconds: 8));
       socket.pingInterval = _socketPingInterval;
       _socket = socket;
+      _pendingAuthChallenge = Completer<RemoteCodingSessionChallenge>();
       _subscription = socket.listen(
         (raw) => unawaited(_handleRawMessage(raw)),
         onDone: () {
@@ -462,8 +501,17 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
           );
         },
       );
+      final challenge = await _awaitAuthChallenge();
+      final credential = token ?? secret ?? '';
       final authPayload = <String, dynamic>{
         'deviceName': Platform.localHostname,
+        'challengeId': challenge.challengeId,
+        'proof': RemoteCodingSessionPolicy.proof(
+          credential: credential,
+          challengeId: challenge.challengeId,
+          nonce: challenge.nonce,
+          certificatePin: host.certificatePin,
+        ),
       };
       if (token != null) {
         authPayload['token'] = token;
@@ -518,6 +566,8 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         return;
       }
       switch (message.type) {
+        case 'authChallenge':
+          _completeAuthChallenge(message.payload);
         case 'snapshot':
         case 'chatStateChanged':
         case 'projectsChanged':
@@ -771,6 +821,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     if (!ref.mounted || _manualDisconnectRequested) {
       return;
     }
+    _failPendingAuthChallenge();
     _socket = null;
     final subscription = _subscription;
     _subscription = null;

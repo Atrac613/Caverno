@@ -19,6 +19,7 @@ import 'package:caverno/features/remote_coding/data/remote_coding_secure_store.d
 import 'package:caverno/features/remote_coding/data/remote_coding_security.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_websocket_connector.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_session_policy.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_server_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
@@ -154,6 +155,56 @@ Future<void> _waitUntil(bool Function() condition) async {
   }
 }
 
+String _certificatePin(ProviderContainer container) {
+  final pin = container.read(remoteCodingServerProvider).certificatePin;
+  expect(pin, isNotNull);
+  expect(pin, isNotEmpty);
+  return pin!;
+}
+
+Future<RemoteCodingSessionChallenge> _waitForChallenge(
+  List<RemoteCodingProtocolMessage> messages,
+) async {
+  await _waitUntil(
+    () => messages.any((message) => message.type == 'authChallenge'),
+  );
+  return RemoteCodingSessionChallenge.fromPayload(
+    messages.firstWhere((message) => message.type == 'authChallenge').payload,
+  );
+}
+
+void _sendChallengedAuth(
+  WebSocket socket, {
+  required String id,
+  required RemoteCodingSessionChallenge challenge,
+  required String certificatePin,
+  required String credential,
+  String? token,
+  String? ticketId,
+  String? secret,
+  String? deviceName,
+}) {
+  socket.add(
+    RemoteCodingProtocol.encode(
+      type: 'auth',
+      id: id,
+      payload: {
+        'challengeId': challenge.challengeId,
+        'proof': RemoteCodingSessionPolicy.proof(
+          credential: credential,
+          challengeId: challenge.challengeId,
+          nonce: challenge.nonce,
+          certificatePin: certificatePin,
+        ),
+        if (token != null) 'token': token,
+        if (ticketId != null) 'ticketId': ticketId,
+        if (secret != null) 'secret': secret,
+        if (deviceName != null) 'deviceName': deviceName,
+      },
+    ),
+  );
+}
+
 void main() {
   test('canceling a pairing payload invalidates the ticket', () async {
     SharedPreferences.setMockInitialValues({});
@@ -202,16 +253,16 @@ void main() {
           messages.add(RemoteCodingProtocolMessage.decode(raw));
         }
       });
-      socket.add(
-        RemoteCodingProtocol.encode(
-          type: 'auth',
-          id: 'auth-canceled',
-          payload: {
-            'ticketId': payload.ticketId,
-            'secret': payload.secret,
-            'deviceName': 'Phone',
-          },
-        ),
+      final challenge = await _waitForChallenge(messages);
+      _sendChallengedAuth(
+        socket,
+        id: 'auth-canceled',
+        challenge: challenge,
+        certificatePin: _certificatePin(container),
+        credential: payload.secret,
+        ticketId: payload.ticketId,
+        secret: payload.secret,
+        deviceName: 'Phone',
       );
 
       await _waitUntil(
@@ -279,12 +330,14 @@ void main() {
           messages.add(RemoteCodingProtocolMessage.decode(raw));
         }
       });
-      socket.add(
-        RemoteCodingProtocol.encode(
-          type: 'auth',
-          id: 'auth-dashboard',
-          payload: const {'token': rawToken},
-        ),
+      final challenge = await _waitForChallenge(messages);
+      _sendChallengedAuth(
+        socket,
+        id: 'auth-dashboard',
+        challenge: challenge,
+        certificatePin: _certificatePin(container),
+        credential: rawToken,
+        token: rawToken,
       );
       await _waitUntil(
         () => messages.any(
@@ -304,6 +357,10 @@ void main() {
       expect(allStats['sessionCount'], 1);
       expect(allStats['messageCount'], 2);
       expect(allStats['totalTokens'], 2048);
+      final auth = snapshot.payload['auth'] as Map<String, dynamic>;
+      expect(auth['sessionId'], isNotEmpty);
+      expect(auth['sessionId'], isNot(rawToken));
+      expect(auth.containsKey('deviceToken'), isFalse);
     } finally {
       await subscription?.cancel();
       await socket?.close();
@@ -363,12 +420,14 @@ void main() {
             messages.add(RemoteCodingProtocolMessage.decode(raw));
           }
         });
-        socket.add(
-          RemoteCodingProtocol.encode(
-            type: 'auth',
-            id: 'auth-terminal',
-            payload: const {'token': rawToken},
-          ),
+        final challenge = await _waitForChallenge(messages);
+        _sendChallengedAuth(
+          socket,
+          id: 'auth-terminal',
+          challenge: challenge,
+          certificatePin: _certificatePin(container),
+          credential: rawToken,
+          token: rawToken,
         );
         await _waitUntil(
           () => messages.any(
@@ -487,12 +546,14 @@ void main() {
           messages.add(RemoteCodingProtocolMessage.decode(raw));
         }
       });
-      socket.add(
-        RemoteCodingProtocol.encode(
-          type: 'auth',
-          id: 'auth-relay',
-          payload: const <String, dynamic>{'token': rawToken},
-        ),
+      final challenge = await _waitForChallenge(messages);
+      _sendChallengedAuth(
+        socket,
+        id: 'auth-relay',
+        challenge: challenge,
+        certificatePin: _certificatePin(container),
+        credential: rawToken,
+        token: rawToken,
       );
       await _waitUntil(
         () => messages.any((message) => message.id == 'auth-relay'),
@@ -608,12 +669,14 @@ void main() {
             }
           },
         );
-        socket.add(
-          RemoteCodingProtocol.encode(
-            type: 'auth',
-            id: 'auth-1',
-            payload: const {'token': rawToken},
-          ),
+        final challenge = await _waitForChallenge(messages);
+        _sendChallengedAuth(
+          socket,
+          id: 'auth-1',
+          challenge: challenge,
+          certificatePin: _certificatePin(container),
+          credential: rawToken,
+          token: rawToken,
         );
         await _waitUntil(
           () => messages.any(
@@ -663,12 +726,14 @@ void main() {
           }
         });
         try {
-          rejectedSocket.add(
-            RemoteCodingProtocol.encode(
-              type: 'auth',
-              id: 'auth-2',
-              payload: const {'token': rawToken},
-            ),
+          final rejectedChallenge = await _waitForChallenge(rejectedMessages);
+          _sendChallengedAuth(
+            rejectedSocket,
+            id: 'auth-2',
+            challenge: rejectedChallenge,
+            certificatePin: _certificatePin(container),
+            credential: rawToken,
+            token: rawToken,
           );
           await _waitUntil(
             () => rejectedMessages.any(
@@ -685,6 +750,157 @@ void main() {
       } finally {
         await subscription?.cancel();
         await socket?.close();
+        container.dispose();
+      }
+    },
+  );
+
+  test(
+    'session auth requires a live challenge bound to that socket',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final port = await _unusedPort();
+      const rawToken = 'mobile-token';
+      final device = RemoteCodingPairedDevice(
+        id: 'device-1',
+        name: 'Phone',
+        tokenHash: RemoteCodingSecurity.hashToken(rawToken),
+        createdAt: DateTime(2026, 8, 21, 10),
+        lastSeenAt: DateTime(2026, 8, 21, 10),
+      );
+      await RemoteCodingRepository(prefs).saveServerSettings(
+        RemoteCodingServerSettings(
+          enabled: true,
+          port: port,
+          pairedDevices: [device],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          remoteCodingRepositoryProvider.overrideWithValue(
+            RemoteCodingRepository(prefs, secureStore: _MemorySecureStore()),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+        ],
+      );
+
+      WebSocket? socketA;
+      WebSocket? socketB;
+      StreamSubscription<dynamic>? subscriptionA;
+      StreamSubscription<dynamic>? subscriptionB;
+      final messagesA = <RemoteCodingProtocolMessage>[];
+      final messagesB = <RemoteCodingProtocolMessage>[];
+      try {
+        container.read(remoteCodingServerProvider);
+        await _waitUntil(
+          () => container.read(remoteCodingServerProvider).isRunning,
+        );
+        final pin = _certificatePin(container);
+
+        socketA = await _connectPinned(container, port);
+        subscriptionA = socketA.listen((raw) {
+          if (raw is String) {
+            messagesA.add(RemoteCodingProtocolMessage.decode(raw));
+          }
+        });
+        final challengeA = await _waitForChallenge(messagesA);
+
+        socketB = await _connectPinned(container, port);
+        subscriptionB = socketB.listen((raw) {
+          if (raw is String) {
+            messagesB.add(RemoteCodingProtocolMessage.decode(raw));
+          }
+        });
+        await _waitForChallenge(messagesB);
+
+        socketA.add(
+          RemoteCodingProtocol.encode(
+            type: 'auth',
+            id: 'auth-token-only',
+            payload: const {'token': rawToken},
+          ),
+        );
+        await _waitUntil(
+          () => messagesA.any(
+            (message) =>
+                message.id == 'auth-token-only' &&
+                message.type == 'error' &&
+                message.payload['code'] ==
+                    RemoteCodingSessionPolicy.challengeRequiredCode,
+          ),
+        );
+
+        _sendChallengedAuth(
+          socketB,
+          id: 'auth-foreign',
+          challenge: challengeA,
+          certificatePin: pin,
+          credential: rawToken,
+          token: rawToken,
+        );
+        await _waitUntil(
+          () => messagesB.any(
+            (message) =>
+                message.id == 'auth-foreign' &&
+                message.type == 'error' &&
+                message.payload['code'] ==
+                    RemoteCodingSessionPolicy.challengeRejectedCode,
+          ),
+        );
+
+        _sendChallengedAuth(
+          socketA,
+          id: 'auth-owner',
+          challenge: challengeA,
+          certificatePin: pin,
+          credential: rawToken,
+          token: rawToken,
+        );
+        await _waitUntil(
+          () => messagesA.any(
+            (message) =>
+                message.id == 'auth-owner' && message.type == 'snapshot',
+          ),
+        );
+        final snapshot = messagesA.firstWhere(
+          (message) =>
+              message.id == 'auth-owner' && message.type == 'snapshot',
+        );
+        final auth = snapshot.payload['auth'] as Map<String, dynamic>;
+        expect(auth['sessionId'], isNotEmpty);
+        expect(auth['sessionId'], isNot(rawToken));
+        expect(auth.containsKey('deviceToken'), isFalse);
+
+        _sendChallengedAuth(
+          socketB,
+          id: 'auth-replay',
+          challenge: challengeA,
+          certificatePin: pin,
+          credential: rawToken,
+          token: rawToken,
+        );
+        await _waitUntil(
+          () => messagesB.any(
+            (message) =>
+                message.id == 'auth-replay' &&
+                message.type == 'error' &&
+                message.payload['code'] ==
+                    RemoteCodingSessionPolicy.challengeRejectedCode,
+          ),
+        );
+      } finally {
+        await subscriptionA?.cancel();
+        await subscriptionB?.cancel();
+        await socketA?.close();
+        await socketB?.close();
         container.dispose();
       }
     },
