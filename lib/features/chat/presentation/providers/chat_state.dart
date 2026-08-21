@@ -8,7 +8,6 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/chat_turn_owner.dart';
-import '../../domain/entities/video_attachment_draft.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';

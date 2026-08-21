@@ -81,7 +81,6 @@ import '../widgets/file_workspace_viewer_sheet.dart';
 import '../widgets/subagent_task_banner.dart';
 import '../widgets/worktree_agent_task_banner.dart';
 import '../widgets/message_bubble.dart';
-import '../../domain/entities/video_attachment_draft.dart';
 import '../widgets/composer_video_picker.dart';
 import '../widgets/message_input.dart';
 import '../widgets/participant_roster_bar.dart';
