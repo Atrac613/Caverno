@@ -3341,7 +3341,13 @@ class LiveLlmDiagnosticService {
   }
 
   Map<String, dynamic>? _tryDecodeJsonObject(String value) {
-    final trimmed = value.trim();
+    // Reasoning models hand back their chain of thought merged into the
+    // content as a <think> block, and that prose routinely contains braces.
+    // Slicing the raw text from its first brace would start inside the
+    // thought and end at the answer's closing brace, so the decode fails and
+    // a schema-perfect reply gets scored as a contract violation. Decode the
+    // same visible text a production consumer would parse.
+    final trimmed = _visibleDiagnosticContent(value);
     final candidates = <String>[trimmed];
     final firstBrace = trimmed.indexOf('{');
     final lastBrace = trimmed.lastIndexOf('}');
