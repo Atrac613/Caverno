@@ -19,7 +19,11 @@ BuiltInLocalCommandResultRunner resolveBuiltInLocalCommandResultRunner({
 }) =>
     resultRunner ??
     (legacyRunner == null
-        ? LocalShellTools.executeResult
+        ? ({required command, required workingDirectory}) =>
+              LocalShellTools.executeResult(
+                command: command,
+                workingDirectory: workingDirectory,
+              )
         : ({required command, required workingDirectory}) async =>
               FirstPartyToolExecutionResult.payloadOnly(
                 await legacyRunner(

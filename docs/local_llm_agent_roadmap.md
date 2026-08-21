@@ -5281,9 +5281,11 @@ Slice plan:
    unattended routines by default, and **SEC4.4d (P1, completed 2026-08-21)**,
    fencing `git_execute_command` working directories with
    `ProjectMutationPathFence`, and **SEC4.4e (P1, completed 2026-08-21)**,
-   denying relocating git globals and out-of-root pathspecs. Any restored
+   denying relocating git globals and out-of-root pathspecs, and **SEC4.4f (P1,
+   completed 2026-08-21)**, fencing local-command working directories and write
+   operands with the same mutation fence when a project is selected. Any restored
    routine grant binds server identity, tool name, schema digest, and reviewed
-   intent. Local-command write fencing remains a follow-up.
+   intent.
 5. **SEC4.5 — Authenticated transport.** Land as focused sub-slices:
    **SEC4.5a (P0, completed 2026-08-19)** implements SSH known-host verification;
    **SEC4.5b (P0, completed 2026-08-19)** makes the release gate and
