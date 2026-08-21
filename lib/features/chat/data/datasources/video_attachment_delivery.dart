@@ -5,6 +5,7 @@ import 'dart:io';
 import '../../../../core/services/media_host_service.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/video_delivery.dart';
 
 /// Decides how a video attachment reaches the model endpoint.
 ///
@@ -32,22 +33,22 @@ class VideoAttachmentDelivery {
   /// Only the person's most recent turn is considered. Older attachments are
   /// left out so a conversation does not re-upload every video it has ever
   /// seen; the formatter marks the omission in their place.
-  Future<Map<String, String>> resolve(
+  Future<Map<String, VideoDelivery>> resolve(
     List<Message> messages, {
     required Uri endpoint,
   }) async {
     final target = _targetMessage(messages);
-    if (target == null) return const <String, String>{};
+    if (target == null) return const <String, VideoDelivery>{};
 
     final typedUrl = target.videoUrl;
     if (typedUrl != null && typedUrl.isNotEmpty) {
       // Handed over verbatim: the person addressed the endpoint's network, not
       // ours, and rewriting it would only break cases we cannot see.
-      return <String, String>{target.id: typedUrl};
+      return <String, VideoDelivery>{target.id: VideoDelivery.url(typedUrl)};
     }
 
     final path = target.videoPath;
-    if (path == null) return const <String, String>{};
+    if (path == null) return const <String, VideoDelivery>{};
     final file = File(path);
     if (!file.existsSync()) {
       // Says nothing to the model -- the formatter's omission notice covers
@@ -57,19 +58,18 @@ class VideoAttachmentDelivery {
       // file macOS will not let this process read, so "missing" here can mean
       // "not permitted".
       appLog('[Video] attachment unreadable, sending without it: $path');
-      return const <String, String>{};
+      return const <String, VideoDelivery>{};
     }
 
-    final url = await _deliver(
+    final delivery = await _deliver(
       file: file,
       mimeType: target.effectiveVideoMimeType,
       endpoint: endpoint,
     );
-    if (url == null) return const <String, String>{};
-    return <String, String>{target.id: url};
+    return <String, VideoDelivery>{target.id: delivery};
   }
 
-  Future<String?> _deliver({
+  Future<VideoDelivery> _deliver({
     required File file,
     required String mimeType,
     required Uri endpoint,
@@ -85,7 +85,7 @@ class VideoAttachmentDelivery {
         if (ticket != null) {
           _watchForFetch(ticket.token, origin);
           appLog('[Video] serving ${file.path} at ${ticket.url}');
-          return ticket.url.toString();
+          return VideoDelivery.url(ticket.url.toString());
         }
         // Null means this device has no address the endpoint could reach, which
         // is a property of the network rather than of this attempt. Remember it
@@ -101,12 +101,17 @@ class VideoAttachmentDelivery {
         // the URL again rather than writing the endpoint off for the session.
       }
     }
-    return _inlineDataUri(file: file, mimeType: mimeType);
+    return VideoDelivery.inline(
+      await _inlineDataUri(file: file, mimeType: mimeType),
+    );
   }
 
   void _watchForFetch(String token, String origin) {
     Timer(MediaHostService.ttl, () async {
       if (!_mediaHost.wasFetched(token)) {
+        appLog(
+          '[Video] $origin never fetched the URL; inlining from now on',
+        );
         _inlineOnlyOrigins.add(origin);
       }
       await _mediaHost.revoke(token);

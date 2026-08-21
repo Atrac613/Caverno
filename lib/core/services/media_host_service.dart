@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import '../utils/logger.dart';
 import 'media_host_listen_policy.dart';
 
 /// One file the server will hand out, and the terms it will hand it out on.
@@ -186,13 +187,16 @@ class MediaHostService {
   Future<void> _handle(HttpRequest request) async {
     final response = request.response;
     if (request.method != 'GET' && request.method != 'HEAD') {
+      _log(request, HttpStatus.methodNotAllowed, 'not a read');
       _reject(response, HttpStatus.methodNotAllowed);
       return;
     }
 
     final handle = _lookup(request.uri);
     if (handle == null) {
-      // Unknown, expired and exhausted tokens are indistinguishable on purpose.
+      // Unknown, expired and exhausted tokens are indistinguishable to the
+      // caller on purpose. Our own log may say which it was.
+      _log(request, HttpStatus.notFound, 'no live handle for this token');
       _reject(response, HttpStatus.notFound);
       return;
     }
@@ -226,6 +230,7 @@ class MediaHostService {
     }
 
     if (request.method == 'HEAD') {
+      _log(request, response.statusCode, 'HEAD, no bytes sent');
       await response.close();
       return;
     }
@@ -235,8 +240,21 @@ class MediaHostService {
     final stream = range == null
         ? handle.file.openRead()
         : handle.file.openRead(range.start, range.end + 1);
-    await response.addStream(stream);
-    await response.close();
+    try {
+      await response.addStream(stream);
+      await response.close();
+    } on Object catch (error) {
+      // A fetch that dies mid-body is the difference between "the endpoint
+      // never came" and "it came and could not finish", and those need
+      // opposite investigations.
+      _log(request, response.statusCode, 'failed after headers: $error');
+      rethrow;
+    }
+    _log(
+      request,
+      response.statusCode,
+      'sent ${range == null ? length : range.end - range.start + 1} bytes',
+    );
     if (handle.remainingFetches <= 0) {
       // Exhausted: drop it so the listener can go away once nothing is live.
       // The token stays in _fetchedTokens so wasFetched still answers.
@@ -289,6 +307,20 @@ class MediaHostService {
     if (start > end || start >= length) return null;
     if (end >= length) end = length - 1;
     return (start: start, end: end);
+  }
+
+  /// One line per request, so "was it ever fetched" has an answer.
+  ///
+  /// The token is the whole credential, so only its first characters are
+  /// written: enough to line a fetch up with the URL the delivery logged,
+  /// without putting a working address in a file that gets pasted around.
+  static void _log(HttpRequest request, int statusCode, String outcome) {
+    final token = _tokenOf(request.uri) ?? '<none>';
+    final short = token.length > 8 ? '${token.substring(0, 8)}...' : token;
+    appLog(
+      '[MediaHost] ${request.method} /v/$short -> $statusCode '
+      '($outcome) from ${request.connectionInfo?.remoteAddress.address}',
+    );
   }
 
   static void _reject(HttpResponse response, int statusCode) {

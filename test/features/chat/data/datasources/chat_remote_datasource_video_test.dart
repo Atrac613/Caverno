@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/entities/video_delivery.dart';
 
 const String _videoUrl = 'http://192.168.1.5:49152/v/token';
 
@@ -44,7 +45,9 @@ http.Response _completion() => http.Response(
 /// Sends [messages] and returns the JSON body that reached the wire.
 Future<Map<String, dynamic>> send(
   List<Message> messages, {
-  Map<String, String> resolved = const {'message-video': _videoUrl},
+  Map<String, VideoDelivery> resolved = const {
+    'message-video': VideoDelivery.url(_videoUrl),
+  },
 }) async {
   late Map<String, dynamic> body;
   final client = MockClient((request) async {

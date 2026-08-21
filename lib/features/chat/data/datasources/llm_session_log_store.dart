@@ -6,6 +6,7 @@ import '../../../../core/constants/build_info.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/video_delivery.dart';
 import 'chat_remote_datasource.dart';
 
 const Object _llmSessionLogContextZoneKey = Object();
@@ -159,6 +160,7 @@ class LlmSessionLogRequest {
     this.maxTokens,
     this.chatTemplateKwargs,
     this.label,
+    this.videoDeliveryLookup,
   });
 
   final String operation;
@@ -174,6 +176,16 @@ class LlmSessionLogRequest {
   final double? temperature;
   final int? maxTokens;
   final Map<String, dynamic>? chatTemplateKwargs;
+
+  /// How the video on a message was actually delivered, by message id.
+  ///
+  /// The attachment on the message says what was picked; this says what was
+  /// sent. Without it a turn that answered without its video looks the same as
+  /// one that delivered it fine and got no frames back.
+  ///
+  /// A lookup rather than a map because this object is built before the
+  /// request is issued, and the answer only exists afterwards.
+  final VideoDelivery? Function(String messageId)? videoDeliveryLookup;
 
   /// The producer that issued this request, taken from the ambient
   /// [LlmSessionLogContext.requestLabel].
@@ -745,7 +757,12 @@ class LlmSessionLogStore {
         'chat_template_kwargs': request.chatTemplateKwargs,
       if (request.label != null && request.label!.trim().isNotEmpty)
         'label': request.label!.trim(),
-      'messages': request.messages.map(_messageToJson).toList(growable: false),
+      'messages': request.messages
+          .map(
+            (message) =>
+                _messageToJson(message, request.videoDeliveryLookup),
+          )
+          .toList(growable: false),
       if (request.tools != null)
         'tools': request.tools!
             .map(_toolDefinitionToJson)
@@ -803,7 +820,13 @@ class LlmSessionLogStore {
     };
   }
 
-  Map<String, dynamic> _messageToJson(Message message) {
+  Map<String, dynamic> _messageToJson(
+    Message message,
+    VideoDelivery? Function(String messageId)? videoDeliveryLookup,
+  ) {
+    final delivery = message.hasVideoAttachment
+        ? videoDeliveryLookup?.call(message.id)
+        : null;
     return {
       'id': message.id,
       'role': message.role.name,
@@ -825,6 +848,10 @@ class LlmSessionLogStore {
           // the only way to tell afterwards which file a turn actually meant.
           if (message.videoPath != null) 'path': message.videoPath,
           if (message.videoUrl != null) 'url': message.videoUrl,
+          // Absent means the request went out without it, which the omission
+          // notice in the prompt also records.
+          'delivery': delivery == null ? 'omitted' : delivery.mode.name,
+          if (delivery != null) 'deliveredAs': delivery.loggableUrl,
         },
       if (message.error != null) 'error': message.error,
     };

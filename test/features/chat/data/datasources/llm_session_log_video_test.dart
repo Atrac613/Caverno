@@ -7,6 +7,7 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/domain/entities/chat_completion_terminal_metadata.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/entities/video_delivery.dart';
 
 void main() {
   late Directory tempDir;
@@ -20,7 +21,10 @@ void main() {
   });
 
   /// Records one turn carrying [message] and returns the logged request.
-  Future<Map<String, dynamic>> logRequestFor(Message message) async {
+  Future<Map<String, dynamic>> logRequestFor(
+    Message message, {
+    VideoDelivery? delivery,
+  }) async {
     final store = LlmSessionLogStore(rootDirectoryProvider: () async => tempDir);
     final startedAt = DateTime(2026, 8, 21, 15, 31);
     await store.record(
@@ -35,6 +39,7 @@ void main() {
         model: 'model-a',
         temperature: 0.2,
         maxTokens: 1000,
+        videoDeliveryLookup: (id) => id == message.id ? delivery : null,
       ),
       startedAt: startedAt,
       finishedAt: startedAt.add(const Duration(milliseconds: 10)),
@@ -79,6 +84,48 @@ void main() {
     expect(video['sizeBytes'], 7932096);
     expect(video['durationMs'], 8200);
     expect(video.containsKey('url'), isFalse);
+  });
+
+  test('records the address the video was actually served at', () async {
+    final request = await logRequestFor(
+      videoMessage(path: '/Users/someone/Desktop/IMG_8129.mov'),
+      delivery: const VideoDelivery.url('http://192.168.100.5:54952/v/tok'),
+    );
+
+    final video =
+        (request['messages'] as List).single['video'] as Map<String, dynamic>;
+    expect(video['delivery'], 'url');
+    expect(video['deliveredAs'], 'http://192.168.100.5:54952/v/tok');
+  });
+
+  test('an inlined video is logged by size, never by payload', () async {
+    final request = await logRequestFor(
+      videoMessage(path: '/Users/someone/Desktop/IMG_8129.mov'),
+      delivery: VideoDelivery.inline('data:video/quicktime;base64,${'A' * 900}'),
+    );
+
+    final video =
+        (request['messages'] as List).single['video'] as Map<String, dynamic>;
+    expect(video['delivery'], 'inline');
+    expect(video['deliveredAs'], contains('chars'));
+    expect(
+      video['deliveredAs'],
+      isNot(contains('AAAA')),
+      reason: 'a log must not carry the video itself',
+    );
+  });
+
+  test('a video that never went out is recorded as omitted', () async {
+    // The distinction the whole record exists for: this is what an attachment
+    // the request layer could not deliver looks like afterwards.
+    final request = await logRequestFor(
+      videoMessage(path: '/Users/someone/Desktop/IMG_8129.mov'),
+    );
+
+    final video =
+        (request['messages'] as List).single['video'] as Map<String, dynamic>;
+    expect(video['delivery'], 'omitted');
+    expect(video.containsKey('deliveredAs'), isFalse);
   });
 
   test('a typed URL is recorded as a URL, not a path', () async {

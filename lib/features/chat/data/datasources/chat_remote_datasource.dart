@@ -12,6 +12,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/model_usage_sink.dart';
 import '../../domain/entities/tool_call_info.dart';
+import '../../domain/entities/video_delivery.dart';
 import '../../domain/services/chat_request_prefix_stability_service.dart';
 import '../../domain/services/qwen38_request_thinking_policy.dart';
 import 'chat_completion_request_fallback.dart';
@@ -19,6 +20,7 @@ import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
 import 'chat_message_payload_formatter.dart';
 import 'chat_request_logger.dart';
+import 'video_delivery_ledger.dart';
 import 'chat_response_telemetry.dart';
 import 'chat_tool_result_message_formatter.dart';
 import 'qwen38_request_policy_client.dart';
@@ -40,7 +42,7 @@ export 'chat_datasource.dart'
 /// Returning an entry is what makes a video ride along with the request; a
 /// message absent from the map is sent with an omission notice instead.
 typedef VideoAttachmentResolver =
-    Future<Map<String, String>> Function(List<Message> messages);
+    Future<Map<String, VideoDelivery>> Function(List<Message> messages);
 
 class ChatRemoteDataSource
     implements
@@ -1082,17 +1084,21 @@ class ChatRemoteDataSource
     }
   }
 
-  /// Resolves the videos this request may carry, keyed by message id.
-  ///
-  /// Returns empty when no resolver was supplied, which keeps every existing
-  /// caller on exactly the request it built before.
+  final _videoDeliveries = VideoDeliveryLedger();
+
+  /// How the video on [id] went out, or null if that message carried none.
+  VideoDelivery? videoDeliveryFor(String id) => _videoDeliveries[id];
+
+  /// The videos this request may carry, keyed by message id. Empty when no
+  /// resolver was supplied, which keeps existing callers on the same request.
   Future<Map<String, String>> _resolveVideoUrls(List<Message> messages) async {
     final resolver = _videoAttachmentResolver;
-    if (resolver == null) return const <String, String>{};
-    if (!messages.any((m) => m.hasVideoAttachment)) {
-      return const <String, String>{};
-    }
-    return resolver(messages);
+    const none = <String, String>{};
+    if (resolver == null) return none;
+    if (!messages.any((m) => m.hasVideoAttachment)) return none;
+    final deliveries = await resolver(messages);
+    _videoDeliveries.recordAll(deliveries);
+    return deliveries.map((id, delivery) => MapEntry(id, delivery.url));
   }
 
   bool _shouldStripImages(List<Message> messages) =>

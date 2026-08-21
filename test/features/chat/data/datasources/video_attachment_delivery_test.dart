@@ -7,6 +7,7 @@ import 'package:caverno/core/services/media_host_listen_policy.dart';
 import 'package:caverno/core/services/media_host_service.dart';
 import 'package:caverno/features/chat/data/datasources/video_attachment_delivery.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/entities/video_delivery.dart';
 
 final Uri _localEndpoint = Uri.parse('http://127.0.0.1:1234/v1');
 final Uri _cloudEndpoint = Uri.parse('https://api.example.com/v1');
@@ -60,7 +61,8 @@ void main() {
     );
 
     expect(resolved.keys, ['m1']);
-    expect(resolved['m1'], startsWith('http://127.0.0.1:'));
+    expect(resolved['m1']!.url, startsWith('http://127.0.0.1:'));
+    expect(resolved['m1']!.mode, VideoDeliveryMode.url);
     expect(mediaHost.isRunning, isTrue);
   });
 
@@ -76,9 +78,15 @@ void main() {
       endpoint: _cloudEndpoint,
     );
 
-    expect(resolved['m1'], 'data:video/mp4;base64,${base64Encode(<int>[
+    expect(resolved['m1']!.url, 'data:video/mp4;base64,${base64Encode(<int>[
       0, 1, 2, 3, 4, 5, 6, 7,
     ])}');
+    expect(resolved['m1']!.mode, VideoDeliveryMode.inline);
+    expect(
+      resolved['m1']!.loggableUrl,
+      startsWith('data: URI ('),
+      reason: 'a log must not carry megabytes of the person\'s video',
+    );
   });
 
   test('remembers an unreachable endpoint instead of retrying discovery',
@@ -112,8 +120,8 @@ void main() {
       endpoint: _localEndpoint,
     );
 
-    expect(first['m1'], startsWith('data:video/mp4;base64,'));
-    expect(second['m1'], startsWith('data:video/mp4;base64,'));
+    expect(first['m1']!.url, startsWith('data:video/mp4;base64,'));
+    expect(second['m1']!.url, startsWith('data:video/mp4;base64,'));
     // A bind that failed for a passing reason is retried, unlike a network
     // with no address the endpoint could ever reach.
     expect(host.publishCalls, 2);
@@ -125,7 +133,7 @@ void main() {
       endpoint: _cloudEndpoint,
     );
 
-    expect(resolved['m1'], 'https://cdn.example.com/clip.mp4');
+    expect(resolved['m1']!.url, 'https://cdn.example.com/clip.mp4');
     expect(mediaHost.isRunning, isFalse);
   });
 

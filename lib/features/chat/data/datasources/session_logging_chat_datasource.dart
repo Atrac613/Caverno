@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/video_delivery.dart';
 import 'chat_datasource.dart';
 import 'chat_remote_datasource.dart';
 import 'llm_session_log_store.dart';
@@ -46,6 +47,17 @@ class SessionLoggingChatDataSource
             .qwen38RequestOverrides(model: model, maxTokens: requested)
             ?.maxTokens ??
         requested;
+  }
+
+  /// Asks the delegate what it did with a message's video.
+  ///
+  /// Same shape as the other delegate questions here: the logger records the
+  /// request from above the layer that resolves the attachment, so the answer
+  /// has to be fetched rather than recomputed.
+  VideoDelivery? _videoDeliveryFor(String messageId) {
+    final delegate = _delegate;
+    if (delegate is! ChatRemoteDataSource) return null;
+    return delegate.videoDeliveryFor(messageId);
   }
 
   Map<String, dynamic>? _chatTemplateKwargs(String model, int? maxTokens) {
@@ -122,6 +134,7 @@ class SessionLoggingChatDataSource
     final response = StringBuffer();
     final request = LlmSessionLogRequest(
       label: context?.requestLabel,
+      videoDeliveryLookup: _videoDeliveryFor,
       operation: 'streamChatCompletion',
       messages: messages,
       toolResults: toolResults,
@@ -191,6 +204,7 @@ class SessionLoggingChatDataSource
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       label: context?.requestLabel,
+      videoDeliveryLookup: _videoDeliveryFor,
       operation: 'createChatCompletion',
       messages: messages,
       tools: tools,
@@ -243,6 +257,7 @@ class SessionLoggingChatDataSource
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       label: context?.requestLabel,
+      videoDeliveryLookup: _videoDeliveryFor,
       operation: 'streamChatCompletionWithTools',
       messages: messages,
       tools: tools,
@@ -324,6 +339,7 @@ class SessionLoggingChatDataSource
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       label: context?.requestLabel,
+      videoDeliveryLookup: _videoDeliveryFor,
       operation: 'streamWithToolResult',
       messages: messages,
       toolCallId: toolCallId,
@@ -397,6 +413,7 @@ class SessionLoggingChatDataSource
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       label: context?.requestLabel,
+      videoDeliveryLookup: _videoDeliveryFor,
       operation: 'createChatCompletionWithToolResult',
       messages: messages,
       tools: tools,
@@ -461,6 +478,7 @@ class SessionLoggingChatDataSource
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       label: context?.requestLabel,
+      videoDeliveryLookup: _videoDeliveryFor,
       operation: 'createChatCompletionWithToolResults',
       messages: messages,
       tools: tools,
