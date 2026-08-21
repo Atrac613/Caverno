@@ -1,16 +1,14 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/services/media_host_listen_policy.dart';
 
-NetworkInterface _interface(String name, List<String> addresses) => _FakeInterface(
-  name,
-  addresses
-      .map((address) => _FakeInterfaceAddress(InternetAddress(address)))
-      .toList(),
-);
+NetworkInterface _interface(String name, List<String> addresses) =>
+    _FakeInterface(
+      name,
+      addresses.map(InternetAddress.new).toList(),
+    );
 
 class _FakeInterface implements NetworkInterface {
   _FakeInterface(this.name, this.addresses);
@@ -18,38 +16,9 @@ class _FakeInterface implements NetworkInterface {
   @override
   final String name;
   @override
-  final List<InterfaceAddress> addresses;
+  final List<InternetAddress> addresses;
   @override
   int get index => 0;
-}
-
-/// `NetworkInterface` hands out [InterfaceAddress], so a plain
-/// [InternetAddress] cannot stand in. Everything the policy reads is delegated.
-class _FakeInterfaceAddress implements InterfaceAddress {
-  _FakeInterfaceAddress(this._delegate);
-
-  final InternetAddress _delegate;
-
-  @override
-  String get address => _delegate.address;
-  @override
-  String get host => _delegate.host;
-  @override
-  bool get isLinkLocal => _delegate.isLinkLocal;
-  @override
-  bool get isLoopback => _delegate.isLoopback;
-  @override
-  bool get isMulticast => _delegate.isMulticast;
-  @override
-  Uint8List get rawAddress => _delegate.rawAddress;
-  @override
-  InternetAddressType get type => _delegate.type;
-  @override
-  Future<InternetAddress> reverse() => _delegate.reverse();
-  @override
-  int get prefixLength => 24;
-  @override
-  InternetAddress? get broadcast => null;
 }
 
 void main() {
