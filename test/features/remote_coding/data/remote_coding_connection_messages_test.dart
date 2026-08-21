@@ -13,6 +13,7 @@ void main() {
     port: 8767,
     createdAt: DateTime(2026, 5, 26, 12),
     updatedAt: DateTime(2026, 5, 26, 12),
+    certificatePin: 'test-certificate-pin',
   );
 
   test('describes connection timeout with LAN recovery guidance', () {

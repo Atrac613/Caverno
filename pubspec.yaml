@@ -65,6 +65,9 @@ dependencies:
   # Utilities
   uuid: ^4.6.0
   crypto: ^3.0.7
+  # Direct import for Remote Coding self-signed WSS identities (SEC4.5c).
+  # Already a transitive dartssh2 dependency; pin the same major here.
+  pointycastle: ^4.0.0
   # Runtime evidence paths and lexical-guard tests both require canonical
   # relative path handling; avoid a second hand-rolled normalizer.
   path: ^1.9.0

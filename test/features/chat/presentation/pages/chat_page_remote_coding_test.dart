@@ -200,6 +200,7 @@ class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
         port: 8767,
         createdAt: _generatedAt,
         updatedAt: _generatedAt,
+        certificatePin: 'test-certificate-pin',
       ),
       projects: const [
         RemoteCodingProjectSummary(
@@ -277,6 +278,7 @@ class _ConnectedRemoteCodingQuestionClientNotifier
         port: 8767,
         createdAt: _generatedAt,
         updatedAt: _generatedAt,
+        certificatePin: 'test-certificate-pin',
       ),
       projects: const [
         RemoteCodingProjectSummary(
@@ -834,6 +836,7 @@ class _RemoteCodingHostWithoutTokenRepository extends RemoteCodingRepository {
     port: 8767,
     createdAt: DateTime(2026, 5, 26, 12),
     updatedAt: DateTime(2026, 5, 26, 12),
+    certificatePin: 'test-certificate-pin',
   );
 
   @override

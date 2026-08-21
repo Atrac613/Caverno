@@ -12,4 +12,5 @@ them in one PR.
 | SEC4.4f | done | Local-command write containment (canonical cwd fence + internal write argv) |
 
 SA-08 file-mutation containment is complete. Next remaining P1 slices are
-SEC4.5c (pinned Remote Coding transport) and SEC4.3d (HTTP body/time limits).
+SEC4.5d (short-lived Remote Coding session authorization) and SEC4.3d
+(HTTP body/time limits).

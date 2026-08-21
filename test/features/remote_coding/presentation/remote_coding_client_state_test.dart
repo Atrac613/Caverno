@@ -411,6 +411,7 @@ void main() {
           port: 8767,
           createdAt: DateTime(2026, 5, 26, 12),
           updatedAt: DateTime(2026, 5, 26, 12),
+          certificatePin: 'test-certificate-pin',
         ),
       );
       container = ProviderContainer(
@@ -540,6 +541,7 @@ void main() {
         port: 8767,
         expiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
         serverName: 'Desktop',
+        certificatePin: 'test-certificate-pin',
       );
 
       await notifier.pairFromQr(payload.toQrData());
@@ -559,6 +561,7 @@ void main() {
         port: 8767,
         expiresAt: DateTime.now().add(const Duration(minutes: 5)),
         serverName: 'Desktop',
+        certificatePin: 'test-certificate-pin',
       );
 
       await notifier.pairFromQr(payload.toQrData());

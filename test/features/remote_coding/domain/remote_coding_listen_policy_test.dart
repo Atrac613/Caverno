@@ -36,6 +36,14 @@ void main() {
     expect(address.isLoopback, isTrue);
   });
 
+  test('release policy allows a confidential non-loopback bind', () {
+    final address = const RemoteCodingListenPolicy(
+      isRelease: true,
+    ).bindAddress(requested: InternetAddress.anyIPv4, confidential: true);
+
+    expect(address, InternetAddress.anyIPv4);
+  });
+
   test('current policy uses the product compile flag', () {
     final source = File(
       'lib/features/remote_coding/domain/remote_coding_listen_policy.dart',
@@ -46,9 +54,11 @@ void main() {
 
     expect(source, contains("bool.fromEnvironment('dart.vm.product')"));
     expect(notifier, contains('RemoteCodingListenPolicy.current()'));
+    expect(notifier, contains('HttpServer.bindSecure'));
     expect(
       notifier,
       isNot(contains('HttpServer.bind(InternetAddress.anyIPv4')),
     );
+    expect(notifier, contains('confidential: true'));
   });
 }
