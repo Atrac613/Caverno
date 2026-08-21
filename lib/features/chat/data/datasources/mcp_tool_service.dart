@@ -631,6 +631,7 @@ class McpToolService extends McpToolServiceFacadeBase {
         final execution = await GitTools.executeResult(
           command: command,
           workingDirectory: workingDirectory,
+          projectRoot: (arguments['project_root'] as String?)?.trim(),
           reason: (arguments['reason'] as String?)?.trim(),
         );
         final normalizedResult =

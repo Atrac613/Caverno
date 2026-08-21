@@ -6,6 +6,8 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/services/login_shell_environment.dart';
 import 'first_party_tool_execution_result.dart';
+import 'project_mutation_path_fence.dart';
+import 'turn_project_root.dart';
 
 typedef GitProcessHandoff = bool Function();
 
@@ -366,11 +368,13 @@ class GitTools {
   static Future<String> execute({
     required String command,
     required String workingDirectory,
+    required String? projectRoot,
     String? reason,
     GitProcessHandoff? beforeProcessStart,
   }) async => (await executeResult(
     command: command,
     workingDirectory: workingDirectory,
+    projectRoot: projectRoot,
     reason: reason,
     beforeProcessStart: beforeProcessStart,
   )).result;
@@ -378,17 +382,30 @@ class GitTools {
   static Future<FirstPartyToolExecutionResult> executeResult({
     required String command,
     required String workingDirectory,
+    required String? projectRoot,
     String? reason,
     GitProcessHandoff? beforeProcessStart,
   }) async {
+    final cwdAuth = await const ProjectMutationPathFence().authorize(
+      toolName: 'git_execute_command',
+      projectRoot: _authorizedProjectRoot(projectRoot),
+      rawPath: workingDirectory,
+    );
+    if (!cwdAuth.isAllowed) {
+      return _failureExecution(
+        jsonDecode(cwdAuth.deniedResult!.result) as Map<String, dynamic>,
+      );
+    }
+    final authorizedWorkingDirectory = cwdAuth.canonicalPath!;
+
     final shellOperator = firstShellControlOperator(command);
     final normalizedCommand = normalizeCommand(command);
 
     // Validate working directory.
-    final dir = Directory(workingDirectory);
+    final dir = Directory(authorizedWorkingDirectory);
     if (!dir.existsSync()) {
       return _failureExecution({
-        'error': 'Working directory does not exist: $workingDirectory',
+        'error': 'Working directory does not exist: $authorizedWorkingDirectory',
       });
     }
 
@@ -399,7 +416,7 @@ class GitTools {
     if (shellOperator != null) {
       return _failureExecution({
         'command': 'git $normalizedCommand',
-        'working_directory': workingDirectory,
+        'working_directory': authorizedWorkingDirectory,
         'exit_code': 2,
         'error':
             'git_execute_command accepts one git subcommand per tool call and '
@@ -421,12 +438,12 @@ class GitTools {
         final check = await Process.run(
           'git',
           ['rev-parse', '--git-dir'],
-          workingDirectory: workingDirectory,
+          workingDirectory: authorizedWorkingDirectory,
           environment: environment,
         );
         if (check.exitCode != 0) {
           return _failureExecution({
-            'error': 'Not a git repository: $workingDirectory',
+            'error': 'Not a git repository: $authorizedWorkingDirectory',
           });
         }
       } catch (e) {
@@ -438,7 +455,7 @@ class GitTools {
       final commitPreflightError = await _commitPreflightError(
         args: args,
         normalizedCommand: normalizedCommand,
-        workingDirectory: workingDirectory,
+        workingDirectory: authorizedWorkingDirectory,
         environment: environment,
       );
       if (commitPreflightError != null) {
@@ -448,7 +465,7 @@ class GitTools {
       final tagVersionPreflightError = await _tagVersionPreflightError(
         args: args,
         normalizedCommand: normalizedCommand,
-        workingDirectory: workingDirectory,
+        workingDirectory: authorizedWorkingDirectory,
         environment: environment,
       );
       if (tagVersionPreflightError != null) {
@@ -458,7 +475,7 @@ class GitTools {
       final mergePreflightError = await _mergePreflightError(
         args: args,
         normalizedCommand: normalizedCommand,
-        workingDirectory: workingDirectory,
+        workingDirectory: authorizedWorkingDirectory,
         environment: environment,
         reason: reason,
       );
@@ -469,7 +486,7 @@ class GitTools {
       final worktreeRemovePreflightError = _worktreeRemovePreflightError(
         args: args,
         normalizedCommand: normalizedCommand,
-        workingDirectory: workingDirectory,
+        workingDirectory: authorizedWorkingDirectory,
       );
       if (worktreeRemovePreflightError != null) {
         return worktreeRemovePreflightError;
@@ -478,7 +495,7 @@ class GitTools {
       final forcePushPreflightError = await _forcePushPreflightError(
         args: args,
         normalizedCommand: normalizedCommand,
-        workingDirectory: workingDirectory,
+        workingDirectory: authorizedWorkingDirectory,
         environment: environment,
       );
       if (forcePushPreflightError != null) {
@@ -490,7 +507,7 @@ class GitTools {
       if (beforeProcessStart != null && !beforeProcessStart()) {
         return _failureExecution({
           'command': 'git $normalizedCommand',
-          'working_directory': workingDirectory,
+          'working_directory': authorizedWorkingDirectory,
           'exit_code': 130,
           'error': 'Git process owner expired before process creation.',
         });
@@ -498,7 +515,7 @@ class GitTools {
       final result = await Process.run(
         'git',
         args,
-        workingDirectory: workingDirectory,
+        workingDirectory: authorizedWorkingDirectory,
         environment: environment,
       ).timeout(_kTimeout);
 
@@ -509,7 +526,7 @@ class GitTools {
 
       final payload = {
         'command': 'git $normalizedCommand',
-        'working_directory': workingDirectory,
+        'working_directory': authorizedWorkingDirectory,
         'exit_code': result.exitCode,
         'stdout': stdoutTruncated
             ? stdout.substring(0, _kMaxOutputChars)
@@ -535,7 +552,7 @@ class GitTools {
     } on TimeoutException {
       return _failureExecution({
         'command': 'git $normalizedCommand',
-        'working_directory': workingDirectory,
+        'working_directory': authorizedWorkingDirectory,
         'error':
             'Command timed out after ${_kTimeout.inSeconds} seconds. '
             'Avoid interactive git commands (use -m for commit, etc.).',
@@ -543,10 +560,22 @@ class GitTools {
     } catch (e) {
       return _failureExecution({
         'command': 'git $normalizedCommand',
-        'working_directory': workingDirectory,
+        'working_directory': authorizedWorkingDirectory,
         'error': e.toString(),
       });
     }
+  }
+
+  static String? _authorizedProjectRoot(String? projectRoot) {
+    final explicit = projectRoot?.trim();
+    if (explicit != null && explicit.isNotEmpty) {
+      return explicit;
+    }
+    final scoped = TurnProjectRoot.current?.rootPath.trim();
+    if (scoped != null && scoped.isNotEmpty) {
+      return scoped;
+    }
+    return null;
   }
 
   static Future<String> finishWorktreeSession({

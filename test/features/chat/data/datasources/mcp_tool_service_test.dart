@@ -2394,7 +2394,11 @@ packages:
       final service = McpToolService();
       final result = await service.executeTool(
         name: 'git_execute_command',
-        arguments: {'command': 'init', 'working_directory': tempDir.path},
+        arguments: {
+          'command': 'init',
+          'working_directory': tempDir.path,
+          'project_root': tempDir.path,
+        },
       );
 
       final decoded = jsonDecode(result.result) as Map<String, dynamic>;
@@ -2497,6 +2501,7 @@ packages:
         arguments: {
           'command': 'add README.md && commit -m "Add README"',
           'working_directory': tempDir.path,
+          'project_root': tempDir.path,
         },
       );
 
