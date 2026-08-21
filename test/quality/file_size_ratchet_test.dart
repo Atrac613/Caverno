@@ -275,8 +275,11 @@ const Map<String, int> _lineBudgets = {
   // breakdown; this file is now just the terminal metadata wrapper.
   'lib/features/chat/domain/entities/chat_completion_terminal_metadata.dart':
       20,
+  // +2 so a turn carrying a video counts as having an attachment. The check
+  // listed image fields only, which made a video turn look like bare text to
+  // everything branching on hasAttachments.
   'lib/features/chat/presentation/providers/turn_owner_snapshot_registry.dart':
-      273,
+      275,
   'lib/features/chat/presentation/providers/active_response_registry.dart': 329,
   'lib/features/chat/presentation/providers/participant_turn_control_registry.dart':
       129,

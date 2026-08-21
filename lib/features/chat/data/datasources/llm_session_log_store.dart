@@ -815,6 +815,17 @@ class LlmSessionLogStore {
           'base64Length': message.imageBase64!.length,
           'base64': '[redacted]',
         },
+      if (message.hasVideoAttachment)
+        'video': {
+          'mediaType': message.effectiveVideoMimeType,
+          if (message.videoSizeBytes != null) 'sizeBytes': message.videoSizeBytes,
+          if (message.videoDurationMs != null)
+            'durationMs': message.videoDurationMs,
+          // Which one is set says how the video was addressed, and the path is
+          // the only way to tell afterwards which file a turn actually meant.
+          if (message.videoPath != null) 'path': message.videoPath,
+          if (message.videoUrl != null) 'url': message.videoUrl,
+        },
       if (message.error != null) 'error': message.error,
     };
   }

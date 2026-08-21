@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../../../core/services/media_host_service.dart';
+import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
 
 /// Decides how a video attachment reaches the model endpoint.
@@ -48,7 +49,16 @@ class VideoAttachmentDelivery {
     final path = target.videoPath;
     if (path == null) return const <String, String>{};
     final file = File(path);
-    if (!file.existsSync()) return const <String, String>{};
+    if (!file.existsSync()) {
+      // Says nothing to the model -- the formatter's omission notice covers
+      // that -- but a turn that quietly answers without the attachment is
+      // indistinguishable from one that never had it, and this is the line
+      // that tells them apart afterwards. `existsSync` is also false for a
+      // file macOS will not let this process read, so "missing" here can mean
+      // "not permitted".
+      appLog('[Video] attachment unreadable, sending without it: $path');
+      return const <String, String>{};
+    }
 
     final url = await _deliver(
       file: file,
@@ -74,13 +84,18 @@ class VideoAttachmentDelivery {
         );
         if (ticket != null) {
           _watchForFetch(ticket.token, origin);
+          appLog('[Video] serving ${file.path} at ${ticket.url}');
           return ticket.url.toString();
         }
         // Null means this device has no address the endpoint could reach, which
         // is a property of the network rather than of this attempt. Remember it
         // so the next attachment does not pay for the same discovery.
+        appLog(
+          '[Video] no address $origin could fetch from; inlining instead',
+        );
         _inlineOnlyOrigins.add(origin);
-      } on Object {
+      } on Object catch (error) {
+        appLog('[Video] could not publish a URL ($error); inlining instead');
         // Binding can fail for reasons that pass -- a port race, a listener
         // still shutting down. Inline this one and let the next attachment try
         // the URL again rather than writing the endpoint off for the session.
