@@ -186,8 +186,11 @@ class MediaHostService {
 
   Future<void> _handle(HttpRequest request) async {
     final response = request.response;
+    // Read now: connectionInfo is gone once the response is closed, and the
+    // last thing this method does is log after closing.
+    final peer = request.connectionInfo?.remoteAddress.address ?? 'unknown';
     if (request.method != 'GET' && request.method != 'HEAD') {
-      _log(request, HttpStatus.methodNotAllowed, 'not a read');
+      _log(request, peer, HttpStatus.methodNotAllowed, 'not a read');
       _reject(response, HttpStatus.methodNotAllowed);
       return;
     }
@@ -196,7 +199,7 @@ class MediaHostService {
     if (handle == null) {
       // Unknown, expired and exhausted tokens are indistinguishable to the
       // caller on purpose. Our own log may say which it was.
-      _log(request, HttpStatus.notFound, 'no live handle for this token');
+      _log(request, peer, HttpStatus.notFound, 'no live handle for this token');
       _reject(response, HttpStatus.notFound);
       return;
     }
@@ -230,7 +233,7 @@ class MediaHostService {
     }
 
     if (request.method == 'HEAD') {
-      _log(request, response.statusCode, 'HEAD, no bytes sent');
+      _log(request, peer, response.statusCode, 'HEAD, no bytes sent');
       await response.close();
       return;
     }
@@ -247,11 +250,12 @@ class MediaHostService {
       // A fetch that dies mid-body is the difference between "the endpoint
       // never came" and "it came and could not finish", and those need
       // opposite investigations.
-      _log(request, response.statusCode, 'failed after headers: $error');
+      _log(request, peer, response.statusCode, 'failed after headers: $error');
       rethrow;
     }
     _log(
       request,
+      peer,
       response.statusCode,
       'sent ${range == null ? length : range.end - range.start + 1} bytes',
     );
@@ -314,12 +318,17 @@ class MediaHostService {
   /// The token is the whole credential, so only its first characters are
   /// written: enough to line a fetch up with the URL the delivery logged,
   /// without putting a working address in a file that gets pasted around.
-  static void _log(HttpRequest request, int statusCode, String outcome) {
+  static void _log(
+    HttpRequest request,
+    String peer,
+    int statusCode,
+    String outcome,
+  ) {
     final token = _tokenOf(request.uri) ?? '<none>';
     final short = token.length > 8 ? '${token.substring(0, 8)}...' : token;
     appLog(
       '[MediaHost] ${request.method} /v/$short -> $statusCode '
-      '($outcome) from ${request.connectionInfo?.remoteAddress.address}',
+      '($outcome) from $peer',
     );
   }
 

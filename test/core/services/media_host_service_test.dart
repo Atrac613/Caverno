@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/services/media_host_service.dart';
@@ -91,6 +92,26 @@ void main() {
     );
     expect(service.isRunning, isFalse);
     expect(service.wasFetched(ticket.token), isTrue);
+  });
+
+  test('names the peer that fetched, not null', () async {
+    // connectionInfo is gone once the response closes, and the log is written
+    // after closing; reading it late reported every fetch as coming from null.
+    final logged = <String>[];
+    final previous = debugPrint;
+    debugPrint = (message, {wrapWidth}) => logged.add(message ?? '');
+    addTearDown(() => debugPrint = previous);
+
+    final ticket = await publish();
+    final response = await get(ticket.url);
+    await response.drain<void>();
+
+    final line = logged.firstWhere(
+      (l) => l.contains('[MediaHost]'),
+      orElse: () => '',
+    );
+    expect(line, contains('sent 64 bytes'));
+    expect(line, contains('from 127.0.0.1'));
   });
 
   test('refuses a method that is not a read', () async {
