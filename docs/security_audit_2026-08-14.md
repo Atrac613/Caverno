@@ -83,7 +83,7 @@ conventions:
 | SA-05 | High | SSH host keys are accepted without known-host verification (fixed 2026-08-19) | SEC4.5 |
 | SA-06 | High | Remote Coding credentials and control traffic use plaintext WebSockets (release non-loopback bind contained 2026-08-19; confidential transport pending) | RC1, SEC4.5 |
 | SA-07 | High | Taint policy is advisory before cache and full-access decisions (fixed 2026-08-14) | SEC2.3b |
-| SA-08 | Medium | File mutations can escape project scope through missing or lexical-only containment (write/edit/delete fence landed 2026-08-19; git cwd fence landed 2026-08-21; git pathspec/shell writes pending) | SEC4.4 |
+| SA-08 | Medium | File mutations can escape project scope through missing or lexical-only containment (write/edit/delete fence landed 2026-08-19; git cwd fence landed 2026-08-21; git pathspec fence landed 2026-08-21; shell writes pending) | SEC4.4 |
 | SA-09 | Medium | Routines treat every external MCP tool as read-only (denied by default 2026-08-21; reviewed grants pending) | SEC4.4 |
 | SA-10 | Medium | HTTP bodies and unauthenticated Remote Coding sockets/frames are unbounded | SEC4.3, RC1 |
 | SA-11 | Medium | Settings secrets are persisted and exported in cleartext | SEC4.6 |
@@ -415,8 +415,10 @@ nearest existing parent. `~`, `..`, siblings, prefix collisions, and symlink
 escapes fail closed with `project_mutation_*` codes. Git working-directory
 fencing landed 2026-08-21 (SEC4.4d): `GitTools.executeResult` authorizes the
 cwd against `ProjectMutationPathFence` before any git process, using an
-explicit `projectRoot` or the turn-scoped `TurnProjectRoot`. Git pathspecs,
-`--git-dir` / `--work-tree` / `-C`, and local-command writes remain follow-ups.
+explicit `projectRoot` or the turn-scoped `TurnProjectRoot`. SEC4.4e
+(completed 2026-08-21) denies `-C` / `--git-dir` / `--work-tree`, strips
+relocation environment variables, and fences escaping pathspecs. Local-command
+writes remain a follow-up.
 
 ### SA-09: External MCP Tools In Routines
 
@@ -598,7 +600,7 @@ Add negative coverage for:
 | P0-3 | SEC1 + SEC2.3b + SEC4.3a-SEC4.3c network authority (completed 2026-08-14) | SA-03, SA-07 | Every HTTP/browser request uses one classifier, remote provenance, approval, destination, DNS/peer, and redirect policy; unverifiable external WebView navigation is absent; taint precedes cache/full access. |
 | P0-4 | SEC4.4a project read containment (completed 2026-08-14) | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
 | P0-5 | SEC4.5a-SEC4.5b authenticated transport containment (completed 2026-08-19) | SA-05, SA-06 | SSH known-host mismatch fails before authentication. A release build cannot start a plaintext non-loopback Remote Coding listener. |
-| P1-1 | SEC4.4b/SEC4.4c/SEC4.4d mutation and autonomous containment (mutation fence completed 2026-08-19; routine MCP deny-by-default completed 2026-08-21; git cwd fence completed 2026-08-21) | SA-08, SA-09 | Write/edit/delete go through a symlink-aware project fence. Unclassified external MCP tools are omitted from routine catalogs and denied at dispatch. Git working directories use the same fence. Git pathspec/global-option escapes and local-command write fencing still remain. |
+| P1-1 | SEC4.4b/SEC4.4c/SEC4.4d/SEC4.4e mutation and autonomous containment (mutation fence completed 2026-08-19; routine MCP deny-by-default completed 2026-08-21; git cwd fence completed 2026-08-21; git pathspec fence completed 2026-08-21) | SA-08, SA-09 | Write/edit/delete go through a symlink-aware project fence. Unclassified external MCP tools are omitted from routine catalogs and denied at dispatch. Git working directories use the same fence. Relocating git globals and escaping pathspecs are denied. Local-command write fencing still remains. |
 | P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport | SA-10, SA-12 | HTTP and Remote Coding limits pass; credential-bearing non-loopback LLM endpoints require HTTPS. |
 | P1-3 | SEC4.6 data protection and lifecycle | SA-11, SA-13, SA-14, SA-15, SA-17, SA-18 | Secret-free storage/export, recursive redaction, opt-out, migration, backup, and deletion tests pass. |
 | P1-4 | SEC4.7 release supply-chain hardening | SA-16 | Immutable actions, pinned toolchain, checksum, dependency monitoring, and fail-closed release signing are enforced. |

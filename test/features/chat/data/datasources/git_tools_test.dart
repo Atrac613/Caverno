@@ -924,4 +924,108 @@ void main() {
       expect(payload['code'], 'project_mutation_outside_root');
     });
   });
+
+  group('GitTools.execute pathspec and relocation containment', () {
+    late Directory sandbox;
+    late Directory project;
+    late Directory sibling;
+
+    setUp(() async {
+      sandbox = await Directory.systemTemp.createTemp(
+        'git_tools_pathspec_fence_test_',
+      );
+      project = await Directory('${sandbox.path}/project').create();
+      sibling = await Directory('${sandbox.path}/project-secrets').create();
+      await Process.run('git', ['init'], workingDirectory: project.path);
+      await File('${project.path}/inside.txt').writeAsString('inside\n');
+      await Process.run('git', ['init'], workingDirectory: sibling.path);
+      await File('${sibling.path}/secret.txt').writeAsString('secret\n');
+    });
+
+    tearDown(() async {
+      if (sandbox.existsSync()) {
+        await sandbox.delete(recursive: true);
+      }
+    });
+
+    test('allows an in-root relative pathspec', () async {
+      final execution = await GitTools.executeResult(
+        command: 'add inside.txt',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(payload['exit_code'], 0);
+      expect(payload['code'], isNull);
+    });
+
+    test('rejects -C before any git process', () async {
+      final execution = await GitTools.executeResult(
+        command: '-C ${sibling.path} add secret.txt',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+      final status = await Process.run(
+        'git',
+        ['status', '--porcelain'],
+        workingDirectory: sibling.path,
+      );
+
+      expect(execution.isSuccess, isFalse);
+      expect(payload['code'], 'git_repository_relocation_blocked');
+      expect((status.stdout as String), contains('?? secret.txt'));
+    });
+
+    test('rejects --git-dir relocation', () async {
+      final execution = await GitTools.executeResult(
+        command: '--git-dir=${sibling.path}/.git status',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(execution.isSuccess, isFalse);
+      expect(payload['code'], 'git_repository_relocation_blocked');
+    });
+
+    test('allows grep -C as context, not relocation', () async {
+      final execution = await GitTools.executeResult(
+        command: 'grep -C 3 missing-token',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(payload['code'], isNot('git_repository_relocation_blocked'));
+    });
+
+    test('rejects an out-of-root pathspec after --', () async {
+      final execution = await GitTools.executeResult(
+        command: 'checkout HEAD -- ${sibling.path}/secret.txt',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(execution.isSuccess, isFalse);
+      expect(payload['code'], 'project_mutation_outside_root');
+    });
+
+    test('rejects a parent-traversal pathspec', () async {
+      final execution = await GitTools.executeResult(
+        command: 'add ../project-secrets/secret.txt',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(execution.isSuccess, isFalse);
+      expect(
+        (payload['code'] as String).startsWith('project_mutation_'),
+        isTrue,
+      );
+    });
+  });
 }

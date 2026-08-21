@@ -5280,10 +5280,10 @@ Slice plan:
    completed 2026-08-21)**, denying unclassified external MCP tools in
    unattended routines by default, and **SEC4.4d (P1, completed 2026-08-21)**,
    fencing `git_execute_command` working directories with
-   `ProjectMutationPathFence`. Any restored routine grant binds server
-   identity, tool name, schema digest, and reviewed intent. Git pathspecs,
-   `--git-dir` / `--work-tree` / `-C`, and local-command write fencing remain
-   follow-ups.
+   `ProjectMutationPathFence`, and **SEC4.4e (P1, completed 2026-08-21)**,
+   denying relocating git globals and out-of-root pathspecs. Any restored
+   routine grant binds server identity, tool name, schema digest, and reviewed
+   intent. Local-command write fencing remains a follow-up.
 5. **SEC4.5 — Authenticated transport.** Land as focused sub-slices:
    **SEC4.5a (P0, completed 2026-08-19)** implements SSH known-host verification;
    **SEC4.5b (P0, completed 2026-08-19)** makes the release gate and
