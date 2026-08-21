@@ -7145,7 +7145,9 @@ class ChatNotifier extends Notifier<ChatState> {
     String content, {
     required int interactionGeneration,
   }) {
-    final visibleContent = ContentParser.stripToolArtifacts(content).trim();
+    final visibleContent = ContentParser.stripToolArtifactsPreservingThinking(
+      content,
+    ).trim();
     if (visibleContent.isEmpty) {
       return;
     }
@@ -8060,9 +8062,10 @@ class ChatNotifier extends Notifier<ChatState> {
         return;
       }
 
-      final strippedContent = ContentParser.stripToolArtifacts(
-        lastMessage.content,
-      );
+      final strippedContent =
+          ContentParser.stripToolArtifactsPreservingThinking(
+            lastMessage.content,
+          );
       if (strippedContent.trim().isEmpty) {
         updatedMessages.removeAt(lastIndex);
       } else {
@@ -8083,7 +8086,7 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
-    final strippedContent = ContentParser.stripToolArtifacts(
+    final strippedContent = ContentParser.stripToolArtifactsPreservingThinking(
       lastMessage.content,
     );
     if (strippedContent.trim().isEmpty) {
@@ -8111,7 +8114,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     final streamedSuffix = currentContent.substring(preAnswerContent.length);
-    final strippedSuffix = ContentParser.stripToolArtifacts(
+    final strippedSuffix = ContentParser.stripToolArtifactsPreservingThinking(
       streamedSuffix,
     ).trim();
     if (strippedSuffix.isEmpty) {

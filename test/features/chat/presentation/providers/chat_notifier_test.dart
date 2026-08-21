@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -12658,6 +12659,56 @@ with open(path, "rb") as file:
           toolNotifier.takeLatestHiddenAssistantResponse(owner),
           'The tool result shows that `README.md` was successfully created. The next task is "Create integration test to verify ping functionality".',
         );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage preserves thought boundaries in a streamed no-tool answer',
+    () async {
+      const response =
+          '<think>Private reasoning in English.</think>Visible answer.';
+      final toolDataSource = _NoToolStreamingWithToolsDataSource(
+        streamChunks: const [response],
+        completionContent: response,
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'read_alpha': 'alpha result'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Answer the question');
+
+        final assistant = toolContainer
+            .read(chatNotifierProvider)
+            .messages
+            .last;
+        expect(assistant.content, response);
+        expect(ContentParser.parse(assistant.content).text, 'Visible answer.');
       } finally {
         toolContainer.dispose();
       }

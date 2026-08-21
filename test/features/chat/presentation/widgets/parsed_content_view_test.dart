@@ -98,6 +98,19 @@ void main() {
     },
   );
 
+  testWidgets('starts completed thought blocks collapsed', (tester) async {
+    await _pumpParsedContentView(
+      tester,
+      content: '<think>Private reasoning in English.</think>\nVisible answer.',
+      isStreaming: false,
+    );
+
+    expect(find.text('Thinking'), findsOneWidget);
+    expect(find.text('Private reasoning in English.'), findsNothing);
+    expect(find.text('Visible answer.'), findsOneWidget);
+    expect(find.byIcon(Icons.expand_more), findsOneWidget);
+  });
+
   testWidgets('renders malformed leading bracket text without throwing', (
     tester,
   ) async {

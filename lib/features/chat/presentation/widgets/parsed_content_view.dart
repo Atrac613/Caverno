@@ -47,6 +47,12 @@ class _ParsedContentViewState extends State<ParsedContentView> {
   final Set<int> _collapsedThinkingBlocks = {};
 
   @override
+  void initState() {
+    super.initState();
+    _collapseCompletedThinkingBlocks(ContentParser.parse(widget.content));
+  }
+
+  @override
   void didUpdateWidget(covariant ParsedContentView oldWidget) {
     super.didUpdateWidget(oldWidget);
     final oldResult = ContentParser.parse(oldWidget.content);
@@ -61,10 +67,14 @@ class _ParsedContentViewState extends State<ParsedContentView> {
     // even if the assistant is still streaming the rest of the response.
     if ((oldWidget.isStreaming && !widget.isStreaming) ||
         completedThinkingJustFinished) {
-      for (var i = 0; i < newResult.segments.length; i++) {
-        if (newResult.segments[i].type == ContentType.thinking) {
-          _collapsedThinkingBlocks.add(i);
-        }
+      _collapseCompletedThinkingBlocks(newResult);
+    }
+  }
+
+  void _collapseCompletedThinkingBlocks(ParseResult result) {
+    for (var i = 0; i < result.segments.length; i++) {
+      if (result.segments[i].type == ContentType.thinking) {
+        _collapsedThinkingBlocks.add(i);
       }
     }
   }

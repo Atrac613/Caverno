@@ -198,9 +198,10 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
               return '';
             }
             final rawRetryContent = retryResult?.content.trim() ?? '';
-            final visibleRetryContent = ContentParser.stripToolArtifacts(
-              rawRetryContent,
-            ).trim();
+            final visibleRetryContent =
+                ContentParser.stripToolArtifactsPreservingThinking(
+                  rawRetryContent,
+                ).trim();
             if (retryResult != null && visibleRetryContent.isNotEmpty) {
               _removeStreamedAnswerSuffixForGeneration(
                 interactionGeneration,

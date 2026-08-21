@@ -556,6 +556,36 @@ class ContentParser {
     return buffer.toString().trim();
   }
 
+  /// Removes tool artifacts while retaining completed thinking boundaries.
+  ///
+  /// Use this for persisted or on-screen assistant content. Flattening a
+  /// thinking segment into ordinary text makes private reasoning appear as
+  /// part of the final answer and prevents presentation code from collapsing
+  /// it separately.
+  static String stripToolArtifactsPreservingThinking(String content) {
+    if (content.isEmpty) {
+      return content;
+    }
+
+    final result = parse(content);
+    final buffer = StringBuffer();
+    for (final segment in result.segments) {
+      switch (segment.type) {
+        case ContentType.text:
+          buffer.write(segment.content);
+        case ContentType.thinking:
+          buffer
+            ..write('<think>')
+            ..write(segment.content)
+            ..write('</think>');
+        case ContentType.toolCall:
+        case ContentType.toolResult:
+          break;
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   /// Removes non-transcript artifacts before content is sent back to a model.
   static String stripModelHistoryArtifacts(String content) {
     if (content.isEmpty) {

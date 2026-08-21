@@ -259,6 +259,23 @@ run this first
     expect(stripped, isNot(contains('arp')));
   });
 
+  test('stripToolArtifactsPreservingThinking keeps thought boundaries', () {
+    const content =
+        '<think>Private reasoning in English.</think>'
+        'Visible answer.'
+        '<tool_use>{"name":"read_file","arguments":{"path":"README.md"}}</tool_use>';
+
+    final stripped = ContentParser.stripToolArtifactsPreservingThinking(
+      content,
+    );
+
+    expect(
+      stripped,
+      '<think>Private reasoning in English.</think>Visible answer.',
+    );
+    expect(ContentParser.parse(stripped).text, 'Visible answer.');
+  });
+
   test('stripModelHistoryArtifacts removes thinking and tool artifacts', () {
     const content =
         '<think>Hidden planning with private notes.</think>\n'
