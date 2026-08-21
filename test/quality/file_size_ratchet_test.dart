@@ -33,7 +33,11 @@ const Map<String, int> _lineBudgets = {
   // assigning: the callback form costs three lines per write and there are
   // seven of them. Nothing was extractable; the alternative is the bug.
   // +1 import for the shadow comparator.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8908,
+  // +1 for the video attachment a message can now carry. The five fields it
+  // needs travel as one draft object and land on the message through
+  // Message.withVideoAttachment, so what is left here is the parameter itself
+  // and the queue field that has to carry it across a queued turn.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8909,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -321,7 +325,10 @@ const Map<String, int> _lineBudgets = {
   // -97: the ten approval dialogs moved to chat_page_approval_listeners.dart,
   // where the listeners that raise them already live. The page keeps the
   // layout; the part keeps the approval flow.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1971,
+  // +24 to route a dropped video to the composer: the drop target's new
+  // callback, the pending attachment it produces, and the video argument
+  // threaded through the two send handlers.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1995,
   'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
   // The device listing moved to flutter_run_device_lister.dart when it grew
   // a stream, a timeout and a drain.
@@ -363,10 +370,17 @@ const Map<String, int> _lineBudgets = {
   // and took the shared control chip, the reasoning-effort menu and the
   // attachments button out with it, so the merged control and the reordered
   // action row cost the composer nothing.
-  'lib/features/chat/presentation/widgets/message_input.dart': 2203,
+  // +62 for video attachments. Everything that could leave did: picking, the
+  // URL dialog, MIME mapping, validation and the preview chip are all in
+  // composer_video_picker.dart, and the chip's label is on the draft itself.
+  // What is left is the composer's own share -- one state field, the send
+  // callbacks' new named parameter, and four short actions that delegate.
+  'lib/features/chat/presentation/widgets/message_input.dart': 2265,
   'lib/features/chat/presentation/widgets/composer_model_selector.dart': 275,
   'lib/features/chat/presentation/widgets/composer_control_chip.dart': 65,
-  'lib/features/chat/presentation/widgets/composer_attachment_button.dart': 53,
+  // +37 for the two video entries and the flag that hides them. This file is
+  // the attachments menu; a menu entry is not extractable from the menu.
+  'lib/features/chat/presentation/widgets/composer_attachment_button.dart': 90,
   'lib/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart':
       131,
   'lib/features/chat/presentation/coordinators/chat_page_workspace_navigation_coordinator.dart':
@@ -614,14 +628,16 @@ const Map<String, int> _libraryLineBudgets = {
   // ToolApprovalGateDecision instead of a boolean and two strings, which paid
   // back four of the lines; the rest needs `ref` and the settings, so it
   // cannot leave the notifier.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19879,
+  // +3 for the video draft a queued message now carries across a turn.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19882,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
   // -4: the companion panel asked which runner a project supports by watching
   // both families and branching between two widgets. ProjectRunControlSection
   // owns that choice now, so the panel asks one question instead.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8895,
+  // +24 matching the primary file: the dropped-video route added no part.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8919,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };

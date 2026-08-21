@@ -2077,15 +2077,18 @@ class LiveLlmDiagnosticService {
         details: 'Classification: $_videoModalityUnsupported',
         elapsed: timer.elapsed,
       ),
+      // Skipped, not failed and not a warning: most endpoints never advertise
+      // their modalities, and nothing in the OpenAI specification asks them to.
+      // Warning here would fire on every run against every cloud provider and
+      // mean nothing by the second time anyone saw it.
       EndpointModalitySupport.unknown => LiveLlmDiagnosticProbeResult(
         id: _videoInputModalityProbeId,
-        status: LiveLlmDiagnosticStatus.warning,
+        status: LiveLlmDiagnosticStatus.skipped,
         summary: 'The endpoint does not advertise its input modalities.',
         details:
             'Classification: $_videoModalityUnknown\n'
-            'Nothing in the OpenAI specification requires an endpoint to say, '
-            'so this is not a denial. Turn video on for this endpoint by hand '
-            'if the server behind it decodes video.',
+            'Turn video on for this endpoint by hand if the server behind it '
+            'decodes video.',
         elapsed: timer.elapsed,
       ),
     };

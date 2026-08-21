@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -7,8 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/services/voice_providers.dart';
 import '../../../../core/services/tts_service.dart';
+import '../../../../core/services/voice_providers.dart';
+import '../../../../core/utils/attachment_format.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../../settings/presentation/pages/chat_settings_page.dart';
@@ -275,6 +277,11 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
                       onOpen: () => _openImageViewer(imageBytes),
                       onPointerDown: () => _suppressActionRowToggle = true,
                     ),
+            ),
+          if (message.hasVideoAttachment)
+            Padding(
+              padding: EdgeInsets.only(bottom: hasBodyContent ? 8 : 0),
+              child: _MessageVideoChip(message: message, isUser: isUser),
             ),
           if (hasBodyContent)
             isUser
@@ -1190,5 +1197,69 @@ class _UserMessageContentState extends State<_UserMessageContent> {
           ),
       ],
     );
+  }
+}
+
+
+/// Names a video the message carried, without trying to play it.
+///
+/// A thumbnail would need a decode pass and a player dependency to show one
+/// frame of something the person just picked from their own library; the
+/// filename and size are what makes the message legible in the transcript.
+class _MessageVideoChip extends StatelessWidget {
+  const _MessageVideoChip({required this.message, required this.isUser});
+
+  final Message message;
+  final bool isUser;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final foreground = isUser
+        ? theme.colorScheme.onPrimary
+        : theme.colorScheme.onSurfaceVariant;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          message.videoUrl != null ? Icons.link : Icons.movie,
+          size: 16,
+          color: foreground,
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            _label(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelMedium?.copyWith(color: foreground),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _label() {
+    final name = _displayName();
+    final parts = <String>[
+      if (name.isNotEmpty) name,
+      if ((message.videoSizeBytes ?? 0) > 0)
+        formatAttachmentSize(message.videoSizeBytes!),
+      if ((message.videoDurationMs ?? 0) > 0)
+        formatAttachmentDuration(message.videoDurationMs!),
+    ];
+    return parts.isEmpty ? 'message.attach_video'.tr() : parts.join(' · ');
+  }
+
+  String _displayName() {
+    final url = message.videoUrl;
+    if (url != null) {
+      final parsed = Uri.tryParse(url);
+      if (parsed == null) return url;
+      return parsed.pathSegments.isEmpty ? parsed.host : parsed.pathSegments.last;
+    }
+    final path = message.videoPath;
+    if (path == null || path.isEmpty) return '';
+    return path.split(Platform.pathSeparator).last;
   }
 }

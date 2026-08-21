@@ -76,12 +76,15 @@ class VideoAttachmentDelivery {
           _watchForFetch(ticket.token, origin);
           return ticket.url.toString();
         }
+        // Null means this device has no address the endpoint could reach, which
+        // is a property of the network rather than of this attempt. Remember it
+        // so the next attachment does not pay for the same discovery.
+        _inlineOnlyOrigins.add(origin);
       } on Object {
-        // Binding can fail on a locked-down network; inlining still works.
+        // Binding can fail for reasons that pass -- a port race, a listener
+        // still shutting down. Inline this one and let the next attachment try
+        // the URL again rather than writing the endpoint off for the session.
       }
-      // No reachable address to advertise: skip straight to inlining, and
-      // remember it so the next attachment does not pay for the discovery.
-      _inlineOnlyOrigins.add(origin);
     }
     return _inlineDataUri(file: file, mimeType: mimeType);
   }

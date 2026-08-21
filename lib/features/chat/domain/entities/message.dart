@@ -1,5 +1,11 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'video_attachment_draft.dart';
+
+// Re-exported because [Message.withVideoAttachment] takes one: a file holding
+// messages needs the draft type to put a video on one.
+export 'video_attachment_draft.dart';
+
 part 'message.freezed.dart';
 part 'message.g.dart';
 
@@ -77,4 +83,20 @@ extension MessageVideoAttachment on Message {
 
   /// Media type to advertise, defaulting to the container we ask pickers for.
   String get effectiveVideoMimeType => videoMimeType ?? 'video/mp4';
+
+  /// Attaches [draft], or returns this message unchanged when there is none.
+  ///
+  /// The draft is one object while the message stores flat fields, because the
+  /// message is what gets serialized into the conversation and a nested object
+  /// there would be a schema change for no gain.
+  Message withVideoAttachment(VideoAttachmentDraft? draft) {
+    if (draft == null) return this;
+    return copyWith(
+      videoPath: draft.path,
+      videoUrl: draft.url,
+      videoMimeType: draft.mimeType,
+      videoSizeBytes: draft.sizeBytes,
+      videoDurationMs: draft.durationMs,
+    );
+  }
 }

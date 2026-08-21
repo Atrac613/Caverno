@@ -8,6 +8,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/chat_turn_owner.dart';
+import '../../domain/entities/video_attachment_draft.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
@@ -580,6 +581,7 @@ class QueuedChatMessage {
     required this.bypassPlanMode,
     this.originalImagePath,
     this.originalImageMimeType,
+    this.video,
     this.origin = ChatInteractionOrigin.local,
     this.conversationId,
   });
@@ -595,12 +597,15 @@ class QueuedChatMessage {
   final String? imageMimeType;
   final String? originalImagePath;
   final String? originalImageMimeType;
+  final VideoAttachmentDraft? video;
   final String languageCode;
   final bool isVoiceMode;
   final bool bypassPlanMode;
   final ChatInteractionOrigin origin;
 
   bool get hasImage => imageBase64 != null && imageBase64!.isNotEmpty;
+
+  bool get hasVideo => video != null;
 
   @override
   bool operator ==(Object other) {
@@ -612,6 +617,7 @@ class QueuedChatMessage {
             imageMimeType == other.imageMimeType &&
             originalImagePath == other.originalImagePath &&
             originalImageMimeType == other.originalImageMimeType &&
+            video == other.video &&
             languageCode == other.languageCode &&
             isVoiceMode == other.isVoiceMode &&
             bypassPlanMode == other.bypassPlanMode &&
@@ -627,6 +633,7 @@ class QueuedChatMessage {
     imageMimeType,
     originalImagePath,
     originalImageMimeType,
+    video,
     languageCode,
     isVoiceMode,
     bypassPlanMode,

@@ -12,12 +12,12 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/model_usage_sink.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/entities/video_attachment_part.dart';
 import '../../domain/services/chat_request_prefix_stability_service.dart';
 import '../../domain/services/qwen38_request_thinking_policy.dart';
 import 'chat_completion_request_fallback.dart';
 import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
+import 'chat_message_payload_formatter.dart';
 import 'chat_request_logger.dart';
 import 'chat_response_telemetry.dart';
 import 'chat_tool_result_message_formatter.dart';
@@ -118,6 +118,7 @@ class ChatRemoteDataSource
   static const _responseNormalizer = ChatCompletionResponseNormalizer();
   static const _logger = ChatRequestLogger();
   static const _toolResultFormatter = ChatToolResultMessageFormatter();
+  static const _payloadFormatter = ChatMessagePayloadFormatter();
 
   static bool isNativeToolStreamFormatError(Object error) {
     final message = error.toString().toLowerCase();
@@ -1081,33 +1082,6 @@ class ChatRemoteDataSource
     }
   }
 
-  /// Whether images should be left out of this request.
-  ///
-  /// They ride along only while the latest user message still carries one, so
-  /// a conversation can continue against a non-vision endpoint once the
-  /// attachment is behind it.
-  ///
-  /// The tool-result paths hardcoded this to true, on the theory that images
-  /// had "already been processed at tool call time". They had not: a follow-up
-  /// carries the newest assistant text, not the first-pass reading, so any
-  /// vision turn that touched a tool answered blind -- session cad9b37c said
-  /// "No sessions yet" about a screenshot it had just read as holding 106.
-  /// Re-sending costs ~1k prompt tokens and sits in the cached prefix.
-  bool _shouldStripImages(List<Message> messages) {
-    return _latestUserMessage(messages).imageBase64 == null;
-  }
-
-  /// The person's most recent turn, skipping prompts Caverno composed itself.
-  static Message _latestUserMessage(List<Message> messages) {
-    // Caverno's own prompts are not the person's turn. Treating the
-    // tool-result envelope as the latest user message stripped the screenshot
-    // from the answer the reader sees (session 3c1f6c02).
-    return messages.lastWhere(
-      (m) => m.role == MessageRole.user && !m.isSynthesizedPrompt,
-      orElse: () => messages.last,
-    );
-  }
-
   /// Resolves the videos this request may carry, keyed by message id.
   ///
   /// Returns empty when no resolver was supplied, which keeps every existing
@@ -1121,58 +1095,18 @@ class ChatRemoteDataSource
     return resolver(messages);
   }
 
+  bool _shouldStripImages(List<Message> messages) =>
+      _payloadFormatter.shouldStripImages(messages);
+
   List<ChatMessage> _formatMessages(
     List<Message> messages, {
     bool stripImages = false,
     Map<String, String> videoUrls = const <String, String>{},
-  }) {
-    return messages.map<ChatMessage>((m) {
-      switch (m.role) {
-        case MessageRole.user:
-          final videoUrl = m.hasVideoAttachment ? videoUrls[m.id] : null;
-          final carriesVideo = videoUrl != null;
-          // Use parts format (multimodal) when image is present
-          // Skip images if stripImages=true
-          if ((m.imageBase64 != null && !stripImages) || carriesVideo) {
-            final parts = <ContentPart>[];
-            if (m.content.isNotEmpty) {
-              parts.add(ContentPart.text(m.content));
-            }
-            if (m.imageBase64 != null && !stripImages) {
-              parts.add(
-                ContentPart.imageBase64(
-                  data: m.imageBase64!,
-                  mediaType: m.imageMimeType ?? 'image/jpeg',
-                ),
-              );
-            }
-            if (carriesVideo) {
-              // Placeholder only: VideoContentPartClient turns this into the
-              // `video_url` part once the body is JSON, because the typed
-              // request has no video content part to build here.
-              parts.add(ContentPart.text(VideoAttachmentPart.encode(videoUrl)));
-            }
-            return ChatMessage.user(parts);
-          }
-          final notices = <String>[
-            // Name every removal. Saying nothing is what let a model answer a
-            // screenshot question from an empty context and invent the screen.
-            if (m.imageBase64 != null)
-              '[image attachment omitted from this request]',
-            if (m.hasVideoAttachment) VideoAttachmentPart.omittedNotice,
-          ];
-          if (notices.isEmpty) return ChatMessage.user(m.content);
-          final omitted = notices.join('\n');
-          return ChatMessage.user(
-            m.content.isEmpty ? omitted : '${m.content}\n\n$omitted',
-          );
-        case MessageRole.assistant:
-          return ChatMessage.assistant(content: m.content);
-        case MessageRole.system:
-          return ChatMessage.system(m.content);
-      }
-    }).toList();
-  }
+  }) => _payloadFormatter.format(
+    messages,
+    stripImages: stripImages,
+    videoUrls: videoUrls,
+  );
 
   @visibleForTesting
   String? tryRecoverRawAssistantTextFromError(Object error) {

@@ -6,11 +6,13 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-class ChatImageDropTarget extends StatefulWidget {
-  const ChatImageDropTarget({
+class ChatMediaDropTarget extends StatefulWidget {
+  const ChatMediaDropTarget({
     required this.enabled,
     required this.child,
     required this.onImageDropped,
+    this.onVideoDropped,
+    this.videoEnabled = false,
     super.key,
   });
 
@@ -19,11 +21,28 @@ class ChatImageDropTarget extends StatefulWidget {
   final void Function(Uint8List bytes, String mimeType, String filePath)
   onImageDropped;
 
+  /// Handed the dropped file's path rather than its bytes: a clip is delivered
+  /// by reference, so reading it here would buy nothing but a copy in memory.
+  final void Function(String filePath, String mimeType)? onVideoDropped;
+
+  /// Whether the endpoint in use accepts video. A drop is refused with the
+  /// usual "not supported" notice when it does not.
+  final bool videoEnabled;
+
   @override
-  State<ChatImageDropTarget> createState() => ChatImageDropTargetState();
+  State<ChatMediaDropTarget> createState() => ChatMediaDropTargetState();
 }
 
-class ChatImageDropTargetState extends State<ChatImageDropTarget> {
+class ChatMediaDropTargetState extends State<ChatMediaDropTarget> {
+  static const Set<String> _videoDropExtensions = {
+    '.mp4',
+    '.mov',
+    '.webm',
+    '.mkv',
+    '.m4v',
+    '.avi',
+  };
+
   static const Set<String> _imageDropExtensions = {
     '.png',
     '.jpg',
@@ -119,7 +138,18 @@ class ChatImageDropTargetState extends State<ChatImageDropTarget> {
       setState(() => _isImageDragActive = false);
     }
 
-    final imageItem = _firstImageDropItem(items);
+    if (_videoDropAvailable) {
+      final videoItem = _firstDropItem(items, _isVideoDropItem);
+      final videoPath = videoItem == null
+          ? null
+          : _dropItemPathForImageHandling(videoItem);
+      if (videoItem != null && videoPath != null && videoPath.trim().isNotEmpty) {
+        widget.onVideoDropped!(videoPath, _videoMimeTypeForDropItem(videoItem));
+        return;
+      }
+    }
+
+    final imageItem = _firstDropItem(items, _isImageDropItem);
     if (imageItem == null) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -145,16 +175,44 @@ class ChatImageDropTargetState extends State<ChatImageDropTarget> {
     }
   }
 
-  DropItem? _firstImageDropItem(List<DropItem> items) {
+  bool get _videoDropAvailable =>
+      widget.videoEnabled && widget.onVideoDropped != null;
+
+  DropItem? _firstDropItem(
+    List<DropItem> items,
+    bool Function(DropItem item) matches,
+  ) {
     for (final item in items) {
       if (item is DropItemDirectory) {
         continue;
       }
-      if (_isImageDropItem(item)) {
+      if (matches(item)) {
         return item;
       }
     }
     return null;
+  }
+
+  bool _isVideoDropItem(DropItem item) {
+    final mimeType = item.mimeType?.toLowerCase();
+    if (mimeType != null && mimeType.startsWith('video/')) {
+      return true;
+    }
+    final path = _dropItemPathForImageHandling(item).toLowerCase();
+    return _videoDropExtensions.any((extension) => path.endsWith(extension));
+  }
+
+  String _videoMimeTypeForDropItem(DropItem item) {
+    final mimeType = item.mimeType;
+    if (mimeType != null && mimeType.toLowerCase().startsWith('video/')) {
+      return mimeType;
+    }
+    final path = _dropItemPathForImageHandling(item).toLowerCase();
+    if (path.endsWith('.mov')) return 'video/quicktime';
+    if (path.endsWith('.webm')) return 'video/webm';
+    if (path.endsWith('.mkv')) return 'video/x-matroska';
+    if (path.endsWith('.avi')) return 'video/x-msvideo';
+    return 'video/mp4';
   }
 
   bool _isImageDropItem(DropItem item) {
