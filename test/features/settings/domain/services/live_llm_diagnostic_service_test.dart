@@ -446,6 +446,24 @@ void main() {
     );
   });
 
+  test('scores a schema answer buried under a braced think block', () async {
+    // Regression: the merged <think> prose contains a brace, so decoding the
+    // raw content sliced from the thought into the answer and reported a
+    // schema-perfect reply as a contract violation.
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(bracedReasoning: true),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: {'structured_output'});
+    final result = _result(report, 'structured_output');
+
+    expect(result.status, LiveLlmDiagnosticStatus.passed);
+    expect(result.passedChecks, 2);
+    expect(result.metadata['structuredOutputSupport'], 'jsonSchema');
+  });
+
   test('falls back to JSON object structured output', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
@@ -1154,10 +1172,24 @@ class _FakeDiagnosticDataSource
   _FakeDiagnosticDataSource({
     this.textToolCalls = false,
     this.structuredOutputSupport = ModelStructuredOutputSupport.jsonSchema,
+    this.bracedReasoning = false,
   });
 
   final bool textToolCalls;
   final ModelStructuredOutputSupport structuredOutputSupport;
+
+  /// Prefixes structured answers with a `<think>` block that itself contains
+  /// braces, the way a reasoning model's merged content arrives.
+  final bool bracedReasoning;
+
+  String _withReasoning(String content) {
+    if (!bracedReasoning) {
+      return content;
+    }
+    return '<think>No schema is visible here. Maybe they want '
+        '{ "diagnostic": ... }? I will answer with the locked object.'
+        '</think>$content';
+  }
   int toolResultFollowUpCount = 0;
   final List<String?> requestedModels = [];
 
@@ -1175,7 +1207,9 @@ class _FakeDiagnosticDataSource
         throw StateError('json_schema unsupported');
       }
       return ChatCompletionResult(
-        content: '{"marker":"CAVERNO_SCHEMA_LOCKED_47","count":47}',
+        content: _withReasoning(
+          '{"marker":"CAVERNO_SCHEMA_LOCKED_47","count":47}',
+        ),
         finishReason: 'stop',
       );
     }
@@ -1183,7 +1217,7 @@ class _FakeDiagnosticDataSource
       throw StateError('json_object unsupported');
     }
     return ChatCompletionResult(
-      content: '{"marker":"CAVERNO_JSON_OBJECT_OK","count":47}',
+      content: _withReasoning('{"marker":"CAVERNO_JSON_OBJECT_OK","count":47}'),
       finishReason: 'stop',
     );
   }
