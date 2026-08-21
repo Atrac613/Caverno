@@ -42,6 +42,20 @@ abstract class Message with _$Message {
     @Default(false) bool isSynthesizedPrompt,
     String? originalImagePath,
     String? originalImageMimeType,
+
+    /// Video attachment, kept out of band.
+    ///
+    /// Unlike [imageBase64] the payload is never stored on the message: a
+    /// multi-megabyte base64 string would be rewritten into the conversation's
+    /// Hive JSON on every save. The bytes stay in the attachment directory and
+    /// are encoded (or served) only at send time.
+    String? videoPath,
+
+    /// Set instead of [videoPath] when the person typed a URL by hand.
+    String? videoUrl,
+    String? videoMimeType,
+    int? videoSizeBytes,
+    int? videoDurationMs,
     String? participantId,
     String? participantDisplayName,
     String? participantRoleLabel,
@@ -55,4 +69,12 @@ abstract class Message with _$Message {
 
   factory Message.fromJson(Map<String, dynamic> json) =>
       _$MessageFromJson(json);
+}
+
+extension MessageVideoAttachment on Message {
+  /// Whether this message carries a video the request layer must send.
+  bool get hasVideoAttachment => videoPath != null || videoUrl != null;
+
+  /// Media type to advertise, defaulting to the container we ask pickers for.
+  String get effectiveVideoMimeType => videoMimeType ?? 'video/mp4';
 }
