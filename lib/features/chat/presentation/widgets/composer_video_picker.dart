@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/services/attachment_storage_service.dart';
 import '../../domain/entities/video_attachment_draft.dart';
 
 /// A video dropped onto the chat surface, waiting to be picked up.
@@ -65,7 +66,7 @@ class ComposerVideoPicker {
       final picked = Platform.isIOS || Platform.isAndroid
           ? await _pickFromGallery()
           : await _pickFromDisk();
-      return validate(picked);
+      return await _persisted(validate(picked));
     } catch (e) {
       debugPrint('Failed to pick video: $e');
       return ComposerVideoChoice.none;
@@ -99,14 +100,43 @@ class ComposerVideoPicker {
   Future<ComposerVideoChoice> fromDroppedFile(
     MessageInputVideoAttachment attachment,
   ) async {
-    return validate(
-      VideoAttachmentDraft(
-        path: attachment.filePath,
-        mimeType: attachment.mimeType,
-        displayName: attachment.filePath.split(Platform.pathSeparator).last,
-        sizeBytes: await VideoAttachmentDraft.fileSizeOf(attachment.filePath),
+    return await _persisted(
+      validate(
+        VideoAttachmentDraft(
+          path: attachment.filePath,
+          mimeType: attachment.mimeType,
+          displayName: attachment.filePath.split(Platform.pathSeparator).last,
+          sizeBytes: await VideoAttachmentDraft.fileSizeOf(attachment.filePath),
+        ),
       ),
     );
+  }
+
+  /// Copies an accepted video into the durable attachments directory.
+  ///
+  /// The picker hands back a path into a volatile cache on mobile, which the OS
+  /// is free to clear -- so without this the transcript would show a video that
+  /// cannot be played back or saved a few minutes later. A failed copy keeps
+  /// the original path: sending it now still works, and that beats refusing the
+  /// attachment over a problem that only shows up later.
+  Future<ComposerVideoChoice> _persisted(ComposerVideoChoice choice) async {
+    final video = choice.video;
+    final path = video?.path;
+    if (video == null || path == null) return choice;
+    try {
+      final durablePath = await AttachmentStorageService.persist(
+        sourcePath: path,
+        originalName: video.displayName,
+      );
+      return ComposerVideoChoice(
+        video: video.copyWith(path: durablePath),
+        noticeKey: choice.noticeKey,
+        noticeArgs: choice.noticeArgs,
+      );
+    } catch (e) {
+      debugPrint('Failed to persist video attachment: $e');
+      return choice;
+    }
   }
 
   /// Applies the size limit and the long-clip warning.

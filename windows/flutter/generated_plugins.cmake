@@ -18,6 +18,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   record_windows
   screen_retriever_windows
   serious_python_windows
+  share_plus
   speech_to_text_windows
   super_native_extensions
   url_launcher_windows

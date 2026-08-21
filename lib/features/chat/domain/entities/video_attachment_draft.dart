@@ -51,6 +51,17 @@ class VideoAttachmentDraft {
 
   bool get isLong => (durationMs ?? 0) > warnAboveDurationMs;
 
+  /// Same attachment at a different location, after the file is copied
+  /// somewhere durable.
+  VideoAttachmentDraft copyWith({String? path}) => VideoAttachmentDraft(
+    path: path ?? this.path,
+    url: url,
+    mimeType: mimeType,
+    displayName: displayName,
+    sizeBytes: sizeBytes,
+    durationMs: durationMs,
+  );
+
   /// The size limit as the composer shows it.
   static String get formattedMaxFileSize => formatAttachmentSize(maxFileBytes);
 

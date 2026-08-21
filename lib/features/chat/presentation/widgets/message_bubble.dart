@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 
@@ -20,6 +21,7 @@ import '../providers/coding_projects_notifier.dart';
 import 'file_workspace_viewer_sheet.dart';
 import 'message_image_io.dart';
 import 'message_image_viewer.dart';
+import 'message_video_viewer.dart';
 import 'parsed_content_view.dart';
 import '../../../../core/theme/app_tokens.dart';
 
@@ -1212,30 +1214,55 @@ class _MessageVideoChip extends StatelessWidget {
   final Message message;
   final bool isUser;
 
+  Future<void> _open(BuildContext context) {
+    return showMessageVideoViewer(
+      context: context,
+      filePath: message.videoPath,
+      url: message.videoUrl,
+      fileName: _displayName(),
+      mimeType: message.effectiveVideoMimeType,
+      sizeBytes: message.videoSizeBytes,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final foreground = isUser
         ? theme.colorScheme.onPrimary
         : theme.colorScheme.onSurfaceVariant;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          message.videoUrl != null ? Icons.link : Icons.movie,
-          size: 16,
-          color: foreground,
+    return InkWell(
+      key: const ValueKey('message-video-chip'),
+      onTap: () => unawaited(_open(context)),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // A play glyph rather than a film reel: the chip is now a control,
+            // and the icon is what says so before anything is tapped.
+            Icon(
+              message.videoUrl != null
+                  ? Icons.play_circle_outline
+                  : Icons.play_circle_fill,
+              size: 18,
+              color: foreground,
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                _label(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: foreground,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            _label(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelMedium?.copyWith(color: foreground),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
