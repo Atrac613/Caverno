@@ -84,7 +84,7 @@ conventions:
 | SA-06 | High | Remote Coding credentials and control traffic use plaintext WebSockets (release non-loopback bind contained 2026-08-19; confidential transport pending) | RC1, SEC4.5 |
 | SA-07 | High | Taint policy is advisory before cache and full-access decisions (fixed 2026-08-14) | SEC2.3b |
 | SA-08 | Medium | File mutations can escape project scope through missing or lexical-only containment (write/edit/delete fence landed 2026-08-19; git/shell writes pending) | SEC4.4 |
-| SA-09 | Medium | Routines treat every external MCP tool as read-only | SEC4.4 |
+| SA-09 | Medium | Routines treat every external MCP tool as read-only (denied by default 2026-08-21; reviewed grants pending) | SEC4.4 |
 | SA-10 | Medium | HTTP bodies and unauthenticated Remote Coding sockets/frames are unbounded | SEC4.3, RC1 |
 | SA-11 | Medium | Settings secrets are persisted and exported in cleartext | SEC4.6 |
 | SA-12 | Medium | Non-loopback plaintext LLM endpoints can receive bearer credentials and private content | SEC4.5 |
@@ -413,7 +413,7 @@ Remediation status (2026-08-19): SEC4.4b mutation fencing is complete for
 targets resolve like SEC4.4a reads; missing write targets authorize via the
 nearest existing parent. `~`, `..`, siblings, prefix collisions, and symlink
 escapes fail closed with `project_mutation_*` codes. Git and local-command
-writes, plus routine external MCP deny-by-default (SA-09), remain follow-ups.
+writes remain follow-ups.
 
 ### SA-09: External MCP Tools In Routines
 
@@ -423,6 +423,12 @@ every externally marked MCP tool as read-only, and
 allowed name directly. Deny external MCP tools in unattended routines by
 default; any future grant must bind server identity, tool name, schema digest,
 and reviewed read-only intent.
+
+Remediation status (2026-08-21): SEC4.4c is complete. Catalog filtering now
+drops `x-caverno-external-mcp-tool` definitions, including namespaced names
+that collide with allowed built-ins. Dispatch refuses
+`McpToolService.isExternalMcpToolName` before `executeTool` and returns
+`routine_external_mcp_denied`. Reviewed grants remain a later slice.
 
 ### SA-10: Resource Exhaustion
 
@@ -589,7 +595,7 @@ Add negative coverage for:
 | P0-3 | SEC1 + SEC2.3b + SEC4.3a-SEC4.3c network authority (completed 2026-08-14) | SA-03, SA-07 | Every HTTP/browser request uses one classifier, remote provenance, approval, destination, DNS/peer, and redirect policy; unverifiable external WebView navigation is absent; taint precedes cache/full access. |
 | P0-4 | SEC4.4a project read containment (completed 2026-08-14) | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
 | P0-5 | SEC4.5a-SEC4.5b authenticated transport containment (completed 2026-08-19) | SA-05, SA-06 | SSH known-host mismatch fails before authentication. A release build cannot start a plaintext non-loopback Remote Coding listener. |
-| P1-1 | SEC4.4b mutation and autonomous containment (mutation fence completed 2026-08-19) | SA-08, SA-09 | Write/edit/delete go through a symlink-aware project fence. Routine MCP deny-by-default tests still remain. |
+| P1-1 | SEC4.4b/SEC4.4c mutation and autonomous containment (mutation fence completed 2026-08-19; routine MCP deny-by-default completed 2026-08-21) | SA-08, SA-09 | Write/edit/delete go through a symlink-aware project fence. Unclassified external MCP tools are omitted from routine catalogs and denied at dispatch. Git and local-command write fencing still remain. |
 | P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport | SA-10, SA-12 | HTTP and Remote Coding limits pass; credential-bearing non-loopback LLM endpoints require HTTPS. |
 | P1-3 | SEC4.6 data protection and lifecycle | SA-11, SA-13, SA-14, SA-15, SA-17, SA-18 | Secret-free storage/export, recursive redaction, opt-out, migration, backup, and deletion tests pass. |
 | P1-4 | SEC4.7 release supply-chain hardening | SA-16 | Immutable actions, pinned toolchain, checksum, dependency monitoring, and fail-closed release signing are enforced. |
