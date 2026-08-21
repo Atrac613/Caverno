@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
@@ -196,6 +198,121 @@ void main() {
       ).load().effectiveModelCapabilityProfile?.toolCallStyle,
       ModelToolCallStyle.nativeToolCalls,
       reason: 'the backfill only adds the context window',
+    );
+  });
+
+  test('backfills the video modality without spending a probe run', () async {
+    final initialSettings = AppSettings.defaults().copyWith(
+      model: 'known-model',
+      modelCapabilityProfiles: [
+        ModelCapabilityProfile(
+          id: '',
+          baseUrl: AppSettings.defaults().baseUrl,
+          model: 'known-model',
+          toolCallStyle: ModelToolCallStyle.nativeToolCalls,
+        ).normalizedForPersistence(),
+      ],
+    );
+    SharedPreferences.setMockInitialValues({
+      'app_settings': jsonEncode(initialSettings.toJson()),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final dataSource = _InstructionOnlyDataSource();
+    Uri? asked;
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        mcpToolServiceProvider.overrideWithValue(null),
+        modalitiesProbeClientProvider.overrideWithValue(
+          () => MockClient((request) async {
+            asked = request.url;
+            return http.Response(
+              jsonEncode({
+                'modalities': {'vision': true, 'video': true, 'audio': false},
+              }),
+              200,
+              headers: const {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(modelCapabilityAutoProbeNotifierProvider.notifier)
+        .runForCurrentModel();
+
+    expect(
+      dataSource.requestCount,
+      0,
+      reason: 'the backfill must not spend LLM calls',
+    );
+    expect(asked?.path, '/props');
+    expect(
+      asked?.queryParameters['model'],
+      'known-model',
+      reason: 'a router only answers about a model it is asked about',
+    );
+    final stored = SettingsRepository(
+      prefs,
+    ).load().effectiveModelCapabilityProfile;
+    expect(stored?.videoInputSupport, ModelVideoInputSupport.supported);
+    expect(
+      stored?.toolCallStyle,
+      ModelToolCallStyle.nativeToolCalls,
+      reason: 'the backfill only adds the video modality',
+    );
+  });
+
+  test('an endpoint that says nothing leaves the profile alone', () async {
+    final initialSettings = AppSettings.defaults().copyWith(
+      model: 'known-model',
+      modelCapabilityProfiles: [
+        ModelCapabilityProfile(
+          id: '',
+          baseUrl: AppSettings.defaults().baseUrl,
+          model: 'known-model',
+          toolCallStyle: ModelToolCallStyle.nativeToolCalls,
+        ).normalizedForPersistence(),
+      ],
+    );
+    SharedPreferences.setMockInitialValues({
+      'app_settings': jsonEncode(initialSettings.toJson()),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        chatRemoteDataSourceProvider.overrideWithValue(
+          _InstructionOnlyDataSource(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(null),
+        modalitiesProbeClientProvider.overrideWithValue(
+          // A router asked about itself: 200, JSON, no modalities at all.
+          () => MockClient(
+            (_) async => http.Response(
+              jsonEncode({'role': 'router', 'model_path': 'none'}),
+              200,
+              headers: const {'content-type': 'application/json'},
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(modelCapabilityAutoProbeNotifierProvider.notifier)
+        .runForCurrentModel();
+
+    expect(
+      SettingsRepository(
+        prefs,
+      ).load().effectiveModelCapabilityProfile?.videoInputSupport,
+      ModelVideoInputSupport.unknown,
+      reason: 'silence is not a denial, and must not churn the revision list',
     );
   });
 }
