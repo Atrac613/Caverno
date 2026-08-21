@@ -703,7 +703,7 @@
   "onboarding": {
     "title": "Caverno へようこそ",
     "message": "いくつかの手順で、Caverno があなたの LLM に接続します。",
-    "restore_body": "Caverno の設定ファイルがあれば、エンドポイント・モデル・ツール・各種設定をまとめて復元できます。",
+    "restore_body": "設定ファイルから、エンドポイントやモデル、各種設定をまとめて復元できます。",
     "import_settings": "バックアップから復元",
     "back": "戻る",
     "next": "次へ",

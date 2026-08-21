@@ -45,11 +45,15 @@ class OnboardingWelcomeStep extends StatelessWidget {
           label: Text('onboarding.import_settings'.tr()),
         ),
         SizedBox(height: space.md),
-        Text(
-          'onboarding.restore_body'.tr(),
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant,
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: Text(
+            'onboarding.restore_body'.tr(),
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              height: 1.6,
+            ),
           ),
         ),
         if (errorText != null) ...[
