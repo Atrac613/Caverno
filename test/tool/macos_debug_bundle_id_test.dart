@@ -23,9 +23,19 @@ void main() {
     );
   });
 
-  test('app always uses the dark theme', () {
+  test('app theme follows the persisted preference, defaulting to dark', () {
     final mainSource = File('lib/main.dart').readAsStringSync();
+    final settingsSource = File(
+      'lib/features/settings/domain/entities/app_settings.dart',
+    ).readAsStringSync();
 
-    expect(mainSource, contains('themeMode: ThemeMode.dark'));
+    // Onboarding lets the user choose, so the hardcoded ThemeMode.dark is gone;
+    // dark staying the entity default is what keeps existing installs looking
+    // the same after the upgrade.
+    expect(mainSource, contains('themeMode: themePreference.themeMode'));
+    expect(
+      settingsSource,
+      contains('@Default(AppThemePreference.dark)'),
+    );
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../types/app_theme_preference.dart';
 import 'app_tokens.dart';
 
 /// Caverno's theme. Dark is the designed-for default; light is kept
@@ -221,4 +222,16 @@ class AppTheme {
       ),
     );
   }
+}
+
+/// Maps the persisted preference onto Flutter's [ThemeMode].
+///
+/// Kept out of `AppSettings` on purpose: the settings entity is a plain
+/// domain object and must not import `flutter/material.dart`.
+extension AppThemePreferenceMode on AppThemePreference {
+  ThemeMode get themeMode => switch (this) {
+    AppThemePreference.system => ThemeMode.system,
+    AppThemePreference.dark => ThemeMode.dark,
+    AppThemePreference.light => ThemeMode.light,
+  };
 }

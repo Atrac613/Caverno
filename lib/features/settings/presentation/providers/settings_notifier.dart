@@ -906,6 +906,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateThemePreference(AppThemePreference preference) async {
+    state = state.copyWith(themePreference: preference);
+    await _repository.save(state);
+  }
+
   Future<void> updateAssistantMode(AssistantMode assistantMode) async {
     state = state.copyWith(
       assistantMode: _assistantModeForProvider(

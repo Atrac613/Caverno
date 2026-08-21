@@ -583,6 +583,13 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   voicevoxUrl: json['voicevoxUrl'] as String? ?? 'http://localhost:50021',
   voicevoxSpeakerId: (json['voicevoxSpeakerId'] as num?)?.toInt() ?? 0,
   language: json['language'] as String? ?? 'system',
+  themePreference:
+      $enumDecodeNullable(
+        _$AppThemePreferenceEnumMap,
+        json['themePreference'],
+        unknownValue: AppThemePreference.dark,
+      ) ??
+      AppThemePreference.dark,
   assistantMode:
       $enumDecodeNullable(
         _$AssistantModeEnumMap,
@@ -738,6 +745,7 @@ Map<String, dynamic> _$AppSettingsToJson(
   'voicevoxUrl': instance.voicevoxUrl,
   'voicevoxSpeakerId': instance.voicevoxSpeakerId,
   'language': instance.language,
+  'themePreference': _$AppThemePreferenceEnumMap[instance.themePreference]!,
   'assistantMode': _$AssistantModeEnumMap[instance.assistantMode]!,
   'codingApprovalMode': _$ToolApprovalModeEnumMap[instance.codingApprovalMode]!,
   'chatApprovalMode': _$ToolApprovalModeEnumMap[instance.chatApprovalMode]!,
@@ -802,6 +810,12 @@ const _$ProReasoningCandidateRoutingEnumMap = {
   ProReasoningCandidateRouting.mesh: 'mesh',
   ProReasoningCandidateRouting.localOnly: 'localOnly',
   ProReasoningCandidateRouting.selectedOnly: 'selectedOnly',
+};
+
+const _$AppThemePreferenceEnumMap = {
+  AppThemePreference.system: 'system',
+  AppThemePreference.dark: 'dark',
+  AppThemePreference.light: 'light',
 };
 
 const _$AssistantModeEnumMap = {

@@ -4,9 +4,11 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/types/app_theme_preference.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/goal_completion_policy.dart';
 
+export '../../../../core/types/app_theme_preference.dart';
 export '../../../../core/types/goal_completion_policy.dart';
 
 part 'app_settings.freezed.dart';
@@ -908,6 +910,11 @@ abstract class AppSettings with _$AppSettings {
     @Default('http://localhost:50021') String voicevoxUrl,
     @Default(0) int voicevoxSpeakerId,
     @Default('system') String language,
+    // Dark stays the default so an existing install's appearance does not
+    // change under it; onboarding is what makes the choice explicit.
+    @JsonKey(unknownEnumValue: AppThemePreference.dark)
+    @Default(AppThemePreference.dark)
+    AppThemePreference themePreference,
     @JsonKey(unknownEnumValue: AssistantMode.general)
     @Default(AssistantMode.general)
     AssistantMode assistantMode,
