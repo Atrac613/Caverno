@@ -28,11 +28,13 @@ import '../data/remote_coding_notification_relay_provisioning.dart';
 import '../data/remote_coding_protocol.dart';
 import '../data/remote_coding_repository.dart';
 import '../data/remote_coding_security.dart';
+import '../data/remote_coding_session_challenge_registry.dart';
 import '../data/remote_coding_tls_identity.dart';
 import '../data/remote_coding_terminal_notification_mapper.dart';
 import '../data/remote_coding_terminal_notification_delivery.dart';
 import '../domain/remote_coding_listen_policy.dart';
 import '../domain/remote_coding_models.dart';
+import '../domain/remote_coding_session_policy.dart';
 import '../domain/remote_coding_transport_policy.dart';
 
 final remoteCodingServerProvider =
@@ -122,6 +124,8 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       RemoteCodingPairingRegistry();
   final RemoteCodingNotificationRelayPairingRegistry _relayPairingRegistry =
       RemoteCodingNotificationRelayPairingRegistry();
+  final RemoteCodingSessionChallengeRegistry _sessionChallenges =
+      RemoteCodingSessionChallengeRegistry();
   final Set<_RemoteCodingSocketClient> _clients = {};
   final RemoteCodingTerminalNotificationMapper _terminalNotificationMapper =
       const RemoteCodingTerminalNotificationMapper();
@@ -377,6 +381,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     }
     _clients.clear();
     _pairingRegistry.clear();
+    _sessionChallenges.clear();
     _pairingExpiryTimer?.cancel();
     _pairingExpiryTimer = null;
     if (server != null) {
@@ -418,7 +423,11 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       }
 
       final socket = await WebSocketTransformer.upgrade(request);
-      final client = _RemoteCodingSocketClient(socket);
+      final client = _RemoteCodingSocketClient(
+        socket,
+        connectionId: _uuid.v4(),
+      );
+      _issueSessionChallenge(client);
       _clients.add(client);
       _syncActiveConnectionCount();
       unawaited(_handleClient(client));
@@ -445,6 +454,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         await _handleMessage(client, message);
       }
     } finally {
+      _sessionChallenges.removeConnection(client.connectionId);
       _clients.remove(client);
       _syncActiveConnectionCount();
     }
@@ -584,12 +594,78 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     }
   }
 
+  void _issueSessionChallenge(_RemoteCodingSocketClient client) {
+    final challenge = _sessionChallenges.issue(
+      connectionId: client.connectionId,
+      certificatePin: state.certificatePin?.trim() ?? '',
+    );
+    client.send(type: 'authChallenge', payload: challenge.toPayload());
+  }
+
+  void _bindAuthenticatedSession(
+    _RemoteCodingSocketClient client, {
+    required String deviceId,
+  }) {
+    client.session = RemoteCodingSessionAuthorization(
+      sessionId: RemoteCodingSecurity.randomToken(),
+      deviceId: deviceId,
+      connectionId: client.connectionId,
+      issuedAt: DateTime.now().toUtc(),
+    );
+    client.deviceId = deviceId;
+    _syncActiveConnectionCount();
+  }
+
+  bool _consumeAuthChallenge(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message, {
+    required String credential,
+  }) {
+    final challengeId =
+        (message.payload['challengeId'] as String?)?.trim() ?? '';
+    final proof = (message.payload['proof'] as String?)?.trim() ?? '';
+    if (challengeId.isEmpty || proof.isEmpty || credential.isEmpty) {
+      client.sendError(
+        id: message.id,
+        code: RemoteCodingSessionPolicy.challengeRequiredCode,
+        message: const RemoteCodingAuthChallengeRequiredException().toString(),
+      );
+      return false;
+    }
+    final consumed = _sessionChallenges.consume(
+      challengeId: challengeId,
+      connectionId: client.connectionId,
+      credential: credential,
+      proof: proof,
+    );
+    if (consumed.isAccepted) {
+      return true;
+    }
+    client.sendError(
+      id: message.id,
+      code: RemoteCodingSessionPolicy.challengeRejectedCode,
+      message: 'Remote coding auth challenge is invalid or expired.',
+    );
+    return false;
+  }
+
   Future<void> _handleAuth(
     _RemoteCodingSocketClient client,
     RemoteCodingProtocolMessage message,
   ) async {
+    if (client.isAuthenticated) {
+      client.sendError(
+        id: message.id,
+        code: 'unauthorized',
+        message: 'Remote coding client is already authenticated.',
+      );
+      return;
+    }
     final token = (message.payload['token'] as String?)?.trim();
     if (token != null && token.isNotEmpty) {
+      if (!_consumeAuthChallenge(client, message, credential: token)) {
+        return;
+      }
       final device = await _authenticateToken(token);
       if (device == null) {
         client.sendError(
@@ -599,9 +675,14 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         );
         return;
       }
-      client.deviceId = device.id;
-      _syncActiveConnectionCount();
-      client.sendSnapshot(id: message.id, payload: _buildSnapshot());
+      _bindAuthenticatedSession(client, deviceId: device.id);
+      client.sendSnapshot(
+        id: message.id,
+        payload: {
+          ..._buildSnapshot(),
+          'auth': client.session!.toAuthPayload(),
+        },
+      );
       return;
     }
 
@@ -611,6 +692,9 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         (message.payload['deviceName'] as String?)?.trim().isNotEmpty == true
         ? (message.payload['deviceName'] as String).trim()
         : 'Mobile device';
+    if (!_consumeAuthChallenge(client, message, credential: secret)) {
+      return;
+    }
     final pairing = _pairingRegistry.consume(
       ticketId: ticketId,
       secret: secret,
@@ -645,15 +729,14 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     state = state.copyWith(settings: settings, clearPairingPayload: true);
     _pairingExpiryTimer?.cancel();
     _pairingExpiryTimer = null;
-    client.deviceId = device.id;
-    _syncActiveConnectionCount();
+    _bindAuthenticatedSession(client, deviceId: device.id);
     client.sendSnapshot(
       id: message.id,
       payload: {
         ..._buildSnapshot(),
         'auth': {
+          ...client.session!.toAuthPayload(),
           'deviceToken': rawToken,
-          'deviceId': device.id,
           'serverName': Platform.localHostname,
         },
       },
@@ -1288,12 +1371,17 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
 const projectWorkspaceMode = WorkspaceMode.coding;
 
 class _RemoteCodingSocketClient {
-  _RemoteCodingSocketClient(this.socket);
+  _RemoteCodingSocketClient(this.socket, {required this.connectionId});
 
   final WebSocket socket;
+  final String connectionId;
   String? deviceId;
+  RemoteCodingSessionAuthorization? session;
 
-  bool get isAuthenticated => deviceId != null && deviceId!.isNotEmpty;
+  bool get isAuthenticated =>
+      session != null &&
+      session!.deviceId.isNotEmpty &&
+      session!.connectionId == connectionId;
 
   void send({
     required String type,

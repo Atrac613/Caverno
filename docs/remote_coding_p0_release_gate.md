@@ -25,15 +25,16 @@ P0 covers these release blockers:
 
 ## Security Audit Qualification
 
-Passing this P0 gate does not close reusable transport tokens. SEC4.5c now
-uses pinned `wss://` with a certificate pin on pairing QR codes, and the
-client refuses plaintext downgrade before `auth`. The 2026-08-14 audit still
-records reusable session tokens as SA-06 remainder (SEC4.5d) in
+Passing this P0 gate does not close unauthenticated connection and frame
+limits. SEC4.5c uses pinned `wss://` with a certificate pin on pairing QR
+codes, and SEC4.5d requires a live channel-bound HMAC proof before issuing
+an in-memory session. The 2026-08-14 audit still records unbounded sockets
+and frames as SA-10 remainder (SEC4.5e) in
 `docs/security_audit_2026-08-14.md`.
 
 A release build must not expose a plaintext non-loopback Remote Coding
-listener. Isolated-LAN assumptions are not closure for remaining token
-lifetime work.
+listener. Isolated-LAN assumptions are not closure for remaining resource
+boundary work.
 
 SEC4.5b adds a required `transportContainment` result to this gate. The Dart
 checker fails when the production server can still bind `InternetAddress.anyIPv4`

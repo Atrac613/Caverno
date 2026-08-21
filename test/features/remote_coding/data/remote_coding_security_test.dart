@@ -14,6 +14,19 @@ void main() {
     expect(RemoteCodingSecurity.hashToken(token), hash);
   });
 
+  test('hmacSha256Hex is deterministic and key-dependent', () {
+    expect(
+      RemoteCodingSecurity.hmacSha256Hex(key: 'token', message: 'v1|a|b|c'),
+      RemoteCodingSecurity.hmacSha256Hex(key: 'token', message: 'v1|a|b|c'),
+    );
+    expect(
+      RemoteCodingSecurity.hmacSha256Hex(key: 'token', message: 'v1|a|b|c'),
+      isNot(
+        RemoteCodingSecurity.hmacSha256Hex(key: 'other', message: 'v1|a|b|c'),
+      ),
+    );
+  });
+
   test('constantTimeEquals matches only identical strings', () {
     expect(RemoteCodingSecurity.constantTimeEquals('abc', 'abc'), isTrue);
     expect(RemoteCodingSecurity.constantTimeEquals('abc', 'abd'), isFalse);

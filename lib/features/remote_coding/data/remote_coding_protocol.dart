@@ -75,6 +75,7 @@ class RemoteCodingProtocol {
     'questionRequested',
     'questionResolved',
     'runTerminal',
+    'authChallenge',
     'error',
     'disconnected',
   };

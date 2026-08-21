@@ -5293,8 +5293,8 @@ Slice plan:
    listener can start;
    **SEC4.5c (P1, completed 2026-08-21)** adds pinned confidential
    transport and downgrade rejection;
-   **SEC4.5d (P1)** issues short-lived, challenge- and channel-bound session
-   authorization;
+   **SEC4.5d (P1, completed 2026-08-21)** issues short-lived, challenge- and
+   channel-bound session authorization;
    **SEC4.5e (P1)** adds authentication deadlines, connection/frame/rate limits;
    and **SEC4.5f (P1)** requires HTTPS for credential-bearing non-loopback LLM
    endpoints.

@@ -72,5 +72,9 @@ void main() {
 
   test('server event allowlist includes terminal run delivery', () {
     expect(RemoteCodingProtocol.allowedServerEvents, contains('runTerminal'));
+    expect(
+      RemoteCodingProtocol.allowedServerEvents,
+      contains('authChallenge'),
+    );
   });
 }
