@@ -36,6 +36,77 @@ void main() {
     );
   });
 
+  group('LocalShellTools.execute write containment', () {
+    late Directory sandbox;
+    late Directory project;
+    late Directory sibling;
+
+    setUp(() async {
+      sandbox = await Directory.systemTemp.createTemp(
+        'local_shell_write_fence_',
+      );
+      project = await Directory('${sandbox.path}/project').create();
+      sibling = await Directory('${sandbox.path}/project-secrets').create();
+    });
+
+    tearDown(() async {
+      if (sandbox.existsSync()) {
+        await sandbox.delete(recursive: true);
+      }
+    });
+
+    test('runs an in-root write when a project root is selected', () async {
+      final result = await LocalShellTools.executeResult(
+        command: 'touch output.txt',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(result.result) as Map<String, dynamic>;
+
+      expect(result.isSuccess, isTrue);
+      expect(payload['exit_code'], 0);
+      expect(File('${project.path}/output.txt').existsSync(), isTrue);
+    });
+
+    test('skips the fence when no project is selected', () async {
+      final result = await LocalShellTools.executeResult(
+        command: 'touch output.txt',
+        workingDirectory: sibling.path,
+      );
+      final payload = jsonDecode(result.result) as Map<String, dynamic>;
+
+      expect(result.isSuccess, isTrue);
+      expect(payload['exit_code'], 0);
+      expect(File('${sibling.path}/output.txt').existsSync(), isTrue);
+    });
+
+    test('rejects a sibling write before the shell starts', () async {
+      final result = await LocalShellTools.executeResult(
+        command: 'touch secret.txt',
+        workingDirectory: sibling.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(result.result) as Map<String, dynamic>;
+
+      expect(result.isSuccess, isFalse);
+      expect(payload['code'], 'project_mutation_outside_root');
+      expect(File('${sibling.path}/secret.txt').existsSync(), isFalse);
+    });
+
+    test('rejects an out-of-root write operand', () async {
+      final result = await LocalShellTools.executeResult(
+        command: 'touch ../project-secrets/secret.txt',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(result.result) as Map<String, dynamic>;
+
+      expect(result.isSuccess, isFalse);
+      expect(payload['code'], 'project_mutation_outside_root');
+      expect(File('${sibling.path}/secret.txt').existsSync(), isFalse);
+    });
+  });
+
   group('implicit errexit', () {
     late Directory tempDir;
 
