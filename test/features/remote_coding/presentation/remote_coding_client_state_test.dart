@@ -392,6 +392,31 @@ void main() {
       expect(state.pendingApproval, isNull);
       expect(state.snapshotGeneratedAt, isNull);
     });
+
+    test('accepts an auth challenge without treating it as unsupported', () async {
+      final notifier = container.read(remoteCodingClientProvider.notifier);
+
+      await notifier.handleRawMessageForTest(
+        RemoteCodingProtocol.encode(
+          type: 'authChallenge',
+          payload: {
+            'challengeId': 'challenge-1',
+            'nonce': 'nonce-1',
+            'expiresAt': DateTime.utc(
+              2026,
+              8,
+              21,
+              10,
+            ).toIso8601String(),
+          },
+        ),
+      );
+
+      final state = container.read(remoteCodingClientProvider);
+      expect(state.status, isNot(RemoteCodingConnectionStatus.error));
+      expect(state.status, isNot(RemoteCodingConnectionStatus.connected));
+      expect(state.error, isNull);
+    });
   });
 
   group('remote host rejection', () {
