@@ -9,6 +9,8 @@ import '../../domain/services/dart_diagnostic_line_parser.dart';
 import 'filesystem_tools.dart';
 import 'first_party_tool_execution_result.dart';
 import 'git_tools.dart';
+import 'local_command_mutation_guard.dart';
+import 'project_mutation_path_fence.dart';
 import 'project_read_path_fence.dart';
 
 class LocalShellTools {
@@ -146,12 +148,22 @@ class LocalShellTools {
     required String command,
     required String workingDirectory,
     Duration timeout = _timeout,
+    String? projectRoot,
   }) async {
-    final directory = Directory(workingDirectory);
+    final authorized = await _authorizeMutation(
+      command: command,
+      workingDirectory: workingDirectory,
+      projectRoot: projectRoot,
+    );
+    if (authorized.denied != null) {
+      return authorized.denied!;
+    }
+    final directory = Directory(authorized.workingDirectory);
     if (!directory.existsSync()) {
       return FirstPartyToolExecutionResult.payloadOnly(
         jsonEncode({
-          'error': 'Working directory does not exist: $workingDirectory',
+          'error':
+              'Working directory does not exist: ${authorized.workingDirectory}',
         }),
       );
     }
@@ -203,6 +215,61 @@ class LocalShellTools {
         }),
       );
     }
+  }
+
+  static Future<
+    ({FirstPartyToolExecutionResult? denied, String workingDirectory})
+  >
+  _authorizeMutation({
+    required String command,
+    required String workingDirectory,
+    required String? projectRoot,
+  }) async {
+    final fenceRoot = LocalCommandMutationGuard.authorizedProjectRoot(
+      projectRoot,
+    );
+    if (fenceRoot == null) {
+      return (denied: null, workingDirectory: workingDirectory);
+    }
+    const toolName = 'local_execute_command';
+    final cwdAuth = await LocalCommandMutationGuard.authorizeWorkingDirectory(
+      toolName: toolName,
+      projectRoot: fenceRoot,
+      workingDirectory: workingDirectory,
+    );
+    if (!cwdAuth.isAllowed) {
+      return (
+        denied: _mutationFailure(cwdAuth),
+        workingDirectory: workingDirectory,
+      );
+    }
+    final canonicalWorkingDirectory = cwdAuth.canonicalPath!;
+    final normalizedCommand = normalizeCommand(command);
+    if (!isReadOnly(normalizedCommand)) {
+      final writeAuth = await LocalCommandMutationGuard.authorizeWritePaths(
+        toolName: toolName,
+        projectRoot: fenceRoot,
+        command: normalizedCommand,
+        workingDirectory: canonicalWorkingDirectory,
+      );
+      if (writeAuth != null && !writeAuth.isAllowed) {
+        return (
+          denied: _mutationFailure(writeAuth),
+          workingDirectory: canonicalWorkingDirectory,
+        );
+      }
+    }
+    return (denied: null, workingDirectory: canonicalWorkingDirectory);
+  }
+
+  static FirstPartyToolExecutionResult _mutationFailure(
+    ProjectMutationPathAuthorization authorization,
+  ) {
+    final denied = authorization.deniedResult!;
+    return FirstPartyToolExecutionResult(
+      result: denied.result,
+      errorMessage: denied.errorMessage ?? denied.result,
+    );
   }
 
   static Future<FirstPartyToolExecutionResult> _executeWithProcessHandle({

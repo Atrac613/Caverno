@@ -4,6 +4,7 @@ import '../../domain/services/local_command_tool_contract.dart';
 import 'background_process_monitor_service.dart';
 import 'background_process_tool_executor.dart';
 import 'background_process_tools.dart';
+import 'built_in_local_command_mutation_preflight.dart';
 import 'built_in_local_command_read_preflight.dart';
 import 'built_in_local_command_runner.dart';
 import 'built_in_local_command_tool_definitions.dart';
@@ -96,14 +97,20 @@ class BuiltInLocalCommandToolHandler {
       arguments: arguments,
     );
     if (readDenial != null) return readDenial;
+    final mutation = await authorizeBuiltInLocalCommandMutation(
+      toolName: name,
+      arguments: arguments,
+    );
+    if (mutation.deniedResult != null) return mutation.deniedResult!;
+    final args = mutation.arguments;
 
     switch (name) {
       case 'local_execute_command':
         final command = LocalShellTools.normalizeCommand(
-          (arguments['command'] as String?)?.trim() ?? '',
+          (args['command'] as String?)?.trim() ?? '',
         );
         final workingDirectory =
-            (arguments['working_directory'] as String?)?.trim() ?? '';
+            (args['working_directory'] as String?)?.trim() ?? '';
         if (command.isEmpty || workingDirectory.isEmpty) {
           return _validationFailure(
             name,
@@ -118,13 +125,13 @@ class BuiltInLocalCommandToolHandler {
         if (gitWriteBlocked != null) {
           return gitWriteBlocked;
         }
-        if (argumentIsTruthy(arguments['background'])) {
+        if (argumentIsTruthy(args['background'])) {
           return _backgroundProcessExecutor.start(
             owner: owner!,
             name: name,
             command: command,
             workingDirectory: workingDirectory,
-            label: (arguments['label'] as String?)?.trim(),
+            label: (args['label'] as String?)?.trim(),
             structuredUnavailable: true,
           );
         }
@@ -134,10 +141,9 @@ class BuiltInLocalCommandToolHandler {
         );
         // A non-zero exit is the command's outcome, not a tool failure, so the
         // result stays successful and only carries the reported exit status.
-        return McpToolResultNormalizer.success(
+        return McpToolResultNormalizer.fromFirstPartyExecution(
           toolName: name,
-          result: execution.result,
-          outcome: execution.outcome,
+          execution: execution,
         );
       case 'process_start':
       case 'process_status':
@@ -148,7 +154,7 @@ class BuiltInLocalCommandToolHandler {
         return _backgroundProcessExecutor.execute(
           owner: owner!,
           name: name,
-          arguments: arguments,
+          arguments: args,
         );
       case 'run_tests':
         return McpToolResultNormalizer.structuredFailure(

@@ -14,6 +14,7 @@ import 'package:caverno/features/routines/data/routine_execution_service.dart';
 import 'package:caverno/features/routines/data/routine_objective_evidence_collector.dart';
 import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/routines/domain/services/routine_computer_use_action_allowlist.dart';
+import 'package:caverno/features/routines/domain/services/routine_tool_policy.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 void main() {
@@ -794,7 +795,7 @@ void main() {
     );
 
     test(
-      'adds routine guidance and keeps external MCP tools available',
+      'adds routine guidance and denies unclassified external MCP tools',
       () async {
         final dataSource = _FakeChatDataSource(
           initialToolAwareResult: ChatCompletionResult(
@@ -808,16 +809,6 @@ void main() {
             ],
             finishReason: 'tool_calls',
           ),
-          toolLoopResult: ChatCompletionResult(
-            content: 'Collected router status',
-            finishReason: 'stop',
-          ),
-          plainResults: [
-            ChatCompletionResult(
-              content: 'Router status is stable.',
-              finishReason: 'stop',
-            ),
-          ],
         );
         final routerTool = McpToolEntity(
           name: 'router_health_snapshot',
@@ -861,34 +852,74 @@ void main() {
 
         final record = await service.execute(buildRoutine(toolsEnabled: true));
 
-        expect(record.output, 'Router status is stable.');
+        expect(dataSource.toolRequestNames, ['interface_info']);
+        expect(toolService.executedCalls, isEmpty);
+        expect(record.isSuccessful, isFalse);
+        expect(record.error, contains('without any visible output'));
         expect(record.toolNames, ['router_health_snapshot']);
-        expect(record.toolSourceLabels, {
-          'router_health_snapshot': 'router-mcp.local:8765',
-        });
-        expect(record.toolDisplayNames, [
-          'router_health_snapshot (router-mcp.local:8765)',
-        ]);
-        expect(toolService.executedCalls.single.name, 'router_health_snapshot');
-        expect(toolService.executedCalls.single.arguments, {
-          'lookback_minutes': 15,
-        });
-        expect(dataSource.toolRequestNames, [
-          'interface_info',
-          'router_health_snapshot',
-          'get_dns_health__zeek_server',
-        ]);
+        expect(
+          record.toolCalls.single.result,
+          contains('routine_external_mcp_denied'),
+        );
+        expect(record.toolSourceLabels, isEmpty);
         final systemPrompt = dataSource.lastToolAwareMessages
             .singleWhere((message) => message.role == MessageRole.system)
             .content;
         expect(systemPrompt, contains('Available tools:'));
-        expect(systemPrompt, contains('router_health_snapshot'));
-        expect(systemPrompt, contains('get_dns_health__zeek_server'));
+        expect(systemPrompt, contains('interface_info'));
+        expect(systemPrompt, isNot(contains('router_health_snapshot')));
+        expect(systemPrompt, isNot(contains('get_dns_health__zeek_server')));
         expect(systemPrompt, contains('unattended scheduled/manual routine'));
         expect(systemPrompt, contains('Do not ask the user for confirmation'));
         expect(
           systemPrompt,
           contains('Do not answer with only a proposed tool workflow'),
+        );
+      },
+    );
+
+    test(
+      'denies a namespaced external MCP tool that collides with a built-in',
+      () async {
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Checking Zeek DNS health',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-zeek',
+                name: 'get_dns_health__zeek_server',
+                arguments: const {'lookback_minutes': 15},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [
+            _toolDefinition('get_dns_health', 'Summarize recent DNS health'),
+            McpToolEntity(
+              name: 'get_dns_health__zeek_server',
+              description: 'Summarize recent Zeek dns.log activity',
+              inputSchema: const {'type': 'object', 'properties': {}},
+              sourceUrl: 'http://zeek-mcp.local:8765',
+            ).toOpenAiTool(),
+          ],
+          resultsByToolName: const {},
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults(),
+        );
+
+        final record = await service.execute(buildRoutine(toolsEnabled: true));
+
+        expect(dataSource.toolRequestNames, ['get_dns_health']);
+        expect(toolService.executedCalls, isEmpty);
+        expect(record.isSuccessful, isFalse);
+        expect(
+          record.toolCalls.single.result,
+          contains('routine_external_mcp_denied'),
         );
       },
     );
@@ -1887,6 +1918,16 @@ class _FakeMcpToolService extends McpToolService {
 
   @override
   List<Map<String, dynamic>> getOpenAiToolDefinitions() => definitions;
+
+  @override
+  bool isExternalMcpToolName(String name) {
+    return definitions.any((tool) {
+      final function = tool['function'];
+      final toolName = function is Map ? function['name'] as String? : null;
+      return toolName == name &&
+          RoutineToolPolicy.isExternalMcpToolDefinition(tool);
+    });
+  }
 
   @override
   Future<McpToolResult> executeTool({

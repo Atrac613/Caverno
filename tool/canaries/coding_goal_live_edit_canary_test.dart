@@ -2070,6 +2070,7 @@ class _SandboxCodingToolService extends McpToolService {
     final result = await GitTools.execute(
       command: command,
       workingDirectory: root.path,
+      projectRoot: root.path,
     );
     final decoded = _tryDecodeObject(result);
     final exitCode = decoded['exit_code'];

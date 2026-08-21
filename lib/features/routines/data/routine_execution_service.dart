@@ -742,6 +742,9 @@ class RoutineExecutionService {
     required Set<String> allowedToolNames,
     ChatTurnOwner? fileToolOwner,
   }) async {
+    if (_mcpToolService?.isExternalMcpToolName(toolCall.name) ?? false) {
+      return RoutineToolPolicy.buildExternalMcpDeniedResult(toolCall);
+    }
     if (!allowedToolNames.contains(toolCall.name)) {
       if (RoutineToolPolicy.isComputerUseActionToolName(toolCall.name)) {
         return RoutineToolPolicy.buildComputerUseActionDeniedResult(toolCall);

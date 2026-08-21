@@ -5094,7 +5094,8 @@ Audit reopening (2026-08-14):
   execute them through its generic fallback.
 - Absolute and home-relative filesystem reads are labelled project-trusted even
   when they are outside the selected project.
-- Routine policy treats any externally marked MCP definition as read-only.
+- Routine policy treated any externally marked MCP definition as read-only
+  (fixed 2026-08-21 by SEC4.4c deny-by-default).
 - These are policy-input defects, not merely missing UI labels. SEC1 remains
   `current` until slice 7 has exhaustive classifier and containment tests. The
   canonical evidence and remediation mapping are in
@@ -5274,18 +5275,24 @@ Slice plan:
    total-time ceilings.
 4. **SEC4.4 — Project and autonomous containment.** Split implementation into
    **SEC4.4a (P0, completed 2026-08-14)**, applying one canonical, symlink-aware fence to every
-   approval-free read, and **SEC4.4b (P1, mutation fence completed 2026-08-19)**,
-   applying the same authorization to every file mutation. Denying external MCP
-   tools in routines by default (SA-09) remains a follow-up.
-   Any restored routine grant binds server identity, tool name, schema digest,
-   and reviewed intent.
+   approval-free read, **SEC4.4b (P1, mutation fence completed 2026-08-19)**,
+   applying the same authorization to every file mutation, **SEC4.4c (P1,
+   completed 2026-08-21)**, denying unclassified external MCP tools in
+   unattended routines by default, and **SEC4.4d (P1, completed 2026-08-21)**,
+   fencing `git_execute_command` working directories with
+   `ProjectMutationPathFence`, and **SEC4.4e (P1, completed 2026-08-21)**,
+   denying relocating git globals and out-of-root pathspecs, and **SEC4.4f (P1,
+   completed 2026-08-21)**, fencing local-command working directories and write
+   operands with the same mutation fence when a project is selected. Any restored
+   routine grant binds server identity, tool name, schema digest, and reviewed
+   intent.
 5. **SEC4.5 — Authenticated transport.** Land as focused sub-slices:
    **SEC4.5a (P0, completed 2026-08-19)** implements SSH known-host verification;
    **SEC4.5b (P0, completed 2026-08-19)** makes the release gate and
    artifact/runtime smoke fail if a plaintext non-loopback Remote Coding
    listener can start;
-   **SEC4.5c (P1, required before enabling Remote Coding)** adds pinned
-   confidential transport and downgrade rejection;
+   **SEC4.5c (P1, completed 2026-08-21)** adds pinned confidential
+   transport and downgrade rejection;
    **SEC4.5d (P1)** issues short-lived, challenge- and channel-bound session
    authorization;
    **SEC4.5e (P1)** adds authentication deadlines, connection/frame/rate limits;

@@ -267,6 +267,89 @@ void main() {
       expect(runnerCalls, 0);
     });
 
+    test('blocks an out-of-project write before the runner', () async {
+      final sandbox = await Directory.systemTemp.createTemp(
+        'built_in_command_write_fence_',
+      );
+      addTearDown(() => sandbox.delete(recursive: true));
+      final project = await Directory('${sandbox.path}/project').create();
+      final sibling = await Directory(
+        '${sandbox.path}/project-secrets',
+      ).create();
+      var runnerCalls = 0;
+      final handler = BuiltInLocalCommandToolHandler(
+        foregroundCommandRunner:
+            ({required command, required workingDirectory}) async {
+              runnerCalls += 1;
+              return 'unexpected';
+            },
+      );
+
+      final result = await handler.execute(
+        owner: owner,
+        name: 'local_execute_command',
+        arguments: {
+          'command': 'touch ../project-secrets/secret.txt',
+          'working_directory': project.path,
+          'allowed_read_root': project.path,
+        },
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(
+        jsonDecode(result.result),
+        containsPair('code', 'project_mutation_outside_root'),
+      );
+      expect(File('${sibling.path}/secret.txt').existsSync(), isFalse);
+      expect(runnerCalls, 0);
+    });
+
+    test(
+      'blocks a symlink-escaping working directory before the runner',
+      () async {
+        final sandbox = await Directory.systemTemp.createTemp(
+          'built_in_command_cwd_fence_',
+        );
+        addTearDown(() => sandbox.delete(recursive: true));
+        final project = await Directory('${sandbox.path}/project').create();
+        final sibling = await Directory(
+          '${sandbox.path}/project-secrets',
+        ).create();
+        final link = Link('${project.path}/escape');
+        try {
+          await link.create(sibling.path);
+        } on FileSystemException {
+          return;
+        }
+        var runnerCalls = 0;
+        final handler = BuiltInLocalCommandToolHandler(
+          foregroundCommandRunner:
+              ({required command, required workingDirectory}) async {
+                runnerCalls += 1;
+                return 'unexpected';
+              },
+        );
+
+        final result = await handler.execute(
+          owner: owner,
+          name: 'local_execute_command',
+          arguments: {
+            'command': 'touch secret.txt',
+            'working_directory': link.path,
+            'allowed_read_root': project.path,
+          },
+        );
+
+        expect(result.isSuccess, isFalse);
+        expect(
+          jsonDecode(result.result),
+          containsPair('code', 'project_mutation_outside_root'),
+        );
+        expect(File('${sibling.path}/secret.txt').existsSync(), isFalse);
+        expect(runnerCalls, 0);
+      },
+    );
+
     test('carries the reported exit status without failing the tool', () async {
       // A command that exits non-zero is a command outcome, not a tool
       // failure: the result stays successful and the status rides along as a

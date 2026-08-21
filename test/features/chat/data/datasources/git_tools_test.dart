@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/data/datasources/git_tools.dart';
+import 'package:caverno/features/chat/data/datasources/turn_project_root.dart';
 
 void main() {
   test(
@@ -12,6 +13,7 @@ void main() {
       final execution = await GitTools.executeResult(
         command: 'status --short',
         workingDirectory: Directory.current.path,
+        projectRoot: Directory.current.path,
       );
 
       expect(execution.isSuccess, isTrue);
@@ -110,7 +112,11 @@ void main() {
           jsonDecode(raw) as Map<String, dynamic>;
 
       final initResult = decode(
-        await GitTools.execute(command: 'init', workingDirectory: tempDir.path),
+        await GitTools.execute(
+          command: 'init',
+          workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
+        ),
       );
       expect(initResult['exit_code'], 0);
       expect(Directory('${tempDir.path}/.git').existsSync(), isTrue);
@@ -121,6 +127,7 @@ void main() {
         await GitTools.execute(
           command: 'config user.email "canary@example.com"',
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
         ),
       );
       expect(emailResult['exit_code'], 0);
@@ -129,6 +136,7 @@ void main() {
         await GitTools.execute(
           command: 'config user.name "Canary Bot"',
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
         ),
       );
       expect(nameResult['exit_code'], 0);
@@ -137,6 +145,7 @@ void main() {
         await GitTools.execute(
           command: 'add sample.txt',
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
         ),
       );
       expect(addResult['exit_code'], 0);
@@ -145,6 +154,7 @@ void main() {
         await GitTools.execute(
           command: 'commit -m "Add sample"',
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
         ),
       );
       expect(commitResult['exit_code'], 0);
@@ -154,6 +164,7 @@ void main() {
         await GitTools.execute(
           command: 'revert --no-edit HEAD',
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
         ),
       );
       expect(revertResult['exit_code'], 0);
@@ -163,6 +174,7 @@ void main() {
         await GitTools.execute(
           command: 'status --short',
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
         ),
       );
       expect(statusResult['exit_code'], 0);
@@ -183,6 +195,7 @@ void main() {
       final raw = await GitTools.execute(
         command: 'add README.md && commit -m "Add README"',
         workingDirectory: tempDir.path,
+        projectRoot: tempDir.path,
       );
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
 
@@ -206,6 +219,7 @@ void main() {
         final raw = await GitTools.execute(
           command: 'tag --list | sort -V | tail -10',
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
         );
         final decoded = jsonDecode(raw) as Map<String, dynamic>;
         final error = decoded['error'] as String;
@@ -237,6 +251,7 @@ void main() {
           await GitTools.execute(
             command: 'init',
             workingDirectory: tempDir.path,
+            projectRoot: tempDir.path,
           ),
         )['exit_code'],
         0,
@@ -246,6 +261,7 @@ void main() {
           await GitTools.execute(
             command: 'config user.email "canary@example.com"',
             workingDirectory: tempDir.path,
+            projectRoot: tempDir.path,
           ),
         )['exit_code'],
         0,
@@ -255,6 +271,7 @@ void main() {
           await GitTools.execute(
             command: 'config user.name "Canary Bot"',
             workingDirectory: tempDir.path,
+            projectRoot: tempDir.path,
           ),
         )['exit_code'],
         0,
@@ -267,6 +284,7 @@ void main() {
           await GitTools.execute(
             command: 'add pubspec.yaml',
             workingDirectory: tempDir.path,
+            projectRoot: tempDir.path,
           ),
         )['exit_code'],
         0,
@@ -276,6 +294,7 @@ void main() {
           await GitTools.execute(
             command: 'commit -m "Initial version"',
             workingDirectory: tempDir.path,
+            projectRoot: tempDir.path,
           ),
         )['exit_code'],
         0,
@@ -287,6 +306,7 @@ void main() {
           await GitTools.execute(
             command: 'add pubspec.yaml',
             workingDirectory: tempDir.path,
+            projectRoot: tempDir.path,
           ),
         )['exit_code'],
         0,
@@ -297,6 +317,7 @@ void main() {
         await GitTools.execute(
           command: 'commit -m "Bump version to 1.3.5+18"',
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
         ),
       );
 
@@ -308,6 +329,7 @@ void main() {
         await GitTools.execute(
           command: 'show HEAD:pubspec.yaml',
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
         ),
       );
       expect(headFile['stdout'], 'version: 1.3.5+16\n');
@@ -332,6 +354,7 @@ void main() {
           await GitTools.execute(
             command: command,
             workingDirectory: tempDir.path,
+            projectRoot: tempDir.path,
           ),
         );
 
@@ -391,6 +414,7 @@ void main() {
         await GitTools.execute(
           command: command,
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
         ),
       );
 
@@ -437,6 +461,7 @@ void main() {
         await GitTools.execute(
           command: command,
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
           reason: reason,
         ),
       );
@@ -565,6 +590,7 @@ void main() {
         await GitTools.execute(
           command: command,
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
         ),
       );
 
@@ -597,6 +623,7 @@ void main() {
         await GitTools.execute(
           command: command,
           workingDirectory: tempDir.path,
+          projectRoot: tempDir.path,
         ),
       );
 
@@ -651,7 +678,13 @@ void main() {
         jsonDecode(raw) as Map<String, dynamic>;
 
     Future<Map<String, dynamic>> runIn(String cwd, String command) async =>
-        decode(await GitTools.execute(command: command, workingDirectory: cwd));
+        decode(
+          await GitTools.execute(
+            command: command,
+            workingDirectory: cwd,
+            projectRoot: cwd,
+          ),
+        );
 
     /// Runs git outside the tool so setup can use commands the tool blocks.
     Future<void> raw(String cwd, List<String> args) async {
@@ -783,6 +816,216 @@ void main() {
       expect(rejected['code'], isNull);
       expect(rejected['exit_code'], 1);
       expect(rejected['stderr'], contains('rejected'));
+    });
+  });
+
+  group('GitTools.execute working-directory containment', () {
+    late Directory sandbox;
+    late Directory project;
+    late Directory sibling;
+
+    setUp(() async {
+      sandbox = await Directory.systemTemp.createTemp(
+        'git_tools_cwd_fence_test_',
+      );
+      project = await Directory('${sandbox.path}/project').create();
+      sibling = await Directory('${sandbox.path}/project-secrets').create();
+      await Process.run('git', ['init'], workingDirectory: sibling.path);
+      await File('${sibling.path}/secret.txt').writeAsString('secret\n');
+    });
+
+    tearDown(() async {
+      if (sandbox.existsSync()) {
+        await sandbox.delete(recursive: true);
+      }
+    });
+
+    test('fails closed without a project root', () async {
+      final execution = await GitTools.executeResult(
+        command: 'status --short',
+        workingDirectory: sibling.path,
+        projectRoot: null,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(execution.isSuccess, isFalse);
+      expect(payload['code'], 'project_mutation_root_required');
+      expect(payload['ok'], isFalse);
+    });
+
+    test('uses the turn-scoped root when projectRoot is omitted', () async {
+      await Process.run('git', ['init'], workingDirectory: project.path);
+      final execution = await TurnProjectRoot.runScoped(
+        TurnProjectRoot(project.path),
+        () => GitTools.executeResult(
+          command: 'status --short',
+          workingDirectory: project.path,
+          projectRoot: null,
+        ),
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(execution.isSuccess, isTrue);
+      expect(payload['exit_code'], 0);
+    });
+
+    test('rejects a sibling repository before git runs', () async {
+      final execution = await GitTools.executeResult(
+        command: 'add secret.txt',
+        workingDirectory: sibling.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+      final status = await Process.run(
+        'git',
+        ['status', '--porcelain'],
+        workingDirectory: sibling.path,
+      );
+
+      expect(execution.isSuccess, isFalse);
+      expect(payload['code'], 'project_mutation_outside_root');
+      expect((status.stdout as String), contains('?? secret.txt'));
+    });
+
+    test('rejects home-relative and traversal working directories', () async {
+      for (final cwd in ['~', '~/secret', '../project-secrets']) {
+        final execution = await GitTools.executeResult(
+          command: 'status --short',
+          workingDirectory: cwd,
+          projectRoot: project.path,
+        );
+        final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+        expect(execution.isSuccess, isFalse, reason: cwd);
+        expect(payload['code'], isNotNull, reason: cwd);
+        expect(
+          (payload['code'] as String).startsWith('project_mutation_'),
+          isTrue,
+          reason: cwd,
+        );
+      }
+    });
+
+    test('rejects a symlink working directory that escapes the root', () async {
+      final link = Link('${project.path}/escape');
+      try {
+        await link.create(sibling.path);
+      } on FileSystemException {
+        return;
+      }
+
+      final execution = await GitTools.executeResult(
+        command: 'add secret.txt',
+        workingDirectory: link.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(execution.isSuccess, isFalse);
+      expect(payload['code'], 'project_mutation_outside_root');
+    });
+  });
+
+  group('GitTools.execute pathspec and relocation containment', () {
+    late Directory sandbox;
+    late Directory project;
+    late Directory sibling;
+
+    setUp(() async {
+      sandbox = await Directory.systemTemp.createTemp(
+        'git_tools_pathspec_fence_test_',
+      );
+      project = await Directory('${sandbox.path}/project').create();
+      sibling = await Directory('${sandbox.path}/project-secrets').create();
+      await Process.run('git', ['init'], workingDirectory: project.path);
+      await File('${project.path}/inside.txt').writeAsString('inside\n');
+      await Process.run('git', ['init'], workingDirectory: sibling.path);
+      await File('${sibling.path}/secret.txt').writeAsString('secret\n');
+    });
+
+    tearDown(() async {
+      if (sandbox.existsSync()) {
+        await sandbox.delete(recursive: true);
+      }
+    });
+
+    test('allows an in-root relative pathspec', () async {
+      final execution = await GitTools.executeResult(
+        command: 'add inside.txt',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(payload['exit_code'], 0);
+      expect(payload['code'], isNull);
+    });
+
+    test('rejects -C before any git process', () async {
+      final execution = await GitTools.executeResult(
+        command: '-C ${sibling.path} add secret.txt',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+      final status = await Process.run(
+        'git',
+        ['status', '--porcelain'],
+        workingDirectory: sibling.path,
+      );
+
+      expect(execution.isSuccess, isFalse);
+      expect(payload['code'], 'git_repository_relocation_blocked');
+      expect((status.stdout as String), contains('?? secret.txt'));
+    });
+
+    test('rejects --git-dir relocation', () async {
+      final execution = await GitTools.executeResult(
+        command: '--git-dir=${sibling.path}/.git status',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(execution.isSuccess, isFalse);
+      expect(payload['code'], 'git_repository_relocation_blocked');
+    });
+
+    test('allows grep -C as context, not relocation', () async {
+      final execution = await GitTools.executeResult(
+        command: 'grep -C 3 missing-token',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(payload['code'], isNot('git_repository_relocation_blocked'));
+    });
+
+    test('rejects an out-of-root pathspec after --', () async {
+      final execution = await GitTools.executeResult(
+        command: 'checkout HEAD -- ${sibling.path}/secret.txt',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(execution.isSuccess, isFalse);
+      expect(payload['code'], 'project_mutation_outside_root');
+    });
+
+    test('rejects a parent-traversal pathspec', () async {
+      final execution = await GitTools.executeResult(
+        command: 'add ../project-secrets/secret.txt',
+        workingDirectory: project.path,
+        projectRoot: project.path,
+      );
+      final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+
+      expect(execution.isSuccess, isFalse);
+      expect(
+        (payload['code'] as String).startsWith('project_mutation_'),
+        isTrue,
+      );
     });
   });
 }

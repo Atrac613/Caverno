@@ -17,6 +17,7 @@ import 'package:caverno/features/remote_coding/data/remote_coding_protocol.dart'
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_secure_store.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_security.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_websocket_connector.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_server_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
@@ -127,6 +128,15 @@ final class _ProvisioningRelayClient
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+Future<WebSocket> _connectPinned(ProviderContainer container, int port) {
+  final pin = container.read(remoteCodingServerProvider).certificatePin;
+  expect(pin, isNotNull);
+  return connectPinnedRemoteCodingWebSocket(
+    url: 'wss://127.0.0.1:$port/ws',
+    certificatePin: pin!,
+  );
+}
+
 Future<int> _unusedPort() async {
   final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
   final port = socket.port;
@@ -135,7 +145,7 @@ Future<int> _unusedPort() async {
 }
 
 Future<void> _waitUntil(bool Function() condition) async {
-  final deadline = DateTime.now().add(const Duration(seconds: 3));
+  final deadline = DateTime.now().add(const Duration(seconds: 15));
   while (!condition()) {
     if (DateTime.now().isAfter(deadline)) {
       fail('Timed out waiting for remote coding server test condition.');
@@ -155,6 +165,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
+        remoteCodingRepositoryProvider.overrideWithValue(
+          RemoteCodingRepository(prefs, secureStore: _MemorySecureStore()),
+        ),
         codingProjectsNotifierProvider.overrideWith(
           _TestCodingProjectsNotifier.new,
         ),
@@ -183,7 +196,7 @@ void main() {
           .cancelPairingPayload(payload!.ticketId);
       expect(container.read(remoteCodingServerProvider).pairingPayload, isNull);
 
-      socket = await WebSocket.connect('ws://127.0.0.1:$port/ws');
+      socket = await _connectPinned(container, port);
       subscription = socket.listen((raw) {
         if (raw is String) {
           messages.add(RemoteCodingProtocolMessage.decode(raw));
@@ -238,6 +251,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
+        remoteCodingRepositoryProvider.overrideWithValue(
+          RemoteCodingRepository(prefs, secureStore: _MemorySecureStore()),
+        ),
         codingProjectsNotifierProvider.overrideWith(
           _TestCodingProjectsNotifier.new,
         ),
@@ -257,7 +273,7 @@ void main() {
         () => container.read(remoteCodingServerProvider).isRunning,
       );
 
-      socket = await WebSocket.connect('ws://127.0.0.1:$port/ws');
+      socket = await _connectPinned(container, port);
       subscription = socket.listen((raw) {
         if (raw is String) {
           messages.add(RemoteCodingProtocolMessage.decode(raw));
@@ -319,6 +335,9 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
+          remoteCodingRepositoryProvider.overrideWithValue(
+            RemoteCodingRepository(prefs, secureStore: _MemorySecureStore()),
+          ),
           codingProjectsNotifierProvider.overrideWith(
             _TestCodingProjectsNotifier.new,
           ),
@@ -338,7 +357,7 @@ void main() {
           () => container.read(remoteCodingServerProvider).isRunning,
         );
 
-        socket = await WebSocket.connect('ws://127.0.0.1:$port/ws');
+        socket = await _connectPinned(container, port);
         subscription = socket.listen((raw) {
           if (raw is String) {
             messages.add(RemoteCodingProtocolMessage.decode(raw));
@@ -462,7 +481,7 @@ void main() {
           .createNotificationRelayPairingPayload(device.id);
       expect(qr, isNotNull);
 
-      socket = await WebSocket.connect('ws://127.0.0.1:$port/ws');
+      socket = await _connectPinned(container, port);
       subscription = socket.listen((raw) {
         if (raw is String) {
           messages.add(RemoteCodingProtocolMessage.decode(raw));
@@ -576,7 +595,7 @@ void main() {
           () => container.read(remoteCodingServerProvider).isRunning,
         );
 
-        socket = await WebSocket.connect('ws://127.0.0.1:$port/ws');
+        socket = await _connectPinned(container, port);
         subscription = socket.listen(
           (raw) {
             if (raw is String) {
@@ -636,9 +655,7 @@ void main() {
               0,
         );
 
-        final rejectedSocket = await WebSocket.connect(
-          'ws://127.0.0.1:$port/ws',
-        );
+        final rejectedSocket = await _connectPinned(container, port);
         final rejectedMessages = <RemoteCodingProtocolMessage>[];
         final rejectedSubscription = rejectedSocket.listen((raw) {
           if (raw is String) {
