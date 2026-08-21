@@ -12,6 +12,7 @@ Future<EndpointModalitySupport> probe(
 }) {
   return const OpenAiModalitiesProbe().videoSupport(
     baseUrl: baseUrl,
+    model: 'qwen3.8-27b-vision',
     client: MockClient((request) async => respond(request)),
   );
 }
@@ -41,6 +42,20 @@ void main() {
       expect(
         OpenAiModalitiesProbe.propsUriFor('https://gw.example.com/llama/v1'),
         Uri.parse('https://gw.example.com/llama/props'),
+      );
+    });
+
+    test('names the model so a router answers about it', () {
+      // A bare /props on a router describes the router, which has no
+      // modalities at all; the model has to be named to get an answer.
+      expect(
+        OpenAiModalitiesProbe.propsUriFor(
+          'http://192.168.100.241:1234/v1',
+          model: 'qwen3.8-27b-vision',
+        ),
+        Uri.parse(
+          'http://192.168.100.241:1234/props?model=qwen3.8-27b-vision',
+        ),
       );
     });
 
@@ -107,7 +122,8 @@ void main() {
     expect(support, EndpointModalitySupport.unknown);
   });
 
-  test('asks the props endpoint, not the chat endpoint', () async {
+  test('asks the props endpoint about the model, not the chat endpoint',
+      () async {
     Uri? requested;
     await probe((request) {
       requested = request.url;
@@ -116,7 +132,36 @@ void main() {
       });
     });
 
-    expect(requested, Uri.parse('http://localhost:8080/props'));
+    expect(
+      requested,
+      Uri.parse('http://localhost:8080/props?model=qwen3.8-27b-vision'),
+    );
+  });
+
+  test('reads a real router answer for a video-capable model', () async {
+    // Captured from a llama.cpp router at build b10523-d59d455fd. The bare
+    // /props on the same server carries no modalities key whatsoever.
+    final support = await probe(
+      (_) => _json({
+        'model_path': '/mnt/storage1/models/qwen3.8/27B/Qwen3.8-27B.gguf',
+        'modalities': {'vision': true, 'video': true, 'audio': false},
+      }),
+    );
+
+    expect(support, EndpointModalitySupport.supported);
+  });
+
+  test('a router asked about itself reports unknown, not a refusal', () async {
+    final support = await probe(
+      (_) => _json({
+        'role': 'router',
+        'model_path': 'none',
+        'max_instances': 2,
+        'build_info': 'b10523-d59d455fd',
+      }),
+    );
+
+    expect(support, EndpointModalitySupport.unknown);
   });
 }
 

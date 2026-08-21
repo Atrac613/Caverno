@@ -2054,6 +2054,7 @@ class LiveLlmDiagnosticService {
     try {
       support = await const OpenAiModalitiesProbe().videoSupport(
         baseUrl: settings.baseUrl,
+        model: settings.effectiveModel,
         client: client,
         headers: ApiConstants.userAgentHeaders,
       );

@@ -18,6 +18,14 @@ enum EndpointModalitySupport {
 /// error page, a body that is not JSON -- reports [EndpointModalitySupport.unknown]
 /// rather than a denial. Reporting "no" for silence would hide video behind
 /// every proxy the person puts in front of their server.
+///
+/// The model is named in the query because modalities are a property of the
+/// loaded weights, not of the server. A llama.cpp router fronting several
+/// models answers a bare `/props` about itself -- `"role":"router"`,
+/// `"model_path":"none"`, and no modalities at all -- while `?model=<id>`
+/// answers about that model. A single-model server ignores the parameter, so
+/// asking this way costs nothing and is the only way to get an answer from a
+/// router.
 class OpenAiModalitiesProbe {
   const OpenAiModalitiesProbe({this.timeout = const Duration(seconds: 5)});
 
@@ -25,10 +33,11 @@ class OpenAiModalitiesProbe {
 
   Future<EndpointModalitySupport> videoSupport({
     required String baseUrl,
+    required String model,
     required http.Client client,
     Map<String, String> headers = const <String, String>{},
   }) async {
-    final uri = propsUriFor(baseUrl);
+    final uri = propsUriFor(baseUrl, model: model);
     if (uri == null) return EndpointModalitySupport.unknown;
     try {
       final response = await client.get(uri, headers: headers).timeout(timeout);
@@ -52,11 +61,11 @@ class OpenAiModalitiesProbe {
     }
   }
 
-  /// `http://host:8080/v1` -> `http://host:8080/props`.
+  /// `http://host:8080/v1` -> `http://host:8080/props?model=<model>`.
   ///
   /// `/props` sits at the server root, not under the OpenAI path prefix, so the
   /// version segment has to come off first.
-  static Uri? propsUriFor(String baseUrl) {
+  static Uri? propsUriFor(String baseUrl, {String model = ''}) {
     final trimmed = baseUrl.trim();
     if (trimmed.isEmpty) return null;
     final parsed = Uri.tryParse(trimmed);
@@ -66,9 +75,12 @@ class OpenAiModalitiesProbe {
     if (segments.isNotEmpty && RegExp(r'^v\d+$').hasMatch(segments.last)) {
       segments.removeLast();
     }
+    final trimmedModel = model.trim();
     return parsed.replace(
       pathSegments: <String>[...segments, 'props'],
-      query: null,
+      queryParameters: trimmedModel.isEmpty
+          ? null
+          : <String, String>{'model': trimmedModel},
       fragment: null,
     );
   }
