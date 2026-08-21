@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'remote_coding_transport_policy.dart';
+
 enum RemoteCodingConnectionStatus {
   disconnected,
   connecting,
@@ -209,6 +211,7 @@ class RemoteCodingHost {
     required this.port,
     required this.createdAt,
     required this.updatedAt,
+    required this.certificatePin,
   });
 
   final String id;
@@ -217,8 +220,13 @@ class RemoteCodingHost {
   final int port;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String certificatePin;
 
-  String get websocketUrl => 'ws://$host:$port/ws';
+  String get websocketUrl => RemoteCodingTransportPolicy.websocketUrl(
+    host: host,
+    port: port,
+    certificatePin: certificatePin,
+  );
 
   factory RemoteCodingHost.fromJson(Map<String, dynamic> json) {
     final now = DateTime.now();
@@ -229,6 +237,7 @@ class RemoteCodingHost {
       port: (json['port'] as num?)?.toInt() ?? 8767,
       createdAt: DateTime.tryParse((json['createdAt'] as String?) ?? '') ?? now,
       updatedAt: DateTime.tryParse((json['updatedAt'] as String?) ?? '') ?? now,
+      certificatePin: (json['certificatePin'] as String?)?.trim() ?? '',
     );
   }
 
@@ -239,6 +248,7 @@ class RemoteCodingHost {
     'port': port,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
+    'certificatePin': certificatePin,
   };
 }
 
@@ -250,9 +260,11 @@ class RemoteCodingPairingPayload {
     required this.port,
     required this.expiresAt,
     required this.serverName,
+    required this.certificatePin,
   });
 
   static const kind = 'caverno_remote_coding_v1';
+  static const transport = RemoteCodingTransportPolicy.confidentialScheme;
 
   final String ticketId;
   final String secret;
@@ -260,8 +272,13 @@ class RemoteCodingPairingPayload {
   final int port;
   final DateTime expiresAt;
   final String serverName;
+  final String certificatePin;
 
-  String get websocketUrl => 'ws://$host:$port/ws';
+  String get websocketUrl => RemoteCodingTransportPolicy.websocketUrl(
+    host: host,
+    port: port,
+    certificatePin: certificatePin,
+  );
 
   String toQrData() => jsonEncode({
     'kind': kind,
@@ -271,6 +288,8 @@ class RemoteCodingPairingPayload {
     'port': port,
     'expiresAt': expiresAt.toIso8601String(),
     'serverName': serverName,
+    'transport': transport,
+    'certificatePin': certificatePin,
   });
 
   factory RemoteCodingPairingPayload.fromQrData(String value) {
@@ -286,6 +305,12 @@ class RemoteCodingPairingPayload {
     if (expiresAt == null) {
       throw const FormatException('Pairing code has an invalid expiry.');
     }
+    final certificatePin = (decoded['certificatePin'] as String?)?.trim() ?? '';
+    final encodedTransport = (decoded['transport'] as String?)?.trim() ?? '';
+    if (certificatePin.isEmpty ||
+        encodedTransport != RemoteCodingTransportPolicy.confidentialScheme) {
+      throw const RemoteCodingPlaintextDowngradeException();
+    }
     return RemoteCodingPairingPayload(
       ticketId: (decoded['ticketId'] as String?)?.trim() ?? '',
       secret: (decoded['secret'] as String?)?.trim() ?? '',
@@ -294,6 +319,7 @@ class RemoteCodingPairingPayload {
       expiresAt: expiresAt,
       serverName:
           (decoded['serverName'] as String?)?.trim() ?? 'Caverno Desktop',
+      certificatePin: certificatePin,
     );
   }
 }

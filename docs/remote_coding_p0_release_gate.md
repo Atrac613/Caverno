@@ -25,17 +25,15 @@ P0 covers these release blockers:
 
 ## Security Audit Qualification
 
-Passing this P0 gate does not establish transport confidentiality. The current
-LAN channel uses plaintext `ws://`, so an active LAN attacker can observe or
-modify pairing, authentication, snapshots, prompts, and approval traffic. The
-2026-08-14 audit records this as SA-06 in
+Passing this P0 gate does not close reusable transport tokens. SEC4.5c now
+uses pinned `wss://` with a certificate pin on pairing QR codes, and the
+client refuses plaintext downgrade before `auth`. The 2026-08-14 audit still
+records reusable session tokens as SA-06 remainder (SEC4.5d) in
 `docs/security_audit_2026-08-14.md`.
 
-Until RC1/SEC4.5c ships authenticated confidential transport and downgrade
-rejection, a release build must not expose a plaintext non-loopback Remote
-Coding listener. Disable or remove the feature from the release artifact; an
-isolated-LAN assumption is not closure because the reusable credential and
-approval channel remain plaintext.
+A release build must not expose a plaintext non-loopback Remote Coding
+listener. Isolated-LAN assumptions are not closure for remaining token
+lifetime work.
 
 SEC4.5b adds a required `transportContainment` result to this gate. The Dart
 checker fails when the production server can still bind `InternetAddress.anyIPv4`

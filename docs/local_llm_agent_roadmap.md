@@ -5291,8 +5291,8 @@ Slice plan:
    **SEC4.5b (P0, completed 2026-08-19)** makes the release gate and
    artifact/runtime smoke fail if a plaintext non-loopback Remote Coding
    listener can start;
-   **SEC4.5c (P1, required before enabling Remote Coding)** adds pinned
-   confidential transport and downgrade rejection;
+   **SEC4.5c (P1, completed 2026-08-21)** adds pinned confidential
+   transport and downgrade rejection;
    **SEC4.5d (P1)** issues short-lived, challenge- and channel-bound session
    authorization;
    **SEC4.5e (P1)** adds authentication deadlines, connection/frame/rate limits;

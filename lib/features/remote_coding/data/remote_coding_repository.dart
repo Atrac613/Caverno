@@ -7,6 +7,7 @@ import '../../settings/presentation/providers/settings_notifier.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_notification_relay_contract.dart';
 import 'remote_coding_secure_store.dart';
+import 'remote_coding_tls_identity.dart';
 
 final remoteCodingRepositoryProvider = Provider<RemoteCodingRepository>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
@@ -20,6 +21,7 @@ class RemoteCodingRepository {
   static const _serverSettingsKey = 'remote_coding_server_settings';
   static const _mobileHostKey = 'remote_coding_mobile_host';
   static const _mobileTokenPrefix = 'caverno.remote_coding.token.';
+  static const _desktopTlsIdentityKey = 'caverno.remote_coding.tls.identity';
   static const _mobileRelayMetadataKey =
       'remote_coding_mobile_notification_relay';
   static const _mobileRelayInstallationIdKey =
@@ -76,6 +78,28 @@ class RemoteCodingRepository {
   Future<void> saveMobileHost(RemoteCodingHost host, String token) async {
     await _prefs.setString(_mobileHostKey, jsonEncode(host.toJson()));
     await _secureStore.write(key: _tokenKey(host.id), value: token);
+  }
+
+  Future<RemoteCodingTlsIdentity> loadOrCreateTlsIdentity(
+    RemoteCodingTlsIdentity Function() generate,
+  ) async {
+    final raw = await _secureStore.read(key: _desktopTlsIdentityKey);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map<String, dynamic>) {
+          return RemoteCodingTlsIdentity.fromJson(decoded);
+        }
+      } catch (_) {
+        // A corrupt identity must not keep a host on an unreadable pin.
+      }
+    }
+    final identity = generate();
+    await _secureStore.write(
+      key: _desktopTlsIdentityKey,
+      value: jsonEncode(identity.toJson()),
+    );
+    return identity;
   }
 
   Future<String?> loadMobileHostToken(String hostId) {

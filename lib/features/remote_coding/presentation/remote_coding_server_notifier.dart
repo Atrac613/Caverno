@@ -28,10 +28,12 @@ import '../data/remote_coding_notification_relay_provisioning.dart';
 import '../data/remote_coding_protocol.dart';
 import '../data/remote_coding_repository.dart';
 import '../data/remote_coding_security.dart';
+import '../data/remote_coding_tls_identity.dart';
 import '../data/remote_coding_terminal_notification_mapper.dart';
 import '../data/remote_coding_terminal_notification_delivery.dart';
 import '../domain/remote_coding_listen_policy.dart';
 import '../domain/remote_coding_models.dart';
+import '../domain/remote_coding_transport_policy.dart';
 
 final remoteCodingServerProvider =
     NotifierProvider<RemoteCodingServerNotifier, RemoteCodingServerState>(
@@ -43,6 +45,7 @@ class RemoteCodingServerState {
     required this.settings,
     this.isRunning = false,
     this.activeHost,
+    this.certificatePin,
     this.error,
     this.pairingPayload,
     this.relayPairingPayload,
@@ -53,6 +56,7 @@ class RemoteCodingServerState {
   final RemoteCodingServerSettings settings;
   final bool isRunning;
   final String? activeHost;
+  final String? certificatePin;
   final String? error;
   final RemoteCodingPairingPayload? pairingPayload;
   final RemoteCodingNotificationRelayPairingPayload? relayPairingPayload;
@@ -63,13 +67,20 @@ class RemoteCodingServerState {
   String? get activeUrl {
     final host = activeHost;
     if (host == null || host.isEmpty) return null;
-    return 'ws://$host:${settings.port}/ws';
+    final pin = certificatePin;
+    if (pin == null || pin.isEmpty) return null;
+    return RemoteCodingTransportPolicy.websocketUrl(
+      host: host,
+      port: settings.port,
+      certificatePin: pin,
+    );
   }
 
   RemoteCodingServerState copyWith({
     RemoteCodingServerSettings? settings,
     bool? isRunning,
     String? activeHost,
+    String? certificatePin,
     String? error,
     RemoteCodingPairingPayload? pairingPayload,
     RemoteCodingNotificationRelayPairingPayload? relayPairingPayload,
@@ -78,11 +89,15 @@ class RemoteCodingServerState {
     bool clearError = false,
     bool clearPairingPayload = false,
     bool clearRelayPairingPayload = false,
+    bool clearCertificatePin = false,
   }) {
     return RemoteCodingServerState(
       settings: settings ?? this.settings,
       isRunning: isRunning ?? this.isRunning,
       activeHost: activeHost ?? this.activeHost,
+      certificatePin: clearCertificatePin
+          ? null
+          : (certificatePin ?? this.certificatePin),
       error: clearError ? null : (error ?? this.error),
       pairingPayload: clearPairingPayload
           ? null
@@ -113,6 +128,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
 
   late final RemoteCodingRepository _repository;
   HttpServer? _server;
+  RemoteCodingTlsIdentity? _tlsIdentity;
   StreamSubscription<CavernoRuntimeEvent>? _runtimeEventSubscription;
   Timer? _pairingExpiryTimer;
   Timer? _relayPairingExpiryTimer;
@@ -277,6 +293,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     if (!state.isRunning) {
       return null;
     }
+    final certificatePin = _tlsIdentity?.certificatePin.trim() ?? '';
+    if (certificatePin.isEmpty) {
+      return null;
+    }
 
     _purgeExpiredTickets();
     final host = state.activeHost ?? await _resolveLanHost() ?? '127.0.0.1';
@@ -287,6 +307,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       port: state.settings.port,
       expiresAt: DateTime.now().add(_pairingLifetime),
       serverName: Platform.localHostname,
+      certificatePin: certificatePin,
     );
     _pairingRegistry.clear();
     _relayPairingRegistry.clear();
@@ -314,14 +335,24 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     }
     _startInProgress = true;
     try {
+      final identity = await _repository.loadOrCreateTlsIdentity(
+        RemoteCodingTlsIdentity.generate,
+      );
       final address = RemoteCodingListenPolicy.current().bindAddress(
         requested: InternetAddress.anyIPv4,
+        confidential: true,
       );
-      final server = await HttpServer.bind(address, port);
+      final server = await HttpServer.bindSecure(
+        address,
+        port,
+        identity.securityContext,
+      );
       _server = server;
+      _tlsIdentity = identity;
       state = state.copyWith(
         isRunning: true,
         activeHost: await _resolveLanHost() ?? '127.0.0.1',
+        certificatePin: identity.certificatePin,
         clearError: true,
       );
       unawaited(_serve(server));
@@ -340,6 +371,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   Future<void> _stopServer() async {
     final server = _server;
     _server = null;
+    _tlsIdentity = null;
     for (final client in _clients.toList(growable: false)) {
       await client.close();
     }
@@ -356,6 +388,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         activeConnectionCount: 0,
         clearPairingPayload: true,
         clearRelayPairingPayload: true,
+        clearCertificatePin: true,
       );
     }
   }

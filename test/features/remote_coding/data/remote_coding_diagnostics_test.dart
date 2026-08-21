@@ -25,7 +25,7 @@ void main() {
       ),
       isRunning: true,
       activeHost: '192.168.1.10',
-      activeUrl: 'ws://192.168.1.10:8767/ws',
+      activeUrl: 'wss://192.168.1.10:8767/ws',
       activeConnectionCount: 1,
       pairingPayload: null,
       error: null,
@@ -65,6 +65,7 @@ void main() {
       port: 8767,
       createdAt: DateTime(2026, 5, 26, 12),
       updatedAt: DateTime(2026, 5, 26, 12, 30),
+      certificatePin: 'test-certificate-pin',
     );
     final snapshot = RemoteCodingDiagnostics.clientSnapshot(
       status: RemoteCodingConnectionStatus.disconnected,
@@ -102,7 +103,7 @@ void main() {
       const RemoteCodingServerSettings(enabled: true, port: 8767),
       isRunning: true,
       activeHost: '192.168.1.10',
-      activeUrl: 'ws://192.168.1.10:8767/ws',
+      activeUrl: 'wss://192.168.1.10:8767/ws',
       activeConnectionCount: 1,
       pairingPayload: null,
       error: null,
@@ -138,6 +139,7 @@ void main() {
         port: 8767,
         createdAt: DateTime(2026, 5, 26, 12),
         updatedAt: DateTime(2026, 5, 26, 12, 30),
+        certificatePin: 'test-certificate-pin',
       ),
       snapshotSequence: 42,
       snapshotGeneratedAt: DateTime(2026, 5, 26, 12, 45),

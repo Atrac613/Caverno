@@ -9,11 +9,12 @@ class RemoteCodingPlaintextLanForbiddenException implements Exception {
       'Remote Coding cannot bind a plaintext non-loopback listener in a release build.';
 }
 
-/// Decides which address a plaintext Remote Coding HTTP/WS server may bind.
+/// Decides which address a Remote Coding HTTP/WS server may bind.
 ///
 /// Debug and profile builds may listen on all interfaces for LAN pairing.
-/// Product/release builds fail closed before [HttpServer.bind] unless the
-/// requested address is loopback.
+/// Product/release builds fail closed before a plaintext [HttpServer.bind]
+/// unless the requested address is loopback. A confidential TLS bind may use a
+/// non-loopback address in release.
 class RemoteCodingListenPolicy {
   const RemoteCodingListenPolicy({required this.isRelease});
 
@@ -26,13 +27,17 @@ class RemoteCodingListenPolicy {
 
   final bool isRelease;
 
-  /// Address that may be passed to [HttpServer.bind].
+  /// Address that may be passed to [HttpServer.bind] or
+  /// [HttpServer.bindSecure].
   ///
   /// Throws [RemoteCodingPlaintextLanForbiddenException] instead of returning
-  /// a non-loopback address in a product build.
-  InternetAddress bindAddress({InternetAddress? requested}) {
+  /// a non-loopback address in a product build unless [confidential] is true.
+  InternetAddress bindAddress({
+    InternetAddress? requested,
+    bool confidential = false,
+  }) {
     final address = requested ?? InternetAddress.anyIPv4;
-    if (isRelease && !address.isLoopback) {
+    if (isRelease && !address.isLoopback && !confidential) {
       throw const RemoteCodingPlaintextLanForbiddenException();
     }
     return address;

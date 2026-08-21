@@ -15,6 +15,7 @@ void main() {
       port: 8767,
       expiresAt: expiresAt ?? DateTime(2026, 5, 26, 12, 5),
       serverName: 'desktop',
+      certificatePin: 'test-certificate-pin',
     );
   }
 

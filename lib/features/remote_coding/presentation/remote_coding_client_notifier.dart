@@ -17,7 +17,9 @@ import '../data/remote_coding_notification_relay_provisioning.dart';
 import '../data/remote_coding_protocol.dart';
 import '../data/remote_coding_repository.dart';
 import '../data/remote_coding_security.dart';
+import '../data/remote_coding_websocket_connector.dart';
 import '../domain/remote_coding_models.dart';
+import '../domain/remote_coding_transport_policy.dart';
 
 final remoteCodingClientProvider =
     NotifierProvider<RemoteCodingClientNotifier, RemoteCodingClientState>(
@@ -207,7 +209,9 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     } catch (error) {
       state = state.copyWith(
         status: RemoteCodingConnectionStatus.error,
-        error: RemoteCodingConnectionMessages.invalidPairingCode(),
+        error: error is RemoteCodingPlaintextDowngradeException
+            ? error.toString()
+            : RemoteCodingConnectionMessages.invalidPairingCode(),
         reconnectAttempt: 0,
         clearNextReconnectAt: true,
       );
@@ -239,6 +243,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       port: payload.port,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
+      certificatePin: payload.certificatePin,
     );
     await _connectAndAuth(
       host: host,
@@ -433,8 +438,14 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     );
 
     try {
-      final socket = await WebSocket.connect(
-        host.websocketUrl,
+      final url = host.websocketUrl;
+      RemoteCodingTransportPolicy.ensureConfidentialBeforeCredentials(
+        url: url,
+        certificatePin: host.certificatePin,
+      );
+      final socket = await connectPinnedRemoteCodingWebSocket(
+        url: url,
+        certificatePin: host.certificatePin,
       ).timeout(const Duration(seconds: 8));
       socket.pingInterval = _socketPingInterval;
       _socket = socket;
@@ -640,6 +651,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
               port: currentHost.port,
               createdAt: DateTime.now(),
               updatedAt: DateTime.now(),
+              certificatePin: currentHost.certificatePin,
             );
             await _repository.saveMobileHost(savedHost, token);
             state = state.copyWith(host: savedHost);
