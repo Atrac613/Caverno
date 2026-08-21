@@ -111,12 +111,13 @@ class RoutineToolPolicy {
     final filtered = [...definitions, ...extraDefinitions]
         .where((tool) {
           final name = (tool['function'] as Map?)?['name'] as String?;
-          return name != null &&
-              (isExternalMcpToolDefinition(tool) ||
-                  isRoutineToolDefinition(tool) ||
-                  isAllowedToolName(name) ||
-                  allowedComputerUseActionToolNames.contains(name) ||
-                  (allowWorkspaceWrites && isWorkspaceWriteToolName(name)));
+          if (name == null || isExternalMcpToolDefinition(tool)) {
+            return false;
+          }
+          return isRoutineToolDefinition(tool) ||
+              isAllowedToolName(name) ||
+              allowedComputerUseActionToolNames.contains(name) ||
+              (allowWorkspaceWrites && isWorkspaceWriteToolName(name));
         })
         .toList(growable: false);
 
@@ -129,6 +130,25 @@ class RoutineToolPolicy {
 
   static bool isRoutineToolDefinition(Map<String, dynamic> tool) {
     return tool[routineToolDefinitionKey] == true;
+  }
+
+  static McpToolResult buildExternalMcpDeniedResult(ToolCallInfo toolCall) {
+    final payload = jsonEncode({
+      'error':
+          'Routine execution cannot call external MCP tools without a '
+          'reviewed grant. This tool is not available in unattended '
+          'routines.',
+      'code': 'permission_denied',
+      'reason': 'routine_external_mcp_denied',
+      'tool': toolCall.name,
+    });
+
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: false,
+      errorMessage: 'Routine blocked an unclassified external MCP tool',
+    );
   }
 
   static McpToolResult buildDeniedResult(ToolCallInfo toolCall) {

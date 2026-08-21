@@ -84,6 +84,6 @@ fvm flutter test test/quality/file_size_ratchet_test.dart
   - `file_mutation_tool_handler_test.dart`
   - `file_mutation_tool_runtime_adapter_test.dart`
   - `file_size_ratchet_test.dart`
-- Risks or follow-ups: SA-09 remains a separate slice. Git and local-command
+- Risks or follow-ups: SA-09 / SEC4.4c is complete. Git and local-command
   writes are outside this handler. Re-check immediately before execute is still
   a TOCTOU follow-up if a symlink can be swapped after approval.
