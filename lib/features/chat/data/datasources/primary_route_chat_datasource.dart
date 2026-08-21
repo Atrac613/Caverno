@@ -17,7 +17,8 @@ final class PrimaryRouteChatDataSource
     implements
         ChatDataSource,
         FinishReasonAware,
-        RequestParameterFallbackAware {
+        RequestParameterFallbackAware,
+        StreamingToolResultsChatDataSource {
   PrimaryRouteChatDataSource({
     required ChatDataSource assigned,
     required ChatDataSource primary,
@@ -309,6 +310,88 @@ final class PrimaryRouteChatDataSource
       maxTokens: maxTokens,
     ),
   );
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    final controller = StreamController<String>();
+    final completion = Completer<ChatCompletionResult>();
+    StreamWithToolsResult start(ChatDataSource source, String routedModel) {
+      if (source case final StreamingToolResultsChatDataSource streaming) {
+        return streaming.streamChatCompletionWithToolResults(
+          messages: messages,
+          toolResults: toolResults,
+          assistantContent: assistantContent,
+          tools: tools,
+          model: routedModel,
+          temperature: temperature,
+          maxTokens: maxTokens,
+        );
+      }
+      return StreamWithToolsResult(
+        stream: const Stream.empty(),
+        completion: source.createChatCompletionWithToolResults(
+          messages: messages,
+          toolResults: toolResults,
+          assistantContent: assistantContent,
+          tools: tools,
+          model: routedModel,
+          temperature: temperature,
+          maxTokens: maxTokens,
+        ),
+      );
+    }
+
+    unawaited(() async {
+      var emitted = false;
+      try {
+        final result = start(_assigned, assignedModel);
+        await for (final chunk in result.stream) {
+          emitted = true;
+          controller.add(chunk);
+        }
+        final value = await result.completion;
+        _lastFinishReason = value.finishReason;
+        _health.recordSuccess(assignedEndpointId);
+        completion.complete(value);
+        await controller.close();
+      } catch (error, stackTrace) {
+        _recordFailure(error);
+        if (emitted) {
+          controller.addError(error, stackTrace);
+          completion.completeError(error, stackTrace);
+          await controller.close();
+          return;
+        }
+        try {
+          final result = start(_primary, primaryModel);
+          await for (final chunk in result.stream) {
+            controller.add(chunk);
+          }
+          final value = await result.completion;
+          _lastFinishReason = value.finishReason;
+          completion.complete(value);
+          await controller.close();
+        } catch (fallbackError, fallbackStackTrace) {
+          controller.addError(fallbackError, fallbackStackTrace);
+          completion.completeError(fallbackError, fallbackStackTrace);
+          await controller.close();
+        }
+      }
+    }());
+
+    return StreamWithToolsResult(
+      stream: controller.stream,
+      completion: completion.future,
+    );
+  }
 
   Future<ChatCompletionResult> _run({
     required Future<ChatCompletionResult> Function() assignedCall,

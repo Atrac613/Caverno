@@ -17,7 +17,8 @@ class SessionLoggingChatDataSource
     implements
         ChatDataSource,
         FinishReasonAware,
-        RequestParameterFallbackAware {
+        RequestParameterFallbackAware,
+        StreamingToolResultsChatDataSource {
   SessionLoggingChatDataSource({
     required ChatDataSource delegate,
     required LlmSessionLogStore logStore,
@@ -521,6 +522,102 @@ class SessionLoggingChatDataSource
       );
       rethrow;
     }
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    final context = _resolveContext();
+    final startedAt = DateTime.now();
+    final request = LlmSessionLogRequest(
+      label: context?.requestLabel,
+      videoDeliveryLookup: _videoDeliveryFor,
+      operation: 'streamChatCompletionWithToolResults',
+      messages: messages,
+      tools: tools,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
+      model: model ?? ApiConstants.defaultModel,
+      temperature: temperature ?? ApiConstants.defaultTemperature,
+      maxTokens: _effectiveMaxTokens(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
+      chatTemplateKwargs: _chatTemplateKwargs(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
+    );
+    final response = StringBuffer();
+    final result = _delegate is StreamingToolResultsChatDataSource
+        ? (_delegate as StreamingToolResultsChatDataSource)
+              .streamChatCompletionWithToolResults(
+                messages: messages,
+                toolResults: toolResults,
+                assistantContent: assistantContent,
+                tools: tools,
+                model: model,
+                temperature: temperature,
+                maxTokens: maxTokens,
+              )
+        : StreamWithToolsResult(
+            stream: const Stream.empty(),
+            completion: _delegate.createChatCompletionWithToolResults(
+              messages: messages,
+              toolResults: toolResults,
+              assistantContent: assistantContent,
+              tools: tools,
+              model: model,
+              temperature: temperature,
+              maxTokens: maxTokens,
+            ),
+          );
+    final wrappedStream = result.stream.transform<String>(
+      StreamTransformer.fromHandlers(
+        handleData: (chunk, sink) {
+          response.write(chunk);
+          sink.add(chunk);
+        },
+      ),
+    );
+    final wrappedCompletion = result.completion.then(
+      (completion) async {
+        await _record(
+          context: context,
+          request: request,
+          startedAt: startedAt,
+          response: LlmSessionLogResponse(
+            content: response.isEmpty
+                ? completion.content
+                : response.toString(),
+            finishReason: completion.finishReason,
+            toolCalls: completion.toolCalls,
+            usage: completion.usage,
+          ),
+        );
+        return completion;
+      },
+      onError: (Object error) async {
+        await _record(
+          context: context,
+          request: request,
+          startedAt: startedAt,
+          error: error,
+        );
+        throw error;
+      },
+    );
+    return StreamWithToolsResult(
+      stream: wrappedStream,
+      completion: wrappedCompletion,
+    );
   }
 
   LlmSessionLogResponse _responseFromResult(ChatCompletionResult result) {

@@ -1163,6 +1163,89 @@ void main() {
     );
   });
 
+  test('streams reasoning for batched tool-result follow-ups', () async {
+    Map<String, dynamic>? requestBody;
+    final client = MockClient((request) async {
+      requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+      final events = [
+        {
+          'id': 'chatcmpl-reasoning',
+          'object': 'chat.completion.chunk',
+          'created': 0,
+          'model': 'test-model',
+          'choices': [
+            {
+              'index': 0,
+              'delta': {'reasoning_content': 'Inspecting the result'},
+              'finish_reason': null,
+            },
+          ],
+        },
+        {
+          'id': 'chatcmpl-reasoning',
+          'object': 'chat.completion.chunk',
+          'created': 0,
+          'model': 'test-model',
+          'choices': [
+            {
+              'index': 0,
+              'delta': {'content': 'Done'},
+              'finish_reason': null,
+            },
+          ],
+        },
+        {
+          'id': 'chatcmpl-reasoning',
+          'object': 'chat.completion.chunk',
+          'created': 0,
+          'model': 'test-model',
+          'choices': [
+            {'index': 0, 'delta': <String, dynamic>{}, 'finish_reason': 'stop'},
+          ],
+        },
+      ];
+      final body =
+          '${events.map((event) => 'data: ${jsonEncode(event)}').join('\n\n')}\n\ndata: [DONE]\n\n';
+      return http.Response(
+        body,
+        200,
+        headers: const {'content-type': 'text/event-stream'},
+      );
+    });
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      httpClient: client,
+      streamClientFactory: () => client,
+    );
+
+    final result = dataSource.streamChatCompletionWithToolResults(
+      messages: [_userMessage()],
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'search_web',
+          arguments: const {'query': 'weather'},
+          result: '{"results":[]}',
+        ),
+      ],
+      tools: const [],
+      model: 'test-model',
+    );
+
+    expect(
+      await result.stream.join(),
+      '<think>Inspecting the result</think>Done',
+    );
+    final completion = await result.completion;
+    expect(completion.content, 'Done');
+    expect(completion.finishReason, 'stop');
+    expect(requestBody!['stream'], isTrue);
+    final messages = requestBody!['messages'] as List<dynamic>;
+    expect(messages[1]['role'], 'assistant');
+    expect(messages[2]['role'], 'tool');
+  });
+
   test('promotes embedded calls in ordinary tool-aware completions', () async {
     const content =
         '<tool_call><function=delete_file><parameter=path>bin/old.dart</parameter></function></tool_call>';

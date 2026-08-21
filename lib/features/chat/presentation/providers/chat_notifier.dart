@@ -542,6 +542,32 @@ class ChatNotifier extends Notifier<ChatState> {
     unawaited(_messagePersistence.persistCurrentMessages(messagesToSave));
   }
 
+  Future<void> _persistActiveResponseCheckpoint(int generation) async {
+    final owner = _turnOwnerForGeneration(generation);
+    final messages = _activeResponseMessagesForGeneration(generation);
+    if (owner == null || messages == null || messages.isEmpty) return;
+
+    final checkpoint = messages
+        .map((message) {
+          if (!message.isStreaming) return message;
+          var content = message.content;
+          if (content.endsWith('<think>')) {
+            content = content.substring(0, content.length - '<think>'.length);
+          } else {
+            final parsed = ContentParser.parse(content);
+            if (parsed.hasIncompleteTag &&
+                parsed.incompleteTagType == 'thinking') {
+              content = '$content</think>';
+            }
+          }
+          return message.copyWith(content: content, isStreaming: false);
+        })
+        .where(_messagePersistence.shouldKeepVisibleMessage)
+        .toList(growable: false);
+    if (checkpoint.isEmpty) return;
+    await _messagePersistence.persistMessages(owner.conversationId, checkpoint);
+  }
+
   void _onAutoRead(String content) {
     final result = ContentParser.parse(content);
     final buffer = StringBuffer();
@@ -3890,27 +3916,104 @@ class ChatNotifier extends Notifier<ChatState> {
       required bool forceCompaction,
       required ToolResultPromptBudgetMode budgetMode,
     }) async {
+      final contentBeforeRequest =
+          _lastMessageContentForGeneration(interactionGeneration) ?? '';
+      final contentWithoutPlaceholder = contentBeforeRequest.endsWith('<think>')
+          ? contentBeforeRequest.substring(
+              0,
+              contentBeforeRequest.length - '<think>'.length,
+            )
+          : contentBeforeRequest;
+      var isStreamingThinking = false;
+      var finishedStreamingThinking = false;
       final result = await _runWithLlmSessionLogContextForGeneration(
         interactionGeneration,
         requestLabel: logLabel,
-        () => _primaryDataSourceForGeneration(interactionGeneration)
-            .createChatCompletionWithToolResults(
-              messages: buildMessages(forceCompaction),
-              toolResults: _budgetToolResultsForPrompt(
-                toolResults,
-                mode: budgetMode,
-                protectedPaths: protectedPaths,
-                observationOwner: observationOwner,
-              ),
-              assistantContent: assistantContent,
-              tools: tools,
-              model: _primaryModelForGeneration(interactionGeneration),
-              temperature: _primaryAgenticTemperatureForGeneration(
+        () async {
+          final dataSource = _primaryDataSourceForGeneration(
+            interactionGeneration,
+          );
+          final requestMessages = buildMessages(forceCompaction);
+          final budgetedToolResults = _budgetToolResultsForPrompt(
+            toolResults,
+            mode: budgetMode,
+            protectedPaths: protectedPaths,
+            observationOwner: observationOwner,
+          );
+          final streamingResult =
+              dataSource is StreamingToolResultsChatDataSource
+              ? (dataSource as StreamingToolResultsChatDataSource)
+                    .streamChatCompletionWithToolResults(
+                      messages: requestMessages,
+                      toolResults: budgetedToolResults,
+                      assistantContent: assistantContent,
+                      tools: tools,
+                      model: _primaryModelForGeneration(interactionGeneration),
+                      temperature: _primaryAgenticTemperatureForGeneration(
+                        interactionGeneration,
+                      ),
+                      maxTokens: _settings.maxTokens,
+                    )
+              : StreamWithToolsResult(
+                  stream: const Stream.empty(),
+                  completion: dataSource.createChatCompletionWithToolResults(
+                    messages: requestMessages,
+                    toolResults: budgetedToolResults,
+                    assistantContent: assistantContent,
+                    tools: tools,
+                    model: _primaryModelForGeneration(interactionGeneration),
+                    temperature: _primaryAgenticTemperatureForGeneration(
+                      interactionGeneration,
+                    ),
+                    maxTokens: _settings.maxTokens,
+                  ),
+                );
+          try {
+            await for (final chunk in streamingResult.stream) {
+              if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+                  finishedStreamingThinking) {
+                continue;
+              }
+              var reasoningChunk = chunk;
+              if (!isStreamingThinking) {
+                final start = reasoningChunk.indexOf('<think>');
+                if (start < 0) continue;
+                reasoningChunk = reasoningChunk.substring(start);
+                isStreamingThinking = true;
+                _replaceLastMessageContentForGeneration(
+                  interactionGeneration,
+                  contentWithoutPlaceholder,
+                );
+              }
+              final end = reasoningChunk.indexOf('</think>');
+              if (end >= 0) {
+                reasoningChunk = reasoningChunk.substring(
+                  0,
+                  end + '</think>'.length,
+                );
+                finishedStreamingThinking = true;
+              }
+              if (reasoningChunk.isNotEmpty) {
+                _appendToLastMessageForGeneration(
+                  interactionGeneration,
+                  reasoningChunk,
+                  scanForTools: false,
+                );
+              }
+            }
+            return await streamingResult.completion;
+          } catch (_) {
+            if (_isCurrentInteractionGeneration(interactionGeneration)) {
+              _replaceLastMessageContentForGeneration(
                 interactionGeneration,
-              ),
-              maxTokens: _settings.maxTokens,
-            ),
+                contentBeforeRequest,
+              );
+            }
+            rethrow;
+          }
+        },
       );
+      await _persistActiveResponseCheckpoint(interactionGeneration);
       final owner = _turnOwnerForGeneration(interactionGeneration);
       if (owner != null) {
         _responseMetadata.captureResult(owner, result);
@@ -4066,6 +4169,7 @@ class ChatNotifier extends Notifier<ChatState> {
       if (!_isCurrentInteractionGeneration(generation)) return;
       if (!ref.mounted) return;
       if (!_responseMetadata.captureResult(turnOwner, result)) return;
+      await _persistActiveResponseCheckpoint(generation);
       appLog(
         '[Tool] LLM response - finishReason: ${result.finishReason}, hasToolCalls: ${result.hasToolCalls}',
       );

@@ -73,30 +73,38 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
 
-  testWidgets(
-    'auto-collapses a thought block once the thought completes during streaming',
-    (tester) async {
-      await _pumpParsedContentView(
-        tester,
-        content: '<think>Draft reasoning',
-        isStreaming: true,
-      );
+  testWidgets('keeps a completed thought visible until streaming finishes', (
+    tester,
+  ) async {
+    await _pumpParsedContentView(
+      tester,
+      content: '<think>Draft reasoning',
+      isStreaming: true,
+    );
 
-      expect(find.text('Draft reasoning'), findsOneWidget);
-      expect(find.text('Thinking...'), findsOneWidget);
+    expect(find.text('Draft reasoning'), findsOneWidget);
+    expect(find.text('Thinking...'), findsOneWidget);
 
-      await _pumpParsedContentView(
-        tester,
-        content: '<think>Draft reasoning</think>\nFinal answer',
-        isStreaming: true,
-      );
+    await _pumpParsedContentView(
+      tester,
+      content: '<think>Draft reasoning</think>\nFinal answer',
+      isStreaming: true,
+    );
 
-      expect(find.text('Thinking'), findsOneWidget);
-      expect(find.text('Draft reasoning'), findsNothing);
-      expect(find.text('Final answer'), findsOneWidget);
-      expect(find.byIcon(Icons.expand_more), findsOneWidget);
-    },
-  );
+    expect(find.text('Thinking'), findsOneWidget);
+    expect(find.text('Draft reasoning'), findsOneWidget);
+    expect(find.text('Final answer'), findsOneWidget);
+    expect(find.byIcon(Icons.expand_less), findsOneWidget);
+
+    await _pumpParsedContentView(
+      tester,
+      content: '<think>Draft reasoning</think>\nFinal answer',
+      isStreaming: false,
+    );
+
+    expect(find.text('Draft reasoning'), findsNothing);
+    expect(find.byIcon(Icons.expand_more), findsOneWidget);
+  });
 
   testWidgets('starts completed thought blocks collapsed', (tester) async {
     await _pumpParsedContentView(

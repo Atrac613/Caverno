@@ -184,6 +184,19 @@ abstract interface class StructuredOutputChatDataSource {
   });
 }
 
+/// Opt-in capability for streaming batched tool-result follow-ups.
+abstract interface class StreamingToolResultsChatDataSource {
+  StreamWithToolsResult streamChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  });
+}
+
 /// Abstract interface for chat data sources.
 ///
 /// Both [ChatRemoteDataSource] (real API) and [DemoDataSource] implement this.

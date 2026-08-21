@@ -55,18 +55,12 @@ class _ParsedContentViewState extends State<ParsedContentView> {
   @override
   void didUpdateWidget(covariant ParsedContentView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final oldResult = ContentParser.parse(oldWidget.content);
     final newResult = ContentParser.parse(widget.content);
-    final completedThinkingJustFinished =
-        oldResult.hasIncompleteTag &&
-        oldResult.incompleteTagType == 'thinking' &&
-        (!newResult.hasIncompleteTag ||
-            newResult.incompleteTagType != 'thinking');
 
-    // Auto-collapse completed thinking blocks when a thought finishes,
-    // even if the assistant is still streaming the rest of the response.
-    if ((oldWidget.isStreaming && !widget.isStreaming) ||
-        completedThinkingJustFinished) {
+    // Keep completed thoughts expanded while the turn is still active. Some
+    // endpoints deliver an entire thought in one chunk, so collapsing on the
+    // closing tag would prevent the streamed content from ever being visible.
+    if (oldWidget.isStreaming && !widget.isStreaming) {
       _collapseCompletedThinkingBlocks(newResult);
     }
   }

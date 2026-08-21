@@ -49,6 +49,7 @@ class ChatRemoteDataSource
         ChatDataSource,
         FinishReasonAware,
         RequestParameterFallbackAware,
+        StreamingToolResultsChatDataSource,
         StructuredOutputChatDataSource {
   ChatRemoteDataSource({
     String? baseUrl,
@@ -907,6 +908,173 @@ class ChatRemoteDataSource
       model: model,
       temperature: temperature,
       maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    _resetResponseTelemetry();
+    var usage = TokenUsage.zero;
+    final modelId = model ?? ApiConstants.defaultModel;
+    final accumulator = ChatStreamAccumulator();
+    final completer = Completer<ChatCompletionResult>();
+    final timer = Stopwatch();
+    final attribution = _telemetry.captureAttribution();
+
+    appLog('[LLM] ===== streamChatCompletionWithToolResults =====');
+    appLog('[LLM] model: $modelId, toolResults: ${toolResults.length}');
+    _logger.logMessages(messages);
+    _logger.logTools(tools);
+
+    Stream<String> contentStream() async* {
+      timer.start();
+      try {
+        final formattedMessages = _formatMessages(
+          messages,
+          stripImages: _shouldStripImages(messages),
+          videoUrls: await _resolveVideoUrls(messages),
+        );
+        formattedMessages.add(
+          AssistantMessage(
+            content: assistantContent ?? '',
+            toolCalls: toolResults
+                .map(
+                  (toolResult) => ToolCall(
+                    id: toolResult.id,
+                    type: 'function',
+                    function: FunctionCall(
+                      name: toolResult.name,
+                      arguments: dart_convert.jsonEncode(toolResult.arguments),
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+        );
+        formattedMessages.addAll(
+          toolResults.map(
+            (toolResult) => ChatMessage.tool(
+              toolCallId: toolResult.id,
+              content: _toolResultFormatter.formatContent(toolResult),
+            ),
+          ),
+        );
+        formattedMessages.addAll(
+          _toolResultFormatter.buildImageObservationMessages(toolResults),
+        );
+
+        final stream = _streamWithReasoningFallback(
+          operation: 'streamChatCompletionWithToolResults',
+          send: (includeReasoning) => _client.chat.completions.createStream(
+            ChatCompletionCreateRequest(
+              model: modelId,
+              messages: formattedMessages,
+              temperature: _requestFallback.temperatureForRequest(temperature),
+              topP: defaultTopP,
+              maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
+              maxCompletionTokens: _requestFallback
+                  .maxCompletionTokensForRequest(maxTokens),
+              tools: _buildTools(tools),
+              streamOptions: const StreamOptions(includeUsage: true),
+              reasoningEffort: _requestFallback.reasoningEffortForRequest(
+                includeReasoning,
+              ),
+            ),
+          ),
+        );
+
+        final responseBuffer = StringBuffer();
+        final reasoningBuffer = StringBuffer();
+        var isInReasoning = false;
+        await for (final event in stream) {
+          accumulator.add(event);
+          final choice = event.choices?.firstOrNull;
+          if (event.usage != null) {
+            usage = ChatResponseTelemetry.extractUsage(event.usage);
+          }
+          final delta = choice?.delta;
+          if (delta == null) continue;
+
+          final reasoning = delta.reasoningContent ?? delta.reasoning;
+          final content = delta.content;
+          if (reasoning != null && reasoning.isNotEmpty) {
+            reasoningBuffer.write(reasoning);
+            if (!isInReasoning) {
+              isInReasoning = true;
+              responseBuffer.write('<think>$reasoning');
+              yield '<think>$reasoning';
+            } else {
+              responseBuffer.write(reasoning);
+              yield reasoning;
+            }
+          }
+          if (content != null && content.isNotEmpty) {
+            if (isInReasoning) {
+              isInReasoning = false;
+              responseBuffer.write('</think>$content');
+              yield '</think>$content';
+            } else {
+              responseBuffer.write(content);
+              yield content;
+            }
+          }
+        }
+        if (isInReasoning) {
+          responseBuffer.write('</think>');
+          yield '</think>';
+        }
+
+        _logger.logNativeToolCalls(accumulator.toolCalls);
+        final normalized = _responseNormalizer.normalize(
+          content: accumulator.content,
+          reasoning: reasoningBuffer.isEmpty
+              ? null
+              : reasoningBuffer.toString(),
+          nativeToolCalls: accumulator.toolCalls,
+          finishReason: accumulator.finishReason?.value,
+          advertisedTools: tools,
+          onNativeArgumentError: _logger.logNativeToolArgumentError,
+        );
+        final completion = ChatCompletionResult(
+          content: accumulator.content,
+          toolCalls: normalized.toolCalls,
+          finishReason: normalized.finishReason,
+          usage: usage,
+        );
+        completer.complete(completion);
+        _telemetry.publishRequest(
+          modelId: modelId,
+          attribution: attribution,
+          metadata: ChatCompletionTerminalMetadata(
+            finishReason: normalized.finishReason,
+            usage: usage,
+          ),
+          timer: timer,
+        );
+      } catch (error, stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+        _telemetry.publishFailure(
+          modelId: modelId,
+          timer: timer,
+          attribution: attribution,
+        );
+        rethrow;
+      }
+    }
+
+    return StreamWithToolsResult(
+      stream: contentStream(),
+      completion: completer.future,
     );
   }
 
