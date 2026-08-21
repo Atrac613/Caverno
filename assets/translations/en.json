@@ -703,7 +703,7 @@
   "onboarding": {
     "title": "Welcome to Caverno",
     "message": "A few quick steps and Caverno will be talking to your LLM.",
-    "restore_body": "Restores your endpoints, models and preferences.",
+    "restore_body": "Already have a Caverno settings file? Restore endpoints, models, tools and preferences from it.",
     "import_settings": "Restore from backup",
     "back": "Back",
     "next": "Next",

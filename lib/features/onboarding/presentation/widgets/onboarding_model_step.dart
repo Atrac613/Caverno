@@ -119,9 +119,7 @@ class _ModelList extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: Text(id, style: theme.textTheme.bodyMedium),
-                ),
+                Expanded(child: Text(id, style: theme.textTheme.bodyMedium)),
                 if (selected == id)
                   Icon(
                     Icons.check_circle,

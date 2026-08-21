@@ -61,7 +61,9 @@ class OnboardingWelcomeStep extends StatelessWidget {
           Text(
             errorText!,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.error),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.error,
+            ),
           ),
         ],
       ],
@@ -87,9 +89,7 @@ class _GlowingMark extends StatelessWidget {
           colors: [color.withValues(alpha: 0.28), color.withValues(alpha: 0.0)],
         ),
       ),
-      child: Center(
-        child: Icon(Icons.hub_outlined, size: 64, color: color),
-      ),
+      child: Center(child: Icon(Icons.hub_outlined, size: 64, color: color)),
     );
   }
 }

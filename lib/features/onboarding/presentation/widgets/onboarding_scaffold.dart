@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_tokens.dart';
 
+/// Measure shared by every onboarding step.
+const double onboardingContentMaxWidth = 760;
+
 /// The chrome every onboarding step shares: a centred column, a Back/Next row,
 /// and the page-position dots.
 ///
@@ -55,7 +58,11 @@ class OnboardingScaffold extends StatelessWidget {
                     vertical: space.xl,
                   ),
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 560),
+                    // Wide enough that a full-sentence caption sets on one
+                    // line, which is the measure the reference layout uses.
+                    constraints: const BoxConstraints(
+                      maxWidth: onboardingContentMaxWidth,
+                    ),
                     child: child,
                   ),
                 ),
@@ -67,7 +74,9 @@ class OnboardingScaffold extends StatelessWidget {
                 vertical: space.lg,
               ),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 720),
+                constraints: const BoxConstraints(
+                  maxWidth: onboardingContentMaxWidth,
+                ),
                 child: Column(
                   children: [
                     if (secondary != null) ...[
