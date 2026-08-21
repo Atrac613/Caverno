@@ -58,6 +58,16 @@ enum ModelEditFormatPreference {
   unifiedDiff,
 }
 
+/// Whether an endpoint accepts a `video_url` content part.
+///
+/// Kept separate from [ModelVisionSupport] because it is not a property of the
+/// model. Serving video means the endpoint decodes it into frames, so a
+/// vision-capable model behind an endpoint without that step still cannot take
+/// one, and [unknown] is not [unsupported]: a proxy that does not advertise its
+/// modalities tells us nothing, which is why the composer also honors a manual
+/// per-endpoint opt-in.
+enum ModelVideoInputSupport { unknown, unsupported, supported }
+
 /// LL39 vision axis. Caverno attaches images on two production paths — a user
 /// attachment and a computer-use screenshot observation — so "cannot read the
 /// image" is a real capability gap, and the way it fails matters: an endpoint
@@ -325,6 +335,9 @@ abstract class ModelCapabilityProfile with _$ModelCapabilityProfile {
     @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)
     @Default(ModelVisionSupport.unknown)
     ModelVisionSupport visionSupport,
+    @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)
+    @Default(ModelVideoInputSupport.unknown)
+    ModelVideoInputSupport videoInputSupport,
     @Default(0) int usableContextTokens,
     DateTime? probedAt,
     @Default('') String probeSummary,
@@ -581,6 +594,9 @@ abstract class ModelCapabilityProfileRevision
     @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)
     @Default(ModelVisionSupport.unknown)
     ModelVisionSupport visionSupport,
+    @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)
+    @Default(ModelVideoInputSupport.unknown)
+    ModelVideoInputSupport videoInputSupport,
     required int usableContextTokens,
     @Default('') String probeSummary,
 
@@ -650,6 +666,7 @@ abstract class ModelCapabilityProfileRevision
     goalUpdateFidelity: profile.goalUpdateFidelity,
     editFormatPreference: profile.editFormatPreference,
     visionSupport: profile.visionSupport,
+    videoInputSupport: profile.videoInputSupport,
     usableContextTokens: profile.usableContextTokens,
     probeSummary: profile.probeSummary,
     benchmarkPoints: _metadataInt(profile, 'benchmarkPoints'),
@@ -743,6 +760,14 @@ abstract class LlmEndpoint with _$LlmEndpoint {
     @Default('') String apiKey,
     @Default('') String model,
     @Default(true) bool enabled,
+
+    /// Manual opt-in for video attachments.
+    ///
+    /// The probe can only auto-detect endpoints that advertise their input
+    /// modalities. A proxy that rewrites requests for a video-capable server
+    /// usually advertises nothing, and there is no way to tell that apart from
+    /// a server that simply cannot take video -- so the person says.
+    @Default(false) bool videoInputEnabled,
     @JsonKey(unknownEnumValue: LlmEndpointSource.manual)
     @Default(LlmEndpointSource.manual)
     LlmEndpointSource source,
@@ -1163,6 +1188,18 @@ abstract class AppSettings with _$AppSettings {
 
   bool get isFeedbackUploadConfigured =>
       feedbackUploadEnabled && normalizedFeedbackEndpointUrl.isNotEmpty;
+
+  /// Whether the composer may offer a video attachment right now.
+  ///
+  /// Two independent yeses, because neither alone covers the field: the probe
+  /// only detects endpoints that advertise their modalities, and the manual
+  /// flag only exists for the ones that do not. Silence from both is a no --
+  /// the person opts in once per endpoint and it sticks.
+  bool get videoAttachmentsAvailable {
+    if (activeLlmEndpoint?.videoInputEnabled ?? false) return true;
+    return effectiveModelCapabilityProfile?.videoInputSupport ==
+        ModelVideoInputSupport.supported;
+  }
 
   ModelCapabilityProfile? get effectiveModelCapabilityProfile {
     return modelCapabilityProfileFor(

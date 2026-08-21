@@ -1015,6 +1015,8 @@
     "live_llm_diag_probe_vision_observation_title": "Vision: ツール観測",
     "live_llm_diag_probe_vision_attachment_desc": "既知のテスト画像をユーザー添付として送り読めるか確認します。画像なしの対照群を併走させ、読解と当て推量を切り分けます。",
     "live_llm_diag_probe_vision_observation_desc": "同じ画像を computer-use がスクリーンショットを返す形式で送ります。メッセージの形が異なるため別途確認が必要です。",
+    "live_llm_diag_probe_video_input_title": "動画入力",
+    "live_llm_diag_probe_video_input_desc": "動画を1本送って試す代わりに、エンドポイントに対応可否を問い合わせます。何も答えないエンドポイントは「非対応」ではなく「不明」として扱います。",
     "live_llm_diag_probe_tool_call_title": "Built-in tool call",
     "live_llm_diag_probe_tool_call_desc": "絞り込んだツールセットで get_current_datetime を emit できるか確認します。",
     "live_llm_diag_probe_goal_update_title": "ゴール更新の忠実度",
