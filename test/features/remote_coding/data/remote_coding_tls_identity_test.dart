@@ -63,4 +63,26 @@ void main() {
       );
     },
   );
+
+  test('persisted identity rejects a mismatched certificate pin', () {
+    final identity = RemoteCodingTlsIdentity.generate();
+    final json = identity.toJson()..['certificatePin'] = 'deadbeef';
+
+    expect(
+      () => RemoteCodingTlsIdentity.fromJson(json),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+  test('persisted identity rejects a mismatched private key', () {
+    final identity = RemoteCodingTlsIdentity.generate();
+    final otherIdentity = RemoteCodingTlsIdentity.generate();
+    final json = identity.toJson()
+      ..['privateKeyPem'] = otherIdentity.privateKeyPem;
+
+    expect(
+      () => RemoteCodingTlsIdentity.fromJson(json),
+      throwsA(isA<FormatException>()),
+    );
+  });
 }

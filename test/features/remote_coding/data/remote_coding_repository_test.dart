@@ -4,6 +4,7 @@ import 'package:caverno/features/remote_coding/data/remote_coding_repository.dar
 import 'package:caverno/features/remote_coding/data/remote_coding_notification_relay_contract.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_secure_store.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_security.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_tls_identity.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -36,6 +37,31 @@ void main() {
     final host = RemoteCodingRepository(prefs).loadMobileHost();
 
     expect(host, isNull);
+  });
+
+  test('corrupt persisted TLS identity is replaced', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final secureStore = _MemorySecureStore();
+    final repository = RemoteCodingRepository(prefs, secureStore: secureStore);
+    final replacement = RemoteCodingTlsIdentity.generate();
+    secureStore.values['caverno.remote_coding.tls.identity'] = jsonEncode({
+      ...replacement.toJson(),
+      'certificatePin': 'deadbeef',
+    });
+    var generationCount = 0;
+
+    final loaded = await repository.loadOrCreateTlsIdentity(() {
+      generationCount += 1;
+      return replacement;
+    });
+
+    expect(generationCount, 1);
+    expect(loaded.certificatePin, replacement.certificatePin);
+    expect(
+      secureStore.values['caverno.remote_coding.tls.identity'],
+      jsonEncode(replacement.toJson()),
+    );
   });
 
   test('desktop paired device state stores token hashes only', () async {

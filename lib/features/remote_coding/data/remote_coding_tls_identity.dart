@@ -24,7 +24,7 @@ final class RemoteCodingTlsIdentity {
   final String certificatePin;
 
   SecurityContext get securityContext {
-    final context = SecurityContext();
+    final context = SecurityContext(withTrustedRoots: false);
     context.useCertificateChainBytes(utf8.encode(certificatePem));
     context.usePrivateKeyBytes(utf8.encode(privateKeyPem));
     return context;
@@ -38,19 +38,43 @@ final class RemoteCodingTlsIdentity {
   };
 
   factory RemoteCodingTlsIdentity.fromJson(Map<String, dynamic> json) {
+    final version = (json['version'] as String?)?.trim() ?? '';
     final certificatePem = (json['certificatePem'] as String?)?.trim() ?? '';
     final privateKeyPem = (json['privateKeyPem'] as String?)?.trim() ?? '';
     final certificatePin = (json['certificatePin'] as String?)?.trim() ?? '';
-    if (certificatePem.isEmpty ||
+    if (version != _identityJsonVersion ||
+        certificatePem.isEmpty ||
         privateKeyPem.isEmpty ||
         certificatePin.isEmpty) {
       throw const FormatException('Remote Coding TLS identity is incomplete.');
     }
-    return RemoteCodingTlsIdentity(
+    final identity = RemoteCodingTlsIdentity(
       certificatePem: certificatePem,
       privateKeyPem: privateKeyPem,
       certificatePin: certificatePin,
     );
+    try {
+      identity.validate();
+    } on FormatException {
+      rethrow;
+    } on TlsException {
+      throw const FormatException(
+        'Remote Coding TLS certificate and private key do not match.',
+      );
+    }
+    return identity;
+  }
+
+  /// Verifies that the persisted certificate, key, and pin remain consistent.
+  void validate() {
+    final certificateDer = _decodePem('CERTIFICATE', certificatePem);
+    final actualPin = RemoteCodingTransportPolicy.pinForDer(certificateDer);
+    if (actualPin != certificatePin.trim().toLowerCase()) {
+      throw const FormatException(
+        'Remote Coding TLS certificate pin does not match the certificate.',
+      );
+    }
+    securityContext;
   }
 
   static RemoteCodingTlsIdentity generate({DateTime? now}) {
@@ -64,9 +88,6 @@ final class RemoteCodingTlsIdentity {
       expiresAt: issuedAt.add(const Duration(days: 825)),
     );
     final tbsBytes = tbs.encode();
-    if (tbsBytes == null) {
-      throw StateError('Failed to encode the Remote Coding certificate.');
-    }
     final signature = _signSha256Rsa(tbsBytes, privateKey);
     final certificate = ASN1Sequence(
       elements: [
@@ -76,13 +97,7 @@ final class RemoteCodingTlsIdentity {
       ],
     );
     final certificateDer = certificate.encode();
-    if (certificateDer == null) {
-      throw StateError('Failed to encode the Remote Coding certificate DER.');
-    }
     final privateKeyDer = _pkcs1PrivateKey(privateKey).encode();
-    if (privateKeyDer == null) {
-      throw StateError('Failed to encode the Remote Coding private key.');
-    }
     return RemoteCodingTlsIdentity(
       certificatePem: _pem('CERTIFICATE', certificateDer),
       privateKeyPem: _pem('RSA PRIVATE KEY', privateKeyDer),
@@ -221,4 +236,24 @@ String _pem(String type, List<int> der) {
     lines.add(body.substring(i, end));
   }
   return '-----BEGIN $type-----\n${lines.join('\n')}\n-----END $type-----\n';
+}
+
+Uint8List _decodePem(String type, String pem) {
+  final normalized = pem.trim();
+  final begin = '-----BEGIN $type-----';
+  final end = '-----END $type-----';
+  if (!normalized.startsWith(begin) || !normalized.endsWith(end)) {
+    throw FormatException('Remote Coding TLS $type PEM is invalid.');
+  }
+  final body = normalized
+      .substring(begin.length, normalized.length - end.length)
+      .replaceAll(RegExp(r'\s'), '');
+  if (body.isEmpty) {
+    throw FormatException('Remote Coding TLS $type PEM is empty.');
+  }
+  try {
+    return base64.decode(body);
+  } on FormatException {
+    throw FormatException('Remote Coding TLS $type PEM is invalid.');
+  }
 }
