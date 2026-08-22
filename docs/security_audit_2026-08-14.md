@@ -85,7 +85,7 @@ conventions:
 | SA-07 | High | Taint policy is advisory before cache and full-access decisions (fixed 2026-08-14) | SEC2.3b |
 | SA-08 | Medium | File mutations can escape project scope through missing or lexical-only containment (write/edit/delete fence landed 2026-08-19; git cwd fence landed 2026-08-21; git pathspec fence landed 2026-08-21; local-command write fence landed 2026-08-21) | SEC4.4 |
 | SA-09 | Medium | Routines treat every external MCP tool as read-only (denied by default 2026-08-21; reviewed grants pending) | SEC4.4 |
-| SA-10 | Medium | HTTP bodies and Remote Coding frames/rates are unbounded (socket caps and authentication deadline landed 2026-08-22) | SEC4.3, RC1 |
+| SA-10 | Medium | HTTP bodies remain unbounded; Remote Coding resource containment completed 2026-08-22 | SEC4.3, RC1 |
 | SA-11 | Medium | Settings secrets are persisted and exported in cleartext | SEC4.6 |
 | SA-12 | Medium | Non-loopback plaintext LLM endpoints can receive bearer credentials and private content | SEC4.5 |
 | SA-13 | Medium | Approval-audit redaction does not recurse into nested arguments | SEC4.6 |
@@ -367,8 +367,11 @@ Release LAN binds are allowed only when confidential. SEC4.5d (completed
 2026-08-21) issues a per-socket `authChallenge` and requires an HMAC proof
 bound to that challenge, nonce, and certificate pin before pairing or token
 lookup. Token-only `auth`, replayed challenges, and foreign-socket challenges
-fail closed. The in-memory session dies with the socket. Connection, frame,
-and rate limits remain SEC4.5e.
+fail closed. The in-memory session dies with the socket. SEC4.5e (completed
+2026-08-22) rejects excess total/per-address sockets before upgrade, closes
+clients that miss the authentication deadline, rejects inbound text or binary
+frames over 256 KiB, and enforces separate 10-second sliding-window budgets of
+8 unauthenticated messages and 60 authenticated messages per connection.
 
 ### SA-07: Advisory Taint Policy Before Trusted Execution
 
@@ -449,13 +452,15 @@ that collide with allowed built-ins. Dispatch refuses
 ### SA-10: Resource Exhaustion
 
 `lib/features/chat/data/datasources/network_http_tools.dart:225-279` buffers a
-complete response before truncating it. SEC4.5e-A landed 2026-08-22: Remote
-Coding now rejects excess global or per-address sockets before WebSocket
-upgrade and closes sockets that miss the authentication deadline. It still
-decodes unbounded JSON at
-`lib/features/remote_coding/data/remote_coding_protocol.dart:16-41`. SEC4.5e-B
-must add frame-size and authenticated message-rate limits. SEC4.3d separately
-owns HTTP streaming byte ceilings plus total and idle deadlines.
+complete response before truncating it. SEC4.5e completed 2026-08-22: Remote
+Coding rejects excess global or per-address sockets before WebSocket upgrade,
+closes sockets that miss the authentication deadline, rejects text and binary
+frames over 256 KiB before protocol decoding, and closes clients that exceed
+phase-aware per-connection sliding-window message budgets. Dart's WebSocket API
+still allocates a complete transport frame before application code can inspect
+its size; the product limit bounds JSON decoding and repeated processing rather
+than that transport allocation. SEC4.3d separately owns HTTP streaming byte
+ceilings plus total and idle deadlines.
 
 ### SA-11: Cleartext Settings Secrets And Exports
 
@@ -612,7 +617,7 @@ Add negative coverage for:
 | P0-4 | SEC4.4a project read containment (completed 2026-08-14) | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
 | P0-5 | SEC4.5a-SEC4.5b authenticated transport containment (completed 2026-08-19) | SA-05, SA-06 | SSH known-host mismatch fails before authentication. A release build cannot start a plaintext non-loopback Remote Coding listener. |
 | P1-1 | SEC4.4b/SEC4.4c/SEC4.4d/SEC4.4e/SEC4.4f mutation and autonomous containment (mutation fence completed 2026-08-19; routine MCP deny-by-default completed 2026-08-21; git cwd fence completed 2026-08-21; git pathspec fence completed 2026-08-21; local-command write fence completed 2026-08-21) | SA-08, SA-09 | Write/edit/delete go through a symlink-aware project fence. Unclassified external MCP tools are omitted from routine catalogs and denied at dispatch. Git working directories use the same fence. Relocating git globals and escaping pathspecs are denied. Local-command writes use the same fence when a project is selected. |
-| P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (SEC4.5c pinned WSS completed 2026-08-21; SEC4.5d challenge-bound sessions completed 2026-08-21; SEC4.5e-A connection admission completed 2026-08-22) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
+| P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (SEC4.5c pinned WSS completed 2026-08-21; SEC4.5d challenge-bound sessions completed 2026-08-21; SEC4.5e completed 2026-08-22) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
 | P1-3 | SEC4.6 data protection and lifecycle | SA-11, SA-13, SA-14, SA-15, SA-17, SA-18 | Secret-free storage/export, recursive redaction, opt-out, migration, backup, and deletion tests pass. |
 | P1-4 | SEC4.7 release supply-chain hardening | SA-16 | Immutable actions, pinned toolchain, checksum, dependency monitoring, and fail-closed release signing are enforced. |
 
@@ -679,6 +684,24 @@ cases that the current suites do not cover.
   model capability count expectation (`29` versus `32`). The SEC4.1-related
   mutation-guard and handler-ratchet failures were corrected and pass in
   isolation.
+
+### SEC4.5e Remediation Verification
+
+- `fvm dart analyze` over the resource policy, production server, and focused
+  tests: passed.
+- 20 focused resource-policy and production-server tests: passed, covering
+  global/per-address admission, authentication deadline and cancellation,
+  exact UTF-8 and binary frame limits, unauthenticated/authenticated message
+  budgets, close status, and capacity reuse.
+- `fvm flutter test --no-pub test/features/remote_coding
+  test/integration_support/remote_coding_p0_release_gate_test.dart`: all 180
+  Remote Coding feature and P0 release-gate tests passed.
+- `fvm flutter analyze --no-pub`: passed after removing two redundant imports
+  from an unrelated SSH transport test in isolated commit `ce788940`.
+- `tool/codex_verify.sh --no-codegen --no-tests`: passed root/package analysis
+  and notification-relay source checks.
+- Implementation commits: SEC4.5e-A `2a902579`, SEC4.5e-B `29423028`, and the
+  direct global-cap server regression `386348eb`.
 
 ## Risk Acceptance And Update Policy
 

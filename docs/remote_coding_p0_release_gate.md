@@ -25,17 +25,15 @@ P0 covers these release blockers:
 
 ## Security Audit Qualification
 
-Passing this P0 gate does not close frame-size and authenticated message-rate
-limits. SEC4.5c uses pinned `wss://` with a certificate pin on pairing QR
-codes, SEC4.5d requires a live channel-bound HMAC proof before issuing an
-in-memory session, and SEC4.5e-A bounds global/per-address socket occupancy
-plus authentication time. The 2026-08-14 audit still records unbounded frames
-and message rates as the SA-10 remainder (SEC4.5e-B) in
-`docs/security_audit_2026-08-14.md`.
+This P0 gate mechanically proves plaintext transport containment. SEC4.5c uses
+pinned `wss://` with a certificate pin on pairing QR codes, SEC4.5d requires a
+live channel-bound HMAC proof before issuing an in-memory session, and SEC4.5e
+bounds global/per-address socket occupancy, authentication time, inbound frame
+size, and phase-aware message rates. Focused policy and production-server tests
+provide SEC4.5e evidence; those P1 checks are not inferred from the P0 checklist.
 
 A release build must not expose a plaintext non-loopback Remote Coding
-listener. Isolated-LAN assumptions are not closure for remaining resource
-boundary work.
+listener. Isolated-LAN assumptions are not security evidence.
 
 SEC4.5b adds a required `transportContainment` result to this gate. The Dart
 checker fails when the production server can still bind `InternetAddress.anyIPv4`

@@ -39,7 +39,8 @@
   `activeConnectionCount`, `Timer`, and `isAuthenticated`.
 - Files inspected: Remote Coding server, client connector, media host listener,
   and notification relay HTTP client.
-- Follow-up: SEC4.5e-B must bound frame bytes and authenticated message rate.
+- Follow-up: SEC4.5e-B bounded frame bytes and phase-aware message rates in the
+  completed follow-up task.
 
 ## Acceptance Criteria
 
@@ -69,4 +70,5 @@ tool/codex_verify.sh
   overruns in ChatNotifier and ChatRemoteDataSource files.
 - Coverage notes: Direct tests exercise peer rejection, authentication deadline
   cleanup, successful-auth timer cancellation, and capacity reuse.
-- Risks or follow-ups: Frame and message-rate enforcement remain SEC4.5e-B.
+- Risks or follow-ups: Frame and message-rate enforcement completed in
+  `docs/sec4_5e_frame_and_rate_limits_task.md`.

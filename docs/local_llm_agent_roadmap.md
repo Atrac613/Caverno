@@ -5296,8 +5296,9 @@ Slice plan:
    **SEC4.5d (P1, completed 2026-08-21)** issues short-lived, challenge- and
    channel-bound session authorization;
    **SEC4.5e-A (P1, completed 2026-08-22)** adds authentication deadlines plus
-   global and per-address connection caps; **SEC4.5e-B (P1)** adds frame-size
-   and authenticated message-rate limits;
+   global and per-address connection caps; **SEC4.5e-B (P1, completed
+   2026-08-22)** adds frame-size plus unauthenticated/authenticated phase-aware
+   message-rate limits;
    and **SEC4.5f (P1)** requires HTTPS for credential-bearing non-loopback LLM
    endpoints.
 6. **SEC4.6 — Data protection and lifecycle (P1).** Move credentials to platform

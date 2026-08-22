@@ -19,8 +19,8 @@
   `docs/remote_coding_p0_release_gate.md`.
 - Reference pattern: SEC4.5e-A keeps resource decisions in a directly tested
   domain policy while the server owns WebSocket effects and cleanup.
-- Release gate: SEC4.5e remains incomplete until both frame-size and
-  message-rate limits reject abusive clients mechanically.
+- Release gate: SEC4.5e completion requires both frame-size and message-rate
+  limits to reject abusive clients mechanically.
 
 ## Implementation Notes
 
@@ -77,10 +77,18 @@ fvm flutter test --no-pub \
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending implementation.
-- Coverage notes: Exercise exact byte boundaries, multibyte input, both rate
-  phases, window recovery, close status, and capacity reuse.
+- Summary: Added a 256 KiB inbound text/binary limit and separate 10-second
+  sliding-window budgets for 8 unauthenticated and 60 authenticated messages.
+  Violations send stable protocol errors, close with status 1009 or 1008, and
+  release connection capacity.
+- Tests run: Targeted analysis passed; 20 focused SEC4.5e policy/server tests
+  passed; all 180 Remote Coding feature and P0 release-gate tests passed; and
+  repository-wide `fvm flutter analyze --no-pub` plus
+  `tool/codex_verify.sh --no-codegen --no-tests` passed.
+- Coverage notes: Direct tests cover exact ASCII and multibyte byte boundaries,
+  oversized text and binary frames, both rate phases, window recovery, global
+  and per-address caps, close status, authentication deadlines, and capacity
+  reuse.
 - Risks or follow-ups: Dart's WebSocket API delivers a complete frame before
   application code can inspect its size; this limit prevents unbounded JSON
   decoding and repeated processing but cannot avoid the transport allocation.
