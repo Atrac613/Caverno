@@ -179,8 +179,70 @@ void registerChatNotifierFinalAnswerRecoveryTests() {
         notifier.state.messages.last.content,
         contains(TruncationNotice.maxTokenNotice),
       );
+      // A retry that hit the same limit is not a repair of it, so the original
+      // answer stays rather than being replaced by a second truncated one.
+      expect(
+        notifier.state.messages.last.content,
+        contains('First answer was truncated.'),
+      );
+      expect(
+        notifier.state.messages.last.content,
+        isNot(contains('Second answer also reached its output limit.')),
+      );
     },
   );
+
+  test('a reasoning-only concise retry is discarded, not applied', () async {
+    const repeatedLine = 'Then `lib/src/todo_storage.dart` will be written.';
+    final firstAnswer = [
+      List.filled(4, repeatedLine).join('\n'),
+      List.filled(1000, 'x').join(),
+    ].join('\n');
+    final fixture = await _createFinalAnswerRecoveryFixture(
+      firstAnswer: firstAnswer,
+      firstFinishReason: 'stop',
+      // Session a0ca65b7 gen-14: the retry collapsed inside its think block and
+      // never emitted an answer, yet counted as content and replaced the turn's
+      // only visible output with nothing.
+      recoveryAnswer: '<think>Let me re-check the file once more.</think>',
+      recoveryFinishReason: 'stop',
+    );
+    addTearDown(fixture.dispose);
+    final notifier = fixture.container.read(chatNotifierProvider.notifier);
+
+    await notifier.sendMessage('Inspect the file');
+
+    expect(fixture.dataSource.recoveryRequestMessages, hasLength(1));
+    final visibleAnswer = notifier.state.messages.last.content;
+    expect(visibleAnswer, contains(repeatedLine));
+    expect(visibleAnswer, isNot(contains('re-check the file once more')));
+
+    final conversation = fixture.container
+        .read(conversationsNotifierProvider)
+        .currentConversation!;
+    final sessionLogFile = await fixture.sessionLogStore.fileForContext(
+      LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.chat,
+        sessionId: conversation.id,
+        conversationId: conversation.id,
+      ),
+      create: false,
+    );
+    final entries = (await sessionLogFile.readAsLines())
+        .map((line) => jsonDecode(line) as Map<String, dynamic>)
+        .toList(growable: false);
+    final turnExitPayload =
+        entries.lastWhere((entry) => entry['operation'] == 'turn_exit')['turnExit']
+            as Map<String, dynamic>;
+    expect(
+      turnExitPayload['transforms'],
+      contains('final_answer_concise_retry_discarded'),
+    );
+    expect(
+      turnExitPayload['transforms'],
+      isNot(contains('final_answer_concise_retry')),
+    );
+  });
 
   test(
     'repetitive stopped final answer gets one concise replacement',

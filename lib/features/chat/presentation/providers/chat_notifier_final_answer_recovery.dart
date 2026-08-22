@@ -202,7 +202,39 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
                 ContentParser.stripToolArtifactsPreservingThinking(
                   rawRetryContent,
                 ).trim();
-            if (retryResult != null && visibleRetryContent.isNotEmpty) {
+            // A retry earns the replacement only by answering. Emptiness was
+            // measured with thinking included, so a reply that was nothing but
+            // an unterminated <think> block counted as content and replaced the
+            // answer with no prose at all; and the retry's own finish reason
+            // went unread, so one truncated at the retry budget was applied as
+            // the fix for truncation. Session a0ca65b7 gen-14 hit both at once
+            // and ended with no visible answer after twelve minutes.
+            final retryAnswerText = ContentParser.stripModelHistoryArtifacts(
+              rawRetryContent,
+            ).trim();
+            final retryRecoveryReason = retryResult == null
+                ? null
+                : _finalAnswerRecoveryPolicy.recoveryReason(
+                    content: ContentParser.stripToolArtifacts(rawRetryContent),
+                    finishReason: retryResult.finishReason,
+                  );
+            final retryIsUsable =
+                retryResult != null &&
+                visibleRetryContent.isNotEmpty &&
+                retryAnswerText.isNotEmpty &&
+                retryRecoveryReason == null;
+            if (retryResult != null && !retryIsUsable) {
+              appLog(
+                '[FinalAnswerRecovery] Discarded concise final-answer retry; '
+                'reason=${recoveryReason.logToken}, '
+                'retryFailure=${retryRecoveryReason?.logToken ?? (retryAnswerText.isEmpty ? 'no_answer_text' : 'empty')}',
+              );
+              _turnEnd.addTransform(
+                turnOwner,
+                'final_answer_concise_retry_discarded',
+              );
+            }
+            if (retryIsUsable) {
               _removeStreamedAnswerSuffixForGeneration(
                 interactionGeneration,
                 preAnswerContent: preAnswerContent,
