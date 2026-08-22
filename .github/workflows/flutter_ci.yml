@@ -97,7 +97,8 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Full suite plus coverage is ~20 minutes on ubuntu-latest; keep headroom.
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
