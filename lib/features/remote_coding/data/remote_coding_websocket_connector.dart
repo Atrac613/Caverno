@@ -11,17 +11,23 @@ typedef RemoteCodingWebSocketConnector =
 Future<WebSocket> connectPinnedRemoteCodingWebSocket({
   required String url,
   required String certificatePin,
-}) {
+}) async {
   RemoteCodingTransportPolicy.ensureConfidentialBeforeCredentials(
     url: url,
     certificatePin: certificatePin,
   );
-  final client = HttpClient()
+  // Disable platform roots so every certificate reaches the pin check.
+  final context = SecurityContext(withTrustedRoots: false);
+  final client = HttpClient(context: context)
     ..badCertificateCallback = (certificate, host, port) {
       return RemoteCodingTransportPolicy.pinMatches(
         certificate,
         certificatePin,
       );
     };
-  return WebSocket.connect(url, customClient: client);
+  try {
+    return await WebSocket.connect(url, customClient: client);
+  } finally {
+    client.close();
+  }
 }
