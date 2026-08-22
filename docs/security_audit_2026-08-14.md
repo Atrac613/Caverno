@@ -87,7 +87,7 @@ conventions:
 | SA-09 | Medium | Routines treat every external MCP tool as read-only (denied by default 2026-08-21; reviewed grants pending) | SEC4.4 |
 | SA-10 | Medium | HTTP bodies remain unbounded; Remote Coding resource containment completed 2026-08-22 | SEC4.3, RC1 |
 | SA-11 | Medium | Settings secrets are persisted and exported in cleartext | SEC4.6 |
-| SA-12 | Medium | Non-loopback plaintext LLM endpoints can receive bearer credentials and private content | SEC4.5 |
+| SA-12 | Medium | Non-loopback plaintext LLM endpoints can receive bearer credentials and private content (fixed 2026-08-22) | SEC4.5 |
 | SA-13 | Medium | Approval-audit redaction does not recurse into nested arguments | SEC4.6 |
 | SA-14 | Medium | Session-log migration can reverse an explicit opt-out | SEC4.6 |
 | SA-15 | Medium | Drift failure can resurrect stale deleted Hive conversations or memory | SEC4.6 |
@@ -479,6 +479,12 @@ accepts HTTP outside loopback, and client construction in
 API keys and private prompts to that endpoint. Require HTTPS outside loopback;
 keep any LAN exception narrow, explicit, visible, and credential-aware.
 
+Remediation status (2026-08-22): SEC4.5f is complete. A shared
+`LlmEndpointTransportPolicy` rejects configured credentials on plaintext
+non-loopback endpoints before chat, model-catalog, embeddings, or llama.cpp
+slot clients are constructed. The endpoint editor uses the same policy.
+Loopback HTTP and credentialless LAN HTTP remain available for local servers.
+
 ### SA-13: Nested Approval-Audit Secrets
 
 `lib/core/services/tool_approval_audit_log.dart:251-272` redacts only top-level
@@ -617,7 +623,7 @@ Add negative coverage for:
 | P0-4 | SEC4.4a project read containment (completed 2026-08-14) | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
 | P0-5 | SEC4.5a-SEC4.5b authenticated transport containment (completed 2026-08-19) | SA-05, SA-06 | SSH known-host mismatch fails before authentication. A release build cannot start a plaintext non-loopback Remote Coding listener. |
 | P1-1 | SEC4.4b/SEC4.4c/SEC4.4d/SEC4.4e/SEC4.4f mutation and autonomous containment (mutation fence completed 2026-08-19; routine MCP deny-by-default completed 2026-08-21; git cwd fence completed 2026-08-21; git pathspec fence completed 2026-08-21; local-command write fence completed 2026-08-21) | SA-08, SA-09 | Write/edit/delete go through a symlink-aware project fence. Unclassified external MCP tools are omitted from routine catalogs and denied at dispatch. Git working directories use the same fence. Relocating git globals and escaping pathspecs are denied. Local-command writes use the same fence when a project is selected. |
-| P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (SEC4.5c pinned WSS completed 2026-08-21; SEC4.5d challenge-bound sessions completed 2026-08-21; SEC4.5e completed 2026-08-22) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
+| P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (SEC4.5c pinned WSS completed 2026-08-21; SEC4.5d challenge-bound sessions completed 2026-08-21; SEC4.5e and SEC4.5f completed 2026-08-22) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
 | P1-3 | SEC4.6 data protection and lifecycle | SA-11, SA-13, SA-14, SA-15, SA-17, SA-18 | Secret-free storage/export, recursive redaction, opt-out, migration, backup, and deletion tests pass. |
 | P1-4 | SEC4.7 release supply-chain hardening | SA-16 | Immutable actions, pinned toolchain, checksum, dependency monitoring, and fail-closed release signing are enforced. |
 

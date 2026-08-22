@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/security/llm_endpoint_transport_policy.dart';
 
 /// Result of an embeddings request.
 class EmbeddingsResult {
@@ -77,7 +78,10 @@ class EmbeddingsClient {
     required String apiKey,
     http.Client? client,
     Duration timeout = const Duration(seconds: 30),
-  }) : _baseUrl = baseUrl,
+  }) : _baseUrl = const LlmEndpointTransportPolicy().validate(
+         baseUrl: baseUrl,
+         apiKey: apiKey,
+       ),
        _apiKey = apiKey,
        _client = client ?? http.Client(),
        _timeout = timeout;

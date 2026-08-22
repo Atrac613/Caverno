@@ -5299,8 +5299,9 @@ Slice plan:
    global and per-address connection caps; **SEC4.5e-B (P1, completed
    2026-08-22)** adds frame-size plus unauthenticated/authenticated phase-aware
    message-rate limits;
-   and **SEC4.5f (P1)** requires HTTPS for credential-bearing non-loopback LLM
-   endpoints.
+   and **SEC4.5f (P1, completed 2026-08-22)** requires HTTPS for
+   credential-bearing non-loopback LLM endpoints while preserving loopback and
+   credentialless LAN HTTP operation.
 6. **SEC4.6 — Data protection and lifecycle (P1).** Move credentials to platform
    secure storage, redact default JSON/QR exports, recursively redact audit and
    support artifacts, preserve session-log opt-out, fail closed after

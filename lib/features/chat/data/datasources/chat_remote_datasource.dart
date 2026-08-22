@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:openai_dart/openai_dart.dart' hide MessageRole;
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/security/llm_endpoint_transport_policy.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/model_usage_role.dart';
@@ -74,7 +75,10 @@ class ChatRemoteDataSource
        ),
        _client = OpenAIClient.withApiKey(
          apiKey ?? ApiConstants.defaultApiKey,
-         baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
+         baseUrl: const LlmEndpointTransportPolicy().validate(
+           baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
+           apiKey: apiKey ?? ApiConstants.defaultApiKey,
+         ),
          defaultHeaders: ApiConstants.userAgentHeaders,
          // Both clients are wrapped: video parts are written into the JSON
          // body, so a stream path left unwrapped would silently drop the

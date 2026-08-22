@@ -283,6 +283,43 @@ void main() {
     );
   });
 
+  testWidgets('requires HTTPS for a non-loopback endpoint with an API key', (
+    tester,
+  ) async {
+    await _pumpGeneralSettingsPage(
+      tester,
+      settings: AppSettings.defaults(),
+      loadModels: () async => [AppSettings.defaults().model],
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-add-endpoint')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-endpoint-base-url-field')),
+      'http://192.168.100.241:1234/v1',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-endpoint-api-key-field')),
+      'secret',
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-endpoint-save')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Use HTTPS when an LLM endpoint outside this device has an API key.',
+      ),
+      findsOneWidget,
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(GeneralSettingsPage)),
+    );
+    expect(
+      container.read(settingsNotifierProvider).usableLlmEndpoints,
+      hasLength(1),
+    );
+  });
+
   testWidgets(
     'scans and registers a discovered endpoint without activating it',
     (tester) async {

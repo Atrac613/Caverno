@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../core/constants/api_constants.dart';
+import '../../../core/security/llm_endpoint_transport_policy.dart';
 import '../../../core/utils/logger.dart';
 import '../domain/entities/local_model_lifecycle.dart';
 import '../domain/entities/model_catalog_entry.dart';
@@ -20,9 +21,12 @@ class ModelCatalogHttpException implements Exception {
 
 class ModelRemoteDataSource {
   ModelRemoteDataSource({String? baseUrl, String? apiKey, http.Client? client})
-    : _baseUrl = baseUrl?.trim().isEmpty ?? true
-          ? ApiConstants.defaultBaseUrl
-          : baseUrl!.trim(),
+    : _baseUrl = const LlmEndpointTransportPolicy().validate(
+        baseUrl: baseUrl?.trim().isEmpty ?? true
+            ? ApiConstants.defaultBaseUrl
+            : baseUrl!.trim(),
+        apiKey: apiKey ?? ApiConstants.defaultApiKey,
+      ),
       _apiKey = apiKey ?? ApiConstants.defaultApiKey,
       _client = client ?? http.Client();
 

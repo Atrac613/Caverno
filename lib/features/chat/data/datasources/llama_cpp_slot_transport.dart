@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/security/llm_endpoint_transport_policy.dart';
 
 /// llama.cpp / LM Studio response `timings` block.
 ///
@@ -161,7 +162,10 @@ class LlamaCppSlotTransport {
     required String apiKey,
     http.Client? client,
     Duration timeout = const Duration(minutes: 6),
-  }) : _baseUrl = baseUrl,
+  }) : _baseUrl = const LlmEndpointTransportPolicy().validate(
+         baseUrl: baseUrl,
+         apiKey: apiKey,
+       ),
        _apiKey = apiKey,
        _client = client ?? http.Client(),
        _timeout = timeout;

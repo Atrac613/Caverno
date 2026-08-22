@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/security/llm_endpoint_transport_policy.dart';
 
 /// One server slot reported by llama.cpp `GET /slots`.
 class ServerSlot {
@@ -78,7 +79,10 @@ class LlamaCppSlotDiscovery {
     String model = '',
     http.Client? client,
     Duration timeout = const Duration(seconds: 8),
-  }) : _baseUrl = baseUrl,
+  }) : _baseUrl = const LlmEndpointTransportPolicy().validate(
+         baseUrl: baseUrl,
+         apiKey: apiKey,
+       ),
        _apiKey = apiKey,
        _model = model.trim(),
        _client = client ?? http.Client(),

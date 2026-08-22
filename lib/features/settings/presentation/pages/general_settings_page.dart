@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/security/llm_endpoint_transport_policy.dart';
 import '../../../../core/services/apple_foundation_models_platform_client.dart';
 import '../../../../core/services/google_chat_delivery_service.dart';
 import '../../../../core/services/lan_endpoint_discovery.dart';
@@ -1534,6 +1535,16 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
         !(uri.isScheme('http') || uri.isScheme('https')) ||
         uri.host.isEmpty) {
       return 'settings.endpoint_base_url_invalid'.tr();
+    }
+    try {
+      const LlmEndpointTransportPolicy().validate(
+        baseUrl: uri.toString(),
+        apiKey: _apiKeyController.text.trim().isEmpty
+            ? ApiConstants.defaultApiKey
+            : _apiKeyController.text,
+      );
+    } on LlmEndpointTransportException catch (error) {
+      return error.message;
     }
     return null;
   }
