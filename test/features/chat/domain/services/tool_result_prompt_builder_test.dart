@@ -9,6 +9,88 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 void main() {
   group('ToolResultPromptBuilder', () {
+    test('reports which tools the prompt budget shortened', () {
+      // Six large files, exactly the a0ca65b7 shape: the per-result share of
+      // the total budget cuts every one of them, and the model is then told to
+      // reuse content the prompt no longer carries.
+      final toolResults = [
+        for (var index = 0; index < 6; index += 1)
+          ToolResultInfo(
+            id: 'tool-$index',
+            name: 'read_file',
+            arguments: {'path': 'js/module-$index.js'},
+            result: jsonEncode({
+              'path': 'js/module-$index.js',
+              'content': List.filled(9000, 'x').join(),
+              'total_lines': 300,
+              'start_line': 1,
+              'line_count': 300,
+            }),
+          ),
+        ToolResultInfo(
+          id: 'tool-small',
+          name: 'list_directory',
+          arguments: const {'path': 'js'},
+          result: '{"entry_count":6}',
+        ),
+      ];
+
+      final reduced = ToolResultPromptBuilder.budgetReducedToolNames(
+        toolResults,
+      );
+
+      expect(reduced, contains('read_file'));
+      expect(reduced, isNot(contains('list_directory')));
+    });
+
+    test('reports no reduction when every result fits the budget', () {
+      final reduced = ToolResultPromptBuilder.budgetReducedToolNames([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'read_file',
+          arguments: const {'path': 'js/main.js'},
+          result: jsonEncode({'path': 'js/main.js', 'content': 'const a = 1;'}),
+        ),
+      ]);
+
+      expect(reduced, isEmpty);
+    });
+
+    test('a budget-shortened result names the range read that recovers it', () {
+      final toolResults = [
+        for (var index = 0; index < 6; index += 1)
+          ToolResultInfo(
+            id: 'tool-$index',
+            name: 'read_file',
+            arguments: {'path': 'js/module-$index.js'},
+            result: jsonEncode({
+              'path': 'js/module-$index.js',
+              'content': List.filled(9000, 'x').join(),
+              'total_lines': 300,
+              'start_line': 1,
+              'line_count': 300,
+            }),
+          ),
+      ];
+
+      final budgeted = ToolResultPromptBuilder.budgetToolResults(toolResults);
+
+      expect(
+        budgeted.every(
+          (toolResult) => toolResult.result.contains(
+            ToolResultPromptBuilder.promptBudgetReductionMarker,
+          ),
+        ),
+        isTrue,
+      );
+      expect(
+        budgeted.any(
+          (toolResult) => toolResult.result.contains('offset and limit'),
+        ),
+        isTrue,
+      );
+    });
+
     test('dedupes tool definitions by name', () {
       final tools = [
         {

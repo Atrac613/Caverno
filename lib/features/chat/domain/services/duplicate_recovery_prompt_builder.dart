@@ -19,14 +19,20 @@ final class DuplicateRecoveryPromptBuilder {
     required bool hasSavedTask,
     bool previousCommandValidationFailed = false,
     bool previousExactExitCodeExpectationFailed = false,
+    Set<String> budgetReducedToolNames = const {},
   }) {
     final repeatedToolNames = _repeatedToolNames(toolCalls);
+    final reduced = _reducedRepeatedToolNames(
+      toolCalls,
+      budgetReducedToolNames,
+    );
     return [
       hasSavedTask
           ? 'You already inspected the same local files for the current saved task.'
           : 'You already inspected the same local files in this turn.',
       if (repeatedToolNames.isNotEmpty)
         'Do not repeat identical read-only inspection tools again in this turn: $repeatedToolNames.',
+      if (reduced.isNotEmpty) ..._budgetReductionLines(reduced),
       if (previousCommandValidationFailed)
         'The latest validation command failed; use that failure output now instead of inspecting the directory again.',
       if (previousExactExitCodeExpectationFailed)
@@ -48,13 +54,21 @@ final class DuplicateRecoveryPromptBuilder {
     required bool hasSavedTask,
     bool repeatedValidationTool = false,
     bool inspectedFailingFile = false,
+    Set<String> budgetReducedToolNames = const {},
   }) {
     final repeatedToolNames = _repeatedToolNames(toolCalls);
+    final reduced = _reducedRepeatedToolNames(
+      toolCalls,
+      budgetReducedToolNames,
+    );
     return [
       'You already attempted the same follow-up tool call for the current task.',
       if (repeatedToolNames.isNotEmpty)
         'Do not repeat identical tool calls again in this turn: $repeatedToolNames.',
-      'Use the previous tool results and take the next concrete task step now.',
+      if (reduced.isNotEmpty)
+        ..._budgetReductionLines(reduced)
+      else
+        'Use the previous tool results and take the next concrete task step now.',
       'If the user requested local file creation or modification and no successful file mutation result is already provided, your next action must be write_file or edit_file, or a concise blocker that clearly says no files were created.',
       'Do not claim that files were created, edited, saved, moved, or deleted unless the provided tool results include the successful file operation.',
       if (hasSavedTask)
@@ -70,6 +84,32 @@ final class DuplicateRecoveryPromptBuilder {
           : 'Do not restate the plan and do not ask for confirmation.',
     ].join('\n');
   }
+
+  /// The lines that replace "use the previous tool results" when the prompt
+  /// does not actually carry them.
+  ///
+  /// Telling a model to reuse a result the budget cut is an instruction it
+  /// cannot follow, and re-issuing the same call -- the only move left -- is
+  /// the one this prompt forbids. Naming the range read gives it a way out that
+  /// the duplicate check does not block, because the arguments differ.
+  List<String> _budgetReductionLines(String reducedToolNames) => [
+    'The earlier $reducedToolNames result was shortened to fit the prompt '
+        'budget, so its full content is not available in this conversation.',
+    'Do not repeat the same whole-file call. Call read_file with the path, an '
+        'offset, and a small limit to fetch only the range you still need, or '
+        'act on what you already have.',
+  ];
+
+  String _reducedRepeatedToolNames(
+    List<ToolCallInfo> toolCalls,
+    Set<String> budgetReducedToolNames,
+  ) => toolCalls
+      .map((toolCall) => toolCall.name.trim())
+      .where(
+        (name) => name.isNotEmpty && budgetReducedToolNames.contains(name),
+      )
+      .toSet()
+      .join(', ');
 
   String _repeatedToolNames(List<ToolCallInfo> toolCalls) => toolCalls
       .map((toolCall) => toolCall.name.trim())

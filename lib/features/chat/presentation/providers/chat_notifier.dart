@@ -7611,6 +7611,9 @@ class ChatNotifier extends Notifier<ChatState> {
     ),
     previousExactExitCodeExpectationFailed:
         _toolResultsMentionExactNonZeroExitCodeExpectation(previousToolResults),
+    budgetReducedToolNames: ToolResultPromptBuilder.budgetReducedToolNames(
+      previousToolResults,
+    ),
   );
 
   /// Redirects a model that re-issues the same follow-up call.
@@ -7624,6 +7627,9 @@ class ChatNotifier extends Notifier<ChatState> {
     repeatedValidationTool: toolCalls.any(_isRepeatableCommandTool),
     inspectedFailingFile: previousToolResults.any(
       (toolResult) => toolResult.name == 'read_file',
+    ),
+    budgetReducedToolNames: ToolResultPromptBuilder.budgetReducedToolNames(
+      previousToolResults,
     ),
   );
 

@@ -364,12 +364,57 @@ class ToolResultPromptBuilder {
             result: _truncateTextWithMiddle(
               toolResult.result,
               maxChars: perResultTarget,
+              // The per-result pass hands back a read_more_hint; this whole-list
+              // pass used to cut the serialized text with no way back, so a
+              // model missing the content could only re-issue the same call --
+              // which the duplicate guard then refused. Name the recoverable
+              // action here too.
               reason:
-                  'Tool result was further reduced to fit the prompt budget.',
+                  'Tool result was further reduced to fit the prompt budget. '
+                  'Re-read the exact range you still need with read_file '
+                  'offset and limit rather than repeating the same call.',
             ),
           ),
         )
         .toList(growable: false);
+  }
+
+  /// Substring shared by every prompt-budget truncation notice.
+  static const String promptBudgetReductionMarker =
+      'reduced to fit the prompt budget';
+
+  /// Names of the tools whose rendered result the prompt budget shortens.
+  ///
+  /// Ground truth, not an estimate: it runs the same budgeting the prompt will
+  /// run and reads the notice out of the rendered text. The duplicate-recovery
+  /// guards need it because "use the previous tool results" is false for a
+  /// result the budget cut out of the prompt -- in session a0ca65b7 four files
+  /// reached the model intact once each and reduced 13 to 18 times, so every
+  /// re-read the guard called redundant was the model trying to recover
+  /// content the prompt no longer carried.
+  static Set<String> budgetReducedToolNames(
+    List<ToolResultInfo> toolResults, {
+    ToolResultPromptBudgetMode mode = ToolResultPromptBudgetMode.normal,
+    Set<String> protectedPaths = const {},
+    bool summaryFirst = false,
+  }) {
+    final budgeted = budgetToolResults(
+      toolResults,
+      mode: mode,
+      protectedPaths: protectedPaths,
+      summaryFirst: summaryFirst,
+    );
+    final names = <String>{};
+    for (final toolResult in budgeted) {
+      if (!toolResult.result.contains(promptBudgetReductionMarker)) {
+        continue;
+      }
+      final name = toolResult.name.trim();
+      if (name.isNotEmpty) {
+        names.add(name);
+      }
+    }
+    return names;
   }
 
   static bool hasAdditionalCompactBudgetReduction(
