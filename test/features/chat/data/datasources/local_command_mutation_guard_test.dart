@@ -35,6 +35,50 @@ void main() {
       );
     });
 
+    test('ignores a heredoc body written into an in-root file', () {
+      // Session a0ca65b7 wrote JavaScript this way and the body's `//`
+      // comment markers were read as absolute paths, so an in-root write was
+      // denied with `path: "//"`.
+      const command =
+          "cat > js/cave.js << 'CAVE_EOF'\n"
+          '// Procedural cave geometry generator.\n'
+          '/** doc */\n'
+          'function noise(seed) { return seed >>> 0; }\n'
+          '// see ../sibling for the older version\n'
+          'CAVE_EOF';
+      expect(LocalCommandMutationGuard.writePathCandidates(command), isEmpty);
+    });
+
+    test('keeps collecting operands after a heredoc closes', () {
+      const command =
+          "cat > notes.txt << 'EOF'\n"
+          '// body\n'
+          'EOF\n'
+          'touch /tmp/secret';
+      expect(LocalCommandMutationGuard.writePathCandidates(command), [
+        '/tmp/secret',
+      ]);
+    });
+
+    test('still sees an outside path a heredoc body names', () {
+      const command =
+          "python3 << 'EOF'\n"
+          "open('/tmp/secret', 'w')\n"
+          'EOF';
+      expect(LocalCommandMutationGuard.writePathCandidates(command), [
+        '/tmp/secret',
+      ]);
+    });
+
+    test('treats a quoted `<<` as text rather than a heredoc', () {
+      const command =
+          'echo "a << EOF"\n'
+          'touch /tmp/secret';
+      expect(LocalCommandMutationGuard.writePathCandidates(command), [
+        '/tmp/secret',
+      ]);
+    });
+
     test('collects a write after a command separator', () {
       expect(
         LocalCommandMutationGuard.writePathCandidates(
