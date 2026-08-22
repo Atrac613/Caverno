@@ -1,13 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/logger.dart';
 import '../domain/entities/app_settings.dart';
+import 'encrypted_settings_export_codec.dart';
 import 'settings_export_sanitizer.dart';
+
+typedef EncryptedSettingsPassphraseProvider = Future<String?> Function();
 
 final settingsFileServiceProvider = Provider<SettingsFileService>((ref) {
   return SettingsFileService();
@@ -17,7 +20,15 @@ class SettingsFileService {
   static final _urlPattern = RegExp(r'^https?://.+');
   static const _exportSanitizer = SettingsExportSanitizer();
 
-  Future<AppSettings?> importSettings() async {
+  Future<AppSettings?> importSettings() => _importSettings();
+
+  Future<AppSettings?> importSettingsWithEncryptedPassphrase(
+    EncryptedSettingsPassphraseProvider requestPassphrase,
+  ) => _importSettings(requestPassphrase: requestPassphrase);
+
+  Future<AppSettings?> _importSettings({
+    EncryptedSettingsPassphraseProvider? requestPassphrase,
+  }) async {
     try {
       appLog('[SettingsImport] Opening settings JSON picker');
       final result = await FilePicker.pickFiles(
@@ -35,6 +46,11 @@ class SettingsFileService {
         '[SettingsImport] Selected ${file.name} '
         '(${file.bytes?.length ?? file.size} bytes)',
       );
+      final selectedByteLength = file.bytes?.length ?? file.size;
+      if (selectedByteLength >
+          EncryptedSettingsExportCodec.maximumEnvelopeBytes) {
+        throw const FormatException('Settings import is too large');
+      }
       String content;
 
       if (file.bytes != null) {
@@ -45,10 +61,24 @@ class SettingsFileService {
         appLog('[SettingsImport] Selected file has no bytes or readable path');
         return null;
       }
+      String? passphrase;
+      if (EncryptedSettingsExportCodec.isEncryptedEnvelope(content)) {
+        if (requestPassphrase == null) {
+          throw const FormatException(
+            'Encrypted settings import requires a passphrase',
+          );
+        }
+        passphrase = await requestPassphrase();
+        if (passphrase == null) {
+          appLog('[SettingsImport] Encrypted settings import cancelled');
+          return null;
+        }
+      }
 
-      final json = jsonDecode(content) as Map<String, dynamic>;
-      final settings = AppSettings.fromJson(json);
-      validateSettings(settings);
+      final settings = await decodeSettingsImport(
+        content,
+        passphrase: passphrase,
+      );
       appLog('[SettingsImport] Settings JSON validated successfully');
       return settings;
     } catch (error, stackTrace) {
@@ -73,8 +103,63 @@ class SettingsFileService {
     return result;
   }
 
+  Future<String?> exportSettingsWithSecrets(
+    AppSettings settings,
+    String passphrase,
+  ) async {
+    final encrypted = await encryptSettings(settings, passphrase);
+    final bytes = utf8.encode(encrypted);
+
+    return FilePicker.saveFile(
+      dialogTitle: 'Export Encrypted Settings',
+      fileName: 'caverno_settings_encrypted.json',
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      bytes: Uint8List.fromList(bytes),
+    );
+  }
+
   static String encodeSettings(AppSettings settings) {
     return jsonEncode(_exportSanitizer.toExportJson(settings));
+  }
+
+  static Future<String> encryptSettings(
+    AppSettings settings,
+    String passphrase,
+  ) {
+    return compute(_encryptSettingsExport, <String, String>{
+      'plaintext': jsonEncode(settings.toJson()),
+      'passphrase': passphrase,
+    });
+  }
+
+  static Future<String> decryptSettings(String envelope, String passphrase) {
+    return compute(_decryptSettingsExport, <String, String>{
+      'envelope': envelope,
+      'passphrase': passphrase,
+    });
+  }
+
+  static Future<AppSettings> decodeSettingsImport(
+    String content, {
+    String? passphrase,
+  }) async {
+    if (utf8.encode(content).length >
+        EncryptedSettingsExportCodec.maximumEnvelopeBytes) {
+      throw const FormatException('Settings import is too large');
+    }
+    if (EncryptedSettingsExportCodec.isEncryptedEnvelope(content)) {
+      if (passphrase == null) {
+        throw const FormatException(
+          'Encrypted settings import requires a passphrase',
+        );
+      }
+      content = await decryptSettings(content, passphrase);
+    }
+    final json = jsonDecode(content) as Map<String, dynamic>;
+    final settings = AppSettings.fromJson(json);
+    validateSettings(settings);
+    return settings;
   }
 
   /// Validates imported settings values.
@@ -124,4 +209,18 @@ class SettingsFileService {
       );
     }
   }
+}
+
+String _encryptSettingsExport(Map<String, String> request) {
+  return EncryptedSettingsExportCodec().encrypt(
+    plaintext: request['plaintext']!,
+    passphrase: request['passphrase']!,
+  );
+}
+
+String _decryptSettingsExport(Map<String, String> request) {
+  return EncryptedSettingsExportCodec().decrypt(
+    envelope: request['envelope']!,
+    passphrase: request['passphrase']!,
+  );
 }

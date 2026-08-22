@@ -24,6 +24,30 @@ final class EncryptedSettingsExportCodec {
   static const _keyLength = 32;
   static const _authenticationTagBits = 128;
 
+  static bool isEncryptedEnvelope(String content) {
+    if (utf8.encode(content).length > maximumEnvelopeBytes) return false;
+    try {
+      final decoded = jsonDecode(content);
+      return decoded is Map<String, dynamic> && decoded['schema'] == schema;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static void validatePassphrase(String passphrase) {
+    final bytes = Uint8List.fromList(utf8.encode(passphrase));
+    try {
+      if (passphrase.runes.length < minimumPassphraseCharacters ||
+          bytes.length > maximumPassphraseBytes) {
+        throw const FormatException(
+          'Passphrase must contain at least 12 characters and at most 1024 bytes',
+        );
+      }
+    } finally {
+      bytes.fillRange(0, bytes.length, 0);
+    }
+  }
+
   String encrypt({required String plaintext, required String passphrase}) {
     final passwordBytes = _validatePassphrase(passphrase);
     final plaintextBytes = Uint8List.fromList(utf8.encode(plaintext));
@@ -139,15 +163,8 @@ final class EncryptedSettingsExportCodec {
   }
 
   Uint8List _validatePassphrase(String passphrase) {
-    final bytes = Uint8List.fromList(utf8.encode(passphrase));
-    if (passphrase.runes.length < minimumPassphraseCharacters ||
-        bytes.length > maximumPassphraseBytes) {
-      bytes.fillRange(0, bytes.length, 0);
-      throw const FormatException(
-        'Passphrase must contain at least 12 characters and at most 1024 bytes',
-      );
-    }
-    return bytes;
+    validatePassphrase(passphrase);
+    return Uint8List.fromList(utf8.encode(passphrase));
   }
 
   Uint8List _deriveKey({
