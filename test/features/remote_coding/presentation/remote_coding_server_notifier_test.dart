@@ -173,6 +173,41 @@ Future<WebSocket> _waitForPinnedConnection(
   }
 }
 
+Future<({ProviderContainer container, int port})> _startResourceLimitedServer({
+  required RemoteCodingResourcePolicy policy,
+  List<RemoteCodingPairedDevice> pairedDevices = const [],
+}) async {
+  SharedPreferences.setMockInitialValues({});
+  final prefs = await SharedPreferences.getInstance();
+  final port = await _unusedPort();
+  await RemoteCodingRepository(prefs).saveServerSettings(
+    RemoteCodingServerSettings(
+      enabled: true,
+      port: port,
+      pairedDevices: pairedDevices,
+    ),
+  );
+  final container = ProviderContainer(
+    overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      remoteCodingRepositoryProvider.overrideWithValue(
+        RemoteCodingRepository(prefs, secureStore: _MemorySecureStore()),
+      ),
+      remoteCodingResourcePolicyProvider.overrideWithValue(policy),
+      codingProjectsNotifierProvider.overrideWith(
+        _TestCodingProjectsNotifier.new,
+      ),
+      conversationsNotifierProvider.overrideWith(
+        _TestConversationsNotifier.new,
+      ),
+      chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+    ],
+  );
+  container.read(remoteCodingServerProvider);
+  await _waitUntil(() => container.read(remoteCodingServerProvider).isRunning);
+  return (container: container, port: port);
+}
+
 String _certificatePin(ProviderContainer container) {
   final pin = container.read(remoteCodingServerProvider).certificatePin;
   expect(pin, isNotNull);
@@ -1047,6 +1082,195 @@ void main() {
         await expiredSocket?.close();
         await replacementSocket?.close();
         container.dispose();
+      }
+    },
+  );
+
+  for (final frameCase in <({String name, Object value})>[
+    (name: 'text', value: 'x' * 65),
+    (name: 'binary', value: List<int>.filled(65, 0)),
+  ]) {
+    test(
+      'closes oversized ${frameCase.name} frames and releases capacity',
+      () async {
+        final server = await _startResourceLimitedServer(
+          policy: const RemoteCodingResourcePolicy(
+            maxConnections: 1,
+            maxConnectionsPerAddress: 1,
+            authenticationDeadline: Duration(seconds: 5),
+            maxInboundFrameBytes: 64,
+          ),
+        );
+        WebSocket? socket;
+        WebSocket? replacementSocket;
+        StreamSubscription<dynamic>? subscription;
+        final messages = <RemoteCodingProtocolMessage>[];
+        final closed = Completer<void>();
+        try {
+          socket = await _connectPinned(server.container, server.port);
+          subscription = socket.listen((raw) {
+            if (raw is String) {
+              messages.add(RemoteCodingProtocolMessage.decode(raw));
+            }
+          }, onDone: closed.complete);
+
+          socket.add(frameCase.value);
+          await _waitUntil(
+            () => messages.any(
+              (message) =>
+                  message.type == 'error' &&
+                  message.payload['code'] ==
+                      RemoteCodingResourcePolicy.frameTooLargeCode,
+            ),
+          );
+          await closed.future.timeout(const Duration(seconds: 3));
+          expect(socket.closeCode, WebSocketStatus.messageTooBig);
+
+          replacementSocket = await _waitForPinnedConnection(
+            server.container,
+            server.port,
+          );
+        } finally {
+          await subscription?.cancel();
+          await socket?.close();
+          await replacementSocket?.close();
+          server.container.dispose();
+        }
+      },
+    );
+  }
+
+  test(
+    'closes an unauthenticated client that exceeds its message rate',
+    () async {
+      final server = await _startResourceLimitedServer(
+        policy: const RemoteCodingResourcePolicy(
+          authenticationDeadline: Duration(seconds: 5),
+          maxUnauthenticatedMessagesPerWindow: 1,
+        ),
+      );
+      WebSocket? socket;
+      StreamSubscription<dynamic>? subscription;
+      final messages = <RemoteCodingProtocolMessage>[];
+      final closed = Completer<void>();
+      try {
+        socket = await _connectPinned(server.container, server.port);
+        subscription = socket.listen((raw) {
+          if (raw is String) {
+            messages.add(RemoteCodingProtocolMessage.decode(raw));
+          }
+        }, onDone: closed.complete);
+        await _waitForChallenge(messages);
+        final request = RemoteCodingProtocol.encode(
+          type: 'requestSnapshot',
+          id: 'unauthenticated-rate',
+          payload: const {},
+        );
+
+        socket
+          ..add(request)
+          ..add(request);
+
+        await _waitUntil(
+          () => messages.any(
+            (message) =>
+                message.type == 'error' &&
+                message.payload['code'] ==
+                    RemoteCodingResourcePolicy.messageRateExceededCode,
+          ),
+        );
+        await closed.future.timeout(const Duration(seconds: 3));
+        expect(socket.closeCode, WebSocketStatus.policyViolation);
+      } finally {
+        await subscription?.cancel();
+        await socket?.close();
+        server.container.dispose();
+      }
+    },
+  );
+
+  test(
+    'gives an authenticated client a separate bounded message budget',
+    () async {
+      const rawToken = 'rate-limited-mobile-token';
+      final device = RemoteCodingPairedDevice(
+        id: 'rate-limited-device',
+        name: 'Phone',
+        tokenHash: RemoteCodingSecurity.hashToken(rawToken),
+        createdAt: DateTime(2026, 8, 22, 12),
+        lastSeenAt: DateTime(2026, 8, 22, 12),
+      );
+      final server = await _startResourceLimitedServer(
+        policy: const RemoteCodingResourcePolicy(
+          authenticationDeadline: Duration(seconds: 5),
+          maxUnauthenticatedMessagesPerWindow: 1,
+          maxAuthenticatedMessagesPerWindow: 1,
+        ),
+        pairedDevices: [device],
+      );
+      WebSocket? socket;
+      StreamSubscription<dynamic>? subscription;
+      final messages = <RemoteCodingProtocolMessage>[];
+      final closed = Completer<void>();
+      try {
+        socket = await _connectPinned(server.container, server.port);
+        subscription = socket.listen((raw) {
+          if (raw is String) {
+            messages.add(RemoteCodingProtocolMessage.decode(raw));
+          }
+        }, onDone: closed.complete);
+        final challenge = await _waitForChallenge(messages);
+        _sendChallengedAuth(
+          socket,
+          id: 'rate-auth',
+          challenge: challenge,
+          certificatePin: _certificatePin(server.container),
+          credential: rawToken,
+          token: rawToken,
+        );
+        await _waitUntil(
+          () => messages.any(
+            (message) =>
+                message.id == 'rate-auth' && message.type == 'snapshot',
+          ),
+        );
+
+        socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'requestSnapshot',
+            id: 'within-authenticated-rate',
+            payload: const {},
+          ),
+        );
+        await _waitUntil(
+          () => messages.any(
+            (message) =>
+                message.id == 'within-authenticated-rate' &&
+                message.type == 'snapshot',
+          ),
+        );
+        socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'requestSnapshot',
+            id: 'over-authenticated-rate',
+            payload: const {},
+          ),
+        );
+
+        await _waitUntil(
+          () => messages.any(
+            (message) =>
+                message.type == 'error' &&
+                message.payload['code'] ==
+                    RemoteCodingResourcePolicy.messageRateExceededCode,
+          ),
+        );
+        await closed.future.timeout(const Duration(seconds: 3));
+        expect(socket.closeCode, WebSocketStatus.policyViolation);
+      } finally {
+        await subscription?.cancel();
+        await socket?.close();
+        server.container.dispose();
       }
     },
   );

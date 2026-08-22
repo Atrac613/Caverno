@@ -448,6 +448,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         socket,
         connectionId: _uuid.v4(),
         remoteAddress: remoteAddress,
+        resourcePolicy: _resourcePolicy,
       );
       _clients.add(client);
       client.startAuthenticationDeadline(
@@ -490,6 +491,22 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   Future<void> _handleClient(_RemoteCodingSocketClient client) async {
     try {
       await for (final raw in client.socket) {
+        if (!_resourcePolicy.acceptsInboundFrame(raw)) {
+          await client.closeWithError(
+            code: RemoteCodingResourcePolicy.frameTooLargeCode,
+            message: 'Remote coding message exceeds the inbound frame limit.',
+            status: WebSocketStatus.messageTooBig,
+          );
+          return;
+        }
+        if (!client.tryAcceptInboundMessage()) {
+          await client.closeWithError(
+            code: RemoteCodingResourcePolicy.messageRateExceededCode,
+            message: 'Remote coding message rate limit exceeded.',
+            status: WebSocketStatus.policyViolation,
+          );
+          return;
+        }
         if (raw is! String) {
           client.sendError(
             code: 'invalid_message',
@@ -1427,13 +1444,19 @@ class _RemoteCodingSocketClient {
     this.socket, {
     required this.connectionId,
     required this.remoteAddress,
-  });
+    required RemoteCodingResourcePolicy resourcePolicy,
+  }) : _unauthenticatedMessageRateLimiter = resourcePolicy
+           .createUnauthenticatedMessageRateLimiter(),
+       _authenticatedMessageRateLimiter = resourcePolicy
+           .createAuthenticatedMessageRateLimiter();
 
   final WebSocket socket;
   final String connectionId;
   final InternetAddress remoteAddress;
   String? deviceId;
   RemoteCodingSessionAuthorization? session;
+  final RemoteCodingMessageRateLimiter _unauthenticatedMessageRateLimiter;
+  final RemoteCodingMessageRateLimiter _authenticatedMessageRateLimiter;
   Timer? _authenticationDeadlineTimer;
   Future<void>? _closeFuture;
 
@@ -1464,6 +1487,26 @@ class _RemoteCodingSocketClient {
     );
   }
 
+  bool tryAcceptInboundMessage() {
+    final limiter = isAuthenticated
+        ? _authenticatedMessageRateLimiter
+        : _unauthenticatedMessageRateLimiter;
+    return limiter.tryAcquire();
+  }
+
+  Future<void> closeWithError({
+    required String code,
+    required String message,
+    required int status,
+  }) async {
+    try {
+      sendError(code: code, message: message);
+    } on StateError {
+      // The peer may close while the server is sending the rejection.
+    }
+    await close(status: status);
+  }
+
   void startAuthenticationDeadline(
     Duration duration,
     void Function() onExpired,
@@ -1481,18 +1524,26 @@ class _RemoteCodingSocketClient {
     cancelAuthenticationDeadline();
   }
 
-  Future<void> close({bool notify = false, String? reason}) {
+  Future<void> close({
+    bool notify = false,
+    String? reason,
+    int status = WebSocketStatus.goingAway,
+  }) {
     final pendingClose = _closeFuture;
     if (pendingClose != null) {
       return pendingClose;
     }
     cancelAuthenticationDeadline();
-    final closeFuture = _close(notify: notify, reason: reason);
+    final closeFuture = _close(notify: notify, reason: reason, status: status);
     _closeFuture = closeFuture;
     return closeFuture;
   }
 
-  Future<void> _close({required bool notify, String? reason}) async {
+  Future<void> _close({
+    required bool notify,
+    required int status,
+    String? reason,
+  }) async {
     if (notify) {
       try {
         send(
@@ -1503,6 +1554,6 @@ class _RemoteCodingSocketClient {
         // The peer may close while the server is sending the final notice.
       }
     }
-    await socket.close(WebSocketStatus.goingAway);
+    await socket.close(status);
   }
 }
