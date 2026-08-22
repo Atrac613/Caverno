@@ -331,7 +331,11 @@ const Map<String, int> _lineBudgets = {
   // +24 to route a dropped video to the composer: the drop target's new
   // callback, the pending attachment it produces, and the video argument
   // threaded through the two send handlers.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1995,
+  // -77: message-list scrolling moved to ThreadScrollCoordinator, a plain
+  // class outside this library. The page kept the controller hand-off and the
+  // one build-time call that tells the coordinator which thread is on screen.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1918,
+  'lib/features/chat/presentation/pages/thread_scroll_coordinator.dart': 287,
   'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
   // The device listing moved to flutter_run_device_lister.dart when it grew
   // a stream, a timeout and a drain.
@@ -646,7 +650,10 @@ const Map<String, int> _libraryLineBudgets = {
   // both families and branching between two widgets. ProjectRunControlSection
   // owns that choice now, so the panel asks one question instead.
   // +24 matching the primary file: the dropped-video route added no part.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8919,
+  // -31: the same extraction. Scrolling left the library entirely rather than
+  // moving into a part, so the aggregate drops even though the feature that
+  // prompted it -- per-thread scroll restore -- added code.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8888,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };
