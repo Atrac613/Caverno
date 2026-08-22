@@ -1028,6 +1028,34 @@ void main() {
     }
   });
 
+  test('rejects excess total sockets before upgrade', () async {
+    final server = await _startResourceLimitedServer(
+      policy: const RemoteCodingResourcePolicy(
+        maxConnections: 1,
+        maxConnectionsPerAddress: 1,
+        authenticationDeadline: Duration(seconds: 5),
+      ),
+    );
+    WebSocket? firstSocket;
+    try {
+      firstSocket = await _connectPinned(server.container, server.port);
+
+      await expectLater(
+        _connectPinned(server.container, server.port),
+        throwsA(
+          isA<WebSocketException>().having(
+            (error) => error.toString(),
+            'description',
+            contains('${HttpStatus.serviceUnavailable}'),
+          ),
+        ),
+      );
+    } finally {
+      await firstSocket?.close();
+      server.container.dispose();
+    }
+  });
+
   test(
     'closes unauthenticated sockets at the deadline and releases capacity',
     () async {
