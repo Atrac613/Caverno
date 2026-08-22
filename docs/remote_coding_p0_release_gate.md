@@ -25,11 +25,12 @@ P0 covers these release blockers:
 
 ## Security Audit Qualification
 
-Passing this P0 gate does not close unauthenticated connection and frame
+Passing this P0 gate does not close frame-size and authenticated message-rate
 limits. SEC4.5c uses pinned `wss://` with a certificate pin on pairing QR
-codes, and SEC4.5d requires a live channel-bound HMAC proof before issuing
-an in-memory session. The 2026-08-14 audit still records unbounded sockets
-and frames as SA-10 remainder (SEC4.5e) in
+codes, SEC4.5d requires a live channel-bound HMAC proof before issuing an
+in-memory session, and SEC4.5e-A bounds global/per-address socket occupancy
+plus authentication time. The 2026-08-14 audit still records unbounded frames
+and message rates as the SA-10 remainder (SEC4.5e-B) in
 `docs/security_audit_2026-08-14.md`.
 
 A release build must not expose a plaintext non-loopback Remote Coding

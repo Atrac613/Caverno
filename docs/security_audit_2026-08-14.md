@@ -85,7 +85,7 @@ conventions:
 | SA-07 | High | Taint policy is advisory before cache and full-access decisions (fixed 2026-08-14) | SEC2.3b |
 | SA-08 | Medium | File mutations can escape project scope through missing or lexical-only containment (write/edit/delete fence landed 2026-08-19; git cwd fence landed 2026-08-21; git pathspec fence landed 2026-08-21; local-command write fence landed 2026-08-21) | SEC4.4 |
 | SA-09 | Medium | Routines treat every external MCP tool as read-only (denied by default 2026-08-21; reviewed grants pending) | SEC4.4 |
-| SA-10 | Medium | HTTP bodies and unauthenticated Remote Coding sockets/frames are unbounded | SEC4.3, RC1 |
+| SA-10 | Medium | HTTP bodies and Remote Coding frames/rates are unbounded (socket caps and authentication deadline landed 2026-08-22) | SEC4.3, RC1 |
 | SA-11 | Medium | Settings secrets are persisted and exported in cleartext | SEC4.6 |
 | SA-12 | Medium | Non-loopback plaintext LLM endpoints can receive bearer credentials and private content | SEC4.5 |
 | SA-13 | Medium | Approval-audit redaction does not recurse into nested arguments | SEC4.6 |
@@ -449,13 +449,13 @@ that collide with allowed built-ins. Dispatch refuses
 ### SA-10: Resource Exhaustion
 
 `lib/features/chat/data/datasources/network_http_tools.dart:225-279` buffers a
-complete response before truncating it. Remote Coding retains unauthenticated
-sockets without connection, authentication, or frame limits at
-`lib/features/remote_coding/presentation/remote_coding_server_notifier.dart:357-407`
-and decodes unbounded JSON at
-`lib/features/remote_coding/data/remote_coding_protocol.dart:16-41`. Add
-streaming byte ceilings, total and idle deadlines, socket/per-IP caps,
-authentication deadlines, frame limits, and rate limiting.
+complete response before truncating it. SEC4.5e-A landed 2026-08-22: Remote
+Coding now rejects excess global or per-address sockets before WebSocket
+upgrade and closes sockets that miss the authentication deadline. It still
+decodes unbounded JSON at
+`lib/features/remote_coding/data/remote_coding_protocol.dart:16-41`. SEC4.5e-B
+must add frame-size and authenticated message-rate limits. SEC4.3d separately
+owns HTTP streaming byte ceilings plus total and idle deadlines.
 
 ### SA-11: Cleartext Settings Secrets And Exports
 
@@ -612,7 +612,7 @@ Add negative coverage for:
 | P0-4 | SEC4.4a project read containment (completed 2026-08-14) | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
 | P0-5 | SEC4.5a-SEC4.5b authenticated transport containment (completed 2026-08-19) | SA-05, SA-06 | SSH known-host mismatch fails before authentication. A release build cannot start a plaintext non-loopback Remote Coding listener. |
 | P1-1 | SEC4.4b/SEC4.4c/SEC4.4d/SEC4.4e/SEC4.4f mutation and autonomous containment (mutation fence completed 2026-08-19; routine MCP deny-by-default completed 2026-08-21; git cwd fence completed 2026-08-21; git pathspec fence completed 2026-08-21; local-command write fence completed 2026-08-21) | SA-08, SA-09 | Write/edit/delete go through a symlink-aware project fence. Unclassified external MCP tools are omitted from routine catalogs and denied at dispatch. Git working directories use the same fence. Relocating git globals and escaping pathspecs are denied. Local-command writes use the same fence when a project is selected. |
-| P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (SEC4.5c pinned WSS completed 2026-08-21; SEC4.5d challenge-bound sessions completed 2026-08-21) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
+| P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (SEC4.5c pinned WSS completed 2026-08-21; SEC4.5d challenge-bound sessions completed 2026-08-21; SEC4.5e-A connection admission completed 2026-08-22) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
 | P1-3 | SEC4.6 data protection and lifecycle | SA-11, SA-13, SA-14, SA-15, SA-17, SA-18 | Secret-free storage/export, recursive redaction, opt-out, migration, backup, and deletion tests pass. |
 | P1-4 | SEC4.7 release supply-chain hardening | SA-16 | Immutable actions, pinned toolchain, checksum, dependency monitoring, and fail-closed release signing are enforced. |
 

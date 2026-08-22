@@ -62,7 +62,11 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending implementation.
-- Coverage notes: Exercise admission rejection and timer cleanup directly.
+- Summary: Added global and per-address admission caps, a bounded
+  authentication deadline, and idempotent socket cleanup.
+- Tests run: Focused policy/server tests and targeted static analysis passed.
+  The repository file-size ratchet still reports four unrelated baseline
+  overruns in ChatNotifier and ChatRemoteDataSource files.
+- Coverage notes: Direct tests exercise peer rejection, authentication deadline
+  cleanup, successful-auth timer cancellation, and capacity reuse.
 - Risks or follow-ups: Frame and message-rate enforcement remain SEC4.5e-B.
