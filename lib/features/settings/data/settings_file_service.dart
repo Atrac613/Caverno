@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/logger.dart';
 import '../domain/entities/app_settings.dart';
+import 'settings_export_sanitizer.dart';
 
 final settingsFileServiceProvider = Provider<SettingsFileService>((ref) {
   return SettingsFileService();
@@ -14,6 +15,7 @@ final settingsFileServiceProvider = Provider<SettingsFileService>((ref) {
 
 class SettingsFileService {
   static final _urlPattern = RegExp(r'^https?://.+');
+  static const _exportSanitizer = SettingsExportSanitizer();
 
   Future<AppSettings?> importSettings() async {
     try {
@@ -57,7 +59,7 @@ class SettingsFileService {
   }
 
   Future<String?> exportSettings(AppSettings settings) async {
-    final jsonString = jsonEncode(settings.toJson());
+    final jsonString = encodeSettings(settings);
     final bytes = utf8.encode(jsonString);
 
     final result = await FilePicker.saveFile(
@@ -69,6 +71,10 @@ class SettingsFileService {
     );
 
     return result;
+  }
+
+  static String encodeSettings(AppSettings settings) {
+    return jsonEncode(_exportSanitizer.toExportJson(settings));
   }
 
   /// Validates imported settings values.

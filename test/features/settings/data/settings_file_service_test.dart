@@ -356,8 +356,8 @@ void main() {
   });
 
   group('JSON round-trip', () {
-    test('exported JSON can be deserialized and passes validation', () {
-      final json = jsonEncode(validSettings.toJson());
+    test('exported JSON can be deserialized without the API key', () {
+      final json = SettingsFileService.encodeSettings(validSettings);
       final decoded = jsonDecode(json) as Map<String, dynamic>;
       final reimported = AppSettings.fromJson(decoded);
 
@@ -365,7 +365,66 @@ void main() {
         () => SettingsFileService.validateSettings(reimported),
         returnsNormally,
       );
-      expect(reimported, equals(validSettings));
+      expect(reimported, equals(validSettings.copyWith(apiKey: '')));
+      expect(json, isNot(contains('test-key')));
+    });
+
+    test('default export removes all settings credential fields', () {
+      final settings = validSettings.copyWith(
+        apiKey: 'primary-secret',
+        llmEndpoints: const [
+          LlmEndpoint(
+            id: 'primary',
+            baseUrl: 'https://api.example.com/v1',
+            apiKey: 'endpoint-secret',
+          ),
+        ],
+        googleChatWebhookUrl:
+            'https://chat.googleapis.com/v1/spaces/secret-webhook',
+        feedbackEndpointAuthToken: 'feedback-secret',
+        mcpServers: const [
+          McpServerConfig(
+            url: 'https://mcp.example.com',
+            env: {'MCP_TOKEN': 'mcp-secret'},
+          ),
+        ],
+        externalToolHooks: const [
+          ExternalToolHook(
+            id: 'hook',
+            event: 'after_tool',
+            command: 'hook-command',
+            env: {'HOOK_TOKEN': 'hook-secret'},
+          ),
+        ],
+      );
+
+      final encoded = SettingsFileService.encodeSettings(settings);
+      final decoded = jsonDecode(encoded) as Map<String, dynamic>;
+      final restored = AppSettings.fromJson(decoded);
+
+      expect(settings.apiKey, 'primary-secret');
+      expect(settings.llmEndpoints.single.apiKey, 'endpoint-secret');
+      expect(settings.mcpServers.single.env['MCP_TOKEN'], 'mcp-secret');
+      expect(
+        encoded,
+        isNot(
+          anyOf(
+            contains('primary-secret'),
+            contains('endpoint-secret'),
+            contains('secret-webhook'),
+            contains('feedback-secret'),
+            contains('mcp-secret'),
+            contains('hook-secret'),
+          ),
+        ),
+      );
+      expect(restored.apiKey, isEmpty);
+      expect(restored.llmEndpoints.single.apiKey, isEmpty);
+      expect(restored.googleChatWebhookUrl, isEmpty);
+      expect(restored.feedbackEndpointAuthToken, isEmpty);
+      expect(restored.mcpServers.single.env, isEmpty);
+      expect(restored.externalToolHooks.single.env, isEmpty);
+      expect(restored.model, settings.model);
     });
 
     test('all fields survive round-trip', () {
