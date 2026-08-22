@@ -1,8 +1,6 @@
 import 'package:caverno/core/services/ssh_host_key.dart';
 import 'package:caverno/core/services/ssh_known_hosts_store.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/domain/entities/ssh_auth_credential.dart';
-import 'package:caverno/features/chat/domain/services/ssh_tool_contract.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_ssh_tool_runtime.dart';
 import 'package:caverno/features/chat/presentation/providers/ssh_host_key_prompt_controller.dart';
 import 'package:caverno/features/chat/presentation/providers/ssh_host_key_prompting_transport.dart';
