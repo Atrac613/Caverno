@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -13,6 +14,16 @@ typedef NetworkPinnedSocketConnector =
       InternetAddress address,
       int port,
     );
+
+final class NetworkHttpResourceLimitException implements Exception {
+  const NetworkHttpResourceLimitException(this.code, this.message);
+
+  final String code;
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 HttpClient _defaultHttpClientFactory() => HttpClient();
 Future<List<InternetAddress>> _defaultAddressLookup(String host) =>
@@ -37,12 +48,31 @@ final class NetworkHttpRequestExecutor {
     NetworkEgressAddressLookup? addressLookup,
     NetworkPinnedSocketConnector? socketConnector,
     EgressDestinationPolicy destinationPolicy = const EgressDestinationPolicy(),
+    this.maxResponseBodyBytes = defaultMaxResponseBodyBytes,
+    this.responseIdleTimeout = defaultResponseIdleTimeout,
   }) : _clientFactory = clientFactory ?? _defaultHttpClientFactory,
        _addressLookup = addressLookup ?? _defaultAddressLookup,
        _socketConnector = socketConnector ?? _defaultPinnedSocketConnector,
-       _destinationPolicy = destinationPolicy;
+       _destinationPolicy = destinationPolicy {
+    if (maxResponseBodyBytes <= 0) {
+      throw ArgumentError.value(
+        maxResponseBodyBytes,
+        'maxResponseBodyBytes',
+        'The response byte limit must be positive.',
+      );
+    }
+    if (responseIdleTimeout <= Duration.zero) {
+      throw ArgumentError.value(
+        responseIdleTimeout,
+        'responseIdleTimeout',
+        'The response idle timeout must be positive.',
+      );
+    }
+  }
 
   static const int _bodyMaxChars = 4000;
+  static const int defaultMaxResponseBodyBytes = 1024 * 1024;
+  static const Duration defaultResponseIdleTimeout = Duration(seconds: 5);
   static const Set<int> _redirectStatusCodes = {
     HttpStatus.movedPermanently,
     HttpStatus.found,
@@ -55,6 +85,8 @@ final class NetworkHttpRequestExecutor {
   final NetworkEgressAddressLookup _addressLookup;
   final NetworkPinnedSocketConnector _socketConnector;
   final EgressDestinationPolicy _destinationPolicy;
+  final int maxResponseBodyBytes;
+  final Duration responseIdleTimeout;
 
   Future<String> execute({
     required String method,
@@ -75,14 +107,25 @@ final class NetworkHttpRequestExecutor {
     var currentBody = body;
     final redirects = <Map<String, dynamic>>[];
     final stopwatch = Stopwatch()..start();
+    final totalTimeout = Duration(seconds: timeoutSeconds);
 
     while (true) {
-      final client = await _createPinnedClient(
-        currentUri,
-        timeoutSeconds: timeoutSeconds,
+      final client = await _beforeDeadline(
+        _createPinnedClient(
+          currentUri,
+          timeoutSeconds: timeoutSeconds,
+          stopwatch: stopwatch,
+          totalTimeout: totalTimeout,
+        ),
+        stopwatch: stopwatch,
+        totalTimeout: totalTimeout,
       );
       try {
-        final request = await client.openUrl(currentMethod, currentUri);
+        final request = await _beforeDeadline(
+          client.openUrl(currentMethod, currentUri),
+          stopwatch: stopwatch,
+          totalTimeout: totalTimeout,
+        );
         request.followRedirects = false;
         request.maxRedirects = 0;
         _writeRequest(
@@ -91,15 +134,22 @@ final class NetworkHttpRequestExecutor {
           body: currentBody,
           contentType: contentType,
         );
-        final response = await request.close().timeout(
-          Duration(seconds: timeoutSeconds),
+        final response = await _beforeDeadline(
+          request.close(),
+          stopwatch: stopwatch,
+          totalTimeout: totalTimeout,
         );
         final redirectUri = followRedirects
             ? _redirectTarget(currentUri, response)
             : null;
         if (redirectUri != null) {
           if (redirects.length >= maxRedirects) {
-            await response.drain<void>();
+            await _consumeResponse(
+              response,
+              stopwatch: stopwatch,
+              totalTimeout: totalTimeout,
+              collectBody: false,
+            );
             throw const EgressPolicyException(
               'too_many_redirects',
               'The response exceeded the configured redirect limit.',
@@ -109,7 +159,12 @@ final class NetworkHttpRequestExecutor {
             'status': response.statusCode,
             'location': redirectUri.toString(),
           });
-          await response.drain<void>();
+          await _consumeResponse(
+            response,
+            stopwatch: stopwatch,
+            totalTimeout: totalTimeout,
+            collectBody: false,
+          );
           currentHeaders = _destinationPolicy.headersForRedirect(
             currentHeaders,
             from: currentUri,
@@ -129,6 +184,12 @@ final class NetworkHttpRequestExecutor {
           continue;
         }
 
+        final responseBytes = await _consumeResponse(
+          response,
+          stopwatch: stopwatch,
+          totalTimeout: totalTimeout,
+          collectBody: includeBody,
+        );
         stopwatch.stop();
         final payload = _baseResponsePayload(
           originalUrl: url,
@@ -138,11 +199,9 @@ final class NetworkHttpRequestExecutor {
           redirects: redirects,
           statusOnly: statusOnly,
         );
-        if (!includeBody) {
-          await response.drain<void>();
-          return jsonEncode(payload);
+        if (includeBody) {
+          _addResponseBody(payload, responseBytes);
         }
-        await _addResponseBody(payload, response);
         return jsonEncode(payload);
       } finally {
         client.close(force: true);
@@ -153,11 +212,14 @@ final class NetworkHttpRequestExecutor {
   Future<HttpClient> _createPinnedClient(
     Uri uri, {
     required int timeoutSeconds,
+    required Stopwatch stopwatch,
+    required Duration totalTimeout,
   }) async {
     final literalAddress = InternetAddress.tryParse(uri.host);
     final addresses = literalAddress == null
         ? await _addressLookup(uri.host)
         : [literalAddress];
+    _remaining(totalTimeout, stopwatch);
     final destination = _destinationPolicy.approveResolvedAddresses(
       uri,
       addresses,
@@ -282,15 +344,93 @@ final class NetworkHttpRequestExecutor {
     return payload;
   }
 
-  Future<void> _addResponseBody(
-    Map<String, dynamic> payload,
-    HttpClientResponse response,
-  ) async {
-    final builder = BytesBuilder(copy: false);
-    await for (final chunk in response) {
-      builder.add(chunk);
+  Future<Uint8List> _consumeResponse(
+    HttpClientResponse response, {
+    required Stopwatch stopwatch,
+    required Duration totalTimeout,
+    required bool collectBody,
+  }) async {
+    final declaredLength = int.tryParse(
+      response.headers.value(HttpHeaders.contentLengthHeader) ?? '',
+    );
+    if (declaredLength != null && declaredLength > maxResponseBodyBytes) {
+      throw _responseTooLarge();
     }
-    final bytes = builder.takeBytes();
+
+    final builder = collectBody ? BytesBuilder(copy: false) : null;
+    var receivedBytes = 0;
+    final iterator = StreamIterator<List<int>>(response);
+    try {
+      while (await _nextChunk(
+        iterator,
+        stopwatch: stopwatch,
+        totalTimeout: totalTimeout,
+      )) {
+        final chunk = iterator.current;
+        receivedBytes += chunk.length;
+        if (receivedBytes > maxResponseBodyBytes) {
+          throw _responseTooLarge();
+        }
+        builder?.add(chunk);
+      }
+    } finally {
+      await iterator.cancel();
+    }
+    return builder?.takeBytes() ?? Uint8List(0);
+  }
+
+  Future<bool> _nextChunk(
+    StreamIterator<List<int>> iterator, {
+    required Stopwatch stopwatch,
+    required Duration totalTimeout,
+  }) async {
+    final remaining = _remaining(totalTimeout, stopwatch);
+    final wait = remaining < responseIdleTimeout
+        ? remaining
+        : responseIdleTimeout;
+    try {
+      return await iterator.moveNext().timeout(wait);
+    } on TimeoutException {
+      if (remaining <= responseIdleTimeout) {
+        throw _totalTimeout(totalTimeout);
+      }
+      throw TimeoutException(
+        'The HTTP response sent no data for '
+        '${responseIdleTimeout.inMilliseconds} ms.',
+        responseIdleTimeout,
+      );
+    }
+  }
+
+  Future<T> _beforeDeadline<T>(
+    Future<T> operation, {
+    required Stopwatch stopwatch,
+    required Duration totalTimeout,
+  }) {
+    return operation.timeout(
+      _remaining(totalTimeout, stopwatch),
+      onTimeout: () => throw _totalTimeout(totalTimeout),
+    );
+  }
+
+  Duration _remaining(Duration totalTimeout, Stopwatch stopwatch) {
+    final remaining = totalTimeout - stopwatch.elapsed;
+    if (remaining <= Duration.zero) {
+      throw _totalTimeout(Duration.zero);
+    }
+    return remaining;
+  }
+
+  TimeoutException _totalTimeout(Duration timeout) =>
+      TimeoutException('The HTTP request exceeded its total timeout.', timeout);
+
+  NetworkHttpResourceLimitException _responseTooLarge() =>
+      NetworkHttpResourceLimitException(
+        'response_too_large',
+        'The HTTP response exceeded the $maxResponseBodyBytes byte limit.',
+      );
+
+  void _addResponseBody(Map<String, dynamic> payload, Uint8List bytes) {
     payload['body_bytes'] = bytes.length;
     String bodyText;
     String encoding;

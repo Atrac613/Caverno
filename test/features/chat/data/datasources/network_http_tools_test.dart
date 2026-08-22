@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/core/security/egress_destination_policy.dart';
+import 'package:caverno/features/chat/data/datasources/network_http_request_executor.dart';
 import 'package:caverno/features/chat/data/datasources/network_http_tools.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -238,6 +239,155 @@ void main() {
     expect(large['body_truncated'], isTrue);
   });
 
+  test('rejects a declared response body over the byte limit', () async {
+    final harness = _FakeHttpHarness([
+      _FakeHttpClient.withResponse(
+        _FakeHttpResponse(
+          headers: const {
+            'content-length': ['6'],
+          },
+          body: utf8.encode('unused'),
+        ),
+      ),
+    ]);
+    final tools = _createTools(harness, maxResponseBodyBytes: 5);
+
+    await expectLater(
+      tools.httpGet(url: 'https://example.test/large'),
+      throwsA(
+        isA<NetworkHttpResourceLimitException>().having(
+          (error) => error.code,
+          'code',
+          'response_too_large',
+        ),
+      ),
+    );
+    expect(harness.createdClients.single.closed, isTrue);
+  });
+
+  test('rejects a chunked response before buffering excess bytes', () async {
+    final harness = _FakeHttpHarness([
+      _FakeHttpClient.withResponse(
+        _FakeHttpResponse(
+          bodyStream: Stream<List<int>>.fromIterable(const [
+            [1, 2, 3],
+            [4, 5, 6],
+          ]),
+        ),
+      ),
+    ]);
+    final tools = _createTools(harness, maxResponseBodyBytes: 5);
+
+    await expectLater(
+      tools.httpGet(url: 'https://example.test/chunked'),
+      throwsA(isA<NetworkHttpResourceLimitException>()),
+    );
+  });
+
+  test('applies the byte limit while discarding redirect bodies', () async {
+    final harness = _FakeHttpHarness([
+      _FakeHttpClient.withResponse(
+        _FakeHttpResponse(
+          statusCode: HttpStatus.found,
+          headers: const {
+            'location': ['https://other.example.test/final'],
+          },
+          body: const [1, 2, 3, 4, 5, 6],
+        ),
+      ),
+    ]);
+    final tools = _createTools(harness, maxResponseBodyBytes: 5);
+
+    await expectLater(
+      tools.httpGet(url: 'https://example.test/start'),
+      throwsA(isA<NetworkHttpResourceLimitException>()),
+    );
+    expect(harness.createdClients, hasLength(1));
+  });
+
+  test('fails when the response stream exceeds its idle timeout', () async {
+    final harness = _FakeHttpHarness([
+      _FakeHttpClient.withResponse(
+        _FakeHttpResponse(
+          bodyStream: Stream<List<int>>.fromFuture(
+            Future<List<int>>.delayed(
+              const Duration(milliseconds: 80),
+              () => const [1],
+            ),
+          ),
+        ),
+      ),
+    ]);
+    final tools = _createTools(
+      harness,
+      responseIdleTimeout: const Duration(milliseconds: 20),
+    );
+
+    await expectLater(
+      tools.httpGet(url: 'https://example.test/stalled'),
+      throwsA(
+        isA<TimeoutException>().having(
+          (error) => error.message,
+          'message',
+          contains('sent no data'),
+        ),
+      ),
+    );
+  });
+
+  test('bounds the total time even while chunks keep arriving', () async {
+    final controller = StreamController<List<int>>();
+    final timer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (_) => controller.add(const [1]),
+    );
+    addTearDown(() async {
+      timer.cancel();
+      await controller.close();
+    });
+    final harness = _FakeHttpHarness([
+      _FakeHttpClient.withResponse(
+        _FakeHttpResponse(bodyStream: controller.stream),
+      ),
+    ]);
+    final tools = _createTools(harness);
+
+    await expectLater(
+      tools.httpGet(url: 'https://example.test/endless', timeoutSeconds: 1),
+      throwsA(
+        isA<TimeoutException>().having(
+          (error) => error.message,
+          'message',
+          contains('total timeout'),
+        ),
+      ),
+    );
+    expect(harness.createdClients.single.closed, isTrue);
+  });
+
+  test(
+    'does not create a client when DNS resolves after the deadline',
+    () async {
+      final harness = _FakeHttpHarness([]);
+      final tools = NetworkHttpTools(
+        clientFactory: harness.createClient,
+        addressLookup: (_) => Future<List<InternetAddress>>.delayed(
+          const Duration(milliseconds: 1200),
+          () => [InternetAddress('93.184.216.34')],
+        ),
+        socketConnector: (uri, address, port) =>
+            throw StateError('unreachable'),
+      );
+
+      await expectLater(
+        tools.httpGet(url: 'https://example.test/slow-dns', timeoutSeconds: 1),
+        throwsA(isA<TimeoutException>()),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(harness.createdClients, isEmpty);
+    },
+  );
+
   test(
     'rejects unsafe and mixed DNS answers before creating a client',
     () async {
@@ -405,7 +555,13 @@ void main() {
   });
 }
 
-NetworkHttpTools _createTools(_FakeHttpHarness harness) {
+NetworkHttpTools _createTools(
+  _FakeHttpHarness harness, {
+  int maxResponseBodyBytes =
+      NetworkHttpRequestExecutor.defaultMaxResponseBodyBytes,
+  Duration responseIdleTimeout =
+      NetworkHttpRequestExecutor.defaultResponseIdleTimeout,
+}) {
   return NetworkHttpTools(
     clientFactory: harness.createClient,
     addressLookup: (_) async => [InternetAddress('93.184.216.34')],
@@ -417,6 +573,8 @@ NetworkHttpTools _createTools(_FakeHttpHarness harness) {
         () {},
       );
     },
+    maxResponseBodyBytes: maxResponseBodyBytes,
+    responseIdleTimeout: responseIdleTimeout,
   );
 }
 
@@ -563,6 +721,7 @@ class _FakeHttpResponse extends Stream<List<int>>
     Map<String, List<String>> headers = const {},
     this.redirects = const [],
     this.body = const [],
+    this.bodyStream,
   }) : headers = _FakeHttpHeaders(headers);
 
   @override
@@ -578,6 +737,7 @@ class _FakeHttpResponse extends Stream<List<int>>
   final List<RedirectInfo> redirects;
 
   final List<int> body;
+  final Stream<List<int>>? bodyStream;
 
   @override
   StreamSubscription<List<int>> listen(
@@ -586,7 +746,7 @@ class _FakeHttpResponse extends Stream<List<int>>
     void Function()? onDone,
     bool? cancelOnError,
   }) {
-    return Stream<List<int>>.value(body).listen(
+    return (bodyStream ?? Stream<List<int>>.value(body)).listen(
       onData,
       onError: onError,
       onDone: onDone,

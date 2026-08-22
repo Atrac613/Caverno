@@ -5,6 +5,7 @@ export 'network_http_request_executor.dart'
     show
         NetworkEgressAddressLookup,
         NetworkHttpClientFactory,
+        NetworkHttpResourceLimitException,
         NetworkPinnedSocketConnector;
 
 class NetworkHttpTools {
@@ -13,11 +14,17 @@ class NetworkHttpTools {
     NetworkEgressAddressLookup? addressLookup,
     NetworkPinnedSocketConnector? socketConnector,
     EgressDestinationPolicy destinationPolicy = const EgressDestinationPolicy(),
+    int maxResponseBodyBytes =
+        NetworkHttpRequestExecutor.defaultMaxResponseBodyBytes,
+    Duration responseIdleTimeout =
+        NetworkHttpRequestExecutor.defaultResponseIdleTimeout,
   }) : _executor = NetworkHttpRequestExecutor(
          clientFactory: clientFactory,
          addressLookup: addressLookup,
          socketConnector: socketConnector,
          destinationPolicy: destinationPolicy,
+         maxResponseBodyBytes: maxResponseBodyBytes,
+         responseIdleTimeout: responseIdleTimeout,
        );
 
   final NetworkHttpRequestExecutor _executor;

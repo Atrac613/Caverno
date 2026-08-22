@@ -5271,8 +5271,8 @@ Slice plan:
    applies one HTTP/browser destination policy, rejects unsafe schemes and every
    private/loopback/link-local/metadata A/AAAA result, binds the approved address
    to the connection or verifies the peer address, revalidates redirects, and
-   strips cross-origin credentials; **SEC4.3d (P1)** adds streamed body and
-   total-time ceilings.
+   strips cross-origin credentials; **SEC4.3d (P1, completed 2026-08-22)** adds
+   a 1 MiB streamed-body ceiling plus total and idle deadlines.
 4. **SEC4.4 — Project and autonomous containment.** Split implementation into
    **SEC4.4a (P0, completed 2026-08-14)**, applying one canonical, symlink-aware fence to every
    approval-free read, **SEC4.4b (P1, mutation fence completed 2026-08-19)**,

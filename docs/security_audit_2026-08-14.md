@@ -78,14 +78,14 @@ conventions:
 |----|----------|---------|-----------------------|
 | SA-01 | Critical | Read-only shell classification permits arbitrary execution without approval | SEC4.1 |
 | SA-02 | High | Imported executable settings and pending MCP review can start processes before dedicated consent (fixed 2026-08-14) | SEC4.2 |
-| SA-03 | High | Built-in HTTP and browser tools bypass a complete egress/SSRF boundary (destination boundary fixed 2026-08-14; resource limits pending) | SEC1, SEC4.3 |
+| SA-03 | High | Built-in HTTP and browser tools bypass a complete egress/SSRF boundary (destination boundary fixed 2026-08-14; resource limits fixed 2026-08-22) | SEC1, SEC4.3 |
 | SA-04 | High | Project-scoped reads accept arbitrary absolute and home paths (fixed 2026-08-14) | SEC1, SEC4.4 |
 | SA-05 | High | SSH host keys are accepted without known-host verification (fixed 2026-08-19) | SEC4.5 |
 | SA-06 | High | Remote Coding credentials and control traffic use plaintext WebSockets (release non-loopback bind contained 2026-08-19; pinned WSS landed 2026-08-21; challenge-bound sessions landed 2026-08-21) | RC1, SEC4.5 |
 | SA-07 | High | Taint policy is advisory before cache and full-access decisions (fixed 2026-08-14) | SEC2.3b |
 | SA-08 | Medium | File mutations can escape project scope through missing or lexical-only containment (write/edit/delete fence landed 2026-08-19; git cwd fence landed 2026-08-21; git pathspec fence landed 2026-08-21; local-command write fence landed 2026-08-21) | SEC4.4 |
 | SA-09 | Medium | Routines treat every external MCP tool as read-only (denied by default 2026-08-21; reviewed grants pending) | SEC4.4 |
-| SA-10 | Medium | HTTP bodies remain unbounded; Remote Coding resource containment completed 2026-08-22 | SEC4.3, RC1 |
+| SA-10 | Medium | HTTP and Remote Coding resource consumption is unbounded (fixed 2026-08-22) | SEC4.3, RC1 |
 | SA-11 | Medium | Settings secrets are persisted and exported in cleartext | SEC4.6 |
 | SA-12 | Medium | Non-loopback plaintext LLM endpoints can receive bearer credentials and private content (fixed 2026-08-22) | SEC4.5 |
 | SA-13 | Medium | Approval-audit redaction does not recurse into nested arguments | SEC4.6 |
@@ -256,8 +256,11 @@ network access requires a fresh approval. HTTP destinations now reject unsafe
 schemes and any unsafe DNS answer, connect directly to a pinned approved
 address, verify the peer, revalidate every manual redirect, and strip sensitive
 cross-origin headers. External WebView navigation fails closed because the
-native WebView cannot enforce the peer invariant. SA-03 remains open for
-SEC4.3d, which must bound response bytes and total time.
+native WebView cannot enforce the peer invariant. SEC4.3d completed on
+2026-08-22: built-in HTTP responses use a 1 MiB wire-byte ceiling, a five-second
+idle deadline, and the existing tool timeout as one monotonic total budget
+across DNS, connections, redirects, headers, and body consumption. Discarded
+status, HEAD, and redirect bodies use the same bounded consumer.
 
 ### SA-04: Host-Wide Reads Through Project-Scoped Tools
 
@@ -451,16 +454,16 @@ that collide with allowed built-ins. Dispatch refuses
 
 ### SA-10: Resource Exhaustion
 
-`lib/features/chat/data/datasources/network_http_tools.dart:225-279` buffers a
-complete response before truncating it. SEC4.5e completed 2026-08-22: Remote
+SEC4.3d completed 2026-08-22: built-in HTTP responses are consumed in bounded
+chunks and stop at 1 MiB, five seconds without progress, or the request's total
+deadline. SEC4.5e completed 2026-08-22: Remote
 Coding rejects excess global or per-address sockets before WebSocket upgrade,
 closes sockets that miss the authentication deadline, rejects text and binary
 frames over 256 KiB before protocol decoding, and closes clients that exceed
 phase-aware per-connection sliding-window message budgets. Dart's WebSocket API
 still allocates a complete transport frame before application code can inspect
 its size; the product limit bounds JSON decoding and repeated processing rather
-than that transport allocation. SEC4.3d separately owns HTTP streaming byte
-ceilings plus total and idle deadlines.
+than that transport allocation.
 
 ### SA-11: Cleartext Settings Secrets And Exports
 
@@ -623,7 +626,7 @@ Add negative coverage for:
 | P0-4 | SEC4.4a project read containment (completed 2026-08-14) | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
 | P0-5 | SEC4.5a-SEC4.5b authenticated transport containment (completed 2026-08-19) | SA-05, SA-06 | SSH known-host mismatch fails before authentication. A release build cannot start a plaintext non-loopback Remote Coding listener. |
 | P1-1 | SEC4.4b/SEC4.4c/SEC4.4d/SEC4.4e/SEC4.4f mutation and autonomous containment (mutation fence completed 2026-08-19; routine MCP deny-by-default completed 2026-08-21; git cwd fence completed 2026-08-21; git pathspec fence completed 2026-08-21; local-command write fence completed 2026-08-21) | SA-08, SA-09 | Write/edit/delete go through a symlink-aware project fence. Unclassified external MCP tools are omitted from routine catalogs and denied at dispatch. Git working directories use the same fence. Relocating git globals and escaping pathspecs are denied. Local-command writes use the same fence when a project is selected. |
-| P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (SEC4.5c pinned WSS completed 2026-08-21; SEC4.5d challenge-bound sessions completed 2026-08-21; SEC4.5e and SEC4.5f completed 2026-08-22) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
+| P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (completed 2026-08-22) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
 | P1-3 | SEC4.6 data protection and lifecycle | SA-11, SA-13, SA-14, SA-15, SA-17, SA-18 | Secret-free storage/export, recursive redaction, opt-out, migration, backup, and deletion tests pass. |
 | P1-4 | SEC4.7 release supply-chain hardening | SA-16 | Immutable actions, pinned toolchain, checksum, dependency monitoring, and fail-closed release signing are enforced. |
 
