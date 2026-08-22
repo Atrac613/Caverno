@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../entities/tool_call_info.dart';
 
 /// Builds a compact "already gathered this turn" digest from the tool results
@@ -95,6 +97,9 @@ class ToolLoopContextDigest {
       final name = result.name.trim().toLowerCase();
       final isCommand = _digestableCommandTools.contains(name);
       if (!isCommand && !_digestableTools.contains(name)) {
+        continue;
+      }
+      if (isCommand && _wasNeverExecuted(result.result)) {
         continue;
       }
       final label = isCommand
@@ -221,6 +226,33 @@ class ToolLoopContextDigest {
       }
     }
     return true;
+  }
+
+  /// Whether a command result describes a command that never ran.
+  ///
+  /// A blocked mutation is refused before the shell is reached, so listing it
+  /// as "ran `cat > js/cave.js …`" states something untrue and, worse, tells
+  /// the model not to re-issue by reflex — when re-issuing with a corrected
+  /// path is exactly the recovery. Session a0ca65b7 carried two fence-blocked
+  /// heredoc writes into the digest that way.
+  ///
+  /// Both executed paths render `stdout` (empty string included) alongside the
+  /// exit status, and refusals carry `ok: false` without it, so the pair
+  /// separates "refused" from "ran and failed" without reading any prose.
+  static bool _wasNeverExecuted(String result) {
+    if (!result.contains('"ok"')) {
+      return false;
+    }
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(result);
+    } on FormatException {
+      return false;
+    }
+    if (decoded is! Map<String, dynamic>) {
+      return false;
+    }
+    return decoded['ok'] == false && !decoded.containsKey('stdout');
   }
 
   String? _labelFor(String name, Map<String, dynamic> arguments) {
