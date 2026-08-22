@@ -156,6 +156,18 @@ extension _ChatPageBrowserBuilders on _ChatPageState {
               ],
             ),
           ),
+          Builder(
+            builder: (buttonContext) {
+              final externalUrl = _externalBrowserUrl(service.currentUrl);
+              return IconButton(
+                icon: const Icon(Icons.open_in_new, size: 18),
+                tooltip: 'settings.browser_open_external'.tr(),
+                onPressed: externalUrl == null
+                    ? null
+                    : () => _openInExternalBrowser(buttonContext, externalUrl),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.close, size: 18),
             tooltip: 'settings.browser_close'.tr(),
@@ -173,6 +185,40 @@ extension _ChatPageBrowserBuilders on _ChatPageState {
       key: _browserWebViewKey,
       service: ref.read(browserSessionServiceProvider),
     );
+  }
+
+  /// The current page as a URL the OS browser can take, or null when there is
+  /// nothing worth handing over (blank pane, or a non-web scheme that only the
+  /// embedded webview understands).
+  String? _externalBrowserUrl(String? url) {
+    final trimmed = url?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return null;
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') return null;
+    if (uri.host.isEmpty) return null;
+    return trimmed;
+  }
+
+  /// Hands the current page to the system default browser, leaving the
+  /// embedded pane (and any agent session driving it) untouched.
+  Future<void> _openInExternalBrowser(BuildContext context, String url) async {
+    final messenger = ScaffoldMessenger.of(context);
+    var launched = false;
+    try {
+      launched = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      launched = false;
+    }
+    if (!launched) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('settings.browser_open_external_failed'.tr())),
+      );
+    }
   }
 
   String _browserHostLabel(String url) {
