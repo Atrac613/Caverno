@@ -82,7 +82,7 @@ abstract final class LocalCommandMutationGuard {
     }
 
     var nextIsCommand = true;
-    for (final token in _tokens(command)) {
+    for (final token in _tokens(_withoutHeredocBodies(command))) {
       if (_commandSeparators.contains(token)) {
         nextIsCommand = true;
         continue;
@@ -108,6 +108,129 @@ abstract final class LocalCommandMutationGuard {
       consider(mentioned);
     }
     return List<String>.unmodifiable(candidates);
+  }
+
+  /// [command] with heredoc bodies removed, keeping the shell operands.
+  ///
+  /// The operand tokenizer splits on whitespace, and a heredoc body is not
+  /// operands: writing JavaScript through `cat > js/cave.js << 'EOF'` handed
+  /// the fence the body's `//` comment markers, which read as absolute paths
+  /// and denied an in-root write four times in session a0ca65b7. Only the
+  /// operand pass drops the body -- [OutOfRootCommandPaths] still scans the
+  /// whole command, so a `python3 << EOF` body naming an outside path is
+  /// still seen.
+  static String _withoutHeredocBodies(String command) {
+    if (!command.contains('<<')) {
+      return command;
+    }
+    final lines = command.split('\n');
+    final kept = <String>[];
+    var index = 0;
+    while (index < lines.length) {
+      final line = lines[index];
+      kept.add(line);
+      index += 1;
+      for (final redirect in _heredocRedirects(line)) {
+        while (index < lines.length) {
+          final raw = lines[index];
+          index += 1;
+          final candidate = redirect.allowsIndent
+              ? raw.replaceFirst(RegExp(r'^[\t ]+'), '')
+              : raw;
+          if (candidate.trim() == redirect.delimiter) {
+            break;
+          }
+        }
+      }
+    }
+    return kept.join('\n');
+  }
+
+  /// Heredoc delimiters [line] opens, in order, ignoring quoted `<<` text.
+  static List<({String delimiter, bool allowsIndent})> _heredocRedirects(
+    String line,
+  ) {
+    final redirects = <({String delimiter, bool allowsIndent})>[];
+    String? quote;
+    for (var i = 0; i < line.length; i++) {
+      final char = line[i];
+      if (quote != null) {
+        if (char == quote) {
+          quote = null;
+        }
+        continue;
+      }
+      if (char == '"' || char == "'") {
+        quote = char;
+        continue;
+      }
+      if (char == r'\') {
+        i += 1;
+        continue;
+      }
+      if (char != '<' || i + 1 >= line.length || line[i + 1] != '<') {
+        continue;
+      }
+      var cursor = i + 2;
+      // `<<<` is a here-string: its operand stays on this line.
+      if (cursor < line.length && line[cursor] == '<') {
+        i = cursor;
+        continue;
+      }
+      var allowsIndent = false;
+      if (cursor < line.length && line[cursor] == '-') {
+        allowsIndent = true;
+        cursor += 1;
+      }
+      while (cursor < line.length &&
+          (line[cursor] == ' ' || line[cursor] == '\t')) {
+        cursor += 1;
+      }
+      final delimiter = StringBuffer();
+      String? delimiterQuote;
+      while (cursor < line.length) {
+        final delimiterChar = line[cursor];
+        if (delimiterQuote != null) {
+          if (delimiterChar == delimiterQuote) {
+            delimiterQuote = null;
+          } else {
+            delimiter.write(delimiterChar);
+          }
+          cursor += 1;
+          continue;
+        }
+        if (delimiterChar == '"' || delimiterChar == "'") {
+          delimiterQuote = delimiterChar;
+          cursor += 1;
+          continue;
+        }
+        if (delimiterChar == r'\') {
+          cursor += 1;
+          if (cursor < line.length) {
+            delimiter.write(line[cursor]);
+            cursor += 1;
+          }
+          continue;
+        }
+        if (delimiterChar == ' ' ||
+            delimiterChar == '\t' ||
+            delimiterChar == ';' ||
+            delimiterChar == '&' ||
+            delimiterChar == '|' ||
+            delimiterChar == '<' ||
+            delimiterChar == '>') {
+          break;
+        }
+        delimiter.write(delimiterChar);
+        cursor += 1;
+      }
+      final word = delimiter.toString();
+      if (word.isNotEmpty) {
+        redirects.add((delimiter: word, allowsIndent: allowsIndent));
+      }
+      i = cursor - 1;
+    }
+    return redirects;
   }
 
   static String _resolveAgainstWorkingDirectory(

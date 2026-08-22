@@ -258,6 +258,42 @@ void main() {
       expect(block, isNot(contains('Use what they returned')));
     });
 
+    test('omits a command the fence refused before it ran', () {
+      // Session a0ca65b7: two heredoc writes were blocked by the project
+      // mutation fence and still reached the model as "ran `cat > …`", with
+      // the advisory not to re-issue them.
+      const blocked =
+          '{"ok":false,"code":"project_mutation_outside_root",'
+          '"error":"The mutation target is outside the authorized project '
+          'root.","path":"//"}';
+      final block = digest.build([
+        _result('read_file', {'path': 'js/cave.js'}),
+        _result('local_execute_command', {
+          'command': "cat > js/cave.js << 'CAVE_EOF'\n// body\nCAVE_EOF",
+        }, result: blocked),
+        _result('local_execute_command', {
+          'command': 'fvm flutter analyze',
+        }, result: '{"command":"fvm flutter analyze","exit_code":0,'
+            '"stdout":"No issues found!","stderr":""}'),
+      ]);
+
+      expect(block, isNot(contains('cat > js/cave.js')));
+      expect(block, contains('ran `fvm flutter analyze`'));
+    });
+
+    test('keeps a command that ran and failed', () {
+      final block = digest.build([
+        _result('local_execute_command', {
+          'command': 'fvm flutter test',
+        }, result: '{"command":"fvm flutter test","exit_code":1,'
+            '"stdout":"Some tests failed.","stderr":""}'),
+        _result('local_execute_command', {'command': 'fvm flutter analyze'}),
+      ]);
+
+      expect(block, contains('ran `fvm flutter test`'));
+      expect(block, contains('ran `fvm flutter analyze`'));
+    });
+
     test('keeps command and inspection sections separate', () {
       final block = digest.build([
         _result('read_file', {'path': 'pubspec.yaml'}),
