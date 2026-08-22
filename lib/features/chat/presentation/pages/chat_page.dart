@@ -5,7 +5,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -26,6 +25,7 @@ import '../../../routines/presentation/providers/routines_notifier.dart';
 import '../../../routines/presentation/widgets/routine_editor_launcher.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../../../personal_eval/presentation/pages/personal_eval_record_page.dart';
+import 'thread_scroll_coordinator.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/providers/model_list_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -135,7 +135,7 @@ class ChatPage extends ConsumerStatefulWidget {
 }
 
 class _ChatPageState extends ConsumerState<ChatPage> {
-  final _scrollController = ScrollController();
+  final _threadScroll = ThreadScrollCoordinator();
   final _workflowPanelScrollController = ScrollController();
   final Set<String> _activeApprovalDialogIds = <String>{};
   final Set<String> _rolledBackTurnDiffIds = <String>{};
@@ -150,9 +150,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _isCompanionSidebarVisible = true;
   String _composerPrefillText = '';
   int _composerPrefillVersion = 0;
-  bool _isScrollToBottomScheduled = false;
-  bool _scheduledScrollShouldAnimate = false;
-  bool _autoFollowBottom = true;
   late bool _showDashboard;
   FileWorkspaceViewerRequest? _fileWorkspaceViewerRequest;
   ChatRightSidebarTab _rightSidebarTab = ChatRightSidebarTab.companion;
@@ -184,7 +181,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _threadScroll.dispose();
     _workflowPanelScrollController.dispose();
     super.dispose();
   }
@@ -250,72 +247,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     setState(() {
       _showDashboard = false;
     });
-  }
-
-  bool _isNearScrollBottom() {
-    if (!_scrollController.hasClients) {
-      return true;
-    }
-    final position = _scrollController.position;
-    return position.maxScrollExtent - position.pixels <= 80;
-  }
-
-  /// Tracks deliberate user scrolling so streaming auto-scroll backs off when
-  /// the user scrolls up to read history and resumes once they return to the
-  /// bottom. Programmatic `animateTo`/`jumpTo` never emit a
-  /// [UserScrollNotification], so this reacts only to real gestures and is
-  /// therefore immune to the scroll position lagging behind streamed content.
-  bool _handleScrollNotification(ScrollNotification notification) {
-    // Ignore notifications bubbling up from scrollables nested inside messages.
-    if (notification.depth != 0) {
-      return false;
-    }
-    if (notification is UserScrollNotification) {
-      if (notification.direction == ScrollDirection.forward) {
-        // Dragging toward older messages: stop following the live stream.
-        _autoFollowBottom = false;
-      }
-    } else if (notification is ScrollEndNotification && !_autoFollowBottom) {
-      // Re-engage following once the user settles back near the bottom.
-      if (_isNearScrollBottom()) {
-        _autoFollowBottom = true;
-      }
-    }
-    return false;
-  }
-
-  void _scheduleScrollToBottom({required bool animated}) {
-    _scheduledScrollShouldAnimate = _scheduledScrollShouldAnimate || animated;
-    if (_isScrollToBottomScheduled) {
-      return;
-    }
-
-    _isScrollToBottomScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final shouldAnimate = _scheduledScrollShouldAnimate;
-      _isScrollToBottomScheduled = false;
-      _scheduledScrollShouldAnimate = false;
-      if (!mounted) {
-        return;
-      }
-      _scrollToBottom(animated: shouldAnimate);
-    });
-  }
-
-  void _scrollToBottom({bool animated = true}) {
-    if (!_scrollController.hasClients) {
-      return;
-    }
-    final target = _scrollController.position.maxScrollExtent;
-    if (animated) {
-      _scrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-      );
-      return;
-    }
-    _scrollController.jumpTo(target);
   }
 
   ChatPageWorkspaceNavigationCoordinator get _workspaceNavigationCoordinator =>
@@ -632,26 +563,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
 
     // Scroll when the message list changes.
-    ref.listen(chatNotifierProvider, (previous, next) {
-      final messageCountChanged =
-          previous?.messages.length != next.messages.length;
-      if (messageCountChanged) {
-        // A message was added or removed: snap to the newest entry and resume
-        // following the live stream.
-        _autoFollowBottom = true;
-        _scheduleScrollToBottom(animated: true);
-        return;
-      }
-      // Same message count: only react to the last message growing while it
-      // streams, and only while the user has not scrolled up to read history.
-      if (next.messages.isEmpty || !next.messages.last.isStreaming) {
-        return;
-      }
-      if (!_autoFollowBottom) {
-        return;
-      }
-      _scheduleScrollToBottom(animated: false);
-    });
+    ref.listen(chatNotifierProvider, _threadScroll.onChatStateChanged);
 
     ref.listen<String?>(
       conversationsNotifierProvider.select(
@@ -760,6 +672,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         activeProject != null &&
         currentConversation == null &&
         chatState.messages.isEmpty;
+    _threadScroll.syncThread(
+      conversationId: conversationsState.currentConversationId,
+      isMessageListVisible:
+          !isDashboardVisible &&
+          !isRoutinesWorkspace &&
+          !isMobileRemoteCoding &&
+          !shouldShowCodingDraftComposer &&
+          canCompose &&
+          chatState.messages.isNotEmpty,
+    );
     final isWideForCompanion =
         MediaQuery.sizeOf(context).width >= chatCompanionSidebarBreakpoint;
     _maybePresentPlanReviewSheet(
@@ -1047,10 +969,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 isCodingWorkspace: isCodingWorkspace,
                               )
                             : NotificationListener<ScrollNotification>(
-                                onNotification: _handleScrollNotification,
+                                onNotification:
+                                    _threadScroll.handleScrollNotification,
                                 child: ListView.builder(
                                   key: const ValueKey('chat-message-list'),
-                                  controller: _scrollController,
+                                  controller: _threadScroll.controller,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 8,
                                   ),
@@ -1288,7 +1211,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (!mounted) {
         return;
       }
-      _scrollToBottom();
+      _threadScroll.scrollToBottom();
     });
   }
 
