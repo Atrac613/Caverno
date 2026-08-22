@@ -34,8 +34,13 @@ import '../data/remote_coding_terminal_notification_mapper.dart';
 import '../data/remote_coding_terminal_notification_delivery.dart';
 import '../domain/remote_coding_listen_policy.dart';
 import '../domain/remote_coding_models.dart';
+import '../domain/remote_coding_resource_policy.dart';
 import '../domain/remote_coding_session_policy.dart';
 import '../domain/remote_coding_transport_policy.dart';
+
+final remoteCodingResourcePolicyProvider = Provider<RemoteCodingResourcePolicy>(
+  (ref) => const RemoteCodingResourcePolicy(),
+);
 
 final remoteCodingServerProvider =
     NotifierProvider<RemoteCodingServerNotifier, RemoteCodingServerState>(
@@ -131,6 +136,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       const RemoteCodingTerminalNotificationMapper();
 
   late final RemoteCodingRepository _repository;
+  late final RemoteCodingResourcePolicy _resourcePolicy;
   HttpServer? _server;
   RemoteCodingTlsIdentity? _tlsIdentity;
   StreamSubscription<CavernoRuntimeEvent>? _runtimeEventSubscription;
@@ -142,6 +148,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   @override
   RemoteCodingServerState build() {
     _repository = ref.read(remoteCodingRepositoryProvider);
+    _resourcePolicy = ref.read(remoteCodingResourcePolicyProvider);
     final settings = _repository.loadServerSettings();
 
     ref.listen<CodingProjectsState>(codingProjectsNotifierProvider, (_, _) {
@@ -422,16 +429,62 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         continue;
       }
 
+      final addressConnectionCount = _clients
+          .where(
+            (client) => client.remoteAddress.address == remoteAddress.address,
+          )
+          .length;
+      final admission = _resourcePolicy.evaluateConnection(
+        activeConnections: _clients.length,
+        activeConnectionsForAddress: addressConnectionCount,
+      );
+      if (admission != RemoteCodingConnectionAdmission.allowed) {
+        await _rejectConnectionAdmission(request, admission);
+        continue;
+      }
+
       final socket = await WebSocketTransformer.upgrade(request);
       final client = _RemoteCodingSocketClient(
         socket,
         connectionId: _uuid.v4(),
+        remoteAddress: remoteAddress,
+      );
+      _clients.add(client);
+      client.startAuthenticationDeadline(
+        _resourcePolicy.authenticationDeadline,
+        () => unawaited(
+          client.close(notify: true, reason: 'authentication_timeout'),
+        ),
       );
       _issueSessionChallenge(client);
-      _clients.add(client);
       _syncActiveConnectionCount();
       unawaited(_handleClient(client));
     }
+  }
+
+  Future<void> _rejectConnectionAdmission(
+    HttpRequest request,
+    RemoteCodingConnectionAdmission admission,
+  ) async {
+    request.response.statusCode = switch (admission) {
+      RemoteCodingConnectionAdmission.peerLimitReached =>
+        HttpStatus.tooManyRequests,
+      RemoteCodingConnectionAdmission.totalLimitReached =>
+        HttpStatus.serviceUnavailable,
+      RemoteCodingConnectionAdmission.allowed => HttpStatus.internalServerError,
+    };
+    request.response.headers
+      ..contentType = ContentType.json
+      ..set(HttpHeaders.retryAfterHeader, '1');
+    request.response.write(
+      jsonEncode({
+        'error': {
+          'code': 'connection_limit_reached',
+          'message': 'Remote Coding connection capacity is temporarily full.',
+        },
+      }),
+    );
+    await request.response.close();
   }
 
   Future<void> _handleClient(_RemoteCodingSocketClient client) async {
@@ -454,6 +507,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         await _handleMessage(client, message);
       }
     } finally {
+      client.dispose();
       _sessionChallenges.removeConnection(client.connectionId);
       _clients.remove(client);
       _syncActiveConnectionCount();
@@ -612,6 +666,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       connectionId: client.connectionId,
       issuedAt: DateTime.now().toUtc(),
     );
+    client.cancelAuthenticationDeadline();
     client.deviceId = deviceId;
     _syncActiveConnectionCount();
   }
@@ -678,10 +733,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       _bindAuthenticatedSession(client, deviceId: device.id);
       client.sendSnapshot(
         id: message.id,
-        payload: {
-          ..._buildSnapshot(),
-          'auth': client.session!.toAuthPayload(),
-        },
+        payload: {..._buildSnapshot(), 'auth': client.session!.toAuthPayload()},
       );
       return;
     }
@@ -1371,12 +1423,19 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
 const projectWorkspaceMode = WorkspaceMode.coding;
 
 class _RemoteCodingSocketClient {
-  _RemoteCodingSocketClient(this.socket, {required this.connectionId});
+  _RemoteCodingSocketClient(
+    this.socket, {
+    required this.connectionId,
+    required this.remoteAddress,
+  });
 
   final WebSocket socket;
   final String connectionId;
+  final InternetAddress remoteAddress;
   String? deviceId;
   RemoteCodingSessionAuthorization? session;
+  Timer? _authenticationDeadlineTimer;
+  Future<void>? _closeFuture;
 
   bool get isAuthenticated =>
       session != null &&
@@ -1405,12 +1464,44 @@ class _RemoteCodingSocketClient {
     );
   }
 
-  Future<void> close({bool notify = false, String? reason}) async {
+  void startAuthenticationDeadline(
+    Duration duration,
+    void Function() onExpired,
+  ) {
+    _authenticationDeadlineTimer?.cancel();
+    _authenticationDeadlineTimer = Timer(duration, onExpired);
+  }
+
+  void cancelAuthenticationDeadline() {
+    _authenticationDeadlineTimer?.cancel();
+    _authenticationDeadlineTimer = null;
+  }
+
+  void dispose() {
+    cancelAuthenticationDeadline();
+  }
+
+  Future<void> close({bool notify = false, String? reason}) {
+    final pendingClose = _closeFuture;
+    if (pendingClose != null) {
+      return pendingClose;
+    }
+    cancelAuthenticationDeadline();
+    final closeFuture = _close(notify: notify, reason: reason);
+    _closeFuture = closeFuture;
+    return closeFuture;
+  }
+
+  Future<void> _close({required bool notify, String? reason}) async {
     if (notify) {
-      send(
-        type: 'disconnected',
-        payload: {if (reason != null && reason.isNotEmpty) 'reason': reason},
-      );
+      try {
+        send(
+          type: 'disconnected',
+          payload: {if (reason != null && reason.isNotEmpty) 'reason': reason},
+        );
+      } on StateError {
+        // The peer may close while the server is sending the final notice.
+      }
     }
     await socket.close(WebSocketStatus.goingAway);
   }
