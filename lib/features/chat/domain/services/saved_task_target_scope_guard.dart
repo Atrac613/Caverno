@@ -40,6 +40,13 @@ final class SavedTaskTargetScopeGuard {
 
     final task = input.ownerTask;
     if (task == null || task.targetFiles.isEmpty) return null;
+    // A completed task no longer scopes anything. `validationTask` picks the
+    // first task carrying a validation command without looking at status, so
+    // once every task finished, session a0ca65b7 stayed pinned to task 1
+    // (`index.html, js/main.js`) and every later mutation the user asked for —
+    // 19 of them, against `js/player.js` and `js/cave.js` — was refused for
+    // the rest of the thread's life.
+    if (task.status == ConversationWorkflowTaskStatus.completed) return null;
     final allowedTargetFiles = allowedTargetFilesForTask(task);
     final path = _fileMutationEvidencePolicy.argumentPath(
       input.toolCall.arguments,

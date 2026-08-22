@@ -82,6 +82,49 @@ void main() {
       }
     });
 
+    test('allows mutations once the owner task is completed', () {
+      // Session a0ca65b7: all five tasks finished, `validationTask` kept
+      // returning task 1 because it carries a validation command, and every
+      // later edit to js/player.js and js/cave.js was refused.
+      final task = _task(
+        targetFiles: const ['index.html', 'js/main.js'],
+        validationCommand: 'node --check js/main.js',
+      ).copyWith(status: ConversationWorkflowTaskStatus.completed);
+      for (final toolName in const ['write_file', 'edit_file']) {
+        expect(
+          guard.evaluate(
+            _input(
+              toolCall: _call(name: toolName, path: 'js/player.js'),
+              ownerTask: task,
+            ),
+          ),
+          isNull,
+        );
+      }
+    });
+
+    test('still scopes an unfinished owner task', () {
+      for (final status in const [
+        ConversationWorkflowTaskStatus.pending,
+        ConversationWorkflowTaskStatus.inProgress,
+        ConversationWorkflowTaskStatus.blocked,
+      ]) {
+        final result = guard.evaluate(
+          _input(
+            toolCall: _call(path: 'js/player.js'),
+            ownerTask: _task(
+              targetFiles: const ['index.html', 'js/main.js'],
+            ).copyWith(status: status),
+          ),
+        );
+        expect(result, isNotNull, reason: 'status $status must still scope');
+        expect(
+          _payload(result!.result)['code'],
+          'saved_task_target_scope_violation',
+        );
+      }
+    });
+
     test('does not activate from validation paths when targets are empty', () {
       final task = _task(
         targetFiles: const [],
