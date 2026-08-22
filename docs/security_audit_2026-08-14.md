@@ -474,6 +474,12 @@ object. Move credentials to platform secure storage, store references in normal
 settings, redact normal exports, and require an explicit encrypted
 include-secrets flow.
 
+Remediation status (2026-08-22): SEC4.6a made default file and QR exports
+secret-free. SEC4.6b moved supported settings credentials to platform secure
+storage, left opaque references in normal preferences, and added fail-closed
+legacy migration and lifecycle cleanup. The explicit encrypted include-secrets
+export remains pending, so SA-11 is not yet closed.
+
 ### SA-12: Plaintext Non-Loopback LLM Endpoints
 
 `lib/features/settings/presentation/pages/general_settings_page.dart:1456-1463`
