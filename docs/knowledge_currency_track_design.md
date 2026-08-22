@@ -43,13 +43,15 @@ four problems, and only one of them needs the network.
 | 3. Environment facts | assumes Flutter 3.19 defaults on 3.44.8 | toolchain probe | **no** |
 | 4. This repository | project conventions, prior decisions | repo map, skills, session memory, RAG track | **no** |
 
-Class 2 and 3 are the ones that damage coding work, they are the most frequent,
-and they are **fully answerable offline from the user's own disk**. That is the
-asymmetry the track exploits: the highest-value half of the cutoff problem needs
-no internet, no index, and no ranking — only a lockfile and a path.
+Class 2 and 3 are the leading hypothesis for damaging coding work, and they are
+**fully answerable offline from the user's own disk**. KC1 must measure whether
+they are actually the most frequent stale-error classes before later milestones
+are promoted. That offline asymmetry is worth testing because it could remove a
+high-value part of the cutoff problem without internet, indexing, or ranking.
 
-Class 1 is the smallest and the only one that needs the network. Class 4 belongs
-to the RAG track and is explicitly out of scope here.
+Class 1 is the only one that needs the network; KC1 measures its relative size
+rather than assuming it. Class 4 belongs to the RAG track and is explicitly out
+of scope here.
 
 ## 3. Current State (audited 2026-08-22)
 
@@ -61,17 +63,16 @@ to the RAG track and is explicitly out of scope here.
   (`lib/core/constants/system_prompt_constants.dart:37`). Prevents the model
   from *claiming* it searched. It does not prevent a confident stale assertion,
   which is honest by its own lights.
-- `TemporalContextBuilder.build` (`temporal_context_builder.dart:9`) returns
-  `null` unless `_relativeDatePattern` (`:4`) matches the user's input. Two
-  consequences:
-  - Its regex contains `latest|current|recent`, so it fires for questions
-    *about* freshness, and stays silent for work that silently *depends* on it.
-    "Define a provider with Riverpod" carries no date word and receives no
-    temporal anchor at all.
-  - It is a text heuristic that **judges** — it decides that no temporal
-    grounding is needed — which the standing rule ("heuristics may trigger,
-    never judge") rejects. The datetime line itself costs a few tokens; there is
-    no reason for it to be conditional.
+- `SystemPromptBuilder.build` (`system_prompt_builder.dart:847-856`) already
+  emits the local datetime anchor on every turn. `TemporalContextBuilder.build`
+  (`temporal_context_builder.dart:9`) conditionally adds only the expanded
+  today/yesterday/week table when `_relativeDatePattern` (`:4`) matches. That is
+  already the correct trigger/judge split: the cheap source-of-truth anchor is
+  unconditional, while a heuristic only nominates extra explanatory context.
+- `knowledgeCutoffHumilityInstruction` says "the current date above", although
+  the dynamic datetime block is appended later in the prompt. That wording is a
+  small prompt-order defect, not a missing-grounding mechanism, and should be
+  corrected independently from KC2.
 - **LL10 `resolve_installed_dependency`** (`done`) is the one real ground-truth
   mechanism, and it is pull-only.
 
@@ -101,27 +102,40 @@ Scope:
 - Classify final answers across both corpora (the split recorded in
   `docs/canary_evidence_outside_the_corpus_2026-08-06.md`: coding evidence in
   `build/integration_test_reports`, interactive evidence in the session logs)
-  for version-sensitive assertions, attributed to classes 1-4 of §2.
-- For each assertion, record whether a ground-truth tool result in the same turn
-  supports it, contradicts it, or is absent.
-- Report per-class rates, not one aggregate. A single "staleness rate" would
-  average the network-bound class into the offline-answerable ones and hide the
-  asymmetry the track is built on.
+  for version-sensitive assertions, attributed to classes 1-4 of §2. Include
+  assertions in visible prose, response code blocks, and changed code artifacts;
+  API drift that appears only in a generated import or method call still counts.
+- Use a versioned claim record with `claim_id`, class, asserted value, expected
+  value, truth source, truth verdict (`correct`, `stale`, or `unscorable`),
+  grounding verdict (`supported`, `contradicted`, or `absent`), and grounding
+  provenance (`prompt_context`, `tool_result`, or `none`). A tool result being
+  present is not itself proof that the claim is correct.
+- Build a labeled deterministic fixture set with authoritative expected values,
+  then replay the same prompts under fixed model, endpoint, sampler, build, and
+  tool-catalog settings. Historical logs may seed cases but do not replace the
+  paired replay.
+- Report per-class stale-claim rate, unsupported-claim rate, and detector
+  precision/recall. Do not collapse them into one aggregate that hides the
+  network/offline boundary.
 
 Acceptance criteria:
 - A negative control passes: an arm fed deliberately stale fixtures must make
-  the suite fail. An instrument that cannot detect known-stale output is never
-  reported as green.
+  the suite fail against the fixture oracle. A correct claim with `absent`
+  grounding and a stale claim with `absent` grounding must receive different
+  truth verdicts.
+- A prompt-context control proves that KC2 evidence is attributed as
+  `prompt_context`, not incorrectly reported as an absent same-turn tool result.
 - Turn counts, corpus, and build provenance (`build.commit` / `dirty`) are
-  recorded per run; grounded logs only.
+  recorded per run, together with model, endpoint, sampler, and tool-catalog
+  identity; grounded logs only.
 - Production prompt and tool behavior are unchanged.
 
 Promotion gate:
-- KC3 and KC4 stay `later` until the class attribution exists. If class 2 does
-  not dominate, KC3 is re-scoped or dropped rather than built on the argument
-  in §3.1 alone.
+- KC3 and KC4 stay `later` until claim correctness and class attribution exist.
+  If class 2 does not dominate the measured stale claims, KC3 is re-scoped or
+  dropped rather than built on assertion frequency or the argument in §3.1.
 
-### KC2: Environment Ground Truth Block
+### KC2: Environment And Dependency Ground Truth Block
 
 Status: `next`. **Deliberately not gated on KC1**: it is deterministic, offline,
 and introduces no heuristic, so there is nothing for a measurement to authorize.
@@ -130,13 +144,17 @@ KC1 measures its effect; it does not grant it permission.
 Scope:
 - An `EnvironmentGroundingContextBuilder` that emits *measured* facts rather
   than a warning:
-  - the local datetime anchor, **unconditionally** (removing the
-    `TemporalContextBuilder` trigger gap; the regex keeps its narrower job of
-    expanding the relative-date table);
   - detected toolchain versions (Flutter/Dart, Node, Python) for class 3;
-  - direct dependencies with their locked versions for class 2.
-- Ecosystem detection reuses LL10's resolver rather than re-implementing
-  lockfile parsing.
+  - direct dependencies with attested installed versions and locked-version
+    provenance for class 2.
+- Preserve the existing unconditional datetime anchor and the conditional
+  relative-date expansion unchanged. KC2 starts immediately after that dynamic
+  datetime block; it does not add a second timestamp.
+- Extract a shared dependency inventory from LL10's parsing and root-resolution
+  logic rather than calling the current single-package tool or duplicating its
+  private parsers. Each record carries manifest source, locked version,
+  installed metadata source, installed version, resolved root, and an
+  attestation verdict (`exact`, `mismatch`, or `unverifiable`).
 - **Direct dependencies only**, sorted, hard-capped (target ≤400 tokens). Never
   the transitive closure. On a small-context profile (LL39 usable context) the
   dependency list is the first thing dropped; the datetime anchor is the last.
@@ -144,6 +162,12 @@ Scope:
   lockfile edit, so it belongs in the same tail region as temporal and memory
   context, never in the LL6/LL22 stable prefix. Within a project its bytes must
   be stable turn-to-turn so the tail does not thrash.
+- Inventory collection is cached by canonical project root plus manifest and
+  installed-metadata fingerprints. Do not spawn toolchain commands or rescan
+  dependency trees on every request.
+- Emit dependency details only for an explicitly selected coding project and
+  through the existing prompt data-perimeter policy; private package names are
+  project metadata even when collection is offline.
 
 Why it works where prose does not: "your knowledge may be outdated" is
 unactionable, and the model cannot act on it without already knowing what
@@ -153,25 +177,35 @@ code against.
 Acceptance criteria:
 - Deterministic golden output per ecosystem; no network call on any path.
 - A missing or unreadable lockfile omits the block. It never guesses a version.
+- A lockfile/installed-metadata mismatch is labeled and omitted from the
+  authoritative dependency list; `unverifiable` never becomes an exact claim.
 - Byte-identical block across two consecutive turns in the same project.
-- KC1 re-run moves the class 2/3 rate. If it does not, that is recorded as a
-  negative result — not a reason to keep tuning the wording.
+- A paired KC1 re-run reports the change in class 2/3 stale-claim rate and
+  unsupported-claim rate. If neither moves, that is recorded as a negative
+  result — not a reason to keep tuning the wording.
 
 Known risk (must be handled, not deferred): **the block carries authority.** If
 `pubspec.lock` is stale relative to what is actually installed, the block states
 a wrong version with full confidence — strictly worse than saying nothing.
-Mitigation: prefer the resolved installed root (LL10's path) over the lockfile
-when both are available, and name the source in the block.
+Resolving an installed root is not sufficient because the current LL10 result
+still reports the lockfile version. Mitigation requires comparing version-bearing
+installed metadata (`pubspec.yaml`, `package.json`, or `dist-info` `METADATA`)
+with the lock record and naming both sources in the inventory result.
 
-### KC3: Version-Delta Documentation (`read_dependency_doc`)
+### KC3: Installed Version-Delta Evidence (LL10 Extension)
 
 Status: `later`. Gated on KC1 attribution.
 
-Closes §3.1. Given a package, return the **installed version's** CHANGELOG or
-migration section from the local package cache (pub cache, `node_modules`,
-site-packages / `dist-info` METADATA), plus the deprecations that version
-declares where the ecosystem marks them (`@Deprecated`, JSDoc `@deprecated`,
-`DeprecationWarning`).
+Closes §3.1 by extending `resolve_installed_dependency` through the shared KC2
+inventory and resolver rather than creating a second package-resolution path.
+Given a package and optional symbol, return the **attested installed version's**
+CHANGELOG or migration section from the local package cache (pub cache,
+`node_modules`, site-packages / `dist-info` METADATA), plus the deprecations that
+version declares where the ecosystem marks them (`@Deprecated`, JSDoc
+`@deprecated`, `DeprecationWarning`). Reuse LL10's existing documentation/source
+result envelope and budgets. A new public tool name is justified only if
+tool-discovery evaluation shows that an LL10 query mode is not discoverable
+enough; it must never duplicate parsing, root resolution, or containment.
 
 This beats web search on its own ground: search returns articles about the
 *latest* version, which is not the version installed, and the mismatch is itself
@@ -184,17 +218,27 @@ Acceptance criteria:
 - Fully offline; version-exact by construction.
 - A fixture where the symbol exists in both versions but is deprecated in the
   installed one is answered correctly — the case LL10 answers wrongly.
+- Changelog/deprecation evidence includes package, attested version, relative
+  source path, line span, and truncation metadata under the existing LL10
+  response-size limits.
 
 ### KC4: Cutoff-Sensitive Claim Guard
 
 Status: `later`. Gated on KC1, then a shadow period.
 
 Scope:
-- A detector in the `FinalAnswerClaimDetector` family: assertion shapes such as
-  "the latest is", "X is deprecated", "since vN" **nominate** a claim; the
-  verdict comes only from a ground-truth tool result (KC3, LL10, or web). The
-  existing plumbing already emits a synthetic tool result and re-enters the
-  loop, so the mechanism is a new detector, not new machinery.
+- A guard that reuses the `FinalAnswerClaimDetector` recovery plumbing but is not
+  limited to visible prose. Assertion shapes such as "the latest is", "X is
+  deprecated", "since vN", and their supported non-English equivalents
+  **nominate** prose claims. Response code blocks, changed dependency-using code,
+  and LL11 deprecation diagnostics nominate code-artifact claims.
+- The verdict comes only from ground-truth evidence: KC3/LL10, LL11 diagnostics,
+  compile/test output, or web results. Regexes and model-cutoff metadata may
+  trigger verification but never decide correctness.
+- The existing synthetic tool-result re-entry can serve prose claims. Artifact
+  claims require a small turn-evidence adapter that carries changed paths,
+  relevant diff excerpts, and structured diagnostics into the same bounded
+  recovery decision; this is not accurately described as "a new detector only."
 - **Degrade to annotation, never to blocking.** With no verifying tool available
   (offline, no lockfile, no search endpoint) the guard annotates and the answer
   ships. A local-first app that refuses to answer offline is worse than a hedge.
@@ -204,8 +248,10 @@ the regex.
 
 Promotion gate:
 - Shadow-only first: log firings without transforming any answer, and report
-  precision against KC1's labeled set. Low precision means deletion, per the
-  LL36 delete-by-measurement precedent — not a tuning pass.
+  precision and recall against KC1's labeled prose and code-artifact set. A stale
+  API fixture that appears only in edited code must fire. Low precision or a
+  material code-artifact false-negative rate means deletion or re-scoping, per
+  the LL36 delete-by-measurement precedent — not an open-ended tuning pass.
 
 ### KC5: Model Cutoff Registry
 
@@ -216,9 +262,9 @@ Scope:
   its source (`static_table`, `user_override`, `unknown`).
 - **Never from self-report.** A model's claimed cutoff is training-data
   folklore; models routinely state it wrongly in both directions.
-- Consumers: KC2 can state the gap in months (actionable where "may be outdated"
-  is not); KC4 scales its aggressiveness with the gap; MLIB2/MLIB3 provenance
-  already wants the field.
+- Consumers: KC2 can state the gap in months as context (not as proof that any
+  specific belief is stale); KC4 may use the gap to nominate verification work,
+  never to render a verdict; MLIB2/MLIB3 provenance already wants the field.
 
 Open question (unresolved, not assumed): whether an LL39-style dated-fact probe
 can measure a cutoff empirically well enough to beat a static table. Recording
@@ -241,7 +287,9 @@ can measure a cutoff empirically well enough to beat a static table. Recording
 1. **Capture the KC1 baseline before KC2 lands.** KC2 changes the prompt; once
    it ships, the before/after comparison is gone. This is the one ordering
    constraint in the track.
-2. KC2 in parallel with KC1's analysis — it needs no permission.
+2. Freeze the KC1 baseline artifact, then implement KC2 while the remaining KC1
+   analysis continues. KC2 needs no promotion permission, but must not erase the
+   before arm.
 3. KC3 only if KC1 shows class 2 dominates.
 4. KC4 in shadow, deleted if imprecise.
 5. KC5 when a second model family is in regular production use; until then a
