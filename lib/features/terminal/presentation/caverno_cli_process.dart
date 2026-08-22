@@ -184,10 +184,12 @@ Future<int> runCavernoCliProcess(
       return result;
     }
 
-    final persistedApiKey = SettingsRepository(preferences).load().apiKey;
+    final settingsRepository = await SettingsRepository.create(preferences);
+    final persistedApiKey = settingsRepository.load().apiKey;
     container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(preferences),
+        settingsRepositoryProvider.overrideWithValue(settingsRepository),
         if (conversationBox != null)
           conversationBoxProvider.overrideWithValue(conversationBox),
         if (memoryBox != null)
@@ -406,7 +408,9 @@ Future<int> _runChatToolCatalogueSnapshot({
       Hive.init(dataDirectory.path);
     }
     final preferences = await SharedPreferences.getInstance();
-    final settings = SettingsRepository(preferences).loadReadOnly();
+    final settings = (await SettingsRepository.create(
+      preferences,
+    )).loadReadOnly();
     conversationBox = await Hive.openBox<String>('conversations');
     memoryBox = await Hive.openBox<String>('chat_memory');
     skillBox = await Hive.openBox<String>('skills');
@@ -574,7 +578,9 @@ Future<int> _runCavernoCliDoctor({
   ];
   try {
     final preferences = await SharedPreferences.getInstance();
-    final persistedSettings = SettingsRepository(preferences).loadReadOnly();
+    final persistedSettings = (await SettingsRepository.create(
+      preferences,
+    )).loadReadOnly();
     secrets.add(persistedSettings.apiKey);
     final configuration = resolveCavernoCliRuntimeConfiguration(
       invocation: invocation,

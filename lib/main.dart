@@ -50,6 +50,7 @@ Future<void> main(List<String> arguments) async {
   final skillBox = await Hive.openBox<String>('skills');
 
   final prefs = await SharedPreferences.getInstance();
+  final settingsRepository = await SettingsRepository.create(prefs);
   final dataRoot = await resolveCavernoDataRoot();
 
   // F4: migrate conversations and chat memory from Hive to drift/SQLite and
@@ -63,7 +64,7 @@ Future<void> main(List<String> arguments) async {
     dataRoot: dataRoot,
   );
 
-  final initialSettings = SettingsRepository(prefs).load();
+  final initialSettings = settingsRepository.load();
   final systemLocale = WidgetsBinding.instance.platformDispatcher.locale;
   unawaited(_deleteExpiredToolResultArtifacts());
   unawaited(AttachmentStorageService.sweepOldAttachments());
@@ -94,6 +95,7 @@ Future<void> main(List<String> arguments) async {
       child: ProviderScope(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
+          settingsRepositoryProvider.overrideWithValue(settingsRepository),
           conversationBoxProvider.overrideWithValue(conversationBox),
           chatMemoryBoxProvider.overrideWithValue(memoryBox),
           skillBoxProvider.overrideWithValue(skillBox),
