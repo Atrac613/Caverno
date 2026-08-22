@@ -14,7 +14,7 @@ class SettingsQrService {
   /// Generates a QR-compatible string from [AppSettings].
   /// Uses minified JSON -> GZip -> Base64 for compact representation.
   String generateQrString(AppSettings settings) {
-    final jsonString = jsonEncode(settings.toJson());
+    final jsonString = SettingsFileService.encodeSettings(settings);
     final bytes = utf8.encode(jsonString);
     // Note: GZipCodec is available in dart:io (Mobile/Desktop)
     final compressed = GZipCodec().encode(bytes);
