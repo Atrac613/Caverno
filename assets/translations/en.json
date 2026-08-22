@@ -1282,6 +1282,8 @@
     "browser_forward": "Forward",
     "browser_reload": "Reload",
     "browser_close": "Close",
+    "browser_open_external": "Open in external browser",
+    "browser_open_external_failed": "Could not open the external browser",
     "browser_untitled": "New tab",
     "browser_deny": "Deny",
     "tool_browser_open": "Open a URL in the built-in browser",

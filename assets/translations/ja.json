@@ -1282,6 +1282,8 @@
     "browser_forward": "進む",
     "browser_reload": "再読み込み",
     "browser_close": "閉じる",
+    "browser_open_external": "外部ブラウザで開く",
+    "browser_open_external_failed": "外部ブラウザを開けませんでした",
     "browser_untitled": "新しいタブ",
     "browser_deny": "拒否",
     "tool_browser_open": "内蔵ブラウザでURLを開く",
