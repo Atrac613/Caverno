@@ -21,6 +21,58 @@ void main() {
     expect(goal.autoContinue, isFalse);
   });
 
+  test('the prompt-facing workflow spec carries execution-progress status', () {
+    final conversation = Conversation(
+      id: 'conversation-1',
+      title: 'Cave game',
+      messages: const [],
+      createdAt: DateTime(2026, 8, 22, 2),
+      updatedAt: DateTime(2026, 8, 22, 3),
+      workspaceMode: WorkspaceMode.coding,
+      workflowStage: ConversationWorkflowStage.implement,
+      workflowSpec: const ConversationWorkflowSpec(
+        goal: 'Ship the cave game',
+        tasks: [
+          ConversationWorkflowTask(id: 'task-1', title: 'Build the scene'),
+          ConversationWorkflowTask(id: 'task-2', title: 'Build the cave'),
+        ],
+      ),
+      executionProgress: const [
+        ConversationExecutionTaskProgress(
+          taskId: 'task-1',
+          status: ConversationWorkflowTaskStatus.completed,
+        ),
+        ConversationExecutionTaskProgress(
+          taskId: 'task-2',
+          status: ConversationWorkflowTaskStatus.inProgress,
+        ),
+      ],
+    );
+
+    // The authored statuses are both still `pending`; only execution progress
+    // knows the run advanced. The system prompt reads the projection so the
+    // saved-task list cannot contradict the execution snapshot.
+    expect(
+      conversation.effectiveWorkflowSpec.tasks
+          .map((task) => task.status)
+          .toList(),
+      [
+        ConversationWorkflowTaskStatus.pending,
+        ConversationWorkflowTaskStatus.pending,
+      ],
+    );
+    expect(
+      conversation.projectedWorkflowSpec.tasks
+          .map((task) => task.status)
+          .toList(),
+      [
+        ConversationWorkflowTaskStatus.completed,
+        ConversationWorkflowTaskStatus.inProgress,
+      ],
+    );
+    expect(conversation.projectedWorkflowSpec.goal, 'Ship the cave game');
+  });
+
   test('workflow projection freshness follows the approved markdown hash', () {
     const approvedMarkdown = '# Plan\n\n## Goal\nShip execution handoff';
     final baseConversation = Conversation(

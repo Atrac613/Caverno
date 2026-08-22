@@ -111,6 +111,24 @@ class ExecutionSnapshot {
       'Workflow stage: ${workflowStage.name}',
       'Required next action: ${action.name}',
     ];
+    final totalTaskCount = completedTaskCount + remainingTaskCount;
+    if (totalTaskCount > 0) {
+      // The saved-task list further down the prompt carries each task's
+      // authored status, which nothing writes completion back to. Without this
+      // line the model's only view of progress was that stale list, so a fully
+      // executed plan still read as five pending tasks (session a0ca65b7).
+      lines.add(
+        'Saved task progress: $completedTaskCount of $totalTaskCount '
+        'completed',
+      );
+      if (remainingTaskCount == 0) {
+        lines.add(
+          'Every saved task is complete. Do not re-inspect completed task '
+          'files to look for remaining work; report the outcome or take the '
+          'next step the user asked for.',
+        );
+      }
+    }
     if (objective.trim().isNotEmpty) {
       lines.add('Objective: ${_clip(objective, 500)}');
     }

@@ -534,6 +534,76 @@ void main() {
     expect(snapshot.toRedactedLogSummary(), contains('hasDiagnostic=false'));
   });
 
+  test('the prompt reports saved-task progress from execution progress', () {
+    const workflow = ConversationWorkflowSpec(
+      goal: 'Ship the game',
+      tasks: [
+        ConversationWorkflowTask(id: 'task-1', title: 'Build the scene'),
+        ConversationWorkflowTask(id: 'task-2', title: 'Build the cave'),
+      ],
+    );
+    final snapshot = projector.project(
+      conversation(
+        workflowSpec: workflow,
+        progress: const [
+          ConversationExecutionTaskProgress(
+            taskId: 'task-1',
+            status: ConversationWorkflowTaskStatus.completed,
+          ),
+        ],
+      ),
+    );
+
+    // The authored task status stays `pending`, so without this line the
+    // prompt's only progress signal is a saved-task list that never advances.
+    expect(
+      snapshot.toPromptContext(),
+      contains('Saved task progress: 1 of 2 completed'),
+    );
+    expect(snapshot.toPromptContext(), isNot(contains('Every saved task')));
+  });
+
+  test('the prompt calls out a fully completed task list', () {
+    const workflow = ConversationWorkflowSpec(
+      goal: 'Ship the game',
+      tasks: [
+        ConversationWorkflowTask(id: 'task-1', title: 'Build the scene'),
+        ConversationWorkflowTask(id: 'task-2', title: 'Build the cave'),
+      ],
+    );
+    final snapshot = projector.project(
+      conversation(
+        workflowSpec: workflow,
+        progress: const [
+          ConversationExecutionTaskProgress(
+            taskId: 'task-1',
+            status: ConversationWorkflowTaskStatus.completed,
+          ),
+          ConversationExecutionTaskProgress(
+            taskId: 'task-2',
+            status: ConversationWorkflowTaskStatus.completed,
+          ),
+        ],
+      ),
+    );
+
+    final prompt = snapshot.toPromptContext();
+    expect(prompt, contains('Saved task progress: 2 of 2 completed'));
+    expect(prompt, contains('Every saved task is complete.'));
+  });
+
+  test('a conversation with no saved tasks reports no progress line', () {
+    final snapshot = projector.project(
+      conversation(
+        workflowSpec: const ConversationWorkflowSpec(goal: 'Ship the game'),
+      ),
+    );
+
+    expect(
+      snapshot.toPromptContext(),
+      isNot(contains('Saved task progress:')),
+    );
+  });
   group('verification cadence reproduction (session cfaa8297)', () {
     // Production showed mutation generation 5, verification generation -1 and
     // cadence `required` in the prompt, one second before goal auto-continue

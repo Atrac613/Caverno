@@ -98,7 +98,7 @@ extension ChatNotifierPromptContext on ChatNotifier {
       goal: currentConversation?.goal,
       workflowStage:
           currentConversation?.workflowStage ?? ConversationWorkflowStage.idle,
-      workflowSpec: currentConversation?.workflowSpec,
+      workflowSpec: currentConversation?.projectedWorkflowSpec,
       planArtifact: currentConversation?.planArtifact,
       executionSnapshot: executionSnapshot,
       isVoiceMode: _isVoiceMode,

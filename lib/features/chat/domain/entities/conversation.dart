@@ -463,4 +463,19 @@ abstract class Conversation with _$Conversation {
       executionTaskViews
           .map((view) => view.legacyProjectedTask)
           .toList(growable: false);
+
+  /// [effectiveWorkflowSpec] with every task status taken from execution
+  /// progress rather than from the authored task.
+  ///
+  /// A stored task status is authored state: nothing writes completion back to
+  /// it, so it stays `pending` for the whole run while the real status lives in
+  /// [effectiveExecutionProgress]. The system prompt rendered the stored value,
+  /// so a thread whose five tasks had all been implemented and validated still
+  /// told the model every task was pending. In session a0ca65b7 the model read
+  /// that, saw the files already on disk, called the state a contradiction, and
+  /// spent three turns re-reading the same six files instead of acting.
+  /// Projecting here keeps the prompt and the execution snapshot describing the
+  /// same run.
+  ConversationWorkflowSpec get projectedWorkflowSpec =>
+      effectiveWorkflowSpec.copyWith(tasks: projectedExecutionTasks);
 }
