@@ -17,6 +17,11 @@ handoffs can refer to the same unit of work over time.
   `EVAL-MOBILE<number>`, `MM<number>`, `MCP-GOV<number>`,
   `SKILL<number>`, and `ROUTINE<number>` for future platform vision
   milestones, also documented in `docs/local_llm_agent_roadmap.md`.
+- Use `KC<number>` for Knowledge Currency milestones — training-cutoff
+  exposure measurement, environment ground truth in the prompt, and
+  version-delta documentation — also documented in
+  `docs/local_llm_agent_roadmap.md` with a full design in
+  `docs/knowledge_currency_track_design.md`.
 - Use `TOOL<number>` for the user-created Tools workspace and manifest runtime
   milestones documented in `docs/tools_mvp_roadmap.md`.
 - Use `FORK<number>` for conversation fork/branching (chat + coding)
@@ -94,6 +99,11 @@ handoffs can refer to the same unit of work over time.
 | Retrieval | RAG4 | blocked | Federate agent-kb memories and wiki pages with current local project evidence through the existing reviewed stdio MCP boundary. | Keep databases separate, label historical versus current authority, fail open to local search, and require additive versioned `kb_search` provenance plus a distinct Caverno source identity. HOOK2 is not a prerequisite. Blocked upstream: `kb_search` returns no timestamp, wiki hits carry no confidence or source agent, and agent-kb archiving rejects any agent outside `{claude, codex}`. |
 | Retrieval | RAG5 | later | Evaluate deterministic `none`/local/agent-kb/both routing in shadow before automatic retrieval changes prompts or cost. | Activate routes only after precision, recall, unnecessary-retrieval, answer-quality, latency, and token gates pass. |
 | Retrieval | RAG6 | later | Decide whether optional local reranking or ANN vector search is justified by measured quality and scale. | A documented No-Go is successful completion when 20k latency/RSS or reranker quality/VRAM gates do not justify new dependencies. |
+| Knowledge Currency | KC1 | next | Count how often answers assert version-sensitive facts, attributed to world-fact / API-drift / environment / repository classes, and whether a ground-truth tool result in the same turn backs each one. | Instrument before mechanism, per LL31/LL36. Per-class rates only; a single staleness number would hide that the two biggest classes are answerable offline. A negative control on deliberately stale fixtures must fail the suite. |
+| Knowledge Currency | KC2 | next | Push measured ground truth into the prompt — unconditional datetime anchor, detected toolchain versions, direct dependencies at locked versions — instead of asking a stale model to suspect itself. | Not gated on KC1 (deterministic, offline, heuristic-free), but capture the KC1 baseline first or the before/after is lost. Tail placement only, so the LL6/LL22 prefix stays stable. Prefer the resolved installed root over the lockfile: a stale lockfile would state a wrong version with full authority. |
+| Knowledge Currency | KC3 | later | Return the installed version's CHANGELOG/migration section and declared deprecations from the local package cache. | Closes LL10's blind spot: `symbol_found` cannot see a deprecated-but-still-present API, so LL10 confirms the stale belief. A lockfile-keyed path lookup, not retrieval — must not queue behind RAG1-RAG3. |
+| Knowledge Currency | KC4 | later | Nominate cutoff-sensitive assertions in the final answer and let only a ground-truth tool result render the verdict. | Reuses the `FinalAnswerClaimDetector` plumbing. Annotates rather than blocks when nothing can verify, so offline turns still answer. Shadow-only first; delete on low precision per LL36 rather than tune. |
+| Knowledge Currency | KC5 | later | Record a per-model `knowledgeCutoff` date and its source so the gap can be stated in months and scaled against. | Never from self-report. `unknown` recorded honestly beats a probed number nobody trusts; whether an LL39-style dated-fact probe can beat a static table is open. |
 | Local LLM | LL8 | done | LAN inference mesh: discover and register OpenAI-compatible endpoints, route secondary calls per role with health fallback. | Discovery probe (unauthenticated `GET /v1/models`) + named-endpoint registry + mesh settings UI + per-role endpoint routing for secondary calls with primary fallback shipped and device-verified. Full-mesh main-conversation fan-out and a periodic health-check loop are deferred follow-ups. Branch `feature/ll8-lan-inference-mesh` is already integrated into main. |
 | Local LLM | LL9 | done | Local stack manager: model lifecycle controls and hardware-aware model guidance. | `Advanced > Local Stack` manages primary and LL8 endpoints across llama.cpp router, LM Studio, and Ollama, with role-model prepare, resource fit guidance, speedup guidance, and focused verification. |
 | Local LLM | LL10 | done | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. | Use `tool/run_ll10_dependency_grounding_release_gate.sh` and `tool/run_ll10_dependency_grounding_live_canary.sh` to verify lockfile-exact source/docs grounding, future-only API rejection, and weak-model failure reduction. |
@@ -1345,6 +1355,7 @@ Future platform vision summary:
 | HOOK | HOOK1-HOOK3 | current/later | Evolve external config hooks from the current basic bridge into a Claude-like lifecycle system. |
 | MCP-GOV | MCP-GOV1 | later | Govern MCP tools through contract linting, trust levels, and model-specific prompt optimization. |
 | RAG | RAG1-RAG6 | next/later | Ground answers in the current project through a measured local index, then federate agent-kb history behind the same evaluation contract. |
+| KC | KC1-KC5 | next/later | Close the training-cutoff gap by pushing measured environment ground truth into the prompt, since the damaging case is not missing knowledge but a model that cannot tell which of its beliefs expired. |
 | EDGE | EDGE1 | later | Use embedded on-device runtimes for bounded low-risk micro-tasks and offline fallback. |
 | EVAL-MOBILE | EVAL-MOBILE1 | later | Measure coding agents on Flutter/mobile failures that match Caverno's product domain. |
 | MM | MM1 | later | Treat screenshots, voice, OCR, and screen recordings as traceable multimodal evidence. |

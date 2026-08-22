@@ -27,6 +27,10 @@ It also records a future platform vision layer. These milestones are deliberatel
   local automation, agent-kb, and future Claude-like hook flexibility.
 - `RAG<number>` — Local project knowledge retrieval, grounding, and federation
   with durable external knowledge layers such as agent-kb.
+- `KC<number>` — Knowledge Currency: closing the gap between the model's
+  training cutoff and the user's present environment, by pushing measured
+  ground truth into the prompt instead of asking a stale model to suspect
+  itself.
 - `EDGE<number>` — Embedded on-device runtime adapters and offline fallback.
 - `EVAL-MOBILE<number>` — Flutter/mobile coding eval packs and visual
   regression harnesses.
@@ -185,6 +189,11 @@ structurally unmotivated to build:
 | Retrieval | RAG4 | blocked | M | RAG1, RAG3, HOOK1, SEC1, SEC2, agent-kb provenance | Federate agent-kb memories and wiki pages without copying its raw archive or database into Caverno. Blocked upstream: `kb_search` exposes no timestamp, wiki hits carry no confidence or source agent, and archiving rejects any agent outside `{claude, codex}`. |
 | Retrieval | RAG5 | later | S-M | RAG3, RAG4, LL23 | Evaluate deterministic local/agent-kb routing in shadow before automatic retrieval changes prompts or turn cost. |
 | Retrieval | RAG6 | later | S-M | RAG5, COMPAT1, LL39 | Make evidence-backed Go/No-Go decisions for optional reranking and ANN vector search. |
+| Knowledge Currency | KC1 | next | S-M | LL39, LL31 | Cutoff exposure census: classify version-sensitive assertions across both corpora into world-fact / API-drift / environment / repository classes, and record whether a ground-truth tool result in the same turn supports each one. Instrument only; ships no production behavior. Per-class rates, never one aggregate — a single staleness number averages the network-bound class into the offline-answerable ones and hides the asymmetry the track rests on. |
+| Knowledge Currency | KC2 | next | S-M | LL10, LL6, LL22, LL39 | Environment Ground Truth Block: replace prose humility with measured facts — an unconditional datetime anchor, detected toolchain versions, and direct dependencies at their locked versions — emitted into the tail region so the LL6/LL22 prefix stays stable. Deterministic, offline, no heuristic, so it is **not** gated on KC1; KC1 measures its effect rather than authorizing it. Also removes the `TemporalContextBuilder` regex gate, which today judges rather than triggers: work that silently depends on the date gets no anchor because it contains no date word. |
+| Knowledge Currency | KC3 | later | S-M | KC1, LL10 | Version-delta documentation (`read_dependency_doc`): the installed version's CHANGELOG/migration section and declared deprecations from the local package cache. Closes LL10's blind spot — `symbol_found` cannot see a deprecated-but-still-present API, so LL10 returns `true` and confirms the model's stale belief, which is the shape most real version drift takes. Path lookup keyed by the lockfile: no index, no ranking, no embeddings, and therefore not queued behind RAG1-RAG3. |
+| Knowledge Currency | KC4 | later | M | KC1, KC3, LL36 | Cutoff-sensitive claim guard in the `FinalAnswerClaimDetector` family: assertion shapes nominate a claim, and only a ground-truth tool result renders the verdict. Degrades to annotation, never to blocking, when no verifying tool is reachable — a local-first app that refuses to answer offline is worse than a hedge. Shadow-only first, deleted rather than tuned if precision is low, per the LL36 delete-by-measurement precedent. |
+| Knowledge Currency | KC5 | later | S | KC2, LL39, MLIB2 | Model cutoff registry: a `knowledgeCutoff` date plus its source (`static_table` / `user_override` / `unknown`) on the capability profile, so KC2 can state the gap in months and KC4 can scale with it. Never from self-report — a model's claimed cutoff is training-data folklore. Whether an LL39-style dated-fact probe can beat a static table is an open question, and recording `unknown` honestly beats a probed number nobody trusts. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: the baseline is implemented, but the 2026-08-14 audit reopened classifier exhaustiveness, host-read trust, and external-MCP routine policy. |
@@ -900,6 +909,195 @@ Deferred follow-up:
   to scale beyond conversation history is also owned by RAG6.
 - A separate embeddings base-URL/key (today embeddings reuse the chat
   endpoint), to support a dedicated single-model llama.cpp embeddings server.
+
+## Knowledge Currency Track (KC1-KC5)
+
+Full design: `docs/knowledge_currency_track_design.md`.
+
+Thesis 6 names the problem — local models are stale and change weekly — and LL10
+answered one half of it. This track states the other half precisely.
+
+The cutoff problem is not missing knowledge. A model that knows it is missing
+something already behaves correctly: it searches, or it hedges. The damaging
+case is the inverse — **the model does not know which of its beliefs expired**,
+and answers with the fluency of a fact it learned ten thousand times in
+training, true in 2024. Every freshness mechanism in the app today is **pull**:
+`search_web`, `web_url_read`, and `resolve_installed_dependency` all require the
+model to suspect staleness first. Suspicion is exactly the faculty a stale model
+lacks, and `knowledgeCutoffHumilityInstruction`
+(`system_prompt_constants.dart:30`) asks it to make precisely that judgment.
+
+Track rule: **push what is cheap and certain, pull only what is expensive, and
+never ask the model to decide whether it is stale.** The same trigger/judge
+split the roadmap applies elsewhere — heuristics nominate, ground truth decides.
+
+Four failure classes, four different grounds, and only one needs the network:
+world facts (web), API drift (lockfile + installed source), environment facts
+(toolchain probe), and this repository (repo map, skills, session memory, RAG
+track). The middle two damage coding work, occur most often, and are **fully
+answerable offline from the user's own disk**. That asymmetry is what the track
+exploits, and it is why a single aggregate "staleness rate" would be the wrong
+measurement: it averages the network-bound class into the offline-answerable
+ones.
+
+Boundaries: no web-document cache, no embeddings, and no ranking live here —
+RAG2/RAG3 own local retrieval, RAG4 owns durable external knowledge, and the RAG
+corollary against a third knowledge store applies. Automatic retrieval stays
+behind RAG5's shadow gates. Web-fetched freshness data remains external evidence
+under SEC1/SEC2 and never acquires instruction authority.
+
+Ordering constraint (the only hard one): **capture the KC1 baseline before KC2
+lands.** KC2 changes the prompt, and once it ships the before/after comparison
+is gone.
+
+### KC1: Cutoff Exposure Census
+
+Status: `next`
+
+Measurement instrument first, per the LL31/LL36 precedent. Ships no production
+behavior.
+
+Scope:
+- Classify final answers across both corpora — the split recorded in
+  `docs/canary_evidence_outside_the_corpus_2026-08-06.md`, coding evidence in
+  `build/integration_test_reports` and interactive evidence in the session logs
+  — for version-sensitive assertions, attributed to the four classes above.
+- Per assertion, record whether a ground-truth tool result in the same turn
+  supports it, contradicts it, or is absent.
+- Report per-class rates, never one aggregate.
+
+Acceptance criteria:
+- A negative control passes: an arm fed deliberately stale fixtures makes the
+  suite fail. An instrument that cannot detect known-stale output is never
+  reported as green.
+- Grounded logs only; corpus, turn counts, and `build.commit`/`dirty` recorded
+  per run.
+- Production prompt and tool behavior unchanged.
+
+Promotion gate:
+- KC3 and KC4 stay `later` until the class attribution exists. If API drift does
+  not dominate, KC3 is re-scoped or dropped rather than built on the LL10
+  blind-spot argument alone.
+
+### KC2: Environment Ground Truth Block
+
+Status: `next`
+
+Deliberately **not** gated on KC1: deterministic, offline, and heuristic-free,
+so there is nothing for a measurement to authorize. KC1 measures its effect
+rather than granting it permission.
+
+Scope:
+- An `EnvironmentGroundingContextBuilder` emitting measured facts instead of a
+  warning: an **unconditional** datetime anchor, detected toolchain versions
+  (Flutter/Dart, Node, Python), and direct dependencies at their locked
+  versions. Ecosystem detection reuses LL10's resolver rather than
+  re-implementing lockfile parsing.
+- Direct dependencies only, sorted, hard-capped (target ≤400 tokens), never the
+  transitive closure. On a small-context profile (LL39 usable context) the
+  dependency list drops first and the datetime anchor drops last.
+- Tail placement is load-bearing: the block changes per project and per lockfile
+  edit, so it belongs with the temporal and memory context, never in the LL6/LL22
+  stable prefix — and within a project its bytes must be stable turn-to-turn so
+  the tail does not thrash.
+- Removes the `TemporalContextBuilder` trigger gate
+  (`temporal_context_builder.dart:9-10`), which today judges rather than
+  triggers. Its regex contains `latest|current|recent`, so it fires for
+  questions *about* freshness and stays silent for work that silently *depends*
+  on it: "define a provider with Riverpod" carries no date word and gets no
+  anchor. The regex keeps the narrower job of expanding the relative-date table.
+
+Why this works where prose does not: "your knowledge may be outdated" is
+unactionable — acting on it requires already knowing what changed.
+"flutter_riverpod 3.1.2 is what is installed" is a fact the model can write code
+against.
+
+Acceptance criteria:
+- Deterministic golden output per ecosystem; no network call on any path.
+- A missing or unreadable lockfile omits the block; it never guesses a version.
+- Byte-identical block across two consecutive turns in the same project.
+- A KC1 re-run moves the API-drift and environment rates. If it does not, that is
+  recorded as a negative result, not a reason to keep tuning the wording.
+
+Known risk, handled rather than deferred: **the block carries authority.** A
+`pubspec.lock` that is stale relative to what is actually installed makes the
+block state a wrong version confidently — strictly worse than silence.
+Mitigation: prefer the resolved installed root (LL10's path) over the lockfile
+when both are available, and name the source in the block.
+
+### KC3: Version-Delta Documentation (`read_dependency_doc`)
+
+Status: `later` — gated on KC1 attribution.
+
+Closes an LL10 blind spot. LL10's `symbol_found`
+(`installed_dependency_grounding_service.dart:533`) detects an API the model
+invented or one that exists only upstream — the failure its canary measured and
+closed. It cannot detect a **deprecated-but-still-present** API, which is the
+shape most real version drift takes: the old idiom still resolves, compiles with
+a deprecation warning, or resolves and behaves differently. LL10 answers
+`symbol_found: true` and confirms the stale belief.
+
+Scope:
+- Given a package, return the installed version's CHANGELOG or migration section
+  from the local package cache (pub cache, `node_modules`, site-packages /
+  `dist-info` METADATA), plus the deprecations that version declares where the
+  ecosystem marks them (`@Deprecated`, JSDoc `@deprecated`,
+  `DeprecationWarning`).
+
+This beats web search on its own ground: search returns articles about the
+*latest* version, which is not the version installed, and that mismatch is
+itself a drift source.
+
+Not a RAG milestone: no index, no ranking, no embeddings — a path lookup keyed
+by the lockfile, so it must not queue behind RAG1-RAG3.
+
+Acceptance criteria:
+- Fully offline and version-exact by construction.
+- A fixture where the symbol exists in both versions but is deprecated in the
+  installed one is answered correctly — the case LL10 answers wrongly.
+
+### KC4: Cutoff-Sensitive Claim Guard
+
+Status: `later` — gated on KC1, then a shadow period.
+
+Scope:
+- A detector in the `FinalAnswerClaimDetector` family. Assertion shapes ("the
+  latest is", "X is deprecated", "since vN") **nominate** a claim; the verdict
+  comes only from a ground-truth tool result (KC3, LL10, or web). The existing
+  plumbing already emits a synthetic tool result and re-enters the loop, so this
+  is a new detector, not new machinery.
+- **Degrades to annotation, never to blocking.** With no verifying tool reachable
+  — offline, no lockfile, no search endpoint — the guard annotates and the answer
+  ships. A local-first app that refuses to answer offline is worse than a hedge.
+
+Anti-goals: no confidence scoring of the model's prose, and no verdict rendered
+by the regex.
+
+Promotion gate:
+- Shadow-only first: log firings without transforming any answer, and report
+  precision against KC1's labeled set. Low precision means deletion, per the
+  LL36 delete-by-measurement precedent, not a tuning pass.
+
+### KC5: Model Cutoff Registry
+
+Status: `later`
+
+Scope:
+- A `knowledgeCutoff` field on the model capability profile carrying a date and
+  its source (`static_table`, `user_override`, `unknown`).
+- **Never from self-report.** A model's claimed cutoff is training-data folklore
+  and is routinely wrong in both directions.
+- Consumers: KC2 states the gap in months, which is actionable where "may be
+  outdated" is not; KC4 scales its aggressiveness with the gap; MLIB2/MLIB3
+  provenance already wants the field.
+
+Open question, unresolved rather than assumed: whether an LL39-style dated-fact
+probe can measure a cutoff empirically well enough to beat a static table.
+Recording `unknown` honestly is preferable to a probed number nobody trusts.
+
+Deferred:
+- Until a second model family is in regular production use, a static table for
+  the one endpoint in use is not worth the schema change.
 
 ## Local Knowledge Retrieval Track (RAG1-RAG6)
 
