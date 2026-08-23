@@ -589,6 +589,13 @@ Review platform disclosures against the final data flows, use the shared
 redactor for debug logs, and delete conversation-owned attachments with the
 conversation.
 
+Remediation status (partial 2026-08-23): SEC4.6h applies the shared credential
+and private-key redactor before debug console output and inside the app-log file
+sink, routes application console diagnostics through that boundary, and adds
+regressions covering both outputs. SA-18 remains open for
+conversation-owned attachment deletion and final platform privacy disclosure
+review.
+
 ## Dependency And Supply-Chain Review
 
 - `cd services/notification_relay && npm audit --omit=dev --json` reported zero

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../security/sensitive_data_redactor.dart';
 import 'app_log_file.dart';
 
 /// Debug-only logger that suppresses output in release builds.
@@ -12,9 +13,15 @@ import 'app_log_file.dart';
 /// developer's home directory.
 void appLog(String message) {
   if (!kDebugMode) return;
-  debugPrint(message);
+  appDebugPrint(message);
   if (_isFlutterTest) return;
   AppLogFile.instance.write(message);
+}
+
+/// Debug-only console logger that redacts common secrets before output.
+void appDebugPrint(String message) {
+  if (!kDebugMode) return;
+  debugPrint(SensitiveDataRedactor.redactText(message));
 }
 
 final bool _isFlutterTest = Platform.environment.containsKey('FLUTTER_TEST');

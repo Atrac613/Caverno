@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/services/attachment_storage_service.dart';
+import '../../../../core/utils/logger.dart';
 import '../../domain/entities/video_attachment_draft.dart';
 
 /// A video dropped onto the chat surface, waiting to be picked up.
@@ -68,7 +69,7 @@ class ComposerVideoPicker {
           : await _pickFromDisk();
       return await _persisted(validate(picked));
     } catch (e) {
-      debugPrint('Failed to pick video: $e');
+      appDebugPrint('Failed to pick video: $e');
       return ComposerVideoChoice.none;
     }
   }
@@ -134,7 +135,7 @@ class ComposerVideoPicker {
         noticeArgs: choice.noticeArgs,
       );
     } catch (e) {
-      debugPrint('Failed to persist video attachment: $e');
+      appDebugPrint('Failed to persist video attachment: $e');
       return choice;
     }
   }

@@ -18,6 +18,7 @@ import '../../../../core/services/voice_providers.dart';
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/utils/attachment_format.dart';
+import '../../../../core/utils/logger.dart';
 import '../../../settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/conversation_goal.dart';
@@ -326,7 +327,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       _refreshSlashSuggestions();
       _focusNode.requestFocus();
     } catch (e) {
-      debugPrint('Failed to attach dropped image: $e');
+      appDebugPrint('Failed to attach dropped image: $e');
     }
   }
 
@@ -546,7 +547,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       }
       _focusNode.requestFocus();
     } catch (e) {
-      debugPrint('Failed to execute slash command: $e');
+      appDebugPrint('Failed to execute slash command: $e');
       if (!mounted) return;
       _showSlashCommandFeedback('message.slash_command_failed'.tr());
       _dismissSlashSuggestions();
@@ -644,7 +645,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
           ..addAll(stored.take(_maxHistoryEntries));
       }
     } catch (e) {
-      debugPrint('Failed to load input history: $e');
+      appDebugPrint('Failed to load input history: $e');
     }
   }
 
@@ -653,7 +654,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       final prefs = ref.read(sharedPreferencesProvider);
       unawaited(prefs.setStringList(_historyPrefsKey, _inputHistory));
     } catch (e) {
-      debugPrint('Failed to persist input history: $e');
+      appDebugPrint('Failed to persist input history: $e');
     }
   }
 
@@ -683,7 +684,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         _refreshSlashSuggestions();
       }
     } catch (e) {
-      debugPrint('Failed to pick image: $e');
+      appDebugPrint('Failed to pick image: $e');
     }
   }
 
@@ -733,7 +734,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         originalName: _attachmentOriginalName(filePath, mimeType),
       );
     } catch (e) {
-      debugPrint('Failed to persist original image attachment: $e');
+      appDebugPrint('Failed to persist original image attachment: $e');
       return null;
     }
   }
@@ -808,13 +809,15 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       image = frame.image;
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
-        debugPrint('WEBP conversion failed (byteData is null). Use original.');
+        appDebugPrint(
+          'WEBP conversion failed (byteData is null). Use original.',
+        );
         return (bytes: bytes, mimeType: mimeType);
       }
 
       return (bytes: byteData.buffer.asUint8List(), mimeType: 'image/png');
     } catch (e) {
-      debugPrint('WEBP conversion failed: $e');
+      appDebugPrint('WEBP conversion failed: $e');
       return (bytes: bytes, mimeType: mimeType);
     } finally {
       image?.dispose();
@@ -925,7 +928,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     } on FormatException {
       _showFileError();
     } catch (e) {
-      debugPrint('Failed to pick file: $e');
+      appDebugPrint('Failed to pick file: $e');
       _showFileError();
     }
   }
@@ -1010,7 +1013,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
             }
             completer.complete(true);
           } catch (e) {
-            debugPrint('Failed to read clipboard image: $e');
+            appDebugPrint('Failed to read clipboard image: $e');
             await _surfaceMacOSScreenRecordingHintIfNeeded();
             completer.complete(false);
           }
@@ -1072,7 +1075,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         _refreshSlashSuggestions();
       }
     } catch (e) {
-      debugPrint('Failed to handle inserted content: $e');
+      appDebugPrint('Failed to handle inserted content: $e');
     }
   }
 
@@ -1116,7 +1119,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       if (byteData == null) return (bytes: bytes, mimeType: mimeType);
       return (bytes: byteData.buffer.asUint8List(), mimeType: 'image/png');
     } catch (e) {
-      debugPrint('Failed to resize image: $e');
+      appDebugPrint('Failed to resize image: $e');
       return (bytes: bytes, mimeType: mimeType);
     } finally {
       image?.dispose();
@@ -1294,7 +1297,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         }
       }
     } catch (e) {
-      debugPrint('Failed to toggle recording: $e');
+      appDebugPrint('Failed to toggle recording: $e');
       if (!mounted) return;
       setState(() => _isRecording = false);
     }
@@ -1718,10 +1721,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                 ),
               ),
             if (_selectedVideo != null)
-              ComposerVideoChip(
-                video: _selectedVideo!,
-                onCleared: _clearVideo,
-              ),
+              ComposerVideoChip(video: _selectedVideo!, onCleared: _clearVideo),
             // File preview
             if (_selectedFileName != null)
               Container(

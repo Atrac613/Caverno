@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/utils/logger.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import '../../../settings/presentation/providers/model_list_provider.dart';
@@ -234,7 +235,7 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
       models = await ref.read(modelListProvider(config).future);
     } on Object catch (error) {
       failed = true;
-      debugPrint('Composer model list failed to load: $error');
+      appDebugPrint('Composer model list failed to load: $error');
     } finally {
       subscription.close();
     }
@@ -268,7 +269,9 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
             .read(modelCapabilityAutoProbeNotifierProvider.notifier)
             .runForCurrentModel(),
       ).catchError((Object error) {
-        debugPrint('Model capability probe failed after model switch: $error');
+        appDebugPrint(
+          'Model capability probe failed after model switch: $error',
+        );
       }),
     );
   }
