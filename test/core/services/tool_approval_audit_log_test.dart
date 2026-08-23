@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/security/sensitive_file_permissions.dart';
 import 'package:caverno/core/services/tool_approval_audit_log.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -98,7 +99,69 @@ void main() {
     // The selector and reason stay; the secret value is replaced with a marker.
     expect(args['selector'], '#password');
     expect(args['reason'], 'log in');
-    expect(args['value'], '[redacted len=14]');
+    expect(args['value'], '[redacted]');
+  });
+
+  test('recursively redacts nested secrets and private keys', () async {
+    const privateKey = '''-----BEGIN PRIVATE KEY-----
+top-secret-material
+-----END PRIVATE KEY-----''';
+    await buildLog().record(
+      tool: 'participant_execute_tool',
+      actionKind: 'participant_execute_tool',
+      domain: 'coding',
+      mode: 'autoReview',
+      outcome: 'allowed',
+      arguments: const {
+        'participant': 'reviewer',
+        'toolArguments': {
+          'request': {
+            'headers': {'authorization': 'Bearer nested-secret-token'},
+            'steps': [
+              {'token': 'nested-token'},
+              {'note': privateKey},
+            ],
+          },
+        },
+      },
+    );
+
+    final encoded = jsonEncode(readEntries().single['arguments']);
+    expect(encoded, contains('[redacted]'));
+    expect(encoded, contains('[redacted-private-key]'));
+    expect(encoded, isNot(contains('nested-secret-token')));
+    expect(encoded, isNot(contains('nested-token')));
+    expect(encoded, isNot(contains('top-secret-material')));
+    expect(encoded, contains('reviewer'));
+  });
+
+  test('hardens existing and new audit paths to owner-only modes', () async {
+    if (!SensitiveFilePermissions.isSupported) return;
+
+    final auditDir = Directory('${tempDir.path}/approval_audit')
+      ..createSync(recursive: true);
+    final existingFile = File('${auditDir.path}/2999-01-01.jsonl')
+      ..writeAsStringSync('{"existing":true}\n');
+    expect((await Process.run('chmod', ['755', tempDir.path])).exitCode, 0);
+    expect((await Process.run('chmod', ['755', auditDir.path])).exitCode, 0);
+    expect(
+      (await Process.run('chmod', ['644', existingFile.path])).exitCode,
+      0,
+    );
+
+    await buildLog().record(
+      tool: 'browser_click',
+      actionKind: 'browser_click',
+      domain: 'browser',
+      mode: 'fullAccess',
+      outcome: 'allowed',
+    );
+
+    expect(FileStat.statSync(tempDir.path).mode & 0x1ff, 0x1c0);
+    expect(FileStat.statSync(auditDir.path).mode & 0x1ff, 0x1c0);
+    for (final file in auditDir.listSync().whereType<File>()) {
+      expect(FileStat.statSync(file.path).mode & 0x1ff, 0x180);
+    }
   });
 
   test('appends multiple decisions to the same day file', () async {
@@ -123,7 +186,10 @@ void main() {
 
     final entries = readEntries();
     expect(entries, hasLength(2));
-    expect(entries.map((e) => e['outcome']), containsAll(['denied', 'allowed']));
+    expect(
+      entries.map((e) => e['outcome']),
+      containsAll(['denied', 'allowed']),
+    );
   });
 
   test('prunes day-files older than the retention window', () async {

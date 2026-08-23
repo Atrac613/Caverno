@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../../../core/constants/build_info.dart';
+import '../../../../core/security/sensitive_data_redactor.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
@@ -288,37 +289,6 @@ class LlmSessionLogStore {
   static const directoryEnvironmentKey = 'CAVERNO_SESSION_LOG_DIR';
   static const _fallbackSessionId = 'unscoped';
   static final RegExp _safeFileNamePattern = RegExp(r'[^A-Za-z0-9._-]+');
-  static const _redactedStringKeys = {
-    'imagebase64',
-    'image_base64',
-    'screenshotbase64',
-    'screenshot_base64',
-    'audiobase64',
-    'audio_base64',
-    'access_token',
-    'accesstoken',
-    'password',
-    'passwd',
-    'pwd',
-    'token',
-    'secret',
-    'clientsecret',
-    'client_secret',
-    'credential',
-    'credentials',
-    'cookie',
-    'setcookie',
-    'set_cookie',
-    'privatekey',
-    'private_key',
-    'sshkey',
-    'ssh_key',
-    'xapikey',
-    'x_api_key',
-    'apikey',
-    'api_key',
-    'authorization',
-  };
   static bool get _isFlutterTest =>
       Platform.environment.containsKey('FLUTTER_TEST');
 
@@ -345,40 +315,6 @@ class LlmSessionLogStore {
     return (directoryOverride?.trim().isNotEmpty) ?? false;
   }
 
-  static final RegExp _privateKeyPattern = RegExp(
-    r'-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----',
-    caseSensitive: false,
-  );
-  static final RegExp _authorizationHeaderPattern = RegExp(
-    r'\b(authorization\s*[:=]\s*)(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]+',
-    caseSensitive: false,
-  );
-  static final RegExp _bearerTokenPattern = RegExp(
-    r'\bbearer\s+[A-Za-z0-9._~+/=-]{8,}',
-    caseSensitive: false,
-  );
-  static final RegExp _openAiStyleKeyPattern = RegExp(
-    r'\bsk-[A-Za-z0-9_-]{16,}\b',
-  );
-  static final RegExp _githubTokenPattern = RegExp(
-    r'\b(?:github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9_]{20,})\b',
-  );
-  static final RegExp _jwtPattern = RegExp(
-    r'\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b',
-  );
-  static final RegExp _urlCredentialPattern = RegExp(
-    r'\b(https?://)[^:\s/@]+:[^@\s]+@',
-    caseSensitive: false,
-  );
-  static final RegExp _sensitiveQueryParamPattern = RegExp(
-    r'([?&](?:access_token|refresh_token|id_token|api_key|apikey|token|secret|password|auth|authorization|key)=)[^&#\s]+',
-    caseSensitive: false,
-  );
-  static final RegExp _envSecretLinePattern = RegExp(
-    r'^(\s*(?:[A-Z][A-Z0-9_]*(?:TOKEN|SECRET|KEY|PASSWORD|PASS|PWD|AUTH)[A-Z0-9_]*|(?:TOKEN|SECRET|KEY|PASSWORD|PASS|PWD|AUTH))\s*=\s*)(.+)$',
-    multiLine: true,
-  );
-
   static bool isEnabled({
     required bool settingsEnabled,
     Map<String, String>? environment,
@@ -393,11 +329,11 @@ class LlmSessionLogStore {
   }
 
   static dynamic redactSensitiveValue(dynamic value) {
-    return _redactValue(value);
+    return SensitiveDataRedactor.redact(value);
   }
 
   static String redactSensitiveText(String value) {
-    return _redactString(value);
+    return SensitiveDataRedactor.redactText(value);
   }
 
   static String redactSessionLogContent(String content) {
@@ -420,7 +356,7 @@ class LlmSessionLogStore {
     try {
       return jsonEncode(_redactValue(jsonDecode(line)));
     } catch (_) {
-      return _redactString(line);
+      return SensitiveDataRedactor.redactText(line);
     }
   }
 
@@ -759,8 +695,7 @@ class LlmSessionLogStore {
         'label': request.label!.trim(),
       'messages': request.messages
           .map(
-            (message) =>
-                _messageToJson(message, request.videoDeliveryLookup),
+            (message) => _messageToJson(message, request.videoDeliveryLookup),
           )
           .toList(growable: false),
       if (request.tools != null)
@@ -841,7 +776,8 @@ class LlmSessionLogStore {
       if (message.hasVideoAttachment)
         'video': {
           'mediaType': message.effectiveVideoMimeType,
-          if (message.videoSizeBytes != null) 'sizeBytes': message.videoSizeBytes,
+          if (message.videoSizeBytes != null)
+            'sizeBytes': message.videoSizeBytes,
           if (message.videoDurationMs != null)
             'durationMs': message.videoDurationMs,
           // Which one is set says how the video was addressed, and the path is
@@ -891,61 +827,8 @@ class LlmSessionLogStore {
     }
   }
 
-  static dynamic _redactValue(dynamic value, [String? parentKey]) {
-    final normalizedKey = parentKey
-        ?.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '')
-        .toLowerCase();
-    if (normalizedKey != null && _redactedStringKeys.contains(normalizedKey)) {
-      return '[redacted]';
-    }
-
-    if (value is String) {
-      return _redactString(value);
-    }
-    if (value is Map) {
-      return {
-        for (final entry in value.entries)
-          entry.key.toString(): _redactValue(entry.value, entry.key.toString()),
-      };
-    }
-    if (value is List) {
-      return value.map(_redactValue).toList(growable: false);
-    }
-    return value;
-  }
-
-  static String _redactString(String value) {
-    var redacted = value.replaceAll(
-      _privateKeyPattern,
-      '[redacted-private-key]',
-    );
-    redacted = redacted.replaceAllMapped(
-      _authorizationHeaderPattern,
-      (match) => '${match.group(1)}[redacted]',
-    );
-    redacted = redacted.replaceAllMapped(
-      _bearerTokenPattern,
-      (match) => '${match.group(0)!.split(RegExp(r'\s+')).first} [redacted]',
-    );
-    redacted = redacted.replaceAll(_openAiStyleKeyPattern, 'sk-[redacted]');
-    redacted = redacted.replaceAll(
-      _githubTokenPattern,
-      '[redacted-github-token]',
-    );
-    redacted = redacted.replaceAll(_jwtPattern, '[redacted-jwt]');
-    redacted = redacted.replaceAllMapped(
-      _urlCredentialPattern,
-      (match) => '${match.group(1)}[redacted]@',
-    );
-    redacted = redacted.replaceAllMapped(
-      _sensitiveQueryParamPattern,
-      (match) => '${match.group(1)}[redacted]',
-    );
-    redacted = redacted.replaceAllMapped(
-      _envSecretLinePattern,
-      (match) => '${match.group(1)}[redacted]',
-    );
-    return redacted;
+  static dynamic _redactValue(dynamic value) {
+    return SensitiveDataRedactor.redact(value);
   }
 
   Future<void> _prepareFileForWrite(
