@@ -570,6 +570,11 @@ configuration unless all required signing properties are present and the
 configured keystore exists. The remaining CI, dependency monitoring, Gradle
 checksum, and toolchain pinning work stays open under SA-16.
 
+Remediation status (partially completed 2026-08-23): SEC4.7b pins all external
+actions in the pull-request Flutter CI workflow to reviewed 40-character commit
+SHAs and enforces the exact action/version/SHA allowlist in a regression test.
+The SDK-update and manual-smoke workflows still require immutable pins.
+
 ### SA-17: Android Backup Boundary
 
 `android/app/src/main/AndroidManifest.xml:20-23` has no explicit backup or data
