@@ -18,6 +18,22 @@ typedef LegacyConversationReader = Future<List<Conversation>> Function();
 typedef LegacyChatMemoryReader = Future<Map<String, String>> Function();
 typedef MigrationMarkerWriter = Future<void> Function();
 
+/// Signals that at least one drift migration marker is authoritative, so a
+/// caller must not fall back to mutable legacy Hive repositories.
+final class CavernoAuthoritativePersistenceException extends StateError
+    implements Exception {
+  CavernoAuthoritativePersistenceException(this.cause, this.causeStackTrace)
+    : super(cause.toString());
+
+  final Object cause;
+  final StackTrace causeStackTrace;
+
+  @override
+  String toString() {
+    return 'Authoritative drift persistence failed: $cause';
+  }
+}
+
 /// Drift-backed repositories and database owned by one application frontend.
 final class CavernoPersistenceStorage {
   CavernoPersistenceStorage({
@@ -44,9 +60,10 @@ final class CavernoPersistenceStorage {
 
 /// Opens drift, applies the one-time F4 migrations, and hydrates repositories.
 ///
-/// Frontends own fallback policy. GUI startup may catch a failure and retain
-/// its legacy Hive repositories, while the CLI can fail closed instead of
-/// writing to a stale post-migration Hive store.
+/// Frontends own fallback policy before migration. Once either migration has
+/// completed, failures are wrapped in
+/// [CavernoAuthoritativePersistenceException] so no frontend can silently
+/// resume writes against stale legacy Hive data.
 final class CavernoPersistenceBootstrap {
   const CavernoPersistenceBootstrap();
 
@@ -62,23 +79,33 @@ final class CavernoPersistenceBootstrap {
     ChatMemoryMutationCoordinator mutationCoordinator =
         const DirectChatMemoryMutationCoordinator(),
   }) async {
-    final database = await openDatabase();
+    AppDatabase? database;
+    var driftIsAuthoritative = conversationsMigrated || chatMemoryMigrated;
     try {
+      database = await openDatabase();
       final conversationStore = DriftConversationRepository(database);
-      await const ConversationMigrationService().migrateIfNeeded(
-        alreadyMigrated: conversationsMigrated,
-        readLegacyConversations: readLegacyConversations,
-        target: conversationStore,
-        markMigrated: markConversationsMigrated,
-      );
+      final conversationMigration = await const ConversationMigrationService()
+          .migrateIfNeeded(
+            alreadyMigrated: conversationsMigrated,
+            readLegacyConversations: readLegacyConversations,
+            target: conversationStore,
+            markMigrated: markConversationsMigrated,
+          );
+      if (!conversationMigration.skippedAlreadyMigrated) {
+        driftIsAuthoritative = true;
+      }
 
       final chatMemoryStore = DriftChatMemoryStore(database);
-      await const ChatMemoryMigrationService().migrateIfNeeded(
-        alreadyMigrated: chatMemoryMigrated,
-        readLegacyEntries: readLegacyChatMemory,
-        target: chatMemoryStore,
-        markMigrated: markChatMemoryMigrated,
-      );
+      final chatMemoryMigration = await const ChatMemoryMigrationService()
+          .migrateIfNeeded(
+            alreadyMigrated: chatMemoryMigrated,
+            readLegacyEntries: readLegacyChatMemory,
+            target: chatMemoryStore,
+            markMigrated: markChatMemoryMigrated,
+          );
+      if (!chatMemoryMigration.skippedAlreadyMigrated) {
+        driftIsAuthoritative = true;
+      }
 
       final conversationRepository =
           await CachedDriftConversationRepository.hydrate(conversationStore);
@@ -94,9 +121,14 @@ final class CavernoPersistenceBootstrap {
         ),
         closeDatabase: closeDatabase,
       );
-    } catch (_) {
-      await closeDatabase(database);
-      rethrow;
+    } catch (error, stackTrace) {
+      if (database != null) {
+        await closeDatabase(database);
+      }
+      if (driftIsAuthoritative) {
+        throw CavernoAuthoritativePersistenceException(error, stackTrace);
+      }
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 }

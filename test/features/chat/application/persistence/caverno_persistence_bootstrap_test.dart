@@ -95,7 +95,13 @@ void main() {
             await database.close();
           },
         ),
-        throwsA(isA<StateError>()),
+        throwsA(
+          isA<CavernoAuthoritativePersistenceException>().having(
+            (error) => error.cause,
+            'cause',
+            isA<StateError>(),
+          ),
+        ),
       );
 
       expect(conversationMarked, isFalse);
@@ -134,7 +140,10 @@ void main() {
       );
     }
 
-    await expectLater(open(), throwsA(isA<StateError>()));
+    await expectLater(
+      open(),
+      throwsA(isA<CavernoAuthoritativePersistenceException>()),
+    );
     expect(migrationCompleted, isFalse);
     expect(closeCount, 1);
 
@@ -146,6 +155,74 @@ void main() {
     expect(migrationCompleted, isTrue);
     await recovered.close();
     expect(closeCount, 2);
+  });
+
+  test('pre-migration failure remains eligible for legacy fallback', () async {
+    final database = AppDatabase.memory();
+
+    await expectLater(
+      bootstrap.open(
+        openDatabase: () async => database,
+        conversationsMigrated: false,
+        chatMemoryMigrated: false,
+        readLegacyConversations: () => throw StateError('legacy read failed'),
+        readLegacyChatMemory: () async => const <String, String>{},
+        markConversationsMigrated: () async {},
+        markChatMemoryMigrated: () async {},
+      ),
+      throwsA(
+        allOf(
+          isA<StateError>(),
+          isNot(isA<CavernoAuthoritativePersistenceException>()),
+        ),
+      ),
+    );
+  });
+
+  test(
+    'failure after the first completed migration is authoritative',
+    () async {
+      final database = AppDatabase.memory();
+      var conversationMarked = false;
+
+      await expectLater(
+        bootstrap.open(
+          openDatabase: () async => database,
+          conversationsMigrated: false,
+          chatMemoryMigrated: false,
+          readLegacyConversations: () async => [_conversation('partial')],
+          readLegacyChatMemory: () => throw StateError('memory read failed'),
+          markConversationsMigrated: () async {
+            conversationMarked = true;
+          },
+          markChatMemoryMigrated: () async {},
+        ),
+        throwsA(isA<CavernoAuthoritativePersistenceException>()),
+      );
+
+      expect(conversationMarked, isTrue);
+    },
+  );
+
+  test('database-open failure is authoritative after migration', () async {
+    await expectLater(
+      bootstrap.open(
+        openDatabase: () => throw StateError('database unavailable'),
+        conversationsMigrated: true,
+        chatMemoryMigrated: true,
+        readLegacyConversations: () => throw StateError('unexpected read'),
+        readLegacyChatMemory: () => throw StateError('unexpected read'),
+        markConversationsMigrated: () => throw StateError('unexpected marker'),
+        markChatMemoryMigrated: () => throw StateError('unexpected marker'),
+      ),
+      throwsA(
+        isA<CavernoAuthoritativePersistenceException>().having(
+          (error) => error.cause,
+          'cause',
+          isA<StateError>(),
+        ),
+      ),
+    );
   });
 }
 
