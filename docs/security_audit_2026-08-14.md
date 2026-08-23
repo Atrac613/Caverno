@@ -596,6 +596,12 @@ regressions covering both outputs. SA-18 remains open for
 conversation-owned attachment deletion and final platform privacy disclosure
 review.
 
+Remediation status (partial 2026-08-23): SEC4.6i deletes original-image, video,
+and canonical large-file attachments across every conversation deletion path.
+Cleanup is restricted to unshared regular files directly inside the managed
+attachment directory. SA-18 remains open only for final platform privacy
+disclosure review.
+
 ## Dependency And Supply-Chain Review
 
 - `cd services/notification_relay && npm audit --omit=dev --json` reported zero

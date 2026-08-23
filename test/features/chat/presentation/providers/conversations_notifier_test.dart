@@ -60,6 +60,7 @@ void main() {
   late Directory tempDir;
   late ToolResultArtifactStore artifactStore;
   late ProviderContainer container;
+  late List<Set<String>> attachmentCleanupCalls;
 
   setUp(() {
     repository = _FakeConversationRepository();
@@ -67,10 +68,14 @@ void main() {
       'caverno_conversation_artifacts_',
     );
     artifactStore = ToolResultArtifactStore(baseDirectory: tempDir);
+    attachmentCleanupCalls = [];
     container = ProviderContainer(
       overrides: [
         conversationRepositoryProvider.overrideWithValue(repository),
         toolResultArtifactStoreProvider.overrideWithValue(artifactStore),
+        conversationAttachmentCleanupProvider.overrideWithValue((paths) async {
+          attachmentCleanupCalls.add(paths.toSet());
+        }),
       ],
     );
   });
@@ -367,6 +372,71 @@ void main() {
     expect(repository.getById(conversationId), isNull);
     expect(File(artifactPath).existsSync(), isFalse);
   });
+
+  test(
+    'deleteConversation cleans only attachments not shared by another thread',
+    () async {
+      const deletedId = 'conversation-with-attachments';
+      const retainedId = 'conversation-sharing-an-attachment';
+      const sharedPath = '/support/attachments/shared.png';
+      const imagePath = '/support/attachments/original.png';
+      const videoPath = '/support/attachments/video.mp4';
+      const filePath = '/support/attachments/large.log';
+      await repository.save(
+        Conversation(
+          id: deletedId,
+          title: 'Conversation with attachments',
+          messages: [
+            Message(
+              id: 'message-1',
+              content: '[Attached file: $filePath (100 MB)]\nInspect it.',
+              role: MessageRole.user,
+              timestamp: DateTime(2026, 8, 23, 10),
+              originalImagePath: imagePath,
+              videoPath: videoPath,
+            ),
+            Message(
+              id: 'message-2',
+              content: 'Shared image',
+              role: MessageRole.user,
+              timestamp: DateTime(2026, 8, 23, 10, 1),
+              originalImagePath: sharedPath,
+            ),
+          ],
+          createdAt: DateTime(2026, 8, 23, 10),
+          updatedAt: DateTime(2026, 8, 23, 10),
+          workspaceMode: WorkspaceMode.chat,
+        ),
+      );
+      await repository.save(
+        Conversation(
+          id: retainedId,
+          title: 'Retained conversation',
+          messages: [
+            Message(
+              id: 'message-3',
+              content: 'Keep the shared image',
+              role: MessageRole.user,
+              timestamp: DateTime(2026, 8, 23, 11),
+              originalImagePath: '/support/attachments/./shared.png',
+            ),
+          ],
+          createdAt: DateTime(2026, 8, 23, 11),
+          updatedAt: DateTime(2026, 8, 23, 11),
+          workspaceMode: WorkspaceMode.chat,
+        ),
+      );
+
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+      await notifier.deleteConversation(deletedId);
+
+      expect(repository.getById(deletedId), isNull);
+      expect(repository.getById(retainedId), isNotNull);
+      expect(attachmentCleanupCalls, hasLength(1));
+      expect(attachmentCleanupCalls.single, {imagePath, videoPath, filePath});
+      expect(attachmentCleanupCalls.single, isNot(contains(sharedPath)));
+    },
+  );
 
   test(
     'deleteConversation retires rollback state before late writes',
