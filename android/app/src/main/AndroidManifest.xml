@@ -20,7 +20,10 @@
     <application
         android:label="Caverno"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules">
         <meta-data
             android:name="firebase_messaging_auto_init_enabled"
             android:value="false" />
