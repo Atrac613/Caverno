@@ -35,6 +35,7 @@ class SettingsRepository {
 
   static const _settingsKey = 'app_settings';
   static const _credentialReferencesKey = 'credentialReferences';
+  static const _enableLlmSessionLogsKey = 'enableLlmSessionLogs';
   static const _llmSessionLogsDefaultOnMigrationKey =
       'migration.enable_llm_session_logs_default_on.v1';
 
@@ -371,7 +372,7 @@ class SettingsRepository {
     if (_prefs.getBool(_llmSessionLogsDefaultOnMigrationKey) == true) {
       return false;
     }
-    return settingsJson['enableLlmSessionLogs'] == false;
+    return !settingsJson.containsKey(_enableLlmSessionLogsKey);
   }
 
   void _persistMigratedSessionLogDefault(AppSettings settings) {
