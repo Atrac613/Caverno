@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import '../security/sensitive_data_redactor.dart';
+import '../security/sensitive_file_permissions.dart';
 import '../utils/logger.dart';
 
 /// Retention bounds for the approval audit trail. Because entries are
@@ -93,8 +95,8 @@ class ToolApprovalAuditLog {
     r'^(\d{4})-(\d{2})-(\d{2})\.jsonl$',
   );
 
-  /// Argument keys whose values are bulk content or secrets: never written
-  /// verbatim. A length marker is kept so you know a value was present.
+  /// Argument keys whose values are bulk content or secrets and must never be
+  /// written verbatim at any nesting depth.
   static const _redactedArgumentKeys = {
     'value',
     'script',
@@ -112,6 +114,7 @@ class ToolApprovalAuditLog {
   };
 
   static const int _maxStringLength = 240;
+  Future<void>? _permissionPreparation;
 
   /// SEC1: classify the tool's capability so each recorded approval carries the
   /// kind of action that was allowed (e.g. shell execution, network fetch),
@@ -171,9 +174,15 @@ class ToolApprovalAuditLog {
     try {
       final file = await _fileFor(now);
       await file.parent.create(recursive: true);
+      _permissionPreparation ??= _preparePermissions(file.parent);
+      await _permissionPreparation;
       // Prune only when a new day-file is about to be created — this throttles
       // directory scans to roughly once per day instead of once per decision.
       final isNewDayFile = !await file.exists();
+      if (isNewDayFile) {
+        await file.create();
+      }
+      await SensitiveFilePermissions.ownerOnlyFile(file);
       await file.writeAsString(
         '${jsonEncode(entry)}\n',
         mode: FileMode.append,
@@ -184,6 +193,17 @@ class ToolApprovalAuditLog {
       }
     } catch (error) {
       appLog('[ApprovalAudit] Failed to write approval audit entry: $error');
+    }
+  }
+
+  Future<void> _preparePermissions(Directory auditDirectory) async {
+    await SensitiveFilePermissions.ownerOnlyDirectory(auditDirectory.parent);
+    await SensitiveFilePermissions.ownerOnlyDirectory(auditDirectory);
+    await for (final entity in auditDirectory.list(followLinks: false)) {
+      if (entity is File &&
+          _dayFilePattern.hasMatch(entity.uri.pathSegments.last)) {
+        await SensitiveFilePermissions.ownerOnlyFile(entity);
+      }
     }
   }
 
@@ -249,24 +269,24 @@ class ToolApprovalAuditLog {
   }
 
   Map<String, dynamic> _summarizeArguments(Map<String, dynamic> arguments) {
-    final summary = <String, dynamic>{};
-    for (final entry in arguments.entries) {
-      final key = entry.key;
-      if (_redactedArgumentKeys.contains(key.toLowerCase())) {
-        final value = entry.value;
-        summary[key] = value is String
-            ? '[redacted len=${value.length}]'
-            : '[redacted]';
-        continue;
-      }
-      summary[key] = _truncate(entry.value);
-    }
-    return summary;
+    final redacted =
+        SensitiveDataRedactor.redact(
+              arguments,
+              additionalSensitiveKeys: _redactedArgumentKeys,
+            )
+            as Map<String, dynamic>;
+    return redacted.map((key, value) => MapEntry(key, _truncate(value)));
   }
 
   dynamic _truncate(dynamic value) {
     if (value is String && value.length > _maxStringLength) {
       return '${value.substring(0, _maxStringLength)}…';
+    }
+    if (value is Map) {
+      return value.map((key, nested) => MapEntry(key, _truncate(nested)));
+    }
+    if (value is Iterable) {
+      return value.map(_truncate).toList(growable: false);
     }
     return value;
   }

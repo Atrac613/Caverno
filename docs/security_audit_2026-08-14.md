@@ -510,6 +510,15 @@ with `find <those-directories> -type f -exec stat -f '%Lp %N' {} \;` were
 `0644`. The target is `0700` directories and `0600` sensitive files, including
 migration of existing paths.
 
+Remediation status (completed 2026-08-23): SEC4.6d extracted the existing
+session-log credential and private-key filtering into one recursive core
+redactor and applied it to approval arguments, including nested maps and lists.
+Before any append, the writer now migrates the Caverno root and approval-audit
+directory to `0700`, migrates existing day files to `0600`, and creates each new
+day file empty before applying `0600`. Focused tests cover nested credentials,
+PEM private keys, existing-path migration, new files, and the shared session-log
+regression boundary.
+
 ### SA-14: Session-Log Opt-Out Reversal
 
 `lib/features/settings/data/settings_repository.dart:22-39` and `:56-67`
