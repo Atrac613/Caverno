@@ -602,6 +602,13 @@ Cleanup is restricted to unshared regular files directly inside the managed
 attachment directory. SA-18 remains open only for final platform privacy
 disclosure review.
 
+Remediation status (completed 2026-08-23): SEC4.6j reconciles the iOS privacy
+manifest with developer-owned collection. Feedback customer-support, user
+content, performance, and diagnostic data are declared unlinked and
+non-tracking; notification relay device identifiers and product interaction are
+declared linked, non-tracking, and limited to app functionality. The matching
+App Store Connect matrix and release review are documented, completing SA-18.
+
 ## Dependency And Supply-Chain Review
 
 - `cd services/notification_relay && npm audit --omit=dev --json` reported zero
