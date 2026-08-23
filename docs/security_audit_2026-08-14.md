@@ -564,6 +564,12 @@ to debug signing for release. Pin actions to commit SHAs, use least-privilege
 jobs, pin build tools, add npm monitoring and the Gradle checksum, and fail
 release builds when release signing is absent.
 
+Remediation status (partially completed 2026-08-23): SEC4.7a removes the Android
+release-to-debug signing fallback. Release artifact tasks now fail during Gradle
+configuration unless all required signing properties are present and the
+configured keystore exists. The remaining CI, dependency monitoring, Gradle
+checksum, and toolchain pinning work stays open under SA-16.
+
 ### SA-17: Android Backup Boundary
 
 `android/app/src/main/AndroidManifest.xml:20-23` has no explicit backup or data
