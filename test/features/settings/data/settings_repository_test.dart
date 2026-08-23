@@ -12,9 +12,8 @@ void main() {
       'migration.enable_llm_session_logs_default_on.v1';
 
   test('migrates legacy saved session log default to enabled', () async {
-    final legacySettings = AppSettings.defaults()
-        .copyWith(enableLlmSessionLogs: false)
-        .toJson();
+    final legacySettings = AppSettings.defaults().toJson()
+      ..remove('enableLlmSessionLogs');
     SharedPreferences.setMockInitialValues(<String, Object>{
       settingsKey: jsonEncode(legacySettings),
     });
@@ -31,25 +30,28 @@ void main() {
     expect(prefs.getBool(llmSessionLogsDefaultOnMigrationKey), isTrue);
   });
 
-  test('preserves a session log opt-out after migration', () async {
+  test('preserves an explicit session log opt-out without a marker', () async {
     final optedOutSettings = AppSettings.defaults()
         .copyWith(enableLlmSessionLogs: false)
         .toJson();
     SharedPreferences.setMockInitialValues(<String, Object>{
       settingsKey: jsonEncode(optedOutSettings),
-      llmSessionLogsDefaultOnMigrationKey: true,
     });
 
     final prefs = await SharedPreferences.getInstance();
     final loaded = SettingsRepository(prefs).load();
 
     expect(loaded.enableLlmSessionLogs, isFalse);
+    await Future<void>.delayed(Duration.zero);
+    final persistedJson =
+        jsonDecode(prefs.getString(settingsKey)!) as Map<String, dynamic>;
+    expect(persistedJson['enableLlmSessionLogs'], isFalse);
+    expect(prefs.getBool(llmSessionLogsDefaultOnMigrationKey), isNull);
   });
 
   test('supports a read-only load without persisting migrations', () async {
-    final legacySettings = AppSettings.defaults()
-        .copyWith(enableLlmSessionLogs: false)
-        .toJson();
+    final legacySettings = AppSettings.defaults().toJson()
+      ..remove('enableLlmSessionLogs');
     SharedPreferences.setMockInitialValues(<String, Object>{
       settingsKey: jsonEncode(legacySettings),
     });
@@ -61,7 +63,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     final persistedJson =
         jsonDecode(prefs.getString(settingsKey)!) as Map<String, dynamic>;
-    expect(persistedJson['enableLlmSessionLogs'], isFalse);
+    expect(persistedJson, isNot(contains('enableLlmSessionLogs')));
     expect(prefs.getBool(llmSessionLogsDefaultOnMigrationKey), isNull);
   });
 

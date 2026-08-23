@@ -527,6 +527,13 @@ marker is absent; `test/features/settings/data/settings_repository_test.dart:13-
 asserts that behavior. Migrate only a missing field and never reinterpret an
 explicit false value.
 
+Remediation status (completed 2026-08-23): SEC4.6e now runs the default-on
+migration only when the saved settings JSON omits `enableLlmSessionLogs`.
+Explicit `false` remains authoritative even without the historical marker,
+while a missing legacy field still resolves to the generated `true` default and
+is persisted during a normal load. Focused tests cover missing fields, explicit
+opt-out, read-only loading, normal saves, and credential migration regressions.
+
 ### SA-15: Stale Hive Data Resurrection
 
 Legacy boxes remain after the drift migration
