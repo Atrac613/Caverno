@@ -571,6 +571,15 @@ extraction policy while credentials, logs, and conversations live in app-private
 storage. Disable backup or add modern and legacy exclusion rules for secrets,
 logs, attachments, and conversation stores.
 
+Remediation status (completed 2026-08-23): SEC4.6g sets
+`android:allowBackup="false"` and also supplies explicit rules for both backup
+formats because Android 12+ device-to-device behavior can vary by manufacturer.
+The legacy full-backup policy and modern cloud/device-transfer sections exclude
+every credential-protected and normal app-private domain, including files,
+databases, shared preferences, external app files, and device-protected
+equivalents. Configuration tests and a debug APK build verify manifest/resource
+integration.
+
 ### SA-18: Privacy And Retention Review
 
 Debug logs can contain prompt and tool content, `ios/Runner/PrivacyInfo.xcprivacy`
