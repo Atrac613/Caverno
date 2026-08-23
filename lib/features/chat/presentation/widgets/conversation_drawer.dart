@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
+import '../../../../core/utils/logger.dart';
 import '../../data/repositories/conversation_repository.dart';
 import '../../data/repositories/conversation_repository_api.dart';
 import '../../data/repositories/semantic_search_service.dart';
@@ -455,7 +456,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
         }
       }
     } catch (error) {
-      debugPrint('Failed to open coding project in Finder: $error');
+      appDebugPrint('Failed to open coding project in Finder: $error');
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('drawer.open_in_finder_failed'.tr())),
@@ -474,7 +475,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
         ..clear()
         ..addAll(stored.where((id) => id.trim().isNotEmpty));
     } catch (e) {
-      debugPrint('Failed to load collapsed coding projects: $e');
+      appDebugPrint('Failed to load collapsed coding projects: $e');
     }
   }
 
@@ -486,7 +487,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
         prefs.setStringList(_collapsedCodingProjectIdsPrefsKey, projectIds),
       );
     } catch (e) {
-      debugPrint('Failed to persist collapsed coding projects: $e');
+      appDebugPrint('Failed to persist collapsed coding projects: $e');
     }
   }
 
@@ -501,7 +502,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
         orElse: () => _CodingProjectSortOrder.newestFirst,
       );
     } catch (e) {
-      debugPrint('Failed to load coding drawer sort order: $e');
+      appDebugPrint('Failed to load coding drawer sort order: $e');
     }
   }
 
@@ -527,7 +528,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
         ),
       );
     } catch (e) {
-      debugPrint('Failed to persist coding drawer sort order: $e');
+      appDebugPrint('Failed to persist coding drawer sort order: $e');
     }
   }
 }

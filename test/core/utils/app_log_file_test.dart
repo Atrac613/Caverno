@@ -53,6 +53,26 @@ void main() {
     );
   });
 
+  test('redacts credentials before writing to disk', () {
+    const apiKey = 'sk-1234567890abcdefghijklmnop';
+    const bearerToken = 'secret-bearer-token-123456';
+    const privateKey = '''-----BEGIN PRIVATE KEY-----
+private-key-material
+-----END PRIVATE KEY-----''';
+
+    AppLogFile.forDirectory(
+      tempDir,
+    ).write('Authorization: Bearer $bearerToken\n$apiKey\n$privateKey');
+
+    final content = logFiles(tempDir).single.readAsStringSync();
+    expect(content, isNot(contains(bearerToken)));
+    expect(content, isNot(contains(apiKey)));
+    expect(content, isNot(contains('private-key-material')));
+    expect(content, contains('Authorization: [redacted]'));
+    expect(content, contains('sk-[redacted]'));
+    expect(content, contains('[redacted-private-key]'));
+  });
+
   test('a missing directory is created on demand', () {
     final nested = Directory('${tempDir.path}/deeper/still');
     AppLogFile.forDirectory(nested).write('created on demand');

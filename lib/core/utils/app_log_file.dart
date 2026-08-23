@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../security/sensitive_data_redactor.dart';
+
 /// Debug-build file sink for [appLog], at `~/.caverno/app_logs/<date>.log`.
 ///
 /// Exists because the interesting failures are the ones where the app stops
@@ -35,11 +37,12 @@ class AppLogFile {
   void write(String message) {
     if (_disabled) return;
     try {
+      final redactedMessage = SensitiveDataRedactor.redactText(message);
       final now = DateTime.now();
       final file = _fileFor(now);
       if (file == null) return;
       file.writeAsStringSync(
-        '${_timestamp(now)} $message\n',
+        '${_timestamp(now)} $redactedMessage\n',
         mode: FileMode.append,
         flush: true,
       );

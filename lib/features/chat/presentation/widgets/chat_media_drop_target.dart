@@ -6,6 +6,8 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/utils/logger.dart';
+
 class ChatMediaDropTarget extends StatefulWidget {
   const ChatMediaDropTarget({
     required this.enabled,
@@ -143,7 +145,9 @@ class ChatMediaDropTargetState extends State<ChatMediaDropTarget> {
       final videoPath = videoItem == null
           ? null
           : _dropItemPathForImageHandling(videoItem);
-      if (videoItem != null && videoPath != null && videoPath.trim().isNotEmpty) {
+      if (videoItem != null &&
+          videoPath != null &&
+          videoPath.trim().isNotEmpty) {
         widget.onVideoDropped!(videoPath, _videoMimeTypeForDropItem(videoItem));
         return;
       }
@@ -171,7 +175,7 @@ class ChatMediaDropTargetState extends State<ChatMediaDropTarget> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('message.drop_image_failed'.tr())));
-      debugPrint('Failed to read dropped image: $e');
+      appDebugPrint('Failed to read dropped image: $e');
     }
   }
 
