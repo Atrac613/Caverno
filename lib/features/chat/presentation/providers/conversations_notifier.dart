@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/services/attachment_storage_service.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/conversation_repository.dart';
@@ -117,6 +119,15 @@ final conversationsNotifierProvider =
 /// Headless resume frontends override this to avoid creating and persisting an
 /// unrelated empty chat conversation before selecting the requested ID.
 final deferInitialConversationCreationProvider = Provider<bool>((ref) => false);
+
+typedef ConversationAttachmentCleanup =
+    Future<void> Function(Iterable<String> paths);
+
+final conversationAttachmentCleanupProvider =
+    Provider<ConversationAttachmentCleanup>(
+      (ref) =>
+          (paths) => AttachmentStorageService.deleteOwnedAttachments(paths),
+    );
 
 /// Default title for new conversations (used as a sentinel for auto-title).
 const defaultConversationTitle = '__new_conversation__';
@@ -568,10 +579,14 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
   /// Deletes a conversation.
   Future<void> deleteConversation(String id) async {
+    final deletedConversations = state.conversations
+        .where((conversation) => conversation.id == id)
+        .toList(growable: false);
     await _retireRollbacks([id]);
     await _retireBackgroundProcesses([id]);
     await _repository.delete(id);
     await _deleteToolResultArtifactsForIds([id]);
+    await _deleteAttachmentsForConversations(deletedConversations);
     _removeSemanticIndex([id]);
 
     final newConversations = state.conversations
@@ -590,7 +605,8 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
   /// Deletes all conversations in the active scope.
   Future<void> deleteScopedConversations() async {
-    final visibleConversationIds = state.visibleConversations
+    final deletedConversations = state.visibleConversations;
+    final visibleConversationIds = deletedConversations
         .map((conversation) => conversation.id)
         .toList(growable: false);
     await _retireRollbacks(visibleConversationIds);
@@ -599,6 +615,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       await _repository.delete(id);
     }
     await _deleteToolResultArtifactsForIds(visibleConversationIds);
+    await _deleteAttachmentsForConversations(deletedConversations);
     _removeSemanticIndex(visibleConversationIds);
 
     final newConversations = state.conversations
@@ -616,12 +633,14 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   }
 
   Future<void> deleteConversationsForProject(String projectId) async {
-    final targetIds = state.conversations
+    final deletedConversations = state.conversations
         .where(
           (conversation) =>
               conversation.workspaceMode == WorkspaceMode.coding &&
               conversation.normalizedProjectId == projectId,
         )
+        .toList(growable: false);
+    final targetIds = deletedConversations
         .map((conversation) => conversation.id)
         .toList(growable: false);
     await _retireRollbacks(targetIds);
@@ -630,6 +649,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       await _repository.delete(id);
     }
     await _deleteToolResultArtifactsForIds(targetIds);
+    await _deleteAttachmentsForConversations(deletedConversations);
     _removeSemanticIndex(targetIds);
 
     state = state.copyWith(
@@ -819,6 +839,59 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         appLog(
           '[ConversationsNotifier] Failed to delete tool result artifacts for $id: $error',
         );
+      }
+    }
+  }
+
+  Future<void> _deleteAttachmentsForConversations(
+    Iterable<Conversation> deletedConversations,
+  ) async {
+    final deleted = deletedConversations.toList(growable: false);
+    if (deleted.isEmpty) return;
+    final deletedIds = deleted.map((conversation) => conversation.id).toSet();
+    final retainedPaths = state.conversations
+        .where((conversation) => !deletedIds.contains(conversation.id))
+        .expand(_attachmentPathsForConversation)
+        .toSet();
+    final paths = deleted
+        .expand(_attachmentPathsForConversation)
+        .where((path) => !retainedPaths.contains(path))
+        .toSet();
+    if (paths.isEmpty) return;
+    try {
+      await ref.read(conversationAttachmentCleanupProvider)(paths);
+    } catch (error) {
+      appLog(
+        '[ConversationsNotifier] Failed to delete conversation attachments: '
+        '$error',
+      );
+    }
+  }
+
+  static final RegExp _largeAttachmentReferencePattern = RegExp(
+    r'^\[Attached file: (.+) \([^)]+\)\]$',
+    multiLine: true,
+  );
+
+  Iterable<String> _attachmentPathsForConversation(
+    Conversation conversation,
+  ) sync* {
+    for (final message in conversation.messages) {
+      final originalImagePath = message.originalImagePath?.trim();
+      if (originalImagePath != null && originalImagePath.isNotEmpty) {
+        yield p.normalize(p.absolute(originalImagePath));
+      }
+      final videoPath = message.videoPath?.trim();
+      if (videoPath != null && videoPath.isNotEmpty) {
+        yield p.normalize(p.absolute(videoPath));
+      }
+      for (final match in _largeAttachmentReferencePattern.allMatches(
+        message.content,
+      )) {
+        final path = match.group(1)?.trim();
+        if (path != null && path.isNotEmpty) {
+          yield p.normalize(p.absolute(path));
+        }
       }
     }
   }

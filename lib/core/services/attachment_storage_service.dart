@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 /// Persists user-attached files that are too large to inline into a chat
@@ -69,6 +70,42 @@ class AttachmentStorageService {
       }
     } catch (_) {
       // Nothing to sweep, or storage unavailable.
+    }
+  }
+
+  /// Deletes persisted attachment files referenced by a deleted conversation.
+  ///
+  /// Paths outside the managed attachment directory, including nested paths,
+  /// are ignored. Individual failures are isolated so conversation deletion
+  /// cannot fail after its persisted record has already been removed.
+  static Future<void> deleteOwnedAttachments(
+    Iterable<String> paths, {
+    Directory? directoryOverride,
+  }) async {
+    try {
+      final directory = directoryOverride ?? await _attachmentsDir();
+      final managedDirectoryPath = p.normalize(p.absolute(directory.path));
+      for (final rawPath in paths.toSet()) {
+        final trimmedPath = rawPath.trim();
+        if (trimmedPath.isEmpty) continue;
+        final candidatePath = p.normalize(p.absolute(trimmedPath));
+        if (!p.equals(p.dirname(candidatePath), managedDirectoryPath)) {
+          continue;
+        }
+        try {
+          final type = await FileSystemEntity.type(
+            candidatePath,
+            followLinks: false,
+          );
+          if (type == FileSystemEntityType.file) {
+            await File(candidatePath).delete();
+          }
+        } catch (_) {
+          // Keep deleting the remaining conversation attachments.
+        }
+      }
+    } catch (_) {
+      // Storage may be unavailable during shutdown or platform teardown.
     }
   }
 
