@@ -545,6 +545,15 @@ A later drift bootstrap failure falls back to Hive through
 reappear. Clear legacy data after verified migration or fail closed/read-only
 when migration state says drift is authoritative.
 
+Remediation status (completed 2026-08-23): SEC4.6f tracks drift authority across
+database opening, both migrations, and repository hydration. Once either marker
+already exists or is successfully written during the current bootstrap, later
+failures carry a typed authoritative-persistence error and GUI startup refuses
+the mutable Hive fallback. Failures before the first marker remain retryable
+through Hive. Focused tests cover pre-migration retry, existing markers,
+partial migration, database-open failure, database cleanup, and the shared CLI
+diagnostic contract.
+
 ### SA-16: Supply-Chain And Release Controls
 
 GitHub Actions use mutable tags in `.github/workflows/flutter_ci.yml:24-50` and

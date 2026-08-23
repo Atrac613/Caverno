@@ -54,9 +54,9 @@ Future<void> main(List<String> arguments) async {
   final dataRoot = await resolveCavernoDataRoot();
 
   // F4: migrate conversations and chat memory from Hive to drift/SQLite and
-  // serve them from drift. Any failure degrades to the existing Hive path, so
-  // the app behaves exactly as before and the (idempotent) migration retries on
-  // the next launch.
+  // serve them from drift. Pre-migration failures may retry through Hive, but
+  // once drift is authoritative startup fails closed instead of resurrecting
+  // stale legacy data.
   final driftStorage = await _initDriftStorage(
     prefs: prefs,
     conversationBox: conversationBox,
@@ -118,8 +118,9 @@ Future<void> main(List<String> arguments) async {
 
 /// F4: open the drift database, run the one-time Hive->drift migrations, and
 /// return the drift-backed repositories to serve conversations and chat memory.
-/// On any failure returns null so the app keeps using the Hive-backed providers
-/// (the migrations are idempotent and retry next launch).
+/// Before either migration marker exists, a failure returns null so the app can
+/// temporarily keep using Hive and retry next launch. An authoritative drift
+/// failure is rethrown so stale Hive data cannot become mutable again.
 Future<CavernoPersistenceStorage?> _initDriftStorage({
   required SharedPreferences prefs,
   required Box<String> conversationBox,
@@ -151,6 +152,14 @@ Future<CavernoPersistenceStorage?> _initDriftStorage({
       ),
     );
   } catch (error, stackTrace) {
+    if (error is CavernoAuthoritativePersistenceException) {
+      appLog(
+        '[F4] authoritative drift storage failed; refusing Hive fallback: '
+        '${error.cause}',
+      );
+      appLog('[F4] ${error.causeStackTrace}');
+      rethrow;
+    }
     appLog('[F4] drift storage init failed; falling back to Hive: $error');
     appLog('[F4] $stackTrace');
     return null;
