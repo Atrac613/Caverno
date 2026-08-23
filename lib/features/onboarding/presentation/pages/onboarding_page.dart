@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/types/app_theme_preference.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../../settings/presentation/widgets/settings_encryption_passphrase_dialog.dart';
 import '../providers/onboarding_notifier.dart';
 import '../widgets/onboarding_connect_step.dart';
 import '../widgets/onboarding_language_step.dart';
@@ -42,7 +43,15 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     try {
       final imported = await ref
           .read(settingsNotifierProvider.notifier)
-          .importSettings();
+          .importSettings(
+            requestEncryptedPassphrase: () {
+              if (!mounted) return Future<String?>.value();
+              return showSettingsEncryptionPassphraseDialog(
+                context,
+                confirmPassphrase: false,
+              );
+            },
+          );
       if (!mounted) return;
       setState(() => _importing = false);
       if (imported) {

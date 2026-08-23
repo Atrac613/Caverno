@@ -8,8 +8,16 @@ import 'package:flutter/services.dart';
 import '../pages/qr_scanner_page.dart';
 import '../providers/settings_notifier.dart';
 import 'qr_export_dialog.dart';
+import 'settings_encryption_passphrase_dialog.dart';
 
-enum _SettingsAction { reset, import, export, importQr, exportQr }
+enum _SettingsAction {
+  reset,
+  import,
+  export,
+  exportWithSecrets,
+  importQr,
+  exportQr,
+}
 
 typedef AppExitCallback = Future<void> Function();
 
@@ -34,6 +42,9 @@ class SettingsActionsMenu extends ConsumerWidget {
             break;
           case _SettingsAction.export:
             _exportSettings(context, ref);
+            break;
+          case _SettingsAction.exportWithSecrets:
+            _exportSettingsWithSecrets(context, ref);
             break;
           case _SettingsAction.importQr:
             _importFromQr(context, ref);
@@ -68,6 +79,21 @@ class SettingsActionsMenu extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'settings.export_settings'.tr(),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: _SettingsAction.exportWithSecrets,
+          child: Row(
+            children: [
+              const Icon(Icons.enhanced_encryption_outlined),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'settings.encrypted_export_settings'.tr(),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -179,7 +205,15 @@ class SettingsActionsMenu extends ConsumerWidget {
       try {
         final success = await ref
             .read(settingsNotifierProvider.notifier)
-            .importSettings();
+            .importSettings(
+              requestEncryptedPassphrase: () {
+                if (!context.mounted) return Future<String?>.value();
+                return showSettingsEncryptionPassphraseDialog(
+                  context,
+                  confirmPassphrase: false,
+                );
+              },
+            );
         if (success && context.mounted) {
           ScaffoldMessenger.of(
             context,
@@ -202,6 +236,36 @@ class SettingsActionsMenu extends ConsumerWidget {
       final path = await ref
           .read(settingsNotifierProvider.notifier)
           .exportSettings();
+      if (path != null && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('settings.export_done'.tr(args: [path]))),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('settings.export_error'.tr(args: [e.toString()])),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportSettingsWithSecrets(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final passphrase = await showSettingsEncryptionPassphraseDialog(
+      context,
+      confirmPassphrase: true,
+    );
+    if (passphrase == null || !context.mounted) return;
+
+    try {
+      final path = await ref
+          .read(settingsNotifierProvider.notifier)
+          .exportSettingsWithSecrets(passphrase);
       if (path != null && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('settings.export_done'.tr(args: [path]))),

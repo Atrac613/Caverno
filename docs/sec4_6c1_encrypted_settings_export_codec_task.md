@@ -42,7 +42,7 @@ Status: completed on 2026-08-23.
 - Files inspected: settings file and QR services, settings notifier and actions
   menu, Remote Coding security helpers, dependency declarations, and
   PointyCastle's installed GCM/PBKDF2 APIs and tests.
-- Follow-up tasks found: SEC4.6c2 must add an explicit warning, passphrase and
+- Follow-up tasks found: SEC4.6c2 added the explicit warning, passphrase and
   confirmation UI, encrypted file export/import, quarantine on import, and
   localization. Encrypted QR remains out of scope because secret-bearing QR
   payloads create unnecessary visual and capture exposure.

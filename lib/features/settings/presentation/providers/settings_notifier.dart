@@ -1148,8 +1148,18 @@ class SettingsNotifier extends Notifier<AppSettings> {
     return _fileService.exportSettings(state);
   }
 
-  Future<bool> importSettings() async {
-    final settings = await _fileService.importSettings();
+  Future<String?> exportSettingsWithSecrets(String passphrase) async {
+    return _fileService.exportSettingsWithSecrets(state, passphrase);
+  }
+
+  Future<bool> importSettings({
+    EncryptedSettingsPassphraseProvider? requestEncryptedPassphrase,
+  }) async {
+    final settings = requestEncryptedPassphrase == null
+        ? await _fileService.importSettings()
+        : await _fileService.importSettingsWithEncryptedPassphrase(
+            requestEncryptedPassphrase,
+          );
     if (settings != null) {
       state = _quarantineService
           .quarantineImportedSettings(settings)

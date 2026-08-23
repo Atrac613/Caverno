@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno/core/types/assistant_mode.dart';
+import 'package:caverno/features/settings/data/encrypted_settings_export_codec.dart';
 import 'package:caverno/features/settings/data/settings_file_service.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -426,6 +427,45 @@ void main() {
       expect(restored.externalToolHooks.single.env, isEmpty);
       expect(restored.model, settings.model);
     });
+
+    test(
+      'encrypted export preserves credentials only after decryption',
+      () async {
+        final settings = validSettings.copyWith(
+          apiKey: 'primary-secret',
+          googleChatWebhookUrl:
+              'https://chat.googleapis.com/v1/spaces/secret-webhook',
+          feedbackEndpointAuthToken: 'feedback-secret',
+        );
+
+        final encrypted = await SettingsFileService.encryptSettings(
+          settings,
+          'correct horse battery staple',
+        );
+
+        expect(encrypted, isNot(contains('primary-secret')));
+        expect(encrypted, isNot(contains('secret-webhook')));
+        expect(encrypted, isNot(contains('feedback-secret')));
+        expect(
+          EncryptedSettingsExportCodec.isEncryptedEnvelope(encrypted),
+          isTrue,
+        );
+        expect(
+          () => SettingsFileService.decodeSettingsImport(encrypted),
+          throwsFormatException,
+        );
+        final restored = await SettingsFileService.decodeSettingsImport(
+          encrypted,
+          passphrase: 'correct horse battery staple',
+        );
+        expect(restored.apiKey, 'primary-secret');
+        expect(
+          restored.googleChatWebhookUrl,
+          'https://chat.googleapis.com/v1/spaces/secret-webhook',
+        );
+        expect(restored.feedbackEndpointAuthToken, 'feedback-secret');
+      },
+    );
 
     test('all fields survive round-trip', () {
       final settings = const AppSettings(

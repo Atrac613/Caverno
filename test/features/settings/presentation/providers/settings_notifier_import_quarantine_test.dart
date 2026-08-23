@@ -13,6 +13,14 @@ void main() {
     'JSON and onboarding': (notifier) async {
       expect(await notifier.importSettings(), isTrue);
     },
+    'encrypted JSON': (notifier) async {
+      expect(
+        await notifier.importSettings(
+          requestEncryptedPassphrase: () async => 'test-passphrase',
+        ),
+        isTrue,
+      );
+    },
     'QR': (notifier) => notifier.importFromQr('payload'),
   }.entries) {
     test(
@@ -226,6 +234,14 @@ class _FakeSettingsFileService extends SettingsFileService {
 
   @override
   Future<AppSettings?> importSettings() async => settings;
+
+  @override
+  Future<AppSettings?> importSettingsWithEncryptedPassphrase(
+    EncryptedSettingsPassphraseProvider requestPassphrase,
+  ) async {
+    final passphrase = await requestPassphrase();
+    return passphrase == null ? null : settings;
+  }
 }
 
 class _FakeSettingsQrService extends SettingsQrService {
