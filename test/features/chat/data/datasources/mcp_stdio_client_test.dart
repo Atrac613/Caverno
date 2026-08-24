@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/mcp_response_limits.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_stdio_client.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -45,6 +46,77 @@ void main() {
   });
 
   group('McpStdioClient limits', () {
+    test('omits stderr and redacts server and error diagnostics', () async {
+      const argumentSecret = 'process-argument-secret-123';
+      const stderrSecret = 'stderr-secret-123';
+      const serverSecret = 'server-secret-123';
+      const errorSecret = 'stdio-error-secret-123';
+      final messages = <String>[];
+      final previousDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) messages.add(message);
+      };
+      addTearDown(() => debugPrint = previousDebugPrint);
+
+      final process = _FakeProcess();
+      final client = McpStdioClient(
+        command: 'fake-mcp-server',
+        args: const ['--token', argumentSecret],
+        maxLineBytes: 1024,
+        maxToolContentCharacters: 1024,
+        processStarter: (_, _, _) async => process,
+      );
+      addTearDown(() => _closeClientAndProcess(client, process));
+
+      final initialize = client.initialize();
+      await process.firstStdinWrite;
+      process.emitStderr(utf8.encode('{"token":"$stderrSecret"}\n'));
+      process.emitStdout(
+        utf8.encode(
+          '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":'
+          '{"credentials":{"token":"$serverSecret"}}}}\n',
+        ),
+      );
+      await initialize;
+
+      final call = client.callTool(name: 'error_probe', arguments: const {});
+      process.emitStdout(
+        utf8.encode(
+          '{"jsonrpc":"2.0","id":2,"error":'
+          '{"code":-32000,"message":"Bearer $errorSecret"}}\n',
+        ),
+      );
+      await expectLater(
+        call,
+        throwsA(
+          isA<Exception>()
+              .having(
+                (error) => error.toString(),
+                'message',
+                contains('[redacted]'),
+              )
+              .having(
+                (error) => error.toString(),
+                'message',
+                isNot(contains(errorSecret)),
+              ),
+        ),
+      );
+
+      final diagnostics = messages.join('\n');
+      for (final secret in [
+        argumentSecret,
+        stderrSecret,
+        serverSecret,
+        errorSecret,
+      ]) {
+        expect(diagnostics, isNot(contains(secret)));
+      }
+      expect(diagnostics, contains('argumentCount=2'));
+      expect(diagnostics, contains('stderr line omitted'));
+      expect(diagnostics, contains('[redacted]'));
+    });
+
     test('terminates the process when stdout crosses the line limit', () async {
       final process = _FakeProcess();
       final client = _clientFor(process, maxLineBytes: 128);

@@ -63,7 +63,10 @@ class McpStdioClient implements McpClientBase {
     if (_disposed) throw StateError('Client has been disposed');
     if (_process != null) return;
 
-    appLog('[McpStdioClient] Starting process: $identifier');
+    appLog(
+      '[McpStdioClient] Starting process: ${command.trim()}, '
+      'argumentCount=${args.length}',
+    );
 
     // Merge the user's login-shell PATH so commands like `dart`, `npx`, and
     // `uvx` resolve by name even when the app was launched from Finder/Dock
@@ -119,7 +122,10 @@ class McpStdioClient implements McpClientBase {
         )
         .listen(
           (line) {
-            appLog('[McpStdioClient] stderr: $line');
+            appLog(
+              '[McpStdioClient] stderr line omitted; '
+              'characters=${line.length}',
+            );
           },
           onError: (Object error, StackTrace stackTrace) {
             _handleStreamFailure('stderr', error, stackTrace);
@@ -137,7 +143,7 @@ class McpStdioClient implements McpClientBase {
       },
     );
 
-    appLog('[McpStdioClient] Server info: ${result['result']}');
+    appLogDiagnostic('[McpStdioClient] Server info', result['result']);
 
     // Send initialized notification (no id, fire-and-forget).
     _writeMessage({'jsonrpc': '2.0', 'method': 'notifications/initialized'});
@@ -173,7 +179,8 @@ class McpStdioClient implements McpClientBase {
 
     if (response.containsKey('error')) {
       final error = response['error'] as Map<String, dynamic>;
-      throw Exception('MCP error: ${error['message']}');
+      appLogDiagnostic('[McpStdioClient] Error', error);
+      throw Exception('MCP error: ${formatAppLogDiagnostic(error['message'])}');
     }
 
     final result = response['result'] as Map<String, dynamic>?;
@@ -190,7 +197,7 @@ class McpStdioClient implements McpClientBase {
     if (_disposed) return;
     _disposed = true;
 
-    appLog('[McpStdioClient] Disposing: $identifier');
+    appLog('[McpStdioClient] Disposing process: ${command.trim()}');
     _failAllPending('Client disposed');
 
     await _stdoutSub?.cancel();

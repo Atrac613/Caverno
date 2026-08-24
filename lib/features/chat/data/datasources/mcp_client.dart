@@ -112,36 +112,39 @@ class McpClient implements McpClientBase {
         'clientInfo': {'name': 'openai_chat', 'version': '1.0.0'},
       },
     });
-    appLog('[McpClient] Request: $requestBody');
+    appLogDiagnostic('[McpClient] Request', requestBody);
 
     final (httpResp, body) = await _postRequest(requestBody);
 
     appLog('[McpClient] initialize status: ${httpResp.statusCode}');
-    appLog('[McpClient] initialize headers: ${httpResp.headers}');
-    appLog('[McpClient] initialize body: ${_truncate(body, 500)}');
+    appLogDiagnostic('[McpClient] initialize headers', httpResp.headers);
+    appLog('[McpClient] initialize bodyBytes: ${utf8.encode(body).length}');
 
     if (httpResp.statusCode != 200) {
       appLog(
-        '[McpClient] initialize HTTP error: status=${httpResp.statusCode}, body=$body',
+        '[McpClient] initialize HTTP error: status=${httpResp.statusCode}, '
+        'bodyBytes=${utf8.encode(body).length}',
       );
       throw Exception('Failed to initialize MCP: ${httpResp.statusCode}');
     }
 
     // Read the session ID from the response headers.
     _sessionId = httpResp.headers['mcp-session-id'];
-    appLog('[McpClient] Session ID: $_sessionId');
+    appLog(
+      '[McpClient] Session ID: ${_sessionId == null ? 'absent' : 'present'}',
+    );
 
     // Parse the response payload.
     final json = _decodeJson(body, 'initialize', expectedId: requestId);
 
     if (json.containsKey('error')) {
       final error = json['error'];
-      appLog('[McpClient] initialize JSON-RPC error: $error');
-      throw Exception('MCP initialize error: $error');
+      appLogDiagnostic('[McpClient] initialize JSON-RPC error', error);
+      throw Exception('MCP initialize error: ${formatAppLogDiagnostic(error)}');
     }
 
     final result = json['result'] as Map<String, dynamic>?;
-    appLog('[McpClient] Server info: $result');
+    appLogDiagnostic('[McpClient] Server info', result);
     _isInitialized = true;
 
     // Send the initialized notification.
@@ -182,17 +185,18 @@ class McpClient implements McpClientBase {
       'id': requestId,
       'method': 'tools/list',
     });
-    appLog('[McpClient] Request: $requestBody');
+    appLogDiagnostic('[McpClient] Request', requestBody);
 
     final (httpResp, body) = await _postRequest(requestBody);
 
     appLog('[McpClient] Response status: ${httpResp.statusCode}');
-    appLog('[McpClient] Response headers: ${httpResp.headers}');
-    appLog('[McpClient] Response body (raw): ${_truncate(body, 500)}');
+    appLogDiagnostic('[McpClient] Response headers', httpResp.headers);
+    appLog('[McpClient] Response bodyBytes: ${utf8.encode(body).length}');
 
     if (httpResp.statusCode != 200) {
       appLog(
-        '[McpClient] listTools HTTP error: status=${httpResp.statusCode}, body=$body',
+        '[McpClient] listTools HTTP error: status=${httpResp.statusCode}, '
+        'bodyBytes=${utf8.encode(body).length}',
       );
       throw Exception('Failed to list tools: ${httpResp.statusCode}');
     }
@@ -202,13 +206,13 @@ class McpClient implements McpClientBase {
     // Check for JSON-RPC errors.
     if (json.containsKey('error')) {
       final error = json['error'];
-      appLog('[McpClient] listTools JSON-RPC error: $error');
-      throw Exception('MCP JSON-RPC error: $error');
+      appLogDiagnostic('[McpClient] listTools JSON-RPC error', error);
+      throw Exception('MCP JSON-RPC error: ${formatAppLogDiagnostic(error)}');
     }
 
     final result = json['result'] as Map<String, dynamic>?;
     if (result == null) {
-      appLog('[McpClient] result is null, full response: $json');
+      appLog('[McpClient] result is null');
       return [];
     }
 
@@ -231,7 +235,7 @@ class McpClient implements McpClientBase {
     }
 
     appLog('[McpClient] callTool: $name');
-    appLog('[McpClient] arguments: $arguments');
+    appLogDiagnostic('[McpClient] arguments', arguments);
     const requestId = 3;
 
     final requestBody = jsonEncode({
@@ -240,18 +244,17 @@ class McpClient implements McpClientBase {
       'method': 'tools/call',
       'params': {'name': name, 'arguments': arguments},
     });
-    appLog('[McpClient] Request: $requestBody');
+    appLogDiagnostic('[McpClient] Request', requestBody);
 
     final (httpResp, body) = await _postRequest(requestBody);
 
     appLog('[McpClient] Response status: ${httpResp.statusCode}');
-    appLog(
-      '[McpClient] Response body (first 500 chars): ${_truncate(body, 500)}',
-    );
+    appLog('[McpClient] Response bodyBytes: ${utf8.encode(body).length}');
 
     if (httpResp.statusCode != 200) {
       appLog(
-        '[McpClient] callTool HTTP error: status=${httpResp.statusCode}, body=$body',
+        '[McpClient] callTool HTTP error: status=${httpResp.statusCode}, '
+        'bodyBytes=${utf8.encode(body).length}',
       );
       throw Exception('Failed to call tool: ${httpResp.statusCode}');
     }
@@ -261,13 +264,13 @@ class McpClient implements McpClientBase {
     // Check for errors in the response.
     if (json.containsKey('error')) {
       final error = json['error'] as Map<String, dynamic>;
-      appLog('[McpClient] Error: ${error['message']}');
-      throw Exception('MCP error: ${error['message']}');
+      appLogDiagnostic('[McpClient] Error', error);
+      throw Exception('MCP error: ${formatAppLogDiagnostic(error['message'])}');
     }
 
     final result = json['result'] as Map<String, dynamic>?;
     if (result == null) {
-      appLog('[McpClient] result is null, full response: $json');
+      appLog('[McpClient] result is null');
       return '';
     }
 
@@ -385,7 +388,10 @@ class McpClient implements McpClientBase {
       return _selectJsonResponse(jsonObjects, expectedId: expectedId);
     } catch (e, stackTrace) {
       appLog('[McpClient] $context JSON decode error: ${e.runtimeType}: $e');
-      appLog('[McpClient] Response body: $body');
+      appLog(
+        '[McpClient] Response body omitted; '
+        'bodyBytes=${utf8.encode(body).length}',
+      );
       appLog('[McpClient] stackTrace: $stackTrace');
       rethrow;
     }
@@ -433,7 +439,10 @@ class McpClient implements McpClientBase {
     flushEvent();
 
     if (eventPayloads.isEmpty) {
-      appLog('[McpClient] No data lines found in SSE response: $trimmed');
+      appLog(
+        '[McpClient] No data lines found in SSE response; '
+        'bodyCharacters=${trimmed.length}',
+      );
       throw const FormatException('No data lines found in SSE response');
     }
 
@@ -625,11 +634,6 @@ class McpClient implements McpClientBase {
       index += 1;
     }
     return null;
-  }
-
-  /// Truncates a string to the requested length.
-  String _truncate(String s, int maxLen) {
-    return s.length > maxLen ? '${s.substring(0, maxLen)}...' : s;
   }
 }
 

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -22,6 +23,22 @@ void appLog(String message) {
 void appDebugPrint(String message) {
   if (!kDebugMode) return;
   debugPrint(SensitiveDataRedactor.redactText(message));
+}
+
+/// Logs a diagnostic value only after recursive key-aware redaction.
+///
+/// JSON objects and arrays embedded in strings are decoded before redaction so
+/// nested credentials cannot bypass the structured boundary through string
+/// interpolation.
+void appLogDiagnostic(String label, Object? value) {
+  appLog('$label: ${formatAppLogDiagnostic(value)}');
+}
+
+/// Produces the same recursively redacted representation used by
+/// [appLogDiagnostic] for safe exception or status messages.
+String formatAppLogDiagnostic(Object? value) {
+  final redacted = SensitiveDataRedactor.redactDiagnostic(value);
+  return redacted is String ? redacted : jsonEncode(redacted);
 }
 
 final bool _isFlutterTest = Platform.environment.containsKey('FLUTTER_TEST');

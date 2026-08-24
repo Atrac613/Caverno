@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 /// Recursively removes common credentials and secret-bearing strings from
 /// structured values before they cross a logging or diagnostic boundary.
 final class SensitiveDataRedactor {
   const SensitiveDataRedactor._();
 
   static const String redactedValue = '[redacted]';
+  static const int _maxDiagnosticJsonDepth = 8;
 
   static const Set<String> _sensitiveKeys = {
     'imagebase64',
@@ -23,6 +26,18 @@ final class SensitiveDataRedactor {
     'privatekey',
     'sshkey',
     'xapikey',
+    'apikey',
+    'authorization',
+    'mcpsessionid',
+  };
+  static const Set<String> _sensitiveKeySuffixes = {
+    'token',
+    'secret',
+    'password',
+    'passwd',
+    'credential',
+    'credentials',
+    'cookie',
     'apikey',
     'authorization',
   };
@@ -74,18 +89,52 @@ final class SensitiveDataRedactor {
     );
   }
 
+  /// Redacts structured diagnostics, including JSON objects or arrays embedded
+  /// in string fields. Returning decoded structures prevents a serialized
+  /// credential from bypassing key-based redaction before logging.
+  static dynamic redactDiagnostic(
+    dynamic value, {
+    Iterable<String> additionalSensitiveKeys = const <String>[],
+  }) {
+    final normalizedAdditionalKeys = additionalSensitiveKeys
+        .map(_normalizeKey)
+        .toSet();
+    return _redactValue(
+      value,
+      normalizedAdditionalKeys: normalizedAdditionalKeys,
+      decodeJsonStrings: true,
+      diagnosticJsonDepth: 0,
+    );
+  }
+
   static dynamic _redactValue(
     dynamic value, {
     String? parentKey,
     required Set<String> normalizedAdditionalKeys,
+    bool decodeJsonStrings = false,
+    int diagnosticJsonDepth = 0,
   }) {
     final normalizedKey = parentKey == null ? null : _normalizeKey(parentKey);
     if (normalizedKey != null &&
-        (_sensitiveKeys.contains(normalizedKey) ||
+        (_isSensitiveKey(normalizedKey) ||
             normalizedAdditionalKeys.contains(normalizedKey))) {
       return redactedValue;
     }
     if (value is String) {
+      if (decodeJsonStrings) {
+        final decoded = _tryDecodeStructuredJson(value);
+        if (decoded != null) {
+          if (diagnosticJsonDepth >= _maxDiagnosticJsonDepth) {
+            return redactedValue;
+          }
+          return _redactValue(
+            decoded,
+            normalizedAdditionalKeys: normalizedAdditionalKeys,
+            decodeJsonStrings: true,
+            diagnosticJsonDepth: diagnosticJsonDepth + 1,
+          );
+        }
+      }
       return redactText(value);
     }
     if (value is Map) {
@@ -95,6 +144,8 @@ final class SensitiveDataRedactor {
             entry.value,
             parentKey: entry.key.toString(),
             normalizedAdditionalKeys: normalizedAdditionalKeys,
+            decodeJsonStrings: decodeJsonStrings,
+            diagnosticJsonDepth: diagnosticJsonDepth,
           ),
       };
     }
@@ -104,6 +155,8 @@ final class SensitiveDataRedactor {
             (item) => _redactValue(
               item,
               normalizedAdditionalKeys: normalizedAdditionalKeys,
+              decodeJsonStrings: decodeJsonStrings,
+              diagnosticJsonDepth: diagnosticJsonDepth,
             ),
           )
           .toList(growable: false);
@@ -143,6 +196,24 @@ final class SensitiveDataRedactor {
       (match) => '${match.group(1)}[redacted]',
     );
     return redacted;
+  }
+
+  static dynamic _tryDecodeStructuredJson(String value) {
+    final trimmed = value.trim();
+    if ((!trimmed.startsWith('{') || !trimmed.endsWith('}')) &&
+        (!trimmed.startsWith('[') || !trimmed.endsWith(']'))) {
+      return null;
+    }
+    try {
+      return jsonDecode(trimmed);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static bool _isSensitiveKey(String normalizedKey) {
+    return _sensitiveKeys.contains(normalizedKey) ||
+        _sensitiveKeySuffixes.any(normalizedKey.endsWith);
   }
 
   static String _normalizeKey(String key) {

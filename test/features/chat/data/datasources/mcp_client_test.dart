@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -175,6 +176,93 @@ void main() {
         'tools/list',
         'tools/call',
       ]);
+    });
+
+    test('redacts structured diagnostics and omits response bodies', () async {
+      const sessionSecret = 'mcp-session-secret-123';
+      const headerSecret = 'header-secret-123';
+      const argumentSecret = 'argument-secret-123';
+      const serializedSecret = 'serialized-secret-123';
+      const responseSecret = 'response-body-secret-123';
+      const errorSecret = 'json-rpc-error-secret-123';
+      final messages = <String>[];
+      final previousDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) messages.add(message);
+      };
+      addTearDown(() => debugPrint = previousDebugPrint);
+
+      serverSub = server.listen((request) async {
+        final requestBody = await utf8.decoder.bind(request).join();
+        final decoded = jsonDecode(requestBody) as Map<String, dynamic>;
+        request.response.headers.contentType = ContentType.json;
+        request.response.headers.set('x-api-key', headerSecret);
+        if (decoded['method'] == 'initialize') {
+          request.response.headers.set('mcp-session-id', sessionSecret);
+          request.response.write(
+            '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":'
+            '{"credentials":{"token":"$headerSecret"}}}}',
+          );
+        } else if (decoded['method'] == 'notifications/initialized') {
+          request.response.write('{}');
+        } else if (decoded['method'] == 'tools/call') {
+          final params = decoded['params'] as Map<String, dynamic>;
+          if (params['name'] == 'error_probe') {
+            request.response.write(
+              '{"jsonrpc":"2.0","id":3,"error":'
+              '{"code":-32000,"message":"Bearer $errorSecret"}}',
+            );
+          } else {
+            request.response.write(
+              '{"jsonrpc":"2.0","id":3,"result":{"content":['
+              '{"type":"text","text":"$responseSecret"}]}}',
+            );
+          }
+        }
+        await request.response.close();
+      });
+
+      final client = McpClient(baseUrl: endpoint.toString());
+      addTearDown(client.dispose);
+      final result = await client.callTool(
+        name: 'secret_probe',
+        arguments: {
+          'headers': {'authorization': 'Bearer $argumentSecret'},
+          'payload': jsonEncode({'password': serializedSecret}),
+        },
+      );
+
+      expect(result, responseSecret, reason: 'logging must not alter results');
+      await expectLater(
+        client.callTool(name: 'error_probe', arguments: const {}),
+        throwsA(
+          isA<Exception>()
+              .having(
+                (error) => error.toString(),
+                'message',
+                contains('[redacted]'),
+              )
+              .having(
+                (error) => error.toString(),
+                'message',
+                isNot(contains(errorSecret)),
+              ),
+        ),
+      );
+      final diagnostics = messages.join('\n');
+      for (final secret in [
+        sessionSecret,
+        headerSecret,
+        argumentSecret,
+        serializedSecret,
+        responseSecret,
+        errorSecret,
+      ]) {
+        expect(diagnostics, isNot(contains(secret)));
+      }
+      expect(diagnostics, contains('[redacted]'));
+      expect(diagnostics, contains('Session ID: present'));
+      expect(diagnostics, contains('Response bodyBytes:'));
     });
 
     test('fails instead of hanging when the server never answers', () async {
