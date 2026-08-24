@@ -44,8 +44,15 @@ tokens, RSS/VRAM metadata, and the false-positive rate on unanswerable cases.
 At least one known-bad arm is mandatory. The checked tests use an empty ranking
 with a non-zero minimum Hit@K. A report fails if that arm starts meeting its
 expectation, because the instrument can no longer distinguish the known-bad
-retriever. Thresholds for the 20-case seed must be expressed as whole-case
-differences rather than sub-case percentages.
+retriever. Thresholds for the seed must be expressed as whole-case differences
+rather than sub-case percentages. Sixteen cases have retrieval qrels, so one
+answerable hit changes Hit@K by 6.25 percentage points. Four no-answer cases
+measure false-positive rate separately, in 25-point steps. The previous
+five-point resolution assumption incorrectly treated all 20 cases as qrels.
+
+Reports include exact answerable hit/miss counts, no-answer retrieval counts,
+miss-reason counts, and category/authority breakdowns. These counts are the
+review surface for promotion gates; aggregate ratios are supporting metrics.
 
 ## Command
 

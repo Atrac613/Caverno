@@ -36,6 +36,10 @@ void main() {
       buildRagLexicalQuery('alpha beta "gamma"'),
       '"alpha" "beta" """gamma"""',
     );
+    expect(
+      buildRagLexicalQuery('alpha beta', policy: RagLexicalQueryPolicy.anyTerm),
+      '"alpha" OR "beta"',
+    );
     expect(buildRagLexicalQuery('  '), isEmpty);
   });
 
@@ -82,6 +86,29 @@ void main() {
           expect(result['missReason'], 'ranking');
         }
       }
+      expect(
+        lexicalResults
+            .where((result) {
+              final fixtureCase = fixture.cases.singleWhere(
+                (item) => item.id == result['caseId'],
+              );
+              return fixtureCase.objectRelevance.isNotEmpty &&
+                  (result['hits'] as List).isEmpty;
+            })
+            .every((result) => result['missReason'] != null),
+        isTrue,
+      );
+      expect(
+        lexicalResults
+            .where((result) {
+              final fixtureCase = fixture.cases.singleWhere(
+                (item) => item.id == result['caseId'],
+              );
+              return fixtureCase.objectRelevance.isEmpty;
+            })
+            .every((result) => result['missReason'] == null),
+        isTrue,
+      );
       final none = run.arms.singleWhere((arm) => arm['id'] == 'NONE');
       expect(
         (none['results'] as List<Object?>).every(

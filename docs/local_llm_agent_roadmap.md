@@ -1206,9 +1206,10 @@ Acceptance criteria:
 - A negative control passes: a deliberately broken arm (empty index, shuffled
   ranking, stubbed-out fusion) makes the suite fail. An instrument that cannot
   detect a known-bad retriever is never reported as green.
-- Downstream gates are expressed at the seed's resolution. A 20-case seed moves
-  Recall@K in five-point steps, so comparative tolerances are written as case
-  counts, never as sub-case percentages.
+- Downstream gates are expressed at the seed's actual resolution. The seed has
+  16 answerable cases, so whole-case Hit@K changes by 6.25 percentage points;
+  its four no-answer cases move false-positive rate by 25 points. Comparative
+  tolerances are written as case counts, never as sub-case percentages.
 - Production retrieval behavior is unchanged in this milestone.
 
 Initial implementation slice:
@@ -1228,6 +1229,10 @@ Initial implementation slice:
   `NONE`, and small-corpus `FULL` rankings, pre-executes a distinct warm pass,
   records RSS/token-estimation/build identity, and preserves unavailable vector
   and agent-kb arms without inventing zero scores.
+- Reports expose exact answerable hit counts, no-answer retrieval counts,
+  lexical miss reasons, and category/authority breakdowns alongside aggregate
+  metrics. The earlier five-point resolution statement incorrectly counted the
+  four no-answer cases as retrieval qrels and is corrected above.
 - `test/tool/rag_retrieval_baseline_test.dart` covers corpus decoding, FTS5
   ranking, Japanese miss attribution, cold/warm capture, control arms, and
   report artifact generation.

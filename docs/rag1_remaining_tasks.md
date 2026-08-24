@@ -31,7 +31,7 @@ Evidence:
 
 ## Task B: Checked Baseline Evidence
 
-Status: `pending` — depends on Task A.
+Status: `in_progress` — Task A is complete; report aggregation is implemented.
 
 - Run cold and warm captures from a clean commit.
 - Produce deterministic run JSON plus evaluator JSON/Markdown reports.
@@ -39,7 +39,8 @@ Status: `pending` — depends on Task A.
   overall instrument pass.
 - Review every lexical miss, every cross-source conflict, and every
   unanswerable false positive.
-- Record gates as whole-case counts for the 20-case seed.
+- Record gates as whole-case counts: 16 answerable cases and four no-answer
+  cases, rather than treating every seed case as a retrieval qrel.
 
 ## Task C: Answer And Citation Measurement
 

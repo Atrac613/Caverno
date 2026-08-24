@@ -70,8 +70,16 @@ void main() {
           .cast<String, Object?>();
       expect(lexicalAggregate['objectHitAtK'], 1);
       expect(lexicalAggregate['unanswerableFalsePositiveRate'], 0);
+      expect(lexicalAggregate['answerableHitCount'], 16);
+      expect(lexicalAggregate['answerableCaseCount'], 16);
+      expect(lexicalAggregate['unanswerableCaseCount'], 4);
+      expect(lexicalAggregate['unanswerableRetrievedCount'], 0);
+      expect(lexicalAggregate['categoryBreakdown'], isNotEmpty);
+      expect(lexicalAggregate['authorityBreakdown'], isNotEmpty);
       expect(report.toJson()['schemaVersion'], 1);
       expect(report.toMarkdown(), contains('not_available'));
+      expect(report.toMarkdown(), contains('16/16'));
+      expect(report.toMarkdown(), contains('L diagnostics'));
     },
   );
 

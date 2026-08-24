@@ -150,6 +150,12 @@ Map<String, Object?> _evaluateArm(
   final unanswerable = caseReports
       .where((item) => _metric(item, 'objectMetrics', 'scorable') == false)
       .toList();
+  bool isHit(Map<String, Object?> item) =>
+      (_metric(item, 'objectMetrics', 'hitAtK') as num) > 0;
+  final answerableHitCount = scorable.where(isHit).length;
+  final unanswerableRetrievedCount = unanswerable
+      .where((item) => (item['returnedHitCount'] as int) > 0)
+      .length;
   double average(String group, String key) => scorable.isEmpty
       ? 0
       : scorable
@@ -158,6 +164,14 @@ Map<String, Object?> _evaluateArm(
             scorable.length;
   final aggregate = <String, Object?>{
     'scorableCaseCount': scorable.length,
+    'answerableCaseCount': scorable.length,
+    'answerableHitCount': answerableHitCount,
+    'answerableMissCount': scorable.length - answerableHitCount,
+    'unanswerableCaseCount': unanswerable.length,
+    'unanswerableRetrievedCount': unanswerableRetrievedCount,
+    'missReasonCounts': _countStrings(caseReports, 'missReason'),
+    'categoryBreakdown': _breakdown(caseReports, 'category'),
+    'authorityBreakdown': _breakdown(caseReports, 'authority'),
     'objectRecallAtK': average('objectMetrics', 'recallAtK'),
     'objectHitAtK': average('objectMetrics', 'hitAtK'),
     'objectMrrAtK': average('objectMetrics', 'mrrAtK'),
@@ -170,10 +184,7 @@ Map<String, Object?> _evaluateArm(
     'totalContextTokens': _sum(caseReports, 'contextTokens'),
     'unanswerableFalsePositiveRate': unanswerable.isEmpty
         ? 0
-        : unanswerable
-                  .where((item) => (item['returnedHitCount'] as int) > 0)
-                  .length /
-              unanswerable.length,
+        : unanswerableRetrievedCount / unanswerable.length,
   };
   return {
     'id': _string(arm, 'id'),
@@ -518,21 +529,61 @@ final class RagRetrievalReport {
       )
       ..writeln()
       ..writeln(
-        '| Arm | Status | Recall@$metricK | Hit@$metricK | '
-        'MRR@$metricK | nDCG@$metricK |',
+        '| Arm | Status | Hits/Cases | Recall@$metricK | Hit@$metricK | '
+        'MRR@$metricK | nDCG@$metricK | No-answer retrieved | '
+        'Latency ms | Context tokens |',
       )
-      ..writeln('| --- | --- | ---: | ---: | ---: | ---: |');
+      ..writeln(
+        '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+      );
     for (final arm in arms) {
       final aggregate = arm['aggregate'] is Map
           ? (arm['aggregate'] as Map).cast<String, Object?>()
           : null;
       buffer.writeln(
         '| ${arm['id']} | ${arm['status']} | '
+        '${_formatCountPair(aggregate, 'answerableHitCount', 'answerableCaseCount')} | '
         '${_formatMetric(aggregate?['objectRecallAtK'])} | '
         '${_formatMetric(aggregate?['objectHitAtK'])} | '
         '${_formatMetric(aggregate?['objectMrrAtK'])} | '
-        '${_formatMetric(aggregate?['objectNdcgAtK'])} |',
+        '${_formatMetric(aggregate?['objectNdcgAtK'])} | '
+        '${_formatCountPair(aggregate, 'unanswerableRetrievedCount', 'unanswerableCaseCount')} | '
+        '${aggregate?['totalLatencyMs'] ?? 'not_available'} | '
+        '${aggregate?['totalContextTokens'] ?? 'not_available'} |',
       );
+    }
+    for (final arm in arms.where((item) => item['status'] == 'available')) {
+      final aggregate = (arm['aggregate'] as Map).cast<String, Object?>();
+      buffer
+        ..writeln()
+        ..writeln('## ${arm['id']} diagnostics')
+        ..writeln()
+        ..writeln('### Miss reasons')
+        ..writeln()
+        ..writeln('| Reason | Cases |')
+        ..writeln('| --- | ---: |');
+      _writeCountRows(
+        buffer,
+        (aggregate['missReasonCounts'] as Map).cast<String, Object?>(),
+      );
+      for (final entry in const [
+        ('Category', 'categoryBreakdown'),
+        ('Authority', 'authorityBreakdown'),
+      ]) {
+        buffer
+          ..writeln()
+          ..writeln('### ${entry.$1}')
+          ..writeln()
+          ..writeln('| ${entry.$1} | Hits/Cases |')
+          ..writeln('| --- | ---: |');
+        final rows = (aggregate[entry.$2] as Map).cast<String, Object?>();
+        for (final row in rows.entries) {
+          final counts = (row.value as Map).cast<String, Object?>();
+          buffer.writeln(
+            '| ${row.key} | ${counts['hitCount']}/${counts['caseCount']} |',
+          );
+        }
+      }
     }
     return buffer.toString();
   }
@@ -676,6 +727,53 @@ double? _averageNullable(List<Map<String, Object?>> items, String key) {
 
 int _sum(List<Map<String, Object?>> items, String key) =>
     items.fold(0, (sum, item) => sum + (item[key] as int));
+
+Map<String, Object?> _countStrings(
+  List<Map<String, Object?>> items,
+  String key,
+) {
+  final counts = <String, Object?>{};
+  for (final value in items.map((item) => item[key]).whereType<String>()) {
+    counts[value] = ((counts[value] as int?) ?? 0) + 1;
+  }
+  return counts;
+}
+
+Map<String, Object?> _breakdown(List<Map<String, Object?>> items, String key) {
+  final groups = <String, List<Map<String, Object?>>>{};
+  for (final item in items) {
+    groups.putIfAbsent(item[key]! as String, () => []).add(item);
+  }
+  return {
+    for (final entry in groups.entries)
+      entry.key: {
+        'caseCount': entry.value.length,
+        'hitCount': entry.value
+            .where(
+              (item) => (_metric(item, 'objectMetrics', 'hitAtK') as num) > 0,
+            )
+            .length,
+      },
+  };
+}
+
+String _formatCountPair(
+  Map<String, Object?>? values,
+  String numerator,
+  String denominator,
+) => values == null
+    ? 'not_available'
+    : '${values[numerator]}/${values[denominator]}';
+
+void _writeCountRows(StringBuffer buffer, Map<String, Object?> counts) {
+  if (counts.isEmpty) {
+    buffer.writeln('| none | 0 |');
+    return;
+  }
+  for (final entry in counts.entries) {
+    buffer.writeln('| ${entry.key} | ${entry.value} |');
+  }
+}
 
 String _formatMetric(Object? value) =>
     value is num ? value.toStringAsFixed(3) : 'not_available';

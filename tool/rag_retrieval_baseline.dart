@@ -105,16 +105,30 @@ Map<String, Object?> captureRagRetrievalBaseline({
       final hasRelevantHit = hits.any(
         (hit) => relevantIds.contains(hit['objectId']),
       );
+      final relaxedHits = hasRelevantHit
+          ? const <Map<String, Object?>>[]
+          : searchRagFixtureLexically(
+              database,
+              fixtureCase.query,
+              limit: fixture.metricK,
+              policy: RagLexicalQueryPolicy.anyTerm,
+            );
+      final relaxedHasRelevantHit = relaxedHits.any(
+        (hit) => relevantIds.contains(hit['objectId']),
+      );
       lexical.add(
         _caseResult(
           fixtureCase,
           hits: hits,
           latencyMs: _elapsedMilliseconds(lexicalWatch),
           context: _contentForHits(documents, hits),
-          missReason:
-              fixtureCase.category == 'japanese_query' && !hasRelevantHit
-              ? (hits.isEmpty ? 'tokenization' : 'ranking')
-              : null,
+          missReason: relevantIds.isEmpty || hasRelevantHit
+              ? null
+              : _classifyLexicalMiss(
+                  fixtureCase: fixtureCase,
+                  relaxedHits: relaxedHits,
+                  relaxedHasRelevantHit: relaxedHasRelevantHit,
+                ),
         ),
       );
       none.add(_caseResult(fixtureCase, hits: const [], context: ''));
@@ -175,8 +189,9 @@ List<Map<String, Object?>> searchRagFixtureLexically(
   Database database,
   String query, {
   required int limit,
+  RagLexicalQueryPolicy policy = RagLexicalQueryPolicy.allTerms,
 }) {
-  final matchQuery = buildRagLexicalQuery(query);
+  final matchQuery = buildRagLexicalQuery(query, policy: policy);
   if (matchQuery.isEmpty) {
     return const [];
   }
@@ -194,12 +209,30 @@ List<Map<String, Object?>> searchRagFixtureLexically(
   ];
 }
 
-String buildRagLexicalQuery(String query) {
-  return query
+String buildRagLexicalQuery(
+  String query, {
+  RagLexicalQueryPolicy policy = RagLexicalQueryPolicy.allTerms,
+}) {
+  final terms = query
       .split(RegExp(r'\s+'))
       .where((term) => term.trim().isNotEmpty)
       .map((term) => '"${term.replaceAll('"', '""')}"')
-      .join(' ');
+      .toList();
+  return terms.join(policy == RagLexicalQueryPolicy.allTerms ? ' ' : ' OR ');
+}
+
+String _classifyLexicalMiss({
+  required RagRetrievalFixtureCase fixtureCase,
+  required List<Map<String, Object?>> relaxedHits,
+  required bool relaxedHasRelevantHit,
+}) {
+  if (fixtureCase.category == 'japanese_query') {
+    return relaxedHasRelevantHit ? 'ranking' : 'tokenization';
+  }
+  if (relaxedHasRelevantHit) {
+    return 'query_policy';
+  }
+  return relaxedHits.isEmpty ? 'vocabulary' : 'ranking';
 }
 
 Future<List<RagFixtureDocument>> loadRagFixtureDocuments(
@@ -313,6 +346,8 @@ int _elapsedMilliseconds(Stopwatch stopwatch) {
   }
   return (stopwatch.elapsedMicroseconds / 1000).ceil();
 }
+
+enum RagLexicalQueryPolicy { allTerms, anyTerm }
 
 final class RagFixtureDocument {
   const RagFixtureDocument({
