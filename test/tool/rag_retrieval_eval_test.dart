@@ -75,6 +75,7 @@ void main() {
       expect(lexicalAggregate['unanswerableCaseCount'], 4);
       expect(lexicalAggregate['unanswerableRetrievedCount'], 0);
       expect(lexicalAggregate['groundedAnswerRate'], 1);
+      expect(lexicalAggregate['totalCompletionTokens'], 0);
       expect(lexicalAggregate['categoryBreakdown'], isNotEmpty);
       expect(lexicalAggregate['authorityBreakdown'], isNotEmpty);
       expect(report.toJson()['schemaVersion'], 1);

@@ -145,6 +145,7 @@ Map<String, Object?> _evaluateArm(
             ),
       'latencyMs': _integer(result, 'latencyMs', fallback: 0),
       'promptTokens': _integer(result, 'promptTokens', fallback: 0),
+      'completionTokens': _integer(result, 'completionTokens', fallback: 0),
       'contextTokens': _integer(result, 'contextTokens', fallback: 0),
       'returnedHitCount': hits.length,
     };
@@ -191,6 +192,7 @@ Map<String, Object?> _evaluateArm(
     'citationPrecision': _averageNullable(caseReports, 'citationPrecision'),
     'totalLatencyMs': _sum(caseReports, 'latencyMs'),
     'totalPromptTokens': _sum(caseReports, 'promptTokens'),
+    'totalCompletionTokens': _sum(caseReports, 'completionTokens'),
     'totalContextTokens': _sum(caseReports, 'contextTokens'),
     'unanswerableFalsePositiveRate': unanswerable.isEmpty
         ? 0
@@ -540,11 +542,12 @@ final class RagRetrievalReport {
       ..writeln()
       ..writeln(
         '| Arm | Status | Hits/Cases | Recall@$metricK | Hit@$metricK | '
-        'MRR@$metricK | nDCG@$metricK | No-answer retrieved | '
-        'Latency ms | Context tokens |',
+        'MRR@$metricK | nDCG@$metricK | Grounding | Citations | '
+        'No-answer retrieved | Latency ms | Prompt/completion tokens | '
+        'Context tokens |',
       )
       ..writeln(
-        '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+        '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
       );
     for (final arm in arms) {
       final aggregate = arm['aggregate'] is Map
@@ -557,8 +560,11 @@ final class RagRetrievalReport {
         '${_formatMetric(aggregate?['objectHitAtK'])} | '
         '${_formatMetric(aggregate?['objectMrrAtK'])} | '
         '${_formatMetric(aggregate?['objectNdcgAtK'])} | '
+        '${_formatMetric(aggregate?['groundedAnswerRate'])} | '
+        '${_formatMetric(aggregate?['citationPrecision'])} | '
         '${_formatCountPair(aggregate, 'unanswerableRetrievedCount', 'unanswerableCaseCount')} | '
         '${aggregate?['totalLatencyMs'] ?? 'not_available'} | '
+        '${_formatCountPair(aggregate, 'totalPromptTokens', 'totalCompletionTokens')} | '
         '${aggregate?['totalContextTokens'] ?? 'not_available'} |',
       );
     }

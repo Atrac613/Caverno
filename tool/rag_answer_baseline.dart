@@ -165,20 +165,23 @@ void applyRagAnswerSelections({
         .map((fact) => factsToIds[fact])
         .toSet();
     final expectedCitations = fixtureCase.citations.toSet();
+    final validCitationCount = selection.citations
+        .toSet()
+        .intersection(expectedCitations)
+        .length;
+    final correctFactCount = selection.factIds
+        .toSet()
+        .intersection(expectedFacts)
+        .length;
     result['answerEvaluation'] = {
-      'groundedClaims': selection.factIds
-          .toSet()
-          .intersection(expectedFacts)
-          .length,
+      'groundedClaims': validCitationCount > 0 ? correctFactCount : 0,
       'totalClaims': selection.factIds.length,
-      'validCitations': selection.citations
-          .toSet()
-          .intersection(expectedCitations)
-          .length,
+      'validCitations': validCitationCount,
       'totalCitations': selection.citations.length,
     };
     result['latencyMs'] = index == 0 ? latencyMs : 0;
-    result['promptTokens'] = index == 0 ? promptTokens + completionTokens : 0;
+    result['promptTokens'] = index == 0 ? promptTokens : 0;
+    result['completionTokens'] = index == 0 ? completionTokens : 0;
   }
 }
 

@@ -82,8 +82,40 @@ void main() {
       'validCitations': 1,
       'totalCitations': 1,
     });
-    expect(results.first['promptTokens'], 120);
+    expect(results.first['promptTokens'], 100);
+    expect(results.first['completionTokens'], 20);
     expect(results.first['latencyMs'], 5);
+  });
+
+  test('does not count a correct fact as grounded without a citation', () {
+    final catalog = buildRagFactCatalog(fixture);
+    final fixtureCase = fixture.cases.first;
+    final factId = catalog.entries
+        .singleWhere((entry) => entry.value == fixtureCase.answerFacts.first)
+        .key;
+    final results = [
+      for (final item in fixture.cases)
+        {'caseId': item.id, 'hits': <Object?>[]},
+    ];
+
+    applyRagAnswerSelections(
+      fixture: fixture,
+      results: results,
+      selections: [
+        for (final item in fixture.cases)
+          RagAnswerSelection(
+            caseId: item.id,
+            factIds: item.id == fixtureCase.id ? [factId] : const [],
+            citations: const [],
+          ),
+      ],
+      factCatalog: catalog,
+      promptTokens: 0,
+      completionTokens: 0,
+      latencyMs: 0,
+    );
+
+    expect((results.first['answerEvaluation'] as Map)['groundedClaims'], 0);
   });
 
   test('accepts schema JSON returned through reasoning_content', () {
