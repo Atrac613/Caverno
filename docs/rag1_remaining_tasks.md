@@ -52,7 +52,7 @@ Evidence:
 
 ## Task C: Answer And Citation Measurement
 
-Status: `pending` — depends on Task B.
+Status: `done`
 
 - Add answer-producing `NONE`, `L`, and `FULL` measurements using the same
   answer keys and citation IDs.
@@ -62,9 +62,13 @@ Status: `pending` — depends on Task B.
   answer key permits; keep ambiguous cases review-required.
 - Compare answer quality and token cost in the same report as retrieval.
 
+Evidence: `docs/rag1_completion_audit_2026-08-25.md`. A clean live run on
+commit `dce6de97` measured `NONE`, `L`, and `FULL` with strict JSON-schema
+selection and citation-required grounding.
+
 ## Task D: Optional Capability Arms
 
-Status: `pending` — depends on Task B; capability-gated.
+Status: `done`
 
 - Populate `V` when a configured embedding endpoint is available.
 - Populate `H` only after both lexical and vector rankings exist; do not ship a
@@ -74,10 +78,12 @@ Status: `pending` — depends on Task B; capability-gated.
 - Preserve `not_available` for every arm whose capability or provenance gate is
   unmet.
 
+Evidence: a clean run on commit `0321d7b0` measured `V/H`; `AK/H+AK` remained
+explicitly unavailable because their provenance/federation gates are unmet.
+
 ## Task E: RAG1 Completion Audit
 
-Status: `pending` — depends on Tasks B-C and the explicit availability outcome
-of Task D.
+Status: `done`
 
 - Publish one reviewable report containing metric policy version, lexical miss
   attribution, authority handling, answer/citation quality, latency, resources,
@@ -86,3 +92,7 @@ of Task D.
 - Decide whether the evidence promotes RAG2 or records a No-Go.
 - Update both roadmaps with exact evidence and mark RAG1 `done` only if every
   acceptance criterion is proven.
+
+Evidence: `docs/rag1_completion_audit_2026-08-25.md`. RAG1 is complete and the
+RAG2 promotion decision is No-Go until retrieval gains an evaluated no-answer
+policy.

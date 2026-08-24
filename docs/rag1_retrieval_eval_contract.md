@@ -81,6 +81,27 @@ The lexical arm intentionally mirrors the existing `unicode61` tokenizer and
 quoted whitespace-term AND policy so its misses are a baseline, not a hidden
 RAG2 query rewrite.
 
+Live answer and vector arms use separate capability-gated runners:
+
+```bash
+fvm dart run tool/rag_answer_baseline.dart \
+  --fixture tool/fixtures/rag_retrieval_eval/fixture.json \
+  --out-dir build/integration_test_reports/rag_retrieval_eval/answer \
+  --base-url http://127.0.0.1:1234/v1 \
+  --model qwen/qwen3.8-27b
+
+fvm dart run tool/rag_vector_baseline.dart \
+  --fixture tool/fixtures/rag_retrieval_eval/fixture.json \
+  --out-dir build/integration_test_reports/rag_retrieval_eval/vector \
+  --base-url http://127.0.0.1:1234/v1 \
+  --model text-embedding-nomic-embed-text-v1.5
+```
+
+The answer runner uses strict JSON-schema candidate-fact selection and counts a
+claim as grounded only when it also carries a valid case citation. The vector
+runner captures cosine and reciprocal-rank-fused rankings without wiring either
+path into production.
+
 ## Deliberate non-goals
 
 - No production database migration or index.
