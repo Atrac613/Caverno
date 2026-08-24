@@ -210,7 +210,7 @@ final class RagAnswerClient {
           'model': model,
           'temperature': 0,
           'max_tokens': 2048,
-          'response_format': {'type': 'json_object'},
+          'response_format': {'type': 'text'},
           'chat_template_kwargs': {'enable_thinking': false},
           'messages': [
             {'role': 'user', 'content': prompt},
