@@ -260,7 +260,7 @@ final class RagAnswerClient {
       final json = (jsonDecode(body) as Map).cast<String, Object?>();
       final choices = (json['choices'] as List).cast<Map>();
       final message = choices.first['message'] as Map;
-      final content = message['content'] as String;
+      final content = ragAnswerMessagePayload(message.cast<String, Object?>());
       final decoded = _decodeModelJson(content);
       final usage =
           (json['usage'] as Map?)?.cast<String, Object?>() ?? const {};
@@ -277,6 +277,16 @@ final class RagAnswerClient {
       client.close(force: true);
     }
   }
+}
+
+String ragAnswerMessagePayload(Map<String, Object?> message) {
+  for (final key in const ['content', 'reasoning_content']) {
+    final value = message[key];
+    if (value is String && value.trim().isNotEmpty) return value;
+  }
+  throw const FormatException(
+    'Model response contained neither content nor reasoning_content JSON.',
+  );
 }
 
 Map<String, Object?> _decodeModelJson(String content) {

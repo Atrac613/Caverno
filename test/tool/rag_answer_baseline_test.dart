@@ -85,4 +85,18 @@ void main() {
     expect(results.first['promptTokens'], 120);
     expect(results.first['latencyMs'], 5);
   });
+
+  test('accepts schema JSON returned through reasoning_content', () {
+    expect(
+      ragAnswerMessagePayload({
+        'content': '',
+        'reasoning_content': '{"results":[]}',
+      }),
+      '{"results":[]}',
+    );
+    expect(
+      () => ragAnswerMessagePayload({'content': ''}),
+      throwsFormatException,
+    );
+  });
 }
