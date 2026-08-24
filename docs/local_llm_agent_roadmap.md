@@ -1179,7 +1179,7 @@ discussion.
 
 ### RAG1: Retrieval Evaluation Contract
 
-Status: `next`
+Status: `current`
 
 Scope:
 - Add a versioned mini-repository, query/qrels/answer-key schemas, and
@@ -1210,6 +1210,24 @@ Acceptance criteria:
   Recall@K in five-point steps, so comparative tolerances are written as case
   counts, never as sub-case percentages.
 - Production retrieval behavior is unchanged in this milestone.
+
+Initial implementation slice:
+- `tool/rag_retrieval_eval.dart` defines versioned fixture, run, and report
+  schemas and scores precomputed rankings without a production retrieval path.
+- `tool/fixtures/rag_retrieval_eval/` provides the content-hashed mini
+  repository and deterministic 20-case seed across all required categories and
+  authority modes.
+- The evaluator distinguishes `not_available` from zero, requires
+  reproducibility and resource metadata, attributes Japanese lexical misses,
+  and reports retrieval, grounding, citation, latency, token, and
+  unanswerable-case metrics.
+- `test/tool/rag_retrieval_eval_test.dart` proves metric behavior, fixture/hash
+  validation, deterministic JSON/Markdown output, unavailable-arm handling,
+  and the mandatory empty-ranking negative control.
+- Contract: `docs/rag1_retrieval_eval_contract.md`.
+- Remaining before completion: capture real `L`, `NONE`, and `FULL` rankings,
+  review lexical misses and authority handling in one report, then add `V`,
+  `H`, `AK`, and `H+AK` as their capabilities become available.
 
 Promotion gate:
 - RAG2 stays `later` until lexical misses, the metric policy version, and the
