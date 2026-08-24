@@ -27,6 +27,8 @@ the `L`, `V`, `H`, `AK`, `H+AK`, `NONE`, and `FULL` arms. An unavailable arm
 uses `status: not_available` plus a reason and is never converted to a zero
 score. Reproducibility metadata records the build commit and dirty state,
 embedding fingerprint, hardware, and cold/warm state.
+Runs also name the token-counting or token-estimation method so approximate
+counts cannot be mistaken for tokenizer usage.
 
 Available arms provide one result per case, elapsed time, prompt/context token
 counts, and peak RSS/VRAM fields. Japanese lexical misses must be attributed to
@@ -57,6 +59,20 @@ fvm dart run tool/rag_retrieval_eval.dart \
 The command writes deterministic `rag_retrieval_eval.json` and
 `rag_retrieval_eval.md` reports. Generated reports remain build artifacts and
 must not be committed.
+
+Task A captures the initial lexical and control arms directly:
+
+```bash
+fvm dart run tool/rag_retrieval_baseline.dart \
+  --fixture tool/fixtures/rag_retrieval_eval/fixture.json \
+  --out-dir build/integration_test_reports/rag_retrieval_eval \
+  --warm-state cold
+```
+
+The `warm` variant pre-executes every lexical query before the measured pass.
+The lexical arm intentionally mirrors the existing `unicode61` tokenizer and
+quoted whitespace-term AND policy so its misses are a baseline, not a hidden
+RAG2 query rewrite.
 
 ## Deliberate non-goals
 

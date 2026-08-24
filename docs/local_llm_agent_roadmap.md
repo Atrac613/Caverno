@@ -1224,10 +1224,18 @@ Initial implementation slice:
 - `test/tool/rag_retrieval_eval_test.dart` proves metric behavior, fixture/hash
   validation, deterministic JSON/Markdown output, unavailable-arm handling,
   and the mandatory empty-ranking negative control.
+- `tool/rag_retrieval_baseline.dart` now captures real `unicode61` lexical,
+  `NONE`, and small-corpus `FULL` rankings, pre-executes a distinct warm pass,
+  records RSS/token-estimation/build identity, and preserves unavailable vector
+  and agent-kb arms without inventing zero scores.
+- `test/tool/rag_retrieval_baseline_test.dart` covers corpus decoding, FTS5
+  ranking, Japanese miss attribution, cold/warm capture, control arms, and
+  report artifact generation.
 - Contract: `docs/rag1_retrieval_eval_contract.md`.
-- Remaining before completion: capture real `L`, `NONE`, and `FULL` rankings,
-  review lexical misses and authority handling in one report, then add `V`,
-  `H`, `AK`, and `H+AK` as their capabilities become available.
+- Remaining before completion: capture checked cold/warm baseline evidence,
+  review lexical misses and authority handling, measure answer/citation quality,
+  then record explicit availability outcomes for `V`, `H`, `AK`, and `H+AK`.
+- Remaining-task plan: `docs/rag1_remaining_tasks.md`.
 
 Promotion gate:
 - RAG2 stays `later` until lexical misses, the metric policy version, and the

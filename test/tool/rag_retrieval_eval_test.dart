@@ -182,6 +182,7 @@ Map<String, Object?> _buildRunJson(RagRetrievalFixture fixture) =>
               'embeddingFingerprint': 'not_available',
               'hardware': 'test-host',
               'warmState': 'cold',
+              'tokenEstimateMethod': 'test_exact',
             },
             'arms': [
               _availableArm('L', _perfectResults(fixture), minimumHitAtK: 1),

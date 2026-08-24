@@ -401,6 +401,7 @@ final class RagRetrievalRun {
       'embeddingFingerprint',
       'hardware',
       'warmState',
+      'tokenEstimateMethod',
     };
     if (!metadata.keys.toSet().containsAll(metadataFields)) {
       throw StateError('Run metadata is missing reproducibility fields.');
