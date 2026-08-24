@@ -119,7 +119,10 @@ class _FakeServer implements HtmlPreviewStaticServer {
   bool get isRunning => !stopped;
 
   @override
-  Future<Uri> start({required String projectRoot}) async {
+  Future<Uri> start({
+    required String projectRoot,
+    required String entryRelativePath,
+  }) async {
     stopped = false;
     return origin!;
   }

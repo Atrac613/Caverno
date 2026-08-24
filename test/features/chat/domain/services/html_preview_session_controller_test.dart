@@ -39,6 +39,7 @@ void main() {
     expect(controller.state.entryRelativePath, 'index.html');
     expect(opened.toString(), 'http://127.0.0.1:4321/index.html');
     expect(server.startedRoot, '/work/sea');
+    expect(server.startedEntry, 'index.html');
     await controller.dispose();
   });
 
@@ -184,6 +185,7 @@ class _FixedDetector extends HtmlProjectDetector {
 
 class _FakeServer implements HtmlPreviewStaticServer {
   String? startedRoot;
+  String? startedEntry;
   bool stopped = false;
 
   @override
@@ -194,8 +196,12 @@ class _FakeServer implements HtmlPreviewStaticServer {
   bool get isRunning => startedRoot != null && !stopped;
 
   @override
-  Future<Uri> start({required String projectRoot}) async {
+  Future<Uri> start({
+    required String projectRoot,
+    required String entryRelativePath,
+  }) async {
     startedRoot = projectRoot;
+    startedEntry = entryRelativePath;
     stopped = false;
     return origin!;
   }

@@ -93,8 +93,15 @@ class HtmlPreviewSessionController {
     final server = _createServer();
     _server = server;
     try {
-      final origin = await server.start(projectRoot: projectRoot);
-      final url = origin.replace(path: '/${resolved.relativePath}');
+      final origin = await server.start(
+        projectRoot: projectRoot,
+        entryRelativePath: resolved.relativePath,
+      );
+      final entryName = resolved.relativePath
+          .replaceAll('\\', '/')
+          .split('/')
+          .last;
+      final url = origin.replace(path: '/$entryName');
       await _openPreview(url);
       if (_state.status != HtmlPreviewStatus.starting) {
         await server.stop();

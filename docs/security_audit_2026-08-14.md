@@ -640,11 +640,12 @@ preconditions, minimal patches, and exit tests are maintained in
 | SA-23 | Low | Remote Coding resolves pending interactions by ID without rechecking origin or device ownership | SEC4.5g, RC1 |
 
 SA-19 was remediated by SEC4.4g on 2026-08-24 with fresh, non-cacheable
-`opaque_host_write` authority for native-shell execution. SA-20 remains a
-release blocker when HTML Preview is present in the release artifact. A UI
-default or warning is not a closure condition. SA-21 through SA-23 remain separate follow-up slices and do
-not delay a build in which their affected features are absent or mechanically
-disabled under the risk-acceptance policy below.
+`opaque_host_write` authority for native-shell execution. SA-20 was remediated
+by SEC4.3e on 2026-08-24 with an entry-directory asset surface, restrictive CSP
+and response headers, and WebView request interception. SA-21 through SA-23
+remain separate follow-up slices and do not delay a build in which their
+affected features are absent or mechanically disabled under the risk-acceptance
+policy below.
 
 ## Dependency And Supply-Chain Review
 
@@ -724,8 +725,8 @@ Add negative coverage for:
 | P0-3 | SEC1 + SEC2.3b + SEC4.3a-SEC4.3c network authority (completed 2026-08-14) | SA-03, SA-07 | Every HTTP/browser request uses one classifier, remote provenance, approval, destination, DNS/peer, and redirect policy; unverifiable external WebView navigation is absent; taint precedes cache/full access. |
 | P0-4 | SEC4.4a project read containment (completed 2026-08-14) | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
 | P0-5 | SEC4.5a-SEC4.5b authenticated transport containment (completed 2026-08-19) | SA-05, SA-06 | SSH known-host mismatch fails before authentication. A release build cannot start a plaintext non-loopback Remote Coding listener. |
-| P0-F1 | SEC4.4g opaque local-command authority | SA-19 | Every opaque native-shell command uses a distinct, fresh, non-cacheable host-write approval before auto-review or Full Access, or runs inside an enforced project sandbox. |
-| P0-F2 | SEC4.3e HTML Preview active-content containment | SA-20 | Preview content can access only declared assets and cannot send project data through network, form, frame, or subresource channels. |
+| P0-F1 | SEC4.4g opaque local-command authority (completed 2026-08-24) | SA-19 | Every opaque native-shell command uses a distinct, fresh, non-cacheable host-write approval before auto-review or Full Access, or runs inside an enforced project sandbox. |
+| P0-F2 | SEC4.3e HTML Preview active-content containment (completed 2026-08-24) | SA-20 | Preview content can access only declared assets and cannot send project data through network, form, frame, or subresource channels. |
 | P1-1 | SEC4.4b/SEC4.4c/SEC4.4d/SEC4.4e/SEC4.4f mutation and autonomous containment (mutation fence completed 2026-08-19; routine MCP deny-by-default completed 2026-08-21; git cwd fence completed 2026-08-21; git pathspec fence completed 2026-08-21; local-command write fence completed 2026-08-21) | SA-08, SA-09 | Write/edit/delete go through a symlink-aware project fence. Unclassified external MCP tools are omitted from routine catalogs and denied at dispatch. Git working directories use the same fence. Relocating git globals and escaping pathspecs are denied. Local-command writes use the same fence when a project is selected. |
 | P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (completed 2026-08-22) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
 | P1-3 | SEC4.6 data protection and lifecycle | SA-11, SA-13, SA-14, SA-15, SA-17, SA-18 | Secret-free storage/export, recursive redaction, opt-out, migration, backup, and deletion tests pass. |

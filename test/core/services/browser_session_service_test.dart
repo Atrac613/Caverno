@@ -210,6 +210,32 @@ void main() {
       expect(service.navigationDecision('file:///etc/passwd').allowed, isFalse);
     });
 
+    test('allows preview subresources but rejects every external origin', () {
+      final service = BrowserSessionService();
+      service.armLocalPreviewOriginForTest(
+        Uri.parse('http://127.0.0.1:4321/index.html'),
+      );
+
+      expect(
+        service.allowsResourceRequest('http://127.0.0.1:4321/app.js'),
+        isTrue,
+      );
+      expect(
+        service.allowsResourceRequest('data:image/png;base64,AA=='),
+        isTrue,
+      );
+      expect(service.allowsResourceRequest('blob:http://127.0.0.1/id'), isTrue);
+      for (final url in [
+        'https://example.com/collect',
+        'http://127.0.0.1:9999/collect',
+        'file:///etc/passwd',
+        'javascript:alert(1)',
+        '',
+      ]) {
+        expect(service.allowsResourceRequest(url), isFalse, reason: url);
+      }
+    });
+
     test(
       'browser_open fails before mounting a WebView or resolving DNS',
       () async {

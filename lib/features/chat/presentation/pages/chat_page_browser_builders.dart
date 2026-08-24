@@ -409,6 +409,7 @@ class _BrowserWebViewHostState extends State<_BrowserWebViewHost> {
         javaScriptEnabled: true,
         transparentBackground: false,
         useShouldOverrideUrlLoading: true,
+        useShouldInterceptRequest: true,
       ),
       onWebViewCreated: (controller) {
         _controller = controller;
@@ -428,6 +429,19 @@ class _BrowserWebViewHostState extends State<_BrowserWebViewHost> {
           return NavigationActionPolicy.CANCEL;
         }
         return NavigationActionPolicy.ALLOW;
+      },
+      shouldInterceptRequest: (controller, request) async {
+        if (widget.service.allowsResourceRequest(request.url.toString())) {
+          return null;
+        }
+        return WebResourceResponse(
+          contentType: 'text/plain',
+          contentEncoding: 'utf-8',
+          data: Uint8List(0),
+          headers: const {'Cache-Control': 'no-store'},
+          statusCode: HttpStatus.forbidden,
+          reasonPhrase: 'Forbidden',
+        );
       },
       onReceivedError: (controller, request, error) {
         if (request.isForMainFrame ?? true) {

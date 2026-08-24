@@ -5510,8 +5510,9 @@ Slice plan:
    to the connection or verifies the peer address, revalidates redirects, and
    strips cross-origin credentials; **SEC4.3d (P1, completed 2026-08-22)** adds
    a 1 MiB streamed-body ceiling plus total and idle deadlines;
-   **SEC4.3e (P0 follow-up)** restricts HTML Preview to declared assets and
-   blocks active-content egress with response policy plus request interception;
+   **SEC4.3e (P0 follow-up, completed 2026-08-24)** restricts HTML Preview to
+   declared assets and blocks active-content egress with response policy plus
+   request interception;
    and **SEC4.3f (P1 follow-up)** applies pre-parse response, line, document, and
    decompression limits to application-owned MCP and settings QR inputs.
 4. **SEC4.4 — Project and autonomous containment.** Split implementation into
@@ -5598,6 +5599,7 @@ Promotion rule:
   Coding while their corresponding SEC4 P0 owner remains open. Do not promote
   unrestricted local commands or HTML Preview while SEC4.4g or SEC4.3e remains
   open unless that capability is mechanically absent from the release artifact.
+  Both follow-up P0 owners completed on 2026-08-24.
   Schema-only and empty-navigation work may proceed independently because it
   adds no execution capability.
 

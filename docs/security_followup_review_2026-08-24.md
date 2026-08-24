@@ -1,14 +1,12 @@
 # Caverno Security Follow-Up Review (2026-08-24)
 
-Status: open remediation plan.
+Status: High severity remediation complete; defense-in-depth queue open.
 
 Reviewed revision: `a3d35fc9e592`.
 
 ## Decision
 
-Do not promote a release that enables unrestricted local-command execution or
-HTML Preview until SA-19 and SA-20 are fixed or the affected capability is
-mechanically disabled in the release artifact. SA-21 through SA-23 remain
+SA-19 and SA-20 were remediated on 2026-08-24. SA-21 through SA-23 remain
 independent defense-in-depth slices and must not be folded into either High
 severity fix.
 
@@ -229,8 +227,8 @@ devices, reconnects, and the documented same-device or cross-device policy.
 | Order | Slice | Status | Release role |
 |---|---|---|---|
 | 1 | SEC4.4g opaque local-command authority | done 2026-08-24 | Closed SA-19 for unrestricted local commands |
-| 2 | SEC4.3e HTML Preview active-content containment | next | Release-blocking for HTML Preview |
-| 3 | SEC4.3f application-owned deserialization limits | later | Availability hardening |
+| 2 | SEC4.3e HTML Preview active-content containment | done 2026-08-24 | Closed SA-20 for HTML Preview |
+| 3 | SEC4.3f application-owned deserialization limits | next | Availability hardening |
 | 4 | SEC4.6k sensitive diagnostic storage | later | Local data protection |
 | 5 | SEC4.5g / RC1 remote interaction ownership | later | Authorization defense in depth |
 
@@ -242,7 +240,14 @@ SEC4.4g remediation requires every native-shell foreground command,
 `background:true` command, and `process_start` to obtain fresh, non-cacheable
 `opaque_host_write` approval when a project is selected. Literal outside paths
 retain their more specific decision. Bounded internal argv reads retain their
-fast path. This closes SA-19; SA-20 remains release-blocking.
+fast path. This closes SA-19.
+
+SEC4.3e remediation binds each preview to its selected entry directory and
+browser-consumable asset types after canonical symlink resolution. Restrictive
+CSP and response headers disable connect, form, frame, object, worker, manifest,
+referrer, cache, and DNS-prefetch channels; platform-reported WebView requests
+outside the active preview origin are rejected as defense in depth. This closes
+SA-20.
 
 ## Verification Baseline
 

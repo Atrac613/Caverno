@@ -26,7 +26,10 @@ class HtmlPreviewStaticServer {
 
   bool get isRunning => _server != null;
 
-  Future<Uri> start({required String projectRoot}) async {
+  Future<Uri> start({
+    required String projectRoot,
+    required String entryRelativePath,
+  }) async {
     if (_server != null) {
       await stop();
     }
@@ -35,9 +38,45 @@ class HtmlPreviewStaticServer {
       throw FileSystemException('Project root does not exist', root.path);
     }
     final canonicalRoot = Directory(root.resolveSymbolicLinksSync()).path;
+    final normalizedEntry = _normalizeRelativePath(entryRelativePath);
+    if (normalizedEntry == null ||
+        !isAllowedPreviewAsset(
+          normalizedEntry,
+          entryRelativePath: normalizedEntry,
+        )) {
+      throw FileSystemException(
+        'HTML preview entry is not a readable web asset',
+        entryRelativePath,
+      );
+    }
+    final entryCandidate = File.fromUri(
+      Directory(canonicalRoot).uri.resolve(normalizedEntry),
+    );
+    final File entryFile;
+    try {
+      entryFile = File(entryCandidate.resolveSymbolicLinksSync());
+    } on FileSystemException {
+      throw FileSystemException(
+        'HTML preview entry is not a readable web asset',
+        entryRelativePath,
+      );
+    }
+    if (!entryFile.existsSync() ||
+        !DartProjectPath.isInsideRoot(entryFile.path, canonicalRoot)) {
+      throw FileSystemException(
+        'HTML preview entry is not a readable web asset',
+        entryRelativePath,
+      );
+    }
+    final previewRoot = Directory(
+      entryFile.parent.resolveSymbolicLinksSync(),
+    ).path;
+    final previewEntryName = normalizedEntry.substring(
+      normalizedEntry.lastIndexOf('/') + 1,
+    );
     final server = await _bind(InternetAddress.loopbackIPv4, 0);
     _server = server;
-    _serving = _serve(server, canonicalRoot);
+    _serving = _serve(server, canonicalRoot, previewRoot, previewEntryName);
     return origin!;
   }
 
@@ -50,30 +89,47 @@ class HtmlPreviewStaticServer {
     _serving = null;
   }
 
-  Future<void> _serve(HttpServer server, String projectRoot) async {
+  Future<void> _serve(
+    HttpServer server,
+    String projectRoot,
+    String previewRoot,
+    String entryRelativePath,
+  ) async {
     await for (final request in server) {
       try {
-        await _handle(request, projectRoot);
+        await _handle(request, projectRoot, previewRoot, entryRelativePath);
       } catch (_) {
         _send(request.response, HttpStatus.internalServerError, 'text/plain');
       }
     }
   }
 
-  Future<void> _handle(HttpRequest request, String projectRoot) async {
+  Future<void> _handle(
+    HttpRequest request,
+    String projectRoot,
+    String previewRoot,
+    String entryRelativePath,
+  ) async {
     final response = request.response;
     if (request.method != 'GET' && request.method != 'HEAD') {
       _send(response, HttpStatus.methodNotAllowed, 'text/plain');
       return;
     }
 
-    final relative = _requestedRelativePath(request.uri);
-    if (relative == null || isBlockedRelativePath(relative)) {
+    final relative = _requestedRelativePath(
+      request.uri,
+      entryRelativePath: entryRelativePath,
+    );
+    if (relative == null ||
+        !isAllowedPreviewAsset(
+          relative,
+          entryRelativePath: entryRelativePath,
+        )) {
       _send(response, HttpStatus.notFound, 'text/plain');
       return;
     }
 
-    final file = _resolveReadableFile(projectRoot, relative);
+    final file = _resolveReadableFile(projectRoot, previewRoot, relative);
     if (file == null) {
       _send(response, HttpStatus.notFound, 'text/plain');
       return;
@@ -82,7 +138,7 @@ class HtmlPreviewStaticServer {
     final mime = mimeTypeFor(file.path);
     response.statusCode = HttpStatus.ok;
     response.headers.set(HttpHeaders.contentTypeHeader, mime);
-    response.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
+    _setSecurityHeaders(response);
     if (request.method == 'HEAD') {
       await response.close();
       return;
@@ -91,23 +147,52 @@ class HtmlPreviewStaticServer {
     await response.close();
   }
 
-  /// Root `/` maps to `index.html`. Other paths stay relative to the project.
-  String? _requestedRelativePath(Uri uri) {
+  /// Root `/` maps to the selected entry. Other paths stay project-relative.
+  String? _requestedRelativePath(Uri uri, {required String entryRelativePath}) {
     var path = uri.path;
-    if (path.isEmpty || path == '/') return 'index.html';
+    if (path.isEmpty || path == '/') return entryRelativePath;
     if (path.startsWith('/')) path = path.substring(1);
     try {
       path = Uri.decodeComponent(path);
     } on FormatException {
       return null;
     }
-    if (path.contains('\u0000')) return null;
-    final parts = path
-        .replaceAll('\\', '/')
+    return _normalizeRelativePath(path);
+  }
+
+  static String? _normalizeRelativePath(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    if (normalized.contains('\u0000') || normalized.startsWith('/')) {
+      return null;
+    }
+    final parts = normalized
         .split('/')
-        .where((part) => part.isNotEmpty);
-    if (parts.contains('..')) return null;
-    return path;
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty || parts.any((part) => part == '..')) return null;
+    return parts.join('/');
+  }
+
+  /// Allows only browser-consumable assets inside the selected entry directory.
+  static bool isAllowedPreviewAsset(
+    String relativePath, {
+    required String entryRelativePath,
+  }) {
+    final normalized = _normalizeRelativePath(relativePath);
+    final entry = _normalizeRelativePath(entryRelativePath);
+    if (normalized == null || entry == null) return false;
+    if (isBlockedRelativePath(normalized)) return false;
+    final slash = entry.lastIndexOf('/');
+    final entryDirectory = slash < 0 ? '' : entry.substring(0, slash + 1);
+    if (entryDirectory.isNotEmpty && !normalized.startsWith(entryDirectory)) {
+      return false;
+    }
+    final name = normalized.substring(normalized.lastIndexOf('/') + 1);
+    final dot = name.lastIndexOf('.');
+    if (dot < 0) return false;
+    return _previewAssetExtensions.contains(
+      name.substring(dot + 1).toLowerCase(),
+    );
   }
 
   /// Dotfiles, VCS metadata, dependency trees, and key material stay unpublished.
@@ -152,39 +237,75 @@ class HtmlPreviewStaticServer {
     'service-account.json',
   };
 
-  File? _resolveReadableFile(String projectRoot, String relativePath) {
+  static const _previewAssetExtensions = {
+    'html',
+    'htm',
+    'css',
+    'js',
+    'mjs',
+    'svg',
+    'png',
+    'jpg',
+    'jpeg',
+    'gif',
+    'webp',
+    'avif',
+    'ico',
+    'wasm',
+    'woff',
+    'woff2',
+    'ttf',
+    'otf',
+    'mp3',
+    'mp4',
+    'webm',
+    'ogg',
+    'wav',
+  };
+
+  File? _resolveReadableFile(
+    String projectRoot,
+    String previewRoot,
+    String relativePath,
+  ) {
     final candidate = File.fromUri(
-      Directory(projectRoot).uri.resolve(relativePath),
+      Directory(previewRoot).uri.resolve(relativePath),
     );
     File resolved;
     try {
       resolved = File(candidate.resolveSymbolicLinksSync());
     } on FileSystemException {
-      if (!candidate.existsSync()) return null;
-      resolved = candidate.absolute;
-    }
-    if (!DartProjectPath.isInsideRoot(resolved.path, projectRoot)) {
       return null;
     }
-    if (!resolved.existsSync()) {
-      // A directory URL such as `/src/` can still resolve to index.html.
-      final asDirectory = Directory(resolved.path);
-      if (asDirectory.existsSync()) {
-        final nested = File.fromUri(asDirectory.uri.resolve('index.html'));
-        if (nested.existsSync() &&
-            DartProjectPath.isInsideRoot(nested.path, projectRoot)) {
-          return nested;
-        }
-      }
+    if (!DartProjectPath.isInsideRoot(resolved.path, projectRoot) ||
+        !DartProjectPath.isInsideRoot(resolved.path, previewRoot)) {
       return null;
     }
+    if (!resolved.existsSync()) return null;
     return resolved;
   }
 
   void _send(HttpResponse response, int status, String contentType) {
     response.statusCode = status;
     response.headers.set(HttpHeaders.contentTypeHeader, contentType);
+    _setSecurityHeaders(response);
     unawaited(response.close());
+  }
+
+  void _setSecurityHeaders(HttpResponse response) {
+    response.headers.set(
+      'Content-Security-Policy',
+      "default-src 'none'; script-src 'self' 'unsafe-inline'; "
+          "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+          "font-src 'self' data:; media-src 'self' blob:; "
+          "connect-src 'none'; form-action 'none'; frame-src 'none'; "
+          "frame-ancestors 'none'; object-src 'none'; worker-src 'none'; "
+          "manifest-src 'none'; base-uri 'none'",
+    );
+    response.headers.set('Referrer-Policy', 'no-referrer');
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    response.headers.set('X-DNS-Prefetch-Control', 'off');
+    response.headers.set(HttpHeaders.cacheControlHeader, 'no-store');
   }
 
   static String mimeTypeFor(String path) {
@@ -201,12 +322,18 @@ class HtmlPreviewStaticServer {
       'jpg' || 'jpeg' => 'image/jpeg',
       'gif' => 'image/gif',
       'webp' => 'image/webp',
+      'avif' => 'image/avif',
+      'ico' => 'image/x-icon',
       'wasm' => 'application/wasm',
       'woff' => 'font/woff',
       'woff2' => 'font/woff2',
       'ttf' => 'font/ttf',
-      'map' => 'application/json',
-      'txt' => 'text/plain; charset=utf-8',
+      'otf' => 'font/otf',
+      'mp3' => 'audio/mpeg',
+      'wav' => 'audio/wav',
+      'ogg' => 'audio/ogg',
+      'mp4' => 'video/mp4',
+      'webm' => 'video/webm',
       _ => 'application/octet-stream',
     };
   }

@@ -309,6 +309,24 @@ class BrowserSessionService extends ChangeNotifier {
     );
   }
 
+  /// Restricts WebView resource loads to the active preview origin.
+  ///
+  /// The preview server and CSP are the primary cross-platform boundary. This
+  /// policy is defense in depth on platforms that report subresource requests.
+  bool allowsResourceRequest(String? rawUrl) {
+    final normalized = rawUrl?.trim() ?? '';
+    if (normalized.isEmpty) return false;
+    final Uri parsed;
+    try {
+      parsed = Uri.parse(normalized);
+    } on FormatException {
+      return false;
+    }
+    if (parsed.scheme == 'data' || parsed.scheme == 'blob') return true;
+    if (normalized == 'about:blank') return true;
+    return _isAllowedLocalPreview(parsed);
+  }
+
   void handleBlockedNavigation(BrowserNavigationDecision decision) {
     _isLoading = false;
     _lastError = decision.message;
