@@ -166,6 +166,8 @@ final class LocalCommandApprovalRequest {
     required this.warningTitle,
     required this.warningMessage,
     this.outOfRootPaths = const [],
+    this.requiredManualDecision,
+    this.requiredManualDecisionSource,
   });
 
   final String toolCallId;
@@ -180,6 +182,10 @@ final class LocalCommandApprovalRequest {
   /// no path fence in front of it. The tokens are why the ask fired, not a
   /// claim that those locations exist.
   final List<String> outOfRootPaths;
+  final ToolApprovalGateDecision? requiredManualDecision;
+  final String? requiredManualDecisionSource;
+
+  bool get requiresFreshManualApproval => requiredManualDecision != null;
 }
 
 final class LocalCommandManualApproval {

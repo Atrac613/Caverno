@@ -164,26 +164,44 @@ final class LocalCommandApprovalScope {
   const LocalCommandApprovalScope._({
     required this.outOfRootPaths,
     required this.requiresExplicitApproval,
+    required this.requiresHostWriteApproval,
   });
 
   factory LocalCommandApprovalScope.of({
     required String command,
     required String? projectRoot,
+    required bool reachesNativeShell,
     required bool Function(String command) commandShapeRequiresApproval,
   }) {
     final paths = const OutOfRootCommandPaths().scan(
       command: command,
       projectRoot: projectRoot,
     );
+    final requiresHostWriteApproval =
+        (projectRoot?.trim().isNotEmpty ?? false) && reachesNativeShell;
     return LocalCommandApprovalScope._(
       outOfRootPaths: paths,
       requiresExplicitApproval:
-          paths.isNotEmpty || commandShapeRequiresApproval(command),
+          paths.isNotEmpty ||
+          requiresHostWriteApproval ||
+          commandShapeRequiresApproval(command),
+      requiresHostWriteApproval: requiresHostWriteApproval,
     );
   }
 
   final List<String> outOfRootPaths;
   final bool requiresExplicitApproval;
+  final bool requiresHostWriteApproval;
+
+  ToolApprovalGateDecision? get requiredManualDecision =>
+      outsideProjectApproval(outOfRootPaths) ??
+      (requiresHostWriteApproval ? opaqueHostWriteApproval : null);
+
+  String? get requiredManualDecisionSource => outOfRootPaths.isNotEmpty
+      ? 'out_of_scope_path'
+      : requiresHostWriteApproval
+      ? 'opaque_host_write'
+      : null;
 
   /// The approval a person must give when [outOfRootPaths] is non-empty, or
   /// null when the command stays inside the project.
@@ -206,4 +224,13 @@ final class LocalCommandApprovalScope {
               'checks these paths before the shell runs. Read the command '
               'below before approving.',
         );
+
+  static final ToolApprovalGateDecision opaqueHostWriteApproval =
+      ToolApprovalGateDecision.manualApprovalRequired(
+        title: 'This command has host-wide filesystem access',
+        rationale:
+            'It runs through the native shell, so Caverno cannot prove its '
+            'write targets stay inside the open project. This exact command '
+            'requires a fresh approval before it runs.',
+      );
 }

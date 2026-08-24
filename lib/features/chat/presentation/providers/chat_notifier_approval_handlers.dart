@@ -211,6 +211,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
     required ToolApprovalAutoReviewDomain reviewDomain,
     required bool fullAccessEligible,
     ToolApprovalGateDecision? requiredManualDecision,
+    String requiredManualDecisionSource = 'required_manual',
     Map<String, dynamic>? approvalCacheArguments,
     String? approvalCacheStateFingerprint,
     Map<String, dynamic>? auditArguments,
@@ -244,6 +245,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
       mode: mode,
       fullAccessEligible: fullAccessEligible,
       requiredManualDecision: requiredManualDecision,
+      requiredManualDecisionSource: requiredManualDecisionSource,
       review: () async => _runApprovalAutoReview(
         await buildReviewRequest(),
         domain: reviewDomain,

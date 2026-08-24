@@ -7,6 +7,7 @@ import 'background_process_start_contract.dart';
 import 'background_process_tool_contract.dart';
 import 'background_process_tool_results.dart';
 import 'local_command_tool_handler.dart';
+import 'out_of_root_command_paths.dart';
 import 'process_start_result_policy.dart';
 
 export 'background_process_tool_contract.dart';
@@ -101,8 +102,14 @@ final class BackgroundProcessToolHandler {
         workingDirectory: workingDirectory,
       ),
     );
-    final requiresExplicit =
-        LocalCommandPermissionService.requiresExplicitApproval(command);
+    final approvalScope = LocalCommandApprovalScope.of(
+      command: command,
+      projectRoot: request.allowedWorkingDirectoryRoot,
+      reachesNativeShell: true,
+      commandShapeRequiresApproval:
+          LocalCommandPermissionService.requiresExplicitApproval,
+    );
+    final requiresExplicit = approvalScope.requiresExplicitApproval;
     if (permission == CommandPermissionRuleDecision.deny) {
       return _results.failure(
         request.toolName,
@@ -123,6 +130,9 @@ final class BackgroundProcessToolHandler {
       reason: request.arguments['reason'] as String?,
       warningTitle: warning?.title,
       warningMessage: warning?.message,
+      outOfRootPaths: approvalScope.outOfRootPaths,
+      requiredManualDecision: approvalScope.requiredManualDecision,
+      requiredManualDecisionSource: approvalScope.requiredManualDecisionSource,
     );
     return _withApproval(
       request,
@@ -270,7 +280,12 @@ final class BackgroundProcessToolHandler {
       }
       final manual = completion.value!;
       if (_isExpired(request)) return _results.expired(request.toolName);
-      if (manual.shouldRemember && canRememberRule && ruleRequest != null) {
+      if (manual.shouldRemember &&
+          canRememberRule &&
+          ruleRequest != null &&
+          (!approval.requiresFreshManualApproval ||
+              manual.rememberedAction ==
+                  RememberedCommandPermissionAction.deny)) {
         final ruleCompletion = await _permissionRuleStorePort.remember(
           request.owner,
           request.toolCallId,
@@ -294,7 +309,11 @@ final class BackgroundProcessToolHandler {
       }
     }
     if (_isExpired(request)) return _results.expired(request.toolName);
-    return run(gate.bypassedApproval ? null : approval);
+    return run(
+      gate.bypassedApproval || approval.requiresFreshManualApproval
+          ? null
+          : approval,
+    );
   }
 
   Future<McpToolResult> _executeStart(

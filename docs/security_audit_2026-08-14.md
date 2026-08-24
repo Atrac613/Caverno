@@ -9,6 +9,10 @@
   otherwise.
 - Roadmap owner: `SEC4`, with classifier corrections in `SEC1`, mandatory taint
   enforcement in `SEC2`, and authenticated Remote Coding transport in `RC1`.
+- Follow-up review: revision `a3d35fc9e592` was reviewed on 2026-08-24. New
+  findings SA-19 through SA-23 are recorded in
+  `docs/security_followup_review_2026-08-24.md` and appended below without
+  rewriting this audit's point-in-time evidence.
 
 This is a point-in-time source and configuration audit. Keep finding IDs stable
 when findings are fixed, accepted, or invalidated; append closure evidence
@@ -620,6 +624,28 @@ non-tracking; notification relay device identifiers and product interaction are
 declared linked, non-tracking, and limited to app functionality. The matching
 App Store Connect matrix and release review are documented, completing SA-18.
 
+## Follow-Up Findings (2026-08-24)
+
+The source follow-up at revision `a3d35fc9e592` found two High severity residual
+boundaries and three independent hardening gaps. The complete evidence,
+preconditions, minimal patches, and exit tests are maintained in
+`docs/security_followup_review_2026-08-24.md`.
+
+| ID | Severity | Finding | Primary roadmap owner |
+|---|---|---|---|
+| SA-19 | High | Opaque native-shell commands can compute an out-of-project write target after the lexical fence | SEC4.4g |
+| SA-20 | High | Active HTML Preview content can read served project files and use unrestricted subresource egress | SEC4.3e |
+| SA-21 | Medium | MCP HTTP, MCP stdio, and compressed QR inputs lack complete pre-parse resource limits | SEC4.3f |
+| SA-22 | Medium | Sensitive session and debug logs lack owner-only modes, and string diagnostics can bypass structured redaction | SEC4.6k |
+| SA-23 | Low | Remote Coding resolves pending interactions by ID without rechecking origin or device ownership | SEC4.5g, RC1 |
+
+SA-19 was remediated by SEC4.4g on 2026-08-24 with fresh, non-cacheable
+`opaque_host_write` authority for native-shell execution. SA-20 remains a
+release blocker when HTML Preview is present in the release artifact. A UI
+default or warning is not a closure condition. SA-21 through SA-23 remain separate follow-up slices and do
+not delay a build in which their affected features are absent or mechanically
+disabled under the risk-acceptance policy below.
+
 ## Dependency And Supply-Chain Review
 
 - `cd services/notification_relay && npm audit --omit=dev --json` reported zero
@@ -698,10 +724,15 @@ Add negative coverage for:
 | P0-3 | SEC1 + SEC2.3b + SEC4.3a-SEC4.3c network authority (completed 2026-08-14) | SA-03, SA-07 | Every HTTP/browser request uses one classifier, remote provenance, approval, destination, DNS/peer, and redirect policy; unverifiable external WebView navigation is absent; taint precedes cache/full access. |
 | P0-4 | SEC4.4a project read containment (completed 2026-08-14) | SA-04 | Every approval-free read is fenced to the canonical selected-project root; host-wide reads require a separate fresh approval. |
 | P0-5 | SEC4.5a-SEC4.5b authenticated transport containment (completed 2026-08-19) | SA-05, SA-06 | SSH known-host mismatch fails before authentication. A release build cannot start a plaintext non-loopback Remote Coding listener. |
+| P0-F1 | SEC4.4g opaque local-command authority | SA-19 | Every opaque native-shell command uses a distinct, fresh, non-cacheable host-write approval before auto-review or Full Access, or runs inside an enforced project sandbox. |
+| P0-F2 | SEC4.3e HTML Preview active-content containment | SA-20 | Preview content can access only declared assets and cannot send project data through network, form, frame, or subresource channels. |
 | P1-1 | SEC4.4b/SEC4.4c/SEC4.4d/SEC4.4e/SEC4.4f mutation and autonomous containment (mutation fence completed 2026-08-19; routine MCP deny-by-default completed 2026-08-21; git cwd fence completed 2026-08-21; git pathspec fence completed 2026-08-21; local-command write fence completed 2026-08-21) | SA-08, SA-09 | Write/edit/delete go through a symlink-aware project fence. Unclassified external MCP tools are omitted from routine catalogs and denied at dispatch. Git working directories use the same fence. Relocating git globals and escaping pathspecs are denied. Local-command writes use the same fence when a project is selected. |
 | P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (completed 2026-08-22) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
 | P1-3 | SEC4.6 data protection and lifecycle | SA-11, SA-13, SA-14, SA-15, SA-17, SA-18 | Secret-free storage/export, recursive redaction, opt-out, migration, backup, and deletion tests pass. |
 | P1-4 | SEC4.7 release supply-chain hardening | SA-16 | Immutable actions, pinned toolchain, checksum, dependency monitoring, and fail-closed release signing are enforced. |
+| P1-F1 | SEC4.3f application-owned deserialization limits | SA-21 | MCP HTTP/stdout and compressed settings imports reject oversized input before unbounded buffering or decoding. |
+| P1-F2 | SEC4.6k sensitive diagnostic storage | SA-22 | New, existing, and rotated sensitive logs are owner-only, and structured secrets never cross a string-only redaction boundary. |
+| P2-F1 | SEC4.5g / RC1 remote interaction ownership | SA-23 | Resolution rechecks remote origin and enforces the documented same-device or cross-device authorization policy. |
 
 Do not combine these slices into one implementation PR. Create a focused task
 from `docs/codex_task_template.md` when each slice starts, including its exact
@@ -711,6 +742,9 @@ tests, rollback unit, and similar-pattern search.
 
 - SA-01 through SA-07 are fixed or the affected feature is absent from the
   release artifact under a documented, expiring risk acceptance.
+- SA-19 and SA-20 are fixed, or unrestricted local commands and HTML Preview
+  respectively are mechanically absent from the release artifact under the
+  same risk-acceptance requirements.
 - The approval-free path has no native-shell fallback on any supported
   platform or foreground/background mode.
 - Imported executable configuration persists only sanitized state and cannot

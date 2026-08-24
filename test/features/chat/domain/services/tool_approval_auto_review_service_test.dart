@@ -88,6 +88,7 @@ void main() {
                 title: 'Reaches outside the project',
                 rationale: 'names /etc/hosts',
               ),
+          requiredManualDecisionSource: 'out_of_scope_path',
           review: () async {
             reviewCount += 1;
             return null;

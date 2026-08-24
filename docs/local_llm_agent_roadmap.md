@@ -199,7 +199,7 @@ structurally unmotivated to build:
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: the baseline is implemented, but the 2026-08-14 audit reopened classifier exhaustiveness, host-read trust, and external-MCP routine policy. |
 | Security | SEC2 | done | M | SEC1, LL23 | Taint-aware tool execution: the decision now precedes cache/full-access authorization, and tainted ungated network reads receive a fresh owner-scoped preflight. |
 | Security | SEC3 | later | S-M | SEC1, MCP-GOV2 | MCP permission diff and audit view for server/tool changes. |
-| Security | SEC4 | current | L | F2 | Runtime trust, egress, transport, and local-data hardening: close the release blockers in `docs/security_audit_2026-08-14.md` through small reviewable slices co-owned with SEC1/SEC2 where noted. |
+| Security | SEC4 | current | L | F2 | Runtime trust, egress, transport, and local-data hardening: close the release blockers in `docs/security_audit_2026-08-14.md` and `docs/security_followup_review_2026-08-24.md` through small reviewable slices co-owned with SEC1/SEC2 where noted. |
 | Model Library | MLIB1 | later | M | LL3, LL9 | Local Model Pack Manifest: provenance, checksum, quantization, license, and verified capability metadata per local model artifact. |
 | Model Library | MLIB2 | later | M | MLIB1 | Model provenance and license registry with revision history and local-only export boundaries. |
 | Model Library | MLIB3 | later | S-M | MLIB1, LL12, LL19 | Verified capability/eval badges backed by probes and personal eval runs. |
@@ -367,7 +367,10 @@ minimal agent-kb bridge into a reviewed lifecycle extension surface.
 Recommended ordering: every audit P0 slice — SEC4.1, SEC4.2, SEC4.3a-SEC4.3c,
 SEC2.3b, SEC4.4a, and SEC4.5a-SEC4.5b — is release-blocking after the
 2026-08-14 audit and takes precedence over new executable-tool, hook, MCP, and
-Remote Coding expansion. COMPAT1 can proceed in parallel because it is mostly
+Remote Coding expansion. The 2026-08-24 follow-up adds SEC4.4g and SEC4.3e as
+the next release-blocking slices before the remaining SEC4.7 sequence, unless
+unrestricted local commands and HTML Preview are mechanically absent from the
+release artifact. COMPAT1 can proceed in parallel because it is mostly
 diagnostic; API1 should land before any broad Responses-style API migration;
 OBS1 should land before productizing broader unattended agent-farm scheduling.
 HOOK1 must first gain the minimum fail-closed executable-import boundary;
@@ -5448,7 +5451,10 @@ Acceptance criteria:
 
 Status: `current`
 
-Source of truth: `docs/security_audit_2026-08-14.md`
+Sources of truth:
+
+- `docs/security_audit_2026-08-14.md`
+- `docs/security_followup_review_2026-08-24.md`
 
 Scope:
 - Close the audit findings that cross the narrower SEC1 classifier and SEC2
@@ -5456,6 +5462,9 @@ Scope:
   import, network destination policy, project containment, authenticated
   transport, secret/log lifecycle, migration privacy, backup, and release
   supply-chain controls.
+- Close the follow-up findings for opaque native-shell authority, active HTML
+  Preview content, application-owned deserialization bounds, sensitive
+  diagnostic storage, and Remote Coding interaction ownership.
 - Treat the audit's P0 exit criteria as release blockers. Default-off is only a
   temporary compensating control for Remote Coding; it is not finding closure.
 - Preserve finding IDs and attach the fix commit, regression tests, verified
@@ -5491,7 +5500,7 @@ Slice plan:
    state; re-check it after provider rebuild, next turn, app restart, and manual
    resync. Invalidate review on any command, argv, environment-key, URL, schema,
    or normalized trust-identity change.
-3. **SEC4.3 — Network authority and resource boundary.** Land as four focused
+3. **SEC4.3 — Network authority and resource boundary.** Land as focused
    sub-slices: **SEC4.3a (P0, completed 2026-08-14)** classifies every HTTP verb
    and all HTTP/browser results as remote/untrusted; **SEC4.3b (P0, completed
    2026-08-14)** completes SEC2.3b and routes every network mutation through
@@ -5500,7 +5509,11 @@ Slice plan:
    private/loopback/link-local/metadata A/AAAA result, binds the approved address
    to the connection or verifies the peer address, revalidates redirects, and
    strips cross-origin credentials; **SEC4.3d (P1, completed 2026-08-22)** adds
-   a 1 MiB streamed-body ceiling plus total and idle deadlines.
+   a 1 MiB streamed-body ceiling plus total and idle deadlines;
+   **SEC4.3e (P0 follow-up)** restricts HTML Preview to declared assets and
+   blocks active-content egress with response policy plus request interception;
+   and **SEC4.3f (P1 follow-up)** applies pre-parse response, line, document, and
+   decompression limits to application-owned MCP and settings QR inputs.
 4. **SEC4.4 — Project and autonomous containment.** Split implementation into
    **SEC4.4a (P0, completed 2026-08-14)**, applying one canonical, symlink-aware fence to every
    approval-free read, **SEC4.4b (P1, mutation fence completed 2026-08-19)**,
@@ -5511,7 +5524,10 @@ Slice plan:
    `ProjectMutationPathFence`, and **SEC4.4e (P1, completed 2026-08-21)**,
    denying relocating git globals and out-of-root pathspecs, and **SEC4.4f (P1,
    completed 2026-08-21)**, fencing local-command working directories and write
-   operands with the same mutation fence when a project is selected. Any restored
+   operands with the same mutation fence when a project is selected; and
+   **SEC4.4g (P0 follow-up, completed 2026-08-24)** routes opaque native-shell
+   commands through a distinct fresh, non-cacheable host-write authority before
+   auto-review or Full Access. Any restored
    routine grant binds server identity, tool name, schema digest, and reviewed
    intent.
 5. **SEC4.5 — Authenticated transport.** Land as focused sub-slices:
@@ -5527,15 +5543,19 @@ Slice plan:
    global and per-address connection caps; **SEC4.5e-B (P1, completed
    2026-08-22)** adds frame-size plus unauthenticated/authenticated phase-aware
    message-rate limits;
-   and **SEC4.5f (P1, completed 2026-08-22)** requires HTTPS for
+   **SEC4.5f (P1, completed 2026-08-22)** requires HTTPS for
    credential-bearing non-loopback LLM endpoints while preserving loopback and
-   credentialless LAN HTTP operation.
+   credentialless LAN HTTP operation; and **SEC4.5g (P2 follow-up, co-owned by
+   RC1)** rechecks pending-interaction origin and enforces the documented
+   same-device or cross-device authorization policy at resolution.
 6. **SEC4.6 — Data protection and lifecycle (P1).** Move credentials to platform
    secure storage, redact default JSON/QR exports, recursively redact audit and
    support artifacts, preserve session-log opt-out, fail closed after
    authoritative drift migration, apply owner-only log permissions, bind
    attachment deletion to conversations, and exclude private stores from
-   Android backup.
+   Android backup. **SEC4.6k (P1 follow-up)** completes owner-only modes for
+   session and app logs, migrates rotated files, replaces string-concatenated
+   structured diagnostics, and defaults session logging off for new installs.
 7. **SEC4.7 — Supply-chain and release hardening (P1).** Pin GitHub Actions to
    immutable commits, minimize write credentials, pin automation tool versions,
    monitor npm dependencies, add the Gradle distribution checksum, and fail
@@ -5553,11 +5573,21 @@ Acceptance criteria:
   redirects, and cross-origin credential stripping.
 - Tainted privileged actions cannot resolve from cache or full access.
 - Project escape tests cover `..`, sibling/prefix collisions, home paths, and
-  intermediate symlinks for reads and writes.
+  intermediate symlinks for reads and writes. Opaque-command tests also cover
+  computed paths, environment expansion, command substitution, and runtime
+  symlink creation before any cache, auto-review, or Full Access decision.
+- HTML Preview loads declared same-origin assets while source/configuration
+  files and fetch, beacon, form, frame, WebSocket, and external subresource
+  egress fail closed.
+- MCP HTTP/stdout and settings QR imports reject oversized wire, line,
+  JSON-document, and decompressed payloads before unbounded allocation.
 - SSH mismatch and Remote Coding wrong-pin/downgrade tests fail before any
   credential is sent.
 - Default settings storage/export, audit logs, support packets, and platform
   backups contain no raw credentials or unintended private conversation data.
+- New, migrated, and rotated session/app logs use owner-only permissions, and
+  Remote Coding interaction resolution rechecks origin plus the documented
+  device-ownership policy.
 - Focused tests pass for each slice, followed by `tool/codex_verify.sh`; slices
   that change approval, execution, persistence, or recovery also run
   `tool/codex_verify.sh --coverage`.
@@ -5565,9 +5595,11 @@ Acceptance criteria:
 Promotion rule:
 - Do not connect TOOL1+ manifests to effects, promote HOOK2/HOOK3, add new
   executable integrations, broaden unattended MCP execution, or promote Remote
-  Coding while their corresponding SEC4 P0 owner remains open. Schema-only and
-  empty-navigation work may proceed independently because it adds no execution
-  capability.
+  Coding while their corresponding SEC4 P0 owner remains open. Do not promote
+  unrestricted local commands or HTML Preview while SEC4.4g or SEC4.3e remains
+  open unless that capability is mechanically absent from the release artifact.
+  Schema-only and empty-navigation work may proceed independently because it
+  adds no execution capability.
 
 ### MLIB1: Local Model Pack Manifest
 

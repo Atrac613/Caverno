@@ -346,7 +346,7 @@ void main() {
       expect(harness.execution.startCalls, isEmpty);
     });
 
-    test('applies saved start deny and local safe allow precedence', () async {
+    test('applies saved deny but reapproves a saved start allow', () async {
       final owner = _owner('owner-a');
       final deniedHarness = _Harness()
         ..rules.decisions[owner] = CommandPermissionRuleDecision.deny;
@@ -370,7 +370,8 @@ void main() {
       expect(deniedHarness.execution.startCalls, isEmpty);
       expect(allowed.isSuccess, isTrue);
       expect(allowedHarness.execution.startCalls, hasLength(1));
-      expect(allowedHarness.approval.resolveCalls, isEmpty);
+      expect(allowedHarness.approval.resolveCalls, hasLength(1));
+      expect(allowedHarness.approval.manualCalls, hasLength(1));
     });
 
     test('does not use a safe saved allow for a remote start', () async {
@@ -475,7 +476,7 @@ void main() {
       expect(harness.execution.startCalls, isEmpty);
     });
 
-    test('persists a remembered start rule for the exact owner', () async {
+    test('does not persist an allow or result for a process start', () async {
       final owner = _owner('owner-a');
       final harness = _Harness()
         ..approval.manualDecisions[owner] = const LocalCommandManualApproval(
@@ -494,14 +495,8 @@ void main() {
         ),
       );
 
-      final remembered = harness.rules.rememberedRules.single;
-      expect(remembered.owner, owner);
-      expect(remembered.toolCallId, 'start-1');
-      expect(remembered.rule.action, RememberedCommandPermissionAction.allow);
-      expect(remembered.rule.match, RememberedCommandPermissionMatch.exact);
-      expect(remembered.rule.command, 'dart run tool/build.dart');
-      expect(remembered.rule.workingDirectory, '$_ownerARoot/package');
-      expect(harness.approval.rememberedResults, hasLength(1));
+      expect(harness.rules.rememberedRules, isEmpty);
+      expect(harness.approval.rememberedResults, isEmpty);
     });
 
     test('does not persist a remembered start rule remotely', () async {
@@ -661,7 +656,7 @@ void main() {
             'if it should still be monitored. Do not report the command as '
             'newly started from this result.',
       });
-      expect(harness.approval.rememberedResults.single.result, same(result));
+      expect(harness.approval.rememberedResults, isEmpty);
     });
 
     test('allows an old duplicate-existing start result unchanged', () async {
@@ -719,7 +714,7 @@ void main() {
       final owner = _owner('owner-a');
       final harness = _Harness()
         ..rules.decisions[owner] = CommandPermissionRuleDecision.allow
-        ..approval.expirationQueue.addAll([false, true]);
+        ..approval.expirationQueue.addAll([false, false, false, false, true]);
 
       final result = await harness.handler.handle(_startRequest(owner: owner));
 
@@ -736,7 +731,7 @@ void main() {
       final owner = _owner('owner-a');
       final harness = _Harness()
         ..rules.decisions[owner] = CommandPermissionRuleDecision.allow
-        ..approval.expirationQueue.addAll([false, true])
+        ..approval.expirationQueue.addAll([false, false, false, false, true])
         ..execution.nextStartResult = _result(
           'process_start',
           jsonEncode({
@@ -761,7 +756,7 @@ void main() {
       );
       final harness = _Harness()
         ..rules.decisions[owner] = CommandPermissionRuleDecision.allow
-        ..approval.expirationQueue.addAll([false, true])
+        ..approval.expirationQueue.addAll([false, false, false, false, true])
         ..execution.nextStartCompletion = LocalCommandCompletion.completed(
           owner: owner,
           toolCallId: 'start-1',
@@ -1151,8 +1146,8 @@ void main() {
 
         final ruleHarness = _Harness()
           ..approval.manualDecisions[owner] = const LocalCommandManualApproval(
-            approved: true,
-            rememberedAction: RememberedCommandPermissionAction.allow,
+            approved: false,
+            rememberedAction: RememberedCommandPermissionAction.deny,
             rememberedMatch: RememberedCommandPermissionMatch.exact,
           )
           ..rules.nextCompletion = LocalCommandCompletion<Object?>.ownerExpired(

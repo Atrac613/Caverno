@@ -377,10 +377,9 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
           mode: approvalMode,
           reviewDomain: ToolApprovalAutoReviewDomain.coding,
           fullAccessEligible: true,
-          requiredManualDecision:
-              LocalCommandApprovalScope.outsideProjectApproval(
-                request.outOfRootPaths,
-              ),
+          requiredManualDecision: request.requiredManualDecision,
+          requiredManualDecisionSource:
+              request.requiredManualDecisionSource ?? 'required_manual',
           approvalCacheArguments: request.execution.arguments,
           buildReviewRequest: () async => _buildAutoReviewRequest(
             candidate,
@@ -537,8 +536,14 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       workingDirectory: workingDirectory,
       rules: _settings.localCommandPermissionRules,
     );
-    final requiresExplicitApproval =
-        LocalCommandPermissionService.requiresExplicitApproval(command);
+    final approvalScope = LocalCommandApprovalScope.of(
+      command: command,
+      projectRoot: _getActiveProjectRootPath(),
+      reachesNativeShell: true,
+      commandShapeRequiresApproval:
+          LocalCommandPermissionService.requiresExplicitApproval,
+    );
+    final requiresExplicitApproval = approvalScope.requiresExplicitApproval;
     if (permissionDecision.isDenied) {
       return McpToolResult(
         toolName: toolCall.name,
@@ -574,6 +579,9 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       mode: _settings.codingApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.coding,
       fullAccessEligible: true,
+      requiredManualDecision: approvalScope.requiredManualDecision,
+      requiredManualDecisionSource:
+          approvalScope.requiredManualDecisionSource ?? 'required_manual',
       approvalCacheArguments: localArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         approvalCache.owner,
@@ -584,6 +592,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         reason: reason,
         warningTitle: riskWarning?.title,
         warningMessage: riskWarning?.message,
+        outOfRootPaths: approvalScope.outOfRootPaths,
       ),
     );
     if (gate.isDenied) {
@@ -610,7 +619,9 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       );
       final manualExpired = _expiredApproval(toolCall.name, approvalCache);
       if (manualExpired != null) return manualExpired;
-      if (approval.shouldRemember && !_isRemoteInteraction) {
+      if (approval.shouldRemember &&
+          !_isRemoteInteraction &&
+          approvalScope.requiredManualDecision == null) {
         await ref
             .read(settingsNotifierProvider.notifier)
             .upsertLocalCommandPermissionRule(
@@ -644,7 +655,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       name: toolCall.name,
       arguments: localArguments,
     );
-    return gate.bypassedApproval
+    return gate.bypassedApproval || approvalScope.requiredManualDecision != null
         ? result
         : approvalCache.rememberResult(toolCall.name, localArguments, result);
   }

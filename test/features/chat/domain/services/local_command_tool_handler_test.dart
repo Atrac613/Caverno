@@ -412,30 +412,26 @@ void main() {
       expect(harness.execution.calls, isEmpty);
     });
 
-    test(
-      'uses a local saved allow but never uses it for remote execution',
-      () async {
-        final owner = _owner('owner-a');
-        final localHarness = _Harness()
-          ..rules.decisions[owner] = CommandPermissionRuleDecision.allow;
-        final remoteHarness = _Harness()
-          ..rules.decisions[owner] = CommandPermissionRuleDecision.allow
-          ..approval.gates[owner] = ToolApprovalGateDecision.fullAccess;
+    test('does not let a saved allow bypass opaque shell approval', () async {
+      final owner = _owner('owner-a');
+      final localHarness = _Harness()
+        ..rules.decisions[owner] = CommandPermissionRuleDecision.allow;
+      final remoteHarness = _Harness()
+        ..rules.decisions[owner] = CommandPermissionRuleDecision.allow
+        ..approval.gates[owner] = ToolApprovalGateDecision.fullAccess;
 
-        await localHarness.handler.handle(_request(owner: owner));
-        await remoteHarness.handler.handle(
-          _request(owner: owner, remote: true),
-        );
+      await localHarness.handler.handle(_request(owner: owner));
+      await remoteHarness.handler.handle(_request(owner: owner, remote: true));
 
-        expect(localHarness.execution.calls, hasLength(1));
-        expect(localHarness.approval.resolveCalls, isEmpty);
-        expect(localHarness.approval.rememberedResults, isEmpty);
-        expect(remoteHarness.execution.calls, hasLength(1));
-        expect(remoteHarness.approval.resolveCalls.single.owner, owner);
-        expect(remoteHarness.approval.manualCalls, isEmpty);
-        expect(remoteHarness.approval.rememberedResults, isEmpty);
-      },
-    );
+      expect(localHarness.execution.calls, hasLength(1));
+      expect(localHarness.approval.resolveCalls, hasLength(1));
+      expect(localHarness.approval.manualCalls, hasLength(1));
+      expect(localHarness.approval.rememberedResults, isEmpty);
+      expect(remoteHarness.execution.calls, hasLength(1));
+      expect(remoteHarness.approval.resolveCalls.single.owner, owner);
+      expect(remoteHarness.approval.manualCalls, isEmpty);
+      expect(remoteHarness.approval.rememberedResults, isEmpty);
+    });
 
     test('runs a remote read-only command without approval', () async {
       final owner = _owner('owner-a');
@@ -521,7 +517,10 @@ void main() {
 
       final gate = harness.approval.manualCalls.single.gate;
       expect(gate.approvalPromptTitle, contains('outside the project'));
-      expect(gate.approvalPromptRationale, contains('/etc/hosts'));
+      expect(
+        gate.approvalPromptRationale,
+        contains('outside the open project'),
+      );
     });
 
     test('a command staying inside the root keeps its fast path', () async {
@@ -614,46 +613,53 @@ void main() {
       expect(harness.execution.calls, hasLength(1));
     });
 
-    test('executes a manual approval and remembers its result', () async {
-      final owner = _owner('owner-a');
-      final harness = _Harness()
-        ..approval.gates[owner] = ToolApprovalGateDecision.needsManualApproval
-        ..approval.manualDecisions[owner] = const LocalCommandManualApproval(
-          approved: true,
+    test(
+      'executes a fresh manual approval without caching its result',
+      () async {
+        final owner = _owner('owner-a');
+        final harness = _Harness()
+          ..approval.gates[owner] = ToolApprovalGateDecision.needsManualApproval
+          ..approval.manualDecisions[owner] = const LocalCommandManualApproval(
+            approved: true,
+          );
+        final toolRequest = _request(
+          owner: owner,
+          toolCallId: 'local-command-approval-17',
+          arguments: const {
+            'command': 'touch output.txt',
+            'reason': 'Create the requested artifact',
+          },
         );
-      final toolRequest = _request(
-        owner: owner,
-        toolCallId: 'local-command-approval-17',
-        arguments: const {
-          'command': 'touch output.txt',
-          'reason': 'Create the requested artifact',
-        },
-      );
 
-      final result = await harness.handler.handle(toolRequest);
+        final result = await harness.handler.handle(toolRequest);
 
-      expect(result, same(harness.execution.results.single));
-      expect(harness.approval.resolveCalls.single.owner, owner);
-      final approvalRequest = harness.approval.manualCalls.single.request;
-      expect(approvalRequest.toolCallId, 'local-command-approval-17');
-      expect(approvalRequest.execution.toolCallId, 'local-command-approval-17');
-      expect(approvalRequest.execution.command, 'touch output.txt');
-      expect(approvalRequest.execution.workingDirectory, _ownerARoot);
-      expect(approvalRequest.reason, 'Create the requested artifact');
-      expect(approvalRequest.warningTitle, isNull);
-      expect(approvalRequest.warningMessage, isNull);
-      expect(harness.execution.calls.single.owner, owner);
-      expect(harness.execution.settlements, hasLength(1));
-      expect(
-        harness.execution.calls.single.request.toolCallId,
-        'local-command-approval-17',
-      );
-      expect(harness.approval.rememberedResults.single.owner, owner);
-      expect(
-        harness.approval.rememberedResults.single.request,
-        same(approvalRequest),
-      );
-    });
+        expect(result, same(harness.execution.results.single));
+        expect(harness.approval.resolveCalls.single.owner, owner);
+        final approvalRequest = harness.approval.manualCalls.single.request;
+        expect(approvalRequest.toolCallId, 'local-command-approval-17');
+        expect(
+          approvalRequest.execution.toolCallId,
+          'local-command-approval-17',
+        );
+        expect(approvalRequest.execution.command, 'touch output.txt');
+        expect(approvalRequest.execution.workingDirectory, _ownerARoot);
+        expect(approvalRequest.reason, 'Create the requested artifact');
+        expect(approvalRequest.warningTitle, isNull);
+        expect(approvalRequest.warningMessage, isNull);
+        expect(approvalRequest.requiresFreshManualApproval, isTrue);
+        expect(
+          approvalRequest.requiredManualDecisionSource,
+          'opaque_host_write',
+        );
+        expect(harness.execution.calls.single.owner, owner);
+        expect(harness.execution.settlements, hasLength(1));
+        expect(
+          harness.execution.calls.single.request.toolCallId,
+          'local-command-approval-17',
+        );
+        expect(harness.approval.rememberedResults, isEmpty);
+      },
+    );
 
     test('maps a manual denial to the exact cached payload', () async {
       final owner = _owner('owner-a');
@@ -699,34 +705,31 @@ void main() {
       },
     );
 
-    test('persists an exact remembered allow rule for the owner', () async {
-      final owner = _owner('owner-a');
-      final harness = _Harness()
-        ..approval.manualDecisions[owner] = const LocalCommandManualApproval(
-          approved: true,
-          rememberedAction: RememberedCommandPermissionAction.allow,
-          rememberedMatch: RememberedCommandPermissionMatch.exact,
+    test(
+      'does not persist a remembered allow for opaque shell access',
+      () async {
+        final owner = _owner('owner-a');
+        final harness = _Harness()
+          ..approval.manualDecisions[owner] = const LocalCommandManualApproval(
+            approved: true,
+            rememberedAction: RememberedCommandPermissionAction.allow,
+            rememberedMatch: RememberedCommandPermissionMatch.exact,
+          );
+
+        await harness.handler.handle(
+          _request(
+            owner: owner,
+            arguments: const {
+              'command': 'dart format lib',
+              'working_directory': 'packages/app',
+            },
+          ),
         );
 
-      await harness.handler.handle(
-        _request(
-          owner: owner,
-          arguments: const {
-            'command': 'dart format lib',
-            'working_directory': 'packages/app',
-          },
-        ),
-      );
-
-      expect(harness.rules.rememberedRules, hasLength(1));
-      final remembered = harness.rules.rememberedRules.single;
-      expect(remembered.owner, owner);
-      expect(remembered.rule.action, RememberedCommandPermissionAction.allow);
-      expect(remembered.rule.match, RememberedCommandPermissionMatch.exact);
-      expect(remembered.rule.command, 'dart format lib');
-      expect(remembered.rule.workingDirectory, '$_ownerARoot/packages/app');
-      expect(harness.execution.calls, hasLength(1));
-    });
+        expect(harness.rules.rememberedRules, isEmpty);
+        expect(harness.execution.calls, hasLength(1));
+      },
+    );
 
     test('persists a remembered deny before returning the denial', () async {
       final owner = _owner('owner-a');
@@ -895,8 +898,8 @@ void main() {
         final rememberError = StateError('rule persistence failed');
         final harness = _Harness()
           ..approval.manualDecisions[owner] = const LocalCommandManualApproval(
-            approved: true,
-            rememberedAction: RememberedCommandPermissionAction.allow,
+            approved: false,
+            rememberedAction: RememberedCommandPermissionAction.deny,
             rememberedMatch: RememberedCommandPermissionMatch.exact,
           )
           ..rules.rememberError = rememberError;
@@ -1012,8 +1015,8 @@ void main() {
       for (final poison in _poisonScopes(owner, toolCallId)) {
         final harness = _Harness()
           ..approval.manualDecisions[owner] = const LocalCommandManualApproval(
-            approved: true,
-            rememberedAction: RememberedCommandPermissionAction.allow,
+            approved: false,
+            rememberedAction: RememberedCommandPermissionAction.deny,
             rememberedMatch: RememberedCommandPermissionMatch.exact,
           )
           ..rules.nextCompletion = LocalCommandCompletion<Object?>.completed(
@@ -1045,8 +1048,8 @@ void main() {
       const toolCallId = 'stale-rule-call';
       final harness = _Harness()
         ..approval.manualDecisions[owner] = const LocalCommandManualApproval(
-          approved: true,
-          rememberedAction: RememberedCommandPermissionAction.allow,
+          approved: false,
+          rememberedAction: RememberedCommandPermissionAction.deny,
           rememberedMatch: RememberedCommandPermissionMatch.exact,
         )
         ..rules.nextCompletion = LocalCommandCompletion<Object?>.ownerExpired(
@@ -1225,7 +1228,7 @@ void main() {
     );
 
     test(
-      'warns when result-cache acknowledgement belongs to another call',
+      'does not write a positive result cache for opaque shell access',
       () async {
         final owner = _owner('owner-a');
         final harness = _Harness()
@@ -1238,14 +1241,14 @@ void main() {
 
         final result = await harness.handler.handle(_request(owner: owner));
 
-        _expectEffectUncertain(result);
+        expect(result.isSuccess, isTrue);
         expect(harness.execution.calls, hasLength(1));
-        expect(harness.approval.rememberedResults, hasLength(1));
-        expect(harness.execution.settlements, isEmpty);
+        expect(harness.approval.rememberedResults, isEmpty);
+        expect(harness.execution.settlements, hasLength(1));
       },
     );
 
-    test('warns when the owner expires during result persistence', () async {
+    test('does not reach result persistence for opaque shell access', () async {
       final owner = _owner('owner-a');
       final harness = _Harness();
       harness.approval.afterRememberResult = () {
@@ -1254,14 +1257,14 @@ void main() {
 
       final result = await harness.handler.handle(_request(owner: owner));
 
-      _expectEffectUncertain(result);
+      expect(result.isSuccess, isTrue);
       expect(harness.execution.calls, hasLength(1));
-      expect(harness.approval.rememberedResults, hasLength(1));
-      expect(harness.execution.settlements, isEmpty);
+      expect(harness.approval.rememberedResults, isEmpty);
+      expect(harness.execution.settlements, hasLength(1));
     });
 
     test(
-      'retains execution settlement when result persistence throws',
+      'ignores unreachable result-cache failures for opaque shell access',
       () async {
         final owner = _owner('owner-a');
         final harness = _Harness()
@@ -1269,9 +1272,9 @@ void main() {
 
         final result = await harness.handler.handle(_request(owner: owner));
 
-        _expectEffectUncertain(result);
-        expect(harness.approval.rememberedResults, hasLength(1));
-        expect(harness.execution.settlements, isEmpty);
+        expect(result.isSuccess, isTrue);
+        expect(harness.approval.rememberedResults, isEmpty);
+        expect(harness.execution.settlements, hasLength(1));
       },
     );
 

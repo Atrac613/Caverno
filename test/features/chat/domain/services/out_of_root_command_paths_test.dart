@@ -193,4 +193,73 @@ void main() {
   test('outsideProjectApproval is silent when nothing is outside', () {
     expect(LocalCommandApprovalScope.outsideProjectApproval(const []), isNull);
   });
+
+  group('LocalCommandApprovalScope host-write authority', () {
+    LocalCommandApprovalScope scope({
+      required String command,
+      required bool reachesNativeShell,
+      String? projectRoot = root,
+    }) => LocalCommandApprovalScope.of(
+      command: command,
+      projectRoot: projectRoot,
+      reachesNativeShell: reachesNativeShell,
+      commandShapeRequiresApproval: (_) => false,
+    );
+
+    test('requires fresh host-write approval for opaque shell execution', () {
+      final decision = scope(
+        command:
+            'python3 -c "from pathlib import Path; Path(chr(47) + '
+            "'tmp/output').write_text('x')\"",
+        reachesNativeShell: true,
+      );
+
+      expect(decision.requiresExplicitApproval, isTrue);
+      expect(decision.requiresHostWriteApproval, isTrue);
+      expect(decision.outOfRootPaths, isEmpty);
+      expect(decision.requiredManualDecision, isNotNull);
+      expect(
+        decision.requiredManualDecision!.approvalPromptTitle,
+        contains('host-wide filesystem access'),
+      );
+      expect(decision.requiredManualDecisionSource, 'opaque_host_write');
+    });
+
+    test('keeps internally executed commands on the contained path', () {
+      final decision = scope(command: 'pwd', reachesNativeShell: false);
+
+      expect(decision.requiresExplicitApproval, isFalse);
+      expect(decision.requiresHostWriteApproval, isFalse);
+      expect(decision.requiredManualDecision, isNull);
+      expect(decision.requiredManualDecisionSource, isNull);
+    });
+
+    test('does not create host-write authority without a project boundary', () {
+      final decision = scope(
+        command: 'python3 tool/build.py',
+        reachesNativeShell: true,
+        projectRoot: null,
+      );
+
+      expect(decision.requiresHostWriteApproval, isFalse);
+      expect(decision.requiredManualDecision, isNull);
+    });
+
+    test(
+      'literal outside paths keep their specific decision and audit source',
+      () {
+        final decision = scope(
+          command: 'python3 -c "open(\'/etc/hosts\').read()"',
+          reachesNativeShell: true,
+        );
+
+        expect(decision.outOfRootPaths, ['/etc/hosts']);
+        expect(
+          decision.requiredManualDecision!.approvalPromptTitle,
+          contains('outside the project'),
+        );
+        expect(decision.requiredManualDecisionSource, 'out_of_scope_path');
+      },
+    );
+  });
 }

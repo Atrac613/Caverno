@@ -33,6 +33,7 @@ class ToolApprovalAutoReviewService {
     required bool deniedEscalates,
     required bool hasUntrustedInfluence,
     ToolApprovalGateDecision? requiredManualDecision,
+    String requiredManualDecisionSource = 'required_manual',
     void Function()? onCachedApproval,
   }) async {
     const expiredRationale = 'The approval turn expired before execution';
@@ -85,7 +86,7 @@ class ToolApprovalAutoReviewService {
     if (requiredManualDecision != null) {
       await recordAudit(
         outcome: 'manual_required',
-        decisionSource: 'out_of_scope_path',
+        decisionSource: requiredManualDecisionSource,
         rationale: requiredManualDecision.approvalPromptRationale,
       );
       return owned(requiredManualDecision);

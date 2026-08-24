@@ -73,6 +73,9 @@ final class LocalCommandToolHandler {
     final approvalScope = LocalCommandApprovalScope.of(
       command: command,
       projectRoot: request.allowedWorkingDirectoryRoot,
+      reachesNativeShell:
+          argumentIsTruthy(request.arguments['background']) ||
+          !LocalShellTools.isReadOnly(command),
       commandShapeRequiresApproval:
           LocalCommandPermissionService.requiresExplicitApproval,
     );
@@ -103,6 +106,8 @@ final class LocalCommandToolHandler {
       warningTitle: riskWarning?.title,
       warningMessage: riskWarning?.message,
       outOfRootPaths: approvalScope.outOfRootPaths,
+      requiredManualDecision: approvalScope.requiredManualDecision,
+      requiredManualDecisionSource: approvalScope.requiredManualDecisionSource,
     );
     final cachedDenial = _approvalPort.lookupDenial(
       request.owner,
@@ -153,7 +158,11 @@ final class LocalCommandToolHandler {
       if (_approvalPort.isExpired(request.owner, request.toolCallId)) {
         return _expiredFailure(request.toolName);
       }
-      if (manual.shouldRemember && !request.isRemoteInteraction) {
+      if (manual.shouldRemember &&
+          !request.isRemoteInteraction &&
+          (!approvalRequest.requiresFreshManualApproval ||
+              manual.rememberedAction ==
+                  RememberedCommandPermissionAction.deny)) {
         final ruleCompletion = await _permissionRuleStorePort.remember(
           request.owner,
           request.toolCallId,
@@ -190,7 +199,10 @@ final class LocalCommandToolHandler {
     return _execute(
       request,
       execution,
-      cacheRequest: gate.bypassedApproval ? null : approvalRequest,
+      cacheRequest:
+          gate.bypassedApproval || approvalRequest.requiresFreshManualApproval
+          ? null
+          : approvalRequest,
     );
   }
 
