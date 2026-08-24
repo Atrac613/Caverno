@@ -210,7 +210,39 @@ final class RagAnswerClient {
           'model': model,
           'temperature': 0,
           'max_tokens': 2048,
-          'response_format': {'type': 'text'},
+          'response_format': {
+            'type': 'json_schema',
+            'json_schema': {
+              'name': 'rag_answer_selections',
+              'strict': true,
+              'schema': {
+                'type': 'object',
+                'additionalProperties': false,
+                'properties': {
+                  'results': {
+                    'type': 'array',
+                    'items': {
+                      'type': 'object',
+                      'additionalProperties': false,
+                      'properties': {
+                        'caseId': {'type': 'string'},
+                        'factIds': {
+                          'type': 'array',
+                          'items': {'type': 'string'},
+                        },
+                        'citations': {
+                          'type': 'array',
+                          'items': {'type': 'string'},
+                        },
+                      },
+                      'required': ['caseId', 'factIds', 'citations'],
+                    },
+                  },
+                },
+                'required': ['results'],
+              },
+            },
+          },
           'chat_template_kwargs': {'enable_thinking': false},
           'messages': [
             {'role': 'user', 'content': prompt},
