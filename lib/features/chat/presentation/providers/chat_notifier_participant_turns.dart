@@ -120,6 +120,7 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       await _failParticipantTurn(turn, error);
     } finally {
       _activeInteractionOrigin = ChatInteractionOrigin.local;
+      _activeRemoteDeviceId = null;
     }
   }
 

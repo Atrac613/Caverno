@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
@@ -76,6 +77,66 @@ class _TestChatNotifier extends ChatNotifier {
   ChatState build() => ChatState.initial();
 }
 
+class _InteractionOwnershipChatNotifier extends ChatNotifier {
+  bool approvalResolved = false;
+
+  @override
+  ChatState build() => ChatState.initial();
+
+  void setFileApproval({
+    required ChatInteractionOrigin origin,
+    required String? remoteDeviceId,
+  }) {
+    state = state.copyWith(
+      pendingFileOperation: PendingFileOperation(
+        owner: ChatTurnOwner(
+          conversationId: 'conversation-1',
+          interactionGeneration: 1,
+        ),
+        id: 'approval-1',
+        operation: 'write',
+        path: 'README.md',
+        preview: 'Update documentation',
+        reason: 'Apply the requested change',
+        completer: Completer<bool>(),
+        origin: origin,
+        remoteDeviceId: remoteDeviceId,
+      ),
+    );
+    approvalResolved = false;
+  }
+
+  void setQuestion({required String remoteDeviceId}) {
+    state = state.copyWith(
+      pendingAskUserQuestion: PendingAskUserQuestion(
+        id: 'question-1',
+        conversationId: 'conversation-1',
+        question: 'Continue?',
+        help: '',
+        options: const [
+          AskUserQuestionOption(id: 'continue', label: 'Continue'),
+        ],
+        allowMultiple: false,
+        allowOther: false,
+        otherPlaceholder: '',
+        completer: Completer<AskUserQuestionAnswer?>(),
+        origin: ChatInteractionOrigin.remote,
+        remoteDeviceId: remoteDeviceId,
+      ),
+    );
+  }
+
+  @override
+  bool resolveRemoteApproval({required String id, required bool approved}) {
+    final pending = state.pendingFileOperation;
+    if (pending == null || pending.id != id) return false;
+    if (!pending.completer.isCompleted) pending.completer.complete(approved);
+    state = state.copyWith(pendingFileOperation: null);
+    approvalResolved = true;
+    return true;
+  }
+}
+
 final class _MemorySecureStore implements RemoteCodingSecureStore {
   final Map<String, String> values = <String, String>{};
 
@@ -146,11 +207,14 @@ Future<int> _unusedPort() async {
   return port;
 }
 
-Future<void> _waitUntil(bool Function() condition) async {
+Future<void> _waitUntil(
+  bool Function() condition, {
+  String description = 'remote coding server test condition',
+}) async {
   final deadline = DateTime.now().add(const Duration(seconds: 15));
   while (!condition()) {
     if (DateTime.now().isAfter(deadline)) {
-      fail('Timed out waiting for remote coding server test condition.');
+      fail('Timed out waiting for $description.');
     }
     await Future<void>.delayed(const Duration(milliseconds: 20));
   }
@@ -258,7 +322,336 @@ void _sendChallengedAuth(
   );
 }
 
+Future<
+  ({
+    WebSocket socket,
+    StreamSubscription<dynamic> subscription,
+    List<RemoteCodingProtocolMessage> messages,
+  })
+>
+_connectAuthenticatedDevice({
+  required ProviderContainer container,
+  required int port,
+  required String token,
+  required String authId,
+}) async {
+  final socket = await _connectPinned(container, port);
+  final messages = <RemoteCodingProtocolMessage>[];
+  final subscription = socket.listen((raw) {
+    if (raw is String) {
+      messages.add(RemoteCodingProtocolMessage.decode(raw));
+    }
+  });
+  final challenge = await _waitForChallenge(messages);
+  _sendChallengedAuth(
+    socket,
+    id: authId,
+    challenge: challenge,
+    certificatePin: _certificatePin(container),
+    credential: token,
+    token: token,
+  );
+  await _waitUntil(
+    () => messages.any(
+      (message) => message.id == authId && message.type == 'snapshot',
+    ),
+    description: 'authenticated snapshot $authId',
+  );
+  return (socket: socket, subscription: subscription, messages: messages);
+}
+
 void main() {
+  test(
+    'pending interactions require remote origin and the initiating device',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final port = await _unusedPort();
+      const ownerToken = 'owner-mobile-token';
+      const otherToken = 'other-mobile-token';
+      final ownerDevice = RemoteCodingPairedDevice(
+        id: 'device-owner',
+        name: 'Owner phone',
+        tokenHash: RemoteCodingSecurity.hashToken(ownerToken),
+        createdAt: DateTime(2026, 8, 24, 10),
+        lastSeenAt: DateTime(2026, 8, 24, 10),
+      );
+      final otherDevice = RemoteCodingPairedDevice(
+        id: 'device-other',
+        name: 'Other phone',
+        tokenHash: RemoteCodingSecurity.hashToken(otherToken),
+        createdAt: DateTime(2026, 8, 24, 10),
+        lastSeenAt: DateTime(2026, 8, 24, 10),
+      );
+      final repository = RemoteCodingRepository(
+        prefs,
+        secureStore: _MemorySecureStore(),
+      );
+      await repository.saveServerSettings(
+        RemoteCodingServerSettings(
+          enabled: true,
+          port: port,
+          pairedDevices: [ownerDevice, otherDevice],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          remoteCodingRepositoryProvider.overrideWithValue(repository),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatNotifierProvider.overrideWith(
+            _InteractionOwnershipChatNotifier.new,
+          ),
+        ],
+      );
+      ({
+        WebSocket socket,
+        StreamSubscription<dynamic> subscription,
+        List<RemoteCodingProtocolMessage> messages,
+      })?
+      owner;
+      ({
+        WebSocket socket,
+        StreamSubscription<dynamic> subscription,
+        List<RemoteCodingProtocolMessage> messages,
+      })?
+      ownerReconnect;
+      ({
+        WebSocket socket,
+        StreamSubscription<dynamic> subscription,
+        List<RemoteCodingProtocolMessage> messages,
+      })?
+      other;
+      try {
+        container.read(remoteCodingServerProvider);
+        await _waitUntil(
+          () => container.read(remoteCodingServerProvider).isRunning,
+        );
+        owner = await _connectAuthenticatedDevice(
+          container: container,
+          port: port,
+          token: ownerToken,
+          authId: 'auth-owner',
+        );
+        other = await _connectAuthenticatedDevice(
+          container: container,
+          port: port,
+          token: otherToken,
+          authId: 'auth-other',
+        );
+        final chatNotifier =
+            container.read(chatNotifierProvider.notifier)
+                as _InteractionOwnershipChatNotifier;
+
+        chatNotifier.setFileApproval(
+          origin: ChatInteractionOrigin.remote,
+          remoteDeviceId: ownerDevice.id,
+        );
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'requestSnapshot',
+            id: 'owner-pending-snapshot',
+            payload: const {},
+          ),
+        );
+        other.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'requestSnapshot',
+            id: 'other-pending-snapshot',
+            payload: const {},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'owner-pending-snapshot' &&
+                message.payload['pendingApproval'] != null,
+          ),
+          description: 'the owner pending-approval snapshot',
+        );
+        await _waitUntil(
+          () => other!.messages.any(
+            (message) =>
+                message.id == 'other-pending-snapshot' &&
+                message.payload['pendingApproval'] == null,
+          ),
+          description: 'the cross-device filtered snapshot',
+        );
+
+        other.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'resolveApproval',
+            id: 'cross-device-approval',
+            payload: const {'approvalId': 'approval-1', 'approved': true},
+          ),
+        );
+        await _waitUntil(
+          () => other!.messages.any(
+            (message) =>
+                message.id == 'cross-device-approval' &&
+                message.payload['code'] == 'approval_not_found',
+          ),
+          description: 'the cross-device approval rejection',
+        );
+        expect(chatNotifier.approvalResolved, isFalse);
+
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'resolveApproval',
+            id: 'stale-approval',
+            payload: const {'approvalId': 'stale-id', 'approved': true},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'stale-approval' &&
+                message.payload['code'] == 'approval_not_found',
+          ),
+          description: 'the stale approval rejection',
+        );
+
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'resolveApproval',
+            id: 'owner-approval',
+            payload: const {'approvalId': 'approval-1', 'approved': true},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'owner-approval' &&
+                message.type == 'approvalResolved',
+          ),
+          description: 'the owner approval resolution',
+        );
+        expect(chatNotifier.approvalResolved, isTrue);
+        expect(chatNotifier.approvalResolved, isTrue);
+
+        chatNotifier.setFileApproval(
+          origin: ChatInteractionOrigin.local,
+          remoteDeviceId: null,
+        );
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'resolveApproval',
+            id: 'desktop-origin-approval',
+            payload: const {'approvalId': 'approval-1', 'approved': true},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'desktop-origin-approval' &&
+                message.payload['code'] == 'approval_not_found',
+          ),
+          description: 'the desktop-origin approval rejection',
+        );
+        expect(chatNotifier.approvalResolved, isFalse);
+
+        chatNotifier.setQuestion(remoteDeviceId: ownerDevice.id);
+        await owner.subscription.cancel();
+        await owner.socket.close();
+        ownerReconnect = await _connectAuthenticatedDevice(
+          container: container,
+          port: port,
+          token: ownerToken,
+          authId: 'auth-owner-reconnect',
+        );
+        final reconnectSnapshot = ownerReconnect.messages.firstWhere(
+          (message) =>
+              message.id == 'auth-owner-reconnect' &&
+              message.type == 'snapshot',
+        );
+        expect(reconnectSnapshot.payload['pendingQuestion'], isNotNull);
+
+        other.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'resolveQuestion',
+            id: 'cross-device-question',
+            payload: const {
+              'questionId': 'question-1',
+              'selectedOptionIds': ['continue'],
+            },
+          ),
+        );
+        await _waitUntil(
+          () => other!.messages.any(
+            (message) =>
+                message.id == 'cross-device-question' &&
+                message.payload['code'] == 'question_not_found',
+          ),
+          description: 'the cross-device question rejection',
+        );
+        expect(chatNotifier.state.pendingAskUserQuestion, isNotNull);
+
+        ownerReconnect.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'resolveQuestion',
+            id: 'owner-question',
+            payload: const {
+              'questionId': 'question-1',
+              'selectedOptionIds': ['continue'],
+            },
+          ),
+        );
+        await _waitUntil(
+          () => ownerReconnect!.messages.any(
+            (message) =>
+                message.id == 'owner-question' &&
+                message.type == 'questionResolved',
+          ),
+          description: 'the reconnected owner question resolution',
+        );
+        expect(chatNotifier.state.pendingAskUserQuestion, isNull);
+
+        chatNotifier.setFileApproval(
+          origin: ChatInteractionOrigin.remote,
+          remoteDeviceId: ownerDevice.id,
+        );
+        await container
+            .read(remoteCodingServerProvider.notifier)
+            .revokeDevice(ownerDevice.id);
+        await _waitUntil(
+          () => ownerReconnect!.messages.any(
+            (message) => message.type == 'disconnected',
+          ),
+          description: 'the revoked owner disconnect',
+        );
+        other.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'resolveApproval',
+            id: 'revoked-owner-approval',
+            payload: const {'approvalId': 'approval-1', 'approved': true},
+          ),
+        );
+        await _waitUntil(
+          () => other!.messages.any(
+            (message) =>
+                message.id == 'revoked-owner-approval' &&
+                message.payload['code'] == 'approval_not_found',
+          ),
+          description: 'the revoked-owner approval rejection',
+        );
+        expect(chatNotifier.approvalResolved, isFalse);
+      } finally {
+        await ownerReconnect?.subscription.cancel();
+        await ownerReconnect?.socket.close();
+        await owner?.subscription.cancel();
+        await owner?.socket.close();
+        await other?.subscription.cancel();
+        await other?.socket.close();
+        container.dispose();
+      }
+    },
+  );
+
   test('canceling a pairing payload invalidates the ticket', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();

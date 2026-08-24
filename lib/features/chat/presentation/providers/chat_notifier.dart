@@ -2305,9 +2305,19 @@ class ChatNotifier extends Notifier<ChatState> {
   final _pendingAskUserQuestionsByThread = <String, PendingAskUserQuestion>{};
   final _participantTurnControls = ParticipantTurnControlRegistry();
   ChatInteractionOrigin _activeInteractionOrigin = ChatInteractionOrigin.local;
+  String? _activeRemoteDeviceId;
 
   bool get _isRemoteInteraction =>
       _activeInteractionOrigin == ChatInteractionOrigin.remote;
+
+  bool resolveRemoteApproval({required String id, required bool approved}) =>
+      resolveFileOperation(id: id, approved: approved) ||
+      resolveGitCommand(id: id, approved: approved) ||
+      resolveLocalCommand(
+        id: id,
+        approval: LocalCommandApproval(approved: approved),
+      );
+
   int get _interactionGeneration => _activeResponseRegistry.currentGeneration;
   String? get _activeResponseConversationId =>
       _activeResponseRegistry.currentConversationId;
@@ -2610,6 +2620,7 @@ class ChatNotifier extends Notifier<ChatState> {
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
+    String? remoteDeviceId,
     // Join the running turn instead of waiting behind it. Ignored when the
     // thread is idle, when something is already queued for it, or when the
     // message carries what steering cannot (see [_isSteerableMessage]); all
@@ -2644,6 +2655,9 @@ class ChatNotifier extends Notifier<ChatState> {
       isVoiceMode: isVoiceMode,
       bypassPlanMode: bypassPlanMode,
       origin: origin,
+      remoteDeviceId: origin == ChatInteractionOrigin.remote
+          ? remoteDeviceId?.trim()
+          : null,
       conversationId: ownerConversationId,
     );
     // Only when the user asked to interrupt. Queueing stays the default
@@ -2731,6 +2745,7 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       conversationsState = ref.read(conversationsNotifierProvider);
       _activeInteractionOrigin = queuedMessage.origin;
+      _activeRemoteDeviceId = queuedMessage.remoteDeviceId;
       final interactionGeneration = _beginInteractionGeneration();
       turnOwner = ChatTurnOwner(
         conversationId: effectiveOwner,
@@ -2952,6 +2967,7 @@ class ChatNotifier extends Notifier<ChatState> {
         } finally {
           _assistantModeOverride = null;
           _activeInteractionOrigin = ChatInteractionOrigin.local;
+          _activeRemoteDeviceId = null;
         }
         return turnOwner;
       }
@@ -3006,6 +3022,7 @@ class ChatNotifier extends Notifier<ChatState> {
       } finally {
         _assistantModeOverride = null;
         _activeInteractionOrigin = ChatInteractionOrigin.local;
+        _activeRemoteDeviceId = null;
       }
       return turnOwner;
     } catch (error) {
@@ -3023,6 +3040,7 @@ class ChatNotifier extends Notifier<ChatState> {
       if (owner != null) _routeRuntimeStartFailure(owner, error.toString());
       _assistantModeOverride = null;
       _activeInteractionOrigin = ChatInteractionOrigin.local;
+      _activeRemoteDeviceId = null;
       appLog('[ChatNotifier] Message send failed: $error');
       return null;
     }

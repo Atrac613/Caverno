@@ -12785,9 +12785,7 @@ with open(path, "rb") as file:
         expect(firstPending, isNotNull);
         expect(
           firstPending!.path,
-          resolvedFixturePath(
-            '/tmp/content-tools-project/src/ping_utils.py',
-          ),
+          resolvedFixturePath('/tmp/content-tools-project/src/ping_utils.py'),
         );
 
         toolNotifier.resolveFileOperation(id: firstPending.id, approved: true);
@@ -16410,6 +16408,7 @@ with open(path, "rb") as file:
           'Write the README remotely',
           bypassPlanMode: true,
           origin: ChatInteractionOrigin.remote,
+          remoteDeviceId: 'device-owner',
         );
         await _waitForCondition(
           () => toolNotifier.state.pendingFileOperation != null,
@@ -16418,9 +16417,10 @@ with open(path, "rb") as file:
         final pending = toolNotifier.state.pendingFileOperation;
         expect(pending, isNotNull);
         expect(pending!.origin, ChatInteractionOrigin.remote);
+        expect(pending.remoteDeviceId, 'device-owner');
         expect(toolService.executedToolNames, isEmpty);
 
-        toolNotifier.resolveFileOperation(id: pending.id, approved: false);
+        toolNotifier.resolveRemoteApproval(id: pending.id, approved: false);
         await sendFuture;
         expect(toolService.executedToolNames, isEmpty);
       } finally {
@@ -16494,6 +16494,7 @@ with open(path, "rb") as file:
           'Run the remote cleanup command',
           bypassPlanMode: true,
           origin: ChatInteractionOrigin.remote,
+          remoteDeviceId: 'device-owner',
         );
         for (
           var i = 0;
@@ -16506,12 +16507,10 @@ with open(path, "rb") as file:
         final pending = toolNotifier.state.pendingLocalCommand;
         expect(pending, isNotNull);
         expect(pending!.origin, ChatInteractionOrigin.remote);
+        expect(pending.remoteDeviceId, 'device-owner');
         expect(toolService.executedToolNames, isEmpty);
 
-        toolNotifier.resolveLocalCommand(
-          id: pending.id,
-          approval: const LocalCommandApproval(approved: false),
-        );
+        toolNotifier.resolveRemoteApproval(id: pending.id, approved: false);
         await sendFuture;
         expect(toolService.executedToolNames, isEmpty);
       } finally {
@@ -17121,6 +17120,7 @@ environment:
           'Create a branch remotely',
           bypassPlanMode: true,
           origin: ChatInteractionOrigin.remote,
+          remoteDeviceId: 'device-owner',
         );
         for (
           var i = 0;
@@ -17133,9 +17133,10 @@ environment:
         final pending = toolNotifier.state.pendingGitCommand;
         expect(pending, isNotNull);
         expect(pending!.origin, ChatInteractionOrigin.remote);
+        expect(pending.remoteDeviceId, 'device-owner');
         expect(toolService.executedToolNames, isEmpty);
 
-        toolNotifier.resolveGitCommand(id: pending.id, approved: false);
+        toolNotifier.resolveRemoteApproval(id: pending.id, approved: false);
         await sendFuture;
         expect(toolService.executedToolNames, isEmpty);
       } finally {

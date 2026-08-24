@@ -153,7 +153,11 @@ void registerChatNotifierAskUserQuestionTests() {
         .read(conversationsNotifierProvider)
         .currentConversationId!;
 
-    final sendFuture = chatNotifier.sendMessage('Help choose a direction');
+    final sendFuture = chatNotifier.sendMessage(
+      'Help choose a direction',
+      origin: ChatInteractionOrigin.remote,
+      remoteDeviceId: 'device-owner',
+    );
     await Future<void>.delayed(Duration.zero);
     conversationsNotifier.createNewConversation(
       workspaceMode: WorkspaceMode.chat,
@@ -193,6 +197,8 @@ void registerChatNotifierAskUserQuestionTests() {
     final pending = chatNotifier.state.pendingAskUserQuestion;
     expect(pending, isNotNull);
     expect(pending!.question, 'Which direction should we use?');
+    expect(pending.origin, ChatInteractionOrigin.remote);
+    expect(pending.remoteDeviceId, 'device-owner');
     expect(chatNotifier.state.isLoading, isTrue);
     expect(chatNotifier.state.messages.map((message) => message.role), [
       MessageRole.user,
@@ -521,7 +527,8 @@ void registerChatNotifierAskUserQuestionTests() {
     );
     final toolService = _FakeMcpToolService(
       results: const {
-        'load_skill': '{"id":"skill-release","content":"Run the dry run first"}',
+        'load_skill':
+            '{"id":"skill-release","content":"Run the dry run first"}',
         'read_file': '{"path":"pubspec.yaml","content":"version: 1.3.16+28"}',
       },
     );

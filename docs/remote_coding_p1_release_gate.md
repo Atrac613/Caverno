@@ -25,7 +25,8 @@ P1 covers these release-hardening requirements:
 - Host metadata: snapshots advertise protocol version and safe mobile
   capabilities, including that project management stays desktop-only.
 - Multi-device readiness: paired devices can coexist, active session counts are
-  visible, and revocation is scoped to the selected mobile device.
+  visible, revocation is scoped to the selected mobile device, and pending
+  interactions are visible and resolvable only by their initiating device.
 - Soak evidence: iOS and Android must pass a user-operated LAN soak with
   background/resume, desktop sleep/wake, and desktop IP change recovery.
 
@@ -106,3 +107,8 @@ includes redacted paired-device snapshots and active-session counts, and carries
 a `manualChecklistPatch` for the `multiDevice` checklist section. The gate
 merges true checklist fields from evidence files, while the user-operated review
 still owns confirming the real two-device household behavior.
+
+The SEC4.5g source gate treats paired devices as separate principals. Automated
+tests cover same-device reconnect, cross-device filtering and rejection,
+desktop-origin and stale identifiers, and revoked-device rejection. The manual
+two-device run remains required for RC1 product-promotion evidence.

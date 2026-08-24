@@ -140,6 +140,7 @@ class PendingGitCommand extends PendingToolApproval<bool> {
     required this.reason,
     required super.completer,
     this.origin = ChatInteractionOrigin.local,
+    this.remoteDeviceId,
   });
 
   final String command;
@@ -147,6 +148,7 @@ class PendingGitCommand extends PendingToolApproval<bool> {
   final String? reason;
 
   final ChatInteractionOrigin origin;
+  final String? remoteDeviceId;
 
   @override
   bool get cancellationValue => false;
@@ -164,6 +166,7 @@ class PendingLocalCommand extends PendingToolApproval<LocalCommandApproval> {
     required this.warningMessage,
     required super.completer,
     this.origin = ChatInteractionOrigin.local,
+    this.remoteDeviceId,
   });
 
   final String command;
@@ -173,6 +176,7 @@ class PendingLocalCommand extends PendingToolApproval<LocalCommandApproval> {
   final String? warningMessage;
 
   final ChatInteractionOrigin origin;
+  final String? remoteDeviceId;
 
   @override
   LocalCommandApproval get cancellationValue =>
@@ -329,6 +333,7 @@ class PendingFileOperation extends PendingToolApproval<bool> {
     required this.reason,
     required super.completer,
     this.origin = ChatInteractionOrigin.local,
+    this.remoteDeviceId,
   });
 
   final String operation;
@@ -337,6 +342,7 @@ class PendingFileOperation extends PendingToolApproval<bool> {
   final String? reason;
 
   final ChatInteractionOrigin origin;
+  final String? remoteDeviceId;
 
   @override
   bool get cancellationValue => false;
@@ -539,6 +545,7 @@ class PendingAskUserQuestion {
     required this.otherPlaceholder,
     required this.completer,
     this.origin = ChatInteractionOrigin.local,
+    this.remoteDeviceId,
   });
 
   final String id;
@@ -555,6 +562,7 @@ class PendingAskUserQuestion {
   /// approval models so a question is only surfaced to a paired remote device
   /// when the turn itself came from that device.
   final ChatInteractionOrigin origin;
+  final String? remoteDeviceId;
 }
 
 class PendingWorkflowDecision {
@@ -582,6 +590,7 @@ class QueuedChatMessage {
     this.originalImageMimeType,
     this.video,
     this.origin = ChatInteractionOrigin.local,
+    this.remoteDeviceId,
     this.conversationId,
   });
 
@@ -601,6 +610,7 @@ class QueuedChatMessage {
   final bool isVoiceMode;
   final bool bypassPlanMode;
   final ChatInteractionOrigin origin;
+  final String? remoteDeviceId;
 
   bool get hasImage => imageBase64 != null && imageBase64!.isNotEmpty;
 
@@ -621,6 +631,7 @@ class QueuedChatMessage {
             isVoiceMode == other.isVoiceMode &&
             bypassPlanMode == other.bypassPlanMode &&
             origin == other.origin &&
+            remoteDeviceId == other.remoteDeviceId &&
             conversationId == other.conversationId;
   }
 
@@ -637,6 +648,7 @@ class QueuedChatMessage {
     isVoiceMode,
     bypassPlanMode,
     origin,
+    remoteDeviceId,
     conversationId,
   );
 }

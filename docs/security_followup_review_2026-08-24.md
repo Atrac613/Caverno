@@ -6,8 +6,7 @@ Reviewed revision: `a3d35fc9e592`.
 
 ## Decision
 
-SA-19 through SA-22 were remediated on 2026-08-24. SA-23 remains an independent
-defense-in-depth slice.
+SA-19 through SA-23 were remediated on 2026-08-24.
 
 This review extends the point-in-time audit in
 `docs/security_audit_2026-08-14.md`. It does not renumber or rewrite that
@@ -38,7 +37,7 @@ performed.
 | SA-20 | High | Confirmed source path | Active HTML Preview content can read served project files and use unrestricted subresource egress | SEC4.3e |
 | SA-21 | Medium | Remediated 2026-08-24 | MCP HTTP, MCP stdio, and compressed QR inputs lacked complete pre-parse resource limits | SEC4.3f |
 | SA-22 | Medium | Remediated 2026-08-24 | Sensitive diagnostic storage lacked owner-only permissions, structured MCP redaction, and a privacy-preserving new-install default | SEC4.6k |
-| SA-23 | Low | Confirmed authorization check gap; identifier disclosure was not found | Remote Coding resolves pending interactions by ID without rechecking origin or device ownership | SEC4.5g / RC1 |
+| SA-23 | Low | Remediated 2026-08-24 | Remote Coding resolved pending interactions by ID without rechecking origin or device ownership | SEC4.5g / RC1 |
 
 No unsafe object-instantiation primitive was found. The deserialization risk in
 SA-21 is resource exhaustion rather than arbitrary code execution.
@@ -244,6 +243,15 @@ Minimal production patch:
 Exit evidence must cover desktop-origin rejection, stale identifiers, revoked
 devices, reconnects, and the documented same-device or cross-device policy.
 
+Remediation: SEC4.5g treats paired devices as separate principals. The
+authenticated initiating `deviceId` now follows a queued remote turn into file,
+local-command, git-command, and question pending objects. Per-client snapshots
+hide pending interactions owned by another device, and the mutation boundary
+rechecks remote origin, exact device ownership, and an active pairing before
+resolution. Same-device reconnects retain access; desktop-origin, stale,
+cross-device, and revoked-device attempts receive the existing generic
+not-found or authentication error. SA-23 is closed.
+
 ## Roadmap Order
 
 | Order | Slice | Status | Release role |
@@ -252,7 +260,7 @@ devices, reconnects, and the documented same-device or cross-device policy.
 | 2 | SEC4.3e HTML Preview active-content containment | done 2026-08-24 | Closed SA-20 for HTML Preview |
 | 3 | SEC4.3f application-owned deserialization limits | done 2026-08-24 | Closed SA-21 across MCP HTTP/stdio, JSON/content, and settings QR boundaries |
 | 4 | SEC4.6k sensitive diagnostic storage | done 2026-08-24 | Local data protection |
-| 5 | SEC4.5g / RC1 remote interaction ownership | next | Authorization defense in depth |
+| 5 | SEC4.5g / RC1 remote interaction ownership | done 2026-08-24 | Authorization defense in depth |
 
 Create one task document from `docs/codex_task_template.md` per slice. Do not
 combine the two High severity fixes or mix any of these slices with remaining

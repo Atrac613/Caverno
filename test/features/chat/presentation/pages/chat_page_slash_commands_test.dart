@@ -117,6 +117,7 @@ class _SlashChatNotifier extends ChatNotifier {
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
+    String? remoteDeviceId,
     bool interrupt = false,
   }) async {
     sentMessages.add(content);

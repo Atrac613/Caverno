@@ -5570,8 +5570,8 @@ Slice plan:
    **SEC4.5f (P1, completed 2026-08-22)** requires HTTPS for
    credential-bearing non-loopback LLM endpoints while preserving loopback and
    credentialless LAN HTTP operation; and **SEC4.5g (P2 follow-up, co-owned by
-   RC1)** rechecks pending-interaction origin and enforces the documented
-   same-device or cross-device authorization policy at resolution.
+   RC1, completed 2026-08-24)** rechecks pending-interaction origin and
+   enforces same-device ownership at snapshot and resolution boundaries.
 6. **SEC4.6 — Data protection and lifecycle (P1).** Move credentials to platform
    secure storage, redact default JSON/QR exports, recursively redact audit and
    support artifacts, preserve session-log opt-out, fail closed after
