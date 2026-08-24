@@ -129,10 +129,20 @@ Map<String, Object?> _evaluateArm(
       'chunkMetrics': chunkMetrics.toJson(),
       'answerGrounding': answer == null
           ? null
-          : _ratio(answer, 'groundedClaims', 'totalClaims'),
+          : _answerRatio(
+              answer,
+              'groundedClaims',
+              'totalClaims',
+              answerExpected: fixtureCase.objectRelevance.isNotEmpty,
+            ),
       'citationPrecision': answer == null
           ? null
-          : _ratio(answer, 'validCitations', 'totalCitations'),
+          : _answerRatio(
+              answer,
+              'validCitations',
+              'totalCitations',
+              answerExpected: fixtureCase.objectRelevance.isNotEmpty,
+            ),
       'latencyMs': _integer(result, 'latencyMs', fallback: 0),
       'promptTokens': _integer(result, 'promptTokens', fallback: 0),
       'contextTokens': _integer(result, 'contextTokens', fallback: 0),
@@ -712,9 +722,16 @@ Map<String, int> _integerMap(Map<String, Object?> json, String key) {
 Object? _metric(Map<String, Object?> item, String group, String key) =>
     (item[group] as Map<String, Object?>)[key];
 
-double _ratio(Map<String, Object?> json, String numerator, String denominator) {
+double _answerRatio(
+  Map<String, Object?> json,
+  String numerator,
+  String denominator, {
+  required bool answerExpected,
+}) {
   final total = _integer(json, denominator);
-  return total == 0 ? 1 : _integer(json, numerator) / total;
+  return total == 0
+      ? (answerExpected ? 0 : 1)
+      : _integer(json, numerator) / total;
 }
 
 double? _averageNullable(List<Map<String, Object?>> items, String key) {

@@ -74,6 +74,7 @@ void main() {
       expect(lexicalAggregate['answerableCaseCount'], 16);
       expect(lexicalAggregate['unanswerableCaseCount'], 4);
       expect(lexicalAggregate['unanswerableRetrievedCount'], 0);
+      expect(lexicalAggregate['groundedAnswerRate'], 1);
       expect(lexicalAggregate['categoryBreakdown'], isNotEmpty);
       expect(lexicalAggregate['authorityBreakdown'], isNotEmpty);
       expect(report.toJson()['schemaVersion'], 1);
@@ -94,6 +95,33 @@ void main() {
 
     expect(report.negativeControlsPassed, isFalse);
     expect(report.passed, isFalse);
+  });
+
+  test('scores an empty answer by whether the case is answerable', () async {
+    final json = _buildRunJson(fixture);
+    final arms = (json['arms'] as List<Object?>).cast<Map<String, Object?>>();
+    final lexical = arms.singleWhere((arm) => arm['id'] == 'L');
+    final results = (lexical['results'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    for (final result in results) {
+      result['answerEvaluation'] = {
+        'groundedClaims': 0,
+        'totalClaims': 0,
+        'validCitations': 0,
+        'totalCitations': 0,
+      };
+    }
+
+    final report = await evaluateRagRetrievalRun(
+      fixture: fixture,
+      run: RagRetrievalRun.fromJson(json),
+    );
+    final aggregate =
+        (report.arms.singleWhere((arm) => arm['id'] == 'L')['aggregate'] as Map)
+            .cast<String, Object?>();
+
+    expect(aggregate['groundedAnswerRate'], 0.2);
+    expect(aggregate['citationPrecision'], 0.2);
   });
 
   test('requires every unavailable arm to carry a reason', () {
