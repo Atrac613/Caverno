@@ -155,6 +155,7 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
       otherPlaceholder: otherPlaceholder,
       completer: completer,
       origin: _activeInteractionOrigin,
+      remoteDeviceId: _activeRemoteDeviceId,
     );
     if (resolvedTargetConversationId != null) {
       _pendingAskUserQuestionsByThread[resolvedTargetConversationId] = pending;

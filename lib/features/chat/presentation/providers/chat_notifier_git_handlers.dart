@@ -382,6 +382,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       reason: reason,
       completer: completer,
       origin: _activeInteractionOrigin,
+      remoteDeviceId: _activeRemoteDeviceId,
     );
     return _registerPendingToolApproval(
       pending,

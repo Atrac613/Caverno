@@ -1003,6 +1003,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       warningMessage: warningMessage,
       completer: completer,
       origin: _activeInteractionOrigin,
+      remoteDeviceId: _activeRemoteDeviceId,
     );
     return _registerPendingToolApproval(
       pending,
@@ -1039,6 +1040,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       reason: reason,
       completer: completer,
       origin: _activeInteractionOrigin,
+      remoteDeviceId: _activeRemoteDeviceId,
     );
     return _registerPendingToolApproval(
       pending,

@@ -568,13 +568,13 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         await _handleSendMessage(client, message);
       case 'cancelStreaming':
         ref.read(chatNotifierProvider.notifier).cancelStreaming();
-        client.sendSnapshot(id: message.id, payload: _buildSnapshot());
+        client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
       case 'resolveApproval':
         _handleResolveApproval(client, message);
       case 'resolveQuestion':
         _handleResolveQuestion(client, message);
       case 'requestSnapshot':
-        client.sendSnapshot(id: message.id, payload: _buildSnapshot());
+        client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
       case 'relayDelegationReady':
         await _handleRelayDelegationReady(client, message);
     }
@@ -647,7 +647,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         settings: _repository.loadServerSettings(),
         clearError: true,
       );
-      client.sendSnapshot(id: message.id, payload: _buildSnapshot());
+      client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
     } catch (error, stackTrace) {
       appLog(
         '[RemoteCodingRelay] delivery credential setup failed: '
@@ -750,7 +750,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       _bindAuthenticatedSession(client, deviceId: device.id);
       client.sendSnapshot(
         id: message.id,
-        payload: {..._buildSnapshot(), 'auth': client.session!.toAuthPayload()},
+        payload: {
+          ..._snapshotFor(client),
+          'auth': client.session!.toAuthPayload(),
+        },
       );
       return;
     }
@@ -802,7 +805,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     client.sendSnapshot(
       id: message.id,
       payload: {
-        ..._buildSnapshot(),
+        ..._snapshotFor(client),
         'auth': {
           ...client.session!.toAuthPayload(),
           'deviceToken': rawToken,
@@ -859,7 +862,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
           projectId: project.id,
           createIfMissing: true,
         );
-    client.sendSnapshot(id: message.id, payload: _buildSnapshot());
+    client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
   }
 
   void _handleSelectConversation(
@@ -895,7 +898,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     ref
         .read(conversationsNotifierProvider.notifier)
         .selectConversation(conversation.id);
-    client.sendSnapshot(id: message.id, payload: _buildSnapshot());
+    client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
   }
 
   void _handleCreateThread(
@@ -923,7 +926,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
           workspaceMode: projectWorkspaceMode,
           projectId: project.id,
         );
-    client.sendSnapshot(id: message.id, payload: _buildSnapshot());
+    client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
   }
 
   Future<void> _handleSendMessage(
@@ -958,9 +961,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
             languageCode: (message.payload['languageCode'] as String?) ?? 'en',
             bypassPlanMode: true,
             origin: ChatInteractionOrigin.remote,
+            remoteDeviceId: client.deviceId,
           ),
     );
-    client.sendSnapshot(id: message.id, payload: _buildSnapshot());
+    client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
   }
 
   void _handleResolveApproval(
@@ -969,14 +973,20 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   ) {
     final approvalId = (message.payload['approvalId'] as String?)?.trim() ?? '';
     final approved = message.payload['approved'] == true;
+    final chatState = ref.read(chatNotifierProvider);
+    if (!_canResolveApproval(chatState, approvalId, client.deviceId)) {
+      client.sendError(
+        id: message.id,
+        code: 'approval_not_found',
+        message: 'Remote approval request is no longer pending.',
+      );
+      return;
+    }
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
-    final resolved =
-        chatNotifier.resolveFileOperation(id: approvalId, approved: approved) ||
-        chatNotifier.resolveGitCommand(id: approvalId, approved: approved) ||
-        chatNotifier.resolveLocalCommand(
-          id: approvalId,
-          approval: LocalCommandApproval(approved: approved),
-        );
+    final resolved = chatNotifier.resolveRemoteApproval(
+      id: approvalId,
+      approved: approved,
+    );
     if (!resolved) {
       client.sendError(
         id: message.id,
@@ -1002,7 +1012,13 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     final chatState = ref.read(chatNotifierProvider);
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
     final pending = chatState.pendingAskUserQuestion;
-    if (pending == null || pending.id != questionId) {
+    if (pending == null ||
+        pending.id != questionId ||
+        !_canResolveInteraction(
+          origin: pending.origin,
+          ownerDeviceId: pending.remoteDeviceId,
+          authenticatedDeviceId: client.deviceId,
+        )) {
       client.sendError(
         id: message.id,
         code: 'question_not_found',
@@ -1059,7 +1075,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     return ref.read(codingProjectsNotifierProvider).findById(normalizedId);
   }
 
-  Map<String, dynamic> _buildSnapshot() {
+  Map<String, dynamic> _snapshotFor(_RemoteCodingSocketClient client) =>
+      _buildSnapshot(authenticatedDeviceId: client.deviceId);
+
+  Map<String, dynamic> _buildSnapshot({String? authenticatedDeviceId}) {
     final projectsState = ref.read(codingProjectsNotifierProvider);
     final conversationsState = ref.read(conversationsNotifierProvider);
     final chatState = ref.read(chatNotifierProvider);
@@ -1113,17 +1132,31 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       ),
       'isLoading': chatState.isLoading,
       'queuedCount': chatState.queuedMessages.length,
-      'pendingApproval': _pendingRemoteApproval(chatState)?.toJson(),
-      'pendingQuestion': _pendingRemoteQuestion(chatState)?.toJson(),
+      'pendingApproval': _pendingRemoteApproval(
+        chatState,
+        authenticatedDeviceId: authenticatedDeviceId,
+      )?.toJson(),
+      'pendingQuestion': _pendingRemoteQuestion(
+        chatState,
+        authenticatedDeviceId: authenticatedDeviceId,
+      )?.toJson(),
     };
   }
 
   /// Maps a remote-origin `ask_user_question` into the wire model. Mirrors
   /// [_pendingRemoteApproval]'s origin gate so a desktop-initiated question is
   /// not surfaced on a paired device.
-  RemoteCodingQuestion? _pendingRemoteQuestion(ChatState chatState) {
+  RemoteCodingQuestion? _pendingRemoteQuestion(
+    ChatState chatState, {
+    required String? authenticatedDeviceId,
+  }) {
     final pending = chatState.pendingAskUserQuestion;
-    if (pending == null || pending.origin != ChatInteractionOrigin.remote) {
+    if (pending == null ||
+        !_canResolveInteraction(
+          origin: pending.origin,
+          ownerDeviceId: pending.remoteDeviceId,
+          authenticatedDeviceId: authenticatedDeviceId,
+        )) {
       return null;
     }
     return RemoteCodingQuestion(
@@ -1146,9 +1179,17 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     );
   }
 
-  RemoteCodingApproval? _pendingRemoteApproval(ChatState chatState) {
+  RemoteCodingApproval? _pendingRemoteApproval(
+    ChatState chatState, {
+    required String? authenticatedDeviceId,
+  }) {
     final file = chatState.pendingFileOperation;
-    if (file != null && file.origin == ChatInteractionOrigin.remote) {
+    if (file != null &&
+        _canResolveInteraction(
+          origin: file.origin,
+          ownerDeviceId: file.remoteDeviceId,
+          authenticatedDeviceId: authenticatedDeviceId,
+        )) {
       return RemoteCodingApproval(
         id: file.id,
         kind: RemoteCodingApprovalKind.file,
@@ -1160,7 +1201,12 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     }
 
     final local = chatState.pendingLocalCommand;
-    if (local != null && local.origin == ChatInteractionOrigin.remote) {
+    if (local != null &&
+        _canResolveInteraction(
+          origin: local.origin,
+          ownerDeviceId: local.remoteDeviceId,
+          authenticatedDeviceId: authenticatedDeviceId,
+        )) {
       return RemoteCodingApproval(
         id: local.id,
         kind: RemoteCodingApprovalKind.localCommand,
@@ -1174,7 +1220,12 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     }
 
     final git = chatState.pendingGitCommand;
-    if (git != null && git.origin == ChatInteractionOrigin.remote) {
+    if (git != null &&
+        _canResolveInteraction(
+          origin: git.origin,
+          ownerDeviceId: git.remoteDeviceId,
+          authenticatedDeviceId: authenticatedDeviceId,
+        )) {
       return RemoteCodingApproval(
         id: git.id,
         kind: RemoteCodingApprovalKind.gitCommand,
@@ -1186,6 +1237,55 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     }
 
     return null;
+  }
+
+  bool _canResolveApproval(
+    ChatState chatState,
+    String approvalId,
+    String? authenticatedDeviceId,
+  ) {
+    final file = chatState.pendingFileOperation;
+    if (file != null && file.id == approvalId) {
+      return _canResolveInteraction(
+        origin: file.origin,
+        ownerDeviceId: file.remoteDeviceId,
+        authenticatedDeviceId: authenticatedDeviceId,
+      );
+    }
+    final local = chatState.pendingLocalCommand;
+    if (local != null && local.id == approvalId) {
+      return _canResolveInteraction(
+        origin: local.origin,
+        ownerDeviceId: local.remoteDeviceId,
+        authenticatedDeviceId: authenticatedDeviceId,
+      );
+    }
+    final git = chatState.pendingGitCommand;
+    if (git != null && git.id == approvalId) {
+      return _canResolveInteraction(
+        origin: git.origin,
+        ownerDeviceId: git.remoteDeviceId,
+        authenticatedDeviceId: authenticatedDeviceId,
+      );
+    }
+    return false;
+  }
+
+  bool _canResolveInteraction({
+    required ChatInteractionOrigin origin,
+    required String? ownerDeviceId,
+    required String? authenticatedDeviceId,
+  }) {
+    final owner = ownerDeviceId?.trim() ?? '';
+    final authenticated = authenticatedDeviceId?.trim() ?? '';
+    if (origin != ChatInteractionOrigin.remote ||
+        owner.isEmpty ||
+        owner != authenticated) {
+      return false;
+    }
+    return state.settings.pairedDevices.any(
+      (device) => device.id == authenticated && device.tokenHash.isNotEmpty,
+    );
   }
 
   Map<String, dynamic> _projectToJson(CodingProject project) => {
@@ -1205,9 +1305,8 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
 
   void _broadcastSnapshot(String type) {
     if (_clients.isEmpty) return;
-    final payload = _buildSnapshot();
     for (final client in _clients.where((client) => client.isAuthenticated)) {
-      client.send(type: type, payload: payload);
+      client.send(type: type, payload: _snapshotFor(client));
     }
   }
 
