@@ -47,6 +47,7 @@ Future<RagRetrievalReport> runRagAnswerBaseline(
   );
   final factCatalog = buildRagFactCatalog(fixture);
   for (final armId in const ['NONE', 'L', 'FULL']) {
+    stderr.writeln('Measuring answer arm $armId...');
     final arm = arms.singleWhere((item) => item['id'] == armId);
     final results = (arm['results'] as List<Object?>)
         .cast<Map<String, Object?>>();
@@ -194,6 +195,7 @@ final class RagAnswerClient {
 
   Future<RagAnswerResponse> answer(String prompt) async {
     final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 10);
     final stopwatch = Stopwatch()..start();
     try {
       final request = await client.postUrl(
@@ -207,14 +209,18 @@ final class RagAnswerClient {
         jsonEncode({
           'model': model,
           'temperature': 0,
-          'max_tokens': 4096,
+          'max_tokens': 2048,
+          'response_format': {'type': 'json_object'},
+          'chat_template_kwargs': {'enable_thinking': false},
           'messages': [
             {'role': 'user', 'content': prompt},
           ],
         }),
       );
       final response = await request.close();
-      final body = await utf8.decodeStream(response);
+      final body = await utf8
+          .decodeStream(response)
+          .timeout(const Duration(minutes: 3));
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw HttpException('HTTP ${response.statusCode}: $body');
       }
