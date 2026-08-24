@@ -979,7 +979,7 @@ abstract class AppSettings with _$AppSettings {
     // behaviour (follow the primary).
     @Default('') String embeddingsEndpointId,
     @Default(false) bool showMemoryUpdates,
-    @Default(true) bool enableLlmSessionLogs,
+    @Default(false) bool enableLlmSessionLogs,
     @Default(true) bool feedbackUploadEnabled,
     @Default(defaultFeedbackEndpointUrl) String feedbackEndpointUrl,
     @Default('') String feedbackEndpointAuthToken,

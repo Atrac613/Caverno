@@ -661,7 +661,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   embeddingsModel: json['embeddingsModel'] as String? ?? '',
   embeddingsEndpointId: json['embeddingsEndpointId'] as String? ?? '',
   showMemoryUpdates: json['showMemoryUpdates'] as bool? ?? false,
-  enableLlmSessionLogs: json['enableLlmSessionLogs'] as bool? ?? true,
+  enableLlmSessionLogs: json['enableLlmSessionLogs'] as bool? ?? false,
   feedbackUploadEnabled: json['feedbackUploadEnabled'] as bool? ?? true,
   feedbackEndpointUrl:
       json['feedbackEndpointUrl'] as String? ?? defaultFeedbackEndpointUrl,

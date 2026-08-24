@@ -11,6 +11,17 @@ void main() {
   const llmSessionLogsDefaultOnMigrationKey =
       'migration.enable_llm_session_logs_default_on.v1';
 
+  test('defaults session logging off when no settings exist', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    final prefs = await SharedPreferences.getInstance();
+    final loaded = SettingsRepository(prefs).load();
+
+    expect(loaded.enableLlmSessionLogs, isFalse);
+    expect(prefs.getString(settingsKey), isNull);
+    expect(prefs.getBool(llmSessionLogsDefaultOnMigrationKey), isNull);
+  });
+
   test('migrates legacy saved session log default to enabled', () async {
     final legacySettings = AppSettings.defaults().toJson()
       ..remove('enableLlmSessionLogs');
@@ -46,6 +57,25 @@ void main() {
     final persistedJson =
         jsonDecode(prefs.getString(settingsKey)!) as Map<String, dynamic>;
     expect(persistedJson['enableLlmSessionLogs'], isFalse);
+    expect(prefs.getBool(llmSessionLogsDefaultOnMigrationKey), isNull);
+  });
+
+  test('preserves an explicit session log opt-in without a marker', () async {
+    final optedInSettings = AppSettings.defaults()
+        .copyWith(enableLlmSessionLogs: true)
+        .toJson();
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      settingsKey: jsonEncode(optedInSettings),
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    final loaded = SettingsRepository(prefs).load();
+
+    expect(loaded.enableLlmSessionLogs, isTrue);
+    await Future<void>.delayed(Duration.zero);
+    final persistedJson =
+        jsonDecode(prefs.getString(settingsKey)!) as Map<String, dynamic>;
+    expect(persistedJson['enableLlmSessionLogs'], isTrue);
     expect(prefs.getBool(llmSessionLogsDefaultOnMigrationKey), isNull);
   });
 

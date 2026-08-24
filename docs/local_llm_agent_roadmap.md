@@ -5563,9 +5563,9 @@ Slice plan:
    owner-only modes to session and app log directories and migrates current and
    rotated files before append. **SEC4.6k-B (P1 follow-up, completed
    2026-08-24)** recursively redacts structured HTTP/stdio MCP diagnostics and
-   omits response and stderr bodies. **SEC4.6k-C (P1 follow-up)** defaults
-   session logging off for new installs while preserving explicit and migrated
-   existing choices.
+   omits response and stderr bodies. **SEC4.6k-C (P1 follow-up, completed
+   2026-08-24)** defaults session logging off for new installs while preserving
+   explicit and migrated existing choices.
 7. **SEC4.7 — Supply-chain and release hardening (P1).** Pin GitHub Actions to
    immutable commits, minimize write credentials, pin automation tool versions,
    monitor npm dependencies, add the Gradle distribution checksum, and fail

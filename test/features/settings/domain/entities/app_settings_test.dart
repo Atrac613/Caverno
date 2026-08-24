@@ -757,16 +757,27 @@ void main() {
     expect(decoded.chatApprovalMode, ToolApprovalMode.defaultPermissions);
   });
 
-  test('defaults LLM session logs to enabled and persists opt out', () {
-    expect(AppSettings.defaults().enableLlmSessionLogs, isTrue);
+  test('defaults LLM session logs to disabled and persists opt in', () {
+    expect(AppSettings.defaults().enableLlmSessionLogs, isFalse);
 
     final settings = AppSettings.defaults().copyWith(
-      enableLlmSessionLogs: false,
+      enableLlmSessionLogs: true,
     );
 
     final decoded = AppSettings.fromJson(
       jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
     );
+
+    expect(decoded.enableLlmSessionLogs, isTrue);
+  });
+
+  test('missing session log field defaults off outside stored migration', () {
+    final importedJson =
+        jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
+            as Map<String, dynamic>
+          ..remove('enableLlmSessionLogs');
+
+    final decoded = AppSettings.fromJson(importedJson);
 
     expect(decoded.enableLlmSessionLogs, isFalse);
   });

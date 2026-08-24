@@ -6,8 +6,8 @@ Reviewed revision: `a3d35fc9e592`.
 
 ## Decision
 
-SA-19 through SA-21 were remediated on 2026-08-24. SA-22 and SA-23 remain
-independent defense-in-depth slices.
+SA-19 through SA-22 were remediated on 2026-08-24. SA-23 remains an independent
+defense-in-depth slice.
 
 This review extends the point-in-time audit in
 `docs/security_audit_2026-08-14.md`. It does not renumber or rewrite that
@@ -37,7 +37,7 @@ performed.
 | SA-19 | High | Confirmed source path; activation depends on Full Access or approval | Opaque native-shell commands can compute an out-of-project write target after the lexical fence | SEC4.4g |
 | SA-20 | High | Confirmed source path | Active HTML Preview content can read served project files and use unrestricted subresource egress | SEC4.3e |
 | SA-21 | Medium | Remediated 2026-08-24 | MCP HTTP, MCP stdio, and compressed QR inputs lacked complete pre-parse resource limits | SEC4.3f |
-| SA-22 | Medium | Partially remediated; source path and local permission inspection | Owner-only log storage and structured MCP diagnostic redaction completed; new installations still default session logging on | SEC4.6k |
+| SA-22 | Medium | Remediated 2026-08-24 | Sensitive diagnostic storage lacked owner-only permissions, structured MCP redaction, and a privacy-preserving new-install default | SEC4.6k |
 | SA-23 | Low | Confirmed authorization check gap; identifier disclosure was not found | Remote Coding resolves pending interactions by ID without rechecking origin or device ownership | SEC4.5g / RC1 |
 
 No unsafe object-instantiation primitive was found. The deserialization risk in
@@ -182,7 +182,9 @@ app/session log directories to `0700`, migrates current and rotated logs to
 `0600`, and secures empty new files before append. SEC4.6k-B recursively
 redacts HTTP/stdio MCP diagnostics, suppresses session IDs and process
 arguments, and replaces HTTP response and stdio stderr bodies with size
-metadata. The new-install logging default remains open in SEC4.6k-C.
+metadata. SEC4.6k-C defaults session logging off when no settings exist while
+preserving explicit saved values and the legacy missing-field default-on
+migration. SA-22 is closed.
 
 Evidence:
 
@@ -249,8 +251,8 @@ devices, reconnects, and the documented same-device or cross-device policy.
 | 1 | SEC4.4g opaque local-command authority | done 2026-08-24 | Closed SA-19 for unrestricted local commands |
 | 2 | SEC4.3e HTML Preview active-content containment | done 2026-08-24 | Closed SA-20 for HTML Preview |
 | 3 | SEC4.3f application-owned deserialization limits | done 2026-08-24 | Closed SA-21 across MCP HTTP/stdio, JSON/content, and settings QR boundaries |
-| 4 | SEC4.6k sensitive diagnostic storage | in progress; A/B done | Local data protection |
-| 5 | SEC4.5g / RC1 remote interaction ownership | later | Authorization defense in depth |
+| 4 | SEC4.6k sensitive diagnostic storage | done 2026-08-24 | Local data protection |
+| 5 | SEC4.5g / RC1 remote interaction ownership | next | Authorization defense in depth |
 
 Create one task document from `docs/codex_task_template.md` per slice. Do not
 combine the two High severity fixes or mix any of these slices with remaining
