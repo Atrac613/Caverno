@@ -183,7 +183,7 @@ structurally unmotivated to build:
 | Local LLM | LL38 | done | S-M | LL31, LL33 | Mid-turn interruption (steering): an opt-in `interrupt: true` send joins the running turn instead of queueing behind it. Committed into the turn history at the top of `_prepareMessagesForLLM`, so every request path (native tools, content-tag tools, plain streaming) carries it without a per-site injection; rules in `TurnSteeringPolicy`, per-owner state in `TurnSteeringRegistry`, uncarried steers returned to `ThreadScopedMessageQueue` by the turn release scope. Ground-truth live canary with a queued control arm. |
 | Local LLM | LL39 | done | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
-| Retrieval | RAG1 | next | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract before production code or ranking changes. |
+| Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument and record a RAG2 No-Go because every strong retrieval control returns evidence for 4/4 no-answer cases. |
 | Retrieval | RAG2 | later | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects and an incremental SQLite/FTS5 index over active-project code and Markdown. |
 | Retrieval | RAG3 | later | M | RAG2, LL5, F6, LL39 | Bounded local vector retrieval, weighted RRF, context budgeting, and an active-project `search_knowledge` tool. |
 | Retrieval | RAG4 | blocked | M | RAG1, RAG3, HOOK1, SEC1, SEC2, agent-kb provenance | Federate agent-kb memories and wiki pages without copying its raw archive or database into Caverno. Blocked upstream: `kb_search` exposes no timestamp, wiki hits carry no confidence or source agent, and archiving rejects any agent outside `{claude, codex}`. |
@@ -1179,7 +1179,7 @@ discussion.
 
 ### RAG1: Retrieval Evaluation Contract
 
-Status: `next`
+Status: `done` — completion audit: `docs/rag1_completion_audit_2026-08-25.md`.
 
 Scope:
 - Add a versioned mini-repository, query/qrels/answer-key schemas, and
@@ -1206,10 +1206,41 @@ Acceptance criteria:
 - A negative control passes: a deliberately broken arm (empty index, shuffled
   ranking, stubbed-out fusion) makes the suite fail. An instrument that cannot
   detect a known-bad retriever is never reported as green.
-- Downstream gates are expressed at the seed's resolution. A 20-case seed moves
-  Recall@K in five-point steps, so comparative tolerances are written as case
-  counts, never as sub-case percentages.
+- Downstream gates are expressed at the seed's actual resolution. The seed has
+  16 answerable cases, so whole-case Hit@K changes by 6.25 percentage points;
+  its four no-answer cases move false-positive rate by 25 points. Comparative
+  tolerances are written as case counts, never as sub-case percentages.
 - Production retrieval behavior is unchanged in this milestone.
+
+Initial implementation slice:
+- `tool/rag_retrieval_eval.dart` defines versioned fixture, run, and report
+  schemas and scores precomputed rankings without a production retrieval path.
+- `tool/fixtures/rag_retrieval_eval/` provides the content-hashed mini
+  repository and deterministic 20-case seed across all required categories and
+  authority modes.
+- The evaluator distinguishes `not_available` from zero, requires
+  reproducibility and resource metadata, attributes Japanese lexical misses,
+  and reports retrieval, grounding, citation, latency, token, and
+  unanswerable-case metrics.
+- `test/tool/rag_retrieval_eval_test.dart` proves metric behavior, fixture/hash
+  validation, deterministic JSON/Markdown output, unavailable-arm handling,
+  and the mandatory empty-ranking negative control.
+- `tool/rag_retrieval_baseline.dart` now captures real `unicode61` lexical,
+  `NONE`, and small-corpus `FULL` rankings, pre-executes a distinct warm pass,
+  records RSS/token-estimation/build identity, and preserves unavailable vector
+  and agent-kb arms without inventing zero scores.
+- Reports expose exact answerable hit counts, no-answer retrieval counts,
+  lexical miss reasons, and category/authority breakdowns alongside aggregate
+  metrics. The earlier five-point resolution statement incorrectly counted the
+  four no-answer cases as retrieval qrels and is corrected above.
+- `test/tool/rag_retrieval_baseline_test.dart` covers corpus decoding, FTS5
+  ranking, Japanese miss attribution, cold/warm capture, control arms, and
+  report artifact generation.
+- Contract: `docs/rag1_retrieval_eval_contract.md`.
+- Remaining before completion: capture checked cold/warm baseline evidence,
+  review lexical misses and authority handling, measure answer/citation quality,
+  then record explicit availability outcomes for `V`, `H`, `AK`, and `H+AK`.
+- Remaining-task plan: `docs/rag1_remaining_tasks.md`.
 
 Promotion gate:
 - RAG2 stays `later` until lexical misses, the metric policy version, and the
