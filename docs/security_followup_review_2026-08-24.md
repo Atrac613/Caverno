@@ -6,9 +6,8 @@ Reviewed revision: `a3d35fc9e592`.
 
 ## Decision
 
-SA-19 and SA-20 were remediated on 2026-08-24. SA-21 through SA-23 remain
-independent defense-in-depth slices and must not be folded into either High
-severity fix.
+SA-19 through SA-21 were remediated on 2026-08-24. SA-22 and SA-23 remain
+independent defense-in-depth slices.
 
 This review extends the point-in-time audit in
 `docs/security_audit_2026-08-14.md`. It does not renumber or rewrite that
@@ -37,7 +36,7 @@ performed.
 |---|---|---|---|---|
 | SA-19 | High | Confirmed source path; activation depends on Full Access or approval | Opaque native-shell commands can compute an out-of-project write target after the lexical fence | SEC4.4g |
 | SA-20 | High | Confirmed source path | Active HTML Preview content can read served project files and use unrestricted subresource egress | SEC4.3e |
-| SA-21 | Medium | Confirmed source path | MCP HTTP, MCP stdio, and compressed QR inputs lack complete pre-parse resource limits | SEC4.3f |
+| SA-21 | Medium | Remediated 2026-08-24 | MCP HTTP, MCP stdio, and compressed QR inputs lacked complete pre-parse resource limits | SEC4.3f |
 | SA-22 | Medium | Confirmed source path and local permission inspection | Sensitive session and debug logs are created without owner-only modes, while string logging can bypass structured redaction | SEC4.6k |
 | SA-23 | Low | Confirmed authorization check gap; identifier disclosure was not found | Remote Coding resolves pending interactions by ID without rechecking origin or device ownership | SEC4.5g / RC1 |
 
@@ -170,8 +169,11 @@ and existing transport compatibility tests pass. SEC4.3f-B adds a 1 MiB
 pre-newline stdout/stderr ceiling that terminates the child on violation, caps
 HTTP/SSE responses at 32 JSON documents, and caps returned tool text at 524,288
 characters across HTTP and stdio. Never-newline, stderr, plain/SSE
-document-count, exact-boundary, and aggregate-content tests pass. SA-21 remains
-open only for SEC4.3f-C settings QR compressed-input and expansion limits.
+document-count, exact-boundary, and aggregate-content tests pass. SEC4.3f-C
+rejects Base64 text beyond the derived compressed budget before decoding,
+rejects compressed input over 256 KiB, and caps chunked gzip output at 1 MiB
+before UTF-8 or JSON decoding. Compressed-input, high-expansion, exact-boundary,
+generation, and malformed-input tests pass. SA-21 is closed.
 
 ## SA-22: Sensitive Diagnostic Storage
 
@@ -239,8 +241,8 @@ devices, reconnects, and the documented same-device or cross-device policy.
 |---|---|---|---|
 | 1 | SEC4.4g opaque local-command authority | done 2026-08-24 | Closed SA-19 for unrestricted local commands |
 | 2 | SEC4.3e HTML Preview active-content containment | done 2026-08-24 | Closed SA-20 for HTML Preview |
-| 3 | SEC4.3f application-owned deserialization limits | current; MCP HTTP/stdio and JSON/content limits done 2026-08-24 | Next: settings QR compressed-input and expansion bounds |
-| 4 | SEC4.6k sensitive diagnostic storage | later | Local data protection |
+| 3 | SEC4.3f application-owned deserialization limits | done 2026-08-24 | Closed SA-21 across MCP HTTP/stdio, JSON/content, and settings QR boundaries |
+| 4 | SEC4.6k sensitive diagnostic storage | next | Local data protection |
 | 5 | SEC4.5g / RC1 remote interaction ownership | later | Authorization defense in depth |
 
 Create one task document from `docs/codex_task_template.md` per slice. Do not
