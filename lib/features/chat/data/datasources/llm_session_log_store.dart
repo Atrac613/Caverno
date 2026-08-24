@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../../../../core/constants/build_info.dart';
 import '../../../../core/security/sensitive_data_redactor.dart';
+import '../../../../core/security/sensitive_file_permissions.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
@@ -268,6 +269,10 @@ class LlmSessionLogStore {
     LlmSessionLogRetentionPolicy? retentionPolicy,
   }) : _rootDirectoryProvider =
            rootDirectoryProvider ?? _defaultRootDirectoryProvider,
+       _hardenRootParent =
+           rootDirectoryProvider == null &&
+           (Platform.environment[directoryEnvironmentKey]?.trim().isEmpty ??
+               true),
        _retentionPolicy =
            retentionPolicy ?? LlmSessionLogRetentionPolicy.fromEnvironment(),
        _writesEnabled = writesEnabledFor(
@@ -277,9 +282,11 @@ class LlmSessionLogStore {
        );
 
   final Future<Directory> Function() _rootDirectoryProvider;
+  final bool _hardenRootParent;
   final LlmSessionLogRetentionPolicy _retentionPolicy;
   final bool _writesEnabled;
   Future<void> _writeTail = Future<void>.value();
+  final Map<String, Future<void>> _permissionPreparations = {};
 
   static const schemaName = 'caverno_llm_session_log_entry';
   // v2 adds the `build` field (git commit/dirty/builtAt provenance).
@@ -654,6 +661,10 @@ class LlmSessionLogStore {
     );
     if (create) {
       await workspaceDirectory.create(recursive: true);
+      await _permissionPreparations.putIfAbsent(
+        workspaceDirectory.path,
+        () => _prepareDirectoryPermissions(root, workspaceDirectory),
+      );
     }
     final sessionId = context.sessionId.trim().isEmpty
         ? _fallbackSessionId
@@ -838,6 +849,31 @@ class LlmSessionLogStore {
   }) async {
     await _deleteExpiredLogs(file.parent, now);
     await _rotateIfNeeded(file, incomingBytes: incomingBytes);
+    if (!await file.exists()) {
+      await file.create();
+    }
+    await SensitiveFilePermissions.ownerOnlyFile(file);
+  }
+
+  Future<void> _prepareDirectoryPermissions(
+    Directory root,
+    Directory workspaceDirectory,
+  ) async {
+    final rootParentSegments = root.parent.uri.pathSegments.where(
+      (segment) => segment.isNotEmpty,
+    );
+    if (_hardenRootParent &&
+        rootParentSegments.isNotEmpty &&
+        rootParentSegments.last == '.caverno') {
+      await SensitiveFilePermissions.ownerOnlyDirectory(root.parent);
+    }
+    await SensitiveFilePermissions.ownerOnlyDirectory(root);
+    await SensitiveFilePermissions.ownerOnlyDirectory(workspaceDirectory);
+    await for (final entity in workspaceDirectory.list(followLinks: false)) {
+      if (entity is File && _isSessionLogFile(entity)) {
+        await SensitiveFilePermissions.ownerOnlyFile(entity);
+      }
+    }
   }
 
   Future<void> _deleteExpiredLogs(Directory directory, DateTime now) async {

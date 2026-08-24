@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:caverno/core/security/sensitive_file_permissions.dart';
 import 'package:caverno/core/utils/app_log_file.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -79,6 +80,22 @@ private-key-material
 
     expect(nested.existsSync(), isTrue);
     expect(logFiles(nested), hasLength(1));
+  });
+
+  test('hardens the log directory and existing and new log files', () async {
+    if (!SensitiveFilePermissions.isSupported) return;
+
+    final existing = File('${tempDir.path}/2999-01-01.log')
+      ..writeAsStringSync('existing\n');
+    expect((await Process.run('chmod', ['755', tempDir.path])).exitCode, 0);
+    expect((await Process.run('chmod', ['644', existing.path])).exitCode, 0);
+
+    AppLogFile.forDirectory(tempDir).write('fresh');
+
+    expect(FileStat.statSync(tempDir.path).mode & 0x1ff, 0x1c0);
+    for (final file in logFiles(tempDir)) {
+      expect(FileStat.statSync(file.path).mode & 0x1ff, 0x180);
+    }
   });
 
   test('an unusable destination never throws', () {

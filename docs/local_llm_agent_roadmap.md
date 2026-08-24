@@ -5559,9 +5559,11 @@ Slice plan:
    support artifacts, preserve session-log opt-out, fail closed after
    authoritative drift migration, apply owner-only log permissions, bind
    attachment deletion to conversations, and exclude private stores from
-   Android backup. **SEC4.6k (P1 follow-up)** completes owner-only modes for
-   session and app logs, migrates rotated files, replaces string-concatenated
-   structured diagnostics, and defaults session logging off for new installs.
+   Android backup. **SEC4.6k-A (P1 follow-up, completed 2026-08-24)** applies
+   owner-only modes to session and app log directories and migrates current and
+   rotated files before append. **SEC4.6k-B/C (P1 follow-up)** replace
+   string-concatenated structured diagnostics and default session logging off
+   for new installs while preserving an explicit existing choice.
 7. **SEC4.7 — Supply-chain and release hardening (P1).** Pin GitHub Actions to
    immutable commits, minimize write credentials, pin automation tool versions,
    monitor npm dependencies, add the Gradle distribution checksum, and fail

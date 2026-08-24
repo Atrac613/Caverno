@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../security/sensitive_data_redactor.dart';
+import '../security/sensitive_file_permissions.dart';
 
 /// Debug-build file sink for [appLog], at `~/.caverno/app_logs/<date>.log`.
 ///
@@ -63,8 +64,13 @@ class AppLogFile {
       return null;
     }
     directory.createSync(recursive: true);
+    _preparePermissions(directory);
     _pruneExpired(directory, date);
     final file = File('${directory.path}/${_dateStamp(date)}.log');
+    if (!file.existsSync()) {
+      file.createSync();
+    }
+    SensitiveFilePermissions.ownerOnlyFileSync(file);
     _file = file;
     _fileDate = date;
     return file;
@@ -78,6 +84,27 @@ class AppLogFile {
     final home = Platform.environment['HOME']?.trim();
     if (home == null || home.isEmpty) return null;
     return Directory('$home/.caverno/app_logs');
+  }
+
+  void _preparePermissions(Directory directory) {
+    final environmentOverride = Platform.environment['CAVERNO_APP_LOG_DIR']
+        ?.trim();
+    final usesDefaultDirectory =
+        _directoryOverride == null &&
+        (environmentOverride == null || environmentOverride.isEmpty);
+    if (usesDefaultDirectory &&
+        directory.parent.uri.pathSegments
+                .where((segment) => segment.isNotEmpty)
+                .lastOrNull ==
+            '.caverno') {
+      SensitiveFilePermissions.ownerOnlyDirectorySync(directory.parent);
+    }
+    SensitiveFilePermissions.ownerOnlyDirectorySync(directory);
+    for (final entity in directory.listSync(followLinks: false)) {
+      if (entity is File && entity.path.endsWith('.log')) {
+        SensitiveFilePermissions.ownerOnlyFileSync(entity);
+      }
+    }
   }
 
   void _pruneExpired(Directory directory, DateTime today) {

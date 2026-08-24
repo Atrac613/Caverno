@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/security/sensitive_file_permissions.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
@@ -24,6 +25,44 @@ void main() {
     tearDown(() async {
       if (tempDir.existsSync()) {
         await tempDir.delete(recursive: true);
+      }
+    });
+
+    test('hardens session directories and current and rotated files', () async {
+      if (!SensitiveFilePermissions.isSupported) return;
+
+      final workspace = Directory('${tempDir.path}/chat')
+        ..createSync(recursive: true);
+      final current = File('${workspace.path}/permission-test.jsonl')
+        ..writeAsStringSync('{"existing":true}\n');
+      final rotated = File('${current.path}.1')
+        ..writeAsStringSync('{"rotated":true}\n');
+      for (final path in [tempDir.path, workspace.path]) {
+        expect((await Process.run('chmod', ['755', path])).exitCode, 0);
+      }
+      for (final path in [current.path, rotated.path]) {
+        expect((await Process.run('chmod', ['644', path])).exitCode, 0);
+      }
+
+      final store = LlmSessionLogStore(
+        rootDirectoryProvider: () async => tempDir,
+      );
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.chat,
+        sessionId: 'permission-test',
+      );
+      await store.recordTurnExit(
+        context: context,
+        reason: 'completed',
+        noVisibleAnswer: false,
+        finalAnswerRecoveryDecision: 'not_needed',
+        at: DateTime(2026, 8, 24),
+      );
+
+      expect(FileStat.statSync(tempDir.path).mode & 0x1ff, 0x1c0);
+      expect(FileStat.statSync(workspace.path).mode & 0x1ff, 0x1c0);
+      for (final file in workspace.listSync().whereType<File>()) {
+        expect(FileStat.statSync(file.path).mode & 0x1ff, 0x180);
       }
     });
 
@@ -526,6 +565,11 @@ void main() {
           (await File('${file.path}.2').readAsLines()).single,
           contains('message 0'),
         );
+        if (SensitiveFilePermissions.isSupported) {
+          for (final path in [file.path, '${file.path}.1', '${file.path}.2']) {
+            expect(FileStat.statSync(path).mode & 0x1ff, 0x180);
+          }
+        }
       },
     );
 
