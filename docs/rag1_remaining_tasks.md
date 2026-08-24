@@ -31,7 +31,7 @@ Evidence:
 
 ## Task B: Checked Baseline Evidence
 
-Status: `in_progress` — Task A is complete; report aggregation is implemented.
+Status: `done`
 
 - Run cold and warm captures from a clean commit.
 - Produce deterministic run JSON plus evaluator JSON/Markdown reports.
@@ -41,6 +41,14 @@ Status: `in_progress` — Task A is complete; report aggregation is implemented.
   unanswerable false positive.
 - Record gates as whole-case counts: 16 answerable cases and four no-answer
   cases, rather than treating every seed case as a retrieval qrel.
+
+Evidence:
+
+- `docs/rag1_retrieval_baseline_2026-08-24.md`
+- Clean cold/warm captures from commit `875067d9` produced identical rankings.
+- `L` matched `NONE` at 0/16 answerable hits; `FULL` reached 14/16 but retrieved
+  content for 4/4 no-answer cases and consumed 10,520 estimated context tokens.
+- The empty negative control remained detectable.
 
 ## Task C: Answer And Citation Measurement
 
