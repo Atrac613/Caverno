@@ -5513,8 +5513,12 @@ Slice plan:
    **SEC4.3e (P0 follow-up, completed 2026-08-24)** restricts HTML Preview to
    declared assets and blocks active-content egress with response policy plus
    request interception;
-   and **SEC4.3f (P1 follow-up)** applies pre-parse response, line, document, and
-   decompression limits to application-owned MCP and settings QR inputs.
+   and **SEC4.3f (P1 follow-up, current)** applies pre-parse response, line,
+   document, and decompression limits to application-owned MCP and settings QR
+   inputs. **SEC4.3f-A (completed 2026-08-24)** bounds MCP HTTP responses before
+   decoding; **SEC4.3f-B (next)** owns stdio line/diagnostic and JSON document
+   and aggregate content limits; **SEC4.3f-C (later)** owns compressed and
+   decompressed settings QR limits.
 4. **SEC4.4 — Project and autonomous containment.** Split implementation into
    **SEC4.4a (P0, completed 2026-08-14)**, applying one canonical, symlink-aware fence to every
    approval-free read, **SEC4.4b (P1, mutation fence completed 2026-08-19)**,

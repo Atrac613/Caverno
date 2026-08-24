@@ -162,6 +162,13 @@ Minimal production patch:
 Exit evidence must cover declared-length, chunked, never-newline, excessive
 JSON-document, and compression-expansion cases.
 
+Remediation status (partially completed 2026-08-24): SEC4.3f-A replaces
+body-buffering MCP HTTP requests with bounded stream consumption. It rejects a
+declared or actual response over 1 MiB and enforces total and between-chunk idle
+deadlines before UTF-8 or JSON decoding. Declared-length, chunked, stalled-body,
+and existing transport compatibility tests pass. SA-21 remains open for
+SEC4.3f-B stdio/JSON limits and SEC4.3f-C settings QR expansion limits.
+
 ## SA-22: Sensitive Diagnostic Storage
 
 Evidence:
@@ -228,7 +235,7 @@ devices, reconnects, and the documented same-device or cross-device policy.
 |---|---|---|---|
 | 1 | SEC4.4g opaque local-command authority | done 2026-08-24 | Closed SA-19 for unrestricted local commands |
 | 2 | SEC4.3e HTML Preview active-content containment | done 2026-08-24 | Closed SA-20 for HTML Preview |
-| 3 | SEC4.3f application-owned deserialization limits | next | Availability hardening |
+| 3 | SEC4.3f application-owned deserialization limits | current; HTTP ingress done 2026-08-24 | Next: stdio and JSON limits, then QR expansion bounds |
 | 4 | SEC4.6k sensitive diagnostic storage | later | Local data protection |
 | 5 | SEC4.5g / RC1 remote interaction ownership | later | Authorization defense in depth |
 

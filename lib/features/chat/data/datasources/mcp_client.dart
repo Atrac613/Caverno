@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -26,17 +27,51 @@ abstract class McpClientBase {
   Future<void> dispose();
 }
 
+class McpResponseLimitException implements Exception {
+  const McpResponseLimitException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'McpResponseLimitException: $message';
+}
+
 class McpClient implements McpClientBase {
-  McpClient({required this.baseUrl, this.timeout = defaultTimeout});
+  McpClient({
+    required this.baseUrl,
+    this.timeout = defaultTimeout,
+    this.responseIdleTimeout = defaultResponseIdleTimeout,
+    this.maxResponseBodyBytes = defaultMaxResponseBodyBytes,
+    http.Client? httpClient,
+  }) : _httpClient = httpClient ?? http.Client(),
+       _ownsHttpClient = httpClient == null {
+    if (maxResponseBodyBytes <= 0) {
+      throw ArgumentError.value(
+        maxResponseBodyBytes,
+        'maxResponseBodyBytes',
+        'The MCP response byte limit must be positive.',
+      );
+    }
+    if (timeout <= Duration.zero || responseIdleTimeout <= Duration.zero) {
+      throw ArgumentError('MCP response timeouts must be positive.');
+    }
+  }
 
   /// `http.post` has no timeout of its own. A LAN server refuses fast when it
   /// is down, but a server reached over the internet simply never answers
   /// while the uplink is out, and a tool call made through it would hold the
   /// turn open indefinitely.
   static const Duration defaultTimeout = Duration(seconds: 60);
+  static const Duration defaultResponseIdleTimeout = Duration(seconds: 15);
+  static const int defaultMaxResponseBodyBytes = 1024 * 1024;
 
   final String baseUrl;
   final Duration timeout;
+  final Duration responseIdleTimeout;
+  final int maxResponseBodyBytes;
+  final http.Client _httpClient;
+  final bool _ownsHttpClient;
+  bool _disposed = false;
 
   @override
   String get identifier => baseUrl;
@@ -50,7 +85,9 @@ class McpClient implements McpClientBase {
 
   @override
   Future<void> dispose() async {
-    // HTTP client has no persistent resources to clean up.
+    if (_disposed) return;
+    _disposed = true;
+    if (_ownsHttpClient) _httpClient.close();
   }
 
   /// Initializes the MCP server and stores the session ID.
@@ -256,15 +293,16 @@ class McpClient implements McpClientBase {
     }
 
     try {
-      final response = await http
-          .post(Uri.parse(baseUrl), headers: headers, body: body)
-          .timeout(
-            timeout,
-            onTimeout: () => throw TimeoutException(
-              'MCP server did not respond within ${timeout.inSeconds}s '
-              'at $baseUrl.',
-            ),
-          );
+      if (_disposed) throw StateError('Client has been disposed');
+      final request = http.Request('POST', Uri.parse(baseUrl));
+      request.headers.addAll(headers);
+      request.body = body;
+      final response = await _sendAndReadBounded(request).timeout(
+        timeout,
+        onTimeout: () => throw TimeoutException(
+          'MCP server did not respond within ${timeout.inSeconds}s at $baseUrl.',
+        ),
+      );
       final utf8Body = utf8.decode(response.bodyBytes);
       return (response, utf8Body);
     } catch (e, stackTrace) {
@@ -272,6 +310,48 @@ class McpClient implements McpClientBase {
       appLog('[McpClient] stackTrace: $stackTrace');
       rethrow;
     }
+  }
+
+  Future<http.Response> _sendAndReadBounded(http.BaseRequest request) async {
+    final streamed = await _httpClient.send(request);
+    final declaredLength = streamed.contentLength;
+    if (declaredLength != null && declaredLength > maxResponseBodyBytes) {
+      throw McpResponseLimitException(
+        'MCP response declared $declaredLength bytes, exceeding the '
+        '$maxResponseBodyBytes byte limit.',
+      );
+    }
+
+    final bytes = BytesBuilder(copy: false);
+    var received = 0;
+    final boundedStream = streamed.stream.timeout(
+      responseIdleTimeout,
+      onTimeout: (sink) => sink.addError(
+        TimeoutException(
+          'MCP response produced no data for '
+          '${responseIdleTimeout.inMilliseconds}ms.',
+          responseIdleTimeout,
+        ),
+      ),
+    );
+    await for (final chunk in boundedStream) {
+      received += chunk.length;
+      if (received > maxResponseBodyBytes) {
+        throw McpResponseLimitException(
+          'MCP response exceeded the $maxResponseBodyBytes byte limit.',
+        );
+      }
+      bytes.add(chunk);
+    }
+    return http.Response.bytes(
+      bytes.takeBytes(),
+      streamed.statusCode,
+      request: request,
+      headers: streamed.headers,
+      isRedirect: streamed.isRedirect,
+      persistentConnection: streamed.persistentConnection,
+      reasonPhrase: streamed.reasonPhrase,
+    );
   }
 
   /// Helper for JSON decoding, including SSE-style responses and concatenated

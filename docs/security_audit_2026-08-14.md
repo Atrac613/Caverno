@@ -635,15 +635,16 @@ preconditions, minimal patches, and exit tests are maintained in
 |---|---|---|---|
 | SA-19 | High | Opaque native-shell commands can compute an out-of-project write target after the lexical fence | SEC4.4g |
 | SA-20 | High | Active HTML Preview content can read served project files and use unrestricted subresource egress | SEC4.3e |
-| SA-21 | Medium | MCP HTTP, MCP stdio, and compressed QR inputs lack complete pre-parse resource limits | SEC4.3f |
+| SA-21 | Medium | MCP HTTP is bounded before decoding; MCP stdio and compressed QR inputs still lack complete pre-parse resource limits | SEC4.3f |
 | SA-22 | Medium | Sensitive session and debug logs lack owner-only modes, and string diagnostics can bypass structured redaction | SEC4.6k |
 | SA-23 | Low | Remote Coding resolves pending interactions by ID without rechecking origin or device ownership | SEC4.5g, RC1 |
 
 SA-19 was remediated by SEC4.4g on 2026-08-24 with fresh, non-cacheable
 `opaque_host_write` authority for native-shell execution. SA-20 was remediated
 by SEC4.3e on 2026-08-24 with an entry-directory asset surface, restrictive CSP
-and response headers, and WebView request interception. SA-21 through SA-23
-remain separate follow-up slices and do not delay a build in which their
+and response headers, and WebView request interception. SEC4.3f-A bounded MCP
+HTTP ingress on 2026-08-24, but SA-21 through SA-23 remain separate follow-up
+slices and do not delay a build in which their
 affected features are absent or mechanically disabled under the risk-acceptance
 policy below.
 
@@ -731,7 +732,7 @@ Add negative coverage for:
 | P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (completed 2026-08-22) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
 | P1-3 | SEC4.6 data protection and lifecycle | SA-11, SA-13, SA-14, SA-15, SA-17, SA-18 | Secret-free storage/export, recursive redaction, opt-out, migration, backup, and deletion tests pass. |
 | P1-4 | SEC4.7 release supply-chain hardening | SA-16 | Immutable actions, pinned toolchain, checksum, dependency monitoring, and fail-closed release signing are enforced. |
-| P1-F1 | SEC4.3f application-owned deserialization limits | SA-21 | MCP HTTP/stdout and compressed settings imports reject oversized input before unbounded buffering or decoding. |
+| P1-F1 | SEC4.3f application-owned deserialization limits | SA-21 | SEC4.3f-A completed 2026-08-24: MCP HTTP rejects oversized or stalled input before decoding. MCP stdout/JSON and compressed settings imports remain open. |
 | P1-F2 | SEC4.6k sensitive diagnostic storage | SA-22 | New, existing, and rotated sensitive logs are owner-only, and structured secrets never cross a string-only redaction boundary. |
 | P2-F1 | SEC4.5g / RC1 remote interaction ownership | SA-23 | Resolution rechecks remote origin and enforces the documented same-device or cross-device authorization policy. |
 

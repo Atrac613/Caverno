@@ -193,5 +193,92 @@ void main() {
 
       expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
     });
+
+    test('rejects an oversized declared response before decoding', () async {
+      serverSub = server.listen((request) async {
+        request.response.headers.contentType = ContentType.json;
+        request.response.contentLength = 129;
+        request.response.write('x' * 129);
+        await request.response.close();
+      });
+      final client = McpClient(
+        baseUrl: endpoint.toString(),
+        maxResponseBodyBytes: 128,
+      );
+      addTearDown(client.dispose);
+
+      await expectLater(
+        client.listTools(),
+        throwsA(
+          isA<McpResponseLimitException>().having(
+            (error) => error.message,
+            'message',
+            contains('declared 129 bytes'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects a chunked response at the wire-byte ceiling', () async {
+      serverSub = server.listen((request) async {
+        request.response.headers.contentType = ContentType.json;
+        request.response.write('a' * 64);
+        await request.response.flush();
+        request.response.write('b' * 65);
+        await request.response.close();
+      });
+      final client = McpClient(
+        baseUrl: endpoint.toString(),
+        maxResponseBodyBytes: 128,
+      );
+      addTearDown(client.dispose);
+
+      await expectLater(
+        client.listTools(),
+        throwsA(
+          isA<McpResponseLimitException>().having(
+            (error) => error.message,
+            'message',
+            contains('exceeded the 128 byte limit'),
+          ),
+        ),
+      );
+    });
+
+    test('fails when a response stalls between chunks', () async {
+      serverSub = server.listen((request) async {
+        request.response.headers.contentType = ContentType.json;
+        request.response.write('{');
+        await request.response.flush();
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        try {
+          await request.response.close();
+        } on HttpException {
+          // The client intentionally closes the stalled response.
+        }
+      });
+      final client = McpClient(
+        baseUrl: endpoint.toString(),
+        timeout: const Duration(seconds: 2),
+        responseIdleTimeout: const Duration(milliseconds: 50),
+      );
+      addTearDown(client.dispose);
+
+      await expectLater(client.listTools(), throwsA(isA<TimeoutException>()));
+    });
+
+    test('rejects non-positive response bounds', () {
+      expect(
+        () => McpClient(baseUrl: endpoint.toString(), maxResponseBodyBytes: 0),
+        throwsArgumentError,
+      );
+      expect(
+        () => McpClient(
+          baseUrl: endpoint.toString(),
+          responseIdleTimeout: Duration.zero,
+        ),
+        throwsArgumentError,
+      );
+    });
   });
 }
