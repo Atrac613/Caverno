@@ -5,6 +5,9 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/utils/logger.dart';
+import 'mcp_response_limits.dart';
+
+export 'mcp_response_limits.dart' show McpResponseLimitException;
 
 /// Common interface for MCP clients regardless of transport.
 abstract class McpClientBase {
@@ -27,21 +30,14 @@ abstract class McpClientBase {
   Future<void> dispose();
 }
 
-class McpResponseLimitException implements Exception {
-  const McpResponseLimitException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => 'McpResponseLimitException: $message';
-}
-
 class McpClient implements McpClientBase {
   McpClient({
     required this.baseUrl,
     this.timeout = defaultTimeout,
     this.responseIdleTimeout = defaultResponseIdleTimeout,
     this.maxResponseBodyBytes = defaultMaxResponseBodyBytes,
+    this.maxJsonDocuments = defaultMaxJsonDocuments,
+    this.maxToolContentCharacters = defaultMaxToolContentCharacters,
     http.Client? httpClient,
   }) : _httpClient = httpClient ?? http.Client(),
        _ownsHttpClient = httpClient == null {
@@ -51,6 +47,9 @@ class McpClient implements McpClientBase {
         'maxResponseBodyBytes',
         'The MCP response byte limit must be positive.',
       );
+    }
+    if (maxJsonDocuments <= 0 || maxToolContentCharacters <= 0) {
+      throw ArgumentError('MCP response parse limits must be positive.');
     }
     if (timeout <= Duration.zero || responseIdleTimeout <= Duration.zero) {
       throw ArgumentError('MCP response timeouts must be positive.');
@@ -64,11 +63,15 @@ class McpClient implements McpClientBase {
   static const Duration defaultTimeout = Duration(seconds: 60);
   static const Duration defaultResponseIdleTimeout = Duration(seconds: 15);
   static const int defaultMaxResponseBodyBytes = 1024 * 1024;
+  static const int defaultMaxJsonDocuments = 32;
+  static const int defaultMaxToolContentCharacters = 512 * 1024;
 
   final String baseUrl;
   final Duration timeout;
   final Duration responseIdleTimeout;
   final int maxResponseBodyBytes;
+  final int maxJsonDocuments;
+  final int maxToolContentCharacters;
   final http.Client _httpClient;
   final bool _ownsHttpClient;
   bool _disposed = false;
@@ -269,11 +272,10 @@ class McpClient implements McpClientBase {
     }
 
     // Extract text results from the content array.
-    final content = result['content'] as List<dynamic>? ?? [];
-    final textContent = content
-        .where((c) => c['type'] == 'text')
-        .map((c) => c['text'] as String)
-        .join('\n');
+    final textContent = extractBoundedMcpTextContent(
+      result['content'],
+      maxCharacters: maxToolContentCharacters,
+    );
 
     appLog('[McpClient] Result length: ${textContent.length} chars');
     return textContent;
@@ -445,7 +447,12 @@ class McpClient implements McpClientBase {
           !normalizedPayload.startsWith('[')) {
         continue;
       }
-      jsonBodies.addAll(_splitJsonDocuments(normalizedPayload));
+      jsonBodies.addAll(
+        _splitJsonDocuments(
+          normalizedPayload,
+          existingDocumentCount: jsonBodies.length,
+        ),
+      );
     }
 
     if (jsonBodies.isEmpty) {
@@ -510,7 +517,10 @@ class McpClient implements McpClientBase {
     return null;
   }
 
-  List<String> _splitJsonDocuments(String source) {
+  List<String> _splitJsonDocuments(
+    String source, {
+    int existingDocumentCount = 0,
+  }) {
     final documents = <String>[];
     var index = 0;
 
@@ -518,6 +528,12 @@ class McpClient implements McpClientBase {
       index = _skipWhitespace(source, index);
       if (index >= source.length) {
         break;
+      }
+
+      if (existingDocumentCount + documents.length >= maxJsonDocuments) {
+        throw McpResponseLimitException(
+          'MCP response contained more than $maxJsonDocuments JSON documents.',
+        );
       }
 
       final current = source[index];

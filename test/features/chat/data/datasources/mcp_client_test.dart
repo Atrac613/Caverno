@@ -56,7 +56,10 @@ void main() {
         await request.response.close();
       });
 
-      final client = McpClient(baseUrl: endpoint.toString());
+      final client = McpClient(
+        baseUrl: endpoint.toString(),
+        maxJsonDocuments: 2,
+      );
       final tools = await client.listTools();
 
       expect(tools, hasLength(1));
@@ -267,6 +270,108 @@ void main() {
       await expectLater(client.listTools(), throwsA(isA<TimeoutException>()));
     });
 
+    test(
+      'rejects excess concatenated JSON documents before decoding',
+      () async {
+        serverSub = server.listen((request) async {
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(
+            '{"transport":"metadata"}'
+            '{"sequence":1}'
+            '{"jsonrpc":"2.0","id":1,"result":{}}',
+          );
+          await request.response.close();
+        });
+        final client = McpClient(
+          baseUrl: endpoint.toString(),
+          maxJsonDocuments: 2,
+        );
+        addTearDown(client.dispose);
+
+        await expectLater(
+          client.listTools(),
+          throwsA(
+            isA<McpResponseLimitException>().having(
+              (error) => error.message,
+              'message',
+              contains('more than 2 JSON documents'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test('rejects excess JSON documents across SSE events', () async {
+      serverSub = server.listen((request) async {
+        request.response.headers.contentType = ContentType(
+          'text',
+          'event-stream',
+          charset: 'utf-8',
+        );
+        request.response.write(
+          'data: {"transport":"metadata"}\n\n'
+          'data: {"sequence":1}\n\n'
+          'data: {"jsonrpc":"2.0","id":1,"result":{}}\n\n',
+        );
+        await request.response.close();
+      });
+      final client = McpClient(
+        baseUrl: endpoint.toString(),
+        maxJsonDocuments: 2,
+      );
+      addTearDown(client.dispose);
+
+      await expectLater(
+        client.listTools(),
+        throwsA(
+          isA<McpResponseLimitException>().having(
+            (error) => error.message,
+            'message',
+            contains('more than 2 JSON documents'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects excessive aggregate tool text content', () async {
+      serverSub = server.listen((request) async {
+        final requestBody = await utf8.decoder.bind(request).join();
+        final decoded = jsonDecode(requestBody) as Map<String, dynamic>;
+        request.response.headers.contentType = ContentType.json;
+        if (decoded['method'] == 'initialize') {
+          request.response.write(
+            '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{}}}',
+          );
+        } else if (decoded['method'] == 'notifications/initialized') {
+          request.response.write('{}');
+        } else {
+          request.response.write(
+            '{"jsonrpc":"2.0","id":2,"result":{"content":['
+            '{"type":"text","text":"abc"},'
+            '{"type":"text","text":"def"}'
+            ']}}',
+          );
+        }
+        await request.response.close();
+      });
+      final client = McpClient(
+        baseUrl: endpoint.toString(),
+        maxToolContentCharacters: 6,
+      );
+      addTearDown(client.dispose);
+
+      await expectLater(
+        client.callTool(name: 'oversized', arguments: const {}),
+        throwsA(
+          isA<McpResponseLimitException>().having(
+            (error) => error.message,
+            'message',
+            contains('tool text exceeded 6 characters'),
+          ),
+        ),
+      );
+    });
+
     test('rejects non-positive response bounds', () {
       expect(
         () => McpClient(baseUrl: endpoint.toString(), maxResponseBodyBytes: 0),
@@ -276,6 +381,17 @@ void main() {
         () => McpClient(
           baseUrl: endpoint.toString(),
           responseIdleTimeout: Duration.zero,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => McpClient(baseUrl: endpoint.toString(), maxJsonDocuments: 0),
+        throwsArgumentError,
+      );
+      expect(
+        () => McpClient(
+          baseUrl: endpoint.toString(),
+          maxToolContentCharacters: 0,
         ),
         throwsArgumentError,
       );

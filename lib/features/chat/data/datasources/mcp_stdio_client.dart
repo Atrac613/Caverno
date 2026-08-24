@@ -5,21 +5,48 @@ import 'dart:io';
 import '../../../../core/services/login_shell_environment.dart';
 import '../../../../core/utils/logger.dart';
 import 'mcp_client.dart';
+import 'mcp_response_limits.dart';
+
+typedef McpProcessStarter =
+    Future<Process> Function(
+      String command,
+      List<String> arguments,
+      Map<String, String> environment,
+    );
 
 /// MCP client that communicates with a server process via stdio (stdin/stdout).
 ///
 /// The child process receives JSON-RPC 2.0 requests on stdin (one per line)
 /// and writes JSON-RPC 2.0 responses on stdout (one per line).
 class McpStdioClient implements McpClientBase {
-  McpStdioClient({required this.command, this.args = const [], this.env});
+  McpStdioClient({
+    required this.command,
+    this.args = const [],
+    this.env,
+    this.maxLineBytes = defaultMaxLineBytes,
+    this.maxToolContentCharacters = defaultMaxToolContentCharacters,
+    McpProcessStarter? processStarter,
+  }) : _processStarter = processStarter ?? _startProcess {
+    if (maxLineBytes <= 0 || maxToolContentCharacters <= 0) {
+      throw ArgumentError('MCP stdio response limits must be positive.');
+    }
+  }
+
+  static const int defaultMaxLineBytes = 1024 * 1024;
+  static const int defaultMaxToolContentCharacters = 512 * 1024;
 
   final String command;
   final List<String> args;
   final Map<String, String>? env;
+  final int maxLineBytes;
+  final int maxToolContentCharacters;
+  final McpProcessStarter _processStarter;
 
   Process? _process;
   int _nextId = 1;
   bool _disposed = false;
+  Object? _terminalError;
+  StackTrace? _terminalStackTrace;
 
   final Map<int, Completer<Map<String, dynamic>>> _pending = {};
   StreamSubscription<String>? _stdoutSub;
@@ -45,7 +72,7 @@ class McpStdioClient implements McpClientBase {
       extra: env,
     );
     try {
-      _process = await Process.start(command, args, environment: mergedEnv);
+      _process = await _processStarter(command, args, mergedEnv);
     } on ProcessException catch (error) {
       throw ProcessException(
         error.executable,
@@ -59,23 +86,46 @@ class McpStdioClient implements McpClientBase {
     _process!.exitCode.then((code) {
       if (!_disposed) {
         appLog('[McpStdioClient] Process exited unexpectedly: code=$code');
-        _failAllPending('Process exited with code $code');
+        _recordTerminalFailure(
+          Exception('Process exited with code $code'),
+          StackTrace.current,
+        );
       }
     });
 
     // Parse stdout as newline-delimited JSON-RPC responses.
     _stdoutSub = _process!.stdout
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .listen(_handleStdoutLine);
+        .transform(
+          McpBoundedLineDecoder(
+            maxLineBytes: maxLineBytes,
+            streamName: 'MCP stdout',
+          ),
+        )
+        .listen(
+          _handleStdoutLine,
+          onError: (Object error, StackTrace stackTrace) {
+            _handleStreamFailure('stdout', error, stackTrace);
+          },
+          cancelOnError: true,
+        );
 
     // Log stderr for diagnostics.
     _stderrSub = _process!.stderr
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .listen((line) {
-          appLog('[McpStdioClient] stderr: $line');
-        });
+        .transform(
+          McpBoundedLineDecoder(
+            maxLineBytes: maxLineBytes,
+            streamName: 'MCP stderr',
+          ),
+        )
+        .listen(
+          (line) {
+            appLog('[McpStdioClient] stderr: $line');
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            _handleStreamFailure('stderr', error, stackTrace);
+          },
+          cancelOnError: true,
+        );
 
     // Send initialize request.
     final result = await _sendRequest(
@@ -129,11 +179,10 @@ class McpStdioClient implements McpClientBase {
     final result = response['result'] as Map<String, dynamic>?;
     if (result == null) return '';
 
-    final content = result['content'] as List<dynamic>? ?? [];
-    return content
-        .where((c) => c['type'] == 'text')
-        .map((c) => c['text'] as String)
-        .join('\n');
+    return extractBoundedMcpTextContent(
+      result['content'],
+      maxCharacters: maxToolContentCharacters,
+    );
   }
 
   @override
@@ -177,12 +226,32 @@ class McpStdioClient implements McpClientBase {
     }
   }
 
+  void _handleStreamFailure(
+    String streamName,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    appLog(
+      '[McpStdioClient] Fatal $streamName stream error: '
+      '${error.runtimeType}: $error',
+    );
+    _recordTerminalFailure(error, stackTrace);
+    _process?.kill();
+  }
+
   Future<Map<String, dynamic>> _sendRequest(
     String method, {
     Map<String, dynamic>? params,
   }) async {
     if (_disposed) throw StateError('Client has been disposed');
     if (_process == null) throw StateError('Process not started');
+    final terminalError = _terminalError;
+    if (terminalError != null) {
+      Error.throwWithStackTrace(
+        terminalError,
+        _terminalStackTrace ?? StackTrace.current,
+      );
+    }
 
     final id = _nextId++;
     final message = <String, dynamic>{
@@ -213,13 +282,26 @@ class McpStdioClient implements McpClientBase {
     _process!.stdin.writeln(encoded);
   }
 
-  void _failAllPending(String reason) {
+  void _failAllPending(String reason, {Object? error, StackTrace? stackTrace}) {
     for (final completer in _pending.values) {
       if (!completer.isCompleted) {
-        completer.completeError(Exception(reason));
+        completer.completeError(
+          error ?? Exception(reason),
+          stackTrace ?? StackTrace.current,
+        );
       }
     }
     _pending.clear();
+  }
+
+  void _recordTerminalFailure(Object error, StackTrace stackTrace) {
+    _terminalError ??= error;
+    _terminalStackTrace ??= stackTrace;
+    _failAllPending(
+      'MCP stdio transport failed',
+      error: _terminalError,
+      stackTrace: _terminalStackTrace,
+    );
   }
 
   String _describeStartFailure(ProcessException error) {
@@ -231,5 +313,13 @@ class McpStdioClient implements McpClientBase {
           'stdio MCP servers.';
     }
     return message;
+  }
+
+  static Future<Process> _startProcess(
+    String command,
+    List<String> arguments,
+    Map<String, String> environment,
+  ) {
+    return Process.start(command, arguments, environment: environment);
   }
 }
