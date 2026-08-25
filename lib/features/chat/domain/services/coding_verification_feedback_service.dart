@@ -9,12 +9,20 @@ import '../entities/tool_call_info.dart';
 import 'coding_diagnostic_feedback_service.dart';
 import 'coding_verification_evidence_contract.dart';
 import 'dart_project_tooling.dart';
+import 'verification_target_authority.dart';
 
 typedef CodingVerificationCommandRunner =
     Future<CodingVerificationCommandOutput> Function(
       CodingVerificationCommand command,
       Duration timeout,
     );
+
+/// Asks whether this run may execute targets the turn just wrote.
+///
+/// Absent means nobody can be asked -- an unattended run -- and those
+/// targets are withheld rather than executed.
+typedef VerificationExecutionAuthorizer =
+    Future<bool> Function(List<MutatedVerificationTarget> mutatedTargets);
 
 enum CodingVerificationTrigger { completionClaim, explicitRequest, quietPeriod }
 
@@ -48,13 +56,17 @@ class CodingVerificationCommandOutput {
   bool get ran => !timedOut && startError == null;
 }
 
-class CodingVerificationTargetBatch {
+class CodingVerificationTargetBatch
+    implements CodingVerificationTargetBatchView {
   const CodingVerificationTargetBatch({
     required this.packageRoot,
     required this.targets,
   });
 
+  @override
   final String packageRoot;
+
+  @override
   final List<String> targets;
 
   Map<String, dynamic> toJson({required String projectRoot}) {
@@ -284,11 +296,13 @@ class CodingVerificationFeedbackService {
     required Iterable<String> changedPaths,
     required CodingVerificationTrigger trigger,
     DateTime? now,
+    VerificationExecutionAuthorizer? authorizeMutatedTargets,
   }) async {
     final snapshot = await collectSnapshot(
       projectRoot: projectRoot,
       changedPaths: changedPaths,
       trigger: trigger,
+      authorizeMutatedTargets: authorizeMutatedTargets,
     );
     return CodingVerificationFeedbackRun(
       snapshot: snapshot,
@@ -415,6 +429,7 @@ class CodingVerificationFeedbackService {
     required String projectRoot,
     required Iterable<String> changedPaths,
     required CodingVerificationTrigger trigger,
+    VerificationExecutionAuthorizer? authorizeMutatedTargets,
   }) async {
     if (!CodingDiagnosticFeedbackService.isDesktopPlatform) {
       return null;
@@ -431,7 +446,24 @@ class CodingVerificationFeedbackService {
 
     final stopwatch = Stopwatch()..start();
     final attempts = <CodingVerificationCommandAttempt>[];
-    final targetBatches = _resolveTargetBatches(root, changedDartFiles);
+    var targetBatches = _resolveTargetBatches(root, changedDartFiles);
+    // A target this turn wrote is code this turn wrote: running it is an
+    // execution the model asked for indirectly, and SEC4.4g asks before one it
+    // asks for directly. Withheld rather than refused, so the tests that were
+    // already there still verify the change.
+    var withheldReason = 'no_test_target';
+    final mutatedTargets = VerificationTargetAuthority.mutatedTargets(
+      batches: targetBatches,
+      changedDartFiles: changedDartFiles,
+    );
+    if (mutatedTargets.isNotEmpty) {
+      final authorized =
+          await authorizeMutatedTargets?.call(mutatedTargets) ?? false;
+      if (!authorized) {
+        targetBatches = _withoutMutatedTargets(targetBatches, mutatedTargets);
+        withheldReason = 'unauthorized_mutated_test_target';
+      }
+    }
     if (targetBatches.isEmpty) {
       stopwatch.stop();
       return _snapshot(
@@ -443,7 +475,7 @@ class CodingVerificationFeedbackService {
         failures: const [],
         attempts: const [],
         durationMs: stopwatch.elapsedMilliseconds,
-        reason: 'no_test_target',
+        reason: withheldReason,
       );
     }
 
@@ -676,6 +708,34 @@ class CodingVerificationFeedbackService {
         .listSync(recursive: true, followLinks: false)
         .whereType<File>()
         .any((file) => file.path.endsWith('_test.dart'));
+  }
+
+  /// Drops [mutated] from [batches], and any batch left with no target.
+  static List<CodingVerificationTargetBatch> _withoutMutatedTargets(
+    List<CodingVerificationTargetBatch> batches,
+    List<MutatedVerificationTarget> mutated,
+  ) {
+    final withheldByPackage = <String, Set<String>>{};
+    for (final target in mutated) {
+      withheldByPackage
+          .putIfAbsent(target.packageRoot, () => <String>{})
+          .add(target.target);
+    }
+    final kept = <CodingVerificationTargetBatch>[];
+    for (final batch in batches) {
+      final withheld = withheldByPackage[batch.packageRoot] ?? const <String>{};
+      final targets = batch.targets
+          .where((target) => !withheld.contains(target))
+          .toList(growable: false);
+      if (targets.isEmpty) continue;
+      kept.add(
+        CodingVerificationTargetBatch(
+          packageRoot: batch.packageRoot,
+          targets: targets,
+        ),
+      );
+    }
+    return List<CodingVerificationTargetBatch>.unmodifiable(kept);
   }
 
   List<CodingVerificationCommand> _buildTestCommands(

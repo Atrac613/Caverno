@@ -173,6 +173,8 @@ import '../../domain/services/cjk_response_markers.dart';
 import '../../domain/services/code_unit_text_scan.dart';
 import '../../domain/services/planning_retry_context_builder.dart';
 import '../../domain/services/skipped_skill_load_text.dart';
+import '../../domain/services/task_proposal_quality_gate_fallback.dart';
+import '../../domain/services/verification_target_authority.dart';
 import '../../domain/services/ble_connect_attempt_coordinator.dart';
 import '../../domain/services/blocked_production_release_retry_policy.dart';
 import '../../domain/services/fenced_tool_arguments_detector.dart';
@@ -1558,7 +1560,7 @@ class ChatNotifier extends Notifier<ChatState> {
       return bestRetryCandidate;
     }
 
-    final qualityGateFallback = _buildTaskProposalQualityGateFallback(
+    final qualityGateFallback = _taskProposalFallback.build(
       currentConversation: currentConversation,
       projectLooksEmpty: projectLooksEmpty,
       researchContext: researchContext,
@@ -1581,74 +1583,6 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     throw FormatException(lastError ?? 'task proposal parse failed');
-  }
-
-  WorkflowTaskProposalDraft? _buildTaskProposalQualityGateFallback({
-    required Conversation currentConversation,
-    required bool projectLooksEmpty,
-    required PlanningResearchContext researchContext,
-    WorkflowTaskProposalDraft? bestRetryCandidate,
-    ConversationWorkflowSpec? workflowSpecOverride,
-  }) {
-    final workflowSpec =
-        workflowSpecOverride ?? currentConversation.effectiveWorkflowSpec;
-    final rawGoal = workflowSpec.goal.trim().isNotEmpty
-        ? workflowSpec.goal.trim()
-        : _workflowProposalParser.deriveWorkflowFallbackGoalFromConversation(
-            currentConversation,
-          );
-    if (rawGoal == null || rawGoal.isEmpty) {
-      return null;
-    }
-
-    if (bestRetryCandidate != null &&
-        !_taskProposalQualityService.taskProposalNeedsRetryForWorkflow(
-          bestRetryCandidate,
-          bestRetryCandidate,
-          projectLooksEmpty,
-          workflowSpec,
-        )) {
-      return bestRetryCandidate;
-    }
-
-    final contextLines = <String>[
-      rawGoal,
-      ...workflowSpec.constraints,
-      ...workflowSpec.acceptanceCriteria,
-      ...workflowSpec.openQuestions,
-    ];
-    if (bestRetryCandidate != null) {
-      for (final task in bestRetryCandidate.tasks) {
-        contextLines.add(task.title);
-        contextLines.add(task.notes);
-        contextLines.add(task.validationCommand);
-        contextLines.addAll(task.targetFiles);
-      }
-    }
-
-    final fallbackProposal = WorkflowTaskProposalDraft(
-      tasks: _buildHeuristicTaskProposalFallbackTasks(
-        contextLines: contextLines,
-        projectLooksEmpty: projectLooksEmpty,
-      ),
-    );
-    if (fallbackProposal.tasks.isEmpty) {
-      return null;
-    }
-
-    final finalizedFallback = _finalizeTaskProposalDraft(
-      fallbackProposal,
-      researchContext: researchContext,
-    );
-    if (_taskProposalQualityService.taskProposalNeedsRetryForWorkflow(
-      fallbackProposal,
-      finalizedFallback,
-      projectLooksEmpty,
-      workflowSpec,
-    )) {
-      return null;
-    }
-    return finalizedFallback;
   }
 
   @visibleForTesting
@@ -1765,7 +1699,7 @@ class ChatNotifier extends Notifier<ChatState> {
     WorkflowTaskProposalDraft? bestRetryCandidate,
     ConversationWorkflowSpec? workflowSpecOverride,
   }) {
-    return _buildTaskProposalQualityGateFallback(
+    return _taskProposalFallback.build(
       currentConversation: currentConversation,
       projectLooksEmpty: projectLooksEmpty,
       researchContext: const PlanningResearchContext(),

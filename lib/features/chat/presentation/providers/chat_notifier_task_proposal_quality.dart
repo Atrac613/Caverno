@@ -9,6 +9,12 @@ extension ChatNotifierTaskProposalQuality on ChatNotifier {
   WorkflowTaskProposalQualityService get _taskProposalQualityService =>
       WorkflowTaskProposalQualityService(createId: _uuid.v4);
 
+  TaskProposalQualityGateFallback get _taskProposalFallback =>
+      TaskProposalQualityGateFallback(
+        quality: _taskProposalQualityService,
+        parser: _workflowProposalParser,
+      );
+
   PlanningRetryContextBuilder get _planningRetryContext =>
       PlanningRetryContextBuilder(_taskProposalQualityService);
 

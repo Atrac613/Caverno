@@ -9,6 +9,91 @@ import 'package:caverno/features/chat/domain/services/coding_verification_feedba
 
 void main() {
   group('CodingVerificationFeedbackService', () {
+    // An unattended run has nobody to ask, so a target the turn wrote is
+    // withheld rather than executed: `dart test <file>` runs that file's
+    // main() whether or not it declares a test.
+    test(
+      'withholds a changed test target when nobody can authorize it',
+      () async {
+        final root = await Directory.systemTemp.createTemp(
+          'caverno_verification_unauthorized_',
+        );
+        addTearDown(() => root.delete(recursive: true));
+        final testFile = await _writeFile(
+          root,
+          'test/canary_test.dart',
+          'void main() {}\n',
+        );
+
+        final commands = <CodingVerificationCommand>[];
+        final service = CodingVerificationFeedbackService(
+          commandRunner: (command, timeout) async {
+            commands.add(command);
+            return const CodingVerificationCommandOutput(
+              exitCode: 0,
+              stdout: '',
+            );
+          },
+        );
+
+        final snapshot = await service.collectSnapshot(
+          projectRoot: root.path,
+          changedPaths: [testFile.path],
+          trigger: CodingVerificationTrigger.completionClaim,
+        );
+
+        expect(commands, isEmpty);
+        expect(snapshot, isNotNull);
+        expect(snapshot!.reason, 'unauthorized_mutated_test_target');
+        expect(
+          snapshot.validationStatus,
+          ConversationExecutionValidationStatus.unknown,
+        );
+      },
+    );
+
+    test('runs a changed test target once it is authorized', () async {
+      final root = await Directory.systemTemp.createTemp(
+        'caverno_verification_authorized_',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final testFile = await _writeFile(
+        root,
+        'test/canary_test.dart',
+        'void main() {}\n',
+      );
+
+      final asked = <List<String>>[];
+      final commands = <CodingVerificationCommand>[];
+      final service = CodingVerificationFeedbackService(
+        commandRunner: (command, timeout) async {
+          commands.add(command);
+          return CodingVerificationCommandOutput(
+            exitCode: 0,
+            stdout: _machineOutput(testFile: testFile),
+          );
+        },
+      );
+
+      final snapshot = await service.collectSnapshot(
+        projectRoot: root.path,
+        changedPaths: [testFile.path],
+        trigger: CodingVerificationTrigger.completionClaim,
+        authorizeMutatedTargets: (mutatedTargets) async {
+          asked.add([for (final target in mutatedTargets) target.target]);
+          return true;
+        },
+      );
+
+      expect(asked.single, ['test/canary_test.dart']);
+      expect(commands.single.arguments, contains('test/canary_test.dart'));
+      expect(snapshot, isNotNull);
+      expect(
+        snapshot!.validationStatus,
+        ConversationExecutionValidationStatus.passed,
+      );
+    });
+
     test('returns a passed snapshot for a direct mapped test target', () async {
       final root = await Directory.systemTemp.createTemp(
         'caverno_verification_feedback_pass_',
