@@ -7,10 +7,19 @@ on:
       - synchronize
       - reopened
       - ready_for_review
+  # Branches are merged into main locally, so a pull_request-only trigger never
+  # tests main itself. Between 2026-08-21 and 2026-08-25 main carried twelve
+  # file-size ratchet violations that only surfaced on unrelated dependabot
+  # PRs, where the red was read as the bump's fault.
+  push:
+    branches:
+      - main
 
 concurrency:
   group: flutter-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A superseded run on a feature branch is noise, but every commit that lands
+  # on main should be reported on.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read

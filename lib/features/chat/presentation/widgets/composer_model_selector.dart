@@ -11,6 +11,7 @@ import '../../../settings/presentation/providers/model_capability_auto_probe_not
 import '../../../settings/presentation/providers/model_list_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import 'composer_control_chip.dart';
+import 'composer_menu_rows.dart';
 import 'message_input_control_labels.dart';
 
 /// Composer chip that carries the two settings describing *how* the next turn
@@ -110,7 +111,7 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
       options.insert(0, selectedModel);
     }
     return SubmenuButton(
-      trailingIcon: _submenuValue(
+      trailingIcon: buildComposerSubmenuValue(
         theme,
         selectedModel.isEmpty ? 'message.model_unset'.tr() : selectedModel,
       ),
@@ -136,7 +137,10 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
                 ),
               for (final model in options)
                 MenuItemButton(
-                  leadingIcon: _checkIcon(theme, model == selectedModel),
+                  leadingIcon: buildComposerMenuCheckIcon(
+                    theme,
+                    model == selectedModel,
+                  ),
                   onPressed: () => unawaited(_selectModel(model, settings)),
                   child: Text(model, overflow: TextOverflow.ellipsis),
                 ),
@@ -156,11 +160,14 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
     String effortLabel,
   ) {
     return SubmenuButton(
-      trailingIcon: _submenuValue(theme, effortLabel),
+      trailingIcon: buildComposerSubmenuValue(theme, effortLabel),
       menuChildren: [
         for (final value in ReasoningEffortPreference.values)
           MenuItemButton(
-            leadingIcon: _checkIcon(theme, settings.reasoningEffort == value),
+            leadingIcon: buildComposerMenuCheckIcon(
+              theme,
+              settings.reasoningEffort == value,
+            ),
             onPressed: () => unawaited(
               ref
                   .read(settingsNotifierProvider.notifier)
@@ -170,31 +177,6 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
           ),
       ],
       child: Text('message.reasoning_effort_menu_label'.tr()),
-    );
-  }
-
-  /// Current value of a submenu row. No chevron of its own: SubmenuButton
-  /// already appends the submenu arrow after this trailing widget, and drawing
-  /// a second one reads as two separate affordances.
-  Widget _submenuValue(ThemeData theme, String value) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 160),
-      child: Text(
-        value,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.labelMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-
-  Widget _checkIcon(ThemeData theme, bool checked) {
-    return Icon(
-      checked ? Icons.check : null,
-      size: 18,
-      color: theme.colorScheme.primary,
     );
   }
 

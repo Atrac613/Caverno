@@ -1,6 +1,82 @@
 part of 'chat_notifier_test.dart';
 
 void registerChatNotifierApprovalCacheTests() {
+  test('auto-review verdicts are written to the approval audit log', () async {
+    final auditDir = Directory.systemTemp.createTempSync('chat_audit_');
+    addTearDown(() => auditDir.deleteSync(recursive: true));
+    final auditLog = ToolApprovalAuditLog(
+      rootDirectoryProvider: () async => auditDir,
+    );
+
+    final dataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-click',
+          name: 'browser_click',
+          arguments: const {'ref': 7, 'reason': 'Open the link.'},
+        ),
+      ],
+      toolRoleResponseContent: 'Reviewed.',
+      finalAnswerChunks: const ['Stopped before clicking.'],
+      autoReviewResponses: [
+        ChatCompletionResult(
+          content:
+              '{"outcome":"deny","riskLevel":"high","userAuthorization":"low","rationale":"Looks like a credential submit."}',
+          finishReason: 'stop',
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      descriptions: const {'browser_click': 'Click a browser element.'},
+      results: const {'browser_click': '{"ok":true}'},
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final threadContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledChatAutoReviewSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+        toolApprovalAuditLogProvider.overrideWithValue(auditLog),
+      ],
+    );
+    addTearDown(threadContainer.dispose);
+
+    final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage('Open the link');
+
+    final auditFiles = Directory(
+      '${auditDir.path}/approval_audit',
+    ).listSync().whereType<File>().toList();
+    expect(auditFiles, isNotEmpty);
+    final entries = auditFiles
+        .expand((file) => file.readAsLinesSync())
+        .where((line) => line.trim().isNotEmpty)
+        .map((line) => jsonDecode(line) as Map<String, dynamic>)
+        .toList();
+    final clickEntry = entries.firstWhere((e) => e['tool'] == 'browser_click');
+    expect(clickEntry['outcome'], 'denied');
+    expect(clickEntry['decisionSource'], 'auto_review');
+    expect(clickEntry['mode'], 'autoReview');
+    expect(clickEntry['domain'], 'browser');
+    expect(clickEntry['rationale'], contains('credential'));
+  });
+
   test('process_start requires approval for bounded commands', () async {
     final projectRoot = await Directory.systemTemp.createTemp(
       'caverno_process_start_approval_',
@@ -207,6 +283,19 @@ void registerChatNotifierApprovalCacheTests() {
     await _waitForCondition(() => notifier.state.pendingFileOperation != null);
     final fileApproval = notifier.state.pendingFileOperation!;
     notifier.resolveFileOperation(id: fileApproval.id, approved: true);
+    // SEC4.4g: the repeat is asked for again rather than replayed from the
+    // cache, which is the point of the audit assertion below. Approving it is
+    // what makes the re-execution observable at all.
+    await _waitForCondition(
+      () =>
+          notifier.state.pendingLocalCommand != null &&
+          notifier.state.pendingLocalCommand!.id != localApproval.id,
+    );
+    final repeatApproval = notifier.state.pendingLocalCommand!;
+    notifier.resolveLocalCommand(
+      id: repeatApproval.id,
+      approval: const LocalCommandApproval(approved: true),
+    );
     await sendFuture.timeout(const Duration(seconds: 5));
 
     expect(notifier.state.pendingLocalCommand, isNull);
@@ -229,12 +318,27 @@ void registerChatNotifierApprovalCacheTests() {
         .where((line) => line.trim().isNotEmpty)
         .map((line) => jsonDecode(line) as Map<String, dynamic>)
         .toList(growable: false);
+    // The repeat is no longer served from the approval cache: SEC4.4g routes
+    // every shell command through a fresh `opaque_host_write` ask, and the
+    // audit is where that is visible. The guard this test exists for -- the
+    // second `dart analyze` returning its own output rather than replaying the
+    // first -- is asserted above and still holds.
+    expect(
+      auditEntries.where(
+        (entry) =>
+            entry['tool'] == 'local_execute_command' &&
+            entry['decisionSource'] == 'opaque_host_write',
+      ),
+      hasLength(2),
+    );
     expect(
       auditEntries,
-      contains(
-        allOf(
-          containsPair('tool', 'local_execute_command'),
-          containsPair('decisionSource', 'cached_approval'),
+      isNot(
+        contains(
+          allOf(
+            containsPair('tool', 'local_execute_command'),
+            containsPair('decisionSource', 'cached_approval'),
+          ),
         ),
       ),
     );

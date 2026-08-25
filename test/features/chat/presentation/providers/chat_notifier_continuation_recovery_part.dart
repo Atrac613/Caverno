@@ -697,6 +697,7 @@ todo_app.md \u3092\u8aad\u3093\u3067Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30
             createIfMissing: true,
           );
       final chatNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      standInForTheApprover(toolContainer);
       await chatNotifier.sendMessage(
         'Port the script to Dart',
         bypassPlanMode: true,
@@ -826,6 +827,7 @@ todo_app.md \u3092\u8aad\u3093\u3067Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30
             createIfMissing: true,
           );
       final chatNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      standInForTheApprover(toolContainer);
       await chatNotifier.sendMessage('Run analyze', bypassPlanMode: true);
 
       // Recovery still fires (the failed command is a real open problem).

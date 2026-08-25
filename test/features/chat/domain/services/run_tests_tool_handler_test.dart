@@ -635,7 +635,10 @@ void main() {
       expect(fixture.execution.calls, isEmpty);
     });
 
-    test('saved allow executes locally without approval resolution', () async {
+    // SEC4.4g: a test run reaches the native shell, so the gate is consulted
+    // even when a saved rule already says allow. The rule can still spare the
+    // person a second dialog, but it can no longer decide alone.
+    test('a saved allow still reaches the approval gate', () async {
       final fixture = _fixture()
         ..rules.decisions[ownerA] = CommandPermissionRuleDecision.allow;
 
@@ -645,8 +648,11 @@ void main() {
 
       expect(result.isSuccess, isTrue);
       expect(fixture.execution.calls.single.owner, ownerA);
-      expect(fixture.approval.gateCalls, isEmpty);
-      expect(fixture.approval.expiredOwners, [ownerA, ownerA]);
+      expect(fixture.approval.gateCalls.single.owner, ownerA);
+      // Three checks now, not two: the gate the saved rule no longer skips
+      // brings its own expiry check, and every one of them must name the
+      // owning turn.
+      expect(fixture.approval.expiredOwners, [ownerA, ownerA, ownerA]);
     });
 
     test('remote interaction does not reuse a saved allow', () async {
@@ -743,10 +749,44 @@ void main() {
       expect(approval.execution.workingDirectory, _rootA);
       expect(approval.reason, 'Run the focused test.');
       expect(allowedFixture.execution.calls.single.owner, ownerA);
-      expect(allowedFixture.approval.rememberedResults.single.owner, ownerA);
+      // SEC4.4g made this approval non-cacheable, so the result is not
+      // remembered: the next identical call must ask again rather than replay
+      // this one.
+      expect(allowedFixture.approval.rememberedResults, isEmpty);
     });
 
+    // A remembered *deny* still stands: SEC4.4g removed the standing yes, not
+    // the standing no. The command it stores is the normalized one, so a rule
+    // saved from a nested package matches what the handler will run next time.
     test('remembers the exact normalized test command rule', () async {
+      final fixture = _fixture()
+        ..approval.gates[ownerA] = ToolApprovalGateDecision.needsManualApproval
+        ..approval.manualDecisions[ownerA] = const LocalCommandManualApproval(
+          approved: false,
+          rememberedAction: RememberedCommandPermissionAction.deny,
+          rememberedMatch: RememberedCommandPermissionMatch.exact,
+        );
+
+      await fixture.handler.handle(
+        _input(ownerA, const {
+          'runner': 'dart',
+          'working_directory': 'packages/app',
+          'test_path': 'packages/app/test/a_test.dart',
+        }),
+      );
+
+      final remembered = fixture.rules.remembered.single;
+      expect(remembered.owner, ownerA);
+      expect(remembered.rule.action, RememberedCommandPermissionAction.deny);
+      expect(remembered.rule.match, RememberedCommandPermissionMatch.exact);
+      expect(remembered.rule.command, "dart test 'test/a_test.dart'");
+      expect(remembered.rule.workingDirectory, '$_rootA/packages/app');
+    });
+
+    // The other half of the same rule: an allow is never written for a command
+    // that needs a fresh approval, or the next turn would inherit a yes the
+    // gate is meant to ask for again.
+    test('does not remember an allow for a fresh-approval command', () async {
       final fixture = _fixture()
         ..approval.gates[ownerA] = ToolApprovalGateDecision.needsManualApproval
         ..approval.manualDecisions[ownerA] = const LocalCommandManualApproval(
@@ -763,12 +803,8 @@ void main() {
         }),
       );
 
-      final remembered = fixture.rules.remembered.single;
-      expect(remembered.owner, ownerA);
-      expect(remembered.rule.action, RememberedCommandPermissionAction.allow);
-      expect(remembered.rule.match, RememberedCommandPermissionMatch.exact);
-      expect(remembered.rule.command, "dart test 'test/a_test.dart'");
-      expect(remembered.rule.workingDirectory, '$_rootA/packages/app');
+      expect(fixture.rules.remembered, isEmpty);
+      expect(fixture.execution.calls.single.owner, ownerA);
     });
 
     test('returns expiration before and after manual approval', () async {

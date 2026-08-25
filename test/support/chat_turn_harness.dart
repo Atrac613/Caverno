@@ -30,6 +30,7 @@ enum ChatDataSourceCall {
   streamWithToolResult,
   createChatCompletionWithToolResult,
   createChatCompletionWithToolResults,
+  streamChatCompletionWithToolResults,
 }
 
 /// One outbound call, captured before its response became observable.
@@ -470,6 +471,50 @@ final class ScriptedChatDataSource extends ChatRemoteDataSource {
     );
     toolResultToolNames.add(record.toolNames);
     return _completeToolResultStep();
+  }
+
+  /// The turn loop prefers this over [createChatCompletionWithToolResults]
+  /// whenever the data source offers the streaming capability -- and this
+  /// harness extends the real [ChatRemoteDataSource], so it has offered it
+  /// since reasoning started streaming through tool follow-ups. Without an
+  /// override the scripted follow-up fell through to the live implementation:
+  /// the script was never consumed, and every assertion about a follow-up
+  /// request read zero.
+  ///
+  /// Recorded under its own call so the two remain distinguishable; the
+  /// scripted response is shared, because which transport carried it is not
+  /// what a turn-ownership test is asking about. The stream is empty, matching
+  /// the loop's own non-streaming fallback: reasoning chunks are decoration on
+  /// top of the completion, never the answer itself.
+  @override
+  StreamWithToolsResult streamChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    toolResultBatches.add(List<ToolResultInfo>.unmodifiable(toolResults));
+    final record = ledger._append(
+      (index) => RecordedChatRequest(
+        call: ChatDataSourceCall.streamChatCompletionWithToolResults,
+        index: index,
+        messages: messages,
+        tools: tools,
+        toolResults: toolResults,
+        assistantContent: assistantContent,
+        model: model,
+        temperature: temperature,
+        maxTokens: maxTokens,
+      ),
+    );
+    toolResultToolNames.add(record.toolNames);
+    return StreamWithToolsResult(
+      stream: const Stream<String>.empty(),
+      completion: _completeToolResultStep(),
+    );
   }
 
   Future<ChatCompletionResult> _completeToolResultStep() async {

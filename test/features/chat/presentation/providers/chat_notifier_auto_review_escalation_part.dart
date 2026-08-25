@@ -84,14 +84,20 @@ void registerChatNotifierAutoReviewEscalationTests() {
         await Future<void>.delayed(Duration.zero);
       }
 
-      // Auto-review denied, but the command is user-directed and untainted, so
-      // the denial escalates to a manual approval prompt instead of dead-ending
-      // the turn — and the reviewer's rationale is surfaced to the user.
+      // SEC4.4g put the host-write ask above auto-review, so a shell command
+      // now reaches the person directly and the reviewer is never consulted --
+      // deliberately: in session db878d3a the reviewer allowed a read under
+      // ~/.caverno while stating it "operates within the selected project".
+      // What this test still guards is the outcome either way: the turn does
+      // not dead-end, the person is asked, and nothing runs before they answer.
       final pending = toolNotifier.state.pendingLocalCommand;
       expect(pending, isNotNull);
       expect(pending!.command, 'rm -rf build');
-      expect(pending.warningTitle, 'Auto-review flagged this action');
-      expect(pending.warningMessage, contains('not clearly authorized'));
+      expect(
+        pending.warningTitle,
+        'This command has host-wide filesystem access',
+      );
+      expect(toolDataSource.autoReviewRequestMessages, isEmpty);
       expect(toolService.executedToolNames, isEmpty);
 
       // Declining keeps the command unexecuted.

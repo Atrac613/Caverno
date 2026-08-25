@@ -5,9 +5,9 @@ import 'package:http/http.dart' as http;
 
 import '../../../core/constants/api_constants.dart';
 import '../../../core/security/llm_endpoint_transport_policy.dart';
-import '../../../core/utils/logger.dart';
 import '../domain/entities/local_model_lifecycle.dart';
 import '../domain/entities/model_catalog_entry.dart';
+import 'model_lifecycle_action_log.dart';
 import 'model_metadata_parser.dart';
 
 class ModelCatalogHttpException implements Exception {
@@ -1020,7 +1020,7 @@ class ModelRemoteDataSource {
       final result = LocalModelLifecycleActionResult.failure(
         message: 'A model id is required to $actionLabel a managed model.',
       );
-      _logLifecycleActionResult(
+      ModelLifecycleActionLog.result(
         actionLabel: actionLabel,
         modelId: modelId,
         uri: uri,
@@ -1029,7 +1029,7 @@ class ModelRemoteDataSource {
       return result;
     }
 
-    _logLifecycleActionRequest(
+    ModelLifecycleActionLog.request(
       actionLabel: actionLabel,
       modelId: normalizedModelId,
       uri: uri,
@@ -1039,7 +1039,7 @@ class ModelRemoteDataSource {
     LocalModelLifecycleActionResult finish(
       LocalModelLifecycleActionResult result,
     ) {
-      _logLifecycleActionResult(
+      ModelLifecycleActionLog.result(
         actionLabel: actionLabel,
         modelId: normalizedModelId,
         uri: uri,
@@ -1104,7 +1104,7 @@ class ModelRemoteDataSource {
         ),
       );
     } on FormatException catch (error) {
-      _logLifecycleActionException(
+      ModelLifecycleActionLog.exception(
         actionLabel: actionLabel,
         modelId: normalizedModelId,
         uri: uri,
@@ -1122,7 +1122,7 @@ class ModelRemoteDataSource {
         ),
       );
     } on Object catch (error) {
-      _logLifecycleActionException(
+      ModelLifecycleActionLog.exception(
         actionLabel: actionLabel,
         modelId: normalizedModelId,
         uri: uri,
@@ -1147,7 +1147,7 @@ class ModelRemoteDataSource {
       final result = LocalModelLifecycleActionResult.failure(
         message: 'A model id is required to $actionLabel an Ollama model.',
       );
-      _logLifecycleActionResult(
+      ModelLifecycleActionLog.result(
         actionLabel: actionLabel,
         modelId: modelId,
         uri: uri,
@@ -1156,7 +1156,7 @@ class ModelRemoteDataSource {
       return result;
     }
 
-    _logLifecycleActionRequest(
+    ModelLifecycleActionLog.request(
       actionLabel: actionLabel,
       modelId: normalizedModelId,
       uri: uri,
@@ -1166,7 +1166,7 @@ class ModelRemoteDataSource {
     LocalModelLifecycleActionResult finish(
       LocalModelLifecycleActionResult result,
     ) {
-      _logLifecycleActionResult(
+      ModelLifecycleActionLog.result(
         actionLabel: actionLabel,
         modelId: normalizedModelId,
         uri: uri,
@@ -1231,7 +1231,7 @@ class ModelRemoteDataSource {
         ),
       );
     } on FormatException catch (error) {
-      _logLifecycleActionException(
+      ModelLifecycleActionLog.exception(
         actionLabel: actionLabel,
         modelId: normalizedModelId,
         uri: uri,
@@ -1249,7 +1249,7 @@ class ModelRemoteDataSource {
         ),
       );
     } on Object catch (error) {
-      _logLifecycleActionException(
+      ModelLifecycleActionLog.exception(
         actionLabel: actionLabel,
         modelId: normalizedModelId,
         uri: uri,
@@ -1261,47 +1261,6 @@ class ModelRemoteDataSource {
         ),
       );
     }
-  }
-
-  void _logLifecycleActionRequest({
-    required String actionLabel,
-    required String modelId,
-    required Uri uri,
-    required String payloadLabel,
-  }) {
-    appLog(
-      '[LL9] Model lifecycle $actionLabel request: '
-      'model="$modelId", uri=$uri, payload=$payloadLabel',
-    );
-  }
-
-  void _logLifecycleActionResult({
-    required String actionLabel,
-    required String modelId,
-    required Uri uri,
-    required LocalModelLifecycleActionResult result,
-  }) {
-    final statusCode = result.statusCode == null
-        ? ''
-        : ', statusCode=${result.statusCode}';
-    appLog(
-      '[LL9] Model lifecycle $actionLabel result: '
-      'model="$modelId", uri=$uri, '
-      'supported=${result.supported}, succeeded=${result.succeeded}'
-      '$statusCode, message=${result.message}',
-    );
-  }
-
-  void _logLifecycleActionException({
-    required String actionLabel,
-    required String modelId,
-    required Uri uri,
-    required Object error,
-  }) {
-    appLog(
-      '[LL9] Model lifecycle $actionLabel exception: '
-      'model="$modelId", uri=$uri, error=${error.runtimeType}: $error',
-    );
   }
 
   bool _canUseNvidiaNimFallback(Object? primaryError) {

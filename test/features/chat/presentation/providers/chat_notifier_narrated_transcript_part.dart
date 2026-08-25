@@ -159,6 +159,7 @@ The MVP is complete.''';
     addTearDown(container.dispose);
 
     final chatNotifier = container.read(chatNotifierProvider.notifier);
+    standInForTheApprover(container);
     await chatNotifier.sendMessage('Implement the TODO CLI and verify it.');
     await _waitForCondition(
       () => !container.read(chatNotifierProvider).isLoading,
@@ -204,6 +205,7 @@ The MVP is complete.''';
     addTearDown(container.dispose);
 
     final chatNotifier = container.read(chatNotifierProvider.notifier);
+    standInForTheApprover(container);
     await chatNotifier.sendMessage('Implement the TODO CLI and verify it.');
     await _waitForCondition(
       () => !container.read(chatNotifierProvider).isLoading,
@@ -280,6 +282,7 @@ The MVP is complete.''';
     addTearDown(container.dispose);
 
     final chatNotifier = container.read(chatNotifierProvider.notifier);
+    standInForTheApprover(container);
     await chatNotifier.sendMessage('Implement the TODO CLI and verify it.');
     await _waitForCondition(
       () => !container.read(chatNotifierProvider).isLoading,
@@ -337,6 +340,7 @@ The MVP is complete.''';
     addTearDown(container.dispose);
 
     final chatNotifier = container.read(chatNotifierProvider.notifier);
+    standInForTheApprover(container);
     await chatNotifier.sendMessage('Implement the TODO CLI and verify it.');
     await _waitForCondition(
       () => !container.read(chatNotifierProvider).isLoading,

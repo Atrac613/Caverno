@@ -4,6 +4,7 @@ import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'background_process_path_policy.dart';
 import 'background_process_start_contract.dart';
+import 'background_process_result_ledger.dart';
 import 'background_process_tool_contract.dart';
 import 'background_process_tool_results.dart';
 import 'local_command_tool_handler.dart';
@@ -38,6 +39,10 @@ final class BackgroundProcessToolHandler {
        _pathPolicy = pathPolicy,
        _startContract = startContract,
        _results = results,
+       _ledger = BackgroundProcessResultLedger(
+         approvalPort: approvalPort,
+         results: results,
+       ),
        _clock = clock ?? DateTime.now;
 
   static const _missingCommandMessage =
@@ -54,7 +59,9 @@ final class BackgroundProcessToolHandler {
   final BackgroundProcessPathPolicy _pathPolicy;
   final BackgroundProcessStartContract _startContract;
   final BackgroundProcessToolResults _results;
+  final BackgroundProcessResultLedger _ledger;
   final DateTime Function() _clock;
+
   Future<McpToolResult> handle(BackgroundProcessToolRequest request) {
     return switch (request.toolName) {
       'process_start' => _handleStart(request),
@@ -116,7 +123,7 @@ final class BackgroundProcessToolHandler {
         'Local command was denied by a saved permission rule',
       );
     }
-    if (_isExpired(request)) return _results.expired(request.toolName);
+    if (_ledger.isExpired(request)) return _results.expired(request.toolName);
     if (!request.isRemoteInteraction &&
         permission == CommandPermissionRuleDecision.allow &&
         !requiresExplicit) {
@@ -189,13 +196,13 @@ final class BackgroundProcessToolHandler {
       request.toolCallId,
       processId,
     );
-    if (_completionExpired(lookupCompletion, request)) {
+    if (_ledger.completionExpired(lookupCompletion, request)) {
       return _results.expired(request.toolName);
     }
     final identity = lookupCompletion.value;
-    if (_isExpired(request)) return _results.expired(request.toolName);
+    if (_ledger.isExpired(request)) return _results.expired(request.toolName);
     if (identity == null) {
-      return _cacheResult(
+      return _ledger.cacheResult(
         request,
         cacheRequest,
         _results.processNotFound(request.toolName, processId),
@@ -212,19 +219,19 @@ final class BackgroundProcessToolHandler {
         identity,
       );
     } catch (_) {
-      if (_isExpired(request)) {
+      if (_ledger.isExpired(request)) {
         return _results.effectUncertain(request.toolName);
       }
       rethrow;
     }
-    if (!_belongsToRequest(cancelCompletion, request) ||
+    if (!_ledger.belongsToRequest(cancelCompletion, request) ||
         cancelCompletion.disposition ==
             LocalCommandCompletionDisposition.ownerExpired ||
-        _isExpired(request)) {
+        _ledger.isExpired(request)) {
       return _results.effectUncertain(request.toolName);
     }
     final cancelled = cancelCompletion.value!;
-    return _cacheResult(
+    return _ledger.cacheResult(
       request,
       cacheRequest,
       cancelled,
@@ -240,13 +247,13 @@ final class BackgroundProcessToolHandler {
     CommandPermissionRuleRequest? ruleRequest,
     bool canRememberRule = false,
   }) async {
-    if (_isExpired(request)) return _results.expired(request.toolName);
+    if (_ledger.isExpired(request)) return _results.expired(request.toolName);
     final cached = _approvalPort.lookupDenial(request.owner, approval);
     if (cached != null) {
-      if (!_belongsToRequest(cached, request) ||
+      if (!_ledger.belongsToRequest(cached, request) ||
           cached.disposition ==
               LocalCommandCompletionDisposition.ownerExpired ||
-          _isExpired(request)) {
+          _ledger.isExpired(request)) {
         return _results.expired(request.toolName);
       }
       return _results.requireToolName(cached.value!, request.toolName);
@@ -255,12 +262,12 @@ final class BackgroundProcessToolHandler {
       request.owner,
       approval,
     );
-    if (_completionExpired(gateCompletion, request)) {
+    if (_ledger.completionExpired(gateCompletion, request)) {
       return _results.expired(request.toolName);
     }
     final gate = gateCompletion.value!;
     if (gate.isDenied) {
-      return _rememberDenial(
+      return _ledger.rememberDenial(
         request,
         approval,
         _results.autoReviewDenied(
@@ -275,11 +282,11 @@ final class BackgroundProcessToolHandler {
         approval,
         gate,
       );
-      if (_completionExpired(completion, request)) {
+      if (_ledger.completionExpired(completion, request)) {
         return _results.expired(request.toolName);
       }
       final manual = completion.value!;
-      if (_isExpired(request)) return _results.expired(request.toolName);
+      if (_ledger.isExpired(request)) return _results.expired(request.toolName);
       if (manual.shouldRemember &&
           canRememberRule &&
           ruleRequest != null &&
@@ -296,19 +303,19 @@ final class BackgroundProcessToolHandler {
             workingDirectory: ruleRequest.workingDirectory,
           ),
         );
-        if (_completionExpired(ruleCompletion, request)) {
+        if (_ledger.completionExpired(ruleCompletion, request)) {
           return _results.expired(request.toolName);
         }
       }
       if (!manual.approved) {
-        return _rememberDenial(
+        return _ledger.rememberDenial(
           request,
           approval,
           _results.failure(request.toolName, denialMessage),
         );
       }
     }
-    if (_isExpired(request)) return _results.expired(request.toolName);
+    if (_ledger.isExpired(request)) return _results.expired(request.toolName);
     return run(
       gate.bypassedApproval || approval.requiresFreshManualApproval
           ? null
@@ -326,12 +333,12 @@ final class BackgroundProcessToolHandler {
     try {
       completion = await _executionPort.start(request.owner, execution);
     } catch (_) {
-      if (_isExpired(request)) {
+      if (_ledger.isExpired(request)) {
         return _results.effectUncertain(request.toolName);
       }
       rethrow;
     }
-    if (!_belongsToRequest(completion, request) ||
+    if (!_ledger.belongsToRequest(completion, request) ||
         completion.disposition ==
             LocalCommandCompletionDisposition.ownerExpired) {
       return _results.effectUncertain(request.toolName);
@@ -345,7 +352,7 @@ final class BackgroundProcessToolHandler {
     if (!assessment.isValid) {
       return _results.effectUncertain(request.toolName);
     }
-    if (_isExpired(request)) {
+    if (_ledger.isExpired(request)) {
       return _rollbackStart(request, assessment);
     }
     final result =
@@ -362,7 +369,7 @@ final class BackgroundProcessToolHandler {
     if (result.toolName != request.toolName) {
       return _results.effectUncertain(request.toolName);
     }
-    return _cacheResult(
+    return _ledger.cacheResult(
       request,
       cacheRequest,
       result,
@@ -387,7 +394,7 @@ final class BackgroundProcessToolHandler {
         identity,
         requireTermination: true,
       );
-      if (!_belongsToRequest(completion, request)) {
+      if (!_ledger.belongsToRequest(completion, request)) {
         return _results.effectUncertain(request.toolName);
       }
       if (completion.disposition ==
@@ -398,72 +405,5 @@ final class BackgroundProcessToolHandler {
       return _results.effectUncertain(request.toolName);
     }
     return _results.expired(request.toolName);
-  }
-
-  McpToolResult _cacheResult(
-    _Request request,
-    _Approval? approval,
-    McpToolResult result, {
-    bool sideEffectMayHaveOccurred = false,
-  }) {
-    final exactResult = _results.requireToolName(result, request.toolName);
-    if (approval == null) {
-      return _isExpired(request) && sideEffectMayHaveOccurred
-          ? _results.effectUncertain(request.toolName)
-          : exactResult;
-    }
-    final acknowledgement = _approvalPort.rememberResult(
-      request.owner,
-      approval,
-      exactResult,
-    );
-    final accepted =
-        _belongsToRequest(acknowledgement, request) &&
-        acknowledgement.disposition ==
-            LocalCommandCompletionDisposition.completed &&
-        !_isExpired(request);
-    if (accepted) return exactResult;
-    return sideEffectMayHaveOccurred
-        ? _results.effectUncertain(request.toolName)
-        : _results.expired(request.toolName);
-  }
-
-  bool _completionExpired<T>(
-    LocalCommandCompletion<T> completion,
-    _Request request,
-  ) {
-    if (completion.owner != request.owner ||
-        completion.toolCallId != request.toolCallId) {
-      throw StateError('Background process completion scope mismatch.');
-    }
-    return completion.disposition ==
-        LocalCommandCompletionDisposition.ownerExpired;
-  }
-
-  bool _belongsToRequest<T>(
-    LocalCommandCompletion<T> completion,
-    _Request request,
-  ) => completion.belongsTo(request.owner, request.toolCallId);
-
-  bool _isExpired(_Request request) =>
-      _approvalPort.isExpired(request.owner, request.toolCallId);
-  McpToolResult _rememberDenial(
-    _Request request,
-    _Approval approval,
-    McpToolResult result,
-  ) {
-    final exactResult = _results.requireToolName(result, request.toolName);
-    if (_isExpired(request)) return _results.expired(request.toolName);
-    final acknowledgement = _approvalPort.rememberDenial(
-      request.owner,
-      approval,
-      exactResult,
-    );
-    return _belongsToRequest(acknowledgement, request) &&
-            acknowledgement.disposition ==
-                LocalCommandCompletionDisposition.completed &&
-            !_isExpired(request)
-        ? exactResult
-        : _results.expired(request.toolName);
   }
 }

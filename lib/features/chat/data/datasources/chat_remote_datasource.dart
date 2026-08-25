@@ -25,6 +25,7 @@ import 'video_delivery_ledger.dart';
 import 'chat_response_telemetry.dart';
 import 'chat_tool_result_message_formatter.dart';
 import 'qwen38_request_policy_client.dart';
+import 'reasoning_tagged_stream_assembler.dart';
 import 'video_content_part_client.dart';
 
 export '../../domain/entities/chat_completion_terminal_metadata.dart';
@@ -265,7 +266,7 @@ class ChatRemoteDataSource
         );
 
         final responseBuffer = StringBuffer();
-        var isInReasoning = false;
+        final assembler = ReasoningTaggedStreamAssembler(responseBuffer);
         await for (final event in stream) {
           final choice = event.choices?.firstOrNull;
           finishReason = _streamingFinishReason(choice) ?? finishReason;
@@ -275,49 +276,16 @@ class ChatRemoteDataSource
             usage = ChatResponseTelemetry.extractUsage(event.usage);
           }
 
-          final delta = choice?.delta;
-          if (delta == null) continue;
-
-          // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
-          // Tags are batched with adjacent content to avoid intermediate
-          // states where only a bare `<think>` or `</think>` is in the
-          // message, which could briefly render as literal text.
-          final reasoning = delta.reasoningContent ?? delta.reasoning;
-          final content = delta.content;
-
-          if (reasoning != null && reasoning.isNotEmpty) {
-            if (!isInReasoning) {
-              isInReasoning = true;
-              responseBuffer.write('<think>$reasoning');
-              yield '<think>$reasoning';
-            } else {
-              responseBuffer.write(reasoning);
-              yield reasoning;
-            }
-          }
-
-          if (content != null && content.isNotEmpty) {
-            if (isInReasoning) {
-              isInReasoning = false;
-              responseBuffer.write('</think>$content');
-              yield '</think>$content';
-            } else {
-              responseBuffer.write(content);
-              yield content;
-            }
+          for (final chunk in assembler.consume(choice?.delta)) {
+            yield chunk;
           }
         }
-        // Close unclosed reasoning tag at end of stream
-        if (isInReasoning) {
-          responseBuffer.write('</think>');
-          yield '</think>';
+        final closingTag = assembler.close();
+        if (closingTag != null) {
+          yield closingTag;
         }
 
-        appLog('[LLM] === Response (streaming) ===');
-        final responseText = responseBuffer.toString();
-        appLog(
-          '[LLM] ${responseText.length > 500 ? '${responseText.substring(0, 500)}...' : responseText}',
-        );
+        _logger.logResponseBody('streaming', responseBuffer.toString());
         appLog('[LLM] ========================================');
       } catch (e, stackTrace) {
         final recoveredText = _responseNormalizer.recoverRawAssistantText(e);
@@ -418,7 +386,7 @@ class ChatRemoteDataSource
         );
 
         final responseBuffer = StringBuffer();
-        var isInReasoning = false;
+        final assembler = ReasoningTaggedStreamAssembler(responseBuffer);
         await for (final event in stream) {
           accumulator.add(event);
           final choice = event.choices?.firstOrNull;
@@ -427,49 +395,17 @@ class ChatRemoteDataSource
             usage = ChatResponseTelemetry.extractUsage(event.usage);
           }
 
-          final delta = choice?.delta;
-          if (delta == null) continue;
-
-          // Yield reasoning tokens wrapped in <think> tags.
-          // Tags are batched with adjacent content to avoid intermediate
-          // states where only a bare `<think>` or `</think>` is in the
-          // message, which could briefly render as literal text.
-          final reasoning = delta.reasoningContent ?? delta.reasoning;
-          final content = delta.content;
-
-          if (reasoning != null && reasoning.isNotEmpty) {
-            if (!isInReasoning) {
-              isInReasoning = true;
-              responseBuffer.write('<think>$reasoning');
-              yield '<think>$reasoning';
-            } else {
-              responseBuffer.write(reasoning);
-              yield reasoning;
-            }
-          }
-
-          if (content != null && content.isNotEmpty) {
-            if (isInReasoning) {
-              isInReasoning = false;
-              responseBuffer.write('</think>$content');
-              yield '</think>$content';
-            } else {
-              responseBuffer.write(content);
-              yield content;
-            }
+          for (final chunk in assembler.consume(choice?.delta)) {
+            yield chunk;
           }
         }
 
-        if (isInReasoning) {
-          responseBuffer.write('</think>');
-          yield '</think>';
+        final closingTag = assembler.close();
+        if (closingTag != null) {
+          yield closingTag;
         }
 
-        appLog('[LLM] === Response (streamWithTools) ===');
-        final responseText = responseBuffer.toString();
-        appLog(
-          '[LLM] ${responseText.length > 500 ? '${responseText.substring(0, 500)}...' : responseText}',
-        );
+        _logger.logResponseBody('streamWithTools', responseBuffer.toString());
         appLog('[LLM] finishReason: ${accumulator.finishReason?.value}');
         appLog(
           '[LLM] toolCalls: ${accumulator.toolCalls.map((t) => t.function.name).toList()}',
@@ -734,9 +670,7 @@ class ChatRemoteDataSource
     appLog('[LLM] toolName: $toolName, arguments: $toolArguments');
     appLog('[LLM] assistantContent: ${assistantContent ?? "(none)"}');
     appLog('[LLM] === Tool Result ===');
-    appLog(
-      '[LLM] ${toolResult.length > 500 ? '${toolResult.substring(0, 500)}...' : toolResult}',
-    );
+    appLog('[LLM] ${_logger.preview(toolResult)}');
     appLog('[LLM] === End Tool Result ===');
 
     // Add assistant tool_calls message (required by OpenAI API)
@@ -783,7 +717,7 @@ class ChatRemoteDataSource
       );
 
       final responseBuffer = StringBuffer();
-      var isInReasoning = false;
+      final assembler = ReasoningTaggedStreamAssembler(responseBuffer);
       await for (final event in stream) {
         final choice = event.choices?.firstOrNull;
         lastFinishReason = _streamingFinishReason(choice) ?? lastFinishReason;
@@ -793,49 +727,16 @@ class ChatRemoteDataSource
           lastUsage = ChatResponseTelemetry.extractUsage(event.usage);
         }
 
-        final delta = choice?.delta;
-        if (delta == null) continue;
-
-        // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
-        // Tags are batched with adjacent content to avoid intermediate
-        // states where only a bare `<think>` or `</think>` is in the
-        // message, which could briefly render as literal text.
-        final reasoning = delta.reasoningContent ?? delta.reasoning;
-        final content = delta.content;
-
-        if (reasoning != null && reasoning.isNotEmpty) {
-          if (!isInReasoning) {
-            isInReasoning = true;
-            responseBuffer.write('<think>$reasoning');
-            yield '<think>$reasoning';
-          } else {
-            responseBuffer.write(reasoning);
-            yield reasoning;
-          }
-        }
-
-        if (content != null && content.isNotEmpty) {
-          if (isInReasoning) {
-            isInReasoning = false;
-            responseBuffer.write('</think>$content');
-            yield '</think>$content';
-          } else {
-            responseBuffer.write(content);
-            yield content;
-          }
+        for (final chunk in assembler.consume(choice?.delta)) {
+          yield chunk;
         }
       }
-      // Close unclosed reasoning tag at end of stream
-      if (isInReasoning) {
-        responseBuffer.write('</think>');
-        yield '</think>';
+      final closingTag = assembler.close();
+      if (closingTag != null) {
+        yield closingTag;
       }
 
-      appLog('[LLM] === Response (streaming) ===');
-      final responseText = responseBuffer.toString();
-      appLog(
-        '[LLM] ${responseText.length > 500 ? '${responseText.substring(0, 500)}...' : responseText}',
-      );
+      _logger.logResponseBody('streaming', responseBuffer.toString());
       appLog('[LLM] ============================================');
       _telemetry.publishRequest(
         modelId: modelId,
@@ -946,33 +847,10 @@ class ChatRemoteDataSource
           stripImages: _shouldStripImages(messages),
           videoUrls: await _resolveVideoUrls(messages),
         );
-        formattedMessages.add(
-          AssistantMessage(
-            content: assistantContent ?? '',
-            toolCalls: toolResults
-                .map(
-                  (toolResult) => ToolCall(
-                    id: toolResult.id,
-                    type: 'function',
-                    function: FunctionCall(
-                      name: toolResult.name,
-                      arguments: dart_convert.jsonEncode(toolResult.arguments),
-                    ),
-                  ),
-                )
-                .toList(growable: false),
-          ),
-        );
-        formattedMessages.addAll(
-          toolResults.map(
-            (toolResult) => ChatMessage.tool(
-              toolCallId: toolResult.id,
-              content: _toolResultFormatter.formatContent(toolResult),
-            ),
-          ),
-        );
-        formattedMessages.addAll(
-          _toolResultFormatter.buildImageObservationMessages(toolResults),
+        _toolResultFormatter.appendToolExchange(
+          formattedMessages,
+          toolResults: toolResults,
+          assistantContent: assistantContent,
         );
 
         final stream = _streamWithReasoningFallback(
@@ -997,43 +875,23 @@ class ChatRemoteDataSource
 
         final responseBuffer = StringBuffer();
         final reasoningBuffer = StringBuffer();
-        var isInReasoning = false;
+        final assembler = ReasoningTaggedStreamAssembler(
+          responseBuffer,
+          reasoning: reasoningBuffer,
+        );
         await for (final event in stream) {
           accumulator.add(event);
           final choice = event.choices?.firstOrNull;
           if (event.usage != null) {
             usage = ChatResponseTelemetry.extractUsage(event.usage);
           }
-          final delta = choice?.delta;
-          if (delta == null) continue;
-
-          final reasoning = delta.reasoningContent ?? delta.reasoning;
-          final content = delta.content;
-          if (reasoning != null && reasoning.isNotEmpty) {
-            reasoningBuffer.write(reasoning);
-            if (!isInReasoning) {
-              isInReasoning = true;
-              responseBuffer.write('<think>$reasoning');
-              yield '<think>$reasoning';
-            } else {
-              responseBuffer.write(reasoning);
-              yield reasoning;
-            }
-          }
-          if (content != null && content.isNotEmpty) {
-            if (isInReasoning) {
-              isInReasoning = false;
-              responseBuffer.write('</think>$content');
-              yield '</think>$content';
-            } else {
-              responseBuffer.write(content);
-              yield content;
-            }
+          for (final chunk in assembler.consume(choice?.delta)) {
+            yield chunk;
           }
         }
-        if (isInReasoning) {
-          responseBuffer.write('</think>');
-          yield '</think>';
+        final closingTag = assembler.close();
+        if (closingTag != null) {
+          yield closingTag;
         }
 
         _logger.logNativeToolCalls(accumulator.toolCalls);
@@ -1105,53 +963,12 @@ class ChatRemoteDataSource
     _logger.logMessages(messages);
     _logger.logTools(tools);
     appLog('[LLM] assistantContent: ${assistantContent ?? "(none)"}');
-    for (final toolResult in toolResults) {
-      final llmToolResultContent = _toolResultFormatter.formatContent(
-        toolResult,
-      );
-      appLog('[LLM] === Tool Call Info ===');
-      appLog('[LLM] toolCallId: ${toolResult.id}');
-      appLog('[LLM] toolName: ${toolResult.name}');
-      appLog(
-        '[LLM] arguments: ${dart_convert.jsonEncode(toolResult.arguments)}',
-      );
-      appLog('[LLM] === Tool Result ===');
-      appLog(
-        '[LLM] ${llmToolResultContent.length > 500 ? '${llmToolResultContent.substring(0, 500)}...' : llmToolResultContent}',
-      );
-      appLog('[LLM] === End Tool Result ===');
-    }
+    _logger.logToolExchange(toolResults, _toolResultFormatter.formatContent);
 
-    // Add assistant tool_calls message.
-    formattedMessages.add(
-      AssistantMessage(
-        content: assistantContent ?? '',
-        toolCalls: toolResults
-            .map(
-              (toolResult) => ToolCall(
-                id: toolResult.id,
-                type: 'function',
-                function: FunctionCall(
-                  name: toolResult.name,
-                  arguments: dart_convert.jsonEncode(toolResult.arguments),
-                ),
-              ),
-            )
-            .toList(growable: false),
-      ),
-    );
-
-    // Add tool result messages.
-    formattedMessages.addAll(
-      toolResults.map(
-        (toolResult) => ChatMessage.tool(
-          toolCallId: toolResult.id,
-          content: _toolResultFormatter.formatContent(toolResult),
-        ),
-      ),
-    );
-    formattedMessages.addAll(
-      _toolResultFormatter.buildImageObservationMessages(toolResults),
+    _toolResultFormatter.appendToolExchange(
+      formattedMessages,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
     );
 
     ChatCompletionCreateRequest buildRequest(bool includeReasoning) {

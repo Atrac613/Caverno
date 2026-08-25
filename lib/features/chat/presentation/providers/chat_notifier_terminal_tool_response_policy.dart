@@ -18,9 +18,10 @@ extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
         looksLikeStructuredToolRequest:
             const UnexecutedFinalAnswerToolRequestPolicy()
                 .looksLikeStructuredToolRequest,
-        containsAnyCodeUnitSequence: _containsAnyCodeUnitSequence,
-        containsCjkBlockerMarker: _containsCjkBlockerMarker,
-        containsCjkMissingEvidenceMarker: _containsCjkMissingEvidenceMarker,
+        containsAnyCodeUnitSequence: CodeUnitTextScan.containsAny,
+        containsCjkBlockerMarker: CjkResponseMarkers.containsBlocker,
+        containsCjkMissingEvidenceMarker:
+            CjkResponseMarkers.containsMissingEvidence,
       );
 
   bool _shouldAcceptTerminalToolRoleFinalTextResponse(

@@ -124,6 +124,7 @@ void registerChatNotifierToolFailureClassificationTests() {
 
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        standInForTheApprover(toolContainer);
 
         await toolNotifier.sendMessage('Repair the TODO CLI');
 
@@ -365,6 +366,7 @@ _runOrderedVerifierBatch({required bool mutationFirst}) async {
   );
 
   try {
+    standInForTheApprover(toolContainer);
     await toolContainer
         .read(chatNotifierProvider.notifier)
         .sendMessage('Repair the TODO CLI in order');

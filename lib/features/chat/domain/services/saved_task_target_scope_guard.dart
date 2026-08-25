@@ -1,31 +1,15 @@
 import 'dart:convert';
 
 import '../../data/datasources/filesystem_path_resolver.dart';
-import '../entities/chat_turn_owner.dart';
 import '../entities/conversation_workflow.dart';
 import '../entities/mcp_tool_entity.dart';
-import '../entities/tool_call_info.dart';
 import 'conversation_plan_execution_guardrails.dart';
 import 'file_mutation_evidence_policy.dart';
-import 'immutable_json_snapshot.dart';
+import 'saved_task_target_scope_input.dart';
+
+export 'saved_task_target_scope_input.dart';
 
 // ChatNotifier decomposition collaborator: saved-task-target-scope-guard
-
-/// Immutable owner snapshots used for one saved-task target-scope decision.
-final class SavedTaskTargetScopeInput {
-  SavedTaskTargetScopeInput({
-    required this.owner,
-    required ToolCallInfo toolCall,
-    required ConversationWorkflowTask? ownerTask,
-    required this.ownerProjectRoot,
-  }) : toolCall = _freezeToolCall(toolCall),
-       ownerTask = _freezeTask(ownerTask);
-
-  final ChatTurnOwner owner;
-  final ToolCallInfo toolCall;
-  final ConversationWorkflowTask? ownerTask;
-  final String? ownerProjectRoot;
-}
 
 /// Blocks file mutations outside one explicitly supplied saved task.
 final class SavedTaskTargetScopeGuard {
@@ -124,19 +108,4 @@ final class SavedTaskTargetScopeGuard {
     }
     return normalized.toLowerCase();
   }
-}
-
-ToolCallInfo _freezeToolCall(ToolCallInfo source) {
-  return ToolCallInfo(
-    id: source.id,
-    name: source.name,
-    arguments: ImmutableJsonSnapshot.freezeMap(source.arguments),
-  );
-}
-
-ConversationWorkflowTask? _freezeTask(ConversationWorkflowTask? source) {
-  if (source == null) return null;
-  return source.copyWith(
-    targetFiles: List<String>.unmodifiable(source.targetFiles),
-  );
 }
