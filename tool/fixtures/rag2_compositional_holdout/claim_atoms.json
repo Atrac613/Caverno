@@ -1,0 +1,20 @@
+{
+  "schemaName": "caverno_rag2_typed_claim_atoms",
+  "schemaVersion": 1,
+  "atomSetId": "rag2-compositional-claim-atoms-v1",
+  "candidateSetId": "rag2-compositional-holdout-claims-v1",
+  "atoms": [
+    {"candidateId":"composition-supported-admin-port","claimText":"The admin console port is 7443.","subject":"admin_console","relation":"network.port","valueType":"integer","value":7443,"scope":"current","polarity":"positive","modality":"asserted"},
+    {"candidateId":"composition-supported-api-port","claimText":"The API port is 9090.","subject":"api","relation":"network.port","valueType":"integer","value":9090,"scope":"current","polarity":"positive","modality":"asserted"},
+    {"candidateId":"composition-supported-default-port","claimText":"The public portal port is 443.","subject":"public_portal","relation":"network.port","valueType":"integer","value":443,"scope":"current","polarity":"positive","modality":"asserted"},
+    {"candidateId":"composition-supported-report-format","claimText":"The default report format is json.","subject":"default_report","relation":"config.format","valueType":"string","value":"json","scope":"current","polarity":"positive","modality":"asserted"},
+    {"candidateId":"composition-contradicted-admin-port","claimText":"The admin console port is 9555.","subject":"admin_console","relation":"network.port","valueType":"integer","value":9555,"scope":"current","polarity":"positive","modality":"asserted"},
+    {"candidateId":"composition-contradicted-report-format","claimText":"The default report format is yaml.","subject":"default_report","relation":"config.format","valueType":"string","value":"yaml","scope":"current","polarity":"positive","modality":"asserted"},
+    {"candidateId":"composition-contradicted-preview-state","claimText":"Preview safeMode is enabled.","subject":"preview_safe_mode","relation":"feature.enabled","valueType":"string","value":"enabled","scope":"current","polarity":"positive","modality":"asserted"},
+    {"candidateId":"composition-contradicted-worker-mode","claimText":"The default worker mode is paused.","subject":"default_worker","relation":"config.mode","valueType":"string","value":"paused","scope":"current","polarity":"positive","modality":"asserted"},
+    {"candidateId":"composition-absent-production-condition","claimText":"Production safeMode is currently enabled.","subject":"production_safe_mode","relation":"feature.enabled","valueType":"string","value":"enabled","scope":"current","polarity":"positive","modality":"asserted"},
+    {"candidateId":"composition-absent-upload-condition","claimText":"Uploads are currently disabled.","subject":"uploads","relation":"feature.enabled","valueType":"string","value":"enabled","scope":"current","polarity":"negative","modality":"asserted"},
+    {"candidateId":"composition-absent-backup-norm","claimText":"Backups are currently enabled.","subject":"backups","relation":"feature.enabled","valueType":"string","value":"enabled","scope":"current","polarity":"positive","modality":"asserted"},
+    {"candidateId":"composition-absent-owner","claimText":"The admin console owner is Alice.","subject":"admin_console","relation":"ownership.owner","valueType":"string","value":"alice","scope":"current","polarity":"positive","modality":"asserted"}
+  ]
+}

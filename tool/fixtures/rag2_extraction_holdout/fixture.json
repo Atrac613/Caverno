@@ -1,0 +1,9 @@
+{
+  "schemaName": "caverno_rag2_typed_fact_extraction_fixture",
+  "schemaVersion": 1,
+  "fixtureId": "rag2-typed-fact-extraction-holdout-v1",
+  "extractorVersion": "typed-fact-extraction-v1-frozen",
+  "corpusRoot": "repository",
+  "corpusHash": "365c9f152244a2ee5d87313fbc1af70ccfa03a8a8b25ac18a70edacfe5ff5179",
+  "sourceFamilies": ["dartAssignment", "markdownUri", "proseState"]
+}

@@ -184,7 +184,7 @@ structurally unmotivated to build:
 | Local LLM | LL39 | done | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument and record a RAG2 No-Go because every strong retrieval control returns evidence for 4/4 no-answer cases. |
-| Retrieval | RAG2 | later | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects and an incremental SQLite/FTS5 index over active-project code and Markdown. |
+| Retrieval | RAG2 | later | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects and an incremental SQLite/FTS5 index over active-project code and Markdown. Offline Knowledge Object v2, provenance-attestation v1, and bounded source-discovery v1 contracts are Go; next is an opt-in manifest-only live shadow, not storage. |
 | Retrieval | RAG3 | later | M | RAG2, LL5, F6, LL39 | Bounded local vector retrieval, weighted RRF, context budgeting, and an active-project `search_knowledge` tool. |
 | Retrieval | RAG4 | blocked | M | RAG1, RAG3, HOOK1, SEC1, SEC2, agent-kb provenance | Federate agent-kb memories and wiki pages without copying its raw archive or database into Caverno. Blocked upstream: `kb_search` exposes no timestamp, wiki hits carry no confidence or source agent, and archiving rejects any agent outside `{claude, codex}`. |
 | Retrieval | RAG5 | later | S-M | RAG3, RAG4, LL23 | Evaluate deterministic local/agent-kb routing in shadow before automatic retrieval changes prompts or turn cost. |
@@ -1250,6 +1250,252 @@ Promotion gate:
 
 Status: `later`
 
+Canonical investigation handoff:
+`docs/rag2_investigation_handoff_2026-08-25.md`. This index preserves the full
+ongoing decision sequence, failed approaches, frozen artifacts, and next entry
+condition independently of pre-squash commit history.
+
+Entry spike (2026-08-25): `tool/rag2_lexical_policy_bakeoff.dart` compared
+word, bigram, and trigram token policies through in-memory FTS5 with fixed
+IDF-weighted coverage thresholds. Trigram recovered 16/16 answerable cases and
+all Japanese cases, but the best threshold still retrieved 2/4 no-answer
+cases. RAG2 therefore remains `later`; a holdout evidence-sufficiency experiment
+must pass before migration work. Evidence:
+`docs/rag2_lexical_policy_spike_2026-08-25.md`.
+
+Holdout follow-up (2026-08-25): a seed-only grid over passage coverage, segment
+concentration, and BM25 margin was frozen before evaluation on a separate
+20-case corpus. Seed and holdout both scored 15/16 answerable hits and 2/4
+no-answer retrievals. Topical safety passages remained indistinguishable from
+answer-bearing evidence, so adding lexical thresholds is closed as a No-Go.
+Evidence: `docs/rag2_evidence_sufficiency_holdout_2026-08-25.md`.
+
+Claim-support diagnostic (2026-08-25): the frozen policy was evaluated against
+oracle answer-key citations without changing retrieval. Seed relevance was
+15/16 but full support was 14/16 because one conflict case returned only the
+historical side; holdout relevance and full support were both 15/16. Both
+datasets still returned topical-but-insufficient safety passages for 2/4
+no-answer cases. The oracle makes the metric distinction reviewable but is not
+runtime eligible, so RAG2 remains No-Go. Evidence:
+`docs/rag2_claim_support_oracle_2026-08-25.md`.
+
+Runtime-signal follow-up (2026-08-25): three query-and-passage-only candidates
+were selected on seed by F1, precision, and recall, then applied unchanged to
+the frozen holdout. Literal completeness plus explicit protected-value and
+instruction-denial handling scored precision/recall/F1 1.000 on both corpora
+against oracle claim-support labels. This is a synthetic pass but production
+No-Go: only 40 inspected cases exist, the rules are intent-specific, and benign
+negative statements and multilingual paraphrases are not represented. Freeze
+a new untouched adversarial corpus before changing or promoting the signal.
+Evidence: `docs/rag2_runtime_answerability_signal_2026-08-25.md`.
+
+Untouched adversarial audit (2026-08-25): the frozen winner was applied without
+decision-rule changes to a newly hashed 20-case corpus. Recall stayed 1.000,
+but signing-password metadata, a `carry out` execution paraphrase, and a
+`pasword` typo produced three false positives, reducing precision to 0.833 and
+unanswerable-adversarial precision to 0.000. RAG2 remains No-Go, and adding more
+intent keywords is closed. The next offline experiment must score post-answer
+claim verification as supported/contradicted/absent while keeping retrieval and
+generation metrics separate. Evidence:
+`docs/rag2_runtime_adversarial_audit_2026-08-25.md`.
+
+Post-answer claim verification (2026-08-25): a versioned set of 36 fixed claims
+balanced across supported, contradicted, and absent was evaluated over all
+three corpora. The seed-selected lexical verifier scored macro-F1 0.758 on
+seed, 0.675 on the lexical holdout, and 0.542 on the adversarial audit. Current
+and superseded values coexisting in concatenated evidence caused false support
+for stale claims, while topical overlap confused absent and contradicted. More
+threshold tuning is closed. The next offline slice must preserve hit-level
+source identity, authority, and revision order for claim verification without
+building production storage. Evidence:
+`docs/rag2_post_answer_claim_verification_2026-08-25.md`.
+
+Authority-aware follow-up (2026-08-25): storage-independent source identity,
+current/historical authority, and revision metadata were attached to every
+fixture object while the 36 claims and lexical verifier stayed frozen. Macro-F1
+changed from 0.758 to 0.667 on seed, 0.675 to 0.838 on the lexical holdout, and
+0.542 to 0.672 on the adversarial audit. Metadata fixed some stale-value errors
+but prose-based authority inference regressed historical seed cases, while
+negation and topical-overlap errors remained. Do not add temporal keywords.
+The next offline slice must give each generated claim explicit scope and cited
+source IDs, then fail closed on missing, mismatched, or superseded citations.
+Evidence: `docs/rag2_authority_claim_verification_2026-08-25.md`.
+
+Structured-claim follow-up (2026-08-25): all 36 fixed claims received explicit
+`current`/`historical`/`unspecified` scope and cited source IDs. Missing,
+unretrieved, authority-mismatched, and superseded citations fail closed before
+the unchanged lexical verifier. Macro-F1 reached 0.838 on seed and 0.915 on
+both holdouts; holdouts pass but seed does not. Four residual failures isolate
+code-to-prose facts, URL-to-port expression, and negation polarity. Keep
+envelopes, retrieval, and thresholds frozen; the next offline slice must apply
+a fail-closed semantic support verifier only to citations that clear structural
+checks. Evidence: `docs/rag2_structured_claim_envelopes_2026-08-25.md`.
+
+Semantic-verifier follow-up (2026-08-25): a deterministic verifier runs only
+after the frozen citation, scope, authority, and revision checks. Bounded
+normalization for code identifiers, explicit URL ports, and boolean negation
+raises macro-F1 to 1.000 on seed and both existing holdouts, while unavailable
+verification fails closed. This closes the known residuals but is not
+independent promotion evidence because those residuals informed the verifier
+design. Keep the verifier and 36-claim suite frozen; the next offline slice
+must use a new blinded semantic holdout with positive and negative controls.
+Production remains No-Go. Evidence:
+`docs/rag2_semantic_claim_verification_2026-08-25.md`.
+
+Blinded semantic holdout (2026-08-25): verifier v1 and the original 36 claims
+were frozen, then 12 balanced independent controls measured double negation,
+URL value binding, denied assignment, modality, and topical absence. Macro-F1
+fell to 0.672 (supported 0.600, contradicted 0.750, absent 0.667). The four
+errors prove bag-of-terms normalization cannot bind a value to a relation or
+represent boolean parity and modality. RAG2 remains No-Go. Freeze this holdout;
+the next offline slice may compare one relation-aware atomic-fact verifier v2
+without candidate-specific rules. Evidence:
+`docs/rag2_blinded_semantic_holdout_2026-08-25.md`.
+
+Relation-aware verifier comparison (2026-08-25): one v2 binds numeric values to
+code assignments and URI components, computes boolean negation parity, and
+keeps modal state absent before falling back to frozen v1. V2 preserves
+macro-F1 1.000 on the original three datasets and raises the 12-claim semantic
+holdout from 0.672 to 1.000. All gates pass, but the holdout informed v2, so the
+48 claims are now a regression suite rather than independent promotion
+evidence. Production remains No-Go. Freeze both verifiers and all claims; the
+next offline slice must be a second independent compositional holdout.
+Evidence: `docs/rag2_relation_aware_claim_verification_2026-08-25.md`.
+
+Second compositional holdout (2026-08-25): both verifiers and the existing 48
+claims were frozen before adding 12 balanced controls that combine multiple
+URIs, default ports, host-port pairs, non-numeric assignments, scoped
+negation, conditions, modality, norms, and topical absence. V1 scores macro-F1
+0.154 and v2 scores 0.328; both fail. V2 still binds at sentence scope and
+cannot distinguish several same-type relations or asserted state from
+conditional and normative state. Close further regex and alias patches. Freeze
+all 60 claims; the next offline slice must define typed evidence facts and
+measure an oracle matcher upper bound separately from extraction. RAG2 remains
+No-Go. Evidence:
+`docs/rag2_compositional_semantic_holdout_2026-08-25.md`.
+
+Typed evidence-fact oracle (2026-08-25): a versioned contract now represents
+subject, relation, typed value, scope, polarity, modality, source span, and
+provenance independently of storage. Twelve typed claim atoms and 14
+oracle-annotated facts were matched only within each frozen citation envelope.
+The matcher scores macro-F1 1.000 and all three class F1 scores are 1.000,
+establishing the representation and matching upper bound. Extraction remains
+`not_evaluated`, so production stays No-Go. Freeze the contract and matcher;
+the next offline slice must score candidate-independent fact extraction by
+source family and its downstream claim verdicts. Evidence:
+`docs/rag2_typed_fact_oracle_2026-08-25.md`.
+
+Typed fact extraction v1 (2026-08-25): candidate-independent deterministic
+paths recover 4/4 Dart constant-assignment facts and 5/5 Markdown URI-port
+facts with precision and recall 1.000 on the development fixture. Prose states
+remain fail-closed at 0/5, leaving overall precision 1.000, recall 0.643, and F1
+0.783. The frozen matcher reaches downstream macro-F1 0.915, but the extraction
+source-family gate fails and production remains No-Go. Freeze extraction v1;
+the next slice must apply it unchanged to a new untouched extraction holdout
+before any prose extractor is designed. Evidence:
+`docs/rag2_typed_fact_extraction_2026-08-25.md`.
+
+Independent extraction holdout (2026-08-25): frozen v1 was applied unchanged
+to a new hashed corpus with Dart literal and unsupported-expression controls,
+explicit/default/multiple/malformed URI controls, and scoped prose states.
+Dart precision/recall falls to 0.750/1.000, Markdown URI to 0.667/0.500, and
+prose stays 0.000/0.000; overall precision/recall/F1 is 0.714/0.455/0.556.
+Interpolated strings and malformed ports cause false facts. Freeze the holdout;
+the next slice may harden syntax-boundary precision only, without adding missed
+URI phrasing, aliases, or prose rules. Production remains No-Go. Evidence:
+`docs/rag2_typed_fact_extraction_holdout_2026-08-25.md`.
+
+Extraction v2 precision hardening (2026-08-25): a separate path uses analyzer
+AST simple-literal classification and complete URI-token validation while v1,
+relation binding, and prose behavior remain frozen. On the v1-informed
+holdout, overall precision rises from 0.714 to 1.000, recall stays 0.455, and F1
+rises from 0.556 to 0.625. The known false facts are removed, but this is not
+independent promotion evidence. Freeze v2 and require a third untouched
+precision holdout; URI recall, prose extraction, and production remain No-Go.
+Evidence: `docs/rag2_typed_fact_extraction_v2_2026-08-25.md`.
+
+Independent v2 precision holdout (2026-08-25): frozen v2 scores precision
+1.000 for both Dart assignments and Markdown URIs on a third untouched corpus,
+with no true-positive regression from v1. V2 becomes the precision baseline.
+Recall remains 0.750 for Dart, 0.667 for URI relations, and 0.000 for prose;
+overall recall is 0.500, so extraction and production remain No-Go. Before
+adding recall, the next slice must distinguish unsupported extraction from a
+true absent-fact verdict with a versioned typed outcome. Evidence:
+`docs/rag2_typed_fact_extraction_v2_holdout_2026-08-25.md`.
+
+Initial extraction outcome contract v1 (2026-08-25, later withdrawn): frozen v2
+was applied unchanged to all three extraction datasets. The instrument accounts for all
+35 annotated spans as 19 extracted, 1 unsupported syntax, 3 unsupported
+relations, and 12 unsupported prose spans. Availability is 0.909 for Dart,
+0.750 for URI, and 0.000 for prose, with false extraction rate 0.000. Its
+initial contract Go and unary-negative follow-up were withdrawn by the audit
+below. Evidence:
+`docs/rag2_typed_fact_extraction_outcomes_2026-08-25.md`.
+
+Outcome-contract audit (2026-08-25): withdraw the v1 contract Go. Its gate did
+not require the 19 existing true positives, so zero extraction could pass, and
+unknown relations could become absent without extractor coverage. V2 pins the
+three dataset identities, exact true-positive and outcome baselines, and false
+extraction rate; it also requires explicit complete relation coverage before
+absence. Accounting is Go, runtime availability is not evaluated, and the
+contract remains No-Go. Stop extraction v3. Next label retrieved passages as
+answer support, abstention support, topical only, or irrelevant and reconcile
+the RAG2 promotion gate before deciding whether typed facts continue. Evidence:
+`docs/rag2_typed_fact_extraction_outcome_audit_2026-08-25.md`.
+
+Passage-role reconciliation (2026-08-25): frozen trigram retrieval was
+re-scored without ranking changes against a versioned four-role oracle. It
+retrieved answer support for 27/27 factual cases and abstention support for 4/5
+bounded-negative cases. One unavailable case also retrieved useful abstention
+support, proving that the old `no-answer retrieved` gate counted unlike outcomes
+together; five of eight unavailable cases still retrieved topical-only
+evidence. Withdraw that gate, keep role classification unavailable at runtime,
+and close typed facts as diagnostic rather than a RAG2 prerequisite. Production
+remains No-Go. Next define only the storage-independent Knowledge Object and
+Chunk contract with deterministic replay and invalidation evidence. Evidence:
+`docs/rag2_passage_role_oracle_2026-08-25.md`.
+
+Knowledge Object contract and audit (2026-08-25): the initial
+`rag2-knowledge-object-contract-v1` Go is withdrawn. Its duplicate-content
+ordinal could reassign identity, retained IDs hid provenance-only updates,
+object add/remove events were absent, and JSON reports contained raw source
+text. Corrected v2 uses semantic locators, fails closed on ambiguity, partitions
+four retained chunks into two fully unchanged and two metadata-updated IDs,
+records two removed / three added chunks and one removed / one added object, and
+keeps raw source text out of reports. Exact snapshot and delta identities are
+pinned. The offline v2 contract is Go; storage is not evaluated and production
+remains No-Go. Before source discovery, define an offline attestation contract
+for persisted project identity, canonical root, Git/working-tree revision,
+derived source trust, SEC1 read-only classification, and bounded text/binary
+handling. Evidence: `docs/rag2_knowledge_object_contract_2026-08-25.md` and
+`docs/rag2_knowledge_object_contract_audit_2026-08-25.md`.
+
+Provenance attestation contract (2026-08-25):
+`rag2-provenance-attestation-contract-v1` binds project identity to persisted
+`CodingProject.id`, canonicalizes reads through `ProjectReadPathFence`, derives
+clean tracked Git-blob revisions separately from modified/untracked working-tree
+hashes, and rejects missing or inconsistent Git evidence. A moved-root pair
+keeps source identity, four fixture cases attest, and one unavailable-Git case
+fails closed. SEC1 remains `readOnlyInspection` / `low`, and the filesystem
+tools now share the extracted bounded UTF-8/binary classifier. The offline
+contract is Go; source discovery, storage, and production remain No-Go in this
+slice. Next evaluate bounded fixture-root discovery and candidate chunking.
+Evidence: `docs/rag2_provenance_attestation_contract_2026-08-25.md`.
+
+Bounded source discovery and chunking replay (2026-08-26):
+`rag2-source-discovery-contract-v1` walks only an explicit fixture root without
+following links, applies positive file-count/per-file/corpus byte limits, and
+consumes the frozen attestation result before creating candidate chunks. The
+pinned 276-byte corpus selects two attested Markdown/Dart sources and five
+heading/symbol chunks while excluding an unsupported file, generated directory,
+and generated Dart file. Limit overflow rejects the corpus; symlinks, missing
+Git evidence, unstable Dart boundaries, and duplicate locators fail closed.
+Reports omit source text and absolute roots. The offline contract is Go;
+production discovery and production remain No-Go, and storage is not evaluated.
+Next add only an opt-in, bounded, manifest-only live shadow for one explicitly
+selected `CodingProject`, with no persistence or prompt/tool/model wiring.
+Evidence: `docs/rag2_source_discovery_chunking_replay_2026-08-26.md`.
+
 Scope:
 - Add storage-independent Knowledge Object, Chunk, Provenance, retriever, fusion,
   reranker, and router contracts under a dedicated `features/knowledge` boundary.
@@ -1269,6 +1515,10 @@ Scope:
   bytes, symlink containment, binary detection, and generated-file exclusions.
 - Ship lexical-only indexing/search first; embedding availability is not a
   prerequisite for correctness.
+- Keep retrieval relevance separate from semantic answerability. The holdout
+  proves that a topically relevant safety passage can be insufficient to answer
+  a secret-value or execute-instructions request even with strong lexical
+  coverage and BM25 margin.
 
 Acceptance criteria:
 - Migration preserves all existing conversation, memory, LL5 embedding, and

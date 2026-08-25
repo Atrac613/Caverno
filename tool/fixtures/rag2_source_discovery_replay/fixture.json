@@ -1,0 +1,120 @@
+{
+  "schemaName": "caverno_rag2_source_discovery_fixture",
+  "schemaVersion": 1,
+  "fixtureId": "rag2-source-discovery-replay-v1",
+  "projectId": "discovery-project",
+  "root": "repository",
+  "policy": {
+    "maxFiles": 4,
+    "maxFileBytes": 4096,
+    "maxCorpusBytes": 8192
+  },
+  "gitEvidenceByPath": {
+    "docs/guide.md": {
+      "available": true,
+      "lsFilesExitCode": 0,
+      "statusPorcelain": "",
+      "headBlobRevision": "2222222222222222222222222222222222222222"
+    },
+    "lib/config.dart": {
+      "available": true,
+      "lsFilesExitCode": 0,
+      "statusPorcelain": "",
+      "headBlobRevision": "3333333333333333333333333333333333333333"
+    }
+  },
+  "expected": {
+    "result": {
+      "candidateFileCount": 2,
+      "candidateCorpusBytes": 276,
+      "violations": [],
+      "sources": [
+        {
+          "caseId": "docs/guide.md",
+          "decision": "attested",
+          "repoRelativePath": "docs/guide.md",
+          "sourceIdentity": "source_b56511b058c48d93d175e137c19fd598e2659b25f59f56bb2462e7159d21f0d1",
+          "sourceTrust": "workspace_tracked",
+          "worktreeState": "clean",
+          "revisionKind": "git_blob",
+          "revision": "git_blob:2222222222222222222222222222222222222222",
+          "contentHash": "f6b60ddefb685b8ec05c26aec09f2486deda6c5eca04bf4980edac74ef2bffc2",
+          "capabilityClass": "readOnlyInspection",
+          "capabilityRisk": "low",
+          "canonicalContainment": "inside_project",
+          "sourceKind": "markdown",
+          "bytes": 148,
+          "chunks": [
+            {
+              "chunkId": "candidate_1ec0a820680381a3e4964bf16ba07c592bf8a1cb27fc78633b08d06f642c8882",
+              "locator": "markdown:guide",
+              "lineStart": 1,
+              "lineEnd": 3,
+              "contentHash": "59924a15d71ef55d93b4a3142db68caa83fac2ba45965777eaa3c23f70fe6694"
+            },
+            {
+              "chunkId": "candidate_c177603f860a0b9732403c55f98bb49869361bc893a56e8eec626500c3ed852e",
+              "locator": "markdown:guide/endpoint",
+              "lineStart": 5,
+              "lineEnd": 7,
+              "contentHash": "c545688f0d019794643ae9776df595ed3ef4b49fe6c9387f2b23385abf52cb4b"
+            },
+            {
+              "chunkId": "candidate_17dcdafb51f8a76c36e334e679c12f8b43ebe742f4c2fa3ccbfee4fb4293d19b",
+              "locator": "markdown:guide/retry-policy",
+              "lineStart": 9,
+              "lineEnd": 11,
+              "contentHash": "08014642a2ae3d153d56a7a49fc8ab286dbf1185384228fa7f1f8927265a3109"
+            }
+          ]
+        },
+        {
+          "caseId": "lib/config.dart",
+          "decision": "attested",
+          "repoRelativePath": "lib/config.dart",
+          "sourceIdentity": "source_638d22c62ea11ab8fd43f87e9f409be641f9c90c430b793ee8427e5058294250",
+          "sourceTrust": "workspace_tracked",
+          "worktreeState": "clean",
+          "revisionKind": "git_blob",
+          "revision": "git_blob:3333333333333333333333333333333333333333",
+          "contentHash": "89c693953b46e447b3c0f76f32d43633cb78eca3caf947729d3ae988cb4ba215",
+          "capabilityClass": "readOnlyInspection",
+          "capabilityRisk": "low",
+          "canonicalContainment": "inside_project",
+          "sourceKind": "code",
+          "bytes": 128,
+          "chunks": [
+            {
+              "chunkId": "candidate_864814b1b953c74bbaeccd349fbd94eec94bf65d2eecb598c6b2fe968b08e52c",
+              "locator": "dart:defaultEndpoint",
+              "lineStart": 1,
+              "lineEnd": 1,
+              "contentHash": "98a1fa388933bbcb409befded915624ee57a0b5998d32e214fa0c0eb108e492d"
+            },
+            {
+              "chunkId": "candidate_124bb7af7cd07bd7da8e65769a1d07400b86945892e1b636c230481ec0828779",
+              "locator": "dart:RetryPolicy",
+              "lineStart": 3,
+              "lineEnd": 7,
+              "contentHash": "6dadb4077cfc4b6b317f6d78a2522a95ab0cd7769807332a05048cf82d977438"
+            }
+          ]
+        }
+      ],
+      "exclusions": [
+        {
+          "path": "assets/note.txt",
+          "reason": "unsupported_extension"
+        },
+        {
+          "path": "build/",
+          "reason": "generated_directory"
+        },
+        {
+          "path": "lib/config.g.dart",
+          "reason": "generated_file"
+        }
+      ]
+    }
+  }
+}

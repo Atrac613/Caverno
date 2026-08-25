@@ -6,10 +6,11 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 export 'filesystem_text_snapshot.dart';
 
+import 'bounded_text_file_classifier.dart';
 import 'filesystem_diff_builder.dart';
+import 'filesystem_mutation_operations.dart';
 import 'filesystem_overview_format.dart';
 import 'filesystem_path_resolver.dart';
-import 'filesystem_mutation_operations.dart';
 import 'filesystem_text_snapshot.dart';
 import 'first_party_tool_execution_result.dart';
 
@@ -46,10 +47,6 @@ class FilesystemTools {
   static int get _maxScanBytes => (Platform.isIOS || Platform.isAndroid)
       ? 64 * 1024 * 1024
       : 256 * 1024 * 1024;
-
-  /// Number of leading bytes sampled to detect binary / non-UTF-8 files
-  /// without reading the whole file into memory.
-  static const int _binarySniffBytes = 8192;
 
   /// Size ceiling for computing a read's whole-file content hash.
   ///
@@ -184,7 +181,7 @@ class FilesystemTools {
     }
 
     try {
-      if (await _looksBinary(file)) {
+      if (await BoundedTextFileClassifier.looksBinary(file)) {
         return FirstPartyToolExecutionResult.payloadOnly(
           jsonEncode({
             'error':
@@ -316,7 +313,7 @@ class FilesystemTools {
 
     try {
       final sizeBytes = await file.length();
-      if (await _looksBinary(file)) {
+      if (await BoundedTextFileClassifier.looksBinary(file)) {
         return jsonEncode({
           'path': absolutePath,
           'size_bytes': sizeBytes,
@@ -376,44 +373,6 @@ class FilesystemTools {
         operation: 'inspect_file',
         error: error,
       );
-    }
-  }
-
-  /// Sniffs the first [_binarySniffBytes] of [file] to decide whether it is a
-  /// binary / non-UTF-8 file, without loading the whole file into memory.
-  ///
-  /// Treats a NUL byte as a definitive binary marker. For UTF-8 validation it
-  /// tolerates a multi-byte rune that happens to be split at the sniff
-  /// boundary (UTF-8 runes are at most 4 bytes) before declaring the file
-  /// binary.
-  static Future<bool> _looksBinary(File file) async {
-    try {
-      final prefix = <int>[];
-      await for (final chunk in file.openRead(0, _binarySniffBytes)) {
-        prefix.addAll(chunk);
-        if (prefix.length >= _binarySniffBytes) break;
-      }
-      if (prefix.isEmpty) return false;
-      final sample = prefix.length > _binarySniffBytes
-          ? prefix.sublist(0, _binarySniffBytes)
-          : prefix;
-      if (sample.contains(0)) return true;
-      for (var drop = 0; drop <= 3 && sample.length - drop > 0; drop++) {
-        try {
-          utf8.decode(
-            sample.sublist(0, sample.length - drop),
-            allowMalformed: false,
-          );
-          return false;
-        } on FormatException {
-          // A trailing rune may be split at the boundary; retry with fewer
-          // bytes. If every attempt fails the content is genuinely binary.
-        }
-      }
-      return true;
-    } on FileSystemException {
-      // Let the caller's own open attempt surface the I/O error instead.
-      return false;
     }
   }
 
@@ -761,7 +720,7 @@ class FilesystemTools {
         // Skip binary files cheaply (sampled prefix) instead of reading them
         // fully like the previous implementation did.
         try {
-          if (await _looksBinary(entity)) continue;
+          if (await BoundedTextFileClassifier.looksBinary(entity)) continue;
         } on FileSystemException {
           continue;
         }

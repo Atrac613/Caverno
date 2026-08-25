@@ -1,0 +1,14 @@
+{
+  "schemaName": "caverno_rag2_evidence_authority",
+  "schemaVersion": 1,
+  "metadataId": "rag2-compositional-holdout-authority-v1",
+  "datasets": {
+    "rag2-compositional-holdout-v1": {
+      "docs/endpoints.md": {"authority":"current","revision":3},
+      "docs/feature_scopes.md": {"authority":"current","revision":3},
+      "docs/history.md": {"authority":"historical","revision":2},
+      "docs/ownership.md": {"authority":"current","revision":3},
+      "lib/runtime_modes.dart": {"authority":"current","revision":3}
+    }
+  }
+}

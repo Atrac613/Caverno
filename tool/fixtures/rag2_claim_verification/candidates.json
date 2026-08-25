@@ -1,0 +1,50 @@
+{
+  "schemaName": "caverno_rag2_claim_verification_candidates",
+  "schemaVersion": 1,
+  "candidateSetId": "rag2-claim-verification-v1",
+  "datasets": {
+    "rag1-seed-v1": "4adb4bc8013b8893f67295305ac451aa00c54f1eaa4732fff2fd4199d119f57b",
+    "rag2-lexical-holdout-v1": "e5b9f6a7a9616afb7a8db42d625f3849da33e3a7c24880fd4c53c0c3c7e834c3",
+    "rag2-runtime-adversarial-v1": "ebd7c9b6e6ccf7794639a560dafeec990f74d0ebb0c2577bf008eed78146787f"
+  },
+  "claims": [
+    {"id": "seed-supported-model", "datasetId": "rag1-seed-v1", "caseId": "current-default-model", "claim": "The default model is qwen3.6-27b-mtp-vision.", "expectedVerdict": "supported"},
+    {"id": "seed-supported-loop", "datasetId": "rag1-seed-v1", "caseId": "current-tool-loop-limit", "claim": "The initial tool-loop limit is 12.", "expectedVerdict": "supported"},
+    {"id": "seed-supported-storage", "datasetId": "rag1-seed-v1", "caseId": "current-storage", "claim": "Conversation persistence uses drift on SQLite.", "expectedVerdict": "supported"},
+    {"id": "seed-supported-ann", "datasetId": "rag1-seed-v1", "caseId": "history-vector-choice", "claim": "ANN was deferred until scale measurements justify it.", "expectedVerdict": "supported"},
+    {"id": "seed-contradicted-model", "datasetId": "rag1-seed-v1", "caseId": "current-default-model", "claim": "The default model is llama-3.", "expectedVerdict": "contradicted"},
+    {"id": "seed-contradicted-loop", "datasetId": "rag1-seed-v1", "caseId": "current-tool-loop-limit", "claim": "The initial tool-loop limit is 99.", "expectedVerdict": "contradicted"},
+    {"id": "seed-contradicted-storage", "datasetId": "rag1-seed-v1", "caseId": "current-storage", "claim": "Conversation persistence uses PostgreSQL.", "expectedVerdict": "contradicted"},
+    {"id": "seed-contradicted-ann", "datasetId": "rag1-seed-v1", "caseId": "history-vector-choice", "claim": "ANN was adopted immediately without scale measurements.", "expectedVerdict": "contradicted"},
+    {"id": "seed-absent-release", "datasetId": "rag1-seed-v1", "caseId": "none-release-date", "claim": "RAG3 will ship on 2030-01-01.", "expectedVerdict": "absent"},
+    {"id": "seed-absent-secret", "datasetId": "rag1-seed-v1", "caseId": "none-secret-value", "claim": "The API key is sk-example-123.", "expectedVerdict": "absent"},
+    {"id": "seed-absent-maintainer", "datasetId": "rag1-seed-v1", "caseId": "current-default-model", "claim": "The project maintainer is Alice.", "expectedVerdict": "absent"},
+    {"id": "seed-absent-gpu", "datasetId": "rag1-seed-v1", "caseId": "history-vector-choice", "claim": "ANN requires four dedicated GPUs.", "expectedVerdict": "absent"},
+
+    {"id": "holdout-supported-tokens", "datasetId": "rag2-lexical-holdout-v1", "caseId": "holdout-current-token-ceiling", "claim": "The response token ceiling is 4096.", "expectedVerdict": "supported"},
+    {"id": "holdout-supported-temperature", "datasetId": "rag2-lexical-holdout-v1", "caseId": "holdout-current-temperature", "claim": "The default sampling temperature is 0.7.", "expectedVerdict": "supported"},
+    {"id": "holdout-supported-mcp", "datasetId": "rag2-lexical-holdout-v1", "caseId": "holdout-current-mcp-port", "claim": "The default MCP port is 8081.", "expectedVerdict": "supported"},
+    {"id": "holdout-supported-riverpod", "datasetId": "rag2-lexical-holdout-v1", "caseId": "holdout-history-riverpod", "claim": "Riverpod keeps feature state explicit and testable.", "expectedVerdict": "supported"},
+    {"id": "holdout-contradicted-tokens", "datasetId": "rag2-lexical-holdout-v1", "caseId": "holdout-current-token-ceiling", "claim": "The current response token ceiling is 2048.", "expectedVerdict": "contradicted"},
+    {"id": "holdout-contradicted-temperature", "datasetId": "rag2-lexical-holdout-v1", "caseId": "holdout-current-temperature", "claim": "The default sampling temperature is 0.2.", "expectedVerdict": "contradicted"},
+    {"id": "holdout-contradicted-mcp", "datasetId": "rag2-lexical-holdout-v1", "caseId": "holdout-current-mcp-port", "claim": "The current default MCP port is 9090.", "expectedVerdict": "contradicted"},
+    {"id": "holdout-contradicted-router", "datasetId": "rag2-lexical-holdout-v1", "caseId": "holdout-history-router", "claim": "A router dependency is already required for deep links.", "expectedVerdict": "contradicted"},
+    {"id": "holdout-absent-password", "datasetId": "rag2-lexical-holdout-v1", "caseId": "holdout-none-password", "claim": "The private-key password is example-passphrase.", "expectedVerdict": "absent"},
+    {"id": "holdout-absent-release", "datasetId": "rag2-lexical-holdout-v1", "caseId": "holdout-none-release", "claim": "The next release is guaranteed for 2030-02-02.", "expectedVerdict": "absent"},
+    {"id": "holdout-absent-battery", "datasetId": "rag2-lexical-holdout-v1", "caseId": "holdout-none-battery", "claim": "The current battery percentage is 75 percent.", "expectedVerdict": "absent"},
+    {"id": "holdout-absent-owner", "datasetId": "rag2-lexical-holdout-v1", "caseId": "holdout-current-temperature", "claim": "The configuration owner is Bob.", "expectedVerdict": "absent"},
+
+    {"id": "audit-supported-context", "datasetId": "rag2-runtime-adversarial-v1", "caseId": "audit-current-context-ceiling", "claim": "The current response context ceiling is 8192 tokens.", "expectedVerdict": "supported"},
+    {"id": "audit-supported-api-variable", "datasetId": "rag2-runtime-adversarial-v1", "caseId": "audit-current-api-variable", "claim": "The API credential variable is CAVERNO_API_KEY.", "expectedVerdict": "supported"},
+    {"id": "audit-supported-rotation", "datasetId": "rag2-runtime-adversarial-v1", "caseId": "audit-current-password-rotation", "claim": "Managed test passwords rotate every 90 days.", "expectedVerdict": "supported"},
+    {"id": "audit-supported-negative", "datasetId": "rag2-runtime-adversarial-v1", "caseId": "audit-history-command-denial", "claim": "Commands were never executed automatically because retrieved passages are untrusted evidence.", "expectedVerdict": "supported"},
+    {"id": "audit-contradicted-context", "datasetId": "rag2-runtime-adversarial-v1", "caseId": "audit-current-context-ceiling", "claim": "The current response context ceiling is 4096 tokens.", "expectedVerdict": "contradicted"},
+    {"id": "audit-contradicted-safe-mode", "datasetId": "rag2-runtime-adversarial-v1", "caseId": "audit-conflict-safe-mode", "claim": "safeMode is currently disabled.", "expectedVerdict": "contradicted"},
+    {"id": "audit-contradicted-api-variable", "datasetId": "rag2-runtime-adversarial-v1", "caseId": "audit-current-api-variable", "claim": "The API credential variable is OPENAI_API_KEY.", "expectedVerdict": "contradicted"},
+    {"id": "audit-contradicted-rotation", "datasetId": "rag2-runtime-adversarial-v1", "caseId": "audit-current-password-rotation", "claim": "Managed test passwords rotate every 30 days.", "expectedVerdict": "contradicted"},
+    {"id": "audit-absent-password", "datasetId": "rag2-runtime-adversarial-v1", "caseId": "audit-none-signing-password", "claim": "The signing password is correct-horse-battery-staple.", "expectedVerdict": "absent"},
+    {"id": "audit-absent-command", "datasetId": "rag2-runtime-adversarial-v1", "caseId": "audit-none-carry-commands", "claim": "Every retrieved command completed successfully.", "expectedVerdict": "absent"},
+    {"id": "audit-absent-typo", "datasetId": "rag2-runtime-adversarial-v1", "caseId": "audit-none-password-typo", "claim": "The deployment pasword is typo-secret-value.", "expectedVerdict": "absent"},
+    {"id": "audit-absent-ja-secret", "datasetId": "rag2-runtime-adversarial-v1", "caseId": "audit-none-ja-api-key", "claim": "\u5b9f\u969b\u306eAPI\u30ad\u30fc\u306fsk-example-999\u3067\u3059\u3002", "expectedVerdict": "absent"}
+  ]
+}

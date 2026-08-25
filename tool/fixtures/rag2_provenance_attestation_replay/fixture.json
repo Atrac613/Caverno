@@ -1,0 +1,131 @@
+{
+  "schemaName": "caverno_rag2_provenance_attestation_fixture",
+  "schemaVersion": 1,
+  "fixtureId": "rag2-provenance-attestation-replay-v1",
+  "projectId": "persisted-project-id",
+  "cases": [
+    {
+      "id": "clean-root-a",
+      "root": "root_a/repository",
+      "path": "docs/project.md",
+      "gitEvidence": {
+        "available": true,
+        "lsFilesExitCode": 0,
+        "statusPorcelain": "",
+        "headBlobRevision": "1111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "id": "clean-root-b",
+      "root": "root_b/repository",
+      "path": "docs/project.md",
+      "gitEvidence": {
+        "available": true,
+        "lsFilesExitCode": 0,
+        "statusPorcelain": "",
+        "headBlobRevision": "1111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "id": "modified-tracked",
+      "root": "modified/repository",
+      "path": "docs/project.md",
+      "gitEvidence": {
+        "available": true,
+        "lsFilesExitCode": 0,
+        "statusPorcelain": " M docs/project.md",
+        "headBlobRevision": "1111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "id": "untracked",
+      "root": "untracked/repository",
+      "path": "docs/new.md",
+      "gitEvidence": {
+        "available": true,
+        "lsFilesExitCode": 1,
+        "statusPorcelain": "?? docs/new.md"
+      }
+    },
+    {
+      "id": "git-unavailable",
+      "root": "unavailable/repository",
+      "path": "docs/project.md",
+      "gitEvidence": {
+        "available": false,
+        "lsFilesExitCode": 127,
+        "statusPorcelain": ""
+      }
+    }
+  ],
+  "identityPairs": [
+    ["clean-root-a", "clean-root-b"]
+  ],
+  "expected": {
+    "identityPairsStable": true,
+    "results": [
+      {
+        "caseId": "clean-root-a",
+        "decision": "attested",
+        "repoRelativePath": "docs/project.md",
+        "sourceIdentity": "source_80ad0a899a8e7d7779b88286d1524f7298009984637c3e2ee08ad37986bd33c3",
+        "sourceTrust": "workspace_tracked",
+        "worktreeState": "clean",
+        "revisionKind": "git_blob",
+        "revision": "git_blob:1111111111111111111111111111111111111111",
+        "contentHash": "912fb1a32bd96444adf0c19e10389d01120638587efc5c4e358628dd9d866b6f",
+        "capabilityClass": "readOnlyInspection",
+        "capabilityRisk": "low",
+        "canonicalContainment": "inside_project"
+      },
+      {
+        "caseId": "clean-root-b",
+        "decision": "attested",
+        "repoRelativePath": "docs/project.md",
+        "sourceIdentity": "source_80ad0a899a8e7d7779b88286d1524f7298009984637c3e2ee08ad37986bd33c3",
+        "sourceTrust": "workspace_tracked",
+        "worktreeState": "clean",
+        "revisionKind": "git_blob",
+        "revision": "git_blob:1111111111111111111111111111111111111111",
+        "contentHash": "912fb1a32bd96444adf0c19e10389d01120638587efc5c4e358628dd9d866b6f",
+        "capabilityClass": "readOnlyInspection",
+        "capabilityRisk": "low",
+        "canonicalContainment": "inside_project"
+      },
+      {
+        "caseId": "modified-tracked",
+        "decision": "attested",
+        "repoRelativePath": "docs/project.md",
+        "sourceIdentity": "source_80ad0a899a8e7d7779b88286d1524f7298009984637c3e2ee08ad37986bd33c3",
+        "sourceTrust": "workspace_tracked",
+        "worktreeState": "modified",
+        "revisionKind": "working_tree_content",
+        "revision": "working_tree_sha256:6c160899855ee547af12d82a4d437a25a9865e2775c303cc2030094a5cac0397",
+        "contentHash": "6c160899855ee547af12d82a4d437a25a9865e2775c303cc2030094a5cac0397",
+        "capabilityClass": "readOnlyInspection",
+        "capabilityRisk": "low",
+        "canonicalContainment": "inside_project"
+      },
+      {
+        "caseId": "untracked",
+        "decision": "attested",
+        "repoRelativePath": "docs/new.md",
+        "sourceIdentity": "source_c666941aa957f010708e34a9227ee0e90085c498329732e06e3d190c587625ca",
+        "sourceTrust": "workspace_untracked",
+        "worktreeState": "untracked",
+        "revisionKind": "working_tree_content",
+        "revision": "working_tree_sha256:a078523f0c72484e2618cec2ba6bbb098ccec7b294683cabe49109a6c15ec7db",
+        "contentHash": "a078523f0c72484e2618cec2ba6bbb098ccec7b294683cabe49109a6c15ec7db",
+        "capabilityClass": "readOnlyInspection",
+        "capabilityRisk": "low",
+        "canonicalContainment": "inside_project"
+      },
+      {
+        "caseId": "git-unavailable",
+        "decision": "rejected",
+        "repoRelativePath": "docs/project.md",
+        "reason": "git_evidence_unavailable"
+      }
+    ]
+  }
+}

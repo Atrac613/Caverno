@@ -1,0 +1,60 @@
+{
+  "schemaName": "caverno_rag2_passage_role_oracle",
+  "schemaVersion": 1,
+  "oracleId": "rag2-passage-role-oracle-v1",
+  "defaultRole": "irrelevant",
+  "datasets": [
+    {
+      "fixtureId": "rag2-semantic-holdout-v1",
+      "corpusHash": "0314447ba24a5ae2fad63ec65602fee1804f4ea673bfe52d4f2ea38d6d97bac4",
+      "cases": [
+        {"caseId": "semantic-code-retry", "objectRoles": {"lib/execution_defaults.dart": "answer_support"}},
+        {"caseId": "semantic-code-format", "objectRoles": {"lib/execution_defaults.dart": "answer_support", "docs/audit_policy.md": "answer_support"}},
+        {"caseId": "semantic-dashboard-port", "objectRoles": {"docs/endpoints.md": "answer_support"}},
+        {"caseId": "semantic-callback-port", "objectRoles": {"docs/endpoints.md": "answer_support"}},
+        {"caseId": "semantic-staging-safe-mode", "objectRoles": {"docs/feature_flags.md": "answer_support", "docs/history.md": "topical_only"}},
+        {"caseId": "semantic-production-safe-mode", "objectRoles": {"docs/feature_flags.md": "abstention_support", "docs/history.md": "topical_only"}},
+        {"caseId": "semantic-retention", "objectRoles": {"docs/audit_policy.md": "answer_support"}},
+        {"caseId": "semantic-owner", "objectRoles": {"docs/audit_policy.md": "abstention_support"}},
+        {"caseId": "semantic-history-port", "objectRoles": {"docs/history.md": "answer_support"}},
+        {"caseId": "semantic-history-mode", "objectRoles": {"docs/history.md": "answer_support", "docs/feature_flags.md": "topical_only"}},
+        {"caseId": "semantic-conflict-port", "objectRoles": {"docs/endpoints.md": "answer_support", "docs/history.md": "answer_support"}},
+        {"caseId": "semantic-conflict-mode", "objectRoles": {"docs/feature_flags.md": "answer_support", "docs/history.md": "answer_support"}},
+        {"caseId": "semantic-ja-port", "objectRoles": {"docs/endpoints.md": "answer_support"}},
+        {"caseId": "semantic-ja-retention", "objectRoles": {"docs/audit_policy.md": "answer_support"}},
+        {"caseId": "semantic-ja-mode", "objectRoles": {"docs/feature_flags.md": "answer_support", "docs/history.md": "topical_only"}},
+        {"caseId": "semantic-ja-format", "objectRoles": {"lib/execution_defaults.dart": "answer_support", "docs/audit_policy.md": "answer_support"}},
+        {"caseId": "semantic-none-password", "objectRoles": {"docs/endpoints.md": "topical_only", "docs/audit_policy.md": "topical_only"}},
+        {"caseId": "semantic-none-owner", "objectRoles": {"docs/audit_policy.md": "abstention_support", "docs/endpoints.md": "topical_only"}},
+        {"caseId": "semantic-none-release", "objectRoles": {}},
+        {"caseId": "semantic-none-secret", "objectRoles": {"docs/endpoints.md": "topical_only"}}
+      ]
+    },
+    {
+      "fixtureId": "rag2-compositional-holdout-v1",
+      "corpusHash": "c120cb7970ccd7277618915fca9502b0a70fe154fe75c44e0e2199cbb185a8e4",
+      "cases": [
+        {"caseId": "composition-admin-port", "objectRoles": {"docs/endpoints.md": "answer_support"}},
+        {"caseId": "composition-api-port", "objectRoles": {"docs/endpoints.md": "answer_support"}},
+        {"caseId": "composition-portal-port", "objectRoles": {"docs/endpoints.md": "answer_support"}},
+        {"caseId": "composition-report-format", "objectRoles": {"lib/runtime_modes.dart": "answer_support"}},
+        {"caseId": "composition-worker-mode", "objectRoles": {"lib/runtime_modes.dart": "answer_support"}},
+        {"caseId": "composition-preview-mode", "objectRoles": {"docs/feature_scopes.md": "answer_support", "docs/history.md": "topical_only"}},
+        {"caseId": "composition-production-mode", "objectRoles": {"docs/feature_scopes.md": "abstention_support", "docs/history.md": "topical_only"}},
+        {"caseId": "composition-backup-mode", "objectRoles": {"docs/feature_scopes.md": "abstention_support"}},
+        {"caseId": "composition-history-port", "objectRoles": {"docs/history.md": "answer_support"}},
+        {"caseId": "composition-history-format", "objectRoles": {"docs/history.md": "answer_support", "lib/runtime_modes.dart": "topical_only", "docs/ownership.md": "topical_only"}},
+        {"caseId": "composition-history-preview", "objectRoles": {"docs/history.md": "answer_support", "docs/feature_scopes.md": "topical_only"}},
+        {"caseId": "composition-history-owner", "objectRoles": {"docs/ownership.md": "abstention_support", "docs/endpoints.md": "topical_only", "docs/history.md": "topical_only"}},
+        {"caseId": "composition-conflict-port", "objectRoles": {"docs/endpoints.md": "answer_support", "docs/history.md": "answer_support", "docs/ownership.md": "topical_only"}},
+        {"caseId": "composition-conflict-preview", "objectRoles": {"docs/feature_scopes.md": "answer_support", "docs/history.md": "answer_support"}},
+        {"caseId": "composition-alt-port", "objectRoles": {"docs/endpoints.md": "answer_support", "docs/feature_scopes.md": "irrelevant", "docs/history.md": "topical_only"}},
+        {"caseId": "composition-alt-mode", "objectRoles": {"docs/feature_scopes.md": "answer_support", "docs/history.md": "topical_only"}},
+        {"caseId": "composition-none-password", "objectRoles": {"docs/endpoints.md": "topical_only"}},
+        {"caseId": "composition-none-owner", "objectRoles": {"docs/ownership.md": "abstention_support"}},
+        {"caseId": "composition-none-release", "objectRoles": {"docs/endpoints.md": "topical_only", "docs/history.md": "topical_only"}},
+        {"caseId": "composition-none-secret", "objectRoles": {}}
+      ]
+    }
+  ]
+}

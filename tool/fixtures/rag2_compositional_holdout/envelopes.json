@@ -1,0 +1,19 @@
+{
+  "schemaName": "caverno_rag2_claim_envelopes",
+  "schemaVersion": 1,
+  "envelopeSetId": "rag2-compositional-holdout-envelopes-v1",
+  "envelopes": [
+    {"candidateId":"composition-supported-admin-port","scope":"current","citedSourceIds":["docs/endpoints.md"]},
+    {"candidateId":"composition-supported-api-port","scope":"current","citedSourceIds":["docs/endpoints.md"]},
+    {"candidateId":"composition-supported-default-port","scope":"current","citedSourceIds":["docs/endpoints.md"]},
+    {"candidateId":"composition-supported-report-format","scope":"current","citedSourceIds":["lib/runtime_modes.dart"]},
+    {"candidateId":"composition-contradicted-admin-port","scope":"current","citedSourceIds":["docs/endpoints.md"]},
+    {"candidateId":"composition-contradicted-report-format","scope":"current","citedSourceIds":["lib/runtime_modes.dart"]},
+    {"candidateId":"composition-contradicted-preview-state","scope":"current","citedSourceIds":["docs/feature_scopes.md"]},
+    {"candidateId":"composition-contradicted-worker-mode","scope":"current","citedSourceIds":["lib/runtime_modes.dart"]},
+    {"candidateId":"composition-absent-production-condition","scope":"current","citedSourceIds":["docs/feature_scopes.md"]},
+    {"candidateId":"composition-absent-upload-condition","scope":"current","citedSourceIds":["docs/feature_scopes.md"]},
+    {"candidateId":"composition-absent-backup-norm","scope":"current","citedSourceIds":["docs/feature_scopes.md"]},
+    {"candidateId":"composition-absent-owner","scope":"current","citedSourceIds":["docs/endpoints.md"]}
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "schemaName": "caverno_rag2_claim_envelopes",
+  "schemaVersion": 1,
+  "envelopeSetId": "rag2-semantic-holdout-envelopes-v1",
+  "envelopes": [
+    {"candidateId":"semantic-supported-retry","scope":"current","citedSourceIds":["lib/execution_defaults.dart"]},
+    {"candidateId":"semantic-supported-format","scope":"current","citedSourceIds":["lib/execution_defaults.dart"]},
+    {"candidateId":"semantic-supported-dashboard-port","scope":"current","citedSourceIds":["docs/endpoints.md"]},
+    {"candidateId":"semantic-supported-double-negative","scope":"current","citedSourceIds":["docs/feature_flags.md"]},
+    {"candidateId":"semantic-contradicted-retry","scope":"current","citedSourceIds":["lib/execution_defaults.dart"]},
+    {"candidateId":"semantic-contradicted-unrelated-number","scope":"current","citedSourceIds":["docs/endpoints.md"]},
+    {"candidateId":"semantic-contradicted-retention","scope":"current","citedSourceIds":["docs/audit_policy.md"]},
+    {"candidateId":"semantic-contradicted-format","scope":"current","citedSourceIds":["lib/execution_defaults.dart"]},
+    {"candidateId":"semantic-absent-unassigned-port","scope":"current","citedSourceIds":["docs/endpoints.md"]},
+    {"candidateId":"semantic-absent-modal-state","scope":"current","citedSourceIds":["docs/feature_flags.md"]},
+    {"candidateId":"semantic-absent-owner","scope":"current","citedSourceIds":["docs/audit_policy.md"]},
+    {"candidateId":"semantic-absent-callback-owner","scope":"current","citedSourceIds":["docs/audit_policy.md"]}
+  ]
+}

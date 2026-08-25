@@ -1,0 +1,31 @@
+{
+  "schemaName": "caverno_rag2_evidence_authority",
+  "schemaVersion": 1,
+  "metadataId": "rag2-evidence-authority-v1",
+  "datasets": {
+    "rag1-seed-v1": {
+      "lib/runtime_defaults.dart": {"authority": "current", "revision": 3},
+      "docs/current_architecture.md": {"authority": "current", "revision": 3},
+      "docs/federation_contract.md": {"authority": "current", "revision": 3},
+      "docs/japanese_facts.json": {"authority": "current", "revision": 3},
+      "docs/security_boundary.md": {"authority": "current", "revision": 3},
+      "docs/historical_decisions.md": {"authority": "historical", "revision": 2},
+      "docs/legacy_notes.md": {"authority": "historical", "revision": 1}
+    },
+    "rag2-lexical-holdout-v1": {
+      "docs/current_configuration.md": {"authority": "current", "revision": 3},
+      "docs/retrieval_safety.md": {"authority": "current", "revision": 3},
+      "docs/japanese_reference.json": {"authority": "current", "revision": 3},
+      "docs/decision_history.md": {"authority": "historical", "revision": 2},
+      "docs/legacy_configuration.md": {"authority": "historical", "revision": 1}
+    },
+    "rag2-runtime-adversarial-v1": {
+      "docs/current_runtime.md": {"authority": "current", "revision": 3},
+      "docs/security_examples.md": {"authority": "current", "revision": 3},
+      "docs/japanese_audit.json": {"authority": "current", "revision": 3},
+      "docs/decision_notes.md": {"authority": "historical", "revision": 2},
+      "docs/legacy_runtime.md": {"authority": "historical", "revision": 1},
+      "docs/typo_reference.md": {"authority": "historical", "revision": 1}
+    }
+  }
+}

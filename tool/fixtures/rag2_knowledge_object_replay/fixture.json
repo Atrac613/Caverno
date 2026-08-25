@@ -1,0 +1,112 @@
+{
+  "schemaName": "caverno_rag2_knowledge_object_replay_fixture",
+  "schemaVersion": 2,
+  "fixtureId": "rag2-knowledge-object-replay-v2",
+  "projectId": "rag2-replay-project",
+  "snapshots": [
+    {
+      "id": "baseline",
+      "root": "baseline/repository",
+      "sources": [
+        {
+          "path": "docs/project.md",
+          "revision": "docs-r1",
+          "sourceKind": "markdown",
+          "sourceTrust": "workspace_tracked"
+        },
+        {
+          "path": "lib/defaults.dart",
+          "revision": "lib-r1",
+          "sourceKind": "code",
+          "sourceTrust": "workspace_tracked"
+        },
+        {
+          "path": "docs/legacy.md",
+          "revision": "shared-r1",
+          "sourceKind": "markdown",
+          "sourceTrust": "workspace_tracked"
+        }
+      ]
+    },
+    {
+      "id": "updated",
+      "root": "updated/repository",
+      "sources": [
+        {
+          "path": "docs/project.md",
+          "revision": "docs-r2",
+          "sourceKind": "markdown",
+          "sourceTrust": "workspace_tracked"
+        },
+        {
+          "path": "lib/defaults.dart",
+          "revision": "lib-r1",
+          "sourceKind": "code",
+          "sourceTrust": "workspace_tracked"
+        },
+        {
+          "path": "docs/current.md",
+          "revision": "shared-r1",
+          "sourceKind": "markdown",
+          "sourceTrust": "workspace_tracked"
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "baselineSnapshotHash": "d2805345bf2b59571a814cd2064731cf762147311d6eda888af87dd134215236",
+    "updatedSnapshotHash": "fec1d48d6294268da79aac72c397217170183496f0fb8f9e1ff26ff037a8c9a0",
+    "baselineObjectCount": 3,
+    "updatedObjectCount": 3,
+    "baselineChunkCount": 6,
+    "updatedChunkCount": 7,
+    "retainedChunkCount": 4,
+    "unchangedChunkCount": 2,
+    "metadataUpdatedChunkCount": 2,
+    "removedChunkCount": 2,
+    "addedChunkCount": 3,
+    "movedRetainedChunkCount": 1,
+    "changedObjectCount": 1,
+    "unchangedObjectCount": 1,
+    "removedObjectCount": 1,
+    "addedObjectCount": 1,
+    "retainedChunkIds": [
+      "kc_5ce678cb254cbd881b1aa6b03193cee5f002bca9e6496d5cb286cc030d152441",
+      "kc_5ceaabc6e46e6281fcdabf22977566155b6cbe9e14833086a8a8ec85d90d365f",
+      "kc_a61a9f01da055f14e0b1726ca1635ab9f825e60eb50ee0478de7faf199e44481",
+      "kc_eed8425b71c6eed58331ee51611c9e5efc729bed2ff9db66005dbd32738f0958"
+    ],
+    "unchangedChunkIds": [
+      "kc_5ce678cb254cbd881b1aa6b03193cee5f002bca9e6496d5cb286cc030d152441",
+      "kc_a61a9f01da055f14e0b1726ca1635ab9f825e60eb50ee0478de7faf199e44481"
+    ],
+    "metadataUpdatedChunkIds": [
+      "kc_5ceaabc6e46e6281fcdabf22977566155b6cbe9e14833086a8a8ec85d90d365f",
+      "kc_eed8425b71c6eed58331ee51611c9e5efc729bed2ff9db66005dbd32738f0958"
+    ],
+    "removedChunkIds": [
+      "kc_0502872a0d5f058ae840ec45ac6a6dfa73b3e3bed3f8b6b884293fe25c534f6a",
+      "kc_4b55e03e005bf721b36c152dcabb6fcad11ea8b37846b6fd1895eaa6feb26bde"
+    ],
+    "addedChunkIds": [
+      "kc_6cb3c9cd386cd2ffffd7bb1db64b9f2d2cdb90de4eaff1051406da4a64465702",
+      "kc_79f35dddebae3411b82823f7e5b838137a9eb5fcea0f1fded6017c2bf4b7d676",
+      "kc_a5456483da45050217f671586b4c8d96855c99820b747938c7664ed0fba201c7"
+    ],
+    "movedRetainedChunkIds": [
+      "kc_5ceaabc6e46e6281fcdabf22977566155b6cbe9e14833086a8a8ec85d90d365f"
+    ],
+    "changedObjectIds": [
+      "ko_4e269cd4479197da9556976eb3138c3dc0e42d46f80981a72696bae3babf2f84"
+    ],
+    "unchangedObjectIds": [
+      "ko_652fa599bca4df4eedd45a0c252a04a8a3f0b9c7fdc67f3f3e31d4baba762a94"
+    ],
+    "removedObjectIds": [
+      "ko_bed4922faffc714ecf0e52f52c5cf145508ed1280254f5c4b019bd006a631b49"
+    ],
+    "addedObjectIds": [
+      "ko_617e0a6df400062c0d0a31dbc3e81a8dc98f97993e1f82f184b3dea148098788"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "schemaName": "caverno_rag2_evidence_authority",
+  "schemaVersion": 1,
+  "metadataId": "rag2-semantic-holdout-authority-v1",
+  "datasets": {
+    "rag2-semantic-holdout-v1": {
+      "docs/audit_policy.md": {"authority":"current","revision":3},
+      "docs/endpoints.md": {"authority":"current","revision":3},
+      "docs/feature_flags.md": {"authority":"current","revision":3},
+      "docs/history.md": {"authority":"historical","revision":2},
+      "lib/execution_defaults.dart": {"authority":"current","revision":3}
+    }
+  }
+}

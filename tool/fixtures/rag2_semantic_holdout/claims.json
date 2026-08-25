@@ -1,0 +1,20 @@
+{
+  "schemaName": "caverno_rag2_claim_verification_candidates",
+  "schemaVersion": 1,
+  "candidateSetId": "rag2-semantic-holdout-claims-v1",
+  "datasets": {"rag2-semantic-holdout-v1": "0314447ba24a5ae2fad63ec65602fee1804f4ea673bfe52d4f2ea38d6d97bac4"},
+  "claims": [
+    {"id":"semantic-supported-retry","datasetId":"rag2-semantic-holdout-v1","caseId":"semantic-code-retry","claim":"The initial retry limit is 7.","expectedVerdict":"supported"},
+    {"id":"semantic-supported-format","datasetId":"rag2-semantic-holdout-v1","caseId":"semantic-code-format","claim":"The default audit report format is json.","expectedVerdict":"supported"},
+    {"id":"semantic-supported-dashboard-port","datasetId":"rag2-semantic-holdout-v1","caseId":"semantic-dashboard-port","claim":"The dashboard port is 7443.","expectedVerdict":"supported"},
+    {"id":"semantic-supported-double-negative","datasetId":"rag2-semantic-holdout-v1","caseId":"semantic-staging-safe-mode","claim":"Staging safeMode is enabled.","expectedVerdict":"supported"},
+    {"id":"semantic-contradicted-retry","datasetId":"rag2-semantic-holdout-v1","caseId":"semantic-code-retry","claim":"The initial retry limit is 9.","expectedVerdict":"contradicted"},
+    {"id":"semantic-contradicted-unrelated-number","datasetId":"rag2-semantic-holdout-v1","caseId":"semantic-dashboard-port","claim":"The dashboard port is 8081.","expectedVerdict":"contradicted"},
+    {"id":"semantic-contradicted-retention","datasetId":"rag2-semantic-holdout-v1","caseId":"semantic-retention","claim":"Telemetry records are retained for 14 days.","expectedVerdict":"contradicted"},
+    {"id":"semantic-contradicted-format","datasetId":"rag2-semantic-holdout-v1","caseId":"semantic-code-format","claim":"The default audit report format is yaml.","expectedVerdict":"contradicted"},
+    {"id":"semantic-absent-unassigned-port","datasetId":"rag2-semantic-holdout-v1","caseId":"semantic-callback-port","claim":"The webhook callback port is 9443.","expectedVerdict":"absent"},
+    {"id":"semantic-absent-modal-state","datasetId":"rag2-semantic-holdout-v1","caseId":"semantic-production-safe-mode","claim":"Production safeMode is currently disabled.","expectedVerdict":"absent"},
+    {"id":"semantic-absent-owner","datasetId":"rag2-semantic-holdout-v1","caseId":"semantic-owner","claim":"The dashboard configuration owner is Alice.","expectedVerdict":"absent"},
+    {"id":"semantic-absent-callback-owner","datasetId":"rag2-semantic-holdout-v1","caseId":"semantic-owner","claim":"The callback owner is Bob.","expectedVerdict":"absent"}
+  ]
+}

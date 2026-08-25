@@ -1,0 +1,20 @@
+{
+  "schemaName": "caverno_rag2_claim_verification_candidates",
+  "schemaVersion": 1,
+  "candidateSetId": "rag2-compositional-holdout-claims-v1",
+  "datasets": {"rag2-compositional-holdout-v1": "c120cb7970ccd7277618915fca9502b0a70fe154fe75c44e0e2199cbb185a8e4"},
+  "claims": [
+    {"id":"composition-supported-admin-port","datasetId":"rag2-compositional-holdout-v1","caseId":"composition-admin-port","claim":"The admin console port is 7443.","expectedVerdict":"supported"},
+    {"id":"composition-supported-api-port","datasetId":"rag2-compositional-holdout-v1","caseId":"composition-api-port","claim":"The API port is 9090.","expectedVerdict":"supported"},
+    {"id":"composition-supported-default-port","datasetId":"rag2-compositional-holdout-v1","caseId":"composition-portal-port","claim":"The public portal port is 443.","expectedVerdict":"supported"},
+    {"id":"composition-supported-report-format","datasetId":"rag2-compositional-holdout-v1","caseId":"composition-report-format","claim":"The default report format is json.","expectedVerdict":"supported"},
+    {"id":"composition-contradicted-admin-port","datasetId":"rag2-compositional-holdout-v1","caseId":"composition-admin-port","claim":"The admin console port is 9555.","expectedVerdict":"contradicted"},
+    {"id":"composition-contradicted-report-format","datasetId":"rag2-compositional-holdout-v1","caseId":"composition-report-format","claim":"The default report format is yaml.","expectedVerdict":"contradicted"},
+    {"id":"composition-contradicted-preview-state","datasetId":"rag2-compositional-holdout-v1","caseId":"composition-preview-mode","claim":"Preview safeMode is enabled.","expectedVerdict":"contradicted"},
+    {"id":"composition-contradicted-worker-mode","datasetId":"rag2-compositional-holdout-v1","caseId":"composition-worker-mode","claim":"The default worker mode is paused.","expectedVerdict":"contradicted"},
+    {"id":"composition-absent-production-condition","datasetId":"rag2-compositional-holdout-v1","caseId":"composition-production-mode","claim":"Production safeMode is currently enabled.","expectedVerdict":"absent"},
+    {"id":"composition-absent-upload-condition","datasetId":"rag2-compositional-holdout-v1","caseId":"composition-production-mode","claim":"Uploads are currently disabled.","expectedVerdict":"absent"},
+    {"id":"composition-absent-backup-norm","datasetId":"rag2-compositional-holdout-v1","caseId":"composition-backup-mode","claim":"Backups are currently enabled.","expectedVerdict":"absent"},
+    {"id":"composition-absent-owner","datasetId":"rag2-compositional-holdout-v1","caseId":"composition-admin-port","claim":"The admin console owner is Alice.","expectedVerdict":"absent"}
+  ]
+}
