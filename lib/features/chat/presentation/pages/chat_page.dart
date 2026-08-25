@@ -84,6 +84,7 @@ import '../widgets/worktree_agent_task_banner.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/composer_video_picker.dart';
 import '../widgets/message_input.dart';
+import '../widgets/mobile_keyboard_dismiss.dart';
 import '../widgets/participant_roster_bar.dart';
 import '../widgets/pro_reasoning_progress_card.dart';
 import '../widgets/chat_page_scaffold.dart';
@@ -118,7 +119,6 @@ part 'chat_page_browser_builders.dart';
 part 'chat_page_companion_builders.dart';
 part 'chat_page_goal_builders.dart';
 part 'chat_page_header_builders.dart';
-part 'chat_page_mobile_support.dart';
 part 'chat_page_plan_builders.dart';
 part 'chat_page_support.dart';
 part 'chat_page_turn_rollback_support.dart';
@@ -1181,7 +1181,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   )
                 : null,
           );
-    return _wrapWithMobileKeyboardDismiss(scaffold);
+    return wrapWithMobileKeyboardDismiss(scaffold);
   }
 
   Future<void> _createRoutineFromHome(BuildContext context) async {

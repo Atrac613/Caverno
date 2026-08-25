@@ -9,6 +9,9 @@ extension ChatNotifierTaskProposalQuality on ChatNotifier {
   WorkflowTaskProposalQualityService get _taskProposalQualityService =>
       WorkflowTaskProposalQualityService(createId: _uuid.v4);
 
+  PlanningRetryContextBuilder get _planningRetryContext =>
+      PlanningRetryContextBuilder(_taskProposalQualityService);
+
   WorkflowTaskProposalDraft? _preferTaskProposalRetryCandidate({
     required WorkflowTaskProposalDraft? current,
     required WorkflowTaskProposalDraft candidate,
@@ -35,7 +38,9 @@ extension ChatNotifierTaskProposalQuality on ChatNotifier {
   }) {
     return _taskProposalQualityService.finalizeTaskProposalDraft(
       proposal,
-      projectLooksEmpty: _projectLooksEmptyForTaskPlanning(researchContext),
+      projectLooksEmpty: PlanningRetryContextBuilder.projectLooksEmpty(
+        researchContext,
+      ),
     );
   }
 

@@ -37,7 +37,9 @@ const Map<String, int> _lineBudgets = {
   // needs travel as one draft object and land on the message through
   // Message.withVideoAttachment, so what is left here is the parameter itself
   // and the queue field that has to carry it across a queued turn.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8909,
+  // -57: the proposal retry hints are prose with no notifier state, and the
+  // code-unit scan plus the skipped-load skill tests are pure text.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8852,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -46,7 +48,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/ask_user_question_option_parser.dart': 99,
   'lib/features/chat/domain/services/ask_user_question_policy.dart': 383,
   'lib/features/chat/domain/services/ask_user_question_turn_cache.dart': 99,
-  'lib/features/chat/domain/services/background_process_tool_handler.dart': 450,
+  // -41: the completion bookkeeping every path ended with -- does this
+  // completion still belong to the turn, has the approval expired, may a
+  // side effect already have happened -- is now BackgroundProcessResultLedger.
+  'lib/features/chat/domain/services/background_process_tool_handler.dart': 409,
   'lib/features/chat/domain/services/ble_connection_tool_handler.dart': 252,
   'lib/features/chat/domain/services/browser_session_ownership_coordinator.dart':
       461,
@@ -105,7 +110,10 @@ const Map<String, int> _lineBudgets = {
   // what remains is the call, its import, and passing the paths on to the
   // approval request. Session db878d3a read a file under ~/.caverno through a
   // python heredoc with no path check at all, so the alternative is the hole.
-  'lib/features/chat/domain/services/local_command_tool_handler.dart': 423,
+  // -45: where a command runs and whether that place is inside the project
+  // is a different question from whether it may run, and now lives in
+  // LocalCommandWorkingDirectory.
+  'lib/features/chat/domain/services/local_command_tool_handler.dart': 378,
   'lib/features/chat/domain/services/turn_finalization_recovery_policy.dart':
       268,
   'lib/features/chat/domain/services/coding_verification_mutation_signature.dart':
@@ -151,7 +159,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart':
       191,
   'lib/features/chat/domain/services/saved_validation_command_guard.dart': 178,
-  'lib/features/chat/domain/services/saved_task_target_scope_guard.dart': 135,
+  // -24: the frozen input snapshot moved to saved_task_target_scope_input.dart
+  // and is re-exported, so the guard file holds only the decision.
+  'lib/features/chat/domain/services/saved_task_target_scope_guard.dart': 111,
   'lib/features/chat/domain/services/timed_out_command_retry_guard.dart': 96,
   'lib/features/chat/domain/services/uninspected_commit_guard.dart': 144,
   'lib/features/chat/domain/services/git_write_confirmation_policy.dart': 93,
@@ -289,8 +299,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart':
       361,
   'lib/features/chat/presentation/providers/thread_scoped_chat_state.dart': 238,
+  // -27: the five reviewer policy prompts are prose that changes when a
+  // reviewer misreads an action, not when the permission boundary moves.
   'lib/features/chat/domain/services/tool_approval_auto_review_service.dart':
-      331,
+      304,
   'lib/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart':
       290,
   'lib/features/chat/presentation/providers/turn_tool_result_ledger.dart': 151,
@@ -389,7 +401,9 @@ const Map<String, int> _lineBudgets = {
   // answer, so moving the call elsewhere only moves the lines to another
   // ratcheted file.
   'lib/features/chat/presentation/widgets/message_input.dart': 2276,
-  'lib/features/chat/presentation/widgets/composer_model_selector.dart': 275,
+  // -15: the submenu value and check icon are chip-level presentation, so
+  // they sit beside buildComposerControlChip instead.
+  'lib/features/chat/presentation/widgets/composer_model_selector.dart': 260,
   'lib/features/chat/presentation/widgets/composer_control_chip.dart': 65,
   // +37 for the two video entries and the flag that hides them. This file is
   // the attachments menu; a menu entry is not extractable from the menu.
@@ -479,7 +493,12 @@ const Map<String, int> _lineBudgets = {
   // which is a concern of the response, not of sending. Net -23 against the
   // previous 1164 ceiling: the extractions paid for the usage attribution each
   // request method now captures at issue time.
-  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1141,
+  // -12: the <think> tagging state machine was copied into all four
+  // streaming entry points, the tool-exchange messages into both
+  // tool-result ones, and the response/tool-result previews into three
+  // log sites. One assembler, one formatter method, and two logger
+  // methods now own them.
+  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1129,
   // -23: embedded tool-call recovery moved to
   // chat_completion_embedded_tool_call_parser.dart, which owns both the tagged
   // forms and the advertised-name gate that makes recovering an untagged call
@@ -495,7 +514,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/built_in_network_tool_handler.dart': 978,
   'lib/features/chat/data/datasources/file_rollback_checkpoint_store.dart': 402,
   'lib/features/chat/presentation/providers/mcp_tool_provider.dart': 176,
-  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1838,
+  // -7: LL5 index bookkeeping -- the signature map, the dedup, and the
+  // forget-on-failure rule -- is one job, and ConversationSemanticIndexSync
+  // owns it now.
+  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1831,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
       329,
   'lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart':
@@ -513,7 +535,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/remote_mcp_tool_name_policy.dart': 120,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':
       1725,
-  'lib/features/settings/data/model_remote_datasource.dart': 1710,
+  // -37: the three [LL9] lifecycle log lines are worth reading as one shape
+  // across providers, so they live in ModelLifecycleActionLog.
+  'lib/features/settings/data/model_remote_datasource.dart': 1673,
   'lib/features/settings/data/model_metadata_parser.dart': 120,
   'lib/features/settings/presentation/widgets/computer_use_action_gate_plan.dart':
       203,
@@ -566,7 +590,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/network_route_tools.dart': 1128,
   'lib/features/chat/data/datasources/network_socket_tools.dart': 204,
   'lib/features/chat/data/datasources/network_tool_dependencies.dart': 10,
-  'test/features/chat/presentation/providers/chat_notifier_test.dart': 18613,
+  // -936: the three coding verification-feedback scenarios are a part file
+  // now, which is what this budget is for -- it caps the primary file so new
+  // scenarios go into parts, not the number of scenarios.
+  'test/features/chat/presentation/providers/chat_notifier_test.dart': 17677,
   'test/features/chat/presentation/providers/mcp_tool_provider_rollback_store_test.dart':
       152,
   'test/support/mcp_file_tool_test_delegate.dart': 16,
@@ -642,7 +669,9 @@ const Map<String, int> _libraryLineBudgets = {
   // back four of the lines; the rest needs `ref` and the settings, so it
   // cannot leave the notifier.
   // +3 for the video draft a queued message now carries across a turn.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19882,
+  // -1 net against the primary file's -57: the quality part gained the
+  // retry-context getter, and both extractions left the library entirely.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19881,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
@@ -653,7 +682,9 @@ const Map<String, int> _libraryLineBudgets = {
   // -31: the same extraction. Scrolling left the library entirely rather than
   // moving into a part, so the aggregate drops even though the feature that
   // prompted it -- per-thread scroll restore -- added code.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8888,
+  // -23: the phone-only tap-to-dismiss listener never touched _ChatPageState,
+  // so it is a plain widget helper rather than a part of the page library.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8865,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };

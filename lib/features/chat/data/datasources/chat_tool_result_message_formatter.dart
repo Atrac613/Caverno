@@ -59,6 +59,48 @@ final class ChatToolResultMessageFormatter {
     return '${interpretationLines.join('\n')}\nRaw result:\n${toolResult.result}';
   }
 
+  /// Appends one tool exchange -- the assistant turn that asked for the tools,
+  /// each tool's result, and any screenshot a result carried -- to [messages].
+  ///
+  /// The three parts belong together: a tool message without the assistant
+  /// message that named its call is rejected by OpenAI-compatible endpoints,
+  /// and an image observation that arrives before its own tool result reads as
+  /// unrelated. Callers assembling a follow-up request append them as a unit.
+  void appendToolExchange(
+    List<ChatMessage> messages, {
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+  }) {
+    messages.add(
+      AssistantMessage(
+        // mlx-lm.server requires content, so an absent assistant turn is sent
+        // as the empty string rather than omitted.
+        content: assistantContent ?? '',
+        toolCalls: toolResults
+            .map(
+              (toolResult) => ToolCall(
+                id: toolResult.id,
+                type: 'function',
+                function: FunctionCall(
+                  name: toolResult.name,
+                  arguments: jsonEncode(toolResult.arguments),
+                ),
+              ),
+            )
+            .toList(growable: false),
+      ),
+    );
+    messages.addAll(
+      toolResults.map(
+        (toolResult) => ChatMessage.tool(
+          toolCallId: toolResult.id,
+          content: formatContent(toolResult),
+        ),
+      ),
+    );
+    messages.addAll(buildImageObservationMessages(toolResults));
+  }
+
   List<ChatMessage> buildImageObservationMessages(
     List<ToolResultInfo> toolResults,
   ) {

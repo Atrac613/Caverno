@@ -169,6 +169,9 @@ import '../../domain/services/participant_message_finalizer.dart';
 import '../../domain/services/participant_turn_planner.dart';
 import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/planning_research_collector.dart';
+import '../../domain/services/code_unit_text_scan.dart';
+import '../../domain/services/planning_retry_context_builder.dart';
+import '../../domain/services/skipped_skill_load_text.dart';
 import '../../domain/services/ble_connect_attempt_coordinator.dart';
 import '../../domain/services/blocked_production_release_retry_policy.dart';
 import '../../domain/services/fenced_tool_arguments_detector.dart';
@@ -850,7 +853,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final latestUserContent = _latestUserContentForGeneration(
       interactionGeneration,
     );
-    if (!_containsSkillKeyword(latestUserContent)) {
+    if (!SkippedSkillLoadText.mentionsSkill(latestUserContent)) {
       return null;
     }
 
@@ -865,7 +868,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 : result.content)
             .trim();
     if (responseContent.isNotEmpty &&
-        !_looksLikeSkippedSkillLoadResponse(responseContent)) {
+        !SkippedSkillLoadText.looksLikeSkippedLoad(responseContent)) {
       return null;
     }
 
@@ -984,12 +987,6 @@ class ChatNotifier extends Notifier<ChatState> {
     ].join('\n');
   }
 
-  bool _containsAnyCodeUnitSequence(String text, List<List<int>> sequences) {
-    return sequences.any(
-      (sequence) => _containsCodeUnitSequence(text, sequence),
-    );
-  }
-
   String _latestUserContentForGeneration(int generation) =>
       _turnOwnerSnapshotForGeneration(generation)?.latestUserContent ?? '';
 
@@ -1013,46 +1010,6 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
     return null;
-  }
-
-  bool _containsSkillKeyword(String text) {
-    final normalized = text.toLowerCase();
-    return normalized.contains('skill') ||
-        _containsCodeUnitSequence(text, const [0x30b9, 0x30ad, 0x30eb]);
-  }
-
-  bool _looksLikeSkippedSkillLoadResponse(String text) {
-    final normalized = text.toLowerCase();
-    if (!_containsSkillKeyword(text)) {
-      return false;
-    }
-    return normalized.contains('load') ||
-        normalized.contains('read') ||
-        normalized.contains('use') ||
-        normalized.contains('follow') ||
-        _containsCodeUnitSequence(text, const [0x8aad, 0x307f, 0x8fbc]) ||
-        _containsCodeUnitSequence(text, const [0x30ed, 0x30fc, 0x30c9]) ||
-        text.contains(String.fromCharCode(0x4f7f));
-  }
-
-  bool _containsCodeUnitSequence(String text, List<int> sequence) {
-    if (sequence.isEmpty || text.length < sequence.length) {
-      return false;
-    }
-    final units = text.codeUnits;
-    for (var index = 0; index <= units.length - sequence.length; index++) {
-      var matched = true;
-      for (var offset = 0; offset < sequence.length; offset++) {
-        if (units[index + offset] != sequence[offset]) {
-          matched = false;
-          break;
-        }
-      }
-      if (matched) {
-        return true;
-      }
-    }
-    return false;
   }
 
   AssistantMode _resolveAssistantMode({Conversation? currentConversation}) {
@@ -1331,7 +1288,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<WorkflowPlanningDecisionAnswer> decisionAnswers,
     String? additionalPlanningContext,
   }) async {
-    final projectLooksEmpty = _projectLooksEmptyForTaskPlanning(
+    final projectLooksEmpty = PlanningRetryContextBuilder.projectLooksEmpty(
       researchContext,
     );
     final attempts = <({bool compact, int maxTokens, bool minimalRetry})>[
@@ -1382,11 +1339,12 @@ class ChatNotifier extends Notifier<ChatState> {
             languageCode: languageCode,
             researchContext: researchContext,
             decisionAnswers: decisionAnswers,
-            additionalPlanningContext: _buildWorkflowProposalRetryContext(
-              additionalPlanningContext,
-              minimalRetry: attempt.minimalRetry,
-              projectLooksEmpty: projectLooksEmpty,
-            ),
+            additionalPlanningContext: _planningRetryContext
+                .forWorkflowProposal(
+                  additionalPlanningContext,
+                  minimalRetry: attempt.minimalRetry,
+                  projectLooksEmpty: projectLooksEmpty,
+                ),
             compact: attempt.compact,
           ),
           model: model,
@@ -1434,37 +1392,6 @@ class ChatNotifier extends Notifier<ChatState> {
     throw FormatException(lastError ?? 'workflow proposal parse failed');
   }
 
-  String? _buildWorkflowProposalRetryContext(
-    String? additionalPlanningContext, {
-    required bool minimalRetry,
-    required bool projectLooksEmpty,
-  }) {
-    final normalizedContext = additionalPlanningContext?.trim();
-    if (!minimalRetry && !projectLooksEmpty) {
-      return normalizedContext;
-    }
-
-    final retryLines = <String>[
-      if (projectLooksEmpty)
-        'Retry hint: The workspace is empty, so prefer the shortest viable workflow proposal.',
-      'Retry hint:',
-      '- Return the smallest valid JSON proposal possible.',
-      '- Do not restate the user request, project summary, or research context.',
-      '- Prefer a short goal plus one or two short list items over verbose explanations.',
-      '- If you are space-constrained, return workflowStage, goal, and a minimal acceptanceCriteria list only.',
-    ];
-    if (projectLooksEmpty) {
-      retryLines.add(
-        '- For an empty project, avoid setup narration and focus on the requested outcome.',
-      );
-    }
-    final retryHint = retryLines.join('\n');
-    if (normalizedContext == null || normalizedContext.isEmpty) {
-      return retryHint;
-    }
-    return '$normalizedContext\n$retryHint'.trim();
-  }
-
   Future<List<WorkflowPlanningDecisionAnswer>?> _collectWorkflowDecisionAnswers(
     List<WorkflowPlanningDecision> decisions,
   ) async {
@@ -1491,7 +1418,7 @@ class ChatNotifier extends Notifier<ChatState> {
     ConversationWorkflowSpec? workflowSpecOverride,
     String? additionalPlanningContext,
   }) async {
-    final projectLooksEmpty = _projectLooksEmptyForTaskPlanning(
+    final projectLooksEmpty = PlanningRetryContextBuilder.projectLooksEmpty(
       researchContext,
     );
     WorkflowTaskProposalDraft? bestRetryCandidate;
@@ -1528,7 +1455,7 @@ class ChatNotifier extends Notifier<ChatState> {
             researchContext: researchContext,
             workflowStageOverride: workflowStageOverride,
             workflowSpecOverride: workflowSpecOverride,
-            additionalPlanningContext: _buildTaskProposalRetryContext(
+            additionalPlanningContext: _planningRetryContext.forTaskProposal(
               additionalPlanningContext,
               minimalRetry: attempt.minimalRetry,
               projectLooksEmpty: projectLooksEmpty,
@@ -1655,105 +1582,6 @@ class ChatNotifier extends Notifier<ChatState> {
     throw FormatException(lastError ?? 'task proposal parse failed');
   }
 
-  String? _buildTaskProposalRetryContext(
-    String? additionalPlanningContext, {
-    required bool minimalRetry,
-    required bool projectLooksEmpty,
-    ConversationWorkflowSpec? workflowSpec,
-  }) {
-    final normalizedContext = additionalPlanningContext?.trim();
-    if (!minimalRetry) {
-      return normalizedContext;
-    }
-
-    final prefersSingleTask =
-        workflowSpec != null &&
-        _taskProposalQualityService.workflowPrefersExplicitSingleTask(
-          workflowSpec,
-        );
-
-    final retryHint = StringBuffer()
-      ..writeln('Retry hint:')
-      ..writeln('- Return the smallest valid JSON task list possible.')
-      ..writeln(
-        '- Every task must describe an action the agent can perform immediately.',
-      )
-      ..writeln('- Keep each title short and imperative.')
-      ..writeln(
-        '- Use at most one primary implementation file per non-scaffold task.',
-      )
-      ..writeln(
-        '- For implementation tasks, use a validationCommand that directly references, executes, or tests the target file or module.',
-      )
-      ..writeln(
-        '- Do not use generic validation such as "module importable" or commands that only append src to sys.path.',
-      )
-      ..writeln(
-        '- Do not restate the user request, repo summary, or research context.',
-      );
-    if (prefersSingleTask) {
-      retryHint
-        ..writeln('- Return exactly one concrete implementation task.')
-        ..writeln(
-          '- The single task must include implementation and validation in that task.',
-        )
-        ..writeln(
-          '- Do not add a separate verification-only task or follow-up task.',
-        );
-    } else {
-      final requiredFirstSliceTargets = workflowSpec == null
-          ? const <String>{}
-          : _taskProposalQualityService.explicitFirstSliceTargetFiles(
-              workflowSpec,
-            );
-      retryHint
-        ..writeln('- Return two to four concrete tasks.')
-        ..writeln('- Do not stop at a single generic setup or scaffold task.');
-      if (requiredFirstSliceTargets.isNotEmpty) {
-        final targetList = requiredFirstSliceTargets.toList()..sort();
-        retryHint
-          ..writeln(
-            '- The first task targetFiles must include ${targetList.join(', ')}.',
-          )
-          ..writeln(
-            '- Do not split those first-slice scaffold files into separate tasks.',
-          );
-      }
-    }
-    if (projectLooksEmpty) {
-      if (prefersSingleTask) {
-        retryHint
-          ..writeln(
-            '- In an empty workspace, create the requested single implementation file directly.',
-          )
-          ..writeln(
-            '- Do not scaffold README.md, requirements.txt, tests, or package files unless the workflow explicitly names them.',
-          );
-      } else {
-        retryHint
-          ..writeln(
-            '- The first task may scaffold the workspace, but a later task must implement or validate the requested feature.',
-          )
-          ..writeln('- Include a concrete code task after any scaffold task.')
-          ..writeln(
-            '- Prefer a simple Python entrypoint such as main.py when the workspace is empty.',
-          )
-          ..writeln(
-            '- Avoid pytest-based verification in an empty Python workspace. Prefer standard-library validation such as python3 target.py, python3 tests/test_ping.py, or python3 -m unittest.',
-          );
-      }
-      retryHint.writeln(
-        '- Prefer Python standard-library or subprocess-based implementations over third-party runtime dependencies unless the user explicitly asked for a package.',
-      );
-    }
-
-    final retryContext = retryHint.toString().trim();
-    if (normalizedContext == null || normalizedContext.isEmpty) {
-      return retryContext;
-    }
-    return '$normalizedContext\n$retryContext'.trim();
-  }
-
   WorkflowTaskProposalDraft? _buildTaskProposalQualityGateFallback({
     required Conversation currentConversation,
     required bool projectLooksEmpty,
@@ -1820,22 +1648,6 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
     return finalizedFallback;
-  }
-
-  bool _projectLooksEmptyForTaskPlanning(PlanningResearchContext context) {
-    final rootEntries = context.rootEntries
-        .map((entry) => entry.trim())
-        .where((entry) => entry.isNotEmpty)
-        .toList(growable: false);
-    if (rootEntries.isEmpty) {
-      return true;
-    }
-    return rootEntries.every(
-      (entry) =>
-          entry.contains('.png') ||
-          entry.contains('.jpg') ||
-          entry.contains('.jpeg'),
-    );
   }
 
   @visibleForTesting
@@ -1937,7 +1749,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required bool projectLooksEmpty,
     ConversationWorkflowSpec? workflowSpec,
   }) {
-    return _buildTaskProposalRetryContext(
+    return _planningRetryContext.forTaskProposal(
       additionalPlanningContext,
       minimalRetry: minimalRetry,
       projectLooksEmpty: projectLooksEmpty,
@@ -5258,7 +5070,7 @@ class ChatNotifier extends Notifier<ChatState> {
     ])) {
       return false;
     }
-    if (_containsAnyCodeUnitSequence(candidate, const [
+    if (CodeUnitTextScan.containsAny(candidate, const [
       [0x5931, 0x6557],
       [0x30a8, 0x30e9, 0x30fc],
       [0x7570, 0x5e38, 0x7d42, 0x4e86],
@@ -5281,7 +5093,7 @@ class ChatNotifier extends Notifier<ChatState> {
           'uploaded',
           'deployed',
         ]) ||
-        _containsAnyCodeUnitSequence(candidate, const [
+        CodeUnitTextScan.containsAny(candidate, const [
           [0x5b8c, 0x4e86],
           [0x6210, 0x529f],
           [0x7d42, 0x4e86],
