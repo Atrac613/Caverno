@@ -3426,6 +3426,7 @@ _runSavedValidationWrapperFollowUpScenario({
 
   try {
     final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+    standInForTheApprover(toolContainer);
 
     await toolNotifier.sendMessage('Create the README first');
 

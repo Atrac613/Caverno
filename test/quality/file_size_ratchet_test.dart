@@ -39,7 +39,10 @@ const Map<String, int> _lineBudgets = {
   // and the queue field that has to carry it across a queued turn.
   // -57: the proposal retry hints are prose with no notifier state, and the
   // code-unit scan plus the skipped-load skill tests are pure text.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8852,
+  // -18: the Japanese blocker and missing-evidence phrases are code-unit
+  // literals with no notifier state, and paying that forward covered the
+  // cross-thread approval accessor a two-thread test needs.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8834,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -295,7 +298,9 @@ const Map<String, int> _lineBudgets = {
       129,
   'lib/features/chat/presentation/providers/response_metadata_registry.dart':
       107,
-  'lib/features/chat/presentation/providers/chat_state.dart': 763,
+  // The registry can already answer an approval by id from any thread; it
+  // just could not say which ones were open. +9 for that listing.
+  'lib/features/chat/presentation/providers/chat_state.dart': 754,
   'lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart':
       361,
   'lib/features/chat/presentation/providers/thread_scoped_chat_state.dart': 238,
@@ -593,7 +598,9 @@ const Map<String, int> _lineBudgets = {
   // -936: the three coding verification-feedback scenarios are a part file
   // now, which is what this budget is for -- it caps the primary file so new
   // scenarios go into parts, not the number of scenarios.
-  'test/features/chat/presentation/providers/chat_notifier_test.dart': 17677,
+  // -67 further: the approval-audit scenario sits with the other approval
+  // tests, which paid for the stand-in calls the SEC4.4g gate now needs.
+  'test/features/chat/presentation/providers/chat_notifier_test.dart': 17610,
   'test/features/chat/presentation/providers/mcp_tool_provider_rollback_store_test.dart':
       152,
   'test/support/mcp_file_tool_test_delegate.dart': 16,
@@ -671,7 +678,7 @@ const Map<String, int> _libraryLineBudgets = {
   // +3 for the video draft a queued message now carries across a turn.
   // -1 net against the primary file's -57: the quality part gained the
   // retry-context getter, and both extractions left the library entirely.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19881,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19864,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

@@ -110,15 +110,17 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('settings-menu-debug')));
     await tester.pumpAndSettle();
+
+    // SEC4.6k-c made session logging opt-in, so the first tap turns it on.
+    // Both directions are asserted because the toggle is the only way back off
+    // and a one-way check would pass against a control that cannot be undone.
     await tester.tap(find.text('Save LLM session logs'));
     await tester.pumpAndSettle();
+    expect(_persistedSettings(prefs).enableLlmSessionLogs, isTrue);
 
-    final rawSettings = prefs.getString('app_settings');
-    expect(rawSettings, isNotNull);
-    final decoded = AppSettings.fromJson(
-      jsonDecode(rawSettings!) as Map<String, dynamic>,
-    );
-    expect(decoded.enableLlmSessionLogs, isFalse);
+    await tester.tap(find.text('Save LLM session logs'));
+    await tester.pumpAndSettle();
+    expect(_persistedSettings(prefs).enableLlmSessionLogs, isFalse);
   });
 
   testWidgets('configures feedback endpoint upload from Debug settings', (
@@ -163,8 +165,17 @@ void main() {
     );
     expect(decoded.feedbackUploadEnabled, isTrue);
     expect(decoded.feedbackEndpointUrl, 'https://feedback.example.com/caverno');
-    expect(decoded.feedbackEndpointAuthToken, 'release-token');
+    // SEC4.6b moved credentials to the secure store, so the token entered here
+    // must not reach shared preferences at all -- the same property
+    // settings_repository_test asserts, checked at the screen that collects it.
+    expect(rawSettings, isNot(contains('release-token')));
   });
+}
+
+AppSettings _persistedSettings(SharedPreferences prefs) {
+  final raw = prefs.getString('app_settings');
+  expect(raw, isNotNull);
+  return AppSettings.fromJson(jsonDecode(raw!) as Map<String, dynamic>);
 }
 
 Future<SharedPreferences> _setUpPreferences() async {

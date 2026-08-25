@@ -62,6 +62,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         turnBudget: 2,
       );
 
+      standInForTheApprover(container);
       await container
           .read(chatNotifierProvider.notifier)
           .sendMessage('Implement the TODO CLI.', bypassPlanMode: true);
@@ -140,6 +141,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         turnBudget: 1,
       );
       final chatNotifier = container.read(chatNotifierProvider.notifier);
+      standInForTheApprover(container);
       final sendFuture = chatNotifier.sendMessage(
         'Implement the TODO CLI.',
         bypassPlanMode: true,
@@ -235,6 +237,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         turnBudget: 5,
       );
 
+      standInForTheApprover(container);
       await container
           .read(chatNotifierProvider.notifier)
           .sendMessage('Implement the TODO CLI.', bypassPlanMode: true);
@@ -377,6 +380,7 @@ void registerChatNotifierGoalAutoContinueTests() {
       );
 
       final chatNotifier = autoContainer.read(chatNotifierProvider.notifier);
+      standInForTheApprover(autoContainer);
       await chatNotifier.sendMessage('Fix the TODO CLI.', bypassPlanMode: true);
 
       await _waitForCondition(() {
@@ -543,6 +547,7 @@ void registerChatNotifierGoalAutoContinueTests() {
       turnBudget: 2,
     );
 
+    standInForTheApprover(container);
     await container
         .read(chatNotifierProvider.notifier)
         .sendMessage('Implement the TODO CLI.', bypassPlanMode: true);
@@ -640,6 +645,7 @@ void registerChatNotifierGoalAutoContinueTests() {
       );
 
       final chatNotifier = container.read(chatNotifierProvider.notifier);
+      standInForTheApprover(container);
       final turnOwner = await chatNotifier.sendMessage(
         'Run the first saved task.',
         bypassPlanMode: true,
@@ -799,6 +805,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         turnBudget: 5,
       );
 
+      standInForTheApprover(container);
       await container
           .read(chatNotifierProvider.notifier)
           .sendMessage('Fix analyzer diagnostics.', bypassPlanMode: true);
@@ -990,6 +997,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         turnBudget: 5,
       );
 
+      standInForTheApprover(container);
       final chatNotifier = container.read(chatNotifierProvider.notifier);
       await chatNotifier.sendMessage('Fix the TODO CLI.', bypassPlanMode: true);
 
@@ -1005,7 +1013,11 @@ void registerChatNotifierGoalAutoContinueTests() {
       });
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(dataSource.autoReviewRequestMessages, hasLength(2));
+      // SEC4.4g asks the person directly for a shell command, so the
+      // reviewer is not consulted on either turn. The property this test
+      // exists for survives it: the hidden continuation does not inherit
+      // the first turn's approval, it is asked for again.
+      expect(dataSource.autoReviewRequestMessages, isEmpty);
       expect(toolService.executedToolNames, [
         'local_execute_command',
         'local_execute_command',
@@ -1119,6 +1131,7 @@ void registerChatNotifierGoalAutoContinueTests() {
       );
 
       final chatNotifier = container.read(chatNotifierProvider.notifier);
+      standInForTheApprover(container);
       await chatNotifier.sendMessage('Fix the TODO CLI.', bypassPlanMode: true);
 
       await _waitForCondition(() {
@@ -1492,6 +1505,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         turnBudget: 3,
       );
 
+      standInForTheApprover(container);
       await container
           .read(chatNotifierProvider.notifier)
           .sendMessage('Implement the TODO CLI.', bypassPlanMode: true);
@@ -1593,6 +1607,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         turnBudget: 5,
       );
 
+      standInForTheApprover(container);
       await container
           .read(chatNotifierProvider.notifier)
           .sendMessage('Implement the fixture.', bypassPlanMode: true);
@@ -1691,6 +1706,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         turnBudget: 2,
       );
 
+      standInForTheApprover(container);
       await container
           .read(chatNotifierProvider.notifier)
           .sendMessage('Implement the fixture.', bypassPlanMode: true);
@@ -1841,6 +1857,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         turnBudget: 5,
       );
 
+      standInForTheApprover(container);
       await container
           .read(chatNotifierProvider.notifier)
           .sendMessage('Implement the fixture.', bypassPlanMode: true);
@@ -1988,6 +2005,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         turnBudget: 5,
       );
 
+      standInForTheApprover(container);
       await container
           .read(chatNotifierProvider.notifier)
           .sendMessage('Implement the fixture.', bypassPlanMode: true);
@@ -2107,6 +2125,9 @@ void registerChatNotifierGoalAutoContinueTests() {
         );
 
     final chatNotifier = container.read(chatNotifierProvider.notifier);
+    standInForTheApprover(container);
+    standInForTheApprover(container);
+    standInForTheApprover(container);
     expect(
       chatNotifier.isVerifierReplayEligibleForTest(
         ToolCallInfo(

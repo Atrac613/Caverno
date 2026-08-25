@@ -148,6 +148,7 @@ void registerChatNotifierSavedWorkflowGuardrailTests() {
 
       try {
         final notifier = toolContainer.read(chatNotifierProvider.notifier);
+        standInForTheApprover(toolContainer);
 
         await notifier.sendMessage('Implement and verify the CLI task');
 
@@ -289,6 +290,7 @@ void registerChatNotifierSavedWorkflowGuardrailTests() {
 
       try {
         final notifier = toolContainer.read(chatNotifierProvider.notifier);
+        standInForTheApprover(toolContainer);
 
         await notifier.sendMessage('Implement and validate the CLI task');
 
@@ -410,6 +412,7 @@ void registerChatNotifierSavedWorkflowGuardrailTests() {
 
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        standInForTheApprover(toolContainer);
 
         expect(
           const SavedTaskTargetScopeGuard().allowedTargetFilesForTask(

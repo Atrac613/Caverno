@@ -21,6 +21,7 @@ import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 
 import '../../../../support/chat_turn_harness.dart';
+import '../../../../support/local_command_approval_stand_in.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/lsp_json_rpc_session_registry.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
@@ -1706,6 +1707,7 @@ ProviderContainer _buildContainer({
   LlmSessionLogStore? sessionLogStore,
   Future<void> Function(String encoded)? beforeConversationPut,
   GoalCompletionPolicy goalCompletionPolicy = GoalCompletionPolicy.toolOrAsk,
+  bool autoApproveLocalCommands = true,
 }) {
   final conversationBox = _MockBox();
   final storage = <String, String>{};
@@ -1729,7 +1731,7 @@ ProviderContainer _buildContainer({
     ),
   ).thenAnswer((_) async {});
 
-  return ProviderContainer(
+  final container = ProviderContainer(
     overrides: [
       settingsNotifierProvider.overrideWith(
         () => _TestSettingsNotifier(
@@ -1774,6 +1776,10 @@ ProviderContainer _buildContainer({
         ),
     ],
   );
+  if (autoApproveLocalCommands) {
+    standInForTheApprover(container);
+  }
+  return container;
 }
 
 ToolResultInfo _toolResultById(List<ToolResultInfo> toolResults, String id) {
@@ -2571,6 +2577,9 @@ void main() {
         toolApprovalAuditLog: ToolApprovalAuditLog(
           rootDirectoryProvider: () async => auditRoot,
         ),
+        // Drives both approvals itself, one per owner, and the second is a
+        // denial: a stand-in that says yes to everything would answer for it.
+        autoApproveLocalCommands: false,
       );
       addTearDown(() async {
         if (!releaseOwnerARepeat.isCompleted) releaseOwnerARepeat.complete();

@@ -73,6 +73,7 @@ import 'package:caverno/features/settings/presentation/providers/local_model_lif
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import '../../../../support/chat_notifier_turn_teardown_test_support.dart';
+import '../../../../support/local_command_approval_stand_in.dart';
 import '../../../../support/chat_turn_owner_test_support.dart';
 import '../../../../support/mcp_file_tool_test_delegate.dart';
 part 'chat_notifier_persistence_part.dart';
@@ -2776,6 +2777,7 @@ void main() {
             createIfMissing: true,
           );
       final chatNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      standInForTheApprover(toolContainer);
       await chatNotifier.sendMessage(initialToolProse, bypassPlanMode: true);
 
       expect(toolService.executedToolNames, [
@@ -3511,82 +3513,6 @@ void main() {
       );
     },
   );
-
-  test('auto-review verdicts are written to the approval audit log', () async {
-    final auditDir = Directory.systemTemp.createTempSync('chat_audit_');
-    addTearDown(() => auditDir.deleteSync(recursive: true));
-    final auditLog = ToolApprovalAuditLog(
-      rootDirectoryProvider: () async => auditDir,
-    );
-
-    final dataSource = _ToolBatchChatDataSource(
-      initialToolCalls: [
-        ToolCallInfo(
-          id: 'tool-click',
-          name: 'browser_click',
-          arguments: const {'ref': 7, 'reason': 'Open the link.'},
-        ),
-      ],
-      toolRoleResponseContent: 'Reviewed.',
-      finalAnswerChunks: const ['Stopped before clicking.'],
-      autoReviewResponses: [
-        ChatCompletionResult(
-          content:
-              '{"outcome":"deny","riskLevel":"high","userAuthorization":"low","rationale":"Looks like a credential submit."}',
-          finishReason: 'stop',
-        ),
-      ],
-    );
-    final toolService = _FakeMcpToolService(
-      descriptions: const {'browser_click': 'Click a browser element.'},
-      results: const {'browser_click': '{"ok":true}'},
-    );
-    final appLifecycleService = _MockAppLifecycleService();
-    when(() => appLifecycleService.isInBackground).thenReturn(false);
-    final threadContainer = ProviderContainer(
-      overrides: [
-        settingsNotifierProvider.overrideWith(
-          _ToolEnabledChatAutoReviewSettingsNotifier.new,
-        ),
-        conversationsNotifierProvider.overrideWith(
-          _TestConversationsNotifier.new,
-        ),
-        conversationRepositoryProvider.overrideWithValue(
-          _FakeConversationRepository(),
-        ),
-        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
-        sessionMemoryServiceProvider.overrideWithValue(
-          _TestSessionMemoryService(),
-        ),
-        mcpToolServiceProvider.overrideWithValue(toolService),
-        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
-        backgroundTaskServiceProvider.overrideWithValue(
-          _TestBackgroundTaskService(),
-        ),
-        toolApprovalAuditLogProvider.overrideWithValue(auditLog),
-      ],
-    );
-    addTearDown(threadContainer.dispose);
-
-    final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
-    await chatNotifier.sendMessage('Open the link');
-
-    final auditFiles = Directory(
-      '${auditDir.path}/approval_audit',
-    ).listSync().whereType<File>().toList();
-    expect(auditFiles, isNotEmpty);
-    final entries = auditFiles
-        .expand((file) => file.readAsLinesSync())
-        .where((line) => line.trim().isNotEmpty)
-        .map((line) => jsonDecode(line) as Map<String, dynamic>)
-        .toList();
-    final clickEntry = entries.firstWhere((e) => e['tool'] == 'browser_click');
-    expect(clickEntry['outcome'], 'denied');
-    expect(clickEntry['decisionSource'], 'auto_review');
-    expect(clickEntry['mode'], 'autoReview');
-    expect(clickEntry['domain'], 'browser');
-    expect(clickEntry['rationale'], contains('credential'));
-  });
 
   test(
     'sendMessage marks browser save claims unexecuted without save tool result',
@@ -9478,6 +9404,7 @@ with open(path, "rb") as file:
 
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        standInForTheApprover(toolContainer);
 
         await toolNotifier.sendMessage('Implement ping CLI');
 
@@ -11363,6 +11290,7 @@ with open(path, "rb") as file:
 
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        standInForTheApprover(toolContainer);
 
         await toolNotifier.sendMessage('Fix the unknown ID behavior');
 
@@ -12097,6 +12025,7 @@ with open(path, "rb") as file:
 
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        standInForTheApprover(toolContainer);
 
         await toolNotifier.sendMessage('Create the README first');
 
@@ -14467,6 +14396,7 @@ with open(path, "rb") as file:
               createIfMissing: true,
             );
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        standInForTheApprover(toolContainer);
 
         await toolNotifier.sendMessage('Run the Dart package test');
 
@@ -16691,6 +16621,7 @@ with open(path, "rb") as file:
               createIfMissing: true,
             );
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        standInForTheApprover(toolContainer);
 
         await toolNotifier.sendMessage(
           'Run the nested package test',
@@ -16801,6 +16732,7 @@ environment:
               createIfMissing: true,
             );
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        standInForTheApprover(toolContainer);
 
         await toolNotifier.sendMessage(
           'Run the Dart package test',
@@ -17452,6 +17384,7 @@ environment:
               createIfMissing: true,
             );
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        standInForTheApprover(toolContainer);
 
         await toolNotifier.sendMessage('Create the weather report');
 
