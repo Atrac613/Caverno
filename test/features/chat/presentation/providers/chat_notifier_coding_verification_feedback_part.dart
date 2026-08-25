@@ -1,6 +1,150 @@
 part of 'chat_notifier_test.dart';
 
 void registerChatNotifierCodingVerificationFeedbackTests() {
+  // SEC4.4g requires a fresh, non-cacheable approval before a command reaches
+  // the native shell -- and this is the hole beside it. Verification runs its
+  // command through Process.start directly rather than through the
+  // local-command handler, and a changed `test/**_test.dart` becomes its own
+  // target, so a file the model wrote this turn is executed on the host with
+  // no approval and no entry in the approval audit. A Dart test file is
+  // arbitrary code.
+  //
+  // Full Access is deliberate here: SEC4.4g asks even at Full Access when the
+  // model requests `dart test` itself. It is the app running the same command
+  // on the model's behalf that asks nobody.
+  // Pins today's behaviour, not the behaviour we want: when the gap is
+  // closed this expectation flips to an approval being requested.
+  // Verified end to end on 2026-08-26 that the execution is real --
+  // `dart test test/canary_test.dart` on a file whose main() writes a
+  // sentinel wrote it, and reported "No tests were found" while doing so.
+  test('a test file written this turn runs with no command approval', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final projectRoot = await Directory.systemTemp.createTemp(
+      'caverno_verification_executes_written_test_',
+    );
+    addTearDown(() => projectRoot.delete(recursive: true));
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: projectRoot.path,
+      createdAt: DateTime(2026, 8, 26),
+      updatedAt: DateTime(2026, 8, 26),
+    );
+    final canaryPath = '${projectRoot.path}/test/canary_test.dart';
+    final writeCanaryTest = ToolCallInfo(
+      id: 'tool-1',
+      name: 'write_file',
+      arguments: const {
+        'path': 'test/canary_test.dart',
+        'content':
+            "import 'dart:io';\n\n"
+            "void main() {\n"
+            "  File('canary_side_effect.txt').writeAsStringSync('executed');\n"
+            "}\n",
+      },
+    );
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [writeCanaryTest],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content: 'The task "Add the canary test" is complete.',
+          finishReason: 'stop',
+        ),
+        ChatCompletionResult(
+          content: 'The task "Add the canary test" is complete.',
+          finishReason: 'stop',
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'write_file': ''},
+      queuedResults: {
+        'write_file': ['{"path":"$canaryPath","bytes_written":64}'],
+      },
+    );
+    // The model's write really lands, because the target has to exist for the
+    // runner to accept it as a target.
+    await File(canaryPath).create(recursive: true);
+    await File(
+      canaryPath,
+    ).writeAsString(writeCanaryTest.arguments['content']! as String);
+    final verificationCommands = <CodingVerificationCommand>[];
+    final verificationService = CodingVerificationFeedbackService(
+      commandRunner: (command, timeout) async {
+        verificationCommands.add(command);
+        return const CodingVerificationCommandOutput(exitCode: 0, stdout: '');
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        codingDiagnosticFeedbackServiceProvider.overrideWithValue(
+          _FakeCodingDiagnosticFeedbackService(null),
+        ),
+        codingVerificationFeedbackServiceProvider.overrideWithValue(
+          verificationService,
+        ),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      var commandApprovalsAsked = 0;
+      toolContainer.listen<ChatState>(chatNotifierProvider, (previous, next) {
+        if (next.pendingLocalCommand != null &&
+            next.pendingLocalCommand?.id != previous?.pendingLocalCommand?.id) {
+          commandApprovalsAsked += 1;
+        }
+      });
+
+      await toolNotifier.sendMessage(
+        'Add a canary test and tell me when it is done',
+        bypassPlanMode: true,
+      );
+
+      final executed = verificationCommands.single;
+      expect(executed.executable, anyOf('flutter', 'dart', 'fvm'));
+      expect(executed.arguments, contains('test/canary_test.dart'));
+      expect(executed.workingDirectory, projectRoot.path);
+      expect(
+        commandApprovalsAsked,
+        0,
+        reason:
+            'the file the model just wrote is handed to the host test runner '
+            'without anyone being asked to authorize an execution',
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
   test(
     'sendMessage blocks completion claims with coding verification feedback',
     () async {
