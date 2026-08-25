@@ -380,6 +380,15 @@ class PendingToolApprovalRegistry {
     return request.completer.future;
   }
 
+  /// Every registered approval of type [T], including ones stashed for a
+  /// thread the user is not reading.
+  ///
+  /// The projection into [ChatState] is per-thread, but the registry is not:
+  /// an approval can be answered by id from anywhere, which is what lets a
+  /// background turn be unblocked without first opening its thread.
+  Iterable<T> pendingOfType<T extends PendingToolApproval<dynamic>>() =>
+      _requestsById.values.whereType<T>();
+
   T? find<T extends PendingToolApproval<dynamic>>(String id) {
     final request = _requestsById[id];
     return request is T ? request : null;
