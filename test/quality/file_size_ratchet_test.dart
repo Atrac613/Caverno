@@ -42,7 +42,7 @@ const Map<String, int> _lineBudgets = {
   // -18: the Japanese blocker and missing-evidence phrases are code-unit
   // literals with no notifier state, and paying that forward covered the
   // cross-thread approval accessor a two-thread test needs.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8834,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8768,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -678,7 +678,10 @@ const Map<String, int> _libraryLineBudgets = {
   // +3 for the video draft a queued message now carries across a turn.
   // -1 net against the primary file's -57: the quality part gained the
   // retry-context getter, and both extractions left the library entirely.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19864,
+  // -34 net: the quality-gate fallback assembles a proposal out of the goal
+  // and the best candidate so far, which needs the two services and nothing
+  // from the notifier -- and it paid for the verification approval.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19830,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

@@ -3209,6 +3209,7 @@ class _FakeCodingVerificationFeedbackService
     required Iterable<String> changedPaths,
     required CodingVerificationTrigger trigger,
     DateTime? now,
+    VerificationExecutionAuthorizer? authorizeMutatedTargets,
   }) async {
     requestedProjectRoots.add(projectRoot);
     requestedChangedPaths.add(List<String>.from(changedPaths));

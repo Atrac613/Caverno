@@ -38,6 +38,8 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
             projectRoot: projectRoot,
             changedPaths: changedPaths,
             trigger: trigger,
+            authorizeMutatedTargets: (mutatedTargets) =>
+                _authorizeMutatedVerificationTargets(mutatedTargets, owner),
           );
       if (!_isCurrentInteractionGeneration(interactionGeneration)) {
         return null;
@@ -183,6 +185,30 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
         _removeTrailingThinkTagForGeneration(interactionGeneration);
       }
     }
+  }
+
+  /// Asks before verification executes a test file this turn wrote.
+  ///
+  /// The same authority SEC4.4g requires of a command the model asks to run:
+  /// running a freshly written test executes freshly written code, and the
+  /// file-mutation approval that let it be written was a question about
+  /// writing, not about running. A refusal withholds those targets; the tests
+  /// that were already there still run.
+  Future<bool> _authorizeMutatedVerificationTargets(
+    List<MutatedVerificationTarget> mutatedTargets,
+    ChatTurnOwner owner,
+  ) async {
+    final approval = await requestLocalCommand(
+      owner: owner,
+      command: 'flutter test ${mutatedTargets.map((t) => t.target).join(' ')}',
+      workingDirectory: mutatedTargets.first.packageRoot,
+      reason: 'Verify the change',
+      warningTitle: 'Run a test file written this turn?',
+      warningMessage: VerificationTargetAuthority.approvalMessageFor(
+        mutatedTargets,
+      ),
+    );
+    return approval.approved;
   }
 
   bool _codingVerificationEnabledFor(CodingVerificationTrigger trigger) {
