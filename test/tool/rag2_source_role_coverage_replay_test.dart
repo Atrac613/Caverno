@@ -39,6 +39,11 @@ void main() {
       profiles['runtime_tests_and_top_level_docs']?.coveredQuestionCount,
       6,
     );
+    expect(profiles['structural_stratified_v1']?.coveredQuestionCount, 8);
+    expect(
+      profiles['structural_stratified_v1']?.profileKind,
+      'structural_candidate',
+    );
     expect(profiles['runtime_only']?.blockers, [
       'question_coverage_incomplete',
     ]);

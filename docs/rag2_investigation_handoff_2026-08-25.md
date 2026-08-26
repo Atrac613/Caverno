@@ -115,6 +115,14 @@ eligibility. The profiles still cover 2/8, 4/8, and 6/8 development questions;
 all exceed the default ceiling. V2 required-source coverage is Go;
 source-profile selection, retrieval, storage, and production remain No-Go.
 
+`rag2-structural-profile-candidate-contract-v1` freezes one question-independent
+candidate before reading the development fixture. Fixed role quotas and stable
+path-hash ranking select 509 files and about 5.34 MiB within default limits,
+with instruction-bearing files excluded. The later development replay covers
+6/8 questions, missing one runtime and the tooling question at the aggregate
+role level. The candidate remains No-Go and must not be tuned before one
+untouched holdout replay.
+
 ## Investigation sequence
 
 | Step | Pre-squash commit | Experiment | Result and durable decision | Evidence |
@@ -150,6 +158,7 @@ source-profile selection, retrieval, storage, and production remain No-Go.
 | 29 | `Batch manifest integration slice` | Single-inventory manifest evidence integration | The opt-in shadow checks limits before Git, uses exactly three Git commands in-bound, and matches the frozen per-path manifest JSON. Scope selection, storage, and production remain No-Go. | `docs/rag2_batch_manifest_shadow_integration_2026-08-26.md` |
 | 30 | `Source-role coverage slice` | Active-project oracle path coverage by measured profile | V1 reported 2/8, 4/8, and 6/8 question coverage, but its Go was later withdrawn by the contract audit. Path coverage is not retrieval evidence. | `docs/rag2_source_role_coverage_replay_2026-08-26.md` |
 | 31 | `Source-role coverage contract audit` | Bounded reads, evidence completeness, identity, and eligibility semantics | V1 Go is withdrawn. V2 requires all markers, rejects post-inventory growth and symlink substitution, fingerprints aggregate inventory/evidence state, and makes the default ceiling an eligibility blocker. The 2/8, 4/8, and 6/8 results remain development diagnostics only. | `docs/rag2_source_role_coverage_replay_2026-08-26.md` |
+| 32 | `Structural profile candidate` | Question-independent bounded source-role sampling | Fixed role quotas and stable path hashing select 509 files within default limits. The candidate was frozen before fixture use, then covered 6/8 informed development questions. It remains No-Go and cannot be tuned before an untouched holdout. | `docs/rag2_structural_profile_candidate_2026-08-26.md` |
 
 ## Rejected shortcuts
 
@@ -221,8 +230,9 @@ the frozen fixture versions. The collector baseline has 77 RAG2 tests; the
 manifest-shadow slice adds five focused cases, the source-scope measurement
 adds three, the batch inventory adds five, and the batch manifest integration
 adds one. The source-role coverage replay v2 replaces five focused cases with
-11. Project/package static analysis remains the required gate. The current
-complete suite contains 102 focused RAG2 tests.
+11, and the structural-profile candidate adds five. Project/package static
+analysis remains the required gate. The current complete suite contains 107
+focused RAG2 tests.
 
 ## Next entry condition
 
@@ -235,10 +245,10 @@ Freeze the extraction suites, `rag2-passage-role-oracle-v1`, corrected
 `rag2-source-scope-measurement-contract-v1`, and
 `rag2-batch-git-inventory-contract-v1`, and
 `rag2-source-role-coverage-contract-v2`; retain v1 only as withdrawn history.
-The batch manifest integration is Go, the per-path collector stays the
-frozen parity oracle, and all three measured profiles remain ineligible. The
-next slice should define one structural, question-independent bounded profile
-candidate within the explicit `.dart`/`.md` sampling frame before creating an
-untouched active-project holdout. Apply the
-candidate unchanged to that holdout before selecting a scope. Do not add an
-index schema, FTS5, embeddings, prompting, routing, tools, or model calls.
+Freeze `rag2-structural-profile-candidate-contract-v1` unchanged. The batch
+manifest integration is Go, the per-path collector stays the frozen parity
+oracle, and source selection remains No-Go. The next slice must create one
+untouched active-project holdout without consulting selected paths, apply the
+candidate exactly once, and then decide whether to close stratified sampling.
+Do not tune quotas, add an index schema, FTS5, embeddings, prompting, routing,
+tools, or model calls.

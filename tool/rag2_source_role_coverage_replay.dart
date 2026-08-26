@@ -16,6 +16,7 @@ import 'rag2_source_manifest_shadow.dart'
         rag2ShadowHardMaxFileBytes,
         rag2ShadowHardMaxFiles;
 import 'rag2_source_scope_measurement.dart';
+import 'rag2_structural_profile_candidate.dart';
 
 const rag2SourceRoleCoverageContract = 'rag2-source-role-coverage-contract-v2';
 const rag2SourceRoleCoverageFixtureSchema =
@@ -114,6 +115,7 @@ Future<Rag2SourceRoleCoverageReport> runRag2SourceRoleCoverageReplay(
             ),
           )
           .toList(growable: false),
+    rag2StructuralProfileId: selectRag2StructuralProfileCandidates(inventory),
   };
   final profileCoverage = <Rag2SourceProfileCoverage>[];
   for (final entry in profileCandidates.entries) {
@@ -123,6 +125,8 @@ Future<Rag2SourceRoleCoverageReport> runRag2SourceRoleCoverageReplay(
         profileId: entry.key,
         profileKind: entry.key == _allCandidatesControlId
             ? 'oracle_control'
+            : entry.key == rag2StructuralProfileId
+            ? 'structural_candidate'
             : 'comparison_profile',
         candidates: entry.value,
         questions: fixture.questions,

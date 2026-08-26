@@ -6,7 +6,7 @@ Contract: `rag2-source-role-coverage-contract-v2`
 
 ## Outcome
 
-The three measured source profiles do not retain all required evidence sources
+The three original measured source profiles do not retain all required evidence sources
 in the frozen active-project development question set. Runtime only covers the
 two runtime questions. Adding top-level documentation covers four of eight
 questions. Adding tests covers six of eight but still omits tooling and
@@ -87,17 +87,25 @@ The final aggregate snapshot is:
 
 | Profile | Files | Bytes | Covered | Default limit | Hard limit | Eligibility |
 | --- | ---: | ---: | ---: | --- | --- | --- |
-| All-candidates control | 2,826 | 28,496,837 | 8/8 | No-Go | No-Go | No-Go |
+| All-candidates control | 2,829 | 28,519,555 | 8/8 | No-Go | No-Go | No-Go |
 | Runtime only | 1,116 | 9,617,137 | 2/8 | No-Go | Go | No-Go |
-| Runtime + top-level docs | 1,575 | 14,062,653 | 4/8 | No-Go | Go | No-Go |
-| Runtime + tests + top-level docs | 2,562 | 25,841,587 | 6/8 | No-Go | No-Go | No-Go |
+| Runtime + top-level docs | 1,576 | 14,069,716 | 4/8 | No-Go | Go | No-Go |
+| Runtime + tests + top-level docs | 2,564 | 25,854,132 | 6/8 | No-Go | No-Go | No-Go |
+| Structural stratified v1 | 509 | 5,341,287 | 6/8 | Go | Go | No-Go |
 
-All four profiles exceed the default ceiling. The all-candidates control also
-exceeds the hard ceiling. Runtime-only and runtime-plus-docs fit the hard
-ceiling but fail question coverage. Adding all tests still omits the tooling
-and root-source questions and exceeds the hard ceiling. Default-limit overflow
-is now an eligibility blocker, so a complete profile cannot become eligible
-merely by fitting the hard ceiling.
+The all-candidates control and three original comparison profiles exceed the
+default ceiling. The all-candidates control also exceeds the hard ceiling.
+Runtime-only and runtime-plus-docs fit the hard ceiling but fail question
+coverage. Adding all tests still omits the tooling and root-source questions
+and exceeds the hard ceiling. Default-limit overflow is an eligibility blocker,
+so a complete profile cannot become eligible merely by fitting the hard
+ceiling.
+
+The separately frozen structural candidate is now included as a
+`structural_candidate` profile. Its membership is produced only by fixed role
+budgets and stable path hashing from
+`rag2-structural-profile-candidate-contract-v1`; this replay does not derive or
+tune that membership from the fixture.
 
 ## Reproducible Coverage
 
@@ -129,22 +137,24 @@ fvm flutter test test/tool/rag2_*_test.dart
 
 The source-role replay passes all 11 focused tests. The repository verifier
 passes project/package static analysis, three package test suites, the focused
-subset, and 10 notification-relay tests. All 102 focused RAG2 tests also pass.
+subset, and 10 notification-relay tests. With the structural candidate tests,
+all 107 focused RAG2 tests pass.
 
 ## Decision and Next Entry Condition
 
 Retain v1 as withdrawn history. Freeze the v2 eight-question development
 fixture, all-of marker validation, bounded fenced read, aggregate identities,
-exact three-profile comparison, default-limit eligibility rule, explicit
+exact original three-profile comparison, structural-candidate integration,
+default-limit eligibility rule, explicit
 `.dart`/`.md` sampling frame, and current source-profile No-Go. Do not treat the
 informed fixture as independent profile-promotion evidence.
 
-The next slice should define one structural, question-independent bounded
-profile candidate before creating a separate untouched active-project holdout.
-The candidate must state how tooling, root sources, and tests are admitted
-without using question IDs, marker text, or hand-picked paths, and it must fit
-the existing default file and corpus ceilings. Apply it unchanged to the new
-holdout before selecting a source scope.
+The structural candidate is frozen in
+`docs/rag2_structural_profile_candidate_2026-08-26.md`. The next slice must
+create a separate untouched active-project holdout without consulting selected
+paths and apply the candidate unchanged exactly once. The informed development
+result cannot promote or tune the candidate, and source selection remains
+No-Go.
 
 Do not raise limits or add SQLite, FTS5, embeddings, prompting, routing, tools,
 model calls, or application wiring from this development replay.
