@@ -24,6 +24,10 @@ handoffs can refer to the same unit of work over time.
   `docs/knowledge_currency_track_design.md`.
 - Use `TOOL<number>` for the user-created Tools workspace and manifest runtime
   milestones documented in `docs/tools_mvp_roadmap.md`.
+- Use `HEU<number>` for text-heuristic removal milestones — replacing prose
+  pattern matching with ground truth, structured self-report, or structured
+  elicitation so decisions stop being bound to the languages someone happened
+  to enumerate — documented in `docs/text_heuristic_inventory.md`.
 - Use `FORK<number>` for conversation fork/branching (chat + coding)
   milestones documented in this file under "Conversation Fork Track".
 - Use `CLI<number>` for the headless runtime and user-facing terminal client
@@ -67,6 +71,12 @@ handoffs can refer to the same unit of work over time.
 | Caverno CLI | CLI1 | done | Extract a shared application execution runtime without changing GUI behavior. | Use the shared typed runtime and CLI1 parity evidence as the terminal frontend boundary. |
 | Caverno CLI | CLI2 | done | Ship the interactive terminal MVP on the shared execution runtime. | Preserve the passing terminal and three-headless-plus-one-macOS parity gates as the CLI2 baseline; keep persistence, resume, and concurrent ownership in CLI3. |
 | Caverno CLI | CLI3 | done | Reuse production persistence and enforce cross-process ownership before conversation resume. | Preserve the persistence, resume, migration-retry, and direct-lock contention gates as the CLI3 baseline. |
+| Heuristic Removal | HEU1 | next | Make production release approval decidable only from a structured answer, never from prose. | Route approval through `ask_user_question` only, demote the prose predicates to shadow logging, and add the multi-language denial/approval assertion table. |
+| Heuristic Removal | HEU2 | next | Stop discarding structured tool evidence at the claim-notice boundary. | Preserve `outcome` in `FinalAnswerClaimNoticeInput._freezeToolResult` so claim checks stop falling through to prose. |
+| Heuristic Removal | HEU3 | later | Decide file and command completion claims from ground truth and structured self-report. | Gated on HEU2; start with the claims that `ToolOutcome` already settles. |
+| Heuristic Removal | HEU4 | later | Apply the HEU1 pattern to git write confirmation. | Follow HEU1's structured-elicitation shape at smaller radius. |
+| Heuristic Removal | HEU5 | later | Replace the tool-role acceptance carve-outs. | Blocked on the tool-role regeneration measurement; do not change on current evidence. |
+| Heuristic Removal | HEU6 | later | Reduce proposal, goal-suggestion, and memory-extraction prose parsing. | Largest surface, lowest stakes; may stay best-effort by decision. |
 | Caverno CLI | CLI4 | later | Package and release the terminal client with automation-grade diagnostics. | The F5 dependency is satisfied; resume with macOS archive, launcher, checksum, and packaged-process gates, and require the signed packaged doctor for promotion. |
 | Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
