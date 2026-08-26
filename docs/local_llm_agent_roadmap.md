@@ -184,7 +184,7 @@ structurally unmotivated to build:
 | Local LLM | LL39 | done | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument and record a RAG2 No-Go because every strong retrieval control returns evidence for 4/4 no-answer cases. |
-| Retrieval | RAG2 | later | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects and an incremental SQLite/FTS5 index over active-project code and Markdown. The frozen structural candidate fits the default ceiling at 509 files but covers only 6/8 informed development questions, so source selection remains No-Go. Apply it unchanged to one untouched holdout, then decide whether to close stratified sampling; do not tune quotas, raise limits, or start storage. |
+| Retrieval | RAG2 | later | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects and an incremental SQLite/FTS5 index over active-project code and Markdown. The frozen structural candidate fit the default ceiling but covered 6/8 informed development questions and 4/8 untouched holdout questions. Stratified stable-hash sampling is closed; source selection remains No-Go. A resumed slice needs a new predeclared hypothesis and new holdout before storage. |
 | Retrieval | RAG3 | later | M | RAG2, LL5, F6, LL39 | Bounded local vector retrieval, weighted RRF, context budgeting, and an active-project `search_knowledge` tool. |
 | Retrieval | RAG4 | blocked | M | RAG1, RAG3, HOOK1, SEC1, SEC2, agent-kb provenance | Federate agent-kb memories and wiki pages without copying its raw archive or database into Caverno. Blocked upstream: `kb_search` exposes no timestamp, wiki hits carry no confidence or source agent, and archiving rejects any agent outside `{claude, codex}`. |
 | Retrieval | RAG5 | later | S-M | RAG3, RAG4, LL23 | Evaluate deterministic local/agent-kb routing in shadow before automatic retrieval changes prompts or turn cost. |
@@ -1514,20 +1514,22 @@ contract audit. V2 uses all-of markers, bounded fenced evidence reads,
 aggregate inventory/evidence identities, duplicate-path rejection, and
 default-limit-aware eligibility. The three measured profiles still cover 2/8,
 4/8, and 6/8, and every profile exceeds the default ceiling. This remains
-required-source presence, not retrieval or complete-support evidence. Freeze
-v2 as a development fixture. Next define one question-independent bounded
-profile and apply it unchanged to a separate untouched holdout before selecting
-a scope.
+required-source presence, not retrieval or complete-support evidence. V2 is
+frozen as a development fixture; the later structural candidate and holdout
+decision are recorded below.
 Evidence: `docs/rag2_source_role_coverage_replay_2026-08-26.md`.
 
 Structural profile candidate (2026-08-26):
 `structural_stratified_v1` was frozen before loading the question fixture. It
 uses fixed source-role file/byte budgets and stable path-hash ranking, excludes
 instruction-bearing files, and selects 509 files within the default ceiling.
-The informed development replay covers 6/8 questions and remains No-Go. Do not
-tune v1 from those misses. Apply it unchanged to one untouched holdout, which
-can close the strategy but cannot erase the development failure. Evidence:
-`docs/rag2_structural_profile_candidate_2026-08-26.md`.
+The informed development replay covered 6/8 questions. An untouched fixture
+with no development evidence-path overlap was frozen before candidate use; the
+unchanged one-time replay covered 4/8. Close stratified stable-hash sampling and
+do not tune or revive v1. A resumed source-scope experiment must predeclare a
+different question-independent policy and reserve a new untouched holdout.
+Evidence: `docs/rag2_structural_profile_candidate_2026-08-26.md` and
+`docs/rag2_structural_profile_holdout_2026-08-26.md`.
 
 Scope:
 - Add storage-independent Knowledge Object, Chunk, Provenance, retriever, fusion,

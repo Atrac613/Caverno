@@ -1,7 +1,7 @@
 # RAG2 Source-Role Coverage Replay
 
 Date: 2026-08-26
-Status: v1 Go withdrawn; v2 required-source coverage contract Go; source-profile selection No-Go
+Status: v1 Go withdrawn; v2 coverage contract Go; structural strategy closed
 Contract: `rag2-source-role-coverage-contract-v2`
 
 ## Outcome
@@ -135,10 +135,10 @@ tool/codex_verify.sh --no-codegen \
 fvm flutter test test/tool/rag2_*_test.dart
 ```
 
-The source-role replay passes all 11 focused tests. The repository verifier
+The source-role replay passes all 12 focused tests. The repository verifier
 passes project/package static analysis, three package test suites, the focused
 subset, and 10 notification-relay tests. With the structural candidate tests,
-all 107 focused RAG2 tests pass.
+all 108 focused RAG2 tests pass.
 
 ## Decision and Next Entry Condition
 
@@ -150,11 +150,11 @@ default-limit eligibility rule, explicit
 informed fixture as independent profile-promotion evidence.
 
 The structural candidate is frozen in
-`docs/rag2_structural_profile_candidate_2026-08-26.md`. The next slice must
-create a separate untouched active-project holdout without consulting selected
-paths and apply the candidate unchanged exactly once. The informed development
-result cannot promote or tune the candidate, and source selection remains
-No-Go.
+`docs/rag2_structural_profile_candidate_2026-08-26.md`. It was applied unchanged
+exactly once to a separately frozen untouched holdout and covered 4/8. The
+development 6/8 and holdout 4/8 close the stratified stable-hash strategy.
+Source selection remains No-Go. See
+`docs/rag2_structural_profile_holdout_2026-08-26.md`.
 
 Do not raise limits or add SQLite, FTS5, embeddings, prompting, routing, tools,
 model calls, or application wiring from this development replay.

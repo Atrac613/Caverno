@@ -1,7 +1,7 @@
 # RAG2 Structural Profile Candidate
 
 Date: 2026-08-26
-Status: candidate frozen; development coverage No-Go; holdout not evaluated
+Status: candidate frozen; development and holdout coverage No-Go; strategy closed
 Contract: `rag2-structural-profile-candidate-contract-v1`
 Candidate: `structural_stratified_v1`
 
@@ -16,7 +16,12 @@ The frozen candidate covers six of eight questions in the informed development
 fixture. It retains both documentation questions, the root-source question,
 one of two runtime questions, both test questions, and zero of one tooling
 question. The candidate is therefore No-Go and does not select a source scope.
-The result must not be used to tune v1 before an untouched holdout replay.
+The result was not used to tune v1 before the untouched holdout replay.
+
+The unchanged candidate subsequently covered 4/8 questions in the untouched
+holdout: runtime 2/2, documentation 1/2, tests 0/2, tooling 0/1, and root
+sources 1/1. The strategy is closed. See
+`docs/rag2_structural_profile_holdout_2026-08-26.md`.
 
 ## Selection Order
 
@@ -108,7 +113,7 @@ fvm flutter test test/tool/rag2_*_test.dart
 ```
 
 The repository verifier passes project/package static analysis, three package
-test suites, 19 focused tests, and 10 notification-relay tests. All 107 focused
+test suites, 20 focused tests, and 10 notification-relay tests. All 108 focused
 RAG2 tests pass.
 
 ## Decision and Next Entry Condition
@@ -117,12 +122,12 @@ Freeze `rag2-structural-profile-candidate-contract-v1`, its role budgets,
 stable-hash salt, default-limit policy, and instruction-bearing exclusion. The
 development 6/8 is diagnostic and cannot promote or tune the candidate.
 
-The next slice must create a separate untouched active-project holdout without
-consulting selected paths. Apply v1 unchanged exactly once, record aggregate
-role coverage, and then decide whether to close this stratified sampling
-strategy. Even a holdout pass cannot erase the development No-Go; selection,
-storage, retrieval, and production remain No-Go.
+The separate untouched active-project holdout was frozen before candidate use
+and evaluated exactly once. Its 4/8 result closes this stratified stable-hash
+sampling strategy. Selection, storage, retrieval, and production remain No-Go.
 
-Do not revise quotas from missed development evidence. Do not add SQLite,
-FTS5, embeddings, prompting, routing, tools, model calls, or application
-wiring.
+Do not revise quotas from the development or holdout misses, and do not reuse
+the holdout to promote another policy. Any resumed source-scope work needs a
+new question-independent hypothesis and a new untouched holdout. Do not add
+SQLite, FTS5, embeddings, prompting, routing, tools, model calls, or
+application wiring.
