@@ -68,7 +68,7 @@ Future<Rag2ExplicitSourceRootsReplayResult> runRag2ExplicitSourceRootsReplay({
     updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
   );
   final base = _ReportState(
-    projectIdentity: _stableIdentity('project', options.projectId),
+    projectIdentity: rag2ExplicitSourceRootsProjectIdentity(options.projectId),
     declarationIdentity: rag2ExplicitSourceRootsDeclarationIdentity(
       options.sourceRoots,
     ),
@@ -560,6 +560,9 @@ String? _normalizeSourceRoot(String value) {
 
 bool _rootContainsRoot(String ancestor, String descendant) =>
     ancestor == '.' || descendant.startsWith('$ancestor/');
+
+String rag2ExplicitSourceRootsProjectIdentity(String projectId) =>
+    _stableIdentity('project', projectId);
 
 String rag2ExplicitSourceRootsDeclarationIdentity(List<String> sourceRoots) {
   final sorted = List<String>.from(sourceRoots)..sort();

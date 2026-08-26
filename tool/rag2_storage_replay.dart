@@ -143,12 +143,14 @@ Future<Rag2KnowledgeSnapshot> prepareRag2StorageSnapshot({
   required File fixtureFile,
   required Rag2StorageReplayFixture fixture,
   required Rag2StorageSnapshotSpec spec,
+  String? projectId,
   Map<String, Rag2GitEvidence>? gitEvidenceByPath,
   Rag2SourceDiscoveryPolicy policy = rag2ExplicitSourceRootsPolicy,
 }) async {
+  final resolvedProjectId = projectId ?? fixture.projectId;
   final rootPath = '${fixtureFile.parent.path}/${spec.root}';
   final project = CodingProject(
-    id: fixture.projectId,
+    id: resolvedProjectId,
     name: 'RAG2 storage replay fixture',
     rootPath: rootPath,
     createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
@@ -215,7 +217,7 @@ Future<Rag2KnowledgeSnapshot> prepareRag2StorageSnapshot({
   for (final source in discovery.candidates) {
     objects.add(
       rag2KnowledgeObjectFromDiscoveredSource(
-        projectId: fixture.projectId,
+        projectId: resolvedProjectId,
         source: source,
       ),
     );
@@ -291,6 +293,17 @@ final class Rag2InMemoryGenerationStore {
 
   Rag2StoredGeneration? read(String declarationIdentity) =>
       _generations[declarationIdentity];
+
+  void restore({
+    required String declarationIdentity,
+    required Rag2StoredGeneration generation,
+  }) {
+    _validateSnapshot(generation.snapshot);
+    if (generation.generation < 1) {
+      throw const Rag2StoragePreparationException('generation_invalid');
+    }
+    _generations[declarationIdentity] = generation;
+  }
 
   Rag2StorageApplyResult apply({
     required String declarationIdentity,

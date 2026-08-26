@@ -140,7 +140,7 @@ citation quality. Those remain separate later gates.
 
 Preserve the development and promotion fixtures unchanged. Live acquisition is
 now a CI gate for both frozen declarations. Acquisition and storage share
-declaration identity. Define a persistence-reopen hypothesis next. Do not
+declaration identity. Persistence reopen is a durability Go. Do not
 select a database schema or add settings, tools, model calls, application
 wiring, or production behavior.
 
@@ -162,4 +162,4 @@ fvm flutter test test/tool/rag2_*_test.dart
 
 The six development-evaluation, five promotion-evaluation, four declaration-
 freeze, and nine explicit-root cases pass. The complete focused RAG2 suite
-passes all 141 tests.
+passes all 149 tests.

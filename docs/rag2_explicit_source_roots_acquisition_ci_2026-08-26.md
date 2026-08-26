@@ -1,7 +1,7 @@
 # RAG2 Explicit Source Roots Acquisition CI Gate
 
 Date: 2026-08-26
-Status: acquisition CI Go; identity aligned; persistence reopen remains
+Status: acquisition CI Go; identity aligned; persistence reopen Go
 Contract: `rag2-explicit-complete-source-roots-v1`
 
 ## Decision
@@ -87,8 +87,9 @@ ranking, answer correctness, citation quality, durable storage, crash
 recovery, or production readiness.
 
 Acquisition and storage now share declaration identity for the same sorted
-roots. Do not select SQLite, FTS5, Drift, or embeddings until a separate
-reopen/migration hypothesis passes.
+roots. Persistence reopen is a separate Go; see
+`docs/rag2_persistence_reopen_hypothesis_2026-08-27.md`. Do not select SQLite,
+FTS5, Drift, or embeddings yet.
 
 ## Verification
 
@@ -108,6 +109,8 @@ fvm flutter test test/tool/rag2_*_test.dart
 ## Next Entry Condition
 
 Acquisition and storage now share declaration identity for the same sorted
-roots. See `docs/rag2_storage_replay_contract_2026-08-26.md`. The next
-hardening slice is a persistence-reopen hypothesis. Do not select a database
-backend, and do not add settings, tools, prompting, or application wiring.
+roots. See `docs/rag2_storage_replay_contract_2026-08-26.md`. Persistence
+reopen is recorded in
+`docs/rag2_persistence_reopen_hypothesis_2026-08-27.md`. A later
+backend-selection hypothesis may map those durability rules onto SQLite,
+FTS5, or Drift. Do not add settings, tools, prompting, or application wiring.

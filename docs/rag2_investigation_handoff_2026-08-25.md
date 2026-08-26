@@ -170,6 +170,7 @@ stratified stable-hash strategy and do not tune or revive v1.
 | 40 | `Attested-text binding` | One bounded read for hash, chunks, and stored content | Discovery chunks and storage objects reuse the attested normalized snapshot. A later file change cannot alter stored chunk text. Reports still omit source text. | `docs/rag2_storage_replay_contract_2026-08-26.md` |
 | 41 | `Frozen-declaration acquisition CI` | Live Git-backed acquisition for both frozen explicit-root declarations | Development and promotion declarations rerun inventory, batch Git, and attestation in CI. Questions score from admitted paths on the evaluation envelope, not a duplicated prefix oracle. Selected-metadata hashes remain checkout observations, not CI pins. | `docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md` |
 | 42 | `Declaration identity alignment` | Shared hasher for acquisition and storage | Storage uses `rag2ExplicitSourceRootsDeclarationIdentity`. Same sorted roots produce the same declaration hash as explicit-root acquisition. Project identity stays separate. The withdrawn storage-contract-plus-project-id hash is not reused. | `docs/rag2_storage_replay_contract_2026-08-26.md` |
+| 43 | `Persistence reopen hypothesis` | Durable reopen, crash discard, and unknown-schema refusal | File-backed JSON reopens generation 2, discards a crash partial or missing-current backup back to generation 1, rejects schema version 2 without mutation, isolates two projects that share roots, and refuses a snapshot from another project. Attested chunk text is persisted; reports still omit it. No production backend is selected. | `docs/rag2_persistence_reopen_hypothesis_2026-08-27.md` |
 
 ## Rejected shortcuts
 
@@ -199,6 +200,8 @@ stratified stable-hash strategy and do not tune or revive v1.
 - Do not tune or revive `structural_stratified_v1` from its 6/8 development or
   4/8 untouched-holdout misses. A different policy needs a new predeclared
   hypothesis and a new untouched holdout.
+- Do not treat the file-backed JSON reopen instrument as a SQLite, FTS5, or
+  Drift selection. It proves durability semantics only.
 
 ## Durable artifacts
 
@@ -250,7 +253,7 @@ focused RAG2 tests before the promotion slice; the frozen holdout declaration
 and promotion evaluation increase it to 129, the storage replay increases it
 to 134, and the attested-text binding increases it to 137. Frozen-declaration
 acquisition CI increases it to 140. Shared declaration identity increases it
-to 141.
+to 141. Persistence reopen increases it to 149.
 
 ## Next entry condition
 
@@ -281,8 +284,8 @@ fixture frozen. Discovery and storage now reuse the attested bounded-read
 snapshot; do not restore a second unfenced file read. Frozen development and
 promotion declarations now rerun Git-backed acquisition in CI and score
 questions from the admitted set. Acquisition and storage now share
-declaration identity for the same sorted roots. A later persistence-backend
-hypothesis must still preserve atomic generation, identity, invalidation,
-rollback, and report privacy through migration and reopen testing before
-SQLite, FTS5, Drift, or embeddings are selected. Prompting, routing, tools,
+declaration identity for the same sorted roots. A file-backed persistence
+reopen replay restores the last committed generation, discards a crash
+partial, and refuses an unsupported schema without mutation. This does not
+select SQLite, FTS5, Drift, or embeddings. Prompting, routing, tools,
 model calls, settings, and application wiring remain out of scope.

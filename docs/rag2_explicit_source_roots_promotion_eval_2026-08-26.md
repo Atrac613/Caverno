@@ -85,6 +85,5 @@ right evidence, or that generated answers are complete and correctly cited.
 
 Live acquisition for this frozen declaration is now a CI gate. See
 `docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`. Acquisition
-and storage now share declaration identity. The next hardening slice is a
-persistence-reopen hypothesis. Do not select SQLite, FTS5, Drift, or
-embeddings yet.
+and storage now share declaration identity. Persistence reopen is a
+durability Go. Do not select SQLite, FTS5, Drift, or embeddings yet.

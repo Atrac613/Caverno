@@ -84,6 +84,7 @@ fvm flutter test test/tool/rag2_*_test.dart
 ## Next Entry Condition
 
 Keep this contract and fixture frozen, including the attested-text binding and
-shared declaration identity. Before selecting a production backend, run a
-separate migration/reopen/crash-recovery hypothesis. Retrieval remains a later
-independent evaluation.
+shared declaration identity. Persistence reopen now has its own frozen
+hypothesis; see
+`docs/rag2_persistence_reopen_hypothesis_2026-08-27.md`. Retrieval remains a
+later independent evaluation. Do not select SQLite, FTS5, or Drift yet.
