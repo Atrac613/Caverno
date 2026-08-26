@@ -121,9 +121,13 @@ The batch inventory is now integrated into the opt-in manifest shadow while
 preserving its schema, limits, decisions, and zero-Git limit failure. Evidence
 is recorded in `docs/rag2_batch_manifest_shadow_integration_2026-08-26.md`.
 
-The next slice should compare answer-bearing coverage across these measured
-profiles before selecting one. It must not change manifest limits, select a
-source profile, add storage, add retrieval, or enter an application path.
+That entry condition is satisfied by
+`docs/rag2_source_role_coverage_replay_2026-08-26.md`. The profiles cover two,
+four, and six of eight frozen questions; none is eligible. The next slice
+should define a structural bounded profile candidate without question-specific
+paths before creating an untouched holdout. It must not change manifest limits,
+select a source profile, add storage, add retrieval, or enter an application
+path.
 
 ## Verification
 

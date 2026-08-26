@@ -105,6 +105,14 @@ scope, storage, retrieval, and production remain No-Go. The final live
 preflight measured 2,823 candidates and failed closed before Git on a 16-file
 limit.
 
+`rag2-source-role-coverage-contract-v1` validates eight active-project oracle
+paths and content markers before comparing the three measured profiles. The
+all-candidates control covers 8/8 but exceeds the hard ceiling. Runtime only,
+runtime plus top-level docs, and runtime plus tests plus docs cover 2/8, 4/8,
+and 6/8 respectively. The largest profile has 2,562 files, still omits tooling
+and root-source evidence, and exceeds the hard ceiling. Oracle coverage is Go;
+source-profile selection, retrieval, storage, and production remain No-Go.
+
 ## Investigation sequence
 
 | Step | Pre-squash commit | Experiment | Result and durable decision | Evidence |
@@ -138,6 +146,7 @@ limit.
 | 27 | `Source scope measurement slice` | Pre-Git aggregate scope and role measurement | Shared discovery inventory reports no individual paths or text. Runtime-only is 1,116 files, runtime plus top-level docs is 1,572, and adding tests reaches 2,557. No scope or limit change is selected. | `docs/rag2_source_scope_measurement_2026-08-26.md` |
 | 28 | `Batch Git inventory slice` | Fixed-command state and revision parity | One exact-root preflight, one NUL status inventory, and one NUL stage inventory match the per-path oracle across clean, changed, untracked, staged, renamed, and unusual-name cases. Aggregate reports omit paths and Git payloads; manifest integration remains absent. | `docs/rag2_batch_git_inventory_replay_2026-08-26.md` |
 | 29 | `Batch manifest integration slice` | Single-inventory manifest evidence integration | The opt-in shadow checks limits before Git, uses exactly three Git commands in-bound, and matches the frozen per-path manifest JSON. Scope selection, storage, and production remain No-Go. | `docs/rag2_batch_manifest_shadow_integration_2026-08-26.md` |
+| 30 | `Source-role coverage slice` | Active-project oracle path coverage by measured profile | Eight paths and markers validate answer-bearing evidence. The three profiles cover 2/8, 4/8, and 6/8 questions; none is eligible. Path coverage is not retrieval evidence. | `docs/rag2_source_role_coverage_replay_2026-08-26.md` |
 
 ## Rejected shortcuts
 
@@ -162,6 +171,8 @@ limit.
 - Do not raise the live-shadow file ceiling from the Caverno aggregate count.
   Measure source scope first; per-path Git collection over the whole repository
   would multiply process cost without deciding which sources belong in RAG2.
+- Do not treat oracle path membership as retrieval or answer-quality evidence.
+  The source-role fixture informed the comparison and cannot promote a profile.
 
 ## Durable artifacts
 
@@ -206,8 +217,9 @@ tests listed under `test/tool/` through the same entrypoint and must not rewrite
 the frozen fixture versions. The collector baseline has 77 RAG2 tests; the
 manifest-shadow slice adds five focused cases, the source-scope measurement
 adds three, the batch inventory adds five, and the batch manifest integration
-adds one. Project/package static analysis remains the required gate. The
-current complete suite contains 91 focused RAG2 tests.
+adds one. The source-role coverage replay adds five. Project/package static
+analysis remains the required gate. The current complete suite contains 96
+focused RAG2 tests.
 
 ## Next entry condition
 
@@ -218,9 +230,11 @@ Freeze the extraction suites, `rag2-passage-role-oracle-v1`, corrected
 `rag2-git-evidence-collector-contract-v1`, and
 `rag2-source-manifest-shadow-contract-v1`, and
 `rag2-source-scope-measurement-contract-v1`, and
-`rag2-batch-git-inventory-contract-v1`; retain withdrawn versions only as
-history. The batch manifest integration is Go and the per-path collector stays
-the frozen parity oracle. The next slice should measure answer-bearing coverage
-for the already measured source-role profiles with fixed active-project
-questions before selecting a scope or changing limits. Do not add an index
-schema, FTS5, embeddings, prompting, routing, tools, or model calls.
+`rag2-batch-git-inventory-contract-v1`, and
+`rag2-source-role-coverage-contract-v1`; retain withdrawn versions only as
+history. The batch manifest integration is Go, the per-path collector stays the
+frozen parity oracle, and all three measured profiles remain ineligible. The
+next slice should define one structural, question-independent bounded profile
+candidate before creating an untouched active-project holdout. Apply the
+candidate unchanged to that holdout before selecting a scope. Do not add an
+index schema, FTS5, embeddings, prompting, routing, tools, or model calls.

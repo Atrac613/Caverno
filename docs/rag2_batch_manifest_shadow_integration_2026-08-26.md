@@ -99,12 +99,11 @@ Freeze the single-inventory resumption boundary, pre-Git limit check,
 three-command in-bound behavior, zero-Git out-of-bound behavior, full-report
 per-path oracle parity, and unchanged manifest schema.
 
-The next narrow slice should compare source-role coverage using fixed,
-answer-bearing active-project questions across the already measured profiles:
-runtime only, runtime plus top-level documentation, and runtime plus tests plus
-top-level documentation. Keep the replay offline and aggregate-only. It must
-measure whether each profile retains the evidence needed to answer each frozen
-question before selecting a source scope or revising limits.
+That entry condition is satisfied by
+`docs/rag2_source_role_coverage_replay_2026-08-26.md`. The three measured
+profiles cover two, four, and six of eight frozen questions; none is eligible.
+The next slice should define one structural, question-independent bounded
+profile candidate before creating an untouched active-project holdout.
 
 Do not add storage, FTS5, embeddings, prompting, routing, tools, model calls, or
 an application path from this integration result.

@@ -34,6 +34,12 @@ const _instructionBearingNames = <String>{
   'FOR_ME.md',
 };
 
+const rag2SourceProfileIds = <String>[
+  'runtime_only',
+  'runtime_and_top_level_docs',
+  'runtime_tests_and_top_level_docs',
+];
+
 Future<void> main(List<String> args) async {
   final options = Rag2SourceScopeMeasurementOptions.parse(args);
   if (options == null) {
@@ -161,7 +167,9 @@ final class Rag2SourceScopeMeasurementReport {
       topLevel
           .putIfAbsent(_topLevelScope(candidate.path), () => [])
           .add(candidate);
-      roles.putIfAbsent(_sourceRole(candidate.path), () => []).add(candidate);
+      roles
+          .putIfAbsent(rag2SourceRoleForPath(candidate.path), () => [])
+          .add(candidate);
     }
     final exclusions = <String, int>{};
     for (final exclusion in inventory.exclusions) {
@@ -184,24 +192,28 @@ final class Rag2SourceScopeMeasurementReport {
         Rag2ScopeAggregate.fromCandidates(
           id: 'runtime_only',
           candidates: inventory.candidates.where(
-            (candidate) => _isRuntimeSource(candidate.path),
+            (candidate) => rag2SourceProfileContainsPath(
+              profileId: 'runtime_only',
+              path: candidate.path,
+            ),
           ),
         ),
         Rag2ScopeAggregate.fromCandidates(
           id: 'runtime_and_top_level_docs',
           candidates: inventory.candidates.where(
-            (candidate) =>
-                _isRuntimeSource(candidate.path) ||
-                _isTopLevelDocs(candidate.path),
+            (candidate) => rag2SourceProfileContainsPath(
+              profileId: 'runtime_and_top_level_docs',
+              path: candidate.path,
+            ),
           ),
         ),
         Rag2ScopeAggregate.fromCandidates(
           id: 'runtime_tests_and_top_level_docs',
           candidates: inventory.candidates.where(
-            (candidate) =>
-                _isRuntimeSource(candidate.path) ||
-                _isTestSource(candidate.path) ||
-                _isTopLevelDocs(candidate.path),
+            (candidate) => rag2SourceProfileContainsPath(
+              profileId: 'runtime_tests_and_top_level_docs',
+              path: candidate.path,
+            ),
           ),
         ),
       ],
@@ -317,7 +329,7 @@ String _topLevelScope(String path) {
   return separator == -1 ? 'root' : path.substring(0, separator);
 }
 
-String _sourceRole(String path) {
+String rag2SourceRoleForPath(String path) {
   final parts = path.split('/');
   if (_instructionBearingNames.contains(parts.last)) {
     return 'instruction_bearing';
@@ -331,6 +343,18 @@ String _sourceRole(String path) {
   if (parts.length == 1) return 'root_sources';
   return 'other';
 }
+
+bool rag2SourceProfileContainsPath({
+  required String profileId,
+  required String path,
+}) => switch (profileId) {
+  'runtime_only' => _isRuntimeSource(path),
+  'runtime_and_top_level_docs' =>
+    _isRuntimeSource(path) || _isTopLevelDocs(path),
+  'runtime_tests_and_top_level_docs' =>
+    _isRuntimeSource(path) || _isTestSource(path) || _isTopLevelDocs(path),
+  _ => throw ArgumentError.value(profileId, 'profileId'),
+};
 
 bool _isRuntimeSource(String path) {
   final parts = path.split('/');

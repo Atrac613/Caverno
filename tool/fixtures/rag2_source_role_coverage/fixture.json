@@ -1,0 +1,63 @@
+{
+  "schemaName": "caverno_rag2_source_role_coverage_fixture",
+  "schemaVersion": 1,
+  "fixtureId": "caverno-active-project-source-role-coverage-v1",
+  "questions": [
+    {
+      "id": "runtime-default-endpoint",
+      "question": "Which OpenAI-compatible base URL and model does Caverno use by default?",
+      "evidencePath": "lib/core/constants/api_constants.dart",
+      "evidenceMarker": "static const String defaultBaseUrl = 'http://localhost:1234/v1';",
+      "expectedSourceRole": "runtime_source"
+    },
+    {
+      "id": "runtime-cli-session-log-root",
+      "question": "How does the terminal runtime resolve a dedicated session-log root?",
+      "evidencePath": "lib/features/terminal/application/caverno_cli_session_logging.dart",
+      "evidenceMarker": "final dedicatedOverride = environment['CAVERNO_SESSION_LOG_DIR']?.trim();",
+      "expectedSourceRole": "runtime_source"
+    },
+    {
+      "id": "docs-session-log-location",
+      "question": "Where are Caverno LLM session logs stored and how is the root overridden?",
+      "evidencePath": "docs/session_logs.md",
+      "evidenceMarker": "Override root: `CAVERNO_SESSION_LOG_DIR`",
+      "expectedSourceRole": "documentation"
+    },
+    {
+      "id": "docs-live-canary-wrapper",
+      "question": "Which managed wrapper must run a live canary against an HTTP LAN endpoint?",
+      "evidencePath": "docs/live_llm_canary_agent_runbook.md",
+      "evidenceMarker": "tool/with_live_llm_loopback.sh -- tool/run_live_llm_benchmark_canary.sh",
+      "expectedSourceRole": "documentation"
+    },
+    {
+      "id": "tests-read-path-symlink-escape",
+      "question": "Which regression proves that direct and intermediate project-read symlink escapes are rejected?",
+      "evidencePath": "test/features/chat/data/datasources/project_read_path_fence_test.dart",
+      "evidenceMarker": "rejects direct and intermediate symlink escapes",
+      "expectedSourceRole": "tests"
+    },
+    {
+      "id": "tests-loopback-port-isolation",
+      "question": "Which regression proves concurrent live-LLM wrappers allocate distinct loopback ports?",
+      "evidencePath": "test/tool/live_llm_loopback_relay_test.dart",
+      "evidenceMarker": "concurrent wrappers allocate different loopback ports",
+      "expectedSourceRole": "tests"
+    },
+    {
+      "id": "tooling-source-profile-contract",
+      "question": "Where are the source-role comparison profile identifiers frozen?",
+      "evidencePath": "tool/rag2_source_scope_measurement.dart",
+      "evidenceMarker": "const rag2SourceProfileIds = <String>[",
+      "expectedSourceRole": "tooling"
+    },
+    {
+      "id": "root-project-capability-summary",
+      "question": "Which root source summarizes Caverno's OpenAI-compatible chat and tool-calling purpose?",
+      "evidencePath": "README.md",
+      "evidenceMarker": "A Flutter chat client for OpenAI-compatible LLM APIs with tool calling",
+      "expectedSourceRole": "root_sources"
+    }
+  ]
+}
