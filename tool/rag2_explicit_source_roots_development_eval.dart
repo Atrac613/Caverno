@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:crypto/crypto.dart';
 
 import 'rag2_explicit_source_roots_replay.dart';
-import 'rag2_source_discovery_replay.dart';
-import 'rag2_source_scope_measurement.dart' show rag2SourceRoleForPath;
+import 'rag2_git_evidence_collector.dart'
+    show Rag2GitProcessRunner, runRag2GitCommand;
 
 const rag2ExplicitRootsDevelopmentEvalSchema =
     'caverno_rag2_explicit_source_roots_development_eval';
@@ -29,59 +28,12 @@ Future<void> main(List<String> args) async {
     return;
   }
   try {
-    final declaration = _readJsonObject(options.declarationPath);
-    final fixture = _readJsonObject(options.fixturePath);
-    final projectId = declaration['projectId'] as String? ?? '';
-    final roots = _stringList(declaration['sourceRoots']);
-    final acquisition = await runRag2ExplicitSourceRootsReplay(
-      options: Rag2ExplicitSourceRootsOptions(
-        enabled: true,
-        projectId: projectId,
-        projectRoot: options.projectRoot,
-        sourceRoots: roots,
-      ),
+    final run = await runRag2ExplicitRootsDevelopmentEvaluation(
+      projectRoot: options.projectRoot,
+      declaration: _readJsonObject(options.declarationPath),
+      fixture: _readJsonObject(options.fixturePath),
     );
-    final project = CodingProject(
-      id: projectId,
-      name: 'RAG2 explicit roots development evaluation',
-      rootPath: options.projectRoot,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-      updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-    );
-    final inventory = await inventoryRag2SourceCandidates(
-      project: project,
-      maxFileBytes: rag2ExplicitSourceRootsPolicy.maxFileBytes,
-    );
-    final evaluation = evaluateRag2ExplicitRootsDevelopmentFixture(
-      declaration: declaration,
-      fixture: fixture,
-      inventoryCandidatePaths: {
-        for (final candidate in inventory.candidates) candidate.path,
-      },
-    );
-    final acquisitionBlockers = acquisition.blockers;
-    final acquisitionDecision = acquisitionBlockers.isEmpty ? 'go' : 'no_go';
-    final blockers = <String>{
-      if (acquisitionDecision != 'go' ||
-          acquisition.admittedSourceCount !=
-              evaluation.selectedCandidateFileCount)
-        'acquisition_not_go',
-      if (acquisition.declarationIdentity != declaration['declarationIdentity'])
-        'acquisition_identity_mismatch',
-      ...acquisitionBlockers,
-      ...evaluation.blockers,
-    }.toList()..sort();
-    final report = evaluation.toJson(
-      acquisitionDecision: acquisitionDecision,
-      acquisitionGitCommandCount: acquisition.gitCommandCount,
-      acquisitionProjectIdentity: acquisition.projectIdentity,
-      acquisitionDeclarationIdentity: acquisition.declarationIdentity,
-      acquisitionInventoryIdentity: acquisition.inventoryMetadataIdentity,
-      acquisitionSelectedIdentity: acquisition.selectedMetadataIdentity,
-      blockers: blockers,
-      fixtureIdentity: _fixtureIdentity(fixture),
-    );
-    stdout.writeln(const JsonEncoder.withIndent('  ').convert(report));
+    stdout.writeln(const JsonEncoder.withIndent('  ').convert(run.toJson()));
   } on Object {
     stderr.writeln('RAG2 explicit roots development evaluation failed closed.');
     exitCode = 65;
@@ -142,11 +94,85 @@ final class Rag2ExplicitRootsDevelopmentEvalOptions {
   }
 }
 
+Future<Rag2ExplicitRootsDevelopmentEvalRun>
+runRag2ExplicitRootsDevelopmentEvaluation({
+  required String projectRoot,
+  required Map<String, dynamic> declaration,
+  required Map<String, dynamic> fixture,
+  Rag2GitProcessRunner processRunner = runRag2GitCommand,
+}) async {
+  final projectId = declaration['projectId'] as String? ?? '';
+  final replay = await runRag2ExplicitSourceRootsReplay(
+    options: Rag2ExplicitSourceRootsOptions(
+      enabled: true,
+      projectId: projectId,
+      projectRoot: projectRoot,
+      sourceRoots: _stringList(declaration['sourceRoots']),
+    ),
+    processRunner: processRunner,
+  );
+  final acquisition = replay.report;
+  final evaluation = evaluateRag2ExplicitRootsDevelopmentFixture(
+    declaration: declaration,
+    fixture: fixture,
+    inventoryCandidatePaths: replay.inventoryCandidatePaths.toSet(),
+    admittedSourcePaths: replay.admittedSourcePaths.toSet(),
+  );
+  final acquisitionDecision = acquisition.blockers.isEmpty ? 'go' : 'no_go';
+  final blockers = <String>{
+    if (acquisitionDecision != 'go' ||
+        acquisition.admittedSourceCount !=
+            acquisition.eligibleCandidateFileCount ||
+        acquisition.admittedSourceCount !=
+            evaluation.selectedCandidateFileCount)
+      'acquisition_not_go',
+    if (acquisition.declarationIdentity != declaration['declarationIdentity'])
+      'acquisition_identity_mismatch',
+    ...acquisition.blockers,
+    ...evaluation.blockers,
+  };
+  return Rag2ExplicitRootsDevelopmentEvalRun(
+    acquisition: acquisition,
+    evaluation: evaluation,
+    inventoryCandidatePaths: replay.inventoryCandidatePaths,
+    admittedSourcePaths: replay.admittedSourcePaths,
+    report: evaluation.toJson(
+      acquisitionDecision: acquisitionDecision,
+      acquisitionGitCommandCount: acquisition.gitCommandCount,
+      acquisitionProjectIdentity: acquisition.projectIdentity,
+      acquisitionDeclarationIdentity: acquisition.declarationIdentity,
+      acquisitionInventoryIdentity: acquisition.inventoryMetadataIdentity,
+      acquisitionSelectedIdentity: acquisition.selectedMetadataIdentity,
+      blockers: blockers.toList()..sort(),
+      fixtureIdentity: _fixtureIdentity(fixture),
+    ),
+  );
+}
+
+final class Rag2ExplicitRootsDevelopmentEvalRun {
+  const Rag2ExplicitRootsDevelopmentEvalRun({
+    required this.acquisition,
+    required this.evaluation,
+    required this.inventoryCandidatePaths,
+    required this.admittedSourcePaths,
+    required this.report,
+  });
+
+  final Rag2ExplicitSourceRootsReport acquisition;
+  final Rag2ExplicitRootsDevelopmentEvaluation evaluation;
+  final List<String> inventoryCandidatePaths;
+  final List<String> admittedSourcePaths;
+  final Map<String, dynamic> report;
+
+  Map<String, dynamic> toJson() => report;
+}
+
 Rag2ExplicitRootsDevelopmentEvaluation
 evaluateRag2ExplicitRootsDevelopmentFixture({
   required Map<String, dynamic> declaration,
   required Map<String, dynamic> fixture,
   required Set<String> inventoryCandidatePaths,
+  required Set<String> admittedSourcePaths,
 }) {
   final blockers = <String>{};
   final roots = _stringList(declaration['sourceRoots']);
@@ -158,19 +184,17 @@ evaluateRag2ExplicitRootsDevelopmentFixture({
       fixture['priorFixtureUse'] != 'forbidden') {
     blockers.add('fixture_contract_mismatch');
   }
+  if (admittedSourcePaths.any(
+    (path) => !inventoryCandidatePaths.contains(path),
+  )) {
+    blockers.add('admitted_source_not_inventoried');
+  }
 
-  final selectedPaths = inventoryCandidatePaths
-      .where(
-        (path) =>
-            _pathIsWithinRoots(path, roots) &&
-            rag2SourceRoleForPath(path) != 'instruction_bearing',
-      )
-      .toSet();
   final rawCases = fixture['cases'];
   if (rawCases is! List || rawCases.isEmpty) {
     blockers.add('evaluation_cases_unavailable');
     return Rag2ExplicitRootsDevelopmentEvaluation.empty(
-      selectedCandidateFileCount: selectedPaths.length,
+      selectedCandidateFileCount: admittedSourcePaths.length,
       blockers: blockers,
     );
   }
@@ -211,7 +235,9 @@ evaluateRag2ExplicitRootsDevelopmentFixture({
         .where(inventoryCandidatePaths.contains)
         .length;
     unavailableOracleEvidenceCount += evidencePaths.length - availableEvidence;
-    final selectedEvidence = evidencePaths.where(selectedPaths.contains).length;
+    final selectedEvidence = evidencePaths
+        .where(admittedSourcePaths.contains)
+        .length;
     final actual =
         availableEvidence == evidencePaths.length &&
             selectedEvidence == evidencePaths.length
@@ -257,7 +283,7 @@ evaluateRag2ExplicitRootsDevelopmentFixture({
     outOfScopeEvidenceCount: outOfScopeEvidenceCount,
     excludedOutOfScopeEvidenceCount: excludedOutOfScopeEvidenceCount,
     unavailableOracleEvidenceCount: unavailableOracleEvidenceCount,
-    selectedCandidateFileCount: selectedPaths.length,
+    selectedCandidateFileCount: admittedSourcePaths.length,
     blockers: blockers,
   );
 }
@@ -355,10 +381,6 @@ List<String> _stringList(Object? value) {
   if (value is! List || value.any((item) => item is! String)) return const [];
   return List<String>.unmodifiable(value.cast<String>());
 }
-
-bool _pathIsWithinRoots(String path, List<String> roots) => roots.any(
-  (root) => root == '.' || path == root || path.startsWith('$root/'),
-);
 
 String _fixtureIdentity(Map<String, dynamic> fixture) =>
     'fixture_${sha256.convert(utf8.encode(jsonEncode(fixture)))}';

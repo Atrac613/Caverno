@@ -40,9 +40,11 @@ The evaluated selected-source metadata identity is
 ## Evaluator
 
 The holdout reuses
-`tool/rag2_explicit_source_roots_development_eval.dart` unchanged. It reruns
-live acquisition with batch Git evidence and all-source attestation, then
-classifies each frozen case solely from complete declared-root membership.
+`tool/rag2_explicit_source_roots_development_eval.dart`. It reruns live
+acquisition with batch Git evidence and all-source attestation, then
+classifies each frozen case from the acquisition-admitted source set. Whole-
+project inventory is the existence oracle only. CI now executes that same
+runner instead of a prefix-only inventory check.
 
 The evaluator retains its generic `evaluationStage: development` and
 `promotionDecision: not_evaluated` report fields. The promotion verdict in this
@@ -81,11 +83,8 @@ right evidence, or that generated answers are complete and correctly cited.
 
 ## Next Entry Condition
 
-The next entry condition passed in
-`docs/rag2_storage_replay_contract_2026-08-26.md`.
-`rag2-storage-replay-contract-v1` composes the existing Knowledge Object v2,
-provenance, source-discovery, and explicit-root contracts in a backend-neutral
-in-memory generation store. Storage semantics are Go; retrieval is not
-evaluated and production remains No-Go. A later backend hypothesis must preserve
-the frozen atomicity, invalidation, rollback, and report-privacy behavior before
-selecting SQLite, FTS5, Drift, or embeddings.
+Live acquisition for this frozen declaration is now a CI gate. See
+`docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`. The next
+hardening slice is declaration-identity alignment with storage, then a
+persistence-reopen hypothesis. Do not select SQLite, FTS5, Drift, or
+embeddings yet.

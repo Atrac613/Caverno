@@ -45,15 +45,17 @@ Future<void> main(List<String> args) async {
     return;
   }
   try {
-    final report = await runRag2ExplicitSourceRootsReplay(options: options);
-    stdout.writeln(const JsonEncoder.withIndent('  ').convert(report.toJson()));
+    final replay = await runRag2ExplicitSourceRootsReplay(options: options);
+    stdout.writeln(
+      const JsonEncoder.withIndent('  ').convert(replay.report.toJson()),
+    );
   } on Object {
     stderr.writeln('RAG2 explicit source-roots replay failed closed.');
     exitCode = 65;
   }
 }
 
-Future<Rag2ExplicitSourceRootsReport> runRag2ExplicitSourceRootsReplay({
+Future<Rag2ExplicitSourceRootsReplayResult> runRag2ExplicitSourceRootsReplay({
   required Rag2ExplicitSourceRootsOptions options,
   Rag2GitProcessRunner processRunner = runRag2GitCommand,
 }) async {
@@ -182,6 +184,10 @@ Future<Rag2ExplicitSourceRootsReport> runRag2ExplicitSourceRootsReplay({
   return gitState.report(
     blockers: const [],
     admittedSourceCount: discovered.candidates.length,
+    admittedSourcePaths: [
+      for (final source in discovered.candidates)
+        source.attestation.repoRelativePath,
+    ],
   );
 }
 
@@ -328,6 +334,19 @@ final class Rag2ExplicitSourceRootsReport {
   };
 }
 
+final class Rag2ExplicitSourceRootsReplayResult {
+  const Rag2ExplicitSourceRootsReplayResult({
+    required this.report,
+    this.inventoryCandidatePaths = const [],
+    this.admittedSourcePaths = const [],
+  });
+
+  final Rag2ExplicitSourceRootsReport report;
+  // In-memory only. The metadata report omits inventory and admitted paths.
+  final List<String> inventoryCandidatePaths;
+  final List<String> admittedSourcePaths;
+}
+
 final class _ReportState {
   const _ReportState({
     required this.projectIdentity,
@@ -342,6 +361,7 @@ final class _ReportState {
     this.instructionBearingExcludedCount = 0,
     this.policyExclusionCounts = const {},
     this.gitCommandCount = 0,
+    this.inventoryCandidatePaths = const [],
   });
 
   final String projectIdentity;
@@ -356,6 +376,7 @@ final class _ReportState {
   final int instructionBearingExcludedCount;
   final Map<String, int> policyExclusionCounts;
   final int gitCommandCount;
+  final List<String> inventoryCandidatePaths;
 
   _ReportState withInventory(Rag2SourceCandidateInventory inventory) =>
       _ReportState(
@@ -365,6 +386,9 @@ final class _ReportState {
         inventoryMetadataIdentity: _inventoryIdentity(inventory),
         inventoryCandidateFileCount: inventory.candidates.length,
         inventoryCandidateCorpusBytes: inventory.corpusBytes,
+        inventoryCandidatePaths: List.unmodifiable([
+          for (final candidate in inventory.candidates) candidate.path,
+        ]),
       );
 
   _ReportState withSelection({
@@ -388,6 +412,7 @@ final class _ReportState {
           ..sort((left, right) => left.key.compareTo(right.key)),
       ),
     ),
+    inventoryCandidatePaths: inventoryCandidatePaths,
   );
 
   _ReportState withGitCommandCount(int value) => _ReportState(
@@ -403,26 +428,34 @@ final class _ReportState {
     instructionBearingExcludedCount: instructionBearingExcludedCount,
     policyExclusionCounts: policyExclusionCounts,
     gitCommandCount: value,
+    inventoryCandidatePaths: inventoryCandidatePaths,
   );
 
-  Rag2ExplicitSourceRootsReport report({
+  Rag2ExplicitSourceRootsReplayResult report({
     required List<String> blockers,
     int admittedSourceCount = 0,
-  }) => Rag2ExplicitSourceRootsReport(
-    projectIdentity: projectIdentity,
-    declarationIdentity: declarationIdentity,
-    inventoryMetadataIdentity: inventoryMetadataIdentity,
-    selectedMetadataIdentity: selectedMetadataIdentity,
-    sourceRootCount: sourceRootCount,
-    inventoryCandidateFileCount: inventoryCandidateFileCount,
-    inventoryCandidateCorpusBytes: inventoryCandidateCorpusBytes,
-    eligibleCandidateFileCount: eligibleCandidateFileCount,
-    eligibleCandidateCorpusBytes: eligibleCandidateCorpusBytes,
-    admittedSourceCount: blockers.isEmpty ? admittedSourceCount : 0,
-    instructionBearingExcludedCount: instructionBearingExcludedCount,
-    policyExclusionCounts: policyExclusionCounts,
-    gitCommandCount: gitCommandCount,
-    blockers: List.unmodifiable(blockers),
+    List<String> admittedSourcePaths = const [],
+  }) => Rag2ExplicitSourceRootsReplayResult(
+    report: Rag2ExplicitSourceRootsReport(
+      projectIdentity: projectIdentity,
+      declarationIdentity: declarationIdentity,
+      inventoryMetadataIdentity: inventoryMetadataIdentity,
+      selectedMetadataIdentity: selectedMetadataIdentity,
+      sourceRootCount: sourceRootCount,
+      inventoryCandidateFileCount: inventoryCandidateFileCount,
+      inventoryCandidateCorpusBytes: inventoryCandidateCorpusBytes,
+      eligibleCandidateFileCount: eligibleCandidateFileCount,
+      eligibleCandidateCorpusBytes: eligibleCandidateCorpusBytes,
+      admittedSourceCount: blockers.isEmpty ? admittedSourceCount : 0,
+      instructionBearingExcludedCount: instructionBearingExcludedCount,
+      policyExclusionCounts: policyExclusionCounts,
+      gitCommandCount: gitCommandCount,
+      blockers: List.unmodifiable(blockers),
+    ),
+    inventoryCandidatePaths: inventoryCandidatePaths,
+    admittedSourcePaths: blockers.isEmpty
+        ? List.unmodifiable(admittedSourcePaths)
+        : const [],
   );
 }
 

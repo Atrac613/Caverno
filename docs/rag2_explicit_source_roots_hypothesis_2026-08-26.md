@@ -138,11 +138,11 @@ citation quality. Those remain separate later gates.
 
 ## Next Entry Condition
 
-Preserve the development and promotion fixtures unchanged. Define an offline
-storage replay using the frozen Knowledge Object v2, provenance, source
-discovery, and explicit-root contracts before selecting a database schema or
-adding settings, tools, model calls, application wiring, or production
-behavior.
+Preserve the development and promotion fixtures unchanged. Live acquisition is
+now a CI gate for both frozen declarations. Unify acquisition and storage
+declaration identities next, then define a persistence-reopen hypothesis.
+Do not select a database schema or add settings, tools, model calls,
+application wiring, or production behavior.
 
 ## Verification
 
@@ -160,6 +160,6 @@ tool/codex_verify.sh --no-codegen \
 fvm flutter test test/tool/rag2_*_test.dart
 ```
 
-The four development-evaluation, four promotion-evaluation, four declaration-
+The six development-evaluation, five promotion-evaluation, four declaration-
 freeze, and nine explicit-root cases pass. The complete focused RAG2 suite
-passes all 129 tests.
+passes all 140 tests.

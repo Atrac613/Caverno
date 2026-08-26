@@ -79,7 +79,8 @@ fvm flutter test test/tool/rag2_*_test.dart
 ## Next Entry Condition
 
 Keep this contract and fixture frozen, including the attested-text binding.
-Before selecting a production backend, close remaining backend-neutral gaps:
-declaration-identity alignment with explicit source roots, encoded holdout
-acquisition in CI, and a separate migration/reopen/crash-recovery hypothesis.
-Retrieval remains a later independent evaluation.
+Frozen-declaration acquisition is now a CI gate. See
+`docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`. Before
+selecting a production backend, unify declaration identity with explicit
+source roots and then run a separate migration/reopen/crash-recovery
+hypothesis. Retrieval remains a later independent evaluation.

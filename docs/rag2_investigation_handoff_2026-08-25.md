@@ -168,6 +168,7 @@ stratified stable-hash strategy and do not tune or revive v1.
 | 38 | `Explicit roots promotion evaluation` | Untouched routines-lifecycle declaration and holdout | The separately frozen declaration passes 11/11 decisions with 8/8 in-scope paths admitted and 4/4 out-of-scope controls unavailable. Complete explicit roots are promotion scope Go. | `docs/rag2_explicit_source_roots_promotion_eval_2026-08-26.md` |
 | 39 | `Backend-neutral storage replay` | Declaration-scoped atomic generation semantics | Initial apply, identical no-op, exact stale replacement, deterministic replay, and attestation/policy/injected-failure rollback pass over composed frozen contracts. Storage semantics are Go; retrieval is not evaluated and production remains No-Go. | `docs/rag2_storage_replay_contract_2026-08-26.md` |
 | 40 | `Attested-text binding` | One bounded read for hash, chunks, and stored content | Discovery chunks and storage objects reuse the attested normalized snapshot. A later file change cannot alter stored chunk text. Reports still omit source text. | `docs/rag2_storage_replay_contract_2026-08-26.md` |
+| 41 | `Frozen-declaration acquisition CI` | Live Git-backed acquisition for both frozen explicit-root declarations | Development and promotion declarations rerun inventory, batch Git, and attestation in CI. Questions score from admitted paths on the evaluation envelope, not a duplicated prefix oracle. Selected-metadata hashes remain checkout observations, not CI pins. | `docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md` |
 
 ## Rejected shortcuts
 
@@ -246,7 +247,8 @@ adds one. The source-role coverage replay v2 replaces five focused cases with
 analysis remains the required gate. The current complete suite contains 123
 focused RAG2 tests before the promotion slice; the frozen holdout declaration
 and promotion evaluation increase it to 129, the storage replay increases it
-to 134, and the attested-text binding increases it to 137.
+to 134, and the attested-text binding increases it to 137. Frozen-declaration
+acquisition CI increases it to 140.
 
 ## Next entry condition
 
@@ -274,10 +276,11 @@ provenance, discovery, and source-scope contracts and passes atomic generation,
 no-op, invalidation, deterministic replay, and rollback gates. Storage semantics
 are Go; retrieval is not evaluated and production remains No-Go. Keep this
 fixture frozen. Discovery and storage now reuse the attested bounded-read
-snapshot; do not restore a second unfenced file read. A later
-persistence-backend hypothesis must still preserve atomic generation,
-identity, invalidation, rollback, and report privacy through migration and
-reopen testing before SQLite, FTS5, Drift, or embeddings are selected. The
-next hardening slice should encode frozen-declaration acquisition in CI and
-align acquisition/storage declaration identities. Prompting, routing, tools,
-model calls, settings, and application wiring remain out of scope.
+snapshot; do not restore a second unfenced file read. Frozen development and
+promotion declarations now rerun Git-backed acquisition in CI and score
+questions from the admitted set. A later persistence-backend hypothesis must
+still unify declaration identity with explicit source roots and preserve
+atomic generation, identity, invalidation, rollback, and report privacy
+through migration and reopen testing before SQLite, FTS5, Drift, or embeddings
+are selected. Prompting, routing, tools, model calls, settings, and
+application wiring remain out of scope.

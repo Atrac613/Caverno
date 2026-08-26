@@ -41,17 +41,21 @@ The evaluated selected-source metadata identity is
 
 `tool/rag2_explicit_source_roots_development_eval.dart` first reruns the live
 explicit-root acquisition contract, including batch Git evidence and all-source
-attestation. It then classifies each frozen case solely from whether every
-required eligible path belongs to the complete declared-root set.
+attestation. It then classifies each frozen case from whether every required
+path is in the acquisition-admitted set. Whole-project inventory is the
+existence oracle only. CI now executes that same runner instead of a
+prefix-only inventory check.
 
 The evaluator fails closed when:
 
 - the fixture and declaration identities disagree;
 - oracle evidence is missing or ineligible;
-- any required in-scope path is absent;
+- an admitted source is absent from inventory;
+- any required in-scope path is absent from the admitted set;
 - any out-of-scope control path is admitted;
 - an `available` or `not_available` decision differs from the oracle; or
-- live acquisition does not admit the same complete candidate count.
+- live acquisition is not Go, does not admit every eligible source, or does
+  not admit the same complete candidate count.
 
 Its report contains aggregate counts, decisions, blockers, command count, and a
 fixture hash. It does not emit questions or evidence paths.
@@ -89,7 +93,8 @@ from these results would contaminate the next promotion decision.
 
 ## Next Entry Condition
 
-Freeze a separate realistic task context and source-root declaration before
-creating or inspecting its questions. Reserve a new untouched holdout with both
-in-scope and out-of-scope controls. Run the unchanged evaluator once; do not
-modify this development declaration, fixture, or evaluator from holdout misses.
+Keep this development declaration and fixture frozen. Live acquisition is now
+a CI gate for both this declaration and the promotion holdout. See
+`docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`. Unify
+acquisition and storage declaration identities next. Do not select a
+persistence backend.

@@ -12,7 +12,7 @@ void main() {
     addTearDown(() => root.deleteSync(recursive: true));
     var commandCount = 0;
 
-    final report = await runRag2ExplicitSourceRootsReplay(
+    final replay = await runRag2ExplicitSourceRootsReplay(
       options: _options(root, const ['docs', 'lib/core']),
       processRunner:
           ({
@@ -30,6 +30,7 @@ void main() {
             );
           },
     );
+    final report = replay.report;
     final json = jsonEncode(report.toJson());
 
     expect(report.contractPassed, isTrue);
@@ -45,6 +46,21 @@ void main() {
     expect(report.gitCommandCount, 3);
     expect(commandCount, 3);
     expect(report.blockers, isEmpty);
+    expect(
+      replay.admittedSourcePaths,
+      unorderedEquals(const [
+        'docs/guide.md',
+        'docs/nested/details.md',
+        'lib/core/config.dart',
+        'lib/core/runtime.dart',
+      ]),
+    );
+    expect(
+      replay.inventoryCandidatePaths,
+      containsAll(replay.admittedSourcePaths),
+    );
+    expect(json, isNot(contains('inventoryCandidatePaths')));
+    expect(json, isNot(contains('admittedSourcePaths')));
     expect(report.toJson()['scopeDecision'], 'not_selected');
     expect(report.toJson()['productionDecision'], 'no_go');
     expect(
@@ -66,9 +82,10 @@ void main() {
     final root = await _createRepository();
     addTearDown(() => root.deleteSync(recursive: true));
 
-    final report = await runRag2ExplicitSourceRootsReplay(
+    final replay = await runRag2ExplicitSourceRootsReplay(
       options: _options(root, const ['.']),
     );
+    final report = replay.report;
 
     expect(report.contractPassed, isTrue);
     expect(report.eligibleCandidateFileCount, 6);
@@ -89,7 +106,7 @@ void main() {
         options: _options(root, const ['lib/core', 'docs']),
       );
 
-      expect(forward.toJson(), reversed.toJson());
+      expect(forward.report.toJson(), reversed.report.toJson());
     },
   );
 
@@ -118,12 +135,14 @@ void main() {
         (['README.md'], 'source_root_not_directory'),
       ];
       for (final entry in cases) {
-        final report = await runRag2ExplicitSourceRootsReplay(
+        final replay = await runRag2ExplicitSourceRootsReplay(
           options: _options(root, entry.$1),
           processRunner: forbiddenRunner,
         );
+        final report = replay.report;
         expect(report.contractPassed, isFalse, reason: entry.$1.join(','));
         expect(report.admittedSourceCount, 0, reason: entry.$1.join(','));
+        expect(replay.admittedSourcePaths, isEmpty, reason: entry.$1.join(','));
         expect(report.gitCommandCount, 0, reason: entry.$1.join(','));
         expect(report.blockers, [entry.$2], reason: entry.$1.join(','));
       }
@@ -145,7 +164,7 @@ void main() {
       }
       var invoked = false;
 
-      final report = await runRag2ExplicitSourceRootsReplay(
+      final replay = await runRag2ExplicitSourceRootsReplay(
         options: _options(root, const ['linked_docs/nested']),
         processRunner:
             ({
@@ -158,6 +177,7 @@ void main() {
               return Rag2GitCommandResult.startFailed();
             },
       );
+      final report = replay.report;
 
       expect(report.blockers, ['source_root_symlink_rejected']);
       expect(report.admittedSourceCount, 0);
@@ -175,7 +195,7 @@ void main() {
     }
     var invoked = false;
 
-    final report = await runRag2ExplicitSourceRootsReplay(
+    final replay = await runRag2ExplicitSourceRootsReplay(
       options: _options(root, const ['docs']),
       processRunner:
           ({
@@ -188,6 +208,7 @@ void main() {
             return Rag2GitCommandResult.startFailed();
           },
     );
+    final report = replay.report;
 
     expect(report.eligibleCandidateFileCount, 513);
     expect(report.blockers, ['file_count_exceeded']);
@@ -202,7 +223,7 @@ void main() {
       final root = await _createRepository();
       addTearDown(() => root.deleteSync(recursive: true));
 
-      final report = await runRag2ExplicitSourceRootsReplay(
+      final replay = await runRag2ExplicitSourceRootsReplay(
         options: _options(root, const ['docs']),
         processRunner:
             ({
@@ -212,10 +233,12 @@ void main() {
               required maxOutputBytes,
             }) async => Rag2GitCommandResult.startFailed(),
       );
+      final report = replay.report;
 
       expect(report.blockers, ['batch_git_repository_unavailable']);
       expect(report.eligibleCandidateFileCount, 2);
       expect(report.admittedSourceCount, 0);
+      expect(replay.admittedSourcePaths, isEmpty);
       expect(report.gitCommandCount, 1);
     },
   );
@@ -224,7 +247,7 @@ void main() {
     final root = await _createRepository();
     addTearDown(() => root.deleteSync(recursive: true));
 
-    final report = await runRag2ExplicitSourceRootsReplay(
+    final replay = await runRag2ExplicitSourceRootsReplay(
       options: _options(root, const ['docs']),
       processRunner:
           ({
@@ -245,10 +268,12 @@ void main() {
             return result;
           },
     );
+    final report = replay.report;
 
     expect(report.blockers, ['source_attestation_incomplete']);
     expect(report.eligibleCandidateFileCount, 2);
     expect(report.admittedSourceCount, 0);
+    expect(replay.admittedSourcePaths, isEmpty);
     expect(report.gitCommandCount, 3);
   });
 
