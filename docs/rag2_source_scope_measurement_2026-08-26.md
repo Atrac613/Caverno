@@ -117,10 +117,13 @@ the process count at three while preserving clean, modified, untracked, staged,
 renamed, and unusual-name semantics. The contract and evidence are recorded in
 `docs/rag2_batch_git_inventory_replay_2026-08-26.md`.
 
-The next slice may integrate the batch inventory into the opt-in manifest
-shadow while preserving its schema, limits, decisions, and zero-Git limit
-failure. It must not change manifest limits, select a source profile, add
-storage, add retrieval, or enter an application path.
+The batch inventory is now integrated into the opt-in manifest shadow while
+preserving its schema, limits, decisions, and zero-Git limit failure. Evidence
+is recorded in `docs/rag2_batch_manifest_shadow_integration_2026-08-26.md`.
+
+The next slice should compare answer-bearing coverage across these measured
+profiles before selecting one. It must not change manifest limits, select a
+source profile, add storage, add retrieval, or enter an application path.
 
 ## Verification
 
@@ -134,5 +137,5 @@ fvm flutter test test/tool/rag2_*_test.dart
 ```
 
 The three source-scope tests and the 15-test focused acquisition subset pass.
-Project static analysis and the complete focused RAG2 suite remain required
-before commit.
+The subsequent batch manifest integration passes project/package static
+analysis and the complete 91-test focused RAG2 suite.

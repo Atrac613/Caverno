@@ -94,13 +94,29 @@ Future<Rag2SourceDiscoveryResult> discoverRag2Sources({
     project: project,
     maxFileBytes: policy.maxFileBytes,
   );
+  return discoverRag2SourcesFromInventory(
+    project: project,
+    policy: policy,
+    inventory: inventory,
+    gitEvidenceProvider: gitEvidenceProvider,
+    includeChunks: includeChunks,
+  );
+}
+
+Future<Rag2SourceDiscoveryResult> discoverRag2SourcesFromInventory({
+  required CodingProject project,
+  required Rag2SourceDiscoveryPolicy policy,
+  required Rag2SourceCandidateInventory inventory,
+  required Rag2GitEvidenceProvider gitEvidenceProvider,
+  bool includeChunks = true,
+}) async {
   final candidates = inventory.candidates;
   final exclusions = List<Rag2DiscoveryExclusion>.from(inventory.exclusions);
   final corpusBytes = inventory.corpusBytes;
-  final violations = <String>[
-    if (candidates.length > policy.maxFiles) 'file_count_exceeded',
-    if (corpusBytes > policy.maxCorpusBytes) 'corpus_bytes_exceeded',
-  ];
+  final violations = rag2SourceInventoryViolations(
+    inventory: inventory,
+    policy: policy,
+  );
   if (violations.isNotEmpty) {
     return Rag2SourceDiscoveryResult(
       candidates: const [],
@@ -159,6 +175,14 @@ Future<Rag2SourceDiscoveryResult> discoverRag2Sources({
     candidateCorpusBytes: corpusBytes,
   );
 }
+
+List<String> rag2SourceInventoryViolations({
+  required Rag2SourceCandidateInventory inventory,
+  required Rag2SourceDiscoveryPolicy policy,
+}) => <String>[
+  if (inventory.candidates.length > policy.maxFiles) 'file_count_exceeded',
+  if (inventory.corpusBytes > policy.maxCorpusBytes) 'corpus_bytes_exceeded',
+];
 
 Future<Rag2SourceCandidateInventory> inventoryRag2SourceCandidates({
   required CodingProject project,

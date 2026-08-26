@@ -13,7 +13,7 @@
 
 - Adapter: `tool/rag2_source_manifest_shadow.dart`
 - Discovery: `tool/rag2_source_discovery_replay.dart`
-- Git evidence: `tool/rag2_git_evidence_collector.dart`
+- Git evidence: `tool/rag2_batch_git_inventory_replay.dart`
 - Test: `test/tool/rag2_source_manifest_shadow_test.dart`
 - Predecessor: `docs/rag2_git_evidence_collector_2026-08-26.md`
 
@@ -34,9 +34,12 @@ It has no implicit current-directory mode. Defaults are 512 candidate files,
 files, 1 MiB per file, and 128 MiB for the corpus. Values outside those ceilings
 are rejected before discovery.
 
-The adapter reuses the frozen link-disabled source walk and typed Git collector.
-It disables semantic chunk construction, writes JSON only to stdout, and does
-not create an output directory or application record. The JSON contains a
+The adapter reuses the frozen link-disabled source walk and typed Git evidence
+contract. Its current implementation inventories once, rejects discovery-limit
+violations before Git, and uses the three-command batch collector for one
+non-empty in-bound candidate set. The frozen per-path collector remains the
+test oracle. It disables semantic chunk construction, writes JSON only to
+stdout, and does not create an output directory or application record. The JSON contains a
 hashed project identity, policy limits, repository-relative paths, byte counts,
 trust, worktree state, revision, content hashes, policy exclusions, and typed
 failure reasons. It omits source text, chunk data, absolute roots, Git stdout,
@@ -99,13 +102,14 @@ expensive than the reviewed contract.
 tool/codex_verify.sh --no-codegen \
   --test test/tool/rag2_source_manifest_shadow_test.dart \
   --test test/tool/rag2_source_discovery_replay_test.dart \
-  --test test/tool/rag2_git_evidence_collector_test.dart
+  --test test/tool/rag2_batch_git_inventory_replay_test.dart
 
 fvm flutter test test/tool/rag2_*_test.dart
 ```
 
-The five manifest-shadow tests and the 18-test focused acquisition group pass.
-Project static analysis is clean, and all 82 focused RAG2 tests pass.
+The six manifest-shadow tests and the 18-test focused integration group pass.
+Project and package static analysis is clean, and all 91 focused RAG2 tests
+pass.
 
 ## Decision and Next Entry Condition
 
@@ -118,9 +122,12 @@ The metadata-only source-scope entry condition is now satisfied by
 the default file ceiling, while the profile that also retains tests exceeds the
 hard ceiling. No scope or revised limit is selected.
 
-The bounded batch Git inventory parity replay is complete and recorded in
-`docs/rag2_batch_git_inventory_replay_2026-08-26.md`. The next slice may replace
-this shadow's per-path provider with the three-command inventory while
-preserving the manifest schema, limits, source/exclusion decisions, and zero-Git
-limit failure. It must not select a Caverno scope, raise limits, add storage,
-add retrieval, or change production decisions.
+The bounded batch Git inventory parity replay and manifest integration are
+complete and recorded in `docs/rag2_batch_git_inventory_replay_2026-08-26.md`
+and `docs/rag2_batch_manifest_shadow_integration_2026-08-26.md`. The complete
+manifest JSON matches the frozen per-path oracle, while limit failures continue
+to invoke zero Git commands.
+
+The next slice should compare answer-bearing coverage across the measured
+source-role profiles. It must not select a Caverno scope, raise limits, add
+storage, add retrieval, or change production decisions before that evidence.

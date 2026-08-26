@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../tool/rag2_git_evidence_collector.dart';
 import '../../tool/rag2_source_discovery_replay.dart';
 import '../../tool/rag2_source_manifest_shadow.dart';
 
@@ -10,11 +12,30 @@ void main() {
   test('emits a metadata-only manifest for explicit live shadow', () async {
     final root = await _createShadowRepository();
     addTearDown(() => root.deleteSync(recursive: true));
+    var commandCount = 0;
 
-    final report = await runRag2SourceManifestShadow(options: _options(root));
+    final report = await runRag2SourceManifestShadow(
+      options: _options(root),
+      processRunner:
+          ({
+            required arguments,
+            required workingDirectory,
+            required timeout,
+            required maxOutputBytes,
+          }) async {
+            commandCount++;
+            return runRag2GitCommand(
+              arguments: arguments,
+              workingDirectory: workingDirectory,
+              timeout: timeout,
+              maxOutputBytes: maxOutputBytes,
+            );
+          },
+    );
     final json = jsonEncode(report.toJson());
 
     expect(report.manifestPassed, isTrue);
+    expect(commandCount, 3);
     expect(report.result.candidateFileCount, 3);
     expect(report.result.candidates, hasLength(3));
     expect(
@@ -53,6 +74,44 @@ void main() {
     ]) {
       expect(json, isNot(contains(forbidden)));
     }
+  });
+
+  test('matches the frozen per-path manifest JSON', () async {
+    final root = await _createShadowRepository();
+    addTearDown(() => root.deleteSync(recursive: true));
+    final options = _options(root);
+
+    final batchReport = await runRag2SourceManifestShadow(options: options);
+    final project = CodingProject(
+      id: options.projectId,
+      name: 'RAG2 per-path manifest oracle',
+      rootPath: options.projectRoot,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    );
+    final perPath = Rag2GitEvidenceCollector(project: project);
+    final oracleResult = await discoverRag2Sources(
+      project: project,
+      policy: options.policy,
+      includeChunks: false,
+      gitEvidenceProvider: (path) async {
+        final collection = await perPath.collect(path);
+        if (collection.evidence == null) {
+          throw StateError(
+            'Per-path oracle rejected $path: ${collection.reason}',
+          );
+        }
+        return collection.evidence!;
+      },
+    );
+    final oracleReport = Rag2SourceManifestShadowReport(
+      projectIdentity: batchReport.projectIdentity,
+      policy: options.policy,
+      result: oracleResult,
+      evidenceFailures: const {},
+    );
+
+    expect(batchReport.toJson(), oracleReport.toJson());
   });
 
   test('records symlink exclusion without following the link', () async {

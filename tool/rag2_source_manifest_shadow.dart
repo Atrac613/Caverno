@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:crypto/crypto.dart';
 
+import 'rag2_batch_git_inventory_replay.dart';
 import 'rag2_git_evidence_collector.dart';
 import 'rag2_provenance_attestation_replay.dart';
 import 'rag2_source_discovery_replay.dart';
@@ -56,20 +57,39 @@ Future<Rag2SourceManifestShadowReport> runRag2SourceManifestShadow({
     createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
     updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
   );
-  final collector = Rag2GitEvidenceCollector(
+  final inventory = await inventoryRag2SourceCandidates(
     project: project,
-    processRunner: processRunner,
+    maxFileBytes: options.policy.maxFileBytes,
   );
   final evidenceFailures = <String, String>{};
-  final result = await discoverRag2Sources(
+  final evidenceByPath = <String, Rag2GitEvidence>{};
+  final violations = rag2SourceInventoryViolations(
+    inventory: inventory,
+    policy: options.policy,
+  );
+  if (violations.isEmpty && inventory.candidates.isNotEmpty) {
+    final collection = await Rag2BatchGitInventoryCollector(
+      project: project,
+      processRunner: processRunner,
+    ).collect(inventory.candidates.map((candidate) => candidate.path));
+    if (collection.decision == 'collected') {
+      evidenceByPath.addAll(collection.evidenceByPath);
+    } else {
+      final reason = collection.reason ?? 'batch_git_evidence_unavailable';
+      for (final candidate in inventory.candidates) {
+        evidenceFailures[candidate.path] = reason;
+      }
+    }
+  }
+  final result = await discoverRag2SourcesFromInventory(
     project: project,
     policy: options.policy,
+    inventory: inventory,
     includeChunks: false,
     gitEvidenceProvider: (path) async {
-      final collection = await collector.collect(path);
-      final evidence = collection.evidence;
+      final evidence = evidenceByPath[path];
       if (evidence != null) return evidence;
-      evidenceFailures[path] = collection.reason ?? 'git_evidence_unavailable';
+      evidenceFailures.putIfAbsent(path, () => 'batch_git_evidence_missing');
       return const Rag2GitEvidence(
         available: false,
         lsFilesExitCode: 127,

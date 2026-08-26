@@ -1,7 +1,7 @@
 # RAG2 Batch Git Inventory Replay
 
 Date: 2026-08-26
-Status: contract Go; manifest integration not evaluated
+Status: contract Go; manifest integration Go
 Contract: `rag2-batch-git-inventory-contract-v1`
 
 ## Outcome
@@ -9,9 +9,11 @@ Contract: `rag2-batch-git-inventory-contract-v1`
 The bounded batch inventory reproduces the frozen per-path collector's typed
 state and clean-revision semantics with exactly three Git processes for every
 successful non-empty candidate set. Failures stop at the command that supplies
-the rejecting evidence. The contract is Go on synthetic repositories only. It
-is not connected to the manifest shadow or application, selects no source
-scope, changes no limit, and authorizes no storage or retrieval.
+the rejecting evidence. The contract was Go on synthetic repositories in this
+slice. Its subsequent manifest integration is recorded in
+`docs/rag2_batch_manifest_shadow_integration_2026-08-26.md`. Neither slice
+connects to the application, selects a source scope, changes a limit, or
+authorizes storage or retrieval.
 
 ## Contract Boundary
 
@@ -105,9 +107,9 @@ tool/codex_verify.sh --no-codegen \
 fvm flutter test test/tool/rag2_*_test.dart
 ```
 
-The five batch tests and the 11-test focused collector subset pass. Project and
-package static analysis, notification-relay tests, and all 90 focused RAG2
-tests pass.
+The five batch tests and the 11-test focused collector subset pass. The
+historical standalone slice passed 90 focused RAG2 tests; the subsequent
+manifest integration passes the current 91-test suite.
 
 ## Decision and Next Entry Condition
 
@@ -115,12 +117,12 @@ Freeze the three-command protocol, 2,048-candidate bound, timeout/output limits,
 NUL parsers, typed state mapping, aggregate-only report, and current synthetic
 parity result.
 
-The next slice may replace the opt-in manifest shadow's per-path provider with
-this batch inventory behind the existing manifest limits. It must reuse one
-source inventory walk, preserve the manifest JSON schema and every selected
-source/exclusion decision, prove three Git commands for an in-bound repository,
-and prove zero Git commands when discovery limits fail. It must retain the
-per-path collector as the frozen parity oracle.
+That entry condition is satisfied by the batch manifest integration. One source
+inventory is reused, the complete manifest JSON matches the frozen per-path
+oracle, an in-bound repository uses exactly three Git commands, and a discovery
+limit failure uses zero.
 
-That integration must not select a Caverno source scope, raise limits, add
-storage, construct chunks, add retrieval, or enter an application path.
+The next slice should compare the answer-bearing coverage of the measured
+source-role profiles before selecting a Caverno scope or revising limits. It
+must not add storage, construct chunks, add retrieval, or enter an application
+path.

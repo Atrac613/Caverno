@@ -95,7 +95,15 @@ repository-wide NUL status, and stage-zero index blobs in three fixed commands.
 A real temporary repository matches the frozen per-path state and clean
 revision semantics for clean, modified, untracked, staged, renamed, space, and
 Unicode cases. Bounded transport and ambiguous inventories fail closed. Batch
-parity is Go; manifest integration and production remain unevaluated/No-Go.
+parity is Go.
+
+The batch collector is now integrated into the opt-in manifest shadow through
+one shared source inventory. In-bound repositories use exactly three Git
+commands, discovery-limit failures use zero, and the complete report JSON
+matches the frozen per-path oracle. Manifest integration is Go; Caverno source
+scope, storage, retrieval, and production remain No-Go. The final live
+preflight measured 2,823 candidates and failed closed before Git on a 16-file
+limit.
 
 ## Investigation sequence
 
@@ -129,6 +137,7 @@ parity is Go; manifest integration and production remain unevaluated/No-Go.
 | 26 | `Source manifest shadow slice` | Explicit live project manifest without chunks or storage | An opt-in stdout-only CLI preserves bounded exclusions and typed Git failures without roots or source text. Temporary repositories pass; the Caverno preflight finds 2,816 candidates and fails closed before Git because file count exceeds both the selected limit and v1 hard ceiling. | `docs/rag2_source_manifest_shadow_2026-08-26.md` |
 | 27 | `Source scope measurement slice` | Pre-Git aggregate scope and role measurement | Shared discovery inventory reports no individual paths or text. Runtime-only is 1,116 files, runtime plus top-level docs is 1,572, and adding tests reaches 2,557. No scope or limit change is selected. | `docs/rag2_source_scope_measurement_2026-08-26.md` |
 | 28 | `Batch Git inventory slice` | Fixed-command state and revision parity | One exact-root preflight, one NUL status inventory, and one NUL stage inventory match the per-path oracle across clean, changed, untracked, staged, renamed, and unusual-name cases. Aggregate reports omit paths and Git payloads; manifest integration remains absent. | `docs/rag2_batch_git_inventory_replay_2026-08-26.md` |
+| 29 | `Batch manifest integration slice` | Single-inventory manifest evidence integration | The opt-in shadow checks limits before Git, uses exactly three Git commands in-bound, and matches the frozen per-path manifest JSON. Scope selection, storage, and production remain No-Go. | `docs/rag2_batch_manifest_shadow_integration_2026-08-26.md` |
 
 ## Rejected shortcuts
 
@@ -196,8 +205,9 @@ Git collector slice adds seven focused cases. Future changes should run the RAG2
 tests listed under `test/tool/` through the same entrypoint and must not rewrite
 the frozen fixture versions. The collector baseline has 77 RAG2 tests; the
 manifest-shadow slice adds five focused cases, the source-scope measurement
-adds three, and the batch inventory adds five. Project/package static analysis
-remains the required gate. All 90 focused RAG2 tests pass on this slice.
+adds three, the batch inventory adds five, and the batch manifest integration
+adds one. Project/package static analysis remains the required gate. The
+current complete suite contains 91 focused RAG2 tests.
 
 ## Next entry condition
 
@@ -209,9 +219,8 @@ Freeze the extraction suites, `rag2-passage-role-oracle-v1`, corrected
 `rag2-source-manifest-shadow-contract-v1`, and
 `rag2-source-scope-measurement-contract-v1`, and
 `rag2-batch-git-inventory-contract-v1`; retain withdrawn versions only as
-history. The next slice may integrate the batch inventory into the opt-in
-manifest shadow while preserving its schema, limits, selected-source and
-exclusion decisions, and zero-Git limit failure. Keep the per-path collector as
-the frozen parity oracle. Do not select a source profile, raise limits, add an
-index schema, or add FTS5, embeddings, prompting, routing, tools, or model
-calls.
+history. The batch manifest integration is Go and the per-path collector stays
+the frozen parity oracle. The next slice should measure answer-bearing coverage
+for the already measured source-role profiles with fixed active-project
+questions before selecting a scope or changing limits. Do not add an index
+schema, FTS5, embeddings, prompting, routing, tools, or model calls.
