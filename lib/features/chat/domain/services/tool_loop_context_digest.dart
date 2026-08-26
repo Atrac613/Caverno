@@ -57,6 +57,16 @@ class ToolLoopContextDigest {
   /// it is not: only the current batch's results reach the model, which is the
   /// very gap this digest exists to name. Telling the model to "use what they
   /// returned" would invite it to answer from output it cannot see.
+  ///
+  /// The exit status is the exception, and it is reported. "Ran it" without
+  /// "it worked" is what drives a *post-success task restart*: in session
+  /// 0e94a103 `fvm use 3.47.1` succeeded at loop 2, and four loops later the
+  /// model — seeing only that the command had run — planned the same update
+  /// again from scratch and killed the turn on a repeated read, while the user
+  /// was told the turn had aborted and never that the update had landed. An
+  /// exit status is a fact about the run rather than its output, it comes from
+  /// [ToolOutcome.exitCode] rather than from any phrase in the text, and it is
+  /// the one fact that settles whether the work still needs doing.
   static const Set<String> _digestableCommandTools = <String>{
     'local_execute_command',
     'git_execute_command',
@@ -93,6 +103,7 @@ class ToolLoopContextDigest {
     final lastSeen = <String, int>{};
     final commandLabels = <String>{};
     final inspectionStatus = <String, _InspectionStatus>{};
+    final commandExitCodes = <String, int?>{};
     var index = 0;
     for (final result in results) {
       final name = result.name.trim().toLowerCase();
@@ -111,6 +122,9 @@ class ToolLoopContextDigest {
       }
       if (isCommand) {
         commandLabels.add(label);
+        // Last run wins, and an absent status stays absent: a command that
+        // never reached an exit must not read as one that exited cleanly.
+        commandExitCodes[label] = result.outcome?.exitCode;
       } else {
         // Last write wins: a path that failed and then succeeded is gathered
         // context, and one that succeeded and then vanished is not.
@@ -158,10 +172,14 @@ class ToolLoopContextDigest {
       }
       final bodies = resultsByLabel[label]!;
       if (commandLabels.contains(label)) {
+        final repeated = bodies.length >= 2;
+        final exitCode = commandExitCodes[label];
+        final facts = <String>[
+          if (exitCode != null) repeated ? 'last exit $exitCode' : 'exit $exitCode',
+          if (repeated) 'already run ${bodies.length}x this turn',
+        ];
         commandLines.add(
-          bodies.length < 2
-              ? '- $label'
-              : '- $label (already run ${bodies.length}x this turn)',
+          facts.isEmpty ? '- $label' : '- $label (${facts.join('; ')})',
         );
         continue;
       }
@@ -178,12 +196,12 @@ class ToolLoopContextDigest {
         );
         continue;
       }
-      final unchanged = _isUnchanged(bodies, hashesByLabel[label]!);
+      final unchangedRun = _unchangedRunLength(bodies, hashesByLabel[label]!);
       lines.add(
-        unchanged
-            ? '- $label (unchanged — repeated inspection found no file '
-                  'change; do not repeat it unless you modify the underlying '
-                  'files)'
+        unchangedRun >= 2
+            ? '- $label (unchanged — the last $unchangedRun inspections '
+                  'returned the same file; do not repeat it unless you modify '
+                  'the underlying files)'
             : '- $label',
       );
     }
@@ -219,31 +237,38 @@ class ToolLoopContextDigest {
     return 'ran `$label`';
   }
 
-  /// Whether every repeat of one label saw the same file.
+  /// How many of the most recent inspections of one label saw the same file,
+  /// counting back from the latest. `1` means the latest inspection stands
+  /// alone and nothing is proven unchanged.
   ///
-  /// The hash decides it whenever *all* repeats carry one, since it is a fact
-  /// about the file rather than about the text that was rendered. A partial
-  /// set falls back to byte-identity rather than comparing the subset that
-  /// happens to have hashes: a read that could not be hashed (too large, an
-  /// error) is unknown, and unknown must not be allowed to imply unchanged.
-  static bool _isUnchanged(List<String> bodies, List<String?> hashes) {
+  /// Only the trailing run counts, because a file that legitimately changed
+  /// once and then held still is exactly the file worth flagging: requiring
+  /// *every* repeat to match let one early change mask every later repeat. In
+  /// session 0e94a103 `.fvmrc` was read at 3.47.0, updated, then read twice
+  /// more at 3.47.1 — the last two reads proved it settled, and the third read
+  /// went out unflagged because the first one had seen a different version.
+  ///
+  /// The hash decides a comparison whenever both sides carry one, since it is
+  /// a fact about the file rather than about the text that was rendered. A
+  /// missing hash is unknown, and unknown never extends the run: an unhashed
+  /// latest read falls back to byte-identity, and an unhashed earlier read
+  /// ends the run where it sits.
+  static int _unchangedRunLength(List<String> bodies, List<String?> hashes) {
     if (bodies.length < 2) {
-      return false;
+      return 1;
     }
-    if (hashes.length == bodies.length && !hashes.contains(null)) {
-      return _allIdentical(hashes.cast<String>());
-    }
-    return _allIdentical(bodies);
-  }
-
-  static bool _allIdentical(List<String> bodies) {
-    final first = bodies.first;
-    for (var i = 1; i < bodies.length; i++) {
-      if (bodies[i] != first) {
-        return false;
+    final latestHash = hashes.length == bodies.length ? hashes.last : null;
+    var run = 1;
+    for (var i = bodies.length - 2; i >= 0; i--) {
+      final same = latestHash != null
+          ? hashes[i] == latestHash
+          : bodies[i] == bodies.last;
+      if (!same) {
+        break;
       }
+      run++;
     }
-    return true;
+    return run;
   }
 
   /// Whether a command result describes a command that never ran.
