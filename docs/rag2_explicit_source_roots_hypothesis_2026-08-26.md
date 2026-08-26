@@ -1,7 +1,7 @@
 # RAG2 Explicit Source Roots Hypothesis
 
 Date: 2026-08-26
-Status: synthetic replay contract Go; active-project evaluation not started
+Status: development declaration frozen; evaluation questions not created
 Hypothesis: `rag2-explicit-complete-source-roots-v1`
 
 ## Decision
@@ -13,8 +13,9 @@ admitted, or the whole declaration fails closed. There is no sampling within a
 declared root.
 
 This is the first candidate after closing `structural_stratified_v1`. Its
-synthetic replay contract is implemented, but it does not select a Caverno
-scope, authorize storage, or change production behavior.
+synthetic replay contract is implemented, and one active-project development
+declaration has passed acquisition preflight. It does not authorize storage or
+change production behavior.
 
 ## Why This Hypothesis
 
@@ -88,8 +89,10 @@ It omits declared roots, candidate paths, source text, Git payloads, questions,
 and evidence markers. `scopeDecision` remains `not_selected`, and storage,
 retrieval, and production remain No-Go.
 
-No Caverno root declaration or active-project question fixture was loaded or
-evaluated.
+One Caverno development declaration was loaded only after its task context and
+roots were fixed. No active-project question fixture was used for the
+declaration or evaluated under it. See
+`docs/rag2_explicit_source_roots_development_declaration_2026-08-26.md`.
 
 ## Evaluation Order
 
@@ -102,7 +105,8 @@ as promotion evidence:
    unchanged limits, aggregate-only output, and zero-Git failure behavior.
    **Complete.**
 3. Freeze one realistic source-root declaration from task context before
-   writing or inspecting its evaluation questions.
+   writing or inspecting its evaluation questions. **Complete.** See
+   `docs/rag2_explicit_source_roots_development_declaration_2026-08-26.md`.
 4. Create a new question set containing both in-scope and deliberately
    out-of-scope controls. Do not reuse either active-project source-role
    fixture.
@@ -131,16 +135,17 @@ citation quality. Those remain separate later gates.
 
 ## Next Entry Condition
 
-Freeze one realistic source-root declaration from task context before writing
-or inspecting its evaluation questions. The declaration must fit the existing
-default limits and must not be chosen from either active-project fixture's
-evidence paths. Then create a new development set with both in-scope and
-out-of-scope controls; do not reuse the failed structural holdout.
+Create a new development set for the frozen chat memory and conversation
+persistence declaration. Include both in-scope and out-of-scope controls, keep
+the five roots unchanged, and do not reuse any prior source-role or structural-
+profile fixture question. Do not use development results for promotion; a
+separate declaration and untouched holdout remain required.
 
 ## Verification
 
 ```bash
 tool/codex_verify.sh --no-codegen \
+  --test test/tool/rag2_explicit_source_roots_declaration_test.dart \
   --test test/tool/rag2_explicit_source_roots_replay_test.dart \
   --test test/tool/rag2_source_manifest_shadow_test.dart \
   --test test/tool/rag2_source_discovery_replay_test.dart \
@@ -149,6 +154,7 @@ tool/codex_verify.sh --no-codegen \
 fvm flutter test test/tool/rag2_*_test.dart
 ```
 
-The nine explicit-root cases pass. The repository verifier passes project and
-package analysis, three package test suites, all 27 focused acquisition tests,
-and 10 notification-relay tests. All 117 focused RAG2 tests pass.
+The two declaration-freeze and nine explicit-root cases pass. The repository
+verifier passes project and package analysis, three package test suites, all 29
+focused acquisition tests, and 10 notification-relay tests. All 119 focused
+RAG2 tests pass.

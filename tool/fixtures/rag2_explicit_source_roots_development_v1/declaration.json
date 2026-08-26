@@ -1,0 +1,29 @@
+{
+  "schemaName": "caverno_rag2_explicit_source_roots_declaration",
+  "schemaVersion": 1,
+  "declarationId": "caverno-chat-memory-persistence-development-v1",
+  "contract": "rag2-explicit-complete-source-roots-v1",
+  "frozenAt": "2026-08-26",
+  "projectId": "caverno-chat-memory-persistence-development-v1",
+  "taskContext": "Trace how chat session memory and conversation persistence are represented, mutated, stored, and synchronized across the chat feature layers.",
+  "sourceRoots": [
+    "lib/features/chat/application/persistence",
+    "lib/features/chat/data/repositories",
+    "lib/features/chat/domain/entities",
+    "lib/features/chat/domain/services",
+    "lib/features/chat/presentation/providers"
+  ],
+  "policy": {
+    "maxSourceRoots": 16,
+    "maxFiles": 512,
+    "maxFileBytes": 524288,
+    "maxCorpusBytes": 33554432,
+    "instructionBearingDecision": "excluded",
+    "intraRootSamplingDecision": "forbidden"
+  },
+  "declarationIdentity": "declaration_242f507db96fd65363985db1ec4f1b4978bfa33e5263a65dce1ee64bad916c30",
+  "evaluationState": "questions_not_created",
+  "priorFixtureUse": "forbidden",
+  "scopeDecision": "development_declaration_only",
+  "productionDecision": "no_go"
+}
