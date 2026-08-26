@@ -70,7 +70,18 @@ repository root, and produce typed clean-tracked / modified-tracked / untracked
 states. Command failure, malformed or inconsistent output, subdirectory roots,
 and resource overflow fail closed. The discovery evaluator now resolves
 evidence lazily through a provider while preserving frozen fixture output. No
-live manifest or app path exists yet; storage and production remain No-Go.
+live manifest or app path existed in that slice; storage and production
+remained No-Go.
+
+`rag2-source-manifest-shadow-contract-v1` connects discovery and typed Git
+evidence only through an explicit CLI opt-in. It emits metadata JSON to stdout,
+builds no chunks, writes no application storage, hashes project identity, and
+omits roots, source text, and command output. Temporary repositories prove
+clean, modified, untracked, generated, symlink, limit, and root-mismatch
+behavior. The final Caverno live preflight measured 2,816 candidates and failed
+closed on a 16-file limit before Git collection; this also exceeds the v1 hard
+ceiling of 2,048. The adapter contract is Go, the current Caverno manifest is
+No-Go, and production remains No-Go.
 
 ## Investigation sequence
 
@@ -101,6 +112,7 @@ live manifest or app path exists yet; storage and production remain No-Go.
 | 23 | `Provenance attestation slice` | Project, root, revision, trust, and read-capability attestation | Persisted project identity survives a root move; clean/modified/untracked Git states derive exact revisions and trust; unavailable Git, symlink escape, binary, and oversized inputs fail closed. Source discovery remains absent. | `docs/rag2_provenance_attestation_contract_2026-08-25.md` |
 | 24 | `Source discovery slice` | Fixture-root source discovery and candidate chunking | Two attested sources produce five deterministic Markdown/Dart chunks under file and corpus limits. Generated content, unsupported extensions, symlinks, missing evidence, and ambiguous locators fail closed. Production discovery and storage remain absent. | `docs/rag2_source_discovery_chunking_replay_2026-08-26.md` |
 | 25 | `Git evidence collector slice` | Bounded Git execution and typed evidence collection | Exact NUL-delimited probes classify clean, modified, untracked, Unicode, space-bearing, and renamed paths. Root mismatch, timeout, output overflow, invalid paths, and ambiguous output fail closed. Discovery gains a lazy provider boundary; no live manifest is connected. | `docs/rag2_git_evidence_collector_2026-08-26.md` |
+| 26 | `Source manifest shadow slice` | Explicit live project manifest without chunks or storage | An opt-in stdout-only CLI preserves bounded exclusions and typed Git failures without roots or source text. Temporary repositories pass; the Caverno preflight finds 2,816 candidates and fails closed before Git because file count exceeds both the selected limit and v1 hard ceiling. | `docs/rag2_source_manifest_shadow_2026-08-26.md` |
 
 ## Rejected shortcuts
 
@@ -122,6 +134,9 @@ live manifest or app path exists yet; storage and production remain No-Go.
 - Do not treat the standalone Git collector as authorization to enumerate a
   project. Project selection and manifest-only report safety remain a separate
   live-shadow gate.
+- Do not raise the live-shadow file ceiling from the Caverno aggregate count.
+  Measure source scope first; per-path Git collection over the whole repository
+  would multiply process cost without deciding which sources belong in RAG2.
 
 ## Durable artifacts
 
@@ -163,8 +178,9 @@ The squash-merged baseline passed static analysis, package tests, 70 focused
 RAG2 tests, and 10 notification-relay tests through `tool/codex_verify.sh`. The
 Git collector slice adds seven focused cases. Future changes should run the RAG2
 tests listed under `test/tool/` through the same entrypoint and must not rewrite
-the frozen fixture versions. The resulting 77-test RAG2 suite and project/package
-static analysis pass on the collector branch.
+the frozen fixture versions. The collector baseline has 77 RAG2 tests; the
+manifest-shadow slice adds five focused cases. Project/package static analysis
+remains the required gate. All 82 focused RAG2 tests pass on this slice.
 
 ## Next entry condition
 
@@ -172,12 +188,11 @@ Freeze the extraction suites, `rag2-passage-role-oracle-v1`, corrected
 `rag2-knowledge-object-contract-v2`, and
 `rag2-provenance-attestation-contract-v1`, and
 `rag2-source-discovery-contract-v1`, and
-`rag2-git-evidence-collector-contract-v1`; retain withdrawn versions only as
-history.
-The next slice may add one opt-in, manifest-only live-shadow adapter for an
-explicitly selected `CodingProject`. It must collect the frozen attestation's
-Git evidence through the typed collector, remain bounded and off by default,
-omit source text and absolute roots, write no storage, and prove clean,
-modified, untracked, generated, symlink, and limit behavior before any index
-schema is considered. Do not add FTS5, embeddings, prompting, routing, tools,
+`rag2-git-evidence-collector-contract-v1`, and
+`rag2-source-manifest-shadow-contract-v1`; retain withdrawn versions only as
+history. The next slice must measure metadata-only candidate counts and bytes
+by top-level repository-relative source scope before Git collection. Compare
+explicit scope candidates without source text or absolute paths, and do not
+raise the cap or add an index schema until that evidence chooses an allowlist,
+revised bound, or No-Go. Do not add FTS5, embeddings, prompting, routing, tools,
 or model calls.

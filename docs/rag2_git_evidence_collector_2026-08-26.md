@@ -103,8 +103,8 @@ project/package static analysis is clean.
 ## Decision and Next Entry Condition
 
 Freeze the typed collector boundary and the fixture-map compatibility adapter.
-The next slice may add one opt-in, manifest-only live-shadow adapter for an
-explicitly selected `CodingProject`. It must use this collector, keep source
-text and absolute roots out of reports, write no index or application storage,
-and preserve generated, symlink, file-count, per-file, and corpus-limit
-exclusions. No retrieval or model-facing path is authorized.
+The opt-in manifest-only live-shadow adapter is now complete and recorded in
+`docs/rag2_source_manifest_shadow_2026-08-26.md`. Its first Caverno preflight
+fails closed on file count before Git collection. The next slice must measure
+candidate count and bytes by top-level source scope rather than raise the cap.
+No retrieval or model-facing path is authorized.

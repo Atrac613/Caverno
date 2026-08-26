@@ -88,6 +88,7 @@ Future<Rag2SourceDiscoveryResult> discoverRag2Sources({
   required CodingProject project,
   required Rag2SourceDiscoveryPolicy policy,
   required Rag2GitEvidenceProvider gitEvidenceProvider,
+  bool includeChunks = true,
 }) async {
   final root = Directory(project.normalizedRootPath);
   final candidates = <({String path, File file, int bytes})>[];
@@ -138,10 +139,9 @@ Future<Rag2SourceDiscoveryResult> discoverRag2Sources({
       );
       continue;
     }
-    final text = _normalizeText(await candidate.file.readAsString());
-    final chunks = candidate.path.endsWith('.md')
-        ? _chunkMarkdown(candidate.path, text)
-        : _chunkDart(candidate.path, text);
+    final chunks = includeChunks
+        ? _chunkCandidate(candidate.path, await candidate.file.readAsString())
+        : const <Rag2CandidateChunk>[];
     sources.add(
       Rag2DiscoveredSource(
         attestation: attestation,
@@ -167,6 +167,13 @@ Future<Rag2SourceDiscoveryResult> discoverRag2Sources({
     candidateFileCount: candidates.length,
     candidateCorpusBytes: corpusBytes,
   );
+}
+
+List<Rag2CandidateChunk> _chunkCandidate(String path, String text) {
+  final normalized = _normalizeText(text);
+  return path.endsWith('.md')
+      ? _chunkMarkdown(path, normalized)
+      : _chunkDart(path, normalized);
 }
 
 Future<void> _walkFixtureRoot({

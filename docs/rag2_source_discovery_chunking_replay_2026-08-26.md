@@ -84,9 +84,8 @@ The durable inputs are:
 The bounded typed Git collector prerequisite is now complete and recorded in
 `docs/rag2_git_evidence_collector_2026-08-26.md`.
 
-Add one opt-in, manifest-only live-shadow adapter for an explicitly selected
-`CodingProject`. It must use the typed collector and compare the resulting
-path/exclusion manifest with the fixture policy. It must remain read-only,
-bounded, off by default, omit source text and absolute roots, and write no
-storage. Require reproducible clean, modified, untracked, generated, symlink,
-and limit evidence before considering an index schema.
+The subsequent opt-in manifest-only adapter is complete and recorded in
+`docs/rag2_source_manifest_shadow_2026-08-26.md`. Its Caverno preflight exceeds
+the bounded file-count policy before Git collection. Measure metadata-only
+candidate counts and bytes by top-level source scope next; do not raise the cap
+or consider an index schema from the aggregate count alone.
