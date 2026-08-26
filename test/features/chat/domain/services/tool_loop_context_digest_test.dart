@@ -308,6 +308,97 @@ void main() {
       );
     });
 
+    test('reports a failed read as failed, never as gathered context', () {
+      final block = digest.build([
+        _result('read_file', {
+          'path': '/repo/fvm/config.json',
+        }, result: '{"ok":false,"code":"project_read_path_unavailable",'
+            '"error":"The read target does not exist or cannot be opened.",'
+            '"project_root":"/repo"}'),
+        _result('list_directory', {'path': '/repo'}),
+      ]);
+
+      expect(block, contains('read /repo/fvm/config.json'));
+      expect(block, contains('FAILED (project_read_path_unavailable)'));
+      expect(block, contains('no content was gathered'));
+      expect(block, contains('listed /repo'));
+    });
+
+    test('drops a failed read whose recovery is to repeat it', () {
+      final block = digest.build([
+        _result('read_file', {
+          'path': '/repo/lib/main.dart',
+        }, result: '{"ok":false,"code":"project_scoped_read_effect_uncertain",'
+            '"error":"The read did not complete.",'
+            '"next_action":"Repeat the read in the current turn."}'),
+        _result('list_directory', {'path': '/repo'}),
+        _result('read_file', {'path': '/repo/pubspec.yaml'}),
+      ]);
+
+      expect(
+        block,
+        isNot(contains('/repo/lib/main.dart')),
+        reason: 'the runtime asked for this exact read to be repeated',
+      );
+      expect(block, contains('listed /repo'));
+      expect(block, contains('read /repo/pubspec.yaml'));
+    });
+
+    test('treats a read that failed and then succeeded as gathered', () {
+      final block = digest.build([
+        _result('read_file', {
+          'path': '/repo/new.dart',
+        }, result: '{"ok":false,"code":"project_read_path_unavailable",'
+            '"error":"The read target does not exist."}'),
+        _result('read_file', {'path': '/repo/new.dart'}, result: 'contents'),
+        _result('list_directory', {'path': '/repo'}),
+      ]);
+
+      expect(block, contains('- read /repo/new.dart'));
+      expect(block, isNot(contains('FAILED')));
+      expect(
+        block,
+        isNot(contains('unchanged')),
+        reason: 'a failure body and a content body are not one unchanged file',
+      );
+    });
+
+    test('reports a read that succeeded and then failed as failed', () {
+      final block = digest.build([
+        _result('read_file', {'path': '/repo/gone.dart'}, result: 'contents'),
+        _result('read_file', {
+          'path': '/repo/gone.dart',
+        }, result: '{"ok":false,"code":"project_read_path_unavailable",'
+            '"error":"The read target does not exist."}'),
+        _result('list_directory', {'path': '/repo'}),
+      ]);
+
+      expect(block, contains('FAILED (project_read_path_unavailable)'));
+    });
+
+    test('names a failed read without a code as an unknown error', () {
+      final block = digest.build([
+        _result('search_files', {
+          'query': 'fvm',
+        }, result: '{"ok":false,"error":"Search backend unavailable."}'),
+        _result('list_directory', {'path': '/repo'}),
+      ]);
+
+      expect(block, contains('searched "fvm" — FAILED (unknown_error)'));
+    });
+
+    test('keeps a read whose content merely mentions ok', () {
+      final block = digest.build([
+        _result('read_file', {
+          'path': '/repo/notes.md',
+        }, result: 'the "ok" flag is not set here'),
+        _result('list_directory', {'path': '/repo'}),
+      ]);
+
+      expect(block, contains('- read /repo/notes.md'));
+      expect(block, isNot(contains('FAILED')));
+    });
+
     test('truncates an oversized command label', () {
       final long = 'gh api ${'x' * 400}';
       final block = digest.build([

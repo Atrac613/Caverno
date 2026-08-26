@@ -92,6 +92,7 @@ class ToolLoopContextDigest {
     final hashesByLabel = <String, List<String?>>{};
     final lastSeen = <String, int>{};
     final commandLabels = <String>{};
+    final inspectionStatus = <String, _InspectionStatus>{};
     var index = 0;
     for (final result in results) {
       final name = result.name.trim().toLowerCase();
@@ -110,6 +111,10 @@ class ToolLoopContextDigest {
       }
       if (isCommand) {
         commandLabels.add(label);
+      } else {
+        // Last write wins: a path that failed and then succeeded is gathered
+        // context, and one that succeeded and then vanished is not.
+        inspectionStatus[label] = _classifyInspection(result.result);
       }
       final bodies = resultsByLabel.putIfAbsent(label, () {
         order.add(label);
@@ -157,6 +162,19 @@ class ToolLoopContextDigest {
           bodies.length < 2
               ? '- $label'
               : '- $label (already run ${bodies.length}x this turn)',
+        );
+        continue;
+      }
+      final status = inspectionStatus[label] ?? const _InspectionStatus.ok();
+      if (status.isRetryable) {
+        // The runtime asked for this exact call to be repeated, so saying
+        // anything here would argue against its own recovery instruction.
+        continue;
+      }
+      if (status.failureCode case final code?) {
+        lines.add(
+          '- $label — FAILED ($code); no content was gathered, and '
+          'repeating this exact call returns the same failure',
         );
         continue;
       }
@@ -255,6 +273,50 @@ class ToolLoopContextDigest {
     return decoded['ok'] == false && !decoded.containsKey('stdout');
   }
 
+  /// How one read-class result reported its own execution.
+  ///
+  /// A failed read used to be digested as a plain `- read <path>` line, which
+  /// states that content was gathered when none was: the loop carries only the
+  /// *current* batch's results, so by the next request the digest line is the
+  /// only surviving trace of the call and the error text is gone. Session
+  /// 03d25ba5 asked to update FVM, read a guessed `fvm/config.json` that does
+  /// not exist, listed the project root (which shows `.fvmrc`), and then
+  /// re-issued the identical dead read — at that request the model could see
+  /// the path listed as gathered context with no content attached and no
+  /// failure anywhere, and the turn died on `tool_failure_abort`.
+  ///
+  /// Dropping the entry instead would be no better: with no trace at all the
+  /// path reads as never inspected, which invites the same re-read. So a
+  /// terminal failure is stated as a failure, naming the structured `code`
+  /// rather than any phrase from the message.
+  ///
+  /// A failure that prescribes a `next_action` is the exception. Those are
+  /// transient runtime refusals whose documented recovery is to repeat the
+  /// read in the same turn, so they are dropped rather than reported: telling
+  /// the model not to repeat a call the runtime just told it to repeat is the
+  /// [_wasNeverExecuted] mistake in the other direction.
+  static _InspectionStatus _classifyInspection(String result) {
+    if (!result.contains('"ok"')) {
+      return const _InspectionStatus.ok();
+    }
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(result);
+    } on FormatException {
+      return const _InspectionStatus.ok();
+    }
+    if (decoded is! Map<String, dynamic> || decoded['ok'] != false) {
+      return const _InspectionStatus.ok();
+    }
+    if (decoded.containsKey('next_action')) {
+      return const _InspectionStatus.retryable();
+    }
+    final code = decoded['code'];
+    return _InspectionStatus.failed(
+      code is String && code.trim().isNotEmpty ? code.trim() : 'unknown_error',
+    );
+  }
+
   String? _labelFor(String name, Map<String, dynamic> arguments) {
     final path = arguments['path']?.toString().trim();
     switch (name) {
@@ -275,4 +337,20 @@ class ToolLoopContextDigest {
     }
     return null;
   }
+}
+
+/// What a read-class tool reported about one invocation.
+class _InspectionStatus {
+  const _InspectionStatus.ok() : failureCode = null, isRetryable = false;
+
+  const _InspectionStatus.failed(String this.failureCode) : isRetryable = false;
+
+  const _InspectionStatus.retryable() : failureCode = null, isRetryable = true;
+
+  /// Structured failure code of a terminal failure, null when the call either
+  /// succeeded or reported nothing about itself.
+  final String? failureCode;
+
+  /// Whether the runtime prescribed repeating this exact call.
+  final bool isRetryable;
 }
