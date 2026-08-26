@@ -1,7 +1,7 @@
 # RAG2 Explicit Source Roots Promotion Holdout Declaration
 
 Date: 2026-08-26
-Status: declaration frozen; promotion questions not created
+Status: declaration frozen; promotion scope Go
 Declaration: `caverno-routines-lifecycle-promotion-holdout-v1`
 Contract: `rag2-explicit-complete-source-roots-v1`
 
@@ -85,8 +85,9 @@ overlap rules. The complete RAG2 suite must remain green.
 
 ## Next Entry Condition
 
-Create a separate promotion evaluation fixture without modifying this
-declaration. The fixture must use new questions and controls that were not used
-to select the roots. Run the unchanged evaluator once, record every miss
-without tuning, and promote explicit source roots only if the frozen holdout
-gate passes.
+The separate promotion fixture passes the unchanged evaluator without modifying
+this declaration. See
+`docs/rag2_explicit_source_roots_promotion_eval_2026-08-26.md`. Preserve the
+declaration and fixture as frozen promotion evidence while the next slice
+defines a storage replay using the existing Knowledge Object v2, provenance,
+discovery, and source-scope contracts.

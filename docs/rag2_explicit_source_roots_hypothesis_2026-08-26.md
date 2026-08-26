@@ -1,7 +1,7 @@
 # RAG2 Explicit Source Roots Hypothesis
 
 Date: 2026-08-26
-Status: development Go; promotion holdout not frozen
+Status: promotion scope Go; storage not evaluated
 Hypothesis: `rag2-explicit-complete-source-roots-v1`
 
 ## Decision
@@ -14,8 +14,8 @@ declared root.
 
 This is the first candidate after closing `structural_stratified_v1`. Its
 synthetic replay contract is implemented, and one active-project development
-declaration has passed acquisition preflight. It does not authorize storage or
-change production behavior.
+declaration and one independently frozen promotion holdout pass every scope
+gate. It does not authorize storage or change production behavior.
 
 ## Why This Hypothesis
 
@@ -115,7 +115,9 @@ as promotion evidence:
    out-of-scope control. **Complete: 12/12 included, 4/4 excluded, and 4/4
    `not_available`.**
 6. Only after that development result, freeze a separate untouched declaration
-   and holdout for a promotion decision.
+   and holdout for a promotion decision. **Complete: 8/8 included, 4/4
+   excluded, and 4/4 `not_available`.** See
+   `docs/rag2_explicit_source_roots_promotion_eval_2026-08-26.md`.
 
 Path coverage still will not prove retrieval, ranking, answer correctness, or
 citation quality. Those remain separate later gates.
@@ -136,15 +138,18 @@ citation quality. Those remain separate later gates.
 
 ## Next Entry Condition
 
-Freeze a separate realistic task context and source-root declaration before
-creating or inspecting its questions. Then run the unchanged evaluator once on
-a new untouched holdout with both in-scope and out-of-scope controls. Do not
-tune the roots or evaluator from holdout results.
+Preserve the development and promotion fixtures unchanged. Define an offline
+storage replay using the frozen Knowledge Object v2, provenance, source
+discovery, and explicit-root contracts before selecting a database schema or
+adding settings, tools, model calls, application wiring, or production
+behavior.
 
 ## Verification
 
 ```bash
 tool/codex_verify.sh --no-codegen \
+  --test test/tool/rag2_explicit_source_roots_promotion_eval_test.dart \
+  --test test/tool/rag2_explicit_source_roots_holdout_declaration_test.dart \
   --test test/tool/rag2_explicit_source_roots_development_eval_test.dart \
   --test test/tool/rag2_explicit_source_roots_declaration_test.dart \
   --test test/tool/rag2_explicit_source_roots_replay_test.dart \
@@ -155,7 +160,6 @@ tool/codex_verify.sh --no-codegen \
 fvm flutter test test/tool/rag2_*_test.dart
 ```
 
-The four development-evaluation, two declaration-freeze, and nine explicit-root
-cases pass. The repository verifier passes project and package analysis, three
-package test suites, all 33 focused acquisition tests, and 10 notification-
-relay tests. All 123 focused RAG2 tests pass.
+The four development-evaluation, four promotion-evaluation, four declaration-
+freeze, and nine explicit-root cases pass. The complete focused RAG2 suite
+passes all 129 tests.

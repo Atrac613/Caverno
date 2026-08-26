@@ -241,7 +241,8 @@ adds three, the batch inventory adds five, and the batch manifest integration
 adds one. The source-role coverage replay v2 replaces five focused cases with
 11, and the structural-profile candidate adds five. Project/package static
 analysis remains the required gate. The current complete suite contains 123
-focused RAG2 tests.
+focused RAG2 tests before the promotion slice; the frozen holdout declaration
+and promotion evaluation increase it to 129.
 
 ## Next entry condition
 
@@ -256,12 +257,16 @@ Freeze the extraction suites, `rag2-passage-role-oracle-v1`, corrected
 `rag2-source-role-coverage-contract-v2`; retain v1 only as withdrawn history.
 Freeze `rag2-structural-profile-candidate-contract-v1` and its failed holdout
 unchanged. The batch manifest integration is Go, the per-path collector stays
-the frozen parity oracle, stratified stable-hash sampling is closed, and source
-selection remains No-Go. The synthetic replay for
-`rag2-explicit-complete-source-roots-v1` is Go. The chat memory and conversation-
-persistence development declaration is frozen and passes active-project
-acquisition preflight and all development scope gates. The next slice must
-freeze a separate realistic task context and declaration before creating an
-untouched promotion holdout. Do not tune the roots or evaluator, reuse any
-prior fixture question, or add an index schema, FTS5, embeddings, prompting,
-routing, tools, model calls, settings, or application wiring.
+the frozen parity oracle, and stratified stable-hash sampling is closed. The
+synthetic replay for `rag2-explicit-complete-source-roots-v1` is Go. The chat
+memory and conversation-persistence development declaration is frozen and
+passes active-project acquisition preflight and all development scope gates. A
+separately frozen routines-lifecycle declaration passes the unchanged evaluator
+on an untouched 11-case promotion holdout: 8/8 in-scope evidence paths are
+admitted and 4/4 out-of-scope controls are excluded. Explicit complete source
+roots are promotion scope Go; storage and production remain No-Go. The next
+slice must
+define an offline storage replay using the frozen Knowledge Object v2,
+provenance, discovery, and source-scope contracts before adding SQLite, FTS5,
+embeddings, prompting, routing, tools, model calls, settings, or application
+wiring.
