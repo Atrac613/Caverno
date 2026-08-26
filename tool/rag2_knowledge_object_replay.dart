@@ -90,7 +90,10 @@ Future<Rag2KnowledgeSnapshot> buildRag2KnowledgeSnapshot({
     final file = File('${fixtureFile.parent.path}/${spec.root}/${source.path}');
     final normalizedText = _normalizeText(await file.readAsString());
     final contentHash = _sha256(normalizedText);
-    final objectId = _stableId('ko', [fixture.projectId, source.path]);
+    final objectId = rag2KnowledgeObjectId(
+      projectId: fixture.projectId,
+      repoRelativePath: source.path,
+    );
     final chunks = _chunkSource(
       objectId: objectId,
       projectId: fixture.projectId,
@@ -115,9 +118,7 @@ Future<Rag2KnowledgeSnapshot> buildRag2KnowledgeSnapshot({
   objects.sort(
     (left, right) => left.repoRelativePath.compareTo(right.repoRelativePath),
   );
-  final snapshotHash = _sha256(
-    jsonEncode([for (final object in objects) object.toJson()]),
-  );
+  final snapshotHash = rag2KnowledgeSnapshotHash(objects);
   return Rag2KnowledgeSnapshot(
     snapshotId: spec.id,
     snapshotHash: snapshotHash,
@@ -235,6 +236,14 @@ String rag2KnowledgeChunkId({
   required String locator,
   required String contentHash,
 }) => _stableId('kc', [objectId, locator, contentHash]);
+
+String rag2KnowledgeObjectId({
+  required String projectId,
+  required String repoRelativePath,
+}) => _stableId('ko', [projectId, repoRelativePath]);
+
+String rag2KnowledgeSnapshotHash(List<Rag2KnowledgeObject> objects) =>
+    _sha256(jsonEncode([for (final object in objects) object.toJson()]));
 
 void validateRag2RepoRelativePath(String value) {
   final segments = value.split('/');

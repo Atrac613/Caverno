@@ -165,6 +165,8 @@ stratified stable-hash strategy and do not tune or revive v1.
 | 35 | `Explicit source roots synthetic replay` | Root validation, complete admission, batch Git, and all-or-nothing attestation | Nine synthetic cases prove complete in-root admission, explicit repository root, order-independent identities, invalid/duplicate/overlapping/missing/file/symlink rejection, default file-limit zero-Git failure, Git failure rollback, attestation rollback, and aggregate-only output. Contract Go; active-project evaluation and scope selection remain No-Go. | `docs/rag2_explicit_source_roots_hypothesis_2026-08-26.md` |
 | 36 | `Explicit roots development declaration` | Freeze a realistic task context and complete roots before questions | The chat memory and conversation-persistence declaration fixes five layer roots. Active-project preflight admits all 451 eligible sources in 3 Git commands with zero blockers. Questions have not been created; storage, retrieval, and production remain No-Go. | `docs/rag2_explicit_source_roots_development_declaration_2026-08-26.md` |
 | 37 | `Explicit roots development evaluation` | Frozen in-scope evidence and out-of-scope availability controls | The unchanged five-root declaration passes 11/11 decisions: 12/12 required in-scope paths admitted, 4/4 out-of-scope paths excluded, and 4/4 controls reported `not_available`. Development Go only; an untouched declaration and holdout are still required. | `docs/rag2_explicit_source_roots_development_eval_2026-08-26.md` |
+| 38 | `Explicit roots promotion evaluation` | Untouched routines-lifecycle declaration and holdout | The separately frozen declaration passes 11/11 decisions with 8/8 in-scope paths admitted and 4/4 out-of-scope controls unavailable. Complete explicit roots are promotion scope Go. | `docs/rag2_explicit_source_roots_promotion_eval_2026-08-26.md` |
+| 39 | `Backend-neutral storage replay` | Declaration-scoped atomic generation semantics | Initial apply, identical no-op, exact stale replacement, deterministic replay, and attestation/policy/injected-failure rollback pass over composed frozen contracts. Storage semantics are Go; retrieval is not evaluated and production remains No-Go. | `docs/rag2_storage_replay_contract_2026-08-26.md` |
 
 ## Rejected shortcuts
 
@@ -242,7 +244,8 @@ adds one. The source-role coverage replay v2 replaces five focused cases with
 11, and the structural-profile candidate adds five. Project/package static
 analysis remains the required gate. The current complete suite contains 123
 focused RAG2 tests before the promotion slice; the frozen holdout declaration
-and promotion evaluation increase it to 129.
+and promotion evaluation increase it to 129, and the storage replay increases
+it to 134.
 
 ## Next entry condition
 
@@ -264,9 +267,12 @@ passes active-project acquisition preflight and all development scope gates. A
 separately frozen routines-lifecycle declaration passes the unchanged evaluator
 on an untouched 11-case promotion holdout: 8/8 in-scope evidence paths are
 admitted and 4/4 out-of-scope controls are excluded. Explicit complete source
-roots are promotion scope Go; storage and production remain No-Go. The next
-slice must
-define an offline storage replay using the frozen Knowledge Object v2,
-provenance, discovery, and source-scope contracts before adding SQLite, FTS5,
-embeddings, prompting, routing, tools, model calls, settings, or application
-wiring.
+roots are promotion scope Go. The backend-neutral
+`rag2-storage-replay-contract-v1` now composes the frozen Knowledge Object v2,
+provenance, discovery, and source-scope contracts and passes atomic generation,
+no-op, invalidation, deterministic replay, and rollback gates. Storage semantics
+are Go; retrieval is not evaluated and production remains No-Go. Keep this
+fixture frozen. A later persistence-backend hypothesis must preserve the replay
+contract through migration and reopen testing before SQLite, FTS5, Drift, or
+embeddings are selected. Prompting, routing, tools, model calls, settings, and
+application wiring remain out of scope.

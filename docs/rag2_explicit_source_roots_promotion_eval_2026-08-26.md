@@ -81,8 +81,11 @@ right evidence, or that generated answers are complete and correctly cited.
 
 ## Next Entry Condition
 
-Freeze an offline storage replay that composes the existing Knowledge Object
-v2, provenance, source-discovery, and explicit-root contracts without
-application wiring. Define persistence and invalidation boundaries before
-selecting SQLite, FTS5, embeddings, prompting, routing, settings, or production
-behavior.
+The next entry condition passed in
+`docs/rag2_storage_replay_contract_2026-08-26.md`.
+`rag2-storage-replay-contract-v1` composes the existing Knowledge Object v2,
+provenance, source-discovery, and explicit-root contracts in a backend-neutral
+in-memory generation store. Storage semantics are Go; retrieval is not
+evaluated and production remains No-Go. A later backend hypothesis must preserve
+the frozen atomicity, invalidation, rollback, and report-privacy behavior before
+selecting SQLite, FTS5, Drift, or embeddings.

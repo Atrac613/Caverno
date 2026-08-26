@@ -96,7 +96,7 @@ Future<Rag2ExplicitSourceRootsReport> runRag2ExplicitSourceRootsReplay({
     maxFileBytes: rag2ExplicitSourceRootsPolicy.maxFileBytes,
   );
   final inventoryState = base.withInventory(inventory);
-  final roots = await _validateSourceRoots(
+  final roots = await validateRag2ExplicitSourceRoots(
     canonicalProjectRoot: canonicalProjectRoot,
     sourceRoots: options.sourceRoots,
   );
@@ -107,7 +107,9 @@ Future<Rag2ExplicitSourceRootsReport> runRag2ExplicitSourceRootsReplay({
   final selected = <Rag2SourceCandidate>[];
   var instructionBearingExcludedCount = 0;
   for (final candidate in inventory.candidates) {
-    if (!_pathIsWithinRoots(candidate.path, roots.normalizedRoots)) continue;
+    if (!rag2PathIsWithinExplicitRoots(candidate.path, roots.normalizedRoots)) {
+      continue;
+    }
     if (rag2SourceRoleForPath(candidate.path) == 'instruction_bearing') {
       instructionBearingExcludedCount++;
       continue;
@@ -116,7 +118,9 @@ Future<Rag2ExplicitSourceRootsReport> runRag2ExplicitSourceRootsReplay({
   }
   final policyExclusionCounts = <String, int>{};
   for (final exclusion in inventory.exclusions) {
-    if (!_pathIsWithinRoots(exclusion.path, roots.normalizedRoots)) continue;
+    if (!rag2PathIsWithinExplicitRoots(exclusion.path, roots.normalizedRoots)) {
+      continue;
+    }
     policyExclusionCounts.update(
       exclusion.reason,
       (count) => count + 1,
@@ -422,14 +426,14 @@ final class _ReportState {
   );
 }
 
-final class _ValidatedSourceRoots {
-  const _ValidatedSourceRoots({required this.normalizedRoots, this.blocker});
+final class Rag2ValidatedSourceRoots {
+  const Rag2ValidatedSourceRoots({required this.normalizedRoots, this.blocker});
 
   final List<String> normalizedRoots;
   final String? blocker;
 }
 
-Future<_ValidatedSourceRoots> _validateSourceRoots({
+Future<Rag2ValidatedSourceRoots> validateRag2ExplicitSourceRoots({
   required String canonicalProjectRoot,
   required List<String> sourceRoots,
 }) async {
@@ -437,7 +441,7 @@ Future<_ValidatedSourceRoots> _validateSourceRoots({
   for (final value in sourceRoots) {
     final root = _normalizeSourceRoot(value);
     if (root == null) {
-      return const _ValidatedSourceRoots(
+      return const Rag2ValidatedSourceRoots(
         normalizedRoots: [],
         blocker: 'source_root_invalid',
       );
@@ -446,7 +450,7 @@ Future<_ValidatedSourceRoots> _validateSourceRoots({
   }
   normalized.sort();
   if (normalized.toSet().length != normalized.length) {
-    return const _ValidatedSourceRoots(
+    return const Rag2ValidatedSourceRoots(
       normalizedRoots: [],
       blocker: 'source_root_duplicate',
     );
@@ -454,7 +458,7 @@ Future<_ValidatedSourceRoots> _validateSourceRoots({
   for (var index = 0; index < normalized.length; index++) {
     for (var other = index + 1; other < normalized.length; other++) {
       if (_rootContainsRoot(normalized[index], normalized[other])) {
-        return const _ValidatedSourceRoots(
+        return const Rag2ValidatedSourceRoots(
           normalizedRoots: [],
           blocker: 'source_root_overlap',
         );
@@ -468,19 +472,19 @@ Future<_ValidatedSourceRoots> _validateSourceRoots({
       current = '$current${Platform.pathSeparator}$component';
       final type = await FileSystemEntity.type(current, followLinks: false);
       if (type == FileSystemEntityType.link) {
-        return const _ValidatedSourceRoots(
+        return const Rag2ValidatedSourceRoots(
           normalizedRoots: [],
           blocker: 'source_root_symlink_rejected',
         );
       }
       if (type == FileSystemEntityType.notFound) {
-        return const _ValidatedSourceRoots(
+        return const Rag2ValidatedSourceRoots(
           normalizedRoots: [],
           blocker: 'source_root_unavailable',
         );
       }
       if (type != FileSystemEntityType.directory) {
-        return const _ValidatedSourceRoots(
+        return const Rag2ValidatedSourceRoots(
           normalizedRoots: [],
           blocker: 'source_root_not_directory',
         );
@@ -489,19 +493,21 @@ Future<_ValidatedSourceRoots> _validateSourceRoots({
     try {
       final canonical = await Directory(current).resolveSymbolicLinks();
       if (!DartProjectPath.isInsideRoot(canonical, canonicalProjectRoot)) {
-        return const _ValidatedSourceRoots(
+        return const Rag2ValidatedSourceRoots(
           normalizedRoots: [],
           blocker: 'source_root_outside_project',
         );
       }
     } on FileSystemException {
-      return const _ValidatedSourceRoots(
+      return const Rag2ValidatedSourceRoots(
         normalizedRoots: [],
         blocker: 'source_root_unavailable',
       );
     }
   }
-  return _ValidatedSourceRoots(normalizedRoots: List.unmodifiable(normalized));
+  return Rag2ValidatedSourceRoots(
+    normalizedRoots: List.unmodifiable(normalized),
+  );
 }
 
 String? _normalizeSourceRoot(String value) {
@@ -523,7 +529,7 @@ String? _normalizeSourceRoot(String value) {
 bool _rootContainsRoot(String ancestor, String descendant) =>
     ancestor == '.' || descendant.startsWith('$ancestor/');
 
-bool _pathIsWithinRoots(String path, List<String> roots) {
+bool rag2PathIsWithinExplicitRoots(String path, List<String> roots) {
   final normalizedPath = path.endsWith('/')
       ? path.substring(0, path.length - 1)
       : path;
