@@ -681,7 +681,7 @@ const Map<String, int> _libraryLineBudgets = {
   // -34 net: the quality-gate fallback assembles a proposal out of the goal
   // and the best candidate so far, which needs the two services and nothing
   // from the notifier -- and it paid for the verification approval.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19830,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19829,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
