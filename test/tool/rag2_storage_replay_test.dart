@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../tool/rag2_knowledge_object_replay.dart';
@@ -204,6 +205,47 @@ void main() {
       store.read(declaration)?.snapshot.snapshotHash,
       baseline.snapshotHash,
     );
+  });
+
+  test('maps stored chunks from attested text after files change', () async {
+    final root = Directory.systemTemp.createTempSync('rag2-storage-bound-');
+    addTearDown(() => root.deleteSync(recursive: true));
+    File(
+      '${root.path}/guide.md',
+    ).writeAsStringSync('# Bound Marker\n\nOriginal storage body.\n');
+    final result = await discoverRag2Sources(
+      project: CodingProject(
+        id: 'bound-storage',
+        name: 'Bound storage',
+        rootPath: root.path,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      ),
+      policy: const Rag2SourceDiscoveryPolicy(
+        maxFiles: 4,
+        maxFileBytes: 4096,
+        maxCorpusBytes: 8192,
+      ),
+      gitEvidenceProvider: (path) async => const Rag2GitEvidence(
+        available: true,
+        lsFilesExitCode: 0,
+        statusPorcelain: '',
+        headBlobRevision: '1111111111111111111111111111111111111111',
+      ),
+    );
+    File(
+      '${root.path}/guide.md',
+    ).writeAsStringSync('# Bound Marker\n\nMutated storage body.\n');
+
+    final object = rag2KnowledgeObjectFromDiscoveredSource(
+      projectId: 'bound-storage',
+      source: result.candidates.single,
+    );
+    final storedText = object.chunks.map((chunk) => chunk.content).join('\n');
+
+    expect(result.candidates.single.attestation.hasBoundText, isTrue);
+    expect(storedText, contains('Original storage body.'));
+    expect(storedText, isNot(contains('Mutated storage body.')));
   });
 
   test('writes deterministic aggregate-only reports', () async {

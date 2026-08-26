@@ -59,6 +59,10 @@ risk. `BoundedTextFileClassifier` is extracted from the existing filesystem
 tools and remains their shared prefix classifier. A NUL byte or malformed UTF-8
 is rejected, a rune split at the sniff boundary is tolerated, and attestation
 also enforces a one-MiB full-read ceiling before hashing normalized UTF-8 text.
+Callers that need chunk or storage content may request `retainText`; the
+normalized snapshot stays in memory, is bound to the attested content hash, and
+is omitted from serialized reports. Discovery and storage must reuse that
+snapshot instead of reading the file again.
 
 ## Fixed controls
 

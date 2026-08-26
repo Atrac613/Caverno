@@ -167,6 +167,7 @@ stratified stable-hash strategy and do not tune or revive v1.
 | 37 | `Explicit roots development evaluation` | Frozen in-scope evidence and out-of-scope availability controls | The unchanged five-root declaration passes 11/11 decisions: 12/12 required in-scope paths admitted, 4/4 out-of-scope paths excluded, and 4/4 controls reported `not_available`. Development Go only; an untouched declaration and holdout are still required. | `docs/rag2_explicit_source_roots_development_eval_2026-08-26.md` |
 | 38 | `Explicit roots promotion evaluation` | Untouched routines-lifecycle declaration and holdout | The separately frozen declaration passes 11/11 decisions with 8/8 in-scope paths admitted and 4/4 out-of-scope controls unavailable. Complete explicit roots are promotion scope Go. | `docs/rag2_explicit_source_roots_promotion_eval_2026-08-26.md` |
 | 39 | `Backend-neutral storage replay` | Declaration-scoped atomic generation semantics | Initial apply, identical no-op, exact stale replacement, deterministic replay, and attestation/policy/injected-failure rollback pass over composed frozen contracts. Storage semantics are Go; retrieval is not evaluated and production remains No-Go. | `docs/rag2_storage_replay_contract_2026-08-26.md` |
+| 40 | `Attested-text binding` | One bounded read for hash, chunks, and stored content | Discovery chunks and storage objects reuse the attested normalized snapshot. A later file change cannot alter stored chunk text. Reports still omit source text. | `docs/rag2_storage_replay_contract_2026-08-26.md` |
 
 ## Rejected shortcuts
 
@@ -244,8 +245,8 @@ adds one. The source-role coverage replay v2 replaces five focused cases with
 11, and the structural-profile candidate adds five. Project/package static
 analysis remains the required gate. The current complete suite contains 123
 focused RAG2 tests before the promotion slice; the frozen holdout declaration
-and promotion evaluation increase it to 129, and the storage replay increases
-it to 134.
+and promotion evaluation increase it to 129, the storage replay increases it
+to 134, and the attested-text binding increases it to 137.
 
 ## Next entry condition
 
@@ -272,7 +273,11 @@ roots are promotion scope Go. The backend-neutral
 provenance, discovery, and source-scope contracts and passes atomic generation,
 no-op, invalidation, deterministic replay, and rollback gates. Storage semantics
 are Go; retrieval is not evaluated and production remains No-Go. Keep this
-fixture frozen. A later persistence-backend hypothesis must preserve the replay
-contract through migration and reopen testing before SQLite, FTS5, Drift, or
-embeddings are selected. Prompting, routing, tools, model calls, settings, and
-application wiring remain out of scope.
+fixture frozen. Discovery and storage now reuse the attested bounded-read
+snapshot; do not restore a second unfenced file read. A later
+persistence-backend hypothesis must still preserve atomic generation,
+identity, invalidation, rollback, and report privacy through migration and
+reopen testing before SQLite, FTS5, Drift, or embeddings are selected. The
+next hardening slice should encode frozen-declaration acquisition in CI and
+align acquisition/storage declaration identities. Prompting, routing, tools,
+model calls, settings, and application wiring remain out of scope.

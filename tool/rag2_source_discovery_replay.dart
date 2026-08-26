@@ -136,6 +136,7 @@ Future<Rag2SourceDiscoveryResult> discoverRag2SourcesFromInventory({
       repoRelativePath: candidate.path,
       gitEvidence: evidence,
       maxFileBytes: policy.maxFileBytes,
+      retainText: includeChunks,
     );
     if (attestation.decision != 'attested') {
       exclusions.add(
@@ -146,8 +147,17 @@ Future<Rag2SourceDiscoveryResult> discoverRag2SourcesFromInventory({
       );
       continue;
     }
+    if (includeChunks && !attestation.hasBoundText) {
+      exclusions.add(
+        Rag2DiscoveryExclusion(
+          path: candidate.path,
+          reason: 'attested_text_unavailable',
+        ),
+      );
+      continue;
+    }
     final chunks = includeChunks
-        ? _chunkCandidate(candidate.path, await candidate.file.readAsString())
+        ? _chunkCandidate(candidate.path, attestation.attestedText!)
         : const <Rag2CandidateChunk>[];
     sources.add(
       Rag2DiscoveredSource(

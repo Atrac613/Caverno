@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../tool/rag2_provenance_attestation_replay.dart';
@@ -207,6 +208,45 @@ void main() {
     expect(requestedPaths, ['docs/guide.md', 'lib/config.dart']);
     expect(result.candidates, hasLength(2));
   });
+
+  test(
+    'hashes chunks from attested text and omits that text from reports',
+    () async {
+      final output = Directory.systemTemp.createTempSync(
+        'rag2-discovery-bound-',
+      );
+      addTearDown(() => output.deleteSync(recursive: true));
+      final report = await runRag2SourceDiscoveryReplay(
+        Rag2SourceDiscoveryOptions(
+          fixturePath: fixturePath,
+          outDir: output.path,
+        ),
+      );
+
+      for (final source in report.result.candidates) {
+        expect(source.attestation.hasBoundText, isTrue);
+        final lines = source.attestation.attestedText!.split('\n');
+        for (final chunk in source.chunks) {
+          final content = lines
+              .sublist(chunk.lineStart - 1, chunk.lineEnd)
+              .join('\n');
+          expect(
+            sha256.convert(utf8.encode(content)).toString(),
+            chunk.contentHash,
+          );
+        }
+      }
+
+      final jsonReport = File(
+        '${output.path}/rag2_source_discovery_replay.json',
+      ).readAsStringSync();
+      expect(jsonReport, isNot(contains('attestedText')));
+      expect(
+        jsonReport,
+        isNot(contains('Use the local project configuration.')),
+      );
+    },
+  );
 }
 
 const _defaultPolicy = Rag2SourceDiscoveryPolicy(

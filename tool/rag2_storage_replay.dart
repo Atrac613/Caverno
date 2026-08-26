@@ -215,53 +215,10 @@ Future<Rag2KnowledgeSnapshot> prepareRag2StorageSnapshot({
 
   final objects = <Rag2KnowledgeObject>[];
   for (final source in discovery.candidates) {
-    final attestation = source.attestation;
-    final path = attestation.repoRelativePath;
-    final objectId = rag2KnowledgeObjectId(
-      projectId: fixture.projectId,
-      repoRelativePath: path,
-    );
-    final normalizedText = (await File(
-      '$rootPath/$path',
-    ).readAsString()).replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-    final lines = normalizedText.split('\n');
-    final chunks = <Rag2KnowledgeChunk>[
-      for (final candidate in source.chunks)
-        Rag2KnowledgeChunk(
-          chunkId: rag2KnowledgeChunkId(
-            objectId: objectId,
-            locator: candidate.locator,
-            contentHash: candidate.contentHash,
-          ),
-          objectId: objectId,
-          locator: candidate.locator,
-          contentHash: candidate.contentHash,
-          content: lines
-              .sublist(candidate.lineStart - 1, candidate.lineEnd)
-              .join('\n'),
-          passageRole: 'unknown',
-          provenance: Rag2KnowledgeProvenance(
-            projectId: fixture.projectId,
-            repoRelativePath: path,
-            revision: attestation.revision!,
-            objectContentHash: attestation.contentHash!,
-            lineStart: candidate.lineStart,
-            lineEnd: candidate.lineEnd,
-            sourceTrust: attestation.sourceTrust!,
-          ),
-        ),
-    ];
     objects.add(
-      Rag2KnowledgeObject(
-        objectId: objectId,
+      rag2KnowledgeObjectFromDiscoveredSource(
         projectId: fixture.projectId,
-        repoRelativePath: path,
-        sourceKind: source.sourceKind,
-        sourceTrust: attestation.sourceTrust!,
-        revision: attestation.revision!,
-        contentHash: attestation.contentHash!,
-        chunkIds: [for (final chunk in chunks) chunk.chunkId],
-        chunks: chunks,
+        source: source,
       ),
     );
   }
@@ -272,6 +229,59 @@ Future<Rag2KnowledgeSnapshot> prepareRag2StorageSnapshot({
     snapshotId: spec.id,
     snapshotHash: rag2KnowledgeSnapshotHash(objects),
     objects: List.unmodifiable(objects),
+  );
+}
+
+Rag2KnowledgeObject rag2KnowledgeObjectFromDiscoveredSource({
+  required String projectId,
+  required Rag2DiscoveredSource source,
+}) {
+  final attestation = source.attestation;
+  if (!attestation.hasBoundText || source.chunks.isEmpty) {
+    throw const Rag2StoragePreparationException('attested_text_unavailable');
+  }
+  final path = attestation.repoRelativePath;
+  final objectId = rag2KnowledgeObjectId(
+    projectId: projectId,
+    repoRelativePath: path,
+  );
+  final lines = attestation.attestedText!.split('\n');
+  final chunks = <Rag2KnowledgeChunk>[
+    for (final candidate in source.chunks)
+      Rag2KnowledgeChunk(
+        chunkId: rag2KnowledgeChunkId(
+          objectId: objectId,
+          locator: candidate.locator,
+          contentHash: candidate.contentHash,
+        ),
+        objectId: objectId,
+        locator: candidate.locator,
+        contentHash: candidate.contentHash,
+        content: lines
+            .sublist(candidate.lineStart - 1, candidate.lineEnd)
+            .join('\n'),
+        passageRole: 'unknown',
+        provenance: Rag2KnowledgeProvenance(
+          projectId: projectId,
+          repoRelativePath: path,
+          revision: attestation.revision!,
+          objectContentHash: attestation.contentHash!,
+          lineStart: candidate.lineStart,
+          lineEnd: candidate.lineEnd,
+          sourceTrust: attestation.sourceTrust!,
+        ),
+      ),
+  ];
+  return Rag2KnowledgeObject(
+    objectId: objectId,
+    projectId: projectId,
+    repoRelativePath: path,
+    sourceKind: source.sourceKind,
+    sourceTrust: attestation.sourceTrust!,
+    revision: attestation.revision!,
+    contentHash: attestation.contentHash!,
+    chunkIds: [for (final chunk in chunks) chunk.chunkId],
+    chunks: chunks,
   );
 }
 

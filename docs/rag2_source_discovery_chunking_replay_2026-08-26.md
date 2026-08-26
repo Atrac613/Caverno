@@ -23,8 +23,8 @@ raw Git probe evidence keyed by repository-relative path. Discovery then:
    corpus-byte limit is exceeded;
 5. consumes provenance attestation for every remaining file and excludes any
    source whose Git state, containment, encoding, or trust cannot be attested;
-6. creates metadata-only candidate chunks at Markdown heading or top-level Dart
-   symbol boundaries; and
+6. creates metadata-only candidate chunks from that attested text at Markdown
+   heading or top-level Dart symbol boundaries, without a second file read; and
 7. fails closed when a file produces no stable Dart boundary or a duplicate
    semantic locator.
 

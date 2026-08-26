@@ -25,7 +25,8 @@ parallel representations:
   `Rag2KnowledgeReplayDelta.compare`.
 - Source discovery supplies Markdown heading and Dart symbol chunks.
 - Provenance attestation supplies project identity, revision, source trust,
-  content hash, and bounded canonical reads.
+  content hash, and bounded canonical reads. Stored chunk text is taken from
+  that attested snapshot, not from a later unfenced file read.
 - Explicit complete source roots supply validation and complete in-root
   selection with unchanged policy ceilings and instruction-bearing exclusion.
 
@@ -77,7 +78,8 @@ fvm flutter test test/tool/rag2_*_test.dart
 
 ## Next Entry Condition
 
-Keep this contract and fixture frozen. Before selecting a production backend,
-define a separate persistence-backend hypothesis and migration/reopen replay
-that preserves these atomic generation, identity, invalidation, rollback, and
-privacy semantics. Retrieval remains a later independent evaluation.
+Keep this contract and fixture frozen, including the attested-text binding.
+Before selecting a production backend, close remaining backend-neutral gaps:
+declaration-identity alignment with explicit source roots, encoded holdout
+acquisition in CI, and a separate migration/reopen/crash-recovery hypothesis.
+Retrieval remains a later independent evaluation.

@@ -93,6 +93,7 @@ Future<Rag2SourceAttestation> attestRag2ProjectSource({
   required String repoRelativePath,
   required Rag2GitEvidence gitEvidence,
   int maxFileBytes = 1024 * 1024,
+  bool retainText = false,
   ProjectReadPathFence pathFence = const ProjectReadPathFence(),
 }) async {
   if (project.id.trim().isEmpty) {
@@ -140,7 +141,8 @@ Future<Rag2SourceAttestation> attestRag2ProjectSource({
       );
     }
     final text = utf8.decode(bytes, allowMalformed: false);
-    final contentHash = _sha256(_normalizeText(text));
+    final attestedText = _normalizeText(text);
+    final contentHash = _sha256(attestedText);
     final derived = _deriveGitState(
       repoRelativePath: repoRelativePath,
       evidence: gitEvidence,
@@ -171,6 +173,7 @@ Future<Rag2SourceAttestation> attestRag2ProjectSource({
       contentHash: contentHash,
       capabilityClass: capability.capabilityClass.name,
       capabilityRisk: capability.riskTier.name,
+      attestedText: retainText ? attestedText : null,
     );
   } on FormatException {
     return Rag2SourceAttestation.rejected(
@@ -315,6 +318,7 @@ final class Rag2SourceAttestation {
     this.contentHash,
     this.capabilityClass,
     this.capabilityRisk,
+    this.attestedText,
   });
 
   factory Rag2SourceAttestation.attested({
@@ -328,6 +332,7 @@ final class Rag2SourceAttestation {
     required String contentHash,
     required String capabilityClass,
     required String capabilityRisk,
+    String? attestedText,
   }) => Rag2SourceAttestation._(
     caseId: caseId,
     decision: 'attested',
@@ -340,6 +345,7 @@ final class Rag2SourceAttestation {
     contentHash: contentHash,
     capabilityClass: capabilityClass,
     capabilityRisk: capabilityRisk,
+    attestedText: attestedText,
   );
 
   factory Rag2SourceAttestation.rejected({
@@ -365,6 +371,13 @@ final class Rag2SourceAttestation {
   final String? contentHash;
   final String? capabilityClass;
   final String? capabilityRisk;
+  final String? attestedText;
+
+  bool get hasBoundText =>
+      decision == 'attested' &&
+      attestedText != null &&
+      contentHash != null &&
+      contentHash == _sha256(attestedText!);
 
   Map<String, Object?> toJson() => {
     'caseId': caseId,
