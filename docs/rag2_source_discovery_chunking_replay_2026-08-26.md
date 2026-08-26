@@ -81,10 +81,12 @@ The durable inputs are:
 
 ## Next entry condition
 
+The bounded typed Git collector prerequisite is now complete and recorded in
+`docs/rag2_git_evidence_collector_2026-08-26.md`.
+
 Add one opt-in, manifest-only live-shadow adapter for an explicitly selected
-`CodingProject`. It may collect the exact Git evidence required by the frozen
-attestation contract and compare the resulting path/exclusion manifest with
-the fixture policy. It must remain read-only, bounded, off by default, omit
-source text, and write no storage. Require reproducible clean, modified,
-untracked, generated, symlink, and limit evidence before considering an index
-schema.
+`CodingProject`. It must use the typed collector and compare the resulting
+path/exclusion manifest with the fixture policy. It must remain read-only,
+bounded, off by default, omit source text and absolute roots, and write no
+storage. Require reproducible clean, modified, untracked, generated, symlink,
+and limit evidence before considering an index schema.

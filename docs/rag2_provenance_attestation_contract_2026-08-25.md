@@ -106,7 +106,8 @@ Focused temporary-filesystem tests additionally cover:
   capability classifier.
 - Result: reuse the persisted project entity, containment fence, and SEC1
   classification; extract the binary sniff instead of adding a RAG-only copy.
-  The production Git command adapter remains a later implementation boundary.
+  The production Git command adapter remained a later implementation boundary
+  for this fixture contract.
 
 ## Verification
 
@@ -128,6 +129,11 @@ per-file bytes, corpus bytes, symlink rejection, generated-file exclusions,
 Markdown heading boundaries, and Dart symbol boundaries. See
 `docs/rag2_source_discovery_chunking_replay_2026-08-26.md`.
 
+The bounded typed Git collector prerequisite completed later on 2026-08-26. It
+uses exact NUL-delimited probes, requires project-root/repository-root equality,
+and fails closed on command and resource failures. See
+`docs/rag2_git_evidence_collector_2026-08-26.md`.
+
 The next slice may add only an opt-in, manifest-only live shadow for one
-explicitly selected project. Production indexing, FTS5, prompting, routing,
-tools, and model calls remain blocked.
+explicitly selected project through that collector. Production indexing, FTS5,
+prompting, routing, tools, and model calls remain blocked.

@@ -12,6 +12,9 @@ const rag2SourceDiscoveryFixtureSchema =
     'caverno_rag2_source_discovery_fixture';
 const rag2SourceDiscoveryReportSchema = 'caverno_rag2_source_discovery_report';
 
+typedef Rag2GitEvidenceProvider =
+    Future<Rag2GitEvidence> Function(String repoRelativePath);
+
 Future<void> main(List<String> args) async {
   final options = Rag2SourceDiscoveryOptions.parse(args);
   if (options == null) {
@@ -69,6 +72,22 @@ Future<Rag2SourceDiscoveryResult> discoverRag2FixtureSources({
   required CodingProject project,
   required Rag2SourceDiscoveryPolicy policy,
   required Map<String, Rag2GitEvidence> gitEvidenceByPath,
+}) => discoverRag2Sources(
+  project: project,
+  policy: policy,
+  gitEvidenceProvider: (path) async =>
+      gitEvidenceByPath[path] ??
+      const Rag2GitEvidence(
+        available: false,
+        lsFilesExitCode: 127,
+        statusPorcelain: '',
+      ),
+);
+
+Future<Rag2SourceDiscoveryResult> discoverRag2Sources({
+  required CodingProject project,
+  required Rag2SourceDiscoveryPolicy policy,
+  required Rag2GitEvidenceProvider gitEvidenceProvider,
 }) async {
   final root = Directory(project.normalizedRootPath);
   final candidates = <({String path, File file, int bytes})>[];
@@ -102,18 +121,12 @@ Future<Rag2SourceDiscoveryResult> discoverRag2FixtureSources({
 
   final sources = <Rag2DiscoveredSource>[];
   for (final candidate in candidates) {
-    final evidence = gitEvidenceByPath[candidate.path];
+    final evidence = await gitEvidenceProvider(candidate.path);
     final attestation = await attestRag2ProjectSource(
       caseId: candidate.path,
       project: project,
       repoRelativePath: candidate.path,
-      gitEvidence:
-          evidence ??
-          const Rag2GitEvidence(
-            available: false,
-            lsFilesExitCode: 127,
-            statusPorcelain: '',
-          ),
+      gitEvidence: evidence,
       maxFileBytes: policy.maxFileBytes,
     );
     if (attestation.decision != 'attested') {

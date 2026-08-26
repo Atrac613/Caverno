@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This document is the durable index for the ongoing RAG2 investigation on
-`feature/rag2-lexical-policy-spike`. Update it in every investigation slice. It
-preserves the sequence of experiments,
+This document is the durable index for the ongoing RAG2 investigation across
+`main` and its focused follow-up branches. Update it in every investigation
+slice. It preserves the sequence of experiments,
 decisions, rejected approaches, frozen evidence, and next entry condition when
 the branch is squash-merged.
 
@@ -63,6 +63,15 @@ boundaries, and duplicate semantic locators fail closed. Reports contain only
 metadata and hashes. The offline discovery contract is Go; no active workspace
 is enumerated, storage is not evaluated, and production remains No-Go.
 
+`rag2-git-evidence-collector-contract-v1` closes the execution-boundary gap
+found before live shadowing. Exact, shell-free, NUL-delimited Git probes run
+under timeout and output limits, require the selected project root to equal the
+repository root, and produce typed clean-tracked / modified-tracked / untracked
+states. Command failure, malformed or inconsistent output, subdirectory roots,
+and resource overflow fail closed. The discovery evaluator now resolves
+evidence lazily through a provider while preserving frozen fixture output. No
+live manifest or app path exists yet; storage and production remain No-Go.
+
 ## Investigation sequence
 
 | Step | Pre-squash commit | Experiment | Result and durable decision | Evidence |
@@ -91,6 +100,7 @@ is enumerated, storage is not evaluated, and production remains No-Go.
 | 22 | `Knowledge Object audit slice` | Identity, invalidation, lifecycle, and report-safety audit | V2 corrects ordinal identity, provenance-only updates, object add/remove accounting, and raw report leakage. The offline contract is Go; discovery, storage, and production remain deferred/No-Go. | `docs/rag2_knowledge_object_contract_audit_2026-08-25.md` |
 | 23 | `Provenance attestation slice` | Project, root, revision, trust, and read-capability attestation | Persisted project identity survives a root move; clean/modified/untracked Git states derive exact revisions and trust; unavailable Git, symlink escape, binary, and oversized inputs fail closed. Source discovery remains absent. | `docs/rag2_provenance_attestation_contract_2026-08-25.md` |
 | 24 | `Source discovery slice` | Fixture-root source discovery and candidate chunking | Two attested sources produce five deterministic Markdown/Dart chunks under file and corpus limits. Generated content, unsupported extensions, symlinks, missing evidence, and ambiguous locators fail closed. Production discovery and storage remain absent. | `docs/rag2_source_discovery_chunking_replay_2026-08-26.md` |
+| 25 | `Git evidence collector slice` | Bounded Git execution and typed evidence collection | Exact NUL-delimited probes classify clean, modified, untracked, Unicode, space-bearing, and renamed paths. Root mismatch, timeout, output overflow, invalid paths, and ambiguous output fail closed. Discovery gains a lazy provider boundary; no live manifest is connected. | `docs/rag2_git_evidence_collector_2026-08-26.md` |
 
 ## Rejected shortcuts
 
@@ -107,6 +117,11 @@ is enumerated, storage is not evaluated, and production remains No-Go.
 - Do not treat the fixture-root discovery pass as authorization to enumerate an
   active project, execute Git in production, persist chunks, or inject retrieved
   content. Its evidence proves only the bounded offline acquisition contract.
+- Do not reuse `GitChangedPathsService` as RAG2 evidence. Its fail-open empty
+  result is correct for its current caller but cannot prove a clean repository.
+- Do not treat the standalone Git collector as authorization to enumerate a
+  project. Project selection and manifest-only report safety remain a separate
+  live-shadow gate.
 
 ## Durable artifacts
 
@@ -144,20 +159,25 @@ sequence and reproduction inputs do not rely on its individual commits.
 
 ## Verification baseline
 
-The final branch state passed static analysis, package tests, 70 focused RAG2
-tests, and 10 notification-relay tests through `tool/codex_verify.sh`. Future
-changes should run the RAG2 tests listed under `test/tool/` through the same
-entrypoint and must not rewrite the frozen fixture versions.
+The squash-merged baseline passed static analysis, package tests, 70 focused
+RAG2 tests, and 10 notification-relay tests through `tool/codex_verify.sh`. The
+Git collector slice adds seven focused cases. Future changes should run the RAG2
+tests listed under `test/tool/` through the same entrypoint and must not rewrite
+the frozen fixture versions. The resulting 77-test RAG2 suite and project/package
+static analysis pass on the collector branch.
 
 ## Next entry condition
 
 Freeze the extraction suites, `rag2-passage-role-oracle-v1`, corrected
 `rag2-knowledge-object-contract-v2`, and
 `rag2-provenance-attestation-contract-v1`, and
-`rag2-source-discovery-contract-v1`; retain withdrawn versions only as history.
+`rag2-source-discovery-contract-v1`, and
+`rag2-git-evidence-collector-contract-v1`; retain withdrawn versions only as
+history.
 The next slice may add one opt-in, manifest-only live-shadow adapter for an
 explicitly selected `CodingProject`. It must collect the frozen attestation's
-Git evidence read-only, remain bounded and off by default, omit source text,
-write no storage, and prove clean, modified, untracked, generated, symlink, and
-limit behavior before any index schema is considered. Do not add FTS5,
-embeddings, prompting, routing, tools, or model calls.
+Git evidence through the typed collector, remain bounded and off by default,
+omit source text and absolute roots, write no storage, and prove clean,
+modified, untracked, generated, symlink, and limit behavior before any index
+schema is considered. Do not add FTS5, embeddings, prompting, routing, tools,
+or model calls.

@@ -181,6 +181,32 @@ void main() {
       throwsA(isA<FormatException>()),
     );
   });
+
+  test('resolves Git evidence lazily through the project provider', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'rag2-discovery-provider-',
+    );
+    addTearDown(() => root.deleteSync(recursive: true));
+    Directory('${root.path}/docs').createSync();
+    Directory('${root.path}/lib').createSync();
+    File('${root.path}/docs/guide.md').writeAsStringSync('# Guide\n');
+    File(
+      '${root.path}/lib/config.dart',
+    ).writeAsStringSync("const endpoint = 'local';\n");
+    final requestedPaths = <String>[];
+
+    final result = await discoverRag2Sources(
+      project: _project(root),
+      policy: _defaultPolicy,
+      gitEvidenceProvider: (path) async {
+        requestedPaths.add(path);
+        return _trackedEvidence;
+      },
+    );
+
+    expect(requestedPaths, ['docs/guide.md', 'lib/config.dart']);
+    expect(result.candidates, hasLength(2));
+  });
 }
 
 const _defaultPolicy = Rag2SourceDiscoveryPolicy(
@@ -201,13 +227,15 @@ Future<Rag2SourceDiscoveryResult> _discover(
   Rag2SourceDiscoveryPolicy policy, {
   Map<String, Rag2GitEvidence> evidenceByPath = const {},
 }) => discoverRag2FixtureSources(
-  project: CodingProject(
-    id: 'test-project',
-    name: 'Test project',
-    rootPath: root.path,
-    createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-    updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-  ),
+  project: _project(root),
   policy: policy,
   gitEvidenceByPath: evidenceByPath,
+);
+
+CodingProject _project(Directory root) => CodingProject(
+  id: 'test-project',
+  name: 'Test project',
+  rootPath: root.path,
+  createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+  updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
 );

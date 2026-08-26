@@ -215,6 +215,35 @@ _deriveGitState({
   required String contentHash,
 }) {
   if (!evidence.available) return null;
+  switch (evidence.collectedState) {
+    case Rag2CollectedGitState.cleanTracked:
+      final blob = evidence.headBlobRevision?.trim() ?? '';
+      if (evidence.lsFilesExitCode != 0 || blob.isEmpty) return null;
+      return (
+        sourceTrust: 'workspace_tracked',
+        worktreeState: 'clean',
+        revisionKind: 'git_blob',
+        revision: 'git_blob:$blob',
+      );
+    case Rag2CollectedGitState.modifiedTracked:
+      if (evidence.lsFilesExitCode != 0) return null;
+      return (
+        sourceTrust: 'workspace_tracked',
+        worktreeState: 'modified',
+        revisionKind: 'working_tree_content',
+        revision: 'working_tree_sha256:$contentHash',
+      );
+    case Rag2CollectedGitState.untracked:
+      if (evidence.lsFilesExitCode != 1) return null;
+      return (
+        sourceTrust: 'workspace_untracked',
+        worktreeState: 'untracked',
+        revisionKind: 'working_tree_content',
+        revision: 'working_tree_sha256:$contentHash',
+      );
+    case null:
+      break;
+  }
   final status = evidence.statusPorcelain.trimRight();
   if (evidence.lsFilesExitCode == 0) {
     if (status.isEmpty) {
@@ -360,12 +389,14 @@ final class Rag2GitEvidence {
     required this.lsFilesExitCode,
     required this.statusPorcelain,
     this.headBlobRevision,
+    this.collectedState,
   });
 
   final bool available;
   final int lsFilesExitCode;
   final String statusPorcelain;
   final String? headBlobRevision;
+  final Rag2CollectedGitState? collectedState;
 
   factory Rag2GitEvidence.fromJson(Map<String, Object?> json) =>
       Rag2GitEvidence(
@@ -375,6 +406,8 @@ final class Rag2GitEvidence {
         headBlobRevision: json['headBlobRevision'] as String?,
       );
 }
+
+enum Rag2CollectedGitState { cleanTracked, modifiedTracked, untracked }
 
 final class Rag2ProvenanceCaseSpec {
   const Rag2ProvenanceCaseSpec({

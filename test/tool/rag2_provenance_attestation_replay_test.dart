@@ -188,10 +188,23 @@ void main() {
           headBlobRevision: '1111111111111111111111111111111111111111',
         ),
       );
+      final inconsistentTypedState = await attestRag2ProjectSource(
+        caseId: 'inconsistent-typed-state',
+        project: _project(directory.path),
+        repoRelativePath: 'source.md',
+        gitEvidence: const Rag2GitEvidence(
+          available: true,
+          lsFilesExitCode: 1,
+          statusPorcelain: '',
+          headBlobRevision: '1111111111111111111111111111111111111111',
+          collectedState: Rag2CollectedGitState.cleanTracked,
+        ),
+      );
 
       expect(ambiguous.reason, 'git_state_ambiguous');
       expect(missingProject.reason, 'project_identity_unavailable');
       expect(mismatchedStatus.reason, 'git_state_ambiguous');
+      expect(inconsistentTypedState.reason, 'git_state_ambiguous');
     },
   );
 }
