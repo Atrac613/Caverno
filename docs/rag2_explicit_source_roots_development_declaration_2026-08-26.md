@@ -1,7 +1,7 @@
 # RAG2 Explicit Source Roots Development Declaration
 
 Date: 2026-08-26
-Status: declaration frozen; evaluation questions not created
+Status: development evaluation Go; declaration remains frozen
 Declaration: `caverno-chat-memory-persistence-development-v1`
 Contract: `rag2-explicit-complete-source-roots-v1`
 
@@ -24,6 +24,9 @@ The machine-readable declaration is frozen in
 `tool/fixtures/rag2_explicit_source_roots_development_v1/declaration.json`.
 Its declaration identity is
 `declaration_242f507db96fd65363985db1ec4f1b4978bfa33e5263a65dce1ee64bad916c30`.
+Its `questions_not_created` state is retained as sequencing evidence; the
+subsequent evaluation fixture is stored separately and does not mutate this
+declaration snapshot.
 
 ## Selection Basis
 
@@ -85,13 +88,12 @@ Storage, retrieval, application wiring, and production remain No-Go.
 The declaration has two focused tests for its immutable roots, default policy,
 identity, absence of evaluation content, normalization, uniqueness, and overlap
 rules. The repository verifier passes project and package analysis, three
-package test suites, 29 focused acquisition tests, and 10 notification-relay
-tests. The complete RAG2 suite passes all 119 tests.
+package test suites, 33 focused acquisition tests, and 10 notification-relay
+tests. The complete RAG2 suite passes all 123 tests.
 
 ## Next Entry Condition
 
-Create a new development fixture after this declaration commit. Include both
-in-scope questions and deliberately out-of-scope controls. Require every
-in-scope evidence path to fall below a declared root, every undeclared evidence
-path to remain excluded, and every out-of-scope control to resolve explicitly
-to `not_available`. Do not reuse or inspect prior fixture questions.
+The development fixture now passes all scope gates. See
+`docs/rag2_explicit_source_roots_development_eval_2026-08-26.md`. Freeze a
+separate task context and declaration before creating an untouched promotion
+holdout. Do not modify or reuse this development fixture for promotion.

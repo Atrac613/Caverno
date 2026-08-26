@@ -1,7 +1,7 @@
 # RAG2 Explicit Source Roots Hypothesis
 
 Date: 2026-08-26
-Status: development declaration frozen; evaluation questions not created
+Status: development Go; promotion holdout not frozen
 Hypothesis: `rag2-explicit-complete-source-roots-v1`
 
 ## Decision
@@ -109,10 +109,11 @@ as promotion evidence:
    `docs/rag2_explicit_source_roots_development_declaration_2026-08-26.md`.
 4. Create a new question set containing both in-scope and deliberately
    out-of-scope controls. Do not reuse either active-project source-role
-   fixture.
+   fixture. **Complete.**
 5. Require 100% inclusion of required in-scope evidence, 100% exclusion of
    undeclared evidence, and explicit `not_available` treatment for every
-   out-of-scope control.
+   out-of-scope control. **Complete: 12/12 included, 4/4 excluded, and 4/4
+   `not_available`.**
 6. Only after that development result, freeze a separate untouched declaration
    and holdout for a promotion decision.
 
@@ -135,16 +136,16 @@ citation quality. Those remain separate later gates.
 
 ## Next Entry Condition
 
-Create a new development set for the frozen chat memory and conversation
-persistence declaration. Include both in-scope and out-of-scope controls, keep
-the five roots unchanged, and do not reuse any prior source-role or structural-
-profile fixture question. Do not use development results for promotion; a
-separate declaration and untouched holdout remain required.
+Freeze a separate realistic task context and source-root declaration before
+creating or inspecting its questions. Then run the unchanged evaluator once on
+a new untouched holdout with both in-scope and out-of-scope controls. Do not
+tune the roots or evaluator from holdout results.
 
 ## Verification
 
 ```bash
 tool/codex_verify.sh --no-codegen \
+  --test test/tool/rag2_explicit_source_roots_development_eval_test.dart \
   --test test/tool/rag2_explicit_source_roots_declaration_test.dart \
   --test test/tool/rag2_explicit_source_roots_replay_test.dart \
   --test test/tool/rag2_source_manifest_shadow_test.dart \
@@ -154,7 +155,7 @@ tool/codex_verify.sh --no-codegen \
 fvm flutter test test/tool/rag2_*_test.dart
 ```
 
-The two declaration-freeze and nine explicit-root cases pass. The repository
-verifier passes project and package analysis, three package test suites, all 29
-focused acquisition tests, and 10 notification-relay tests. All 119 focused
-RAG2 tests pass.
+The four development-evaluation, two declaration-freeze, and nine explicit-root
+cases pass. The repository verifier passes project and package analysis, three
+package test suites, all 33 focused acquisition tests, and 10 notification-
+relay tests. All 123 focused RAG2 tests pass.

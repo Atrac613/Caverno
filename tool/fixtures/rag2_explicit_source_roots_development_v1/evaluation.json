@@ -1,0 +1,104 @@
+{
+  "schemaName": "caverno_rag2_explicit_source_roots_development_fixture",
+  "schemaVersion": 1,
+  "fixtureId": "caverno-chat-memory-persistence-development-eval-v1",
+  "declarationId": "caverno-chat-memory-persistence-development-v1",
+  "declarationIdentity": "declaration_242f507db96fd65363985db1ec4f1b4978bfa33e5263a65dce1ee64bad916c30",
+  "frozenAt": "2026-08-26",
+  "priorFixtureUse": "forbidden",
+  "cases": [
+    {
+      "id": "memory-profile-representation",
+      "question": "How are durable memory entries, session summaries, and user profile fields represented and serialized?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/chat/domain/entities/session_memory.dart"
+      ]
+    },
+    {
+      "id": "memory-prompt-context-gating",
+      "question": "When does session memory add historical summaries and retrieved memories to prompt context?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/chat/domain/services/session_memory_service.dart"
+      ]
+    },
+    {
+      "id": "memory-secondary-extraction-fallback",
+      "question": "How does optional LLM memory extraction build its request and fall back when disabled or unsuccessful?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/chat/domain/services/memory_extraction_coordinator.dart",
+        "lib/features/chat/domain/services/memory_extraction_draft_service.dart"
+      ]
+    },
+    {
+      "id": "memory-atomic-persistence",
+      "question": "How are chat-memory mutations refreshed and serialized across Caverno frontends?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/chat/data/repositories/chat_memory_repository.dart",
+        "lib/features/chat/application/persistence/caverno_chat_memory_mutation_coordinator.dart"
+      ]
+    },
+    {
+      "id": "conversation-cache-write-through",
+      "question": "How does the drift-backed conversation repository preserve synchronous reads while writing through asynchronously?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/chat/data/repositories/conversation_repository_api.dart",
+        "lib/features/chat/data/repositories/cached_drift_conversation_repository.dart"
+      ]
+    },
+    {
+      "id": "conversation-semantic-index-sync",
+      "question": "When does conversation semantic indexing skip, retry, replace, or delete index entries?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/chat/presentation/providers/conversation_semantic_index_sync.dart",
+        "lib/features/chat/data/repositories/semantic_indexing_service.dart"
+      ]
+    },
+    {
+      "id": "legacy-persistence-migration",
+      "question": "How do conversation and chat-memory migrations avoid repeated imports and stale legacy overwrites?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/chat/data/repositories/conversation_migration_service.dart",
+        "lib/features/chat/data/repositories/chat_memory_migration_service.dart"
+      ]
+    },
+    {
+      "id": "remote-chat-transport-control",
+      "question": "How does the remote chat transport stream responses and retry without reasoning fields?",
+      "expectedDecision": "not_available",
+      "requiredEvidencePaths": [
+        "lib/features/chat/data/datasources/chat_remote_datasource.dart"
+      ]
+    },
+    {
+      "id": "conversation-drawer-control",
+      "question": "How does the conversation drawer confirm and execute scoped conversation deletion?",
+      "expectedDecision": "not_available",
+      "requiredEvidencePaths": [
+        "lib/features/chat/presentation/widgets/conversation_drawer.dart"
+      ]
+    },
+    {
+      "id": "routine-execution-control",
+      "question": "How does routine execution run prompts and record the resulting run state?",
+      "expectedDecision": "not_available",
+      "requiredEvidencePaths": [
+        "lib/features/routines/data/routine_execution_service.dart"
+      ]
+    },
+    {
+      "id": "macos-permissions-control",
+      "question": "How does the macOS main-app permissions service inspect and request system permissions?",
+      "expectedDecision": "not_available",
+      "requiredEvidencePaths": [
+        "lib/core/services/macos_main_app_permissions_service.dart"
+      ]
+    }
+  ]
+}
