@@ -295,6 +295,61 @@ void main() {
     );
   });
 
+  test('loads the untouched structural-profile holdout fixture', () async {
+    final fixture = await Rag2SourceRoleCoverageFixture.load(
+      File('tool/fixtures/rag2_structural_profile_holdout/fixture.json'),
+    );
+    const developmentEvidencePaths = {
+      'lib/core/constants/api_constants.dart',
+      'lib/features/terminal/application/caverno_cli_session_logging.dart',
+      'docs/session_logs.md',
+      'docs/live_llm_canary_agent_runbook.md',
+      'test/features/chat/data/datasources/project_read_path_fence_test.dart',
+      'test/tool/live_llm_loopback_relay_test.dart',
+      'tool/rag2_source_scope_measurement.dart',
+      'README.md',
+    };
+    final questionsByRole = <String, int>{};
+    final holdoutEvidencePaths = <String>{};
+
+    for (final question in fixture.questions) {
+      questionsByRole.update(
+        question.expectedSourceRole,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
+      for (final source in question.evidenceSources) {
+        holdoutEvidencePaths.add(source.evidencePath);
+        expect(
+          rag2SourceRoleForPath(source.evidencePath),
+          question.expectedSourceRole,
+        );
+        final content = File(source.evidencePath).readAsStringSync();
+        for (final marker in source.requiredMarkers) {
+          expect(content, contains(marker));
+        }
+      }
+    }
+
+    expect(
+      fixture.fixtureId,
+      'caverno-active-project-structural-profile-holdout-v1',
+    );
+    expect(fixture.questions, hasLength(8));
+    expect(questionsByRole, {
+      'runtime_source': 2,
+      'documentation': 2,
+      'tests': 2,
+      'tooling': 1,
+      'root_sources': 1,
+    });
+    expect(holdoutEvidencePaths, hasLength(8));
+    expect(
+      holdoutEvidencePaths.intersection(developmentEvidencePaths),
+      isEmpty,
+    );
+  });
+
   test('requires explicit replay inputs and bounded file size', () {
     expect(
       Rag2SourceRoleCoverageOptions.parse([
