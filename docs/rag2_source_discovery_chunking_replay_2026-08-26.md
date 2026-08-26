@@ -88,6 +88,7 @@ The subsequent opt-in manifest-only adapter is complete and recorded in
 `docs/rag2_source_manifest_shadow_2026-08-26.md`. Its source-scope measurement
 is also complete and recorded in
 `docs/rag2_source_scope_measurement_2026-08-26.md`. No broad profile satisfies
-both the current file limits and source-role coverage. Prove bounded batch Git
-inventory parity next; do not raise the cap or consider an index schema from
-the aggregate counts alone.
+both the current file limits and source-role coverage. Bounded batch Git
+inventory parity is now complete. Integrate that inventory into the opt-in
+manifest shadow next; do not raise the cap or consider an index schema from the
+aggregate counts alone.

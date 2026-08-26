@@ -118,7 +118,9 @@ The metadata-only source-scope entry condition is now satisfied by
 the default file ceiling, while the profile that also retains tests exceeds the
 hard ceiling. No scope or revised limit is selected.
 
-The next entry condition is the bounded batch Git inventory parity replay in
-`docs/rag2_source_scope_measurement_2026-08-26.md`. It must reduce the
-per-path process cost without changing this manifest contract, limits, source
-selection, storage, retrieval, or production decisions.
+The bounded batch Git inventory parity replay is complete and recorded in
+`docs/rag2_batch_git_inventory_replay_2026-08-26.md`. The next slice may replace
+this shadow's per-path provider with the three-command inventory while
+preserving the manifest schema, limits, source/exclusion decisions, and zero-Git
+limit failure. It must not select a Caverno scope, raise limits, add storage,
+add retrieval, or change production decisions.

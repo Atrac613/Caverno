@@ -111,18 +111,16 @@ Freeze the measurement schema, explicit opt-in, aggregate-only output, shared
 inventory walk, source-role definitions, and the current scope-selection No-Go.
 Do not choose a static allowlist or raise either file ceiling from these counts.
 
-The next slice must create one bounded batch Git inventory replay and prove
-state and revision parity with `rag2-git-evidence-collector-contract-v1` on
-clean tracked, modified tracked, untracked, staged, renamed, unusual-name,
-timeout, output-overflow, and repository-root mismatch cases. It may use a
-fixed number of NUL-delimited repository-wide Git commands and intersect their
-results with the already-bounded source inventory. It must fail closed on
-ambiguous or missing evidence and report command counts without stdout, stderr,
-absolute roots, or source text.
+The bounded batch Git inventory entry condition is now satisfied by
+`rag2-batch-git-inventory-contract-v1`. Synthetic real-repository parity holds
+the process count at three while preserving clean, modified, untracked, staged,
+renamed, and unusual-name semantics. The contract and evidence are recorded in
+`docs/rag2_batch_git_inventory_replay_2026-08-26.md`.
 
-That replay is a process-cost prerequisite only. It must not change manifest
-limits, select a source profile, add storage, add retrieval, or enter an
-application path.
+The next slice may integrate the batch inventory into the opt-in manifest
+shadow while preserving its schema, limits, decisions, and zero-Git limit
+failure. It must not change manifest limits, select a source profile, add
+storage, add retrieval, or enter an application path.
 
 ## Verification
 

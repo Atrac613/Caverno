@@ -110,5 +110,7 @@ fails closed on file count before Git collection. The subsequent source-scope
 measurement is complete and recorded in
 `docs/rag2_source_scope_measurement_2026-08-26.md`. It selects no scope and
 shows that the per-path collector remains too expensive for every broad source
-profile. The next slice must prove a bounded batch Git inventory with semantic
-parity. No retrieval or model-facing path is authorized.
+profile. The subsequent three-command batch inventory parity replay is complete
+and recorded in `docs/rag2_batch_git_inventory_replay_2026-08-26.md`. The next
+slice may integrate it into the opt-in manifest shadow without changing the
+frozen per-path collector. No retrieval or model-facing path is authorized.
