@@ -8,11 +8,24 @@ import 'ask_user_question_turn_cache.dart';
 import 'tool_call_execution_policy.dart';
 // ChatNotifier decomposition collaborator: production-release-approval-policy
 /// Directs a blocked release through recorded approval UI.
-const String productionReleaseApprovalRequiredAction =
-    'Call ask_user_question with an option whose label explicitly approves '
-    'running this production release command, then retry only after the user '
-    'selects it. Do not offer the choice as plain text: a bare "1" or "yes" '
-    'reply to a prose list is not recorded as release approval.';
+///
+/// The instruction names a token because the harness must not decide approval
+/// by reading words. Every wording-based verdict is bound to the languages
+/// somebody enumerated: the predicates below read "never release this" and
+/// "nao execute o release" as approvals, and refuse genuine approvals in
+/// German and Chinese. A token the harness issued and can compare by equality
+/// is language-independent, and the model stays free to write the human half
+/// of the label in whatever language the user speaks.
+String productionReleaseApprovalRequiredActionFor(String approvalToken) =>
+    'Call ask_user_question with exactly one option whose label contains the '
+    'approval token $approvalToken, and no other option carrying that token. '
+    'Write the rest of that label, and the question, in the language the user '
+    'is speaking. Retry the release only after the user selects that option. '
+    'A plain-text reply is not recorded as release approval, and neither is a '
+    'free-text answer -- the user has to select the token-bearing option.';
+
+/// Length of an issued approval token, in hex characters.
+const int productionReleaseApprovalTokenLength = 16;
 
 final class ProductionReleasePrecedingMessage {
   const ProductionReleasePrecedingMessage({
@@ -88,17 +101,29 @@ final class ProductionReleaseApprovalPolicy {
     );
   }
 
+  /// Evidence for one owner, decided by [approvalToken] alone.
+  ///
+  /// `directlyApproved` is deliberately always false: approving a production
+  /// release from the words of a chat message is what this milestone removes.
+  /// The captured prose proof is still computed by the caller, but only so a
+  /// divergence can be recorded -- never to grant.
   ProductionReleaseApprovalEvidence evidenceFor({
     required ChatTurnOwner owner,
     required ProductionReleaseApprovalProof? capturedProof,
     required AskUserQuestionTurnCache questionResults,
+    required String approvalToken,
   }) {
-    final directlyApproved =
-        capturedProof?.owner == owner && capturedProof?.approved == true;
     return ProductionReleaseApprovalEvidence(
       owner: owner,
-      directlyApproved: directlyApproved,
-      questionApproved: questionResults.anyResult(owner, answerApproves),
+      directlyApproved: false,
+      questionApproved: questionResults.anyEntry(
+        owner,
+        (offeredOptionLabels, result) => answerApprovesToken(
+          offeredOptionLabels: offeredOptionLabels,
+          answerResult: result,
+          token: approvalToken,
+        ),
+      ),
     );
   }
 
@@ -107,12 +132,14 @@ final class ProductionReleaseApprovalPolicy {
     required ToolCallInfo toolCall,
     required ProductionReleaseApprovalProof? capturedProof,
     required AskUserQuestionTurnCache questionResults,
+    required String approvalToken,
     String? currentAssistantContent,
   }) {
     final evidence = evidenceFor(
       owner: owner,
       capturedProof: capturedProof,
       questionResults: questionResults,
+      approvalToken: approvalToken,
     );
     return ProductionReleaseApprovalDecision(
       evidence: evidence,
@@ -121,6 +148,7 @@ final class ProductionReleaseApprovalPolicy {
         owner: owner,
         currentAssistantContent: currentAssistantContent,
         approvalEvidence: evidence,
+        approvalToken: approvalToken,
       ),
     );
   }
@@ -130,6 +158,7 @@ final class ProductionReleaseApprovalPolicy {
     required ChatTurnOwner owner,
     required String? currentAssistantContent,
     required ProductionReleaseApprovalEvidence approvalEvidence,
+    required String approvalToken,
   }) {
     final ownerApproved =
         approvalEvidence.owner == owner && approvalEvidence.approved;
@@ -150,7 +179,9 @@ final class ProductionReleaseApprovalPolicy {
       'command': command,
       if (assistantIntent.isNotEmpty)
         'assistant_intent': _clipForDiagnostic(assistantIntent),
-      'required_action': productionReleaseApprovalRequiredAction,
+      'required_action': productionReleaseApprovalRequiredActionFor(
+        approvalToken,
+      ),
     });
     return McpToolResult(
       toolName: toolCall.name,
@@ -195,6 +226,53 @@ final class ProductionReleaseApprovalPolicy {
     });
   }
 
+  /// Whether one recorded answer approves the release identified by [token].
+  ///
+  /// Reads no natural language. The verdict is: the harness issued this token,
+  /// exactly one of the options actually offered carried it, and the user
+  /// selected an option carrying it.
+  ///
+  /// The "exactly one offered" clause is the part that matters. The model sees
+  /// the token in the blocked-release result, so nothing stops it from
+  /// attaching the token to both the approving and the declining option -- at
+  /// which point a decline would be reported as a selection carrying the
+  /// token. Requiring the token to identify a single option makes that
+  /// ambiguity a refusal rather than an approval.
+  ///
+  /// Free text does not approve. `other` is what the user typed rather than
+  /// what they picked, so honouring it would put a wording verdict back in the
+  /// path through the side door.
+  bool answerApprovesToken({
+    required Set<String> offeredOptionLabels,
+    required McpToolResult answerResult,
+    required String token,
+  }) {
+    final normalizedToken = token.trim().toLowerCase();
+    if (normalizedToken.isEmpty) return false;
+    if (!answerResult.isSuccess) return false;
+    final decoded = _decodeJsonObject(answerResult.result);
+    if (decoded == null || decoded['status'] != 'answered') return false;
+
+    final carryingOffered = offeredOptionLabels.where(
+      (label) => label.toLowerCase().contains(normalizedToken),
+    );
+    if (carryingOffered.length != 1) return false;
+
+    final selected = decoded['selected'];
+    if (selected is! List) return false;
+    for (final option in selected) {
+      final label = option is Map ? option['label'] : option;
+      if (label is String &&
+          label.toLowerCase().contains(normalizedToken)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Legacy wording-based verdict, kept for shadow comparison only.
+  ///
+  /// Do not grant approval from this. See [answerApprovesToken].
   bool answerApproves(McpToolResult answerResult) {
     if (!answerResult.isSuccess) return false;
     final decoded = _decodeJsonObject(answerResult.result);

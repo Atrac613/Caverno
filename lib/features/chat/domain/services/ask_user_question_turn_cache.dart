@@ -51,6 +51,24 @@ final class AskUserQuestionTurnCache {
     );
   }
 
+  /// Evaluates [predicate] against each stored answer together with the
+  /// options that were actually offered alongside it.
+  ///
+  /// A verdict that must not be spoofable by the wording of one option needs
+  /// the whole offered set: an answer reporting only what the user picked
+  /// cannot show that the same marker was also attached to the option they
+  /// were declining.
+  bool anyEntry(
+    ChatTurnOwner owner,
+    bool Function(Set<String> offeredOptionLabels, McpToolResult result)
+    predicate,
+  ) {
+    final entries = _entriesByOwner[owner];
+    return entries != null &&
+        entries.isNotEmpty &&
+        entries.any((entry) => predicate(entry.optionLabels, entry.result));
+  }
+
   bool anyResult(
     ChatTurnOwner owner,
     bool Function(McpToolResult result) predicate,

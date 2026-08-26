@@ -1,6 +1,6 @@
 # Text Heuristic Inventory and Removal Plan
 
-**Status:** inventory complete, no removal work started (2026-08-26)
+**Status:** inventory complete; HEU1 landed, prose predicates in shadow (2026-08-26)
 
 Caverno decides a great deal by pattern-matching prose. Every such decision is
 bound to the languages whose vocabulary someone happened to enumerate — today
@@ -52,16 +52,26 @@ direction. The denial list carries `no`, `don't`, `do not` — not `didn't`,
 `never`, `não`, `nein`. A Portuguese denial reaches `explicit == true`, which
 approves with no preceding prompt required.
 
-**The correct mechanism already exists in the same coordinator.**
-`ProductionReleaseApprovalCoordinator.evidenceFor` computes
-`directlyApproved || questionApproved`, where `questionApproved` comes from
-`ask_user_question` results through `_policy.answerApproves` — a structured
-answer to a structured question, with no prose parsing. The prose path is a
-parallel grant that can approve on its own.
+**Correction (2026-08-26).** An earlier revision of this document claimed the
+structured `ask_user_question` path was free of prose parsing and that the fix
+was a wiring change. That was wrong. `answerApproves` took the structured
+result and then ran the *same* broken predicates over the answer text, and
+`productionReleaseApprovalRequiredAction` instructed the model to "call
+ask_user_question with an option whose label explicitly approves" — so the
+model authored both question and option labels in whatever language, and the
+harness tried to interpret them. The path was structured in transport only.
 
-**Action:** make the structured path the only path that grants approval. Demote
-the prose predicates to shadow logging so any divergence is recorded before
-they are deleted.
+**Resolved by the token design.** The harness now issues a per-release token,
+tells the model to put it on exactly one option, and decides approval by
+comparing that token — never by reading words. The "exactly one offered option
+carries it" clause matters: the model can see the token, so nothing stops it
+attaching the token to the declining option as well, at which point a decline
+would report a selection carrying the token. An ambiguous token identifies no
+option and approves nothing. Free text carrying the token does not approve
+either: typing it is not selecting the option that bears it.
+
+The wording predicates remain, computing `proseWouldApprove` for shadow
+comparison only. Divergence is logged at the tool-loop call site.
 
 ### A2. `git_write_confirmation_policy.dart` (3 predicates)
 
@@ -208,8 +218,26 @@ the six strings this inventory proved wrong. The table asserts the *coordinator
 verdict*, not the individual predicates, so a later vocabulary edit cannot
 reintroduce a false approval unnoticed.
 
-**Next action.** Route approval through `ask_user_question` only; demote prose
-to shadow.
+**Landed.** Two consequences worth knowing, both surfaced by the change rather
+than designed in:
+
+- **Asking for a release used to approve it.** `looksLikeExplicitProduction
+  ReleaseApproval` matches `^\s*(release|ship)\b`, so the message "Release the
+  app" granted approval for the release it was requesting. Nine background
+  process tests passed only because of this, using a release script as their
+  long-running command; they now use a non-release command, which is what they
+  meant.
+- **Approval is now cross-turn by construction.** The token exists only once a
+  release has been blocked, so the flow is attempt, refusal carrying the token,
+  ask, answer, retry. `BlockedProductionReleaseRetryPolicy` already assumed
+  this ("approval almost never arrives in the turn that was blocked"), but the
+  same-turn retry is suppressed by the duplicate-tool-call guard, which counts
+  a guard refusal as an attempt. Not addressed here; a refused call arguably
+  should not suppress a later real one, the same way `_wasNeverExecuted` keeps
+  refusals out of the tool-loop digest.
+
+A chat message can no longer approve a release in any language, including
+"承認します". The user must select the option carrying the token.
 
 ### HEU2: Preserve structured outcomes at the claim-notice boundary — `next`
 

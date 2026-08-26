@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:caverno/core/services/app_lifecycle_service.dart';
+import 'package:caverno/features/chat/domain/services/production_release_approval_coordinator.dart';
 import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/browser_session_service.dart';
 import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
@@ -9968,7 +9969,7 @@ with open(path, "rb") as file:
 
   test('sendMessage repeats delayed process monitor after release timeout', () async {
     const releaseCommand =
-        'bash tool/release_ios_macos.sh --macos-release-notes docs/releases/caverno-1.3.4.md';
+        'bash tool/run_integration_suite.sh --report docs/reports/suite-1.3.4.md';
     const monitorCommand =
         'sleep 30 && ps aux | grep -i "gen_snapshot\\|xcodebuild" | grep -v grep | head -5';
     final toolDataSource = _QueuedToolLoopChatDataSource(
@@ -10171,7 +10172,7 @@ with open(path, "rb") as file:
   });
 
   test('sendMessage blocks stale process_start results', () async {
-    const command = 'bash tool/release_ios_macos.sh';
+    const command = 'bash tool/run_integration_suite.sh';
     final toolDataSource = _ToolBatchChatDataSource(
       initialToolCalls: [
         ToolCallInfo(
@@ -10247,7 +10248,7 @@ with open(path, "rb") as file:
   });
 
   test('sendMessage allows duplicate existing process_start results', () async {
-    const command = 'bash tool/release_ios_macos.sh';
+    const command = 'bash tool/run_integration_suite.sh';
     final toolDataSource = _ToolBatchChatDataSource(
       initialToolCalls: [
         ToolCallInfo(
@@ -10398,7 +10399,7 @@ with open(path, "rb") as file:
   test(
     'sendMessage blocks completion claims while a background process is running',
     () async {
-      const command = 'bash tool/release_ios_macos.sh';
+      const command = 'bash tool/run_integration_suite.sh';
       const jobId = 'proc_release_1';
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
@@ -10579,7 +10580,7 @@ with open(path, "rb") as file:
   test(
     'sendMessage keeps monitoring when running-process feedback gets prose',
     () async {
-      const command = 'bash tool/release_ios_macos.sh';
+      const command = 'bash tool/run_integration_suite.sh';
       const jobId = 'proc_release_prose_1';
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
@@ -10738,7 +10739,7 @@ with open(path, "rb") as file:
   test(
     'sendMessage repeats identical process_wait until process exits',
     () async {
-      const command = 'bash tool/release_ios_macos.sh';
+      const command = 'bash tool/run_integration_suite.sh';
       const jobId = 'proc_release_repeat_wait_1';
       const waitArguments = {
         'job_id': jobId,
@@ -13832,7 +13833,7 @@ with open(path, "rb") as file:
   test(
     'sendMessage removes streamed completion claim when background process is still running',
     () async {
-      const command = 'bash tool/release_ios_macos.sh';
+      const command = 'bash tool/run_integration_suite.sh';
       const jobId = 'proc_stream_release_running_1';
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
@@ -14000,7 +14001,7 @@ with open(path, "rb") as file:
   test(
     'sendMessage blocks streamed release success after exit zero partial failure',
     () async {
-      const command = 'bash tool/release_ios_macos.sh';
+      const command = 'bash tool/run_integration_suite.sh';
       const jobId = 'proc_release_partial_failure_1';
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
@@ -14115,7 +14116,7 @@ with open(path, "rb") as file:
   test(
     'sendMessage flags streamed success claim after non-zero command exit',
     () async {
-      const command = 'bash tool/release_ios_macos.sh';
+      const command = 'bash tool/run_integration_suite.sh';
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
           ToolCallInfo(

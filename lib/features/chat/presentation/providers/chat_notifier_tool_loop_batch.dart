@@ -215,13 +215,23 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         if (uninspectedCommitGuardResult != null) {
           return uninspectedCommitGuardResult;
         }
+        final productionReleaseEvidence = _productionReleaseApprovals
+            .evidenceFor(interactionGeneration);
+        if (productionReleaseEvidence.shadowDiverges) {
+          // HEU1 shadow: the retired wording predicates disagree with the
+          // token verdict. Recorded so the two can be compared before those
+          // predicates are deleted; the token decides either way.
+          appLog(
+            '[ProductionRelease] Shadow divergence: '
+            'token=${productionReleaseEvidence.approved} '
+            'prose=${productionReleaseEvidence.proseWouldApprove}',
+          );
+        }
         final productionReleaseGuardResult = _productionReleaseApprovals
             .buildGuardResult(
               toolCall,
               currentAssistantContent: currentAssistantContent,
-              evidence: _productionReleaseApprovals.evidenceFor(
-                interactionGeneration,
-              ),
+              evidence: productionReleaseEvidence,
             );
         if (productionReleaseGuardResult != null) {
           return productionReleaseGuardResult;

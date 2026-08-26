@@ -4462,7 +4462,7 @@ void main() {
   );
 
   test(
-    'thread B denial cannot revoke detached thread A direct approval',
+    'prose in either thread approves nothing, detached or not',
     () async {
       late final ProviderContainer container;
       late String threadB;
@@ -4523,19 +4523,21 @@ void main() {
           .sendMessage('Approve and run the production release now.');
 
       expect(threadB, isNot(threadA));
-      expect(toolService.executions, 1);
+      // This used to assert that thread B's denial could not revoke thread A's
+      // *direct* approval. Direct approval no longer exists: a chat message
+      // cannot approve a release in any thread, so there is nothing for
+      // another thread to revoke. What remains worth pinning is that the
+      // release does not run, and that the block is the release guard's rather
+      // than a side effect of the other thread.
+      expect(toolService.executions, 0);
       expect(
         dataSource.decodedToolResults,
-        isNot(
-          contains(
-            containsPair(
-              'code',
-              'production_release_explicit_approval_required',
-            ),
+        contains(
+          containsPair(
+            'code',
+            'production_release_explicit_approval_required',
           ),
         ),
-        reason:
-            'thread A generation 1 owns its submitted direct approval snapshot',
       );
     },
   );
