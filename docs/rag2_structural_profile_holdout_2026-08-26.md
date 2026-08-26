@@ -94,7 +94,8 @@ That entry condition is now satisfied by the frozen explicit source-roots
 hypothesis in
 `docs/rag2_explicit_source_roots_hypothesis_2026-08-26.md`. It moves omission
 authority to an explicit caller declaration, admits every eligible source below
-the declared roots, and fails closed at the existing default limits. It has not
-been implemented or evaluated. Until its synthetic contract is proven, do not
-add SQLite, FTS5, embeddings, prompting, routing, tools, model calls, or
-application wiring.
+the declared roots, and fails closed at the existing default limits. Its
+synthetic replay contract is Go; no live Caverno roots or questions have been
+evaluated. Until a declaration and new development set are frozen, do not add
+SQLite, FTS5, embeddings, prompting, routing, tools, model calls, or application
+wiring.

@@ -129,7 +129,7 @@ sampling strategy. Selection, storage, retrieval, and production remain No-Go.
 Do not revise quotas from the development or holdout misses, and do not reuse
 the holdout to promote another policy. The next question-independent hypothesis
 is now frozen as `rag2-explicit-complete-source-roots-v1`; it has not been
-implemented or evaluated. See
+evaluated on an active project. Its synthetic replay contract is Go. See
 `docs/rag2_explicit_source_roots_hypothesis_2026-08-26.md`. Do not add SQLite,
 FTS5, embeddings, prompting, routing, tools, model calls, or application
 wiring.

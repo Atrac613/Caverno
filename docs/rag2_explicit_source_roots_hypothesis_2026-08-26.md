@@ -1,7 +1,7 @@
 # RAG2 Explicit Source Roots Hypothesis
 
 Date: 2026-08-26
-Status: hypothesis frozen; implementation and evaluation not started
+Status: synthetic replay contract Go; active-project evaluation not started
 Hypothesis: `rag2-explicit-complete-source-roots-v1`
 
 ## Decision
@@ -12,8 +12,9 @@ discovery. Every eligible `.dart` and `.md` source below those directories is
 admitted, or the whole declaration fails closed. There is no sampling within a
 declared root.
 
-This is the first candidate after closing `structural_stratified_v1`. It does
-not select a Caverno scope, authorize storage, or change production behavior.
+This is the first candidate after closing `structural_stratified_v1`. Its
+synthetic replay contract is implemented, but it does not select a Caverno
+scope, authorize storage, or change production behavior.
 
 ## Why This Hypothesis
 
@@ -61,9 +62,34 @@ No default root list is allowed. A missing declaration is not equivalent to
 the repository root.
 
 The current `CodingProject` entity stores only project identity, name, root,
-security-scoped bookmark, and timestamps. V1 must therefore remain an explicit
-CLI experiment. Do not add persisted source roots or generated entity changes
-before the evaluation gate.
+security-scoped bookmark, and timestamps. V1 therefore remains an explicit CLI
+experiment. No persisted source roots or generated entity changes were added.
+
+## Synthetic Replay Contract
+
+`tool/rag2_explicit_source_roots_replay.dart` implements the frozen policy as a
+storage-independent, opt-in replay:
+
+1. validate one to sixteen explicit roots, including every intermediate path
+   component, before Git;
+2. build the unchanged whole-project source inventory;
+3. retain every eligible candidate below the declared roots and remove only
+   instruction-bearing sources;
+4. reject the complete declaration at the default file or corpus ceiling
+   before Git;
+5. collect evidence for an in-bound declaration through the existing exact
+   three-command batch Git protocol; and
+6. attest every selected source with chunks disabled, rejecting the entire
+   declaration if any source fails.
+
+The report contains only counts, typed blockers, policy values, command count,
+and hashed project, declaration, inventory, and selected-metadata identities.
+It omits declared roots, candidate paths, source text, Git payloads, questions,
+and evidence markers. `scopeDecision` remains `not_selected`, and storage,
+retrieval, and production remain No-Go.
+
+No Caverno root declaration or active-project question fixture was loaded or
+evaluated.
 
 ## Evaluation Order
 
@@ -71,9 +97,10 @@ The hypothesis must be evaluated without using the failed structural holdout
 as promotion evidence:
 
 1. Implement only an offline/opt-in explicit-root replay and synthetic contract
-   tests. Do not connect settings or application state.
+   tests. Do not connect settings or application state. **Complete.**
 2. Prove complete inclusion, overlap rejection, instruction-file exclusion,
    unchanged limits, aggregate-only output, and zero-Git failure behavior.
+   **Complete.**
 3. Freeze one realistic source-root declaration from task context before
    writing or inspecting its evaluation questions.
 4. Create a new question set containing both in-scope and deliberately
@@ -104,7 +131,24 @@ citation quality. Those remain separate later gates.
 
 ## Next Entry Condition
 
-Implement the smallest storage-independent replay for this exact frozen policy
-using synthetic repositories only. The first implementation commit must not
-load the development or failed holdout fixtures and must not select live Caverno
-roots.
+Freeze one realistic source-root declaration from task context before writing
+or inspecting its evaluation questions. The declaration must fit the existing
+default limits and must not be chosen from either active-project fixture's
+evidence paths. Then create a new development set with both in-scope and
+out-of-scope controls; do not reuse the failed structural holdout.
+
+## Verification
+
+```bash
+tool/codex_verify.sh --no-codegen \
+  --test test/tool/rag2_explicit_source_roots_replay_test.dart \
+  --test test/tool/rag2_source_manifest_shadow_test.dart \
+  --test test/tool/rag2_source_discovery_replay_test.dart \
+  --test test/tool/rag2_batch_git_inventory_replay_test.dart
+
+fvm flutter test test/tool/rag2_*_test.dart
+```
+
+The nine explicit-root cases pass. The repository verifier passes project and
+package analysis, three package test suites, all 27 focused acquisition tests,
+and 10 notification-relay tests. All 117 focused RAG2 tests pass.

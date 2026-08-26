@@ -161,7 +161,8 @@ stratified stable-hash strategy and do not tune or revive v1.
 | 31 | `Source-role coverage contract audit` | Bounded reads, evidence completeness, identity, and eligibility semantics | V1 Go is withdrawn. V2 requires all markers, rejects post-inventory growth and symlink substitution, fingerprints aggregate inventory/evidence state, and makes the default ceiling an eligibility blocker. The 2/8, 4/8, and 6/8 results remain development diagnostics only. | `docs/rag2_source_role_coverage_replay_2026-08-26.md` |
 | 32 | `Structural profile candidate` | Question-independent bounded source-role sampling | Fixed role quotas and stable path hashing select 509 files within default limits. The candidate was frozen before fixture use, then covered 6/8 informed development questions. It remains No-Go and cannot be tuned before an untouched holdout. | `docs/rag2_structural_profile_candidate_2026-08-26.md` |
 | 33 | `Structural profile untouched holdout` | Independent required-source coverage for the unchanged candidate | The fixture was frozen before candidate use with no development evidence-path overlap. V1 covered 4/8: runtime 2/2, documentation 1/2, tests 0/2, tooling 0/1, and root sources 1/1. Close stratified stable-hash sampling; scope and production remain No-Go. | `docs/rag2_structural_profile_holdout_2026-08-26.md` |
-| 34 | `Explicit source roots hypothesis` | Caller-declared complete directories with no intra-root sampling | Freeze `rag2-explicit-complete-source-roots-v1`: explicit non-overlapping directories, complete eligible inclusion, unchanged default limits, zero admission on failure, and aggregate-only output. Implementation and evaluation have not started; no Caverno roots are selected. | `docs/rag2_explicit_source_roots_hypothesis_2026-08-26.md` |
+| 34 | `Explicit source roots hypothesis` | Caller-declared complete directories with no intra-root sampling | Freeze `rag2-explicit-complete-source-roots-v1`: explicit non-overlapping directories, complete eligible inclusion, unchanged default limits, zero admission on failure, and aggregate-only output. The policy was frozen before the synthetic implementation; no Caverno roots are selected. | `docs/rag2_explicit_source_roots_hypothesis_2026-08-26.md` |
+| 35 | `Explicit source roots synthetic replay` | Root validation, complete admission, batch Git, and all-or-nothing attestation | Nine synthetic cases prove complete in-root admission, explicit repository root, order-independent identities, invalid/duplicate/overlapping/missing/file/symlink rejection, default file-limit zero-Git failure, Git failure rollback, attestation rollback, and aggregate-only output. Contract Go; active-project evaluation and scope selection remain No-Go. | `docs/rag2_explicit_source_roots_hypothesis_2026-08-26.md` |
 
 ## Rejected shortcuts
 
@@ -237,7 +238,7 @@ manifest-shadow slice adds five focused cases, the source-scope measurement
 adds three, the batch inventory adds five, and the batch manifest integration
 adds one. The source-role coverage replay v2 replaces five focused cases with
 11, and the structural-profile candidate adds five. Project/package static
-analysis remains the required gate. The current complete suite contains 108
+analysis remains the required gate. The current complete suite contains 117
 focused RAG2 tests.
 
 ## Next entry condition
@@ -254,8 +255,10 @@ Freeze the extraction suites, `rag2-passage-role-oracle-v1`, corrected
 Freeze `rag2-structural-profile-candidate-contract-v1` and its failed holdout
 unchanged. The batch manifest integration is Go, the per-path collector stays
 the frozen parity oracle, stratified stable-hash sampling is closed, and source
-selection remains No-Go. The next slice may implement only the synthetic,
-opt-in replay for frozen `rag2-explicit-complete-source-roots-v1`. It must not
-load either active-project fixture or select live Caverno roots. Do not add an
-index schema, FTS5, embeddings, prompting, routing, tools, model calls,
-settings, or application wiring.
+selection remains No-Go. The synthetic replay for
+`rag2-explicit-complete-source-roots-v1` is Go. The next slice must freeze one
+realistic root declaration from task context before its questions are written
+or inspected, then create a new development set with in-scope and out-of-scope
+controls. Do not load either active-project fixture, reuse the failed holdout,
+or add an index schema, FTS5, embeddings, prompting, routing, tools, model
+calls, settings, or application wiring.
