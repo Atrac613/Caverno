@@ -1,16 +1,23 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/chat/data/datasources/project_read_path_fence.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:crypto/crypto.dart';
-import 'package:path/path.dart' as p;
 
 import 'rag2_knowledge_object_replay.dart' show validateRag2RepoRelativePath;
 import 'rag2_source_discovery_replay.dart';
-import 'rag2_source_manifest_shadow.dart' show rag2ShadowHardMaxFileBytes;
+import 'rag2_source_manifest_shadow.dart'
+    show
+        rag2ShadowDefaultMaxCorpusBytes,
+        rag2ShadowDefaultMaxFileBytes,
+        rag2ShadowDefaultMaxFiles,
+        rag2ShadowHardMaxCorpusBytes,
+        rag2ShadowHardMaxFileBytes,
+        rag2ShadowHardMaxFiles;
 import 'rag2_source_scope_measurement.dart';
 
-const rag2SourceRoleCoverageContract = 'rag2-source-role-coverage-contract-v1';
+const rag2SourceRoleCoverageContract = 'rag2-source-role-coverage-contract-v2';
 const rag2SourceRoleCoverageFixtureSchema =
     'caverno_rag2_source_role_coverage_fixture';
 const rag2SourceRoleCoverageReportSchema =
@@ -18,6 +25,8 @@ const rag2SourceRoleCoverageReportSchema =
 
 const _maxFixtureBytes = 64 * 1024;
 const _maxQuestions = 64;
+const _maxEvidenceSourcesPerQuestion = 8;
+const _maxMarkersPerEvidenceSource = 8;
 const _maxQuestionLength = 512;
 const _maxMarkerLength = 256;
 const _allCandidatesControlId = 'all_candidates_control';
@@ -48,8 +57,9 @@ Future<void> main(List<String> args) async {
 }
 
 Future<Rag2SourceRoleCoverageReport> runRag2SourceRoleCoverageReplay(
-  Rag2SourceRoleCoverageOptions options,
-) async {
+  Rag2SourceRoleCoverageOptions options, {
+  Future<void> Function()? beforeEvidenceValidation,
+}) async {
   options.validate();
   final fixture = await Rag2SourceRoleCoverageFixture.load(
     File(options.fixturePath),
@@ -68,21 +78,28 @@ Future<Rag2SourceRoleCoverageReport> runRag2SourceRoleCoverageReplay(
   final candidatesByPath = {
     for (final candidate in inventory.candidates) candidate.path: candidate,
   };
+  await beforeEvidenceValidation?.call();
+  final evidenceFingerprints = <String>[];
   for (final question in fixture.questions) {
-    final candidate = candidatesByPath[question.evidencePath];
-    if (candidate == null) {
-      throw const FormatException(
-        'Coverage evidence is outside the bounded source inventory.',
+    for (final source in question.evidenceSources) {
+      final candidate = candidatesByPath[source.evidencePath];
+      if (candidate == null) {
+        throw const FormatException(
+          'Coverage evidence is outside the bounded source inventory.',
+        );
+      }
+      if (rag2SourceRoleForPath(candidate.path) !=
+          question.expectedSourceRole) {
+        throw const FormatException('Coverage evidence source role drifted.');
+      }
+      evidenceFingerprints.add(
+        await _validateEvidenceSource(
+          projectRoot: project.normalizedRootPath,
+          candidate: candidate,
+          source: source,
+          maxFileBytes: options.maxFileBytes,
+        ),
       );
-    }
-    if (rag2SourceRoleForPath(candidate.path) != question.expectedSourceRole) {
-      throw const FormatException('Coverage evidence source role drifted.');
-    }
-    final content = await File(
-      p.join(options.projectRoot, candidate.path),
-    ).readAsString();
-    if (!content.contains(question.evidenceMarker)) {
-      throw const FormatException('Coverage evidence marker is unavailable.');
     }
   }
 
@@ -121,12 +138,24 @@ Future<Rag2SourceRoleCoverageReport> runRag2SourceRoleCoverageReplay(
   return Rag2SourceRoleCoverageReport(
     projectIdentity: _stableIdentity('project', options.projectId),
     fixtureIdentity: fixture.identity,
+    inventoryMetadataIdentity: _inventoryMetadataIdentity(
+      inventory,
+      options.maxFileBytes,
+    ),
+    validatedEvidenceIdentity: _stableIdentity(
+      'evidence',
+      (evidenceFingerprints..sort()).join('\u0000'),
+    ),
     maxFileBytes: options.maxFileBytes,
     questionCount: fixture.questions.length,
     validatedEvidenceFileCount: fixture.questions
-        .map((question) => question.evidencePath)
+        .expand((question) => question.evidenceSources)
+        .map((source) => source.evidencePath)
         .toSet()
         .length,
+    requiredMarkerCount: fixture.questions
+        .expand((question) => question.evidenceSources)
+        .fold(0, (count, source) => count + source.requiredMarkers.length),
     sourceRoleQuestionCounts: _sourceRoleQuestionCounts(fixture.questions),
     profiles: List.unmodifiable(profileCoverage),
   );
@@ -164,7 +193,7 @@ final class Rag2SourceRoleCoverageOptions {
     String? projectId;
     String? projectRoot;
     String? fixturePath;
-    var maxFileBytes = 512 * 1024;
+    var maxFileBytes = rag2ShadowDefaultMaxFileBytes;
     final seen = <String>{};
     for (var index = 0; index < args.length; index++) {
       final option = args[index];
@@ -221,7 +250,7 @@ final class Rag2SourceRoleCoverageFixture {
     final decoded = jsonDecode(utf8.decode(bytes));
     if (decoded is! Map<String, Object?> ||
         decoded['schemaName'] != rag2SourceRoleCoverageFixtureSchema ||
-        decoded['schemaVersion'] != 1) {
+        decoded['schemaVersion'] != 2) {
       throw const FormatException('Coverage fixture schema is invalid.');
     }
     final fixtureId = decoded['fixtureId'];
@@ -235,6 +264,7 @@ final class Rag2SourceRoleCoverageFixture {
     }
     final questions = <Rag2SourceRoleQuestion>[];
     final ids = <String>{};
+    final evidencePaths = <String>{};
     for (final rawQuestion in rawQuestions) {
       if (rawQuestion is! Map<String, Object?>) {
         throw const FormatException('Coverage question is invalid.');
@@ -242,6 +272,13 @@ final class Rag2SourceRoleCoverageFixture {
       final question = Rag2SourceRoleQuestion.fromJson(rawQuestion);
       if (!ids.add(question.id)) {
         throw const FormatException('Coverage question IDs must be unique.');
+      }
+      for (final source in question.evidenceSources) {
+        if (!evidencePaths.add(source.evidencePath)) {
+          throw const FormatException(
+            'Coverage evidence paths must be unique across questions.',
+          );
+        }
       }
       questions.add(question);
     }
@@ -261,30 +298,26 @@ final class Rag2SourceRoleQuestion {
   const Rag2SourceRoleQuestion({
     required this.id,
     required this.question,
-    required this.evidencePath,
-    required this.evidenceMarker,
+    required this.evidenceSources,
     required this.expectedSourceRole,
   });
 
   factory Rag2SourceRoleQuestion.fromJson(Map<String, Object?> json) {
     final id = json['id'];
     final question = json['question'];
-    final evidencePath = json['evidencePath'];
-    final evidenceMarker = json['evidenceMarker'];
+    final rawEvidenceSources = json['evidenceSources'];
     final expectedSourceRole = json['expectedSourceRole'];
     if (id is! String ||
         !_validId(id) ||
         question is! String ||
         question.trim().isEmpty ||
         question.length > _maxQuestionLength ||
-        evidencePath is! String ||
-        evidenceMarker is! String ||
-        evidenceMarker.isEmpty ||
-        evidenceMarker.length > _maxMarkerLength ||
+        rawEvidenceSources is! List<Object?> ||
+        rawEvidenceSources.isEmpty ||
+        rawEvidenceSources.length > _maxEvidenceSourcesPerQuestion ||
         expectedSourceRole is! String) {
       throw const FormatException('Coverage question fields are invalid.');
     }
-    validateRag2RepoRelativePath(evidencePath);
     if (!const {
       'runtime_source',
       'tests',
@@ -298,44 +331,93 @@ final class Rag2SourceRoleQuestion {
     return Rag2SourceRoleQuestion(
       id: id,
       question: question,
-      evidencePath: evidencePath,
-      evidenceMarker: evidenceMarker,
+      evidenceSources: List.unmodifiable(
+        rawEvidenceSources.map((rawSource) {
+          if (rawSource is! Map<String, Object?>) {
+            throw const FormatException('Coverage evidence source is invalid.');
+          }
+          return Rag2SourceRoleEvidenceSource.fromJson(rawSource);
+        }),
+      ),
       expectedSourceRole: expectedSourceRole,
     );
   }
 
   final String id;
   final String question;
-  final String evidencePath;
-  final String evidenceMarker;
+  final List<Rag2SourceRoleEvidenceSource> evidenceSources;
   final String expectedSourceRole;
+}
+
+final class Rag2SourceRoleEvidenceSource {
+  const Rag2SourceRoleEvidenceSource({
+    required this.evidencePath,
+    required this.requiredMarkers,
+  });
+
+  factory Rag2SourceRoleEvidenceSource.fromJson(Map<String, Object?> json) {
+    final evidencePath = json['evidencePath'];
+    final rawMarkers = json['requiredMarkers'];
+    if (evidencePath is! String ||
+        rawMarkers is! List<Object?> ||
+        rawMarkers.isEmpty ||
+        rawMarkers.length > _maxMarkersPerEvidenceSource ||
+        rawMarkers.any(
+          (marker) =>
+              marker is! String ||
+              marker.isEmpty ||
+              marker.length > _maxMarkerLength,
+        )) {
+      throw const FormatException(
+        'Coverage evidence source fields are invalid.',
+      );
+    }
+    validateRag2RepoRelativePath(evidencePath);
+    final markers = rawMarkers.cast<String>();
+    if (markers.toSet().length != markers.length) {
+      throw const FormatException('Coverage evidence markers must be unique.');
+    }
+    return Rag2SourceRoleEvidenceSource(
+      evidencePath: evidencePath,
+      requiredMarkers: List.unmodifiable(markers),
+    );
+  }
+
+  final String evidencePath;
+  final List<String> requiredMarkers;
 }
 
 final class Rag2SourceRoleCoverageReport {
   const Rag2SourceRoleCoverageReport({
     required this.projectIdentity,
     required this.fixtureIdentity,
+    required this.inventoryMetadataIdentity,
+    required this.validatedEvidenceIdentity,
     required this.maxFileBytes,
     required this.questionCount,
     required this.validatedEvidenceFileCount,
+    required this.requiredMarkerCount,
     required this.sourceRoleQuestionCounts,
     required this.profiles,
   });
 
   final String projectIdentity;
   final String fixtureIdentity;
+  final String inventoryMetadataIdentity;
+  final String validatedEvidenceIdentity;
   final int maxFileBytes;
   final int questionCount;
   final int validatedEvidenceFileCount;
+  final int requiredMarkerCount;
   final Map<String, int> sourceRoleQuestionCounts;
   final List<Rag2SourceProfileCoverage> profiles;
 
   Map<String, Object?> toJson() => {
     'schemaName': rag2SourceRoleCoverageReportSchema,
-    'schemaVersion': 1,
+    'schemaVersion': 2,
     'contract': rag2SourceRoleCoverageContract,
     'mode': 'opt_in_live_oracle_replay',
-    'evaluationMode': 'oracle_path_coverage_only',
+    'evaluationMode': 'oracle_required_source_coverage_only',
     'projectSelectionAuthority': 'explicit_cli_arguments',
     'evaluationDecision': 'measured',
     'scopeDecision': 'not_selected',
@@ -343,9 +425,20 @@ final class Rag2SourceRoleCoverageReport {
     'productionDecision': 'no_go',
     'projectIdentity': projectIdentity,
     'fixtureIdentity': fixtureIdentity,
-    'policy': {'maxFileBytes': maxFileBytes},
+    'inventoryMetadataIdentity': inventoryMetadataIdentity,
+    'validatedEvidenceIdentity': validatedEvidenceIdentity,
+    'policy': {
+      'maxFileBytes': maxFileBytes,
+      'defaultMaxFiles': rag2ShadowDefaultMaxFiles,
+      'defaultMaxCorpusBytes': rag2ShadowDefaultMaxCorpusBytes,
+      'hardMaxFiles': rag2ShadowHardMaxFiles,
+      'hardMaxCorpusBytes': rag2ShadowHardMaxCorpusBytes,
+      'admittedSourceExtensions': ['.dart', '.md'],
+      'unsupportedSourceFamiliesDecision': 'deferred_no_go',
+    },
     'questionCount': questionCount,
     'validatedEvidenceFileCount': validatedEvidenceFileCount,
+    'requiredMarkerCount': requiredMarkerCount,
     'sourceRoleQuestionCounts': sourceRoleQuestionCounts,
     'profiles': [for (final profile in profiles) profile.toJson()],
   };
@@ -381,7 +474,11 @@ final class Rag2SourceProfileCoverage {
       ),
       questionCount: questions.length,
       coveredQuestionCount: questions
-          .where((question) => admittedPaths.contains(question.evidencePath))
+          .where(
+            (question) => question.evidenceSources.every(
+              (source) => admittedPaths.contains(source.evidencePath),
+            ),
+          )
           .length,
       sourceRoleCoverage: [
         for (final entry
@@ -392,7 +489,9 @@ final class Rag2SourceProfileCoverage {
             questionCount: entry.value.length,
             coveredQuestionCount: entry.value
                 .where(
-                  (question) => admittedPaths.contains(question.evidencePath),
+                  (question) => question.evidenceSources.every(
+                    (source) => admittedPaths.contains(source.evidencePath),
+                  ),
                 )
                 .length,
           ),
@@ -410,6 +509,7 @@ final class Rag2SourceProfileCoverage {
   bool get complete => coveredQuestionCount == questionCount;
   List<String> get blockers => [
     if (!complete) 'question_coverage_incomplete',
+    if (!scope.withinDefaultLimits) 'default_limits_exceeded',
     if (!scope.withinHardLimits) 'hard_limits_exceeded',
   ];
 
@@ -475,3 +575,63 @@ bool _validId(String value) =>
 
 String _stableIdentity(String prefix, String value) =>
     '${prefix}_${sha256.convert(utf8.encode('$rag2SourceRoleCoverageContract\u0000$value'))}';
+
+Future<String> _validateEvidenceSource({
+  required String projectRoot,
+  required Rag2SourceCandidate candidate,
+  required Rag2SourceRoleEvidenceSource source,
+  required int maxFileBytes,
+}) async {
+  const fence = ProjectReadPathFence();
+  final before = await fence.authorize(
+    projectRoot: projectRoot,
+    rawPath: source.evidencePath,
+  );
+  if (!before.isAllowed) {
+    throw const FormatException('Coverage evidence read is not authorized.');
+  }
+  final bytes = await _readBounded(File(before.canonicalPath!), maxFileBytes);
+  if (bytes == null || bytes.length != candidate.bytes || bytes.contains(0)) {
+    throw const FormatException('Coverage evidence changed after inventory.');
+  }
+  late final String content;
+  try {
+    content = utf8.decode(bytes, allowMalformed: false);
+  } on FormatException {
+    throw const FormatException('Coverage evidence is not UTF-8 text.');
+  }
+  if (source.requiredMarkers.any((marker) => !content.contains(marker))) {
+    throw const FormatException('Coverage evidence marker is unavailable.');
+  }
+  final after = await fence.authorize(
+    projectRoot: projectRoot,
+    rawPath: source.evidencePath,
+  );
+  if (!after.isAllowed || after.canonicalPath != before.canonicalPath) {
+    throw const FormatException('Coverage evidence path changed during read.');
+  }
+  return [source.evidencePath, sha256.convert(bytes).toString()].join('\u0000');
+}
+
+Future<List<int>?> _readBounded(File file, int maxFileBytes) async {
+  final bytes = <int>[];
+  await for (final chunk in file.openRead(0, maxFileBytes + 1)) {
+    bytes.addAll(chunk);
+    if (bytes.length > maxFileBytes) return null;
+  }
+  return bytes;
+}
+
+String _inventoryMetadataIdentity(
+  Rag2SourceCandidateInventory inventory,
+  int maxFileBytes,
+) {
+  final records = <String>[
+    'maxFileBytes=$maxFileBytes',
+    for (final candidate in inventory.candidates)
+      'candidate\u0000${candidate.path}\u0000${candidate.bytes}',
+    for (final exclusion in inventory.exclusions)
+      'exclusion\u0000${exclusion.path}\u0000${exclusion.reason}',
+  ];
+  return _stableIdentity('inventory_metadata', records.join('\u0001'));
+}

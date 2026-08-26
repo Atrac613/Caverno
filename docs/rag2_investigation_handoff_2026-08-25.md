@@ -105,12 +105,14 @@ scope, storage, retrieval, and production remain No-Go. The final live
 preflight measured 2,823 candidates and failed closed before Git on a 16-file
 limit.
 
-`rag2-source-role-coverage-contract-v1` validates eight active-project oracle
-paths and content markers before comparing the three measured profiles. The
-all-candidates control covers 8/8 but exceeds the hard ceiling. Runtime only,
-runtime plus top-level docs, and runtime plus tests plus docs cover 2/8, 4/8,
-and 6/8 respectively. The largest profile has 2,562 files, still omits tooling
-and root-source evidence, and exceeds the hard ceiling. Oracle coverage is Go;
+The `rag2-source-role-coverage-contract-v1` Go was withdrawn after audit: it
+used an unbounded evidence read, did not block eligibility at the default
+ceiling, accepted only one marker per question, and emitted no inventory
+identity. `rag2-source-role-coverage-contract-v2` uses all-of required markers,
+bounded path-fenced reads with post-read reauthorization, aggregate inventory
+and evidence identities, duplicate-path rejection, and default-limit-aware
+eligibility. The profiles still cover 2/8, 4/8, and 6/8 development questions;
+all exceed the default ceiling. V2 required-source coverage is Go;
 source-profile selection, retrieval, storage, and production remain No-Go.
 
 ## Investigation sequence
@@ -146,7 +148,8 @@ source-profile selection, retrieval, storage, and production remain No-Go.
 | 27 | `Source scope measurement slice` | Pre-Git aggregate scope and role measurement | Shared discovery inventory reports no individual paths or text. Runtime-only is 1,116 files, runtime plus top-level docs is 1,572, and adding tests reaches 2,557. No scope or limit change is selected. | `docs/rag2_source_scope_measurement_2026-08-26.md` |
 | 28 | `Batch Git inventory slice` | Fixed-command state and revision parity | One exact-root preflight, one NUL status inventory, and one NUL stage inventory match the per-path oracle across clean, changed, untracked, staged, renamed, and unusual-name cases. Aggregate reports omit paths and Git payloads; manifest integration remains absent. | `docs/rag2_batch_git_inventory_replay_2026-08-26.md` |
 | 29 | `Batch manifest integration slice` | Single-inventory manifest evidence integration | The opt-in shadow checks limits before Git, uses exactly three Git commands in-bound, and matches the frozen per-path manifest JSON. Scope selection, storage, and production remain No-Go. | `docs/rag2_batch_manifest_shadow_integration_2026-08-26.md` |
-| 30 | `Source-role coverage slice` | Active-project oracle path coverage by measured profile | Eight paths and markers validate answer-bearing evidence. The three profiles cover 2/8, 4/8, and 6/8 questions; none is eligible. Path coverage is not retrieval evidence. | `docs/rag2_source_role_coverage_replay_2026-08-26.md` |
+| 30 | `Source-role coverage slice` | Active-project oracle path coverage by measured profile | V1 reported 2/8, 4/8, and 6/8 question coverage, but its Go was later withdrawn by the contract audit. Path coverage is not retrieval evidence. | `docs/rag2_source_role_coverage_replay_2026-08-26.md` |
+| 31 | `Source-role coverage contract audit` | Bounded reads, evidence completeness, identity, and eligibility semantics | V1 Go is withdrawn. V2 requires all markers, rejects post-inventory growth and symlink substitution, fingerprints aggregate inventory/evidence state, and makes the default ceiling an eligibility blocker. The 2/8, 4/8, and 6/8 results remain development diagnostics only. | `docs/rag2_source_role_coverage_replay_2026-08-26.md` |
 
 ## Rejected shortcuts
 
@@ -217,9 +220,9 @@ tests listed under `test/tool/` through the same entrypoint and must not rewrite
 the frozen fixture versions. The collector baseline has 77 RAG2 tests; the
 manifest-shadow slice adds five focused cases, the source-scope measurement
 adds three, the batch inventory adds five, and the batch manifest integration
-adds one. The source-role coverage replay adds five. Project/package static
-analysis remains the required gate. The current complete suite contains 96
-focused RAG2 tests.
+adds one. The source-role coverage replay v2 replaces five focused cases with
+11. Project/package static analysis remains the required gate. The current
+complete suite contains 102 focused RAG2 tests.
 
 ## Next entry condition
 
@@ -231,10 +234,11 @@ Freeze the extraction suites, `rag2-passage-role-oracle-v1`, corrected
 `rag2-source-manifest-shadow-contract-v1`, and
 `rag2-source-scope-measurement-contract-v1`, and
 `rag2-batch-git-inventory-contract-v1`, and
-`rag2-source-role-coverage-contract-v1`; retain withdrawn versions only as
-history. The batch manifest integration is Go, the per-path collector stays the
+`rag2-source-role-coverage-contract-v2`; retain v1 only as withdrawn history.
+The batch manifest integration is Go, the per-path collector stays the
 frozen parity oracle, and all three measured profiles remain ineligible. The
 next slice should define one structural, question-independent bounded profile
-candidate before creating an untouched active-project holdout. Apply the
+candidate within the explicit `.dart`/`.md` sampling frame before creating an
+untouched active-project holdout. Apply the
 candidate unchanged to that holdout before selecting a scope. Do not add an
 index schema, FTS5, embeddings, prompting, routing, tools, or model calls.
