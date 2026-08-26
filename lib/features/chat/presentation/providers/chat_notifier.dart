@@ -172,6 +172,7 @@ import '../../domain/services/planning_research_collector.dart';
 import '../../domain/services/cjk_response_markers.dart';
 import '../../domain/services/code_unit_text_scan.dart';
 import '../../domain/services/planning_retry_context_builder.dart';
+import '../../domain/services/skipped_browser_action_repair_prompt.dart';
 import '../../domain/services/skipped_skill_load_text.dart';
 import '../../domain/services/task_proposal_quality_gate_fallback.dart';
 import '../../domain/services/verification_target_authority.dart';
@@ -975,19 +976,11 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   String _buildSkippedBrowserActionRepairPrompt(int interactionGeneration) {
-    final latestUserContent = _latestUserContentForGeneration(
-      interactionGeneration,
+    return SkippedBrowserActionRepairPrompt.forMissingTool(
+      _claims.browserActionToolNameForText(
+        _latestUserContentForGeneration(interactionGeneration),
+      ),
     );
-    final missingToolName = _claims.browserActionToolNameForText(
-      latestUserContent,
-    );
-    return [
-      'The latest user request still requires a browser action.',
-      'The application only executed a recovered browser_snapshot so far.',
-      'Do not claim the browser action is complete in prose.',
-      'If the snapshot contains a safe target, call $missingToolName now using the latest snapshot ref or selector.',
-      'If no safe target exists, answer briefly that $missingToolName remains unexecuted.',
-    ].join('\n');
   }
 
   String _latestUserContentForGeneration(int generation) =>

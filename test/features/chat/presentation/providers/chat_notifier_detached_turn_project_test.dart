@@ -2597,13 +2597,19 @@ void main() {
           .read(conversationsNotifierProvider)
           .currentConversationId!;
       final notifier = container.read(chatNotifierProvider.notifier);
+      // Each turn's own prompt, wherever it was routed: a turn on a thread the
+      // user is not reading stashes it for that thread instead of the visible
+      // state, and which thread is visible changes inside this scenario.
+      PendingLocalCommand? pendingCommand() =>
+          notifier.state.pendingLocalCommand ??
+          notifier.pendingLocalCommandsAcrossThreads.firstOrNull;
 
       final ownerAFuture = notifier.sendMessage(
         'Inspect, fix, and verify owner A.',
         bypassPlanMode: true,
       );
-      await _waitUntil(() => notifier.state.pendingLocalCommand != null);
-      final commandApprovalA = notifier.state.pendingLocalCommand!;
+      await _waitUntil(() => pendingCommand() != null);
+      final commandApprovalA = pendingCommand()!;
       notifier.resolveLocalCommand(
         id: commandApprovalA.id,
         approval: const LocalCommandApproval(approved: true),
@@ -2625,8 +2631,8 @@ void main() {
         'Run the same analyzer command for owner B.',
         bypassPlanMode: true,
       );
-      await _waitUntil(() => notifier.state.pendingLocalCommand != null);
-      final commandApprovalB = notifier.state.pendingLocalCommand!;
+      await _waitUntil(() => pendingCommand() != null);
+      final commandApprovalB = pendingCommand()!;
 
       expect(threadA, isNot(threadB));
       expect(toolService.executedNames, [
@@ -2635,6 +2641,23 @@ void main() {
       ]);
 
       releaseOwnerARepeat.complete();
+      // SEC4.4g: owner A's repeat is not served from its earlier approval, it
+      // asks again -- and does so while owner B's prompt is still open. That
+      // the two never answer for each other is what isolation means now that
+      // there is no cached result to keep apart.
+      bool isRepeatPrompt(PendingLocalCommand pending) =>
+          pending.id != commandApprovalA.id &&
+          pending.id != commandApprovalB.id;
+      await _waitUntil(
+        () => notifier.pendingLocalCommandsAcrossThreads.any(isRepeatPrompt),
+      );
+      final commandApprovalARepeat = notifier.pendingLocalCommandsAcrossThreads
+          .firstWhere(isRepeatPrompt);
+      expect(commandApprovalARepeat.owner.conversationId, threadA);
+      notifier.resolveLocalCommand(
+        id: commandApprovalARepeat.id,
+        approval: const LocalCommandApproval(approved: true),
+      );
       await _waitUntil(
         () =>
             toolService.executedNames
@@ -6878,10 +6901,11 @@ void main() {
     await firstB;
 
     conversations.selectConversation(threadA);
-    expect(notifier.state.queuedMessages.map((message) => message.content), [
-      'a-queued-1',
-      'a-queued-2',
-    ], reason: 'selecting idle A must first restore its exact FIFO projection');
+    expect(
+      notifier.state.queuedMessages.map((message) => message.content),
+      ['a-queued-1', 'a-queued-2'],
+      reason: 'selecting idle A must first restore its exact FIFO projection',
+    );
     await dataSource
         .waitForRequest('a-queued-1')
         .timeout(const Duration(seconds: 2));
@@ -7251,10 +7275,11 @@ void main() {
       runtimeRepository.releaseFlush.complete();
 
       conversations.selectConversation(threadA);
-      expect(notifier.state.queuedMessages.map((message) => message.content), [
-        'runtime-a-queued-1',
-        'runtime-a-queued-2',
-      ], reason: 'the dequeued item must be restored at the front');
+      expect(
+        notifier.state.queuedMessages.map((message) => message.content),
+        ['runtime-a-queued-1', 'runtime-a-queued-2'],
+        reason: 'the dequeued item must be restored at the front',
+      );
       await dataSource
           .waitForRequest('runtime-a-queued-1')
           .timeout(const Duration(seconds: 2));
@@ -10132,6 +10157,22 @@ void main() {
           ),
           ChatCompletionResult(
             content: 'Owner B completion report recorded.',
+            finishReason: 'stop',
+            usage: const TokenUsage(totalTokens: 97),
+          ),
+        ],
+        // The loop answers from a third request, and that response is where a
+        // turn's usage is taken from. Unscripted, both turns would inherit
+        // whichever tool-result step ran last -- a harness artifact that reads
+        // exactly like the cross-owner leak this test is looking for.
+        streamedResponses: [
+          ChatCompletionResult(
+            content: 'Owner A cannot report completion yet.',
+            finishReason: 'stop',
+            usage: const TokenUsage(totalTokens: 11),
+          ),
+          ChatCompletionResult(
+            content: 'Owner B is complete.',
             finishReason: 'stop',
             usage: const TokenUsage(totalTokens: 97),
           ),

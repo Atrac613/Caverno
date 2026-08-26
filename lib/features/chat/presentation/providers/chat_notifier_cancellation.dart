@@ -20,6 +20,12 @@ extension ChatNotifierCancellation on ChatNotifier {
       );
     }
     _goalContinuationLifecycle.clear();
+    // Stop has to stop the thread, not only the turn: a queued message's turn
+    // holds its thread's drain until it returns, so one waiting on a tool the
+    // user just cancelled leaves the next message invisible in the queue.
+    // Ordering is not what keeps a cancelled turn from landing; the owner is.
+    final cancelledThread = cancelledOwner?.conversationId ?? conversationId;
+    if (cancelledThread != null) _queuedChatMessages.endDrain(cancelledThread);
 
     // Advance the global generation so recursive loops stop. The visible owner
     // is captured above because a restored participant turn can be older than
