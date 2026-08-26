@@ -1,0 +1,27 @@
+{
+  "schemaName": "caverno_rag2_explicit_source_roots_declaration",
+  "schemaVersion": 1,
+  "declarationId": "caverno-routines-lifecycle-promotion-holdout-v1",
+  "contract": "rag2-explicit-complete-source-roots-v1",
+  "frozenAt": "2026-08-26",
+  "projectId": "caverno-routines-lifecycle-promotion-holdout-v1",
+  "taskContext": "Trace how routines are represented, persisted, scheduled, executed, and synchronized across the routines feature layers.",
+  "sourceRoots": [
+    "lib/features/routines/data",
+    "lib/features/routines/domain",
+    "lib/features/routines/presentation/providers"
+  ],
+  "policy": {
+    "maxSourceRoots": 16,
+    "maxFiles": 512,
+    "maxFileBytes": 524288,
+    "maxCorpusBytes": 33554432,
+    "instructionBearingDecision": "excluded",
+    "intraRootSamplingDecision": "forbidden"
+  },
+  "declarationIdentity": "declaration_62f029c04183343e2b6e0616e2afc088a59a0f45f2eb360bb3aa99a0e5b65856",
+  "evaluationState": "questions_not_created",
+  "priorFixtureUse": "forbidden",
+  "scopeDecision": "promotion_holdout_declaration_only",
+  "productionDecision": "no_go"
+}
