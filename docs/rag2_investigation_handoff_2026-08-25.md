@@ -83,6 +83,14 @@ closed on a 16-file limit before Git collection; this also exceeds the v1 hard
 ceiling of 2,048. The adapter contract is Go, the current Caverno manifest is
 No-Go, and production remains No-Go.
 
+`rag2-source-scope-measurement-contract-v1` reuses the discovery walk before
+Git, emits only aggregate top-level/source-role counts, and compares explicit
+profiles without selecting one. The final snapshot has 2,819 candidates.
+Runtime-only and runtime-plus-top-level-doc profiles exceed the default file
+ceiling; retaining tests as well reaches 2,557 files and exceeds the hard
+ceiling. The measurement contract is Go, scope selection remains No-Go, and the
+next prerequisite is bounded batch Git inventory parity.
+
 ## Investigation sequence
 
 | Step | Pre-squash commit | Experiment | Result and durable decision | Evidence |
@@ -113,6 +121,7 @@ No-Go, and production remains No-Go.
 | 24 | `Source discovery slice` | Fixture-root source discovery and candidate chunking | Two attested sources produce five deterministic Markdown/Dart chunks under file and corpus limits. Generated content, unsupported extensions, symlinks, missing evidence, and ambiguous locators fail closed. Production discovery and storage remain absent. | `docs/rag2_source_discovery_chunking_replay_2026-08-26.md` |
 | 25 | `Git evidence collector slice` | Bounded Git execution and typed evidence collection | Exact NUL-delimited probes classify clean, modified, untracked, Unicode, space-bearing, and renamed paths. Root mismatch, timeout, output overflow, invalid paths, and ambiguous output fail closed. Discovery gains a lazy provider boundary; no live manifest is connected. | `docs/rag2_git_evidence_collector_2026-08-26.md` |
 | 26 | `Source manifest shadow slice` | Explicit live project manifest without chunks or storage | An opt-in stdout-only CLI preserves bounded exclusions and typed Git failures without roots or source text. Temporary repositories pass; the Caverno preflight finds 2,816 candidates and fails closed before Git because file count exceeds both the selected limit and v1 hard ceiling. | `docs/rag2_source_manifest_shadow_2026-08-26.md` |
+| 27 | `Source scope measurement slice` | Pre-Git aggregate scope and role measurement | Shared discovery inventory reports no individual paths or text. Runtime-only is 1,116 files, runtime plus top-level docs is 1,572, and adding tests reaches 2,557. No scope or limit change is selected. | `docs/rag2_source_scope_measurement_2026-08-26.md` |
 
 ## Rejected shortcuts
 
@@ -179,8 +188,9 @@ RAG2 tests, and 10 notification-relay tests through `tool/codex_verify.sh`. The
 Git collector slice adds seven focused cases. Future changes should run the RAG2
 tests listed under `test/tool/` through the same entrypoint and must not rewrite
 the frozen fixture versions. The collector baseline has 77 RAG2 tests; the
-manifest-shadow slice adds five focused cases. Project/package static analysis
-remains the required gate. All 82 focused RAG2 tests pass on this slice.
+manifest-shadow slice adds five focused cases, and the source-scope measurement
+adds three. Project/package static analysis remains the required gate. All 85
+focused RAG2 tests pass on this slice.
 
 ## Next entry condition
 
@@ -189,10 +199,11 @@ Freeze the extraction suites, `rag2-passage-role-oracle-v1`, corrected
 `rag2-provenance-attestation-contract-v1`, and
 `rag2-source-discovery-contract-v1`, and
 `rag2-git-evidence-collector-contract-v1`, and
-`rag2-source-manifest-shadow-contract-v1`; retain withdrawn versions only as
-history. The next slice must measure metadata-only candidate counts and bytes
-by top-level repository-relative source scope before Git collection. Compare
-explicit scope candidates without source text or absolute paths, and do not
-raise the cap or add an index schema until that evidence chooses an allowlist,
-revised bound, or No-Go. Do not add FTS5, embeddings, prompting, routing, tools,
-or model calls.
+`rag2-source-manifest-shadow-contract-v1`, and
+`rag2-source-scope-measurement-contract-v1`; retain withdrawn versions only as
+history. The next slice must prove a bounded batch Git inventory has state and
+revision parity with the frozen per-path collector while using a fixed command
+count. It must retain NUL-delimited parsing, time/output bounds, exact-root
+preflight, and fail-closed ambiguity handling. Do not select a source profile,
+raise limits, add an index schema, or add FTS5, embeddings, prompting, routing,
+tools, or model calls.

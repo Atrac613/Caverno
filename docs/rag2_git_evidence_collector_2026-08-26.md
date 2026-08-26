@@ -98,13 +98,17 @@ tool/codex_verify.sh \
 
 The focused run passes 13 tests. The final
 `fvm flutter test test/tool/rag2_*_test.dart` run passes all 77 RAG2 tests, and
-project/package static analysis is clean.
+project/package static analysis is clean. These are the historical collector
+slice counts; later acquisition slices extend the focused suite.
 
 ## Decision and Next Entry Condition
 
 Freeze the typed collector boundary and the fixture-map compatibility adapter.
 The opt-in manifest-only live-shadow adapter is now complete and recorded in
 `docs/rag2_source_manifest_shadow_2026-08-26.md`. Its first Caverno preflight
-fails closed on file count before Git collection. The next slice must measure
-candidate count and bytes by top-level source scope rather than raise the cap.
-No retrieval or model-facing path is authorized.
+fails closed on file count before Git collection. The subsequent source-scope
+measurement is complete and recorded in
+`docs/rag2_source_scope_measurement_2026-08-26.md`. It selects no scope and
+shows that the per-path collector remains too expensive for every broad source
+profile. The next slice must prove a bounded batch Git inventory with semantic
+parity. No retrieval or model-facing path is authorized.

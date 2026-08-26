@@ -90,22 +90,13 @@ Future<Rag2SourceDiscoveryResult> discoverRag2Sources({
   required Rag2GitEvidenceProvider gitEvidenceProvider,
   bool includeChunks = true,
 }) async {
-  final root = Directory(project.normalizedRootPath);
-  final candidates = <({String path, File file, int bytes})>[];
-  final exclusions = <Rag2DiscoveryExclusion>[];
-  await _walkFixtureRoot(
-    root: root,
-    directory: root,
-    policy: policy,
-    candidates: candidates,
-    exclusions: exclusions,
+  final inventory = await inventoryRag2SourceCandidates(
+    project: project,
+    maxFileBytes: policy.maxFileBytes,
   );
-  candidates.sort((left, right) => left.path.compareTo(right.path));
-  exclusions.sort((left, right) {
-    final path = left.path.compareTo(right.path);
-    return path != 0 ? path : left.reason.compareTo(right.reason);
-  });
-  final corpusBytes = candidates.fold<int>(0, (sum, item) => sum + item.bytes);
+  final candidates = inventory.candidates;
+  final exclusions = List<Rag2DiscoveryExclusion>.from(inventory.exclusions);
+  final corpusBytes = inventory.corpusBytes;
   final violations = <String>[
     if (candidates.length > policy.maxFiles) 'file_count_exceeded',
     if (corpusBytes > policy.maxCorpusBytes) 'corpus_bytes_exceeded',
@@ -169,6 +160,38 @@ Future<Rag2SourceDiscoveryResult> discoverRag2Sources({
   );
 }
 
+Future<Rag2SourceCandidateInventory> inventoryRag2SourceCandidates({
+  required CodingProject project,
+  required int maxFileBytes,
+}) async {
+  if (maxFileBytes <= 0) {
+    throw const FormatException(
+      'Source inventory max-file-bytes must be positive.',
+    );
+  }
+  final root = Directory(project.normalizedRootPath);
+  final candidates = <Rag2SourceCandidate>[];
+  final exclusions = <Rag2DiscoveryExclusion>[];
+  await _walkFixtureRoot(
+    root: root,
+    directory: root,
+    maxFileBytes: maxFileBytes,
+    candidates: candidates,
+    exclusions: exclusions,
+  );
+  candidates.sort((left, right) => left.path.compareTo(right.path));
+  exclusions.sort((left, right) {
+    final path = left.path.compareTo(right.path);
+    return path != 0 ? path : left.reason.compareTo(right.reason);
+  });
+  final corpusBytes = candidates.fold<int>(0, (sum, item) => sum + item.bytes);
+  return Rag2SourceCandidateInventory(
+    candidates: candidates,
+    exclusions: exclusions,
+    corpusBytes: corpusBytes,
+  );
+}
+
 List<Rag2CandidateChunk> _chunkCandidate(String path, String text) {
   final normalized = _normalizeText(text);
   return path.endsWith('.md')
@@ -179,8 +202,8 @@ List<Rag2CandidateChunk> _chunkCandidate(String path, String text) {
 Future<void> _walkFixtureRoot({
   required Directory root,
   required Directory directory,
-  required Rag2SourceDiscoveryPolicy policy,
-  required List<({String path, File file, int bytes})> candidates,
+  required int maxFileBytes,
+  required List<Rag2SourceCandidate> candidates,
   required List<Rag2DiscoveryExclusion> exclusions,
 }) async {
   final entities = await directory.list(followLinks: false).toList()
@@ -206,7 +229,7 @@ Future<void> _walkFixtureRoot({
         await _walkFixtureRoot(
           root: root,
           directory: entity,
-          policy: policy,
+          maxFileBytes: maxFileBytes,
           candidates: candidates,
           exclusions: exclusions,
         );
@@ -227,13 +250,15 @@ Future<void> _walkFixtureRoot({
       continue;
     }
     final bytes = await entity.length();
-    if (bytes > policy.maxFileBytes) {
+    if (bytes > maxFileBytes) {
       exclusions.add(
         Rag2DiscoveryExclusion(path: relative, reason: 'file_bytes_exceeded'),
       );
       continue;
     }
-    candidates.add((path: relative, file: entity, bytes: bytes));
+    candidates.add(
+      Rag2SourceCandidate(path: relative, file: entity, bytes: bytes),
+    );
   }
 }
 
@@ -432,6 +457,30 @@ final class Rag2DiscoveredSource {
     'bytes': bytes,
     'chunks': [for (final chunk in chunks) chunk.toJson()],
   };
+}
+
+final class Rag2SourceCandidate {
+  const Rag2SourceCandidate({
+    required this.path,
+    required this.file,
+    required this.bytes,
+  });
+
+  final String path;
+  final File file;
+  final int bytes;
+}
+
+final class Rag2SourceCandidateInventory {
+  const Rag2SourceCandidateInventory({
+    required this.candidates,
+    required this.exclusions,
+    required this.corpusBytes,
+  });
+
+  final List<Rag2SourceCandidate> candidates;
+  final List<Rag2DiscoveryExclusion> exclusions;
+  final int corpusBytes;
 }
 
 final class Rag2DiscoveryExclusion {

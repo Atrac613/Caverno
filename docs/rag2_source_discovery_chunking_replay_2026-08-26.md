@@ -85,7 +85,9 @@ The bounded typed Git collector prerequisite is now complete and recorded in
 `docs/rag2_git_evidence_collector_2026-08-26.md`.
 
 The subsequent opt-in manifest-only adapter is complete and recorded in
-`docs/rag2_source_manifest_shadow_2026-08-26.md`. Its Caverno preflight exceeds
-the bounded file-count policy before Git collection. Measure metadata-only
-candidate counts and bytes by top-level source scope next; do not raise the cap
-or consider an index schema from the aggregate count alone.
+`docs/rag2_source_manifest_shadow_2026-08-26.md`. Its source-scope measurement
+is also complete and recorded in
+`docs/rag2_source_scope_measurement_2026-08-26.md`. No broad profile satisfies
+both the current file limits and source-role coverage. Prove bounded batch Git
+inventory parity next; do not raise the cap or consider an index schema from
+the aggregate counts alone.

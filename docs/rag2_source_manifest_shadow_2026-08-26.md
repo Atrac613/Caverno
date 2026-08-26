@@ -112,10 +112,13 @@ Project static analysis is clean, and all 82 focused RAG2 tests pass.
 Freeze the opt-in CLI, report schema, default/hard limits, and current live
 No-Go. Do not increase the file cap directly from this one repository count.
 
-The next slice must add one metadata-only source-scope measurement grouped by
-top-level repository-relative path. It must run before Git evidence collection,
-preserve the same link and extension policy, report count and bytes without
-paths or source text, and compare explicit scope candidates such as `lib/`,
-`docs/`, and package source roots. Only that evidence may decide whether the
-live manifest should use an explicit allowlist, revised cap, or remain No-Go.
-Storage and retrieval remain blocked.
+The metadata-only source-scope entry condition is now satisfied by
+`rag2-source-scope-measurement-contract-v1`. Its final Caverno snapshot records
+2,819 candidates. Runtime-only and runtime-plus-documentation profiles exceed
+the default file ceiling, while the profile that also retains tests exceeds the
+hard ceiling. No scope or revised limit is selected.
+
+The next entry condition is the bounded batch Git inventory parity replay in
+`docs/rag2_source_scope_measurement_2026-08-26.md`. It must reduce the
+per-path process cost without changing this manifest contract, limits, source
+selection, storage, retrieval, or production decisions.
