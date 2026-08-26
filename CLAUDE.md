@@ -73,6 +73,13 @@ tool/sec_verify_logs.sh
 # CAVERNO_SESSION_LOG_DIR / CAVERNO_HOME. Counts only logs carrying a real LLM
 # request/response; --include-ungrounded also counts test output.
 python3 tool/triage_session_logs.py --top 10 [--since-days N]
+
+# Check whether a shipped harness change has actually fired in a real session,
+# rather than only in its unit tests. Reports each registered signature as
+# observed / not yet observed, qualified by git ancestry so a hit from a build
+# that predates the change is flagged as a coincidence. Add a row to
+# SIGNATURES when a change ships.
+python3 tool/check_fix_firings.py [--dir LOG_DIR] [--repo REPO]
 ```
 
 ## Live LLM Canary Workflow
