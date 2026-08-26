@@ -1,6 +1,6 @@
 # Text Heuristic Inventory and Removal Plan
 
-**Status:** inventory complete; HEU1 landed, prose predicates in shadow (2026-08-26)
+**Status:** HEU1 and HEU2 landed; HEU3 unblocked (2026-08-27)
 
 Caverno decides a great deal by pattern-matching prose. Every such decision is
 bound to the languages whose vocabulary someone happened to enumerate — today
@@ -109,12 +109,19 @@ carries per-path `changed: true/false` straight from the mutating tool, and
 isSuccessfulResult` already consults them *first* and only falls back to prose
 when the outcome is absent.
 
-**Blocker, and the cheapest thing on this list:**
-`FinalAnswerClaimNoticeInput._freezeToolResult` rebuilds every `ToolResultInfo`
-without its `outcome`. Inside the applicator — where all the claim guards run —
-the structured evidence is therefore *always* absent and every check falls
-through to the prose path. Fixing the freeze is a prerequisite for
-de-heuristicating this tier and is a one-line change.
+**Blocker, now cleared (HEU2, `9cc6b68c`).**
+`FinalAnswerClaimNoticeInput._freezeToolResult` rebuilt every `ToolResultInfo`
+without its `outcome`, so inside the applicator — where all the claim guards run
+— the structured evidence was *always* absent and every check fell through to
+the prose path. It now survives the freeze.
+
+It was not the one-line change this document first called it. Three ground-truth
+paths were dead behind it, each with a text fallback that hid the loss: the
+typed mutation path, the no-op-mutation check (a byte-identical write counted as
+a change), and the entire structured test-count path in
+`CodingVerificationClaimGuard`, which returns early on a null outcome and so
+never ran here at all. No existing test changed behaviour when the outcome was
+restored, because none of the three had coverage through the applicator.
 
 Note that `isSuccessfulResult`'s prose fallback also carries
 `startsWith('error:')`, `startsWith('auto-review denied')` and a lenient
