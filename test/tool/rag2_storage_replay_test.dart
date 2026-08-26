@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../tool/rag2_explicit_source_roots_replay.dart';
 import '../../tool/rag2_knowledge_object_replay.dart';
 import '../../tool/rag2_provenance_attestation_replay.dart';
 import '../../tool/rag2_source_discovery_replay.dart';
@@ -26,7 +27,11 @@ void main() {
     expect(report.toJson()['productionDecision'], 'no_go');
     expect(
       report.declarationIdentity,
-      'declaration_27ebda6085a09404847c3dc50567c0e11c4df91d77597ac576b4ed74d1de7a6b',
+      rag2ExplicitSourceRootsDeclarationIdentity(const ['docs', 'lib']),
+    );
+    expect(
+      report.declarationIdentity,
+      'declaration_40a72c56dc081f3170457e4c60666499964ea83a487c0dc414cc7d59a441be14',
     );
     expect(report.initial.decision, 'applied');
     expect(report.initial.generation, 1);
@@ -106,9 +111,8 @@ void main() {
         spec: fixture.snapshots.first,
       );
       final store = Rag2InMemoryGenerationStore();
-      final declaration = rag2StorageDeclarationIdentity(
-        projectId: fixture.projectId,
-        sourceRoots: fixture.sourceRoots,
+      final declaration = rag2ExplicitSourceRootsDeclarationIdentity(
+        fixture.sourceRoots,
       );
       store.apply(declarationIdentity: declaration, snapshot: baseline);
 
@@ -246,6 +250,27 @@ void main() {
     expect(result.candidates.single.attestation.hasBoundText, isTrue);
     expect(storedText, contains('Original storage body.'));
     expect(storedText, isNot(contains('Mutated storage body.')));
+  });
+
+  test('shares declaration identity with explicit source roots', () async {
+    final output = Directory.systemTemp.createTempSync(
+      'rag2-storage-identity-',
+    );
+    addTearDown(() => output.deleteSync(recursive: true));
+    final report = await runRag2StorageReplay(
+      Rag2StorageReplayOptions(fixturePath: fixturePath, outDir: output.path),
+    );
+
+    expect(
+      report.declarationIdentity,
+      rag2ExplicitSourceRootsDeclarationIdentity(const ['lib', 'docs']),
+    );
+    expect(
+      report.declarationIdentity,
+      isNot(
+        'declaration_27ebda6085a09404847c3dc50567c0e11c4df91d77597ac576b4ed74d1de7a6b',
+      ),
+    );
   });
 
   test('writes deterministic aggregate-only reports', () async {

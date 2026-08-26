@@ -84,7 +84,7 @@ right evidence, or that generated answers are complete and correctly cited.
 ## Next Entry Condition
 
 Live acquisition for this frozen declaration is now a CI gate. See
-`docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`. The next
-hardening slice is declaration-identity alignment with storage, then a
+`docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`. Acquisition
+and storage now share declaration identity. The next hardening slice is a
 persistence-reopen hypothesis. Do not select SQLite, FTS5, Drift, or
 embeddings yet.

@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
-import 'package:crypto/crypto.dart';
 
 import 'rag2_explicit_source_roots_replay.dart';
 import 'rag2_knowledge_object_replay.dart';
@@ -39,9 +38,8 @@ Future<Rag2StorageReplayReport> runRag2StorageReplay(
   final fixtureFile = File(options.fixturePath);
   final fixture = await Rag2StorageReplayFixture.load(fixtureFile);
   final store = Rag2InMemoryGenerationStore();
-  final declarationIdentity = rag2StorageDeclarationIdentity(
-    projectId: fixture.projectId,
-    sourceRoots: fixture.sourceRoots,
+  final declarationIdentity = rag2ExplicitSourceRootsDeclarationIdentity(
+    fixture.sourceRoots,
   );
   final baseline = await prepareRag2StorageSnapshot(
     fixtureFile: fixtureFile,
@@ -283,14 +281,6 @@ Rag2KnowledgeObject rag2KnowledgeObjectFromDiscoveredSource({
     chunkIds: [for (final chunk in chunks) chunk.chunkId],
     chunks: chunks,
   );
-}
-
-String rag2StorageDeclarationIdentity({
-  required String projectId,
-  required List<String> sourceRoots,
-}) {
-  final roots = List<String>.from(sourceRoots)..sort();
-  return 'declaration_${sha256.convert(utf8.encode([rag2StorageReplayContract, projectId, ...roots].join('\u0000')))}';
 }
 
 typedef Rag2BeforeGenerationCommit =

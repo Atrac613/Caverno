@@ -107,6 +107,10 @@ void main() {
       );
 
       expect(forward.report.toJson(), reversed.report.toJson());
+      expect(
+        forward.report.declarationIdentity,
+        rag2ExplicitSourceRootsDeclarationIdentity(const ['lib/core', 'docs']),
+      );
     },
   );
 

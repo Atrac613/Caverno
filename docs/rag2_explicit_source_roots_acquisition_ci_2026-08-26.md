@@ -1,7 +1,7 @@
 # RAG2 Explicit Source Roots Acquisition CI Gate
 
 Date: 2026-08-26
-Status: acquisition CI Go; identity alignment and persistence reopen remain
+Status: acquisition CI Go; identity aligned; persistence reopen remains
 Contract: `rag2-explicit-complete-source-roots-v1`
 
 ## Decision
@@ -86,9 +86,9 @@ set. It does not freeze the current admitted-file snapshot, prove retrieval,
 ranking, answer correctness, citation quality, durable storage, crash
 recovery, or production readiness.
 
-Acquisition and storage still hash declaration identity differently. Do not
-select SQLite, FTS5, Drift, or embeddings until that identity is unified and a
-separate reopen/migration hypothesis passes.
+Acquisition and storage now share declaration identity for the same sorted
+roots. Do not select SQLite, FTS5, Drift, or embeddings until a separate
+reopen/migration hypothesis passes.
 
 ## Verification
 
@@ -107,7 +107,7 @@ fvm flutter test test/tool/rag2_*_test.dart
 
 ## Next Entry Condition
 
-Unify declaration identity between explicit-root acquisition and
-`rag2-storage-replay-contract-v1` so the same frozen roots produce the same
-hash. Then define a persistence-reopen hypothesis. Do not select a database
+Acquisition and storage now share declaration identity for the same sorted
+roots. See `docs/rag2_storage_replay_contract_2026-08-26.md`. The next
+hardening slice is a persistence-reopen hypothesis. Do not select a database
 backend, and do not add settings, tools, prompting, or application wiring.

@@ -1,7 +1,7 @@
 # RAG2 Storage Replay Contract
 
 Date: 2026-08-26
-Status: storage contract Go; retrieval not evaluated; production No-Go
+Status: storage contract Go; declaration identity aligned; retrieval not evaluated; production No-Go
 Contract: `rag2-storage-replay-contract-v1`
 
 ## Decision
@@ -31,7 +31,12 @@ parallel representations:
   selection with unchanged policy ceilings and instruction-bearing exclusion.
 
 The only upstream API changes expose existing deterministic object/snapshot
-identity helpers and explicit-root validation/membership helpers.
+identity helpers, explicit-root validation/membership helpers, and the shared
+declaration-identity hasher. Storage no longer hashes
+`rag2-storage-replay-contract-v1` plus project id. The same sorted source
+roots now produce
+`declaration_40a72c56dc081f3170457e4c60666499964ea83a487c0dc414cc7d59a441be14`
+in both acquisition and storage. Project identity remains a separate field.
 
 ## Fixture Result
 
@@ -78,9 +83,7 @@ fvm flutter test test/tool/rag2_*_test.dart
 
 ## Next Entry Condition
 
-Keep this contract and fixture frozen, including the attested-text binding.
-Frozen-declaration acquisition is now a CI gate. See
-`docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`. Before
-selecting a production backend, unify declaration identity with explicit
-source roots and then run a separate migration/reopen/crash-recovery
-hypothesis. Retrieval remains a later independent evaluation.
+Keep this contract and fixture frozen, including the attested-text binding and
+shared declaration identity. Before selecting a production backend, run a
+separate migration/reopen/crash-recovery hypothesis. Retrieval remains a later
+independent evaluation.
