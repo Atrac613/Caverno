@@ -90,9 +90,11 @@ Retain v1 and this failed holdout as immutable evidence. Do not reuse the
 holdout as independent promotion evidence for another policy. Source
 selection, storage, retrieval, and production remain No-Go.
 
-The next RAG2 slice, if resumed, must first specify a new question-independent
-source-scope hypothesis that avoids arbitrary within-role omission and fits the
-existing limits. Freeze that policy before development evaluation, then use a
-new untouched holdout for any promotion decision. Until such a hypothesis
-exists, do not add SQLite, FTS5, embeddings, prompting, routing, tools, model
-calls, or application wiring.
+That entry condition is now satisfied by the frozen explicit source-roots
+hypothesis in
+`docs/rag2_explicit_source_roots_hypothesis_2026-08-26.md`. It moves omission
+authority to an explicit caller declaration, admits every eligible source below
+the declared roots, and fails closed at the existing default limits. It has not
+been implemented or evaluated. Until its synthetic contract is proven, do not
+add SQLite, FTS5, embeddings, prompting, routing, tools, model calls, or
+application wiring.

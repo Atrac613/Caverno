@@ -127,7 +127,9 @@ and evaluated exactly once. Its 4/8 result closes this stratified stable-hash
 sampling strategy. Selection, storage, retrieval, and production remain No-Go.
 
 Do not revise quotas from the development or holdout misses, and do not reuse
-the holdout to promote another policy. Any resumed source-scope work needs a
-new question-independent hypothesis and a new untouched holdout. Do not add
-SQLite, FTS5, embeddings, prompting, routing, tools, model calls, or
-application wiring.
+the holdout to promote another policy. The next question-independent hypothesis
+is now frozen as `rag2-explicit-complete-source-roots-v1`; it has not been
+implemented or evaluated. See
+`docs/rag2_explicit_source_roots_hypothesis_2026-08-26.md`. Do not add SQLite,
+FTS5, embeddings, prompting, routing, tools, model calls, or application
+wiring.
