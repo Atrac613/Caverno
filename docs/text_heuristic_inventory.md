@@ -230,11 +230,28 @@ than designed in:
 - **Approval is now cross-turn by construction.** The token exists only once a
   release has been blocked, so the flow is attempt, refusal carrying the token,
   ask, answer, retry. `BlockedProductionReleaseRetryPolicy` already assumed
-  this ("approval almost never arrives in the turn that was blocked"), but the
-  same-turn retry is suppressed by the duplicate-tool-call guard, which counts
-  a guard refusal as an attempt. Not addressed here; a refused call arguably
-  should not suppress a later real one, the same way `_wasNeverExecuted` keeps
-  refusals out of the tool-loop digest.
+  this ("approval almost never arrives in the turn that was blocked"), and the
+  end-to-end test spans two turns for that reason.
+
+  A same-turn retry — the user selects the approving option while the turn is
+  still running — is dropped as a duplicate. The guard refusal returns
+  `isSuccess: true`, deliberately, so the loop treats a policy decision as a
+  decision rather than a tool failure; the loop therefore records it as a
+  completed call and claims its dedupe key, which the identical retry then
+  collides with.
+
+  **Investigated and not fixed, on purpose.** The obvious lever does not
+  apply: `toolExecutionKey` appends `stateChangeGeneration` only for
+  *read-only* commands, precisely so a mutating command cannot become
+  re-runnable because state moved — a release must not run twice. Bumping
+  `commandRetryGeneration` instead does work, but that counter means "a file
+  mutation changed what a command would do", and an approval would make every
+  previously-executed command re-runnable once. Simply not claiming a dedupe
+  key for refused calls is the widest option and the least safe: a guard
+  refusal never increments `toolFailureCounts`, so the key is the only thing
+  bounding a refuse-retry-refuse loop. None of the three is proportionate to a
+  same-turn convenience when the cross-turn path works, so this stays recorded
+  rather than patched.
 
 A chat message can no longer approve a release in any language, including
 "承認します". The user must select the option carrying the token.
