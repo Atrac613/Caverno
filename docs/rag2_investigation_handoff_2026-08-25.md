@@ -179,6 +179,7 @@ stratified stable-hash strategy and do not tune or revive v1.
 | 49 | `FTS5 incremental index` | Delta patch of hosted FTS5 using the frozen Knowledge Object delta | Empty slots still full-replace. Generation 2 skips unchanged `rowid`/`content`, rewrites metadata-updated terms, deletes removed ids, and inserts added ids. Injected commit failure and a killed writer recover the previous generation and unchanged rowids. Retrieval and production remain No-Go. | `docs/rag2_fts5_incremental_index_hypothesis_2026-08-27.md` |
 | 50 | `FTS5 visibility drop` | Drop/clear removes FTS visibility for one identity | `clearSearchIndex` keeps generation 2 and hides MATCH. A later indexed apply may restore the slot. `drop` deletes the generation row and slot together. Injected commit failure and a killed drop recover generation 2 and its envelope, terms, and MATCH. A neighbor project stays visible. Retrieval and production remain No-Go. | `docs/rag2_fts5_visibility_drop_hypothesis_2026-08-27.md` |
 | 51 | `FTS5 rebuild reopen` | Rebuild/reopen repair FTS from the generation payload | `rebuildSearchIndex` full-replaces a cleared or mismatched slot from generation 2 without a new snapshot. Rebuild twice and reopen keep envelope, terms, and MATCH. Injected commit failure and a killed rebuild of a cleared slot leave the previous slot. A neighbor project stays visible. Retrieval and production remain No-Go. | `docs/rag2_fts5_rebuild_reopen_hypothesis_2026-08-27.md` |
+| 52 | `FTS5 hosted query` | Identity-scoped MATCH reads one hosted slot | `querySearchIndex` tokenizes with Dart trigram terms, binds the committed generation envelope, and returns a `List` of chunk ids ordered by `chunk_id`, not BM25. A mismatched envelope fails closed. Clear hides hits; rebuild restores them. Host and neighbor each hit their own ids with no cross-leak. An unindexed generation stays without RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_fts5_hosted_query_hypothesis_2026-08-27.md` |
 
 ## Rejected shortcuts
 
@@ -229,6 +230,8 @@ stratified stable-hash strategy and do not tune or revive v1.
 - Do not treat FTS5 rebuild/reopen as retrieval, settings, tools, or
   chat/runtime wiring. Repairing MATCH from the generation payload is not a
   quality gate.
+- Do not treat hosted FTS5 MATCH as retrieval, settings, tools, or
+  chat/runtime wiring. A hit count is not a quality gate.
 
 ## Durable artifacts
 
@@ -285,7 +288,7 @@ increases it to 158. Drift additive schema increases it to 169. Drift DAO
 generation-store writes increase it to 182. The isolated FTS5 index increases
 it to 193. AppDatabase-hosted FTS5 increases it to 203. Incremental FTS5
 indexing increases it to 213. Visibility drop increases it to 223.
-Rebuild/reopen increases it to 235.
+Rebuild/reopen increases it to 235. Hosted query increases it to 245.
 
 ## Next entry condition
 
@@ -335,7 +338,10 @@ are inserted. `drop` removes a generation and its FTS slot;
 `clearSearchIndex` hides FTS visibility until a later indexed apply,
 without dropping neighbor slots. `rebuildSearchIndex` full-replaces a
 cleared or mismatched slot from the committed generation payload without
-bumping generation; reopen keeps that repaired slot. This does
+bumping generation; reopen keeps that repaired slot. Identity-scoped MATCH
+reads that slot through Dart trigram terms bound to the committed
+generation envelope, without BM25 ranking or a no-answer gate. A
+mismatched envelope fails closed. This does
 not select retrieval or production wiring. Prompting,
 routing, tools, model calls, settings, and chat/runtime wiring remain out of
 scope.

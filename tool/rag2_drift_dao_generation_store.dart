@@ -255,6 +255,40 @@ final class Rag2DriftDaoGenerationStore {
     );
   }
 
+  /// Tokenizes [queryText] with Dart trigram terms and MATCH-queries the
+  /// hosted slot bound to the committed generation envelope. Does not create
+  /// `rag2_chunk_search` if it is absent. Missing generation, empty terms,
+  /// a non-positive [limit], or a mismatched envelope return no ids. This is
+  /// not a ranking or no-answer quality gate.
+  Future<List<String>> querySearchIndex({
+    required String declarationIdentity,
+    required String queryText,
+    int limit = 32,
+  }) async {
+    if (limit < 1) {
+      return const [];
+    }
+    await _ensureHostedSchema();
+    final generation = await _readLocked(declarationIdentity);
+    if (generation == null) {
+      return const [];
+    }
+    final terms = tokenizeRag2Lexical(queryText, Rag2LexicalPolicy.trigram);
+    if (terms.isEmpty) {
+      return const [];
+    }
+    return database.queryRag2ChunkSearchChunkIds(
+      projectIdentity: projectIdentity,
+      declarationIdentity: declarationIdentity,
+      generation: generation.generation,
+      snapshotHash: generation.snapshot.snapshotHash,
+      matchQuery: [
+        for (final term in terms) '"${term.replaceAll('"', '""')}"',
+      ].join(' AND '),
+      limit: limit,
+    );
+  }
+
   /// Clears FTS5 rows for [declarationIdentity] without deleting the
   /// generation. This is not a durable disable flag; a later indexed apply
   /// may restore the slot.

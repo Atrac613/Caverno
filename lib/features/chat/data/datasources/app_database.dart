@@ -494,6 +494,44 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  /// Returns chunk ids matching [matchQuery] in one project/declaration slot.
+  ///
+  /// Does not create `rag2_chunk_search` if it is absent. Rows must carry
+  /// [generation] and [snapshotHash] or the query fails closed. Results are
+  /// ordered by `chunk_id`, not BM25 rank. A non-positive [limit] returns no
+  /// ids. This is not a retrieval quality gate.
+  Future<List<String>> queryRag2ChunkSearchChunkIds({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required int generation,
+    required String snapshotHash,
+    required String matchQuery,
+    int limit = 32,
+  }) async {
+    if (limit < 1 ||
+        matchQuery.trim().isEmpty ||
+        !await _rag2ChunkSearchTableExists()) {
+      return const [];
+    }
+    final boundedLimit = limit > 256 ? 256 : limit;
+    final rows = await customSelect(
+      'SELECT chunk_id FROM $rag2ChunkSearchTable '
+      'WHERE $rag2ChunkSearchTable MATCH ? '
+      'AND project_identity = ? AND declaration_identity = ? '
+      'AND generation = ? AND snapshot_hash = ? '
+      'ORDER BY chunk_id LIMIT ?',
+      variables: [
+        Variable<String>(matchQuery),
+        Variable<String>(projectIdentity),
+        Variable<String>(declarationIdentity),
+        Variable<int>(generation),
+        Variable<String>(snapshotHash),
+        Variable<int>(boundedLimit),
+      ],
+    ).get();
+    return [for (final row in rows) row.read<String>('chunk_id')];
+  }
+
   Future<void> _replaceRag2ChunkSearchRows({
     required String projectIdentity,
     required String declarationIdentity,
