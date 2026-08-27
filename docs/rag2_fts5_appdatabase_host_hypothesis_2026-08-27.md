@@ -101,8 +101,10 @@ identical. `AppDatabase` stays at schema version 5.
 
 Keep this AppDatabase-hosted FTS5 API, the isolated FTS5 instrument, the Drift
 DAO write path, the additive schema, and the sqlite3 instrument frozen.
-Retrieval quality and no-answer policy remain independent. Do not add
-settings, tools, prompting, or chat/runtime wiring.
+Incremental FTS5 indexing is recorded in
+`docs/rag2_fts5_incremental_index_hypothesis_2026-08-27.md`. Retrieval quality
+and no-answer policy remain independent. Do not add settings, tools,
+prompting, or chat/runtime wiring.
 
 ## Verification
 

@@ -176,6 +176,7 @@ stratified stable-hash strategy and do not tune or revive v1.
 | 46 | `Drift DAO generation store` | Frozen row contract applied through Drift table accessors | Generation 2 reopens by selecting `rag2_generations` through the DAO. Killing an uncommitted Drift writer recovers generation 1. Concurrent Drift writers serialize. No RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_drift_dao_generation_store_hypothesis_2026-08-27.md` |
 | 47 | `FTS5 additive index` | Isolated chunk FTS5 beside conversation-search | `rag2_chunk_search` binds project, declaration, generation, and snapshot hash. Atomic replacement rolls back on injected failure. Every chunk must MATCH. Two projects stay isolated. AppDatabase stays at v5. Retrieval and production remain No-Go. | `docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md` |
 | 48 | `FTS5 AppDatabase host` | Opt-in FTS5 hosted by AppDatabase apply | Schema version 5 does not create RAG2 FTS5. Opt-in `indexSearch` writes the index in the same transaction as the generation row. Injected commit failure and a killed writer recover the previous generation and index. Retrieval and production remain No-Go. | `docs/rag2_fts5_appdatabase_host_hypothesis_2026-08-27.md` |
+| 49 | `FTS5 incremental index` | Delta patch of hosted FTS5 using the frozen Knowledge Object delta | Empty slots still full-replace. Generation 2 skips unchanged `rowid`/`content`, rewrites metadata-updated terms, deletes removed ids, and inserts added ids. Injected commit failure and a killed writer recover the previous generation and unchanged rowids. Retrieval and production remain No-Go. | `docs/rag2_fts5_incremental_index_hypothesis_2026-08-27.md` |
 
 ## Rejected shortcuts
 
@@ -219,6 +220,8 @@ stratified stable-hash strategy and do not tune or revive v1.
   chat/runtime wiring. Matching every chunk id is not a quality gate.
 - Do not treat AppDatabase-hosted RAG2 FTS5 as retrieval, settings, tools, or
   chat/runtime wiring. Opt-in indexing is not a production path.
+- Do not treat incremental FTS5 patching as retrieval, settings, tools, or
+  chat/runtime wiring. Skipping unchanged `rowid` values is not a quality gate.
 
 ## Durable artifacts
 
@@ -273,7 +276,8 @@ acquisition CI increases it to 140. Shared declaration identity increases it
 to 141. Persistence reopen increases it to 149. Isolated SQLite durability
 increases it to 158. Drift additive schema increases it to 169. Drift DAO
 generation-store writes increase it to 182. The isolated FTS5 index increases
-it to 193. AppDatabase-hosted FTS5 increases it to 203.
+it to 193. AppDatabase-hosted FTS5 increases it to 203. Incremental FTS5
+indexing increases it to 211.
 
 ## Next entry condition
 
@@ -316,7 +320,10 @@ can sit beside conversation-search on that host file without bumping schema
 version 5. Replacement is transactional and bound to project, declaration,
 generation, and snapshot hash; Go requires every chunk to MATCH. Opt-in
 AppDatabase-hosted indexing writes that slot in the same transaction as the
-generation upsert without bumping schema version 5. This does
+generation upsert without bumping schema version 5. Incremental indexing
+patches that slot from the frozen Knowledge Object delta so unchanged
+content keeps its FTS5 `rowid`, removed ids leave the index, and added ids
+are inserted. This does
 not select retrieval or production wiring. Prompting,
 routing, tools, model calls, settings, and chat/runtime wiring remain out of
 scope.

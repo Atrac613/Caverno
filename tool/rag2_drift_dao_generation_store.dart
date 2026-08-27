@@ -135,6 +135,8 @@ final class Rag2DriftDaoGenerationStore {
           await _writeSearchIndex(
             declarationIdentity: declarationIdentity,
             generation: pending,
+            previous: previous,
+            delta: result.delta,
           );
         }
       } else if (result.decision == 'no_op' &&
@@ -143,6 +145,8 @@ final class Rag2DriftDaoGenerationStore {
         await _writeSearchIndex(
           declarationIdentity: declarationIdentity,
           generation: previous,
+          previous: previous,
+          delta: result.delta,
         );
         mutated = true;
       }
@@ -205,25 +209,88 @@ final class Rag2DriftDaoGenerationStore {
   Future<void> _writeSearchIndex({
     required String declarationIdentity,
     required Rag2StoredGeneration generation,
+    Rag2StoredGeneration? previous,
+    Rag2KnowledgeReplayDelta? delta,
   }) async {
     await database.ensureRag2ChunkSearchTable();
+    final existing = await _indexedChunkIds(declarationIdentity);
+    if (previous != null &&
+        delta != null &&
+        _canPatchSearchIndex(
+          existing: existing,
+          previous: previous,
+          delta: delta,
+        )) {
+      final chunks = {
+        for (final chunk in generation.snapshot.chunks) chunk.chunkId: chunk,
+      };
+      await database.patchRag2ChunkSearchIndex(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+        generation: generation.generation,
+        snapshotHash: generation.snapshot.snapshotHash,
+        inTransaction: true,
+        unchangedChunkIds: delta.unchangedChunkIds,
+        metadataUpdatedRows: [
+          for (final chunkId in delta.metadataUpdatedChunkIds)
+            _searchRow(chunks[chunkId]!),
+        ],
+        removedChunkIds: delta.removedChunkIds,
+        addedRows: [
+          for (final chunkId in delta.addedChunkIds)
+            _searchRow(chunks[chunkId]!),
+        ],
+      );
+      return;
+    }
     await database.writeRag2ChunkSearchIndex(
       projectIdentity: projectIdentity,
       declarationIdentity: declarationIdentity,
       generation: generation.generation,
       snapshotHash: generation.snapshot.snapshotHash,
       inTransaction: true,
-      rows: [
-        for (final chunk in generation.snapshot.chunks)
-          Rag2ChunkSearchRow(
-            chunkId: chunk.chunkId,
-            objectId: chunk.objectId,
-            content: tokenizeRag2Lexical(
-              chunk.content,
-              Rag2LexicalPolicy.trigram,
-            ).join(' '),
-          ),
-      ],
+      rows: [for (final chunk in generation.snapshot.chunks) _searchRow(chunk)],
+    );
+  }
+
+  Future<Set<String>> _indexedChunkIds(String declarationIdentity) async {
+    final rows = await database
+        .customSelect(
+          'SELECT chunk_id FROM ${AppDatabase.rag2ChunkSearchTable} '
+          'WHERE project_identity = ? AND declaration_identity = ?',
+          variables: [
+            Variable<String>(projectIdentity),
+            Variable<String>(declarationIdentity),
+          ],
+        )
+        .get();
+    return {for (final row in rows) row.read<String>('chunk_id')};
+  }
+
+  bool _canPatchSearchIndex({
+    required Set<String> existing,
+    required Rag2StoredGeneration previous,
+    required Rag2KnowledgeReplayDelta delta,
+  }) {
+    final previousIds = {
+      for (final chunk in previous.snapshot.chunks) chunk.chunkId,
+    };
+    return existing.isNotEmpty &&
+        existing.length == previousIds.length &&
+        existing.containsAll(previousIds) &&
+        existing.containsAll(delta.removedChunkIds) &&
+        existing.containsAll(delta.unchangedChunkIds) &&
+        existing.containsAll(delta.metadataUpdatedChunkIds);
+  }
+
+  Rag2ChunkSearchRow _searchRow(Rag2KnowledgeChunk chunk) {
+    return Rag2ChunkSearchRow(
+      chunkId: chunk.chunkId,
+      objectId: chunk.objectId,
+      content: tokenizeRag2Lexical(
+        chunk.content,
+        Rag2LexicalPolicy.trigram,
+      ).join(' '),
     );
   }
 

@@ -346,7 +346,8 @@ class AppDatabase extends _$AppDatabase {
   /// Owns `BEGIN IMMEDIATE` / `COMMIT` unless [inTransaction] is true. A
   /// mid-write failure then rolls back to the previous slot instead of
   /// leaving an empty or partial index. DELETE is scoped to the target
-  /// project and declaration identities.
+  /// project and declaration identities. Use this for an empty slot, a
+  /// missing index, or a slot that does not match the previous generation.
   Future<void> writeRag2ChunkSearchIndex({
     required String projectIdentity,
     required String declarationIdentity,
@@ -392,6 +393,68 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  /// Patches one project/declaration slot from a Knowledge Object delta.
+  ///
+  /// Unchanged rows keep `content` and should keep their FTS5 `rowid`.
+  /// Envelope columns (`generation`, `snapshot_hash`) are updated so the
+  /// slot stays consistent. Metadata-updated rows rewrite `object_id` and
+  /// `content`. Removed ids are deleted. Added rows are inserted.
+  ///
+  /// Owns `BEGIN IMMEDIATE` / `COMMIT` unless [inTransaction] is true.
+  Future<void> patchRag2ChunkSearchIndex({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required int generation,
+    required String snapshotHash,
+    required List<String> unchangedChunkIds,
+    required List<Rag2ChunkSearchRow> metadataUpdatedRows,
+    required List<String> removedChunkIds,
+    required List<Rag2ChunkSearchRow> addedRows,
+    void Function()? beforeCommit,
+    bool inTransaction = false,
+  }) async {
+    if (inTransaction) {
+      await _patchRag2ChunkSearchRows(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+        generation: generation,
+        snapshotHash: snapshotHash,
+        unchangedChunkIds: unchangedChunkIds,
+        metadataUpdatedRows: metadataUpdatedRows,
+        removedChunkIds: removedChunkIds,
+        addedRows: addedRows,
+      );
+      return;
+    }
+    var settled = false;
+    await customStatement('BEGIN IMMEDIATE');
+    try {
+      await ensureRag2ChunkSearchTable();
+      await _patchRag2ChunkSearchRows(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+        generation: generation,
+        snapshotHash: snapshotHash,
+        unchangedChunkIds: unchangedChunkIds,
+        metadataUpdatedRows: metadataUpdatedRows,
+        removedChunkIds: removedChunkIds,
+        addedRows: addedRows,
+      );
+      beforeCommit?.call();
+      await customStatement('COMMIT');
+      settled = true;
+    } on Object {
+      if (!settled) {
+        try {
+          await customStatement('ROLLBACK');
+        } on Object {
+          // The connection may already have rolled back.
+        }
+      }
+      rethrow;
+    }
+  }
+
   Future<void> _replaceRag2ChunkSearchRows({
     required String projectIdentity,
     required String declarationIdentity,
@@ -405,6 +468,71 @@ class AppDatabase extends _$AppDatabase {
       [projectIdentity, declarationIdentity],
     );
     for (final row in rows) {
+      await customStatement(
+        'INSERT INTO $rag2ChunkSearchTable('
+        'project_identity, declaration_identity, generation, snapshot_hash, '
+        'chunk_id, object_id, content) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+          projectIdentity,
+          declarationIdentity,
+          generation,
+          snapshotHash,
+          row.chunkId,
+          row.objectId,
+          row.content,
+        ],
+      );
+    }
+  }
+
+  Future<void> _patchRag2ChunkSearchRows({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required int generation,
+    required String snapshotHash,
+    required List<String> unchangedChunkIds,
+    required List<Rag2ChunkSearchRow> metadataUpdatedRows,
+    required List<String> removedChunkIds,
+    required List<Rag2ChunkSearchRow> addedRows,
+  }) async {
+    for (final chunkId in unchangedChunkIds) {
+      await customStatement(
+        'UPDATE $rag2ChunkSearchTable '
+        'SET generation = ?, snapshot_hash = ? '
+        'WHERE project_identity = ? AND declaration_identity = ? AND chunk_id = ?',
+        [
+          generation,
+          snapshotHash,
+          projectIdentity,
+          declarationIdentity,
+          chunkId,
+        ],
+      );
+    }
+    for (final row in metadataUpdatedRows) {
+      await customStatement(
+        'UPDATE $rag2ChunkSearchTable '
+        'SET generation = ?, snapshot_hash = ?, object_id = ?, content = ? '
+        'WHERE project_identity = ? AND declaration_identity = ? AND chunk_id = ?',
+        [
+          generation,
+          snapshotHash,
+          row.objectId,
+          row.content,
+          projectIdentity,
+          declarationIdentity,
+          row.chunkId,
+        ],
+      );
+    }
+    for (final chunkId in removedChunkIds) {
+      await customStatement(
+        'DELETE FROM $rag2ChunkSearchTable '
+        'WHERE project_identity = ? AND declaration_identity = ? AND chunk_id = ?',
+        [projectIdentity, declarationIdentity, chunkId],
+      );
+    }
+    for (final row in addedRows) {
       await customStatement(
         'INSERT INTO $rag2ChunkSearchTable('
         'project_identity, declaration_identity, generation, snapshot_hash, '
