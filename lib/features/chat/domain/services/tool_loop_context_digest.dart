@@ -11,6 +11,19 @@ import '../entities/tool_call_info.dart';
 /// memory is reset — so without this reminder the model tends to re-list the
 /// same directories and re-read the same files it inspected earlier in the turn.
 ///
+/// What it must not do is imply the earlier output is still readable, because
+/// it is not: a follow-up carries only the current batch's results, and
+/// `StickyToolResultPolicy` re-sends nothing but `ask_user_question` and
+/// `load_skill`. The command section was worded that way from the start; the
+/// inspection section was not, and said "context already gathered ... do not
+/// re-read these". Session 9a44b9c8 shows the cost in the model's own words —
+/// "the context says these have already been executed ... but I don't have the
+/// content on hand" — after which it re-read all three files in order to
+/// answer, swept the already-failed one along with them, and died on the
+/// repeated-failure abort. A read whose content *is* the answer has to stay
+/// repeatable, so the wording now states what is true and leaves the judgement
+/// to the model.
+///
 /// The digest is also content-aware: when the same inspection was repeated and
 /// every repeat saw the same content, the line is flagged as `unchanged`. This
 /// targets the non-converging edit→run→re-read debug loop (session 119292cb:
@@ -200,8 +213,8 @@ class ToolLoopContextDigest {
       lines.add(
         unchangedRun >= 2
             ? '- $label (unchanged — the last $unchangedRun inspections '
-                  'returned the same file; do not repeat it unless you modify '
-                  'the underlying files)'
+                  'returned the same file, so repeating it to check for a '
+                  'change will find none)'
             : '- $label',
       );
     }
@@ -210,8 +223,10 @@ class ToolLoopContextDigest {
     }
     final sections = <String>[
       if (lines.isNotEmpty)
-        'Context already gathered this turn (do not re-read these unless a '
-            'file was modified since):\n${lines.join('\n')}',
+        'Inspections already made this turn — what they returned is not '
+            'carried into this request. Do not repeat one by reflex; read it '
+            'again when you need its content to answer, or when something may '
+            'have changed it:\n${lines.join('\n')}',
       if (commandLines.isNotEmpty)
         'Commands already run this turn — their output is not carried into '
             'this request. Do not re-issue one by reflex; run it again only '

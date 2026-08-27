@@ -30,7 +30,7 @@ void main() {
       expect(block, contains('listed docs'));
       expect(block, contains('read docs/release.md'));
       expect(block, contains('searched "version"'));
-      expect(block, contains('Context already gathered this turn'));
+      expect(block, contains('Inspections already made this turn'));
     });
 
     test('deduplicates repeated reads of the same path', () {
@@ -300,10 +300,10 @@ void main() {
         _result('local_execute_command', {'command': 'gh pr checks 276'}),
       ]);
 
-      expect(block, contains('Context already gathered this turn'));
+      expect(block, contains('Inspections already made this turn'));
       expect(block, contains('Commands already run this turn'));
       expect(
-        block.indexOf('Context already gathered'),
+        block.indexOf('Inspections already made'),
         lessThan(block.indexOf('Commands already run')),
       );
     });
