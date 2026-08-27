@@ -11,6 +11,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'rag2_drift_additive_schema_replay.dart';
 import 'rag2_explicit_source_roots_replay.dart';
 import 'rag2_knowledge_object_replay.dart';
+import 'rag2_lexical_policy_bakeoff.dart';
 import 'rag2_persistence_reopen_replay.dart';
 import 'rag2_storage_replay.dart';
 
@@ -80,7 +81,9 @@ final class Rag2DriftDaoGenerationStore {
     required String declarationIdentity,
     required Rag2KnowledgeSnapshot snapshot,
     Rag2BeforeGenerationCommit? beforeCommit,
+    void Function()? beforeTxnCommit,
     bool commit = true,
+    bool indexSearch = false,
   }) async {
     ensureRag2SnapshotMatchesProject(projectId: projectId, snapshot: snapshot);
     await _dao.beginImmediate();
@@ -104,6 +107,7 @@ final class Rag2DriftDaoGenerationStore {
           beforeCommit?.call(pending);
         },
       );
+      var mutated = false;
       if (result.decision == 'applied') {
         final pending = pendingWrite;
         if (pending == null) {
@@ -126,11 +130,27 @@ final class Rag2DriftDaoGenerationStore {
             ),
           ),
         );
+        mutated = true;
+        if (indexSearch) {
+          await _writeSearchIndex(
+            declarationIdentity: declarationIdentity,
+            generation: pending,
+          );
+        }
+      } else if (result.decision == 'no_op' &&
+          indexSearch &&
+          previous != null) {
+        await _writeSearchIndex(
+          declarationIdentity: declarationIdentity,
+          generation: previous,
+        );
+        mutated = true;
       }
       if (!commit) {
         return result;
       }
-      if (result.decision == 'applied') {
+      beforeTxnCommit?.call();
+      if (mutated) {
         await _dao.commit();
       } else {
         await _dao.rollback();
@@ -153,11 +173,13 @@ final class Rag2DriftDaoGenerationStore {
     required String declarationIdentity,
     required Rag2KnowledgeSnapshot snapshot,
     required File readyFile,
+    bool indexSearch = false,
   }) async {
     final result = await apply(
       declarationIdentity: declarationIdentity,
       snapshot: snapshot,
       commit: false,
+      indexSearch: indexSearch,
     );
     if (result.decision != 'applied') {
       throw StateError(
@@ -180,6 +202,31 @@ final class Rag2DriftDaoGenerationStore {
     }
   }
 
+  Future<void> _writeSearchIndex({
+    required String declarationIdentity,
+    required Rag2StoredGeneration generation,
+  }) async {
+    await database.ensureRag2ChunkSearchTable();
+    await database.writeRag2ChunkSearchIndex(
+      projectIdentity: projectIdentity,
+      declarationIdentity: declarationIdentity,
+      generation: generation.generation,
+      snapshotHash: generation.snapshot.snapshotHash,
+      inTransaction: true,
+      rows: [
+        for (final chunk in generation.snapshot.chunks)
+          Rag2ChunkSearchRow(
+            chunkId: chunk.chunkId,
+            objectId: chunk.objectId,
+            content: tokenizeRag2Lexical(
+              chunk.content,
+              Rag2LexicalPolicy.trigram,
+            ).join(' '),
+          ),
+      ],
+    );
+  }
+
   Future<Rag2StoredGeneration?> _readLocked(String declarationIdentity) {
     return _dao
         .readGeneration(
@@ -200,11 +247,15 @@ final class Rag2DriftDaoGenerationStore {
 }
 
 Future<int> runRag2DriftDaoCrashUncommittedChild(List<String> args) async {
-  final options = Rag2DriftCrashChildOptions.parse(args);
+  final indexSearch = args.contains('--index-search');
+  final options = Rag2DriftCrashChildOptions.parse(
+    args.where((arg) => arg != '--index-search').toList(),
+  );
   if (options == null) {
     stderr.writeln(
       'Usage: dart run tool/rag2_drift_dao_generation_store.dart '
-      '--crash-uncommitted --fixture PATH --db PATH --ready-file PATH',
+      '--crash-uncommitted --fixture PATH --db PATH --ready-file PATH '
+      '[--index-search]',
     );
     return 64;
   }
@@ -227,6 +278,7 @@ Future<int> runRag2DriftDaoCrashUncommittedChild(List<String> args) async {
       declarationIdentity: declarationIdentity,
       snapshot: updated,
       readyFile: File(options.readyFilePath),
+      indexSearch: indexSearch,
     );
     return 0;
   } on Object catch (error) {
@@ -284,6 +336,7 @@ Future<Rag2StoredGeneration?> recoverAfterKilledUncommittedDriftDaoWrite({
   required String databasePath,
   required String projectId,
   required String declarationIdentity,
+  bool indexSearch = false,
 }) async {
   final readyFile = File('$databasePath.crash-ready');
   if (readyFile.existsSync()) {
@@ -297,6 +350,7 @@ Future<Rag2StoredGeneration?> recoverAfterKilledUncommittedDriftDaoWrite({
     File(databasePath).absolute.path,
     '--ready-file',
     readyFile.absolute.path,
+    if (indexSearch) '--index-search',
   ]);
   final stderrBuffer = StringBuffer();
   process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);

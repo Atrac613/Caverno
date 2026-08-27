@@ -6,7 +6,8 @@ import 'rag2_drift_schema.dart';
 /// Drift accessors for the frozen RAG2 generation-row envelope.
 ///
 /// This is not a retrieval index and is not wired into chat, settings, or
-/// tools. Callers must not create RAG2 FTS5 tables.
+/// tools. RAG2 FTS5 is opt-in through [AppDatabase.ensureRag2ChunkSearchTable]
+/// and is not created by schema version 5.
 final class Rag2DriftGenerationDao {
   Rag2DriftGenerationDao(this.database);
 

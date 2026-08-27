@@ -121,6 +121,25 @@ void main() {
       rag2DriftStoreSchema,
     );
     expect(version.data['user_version'], 5);
+
+    final rag2Search = await after
+        .customSelect(
+          "SELECT sql FROM sqlite_master WHERE name = 'rag2_chunk_search'",
+        )
+        .get();
+    expect(rag2Search, isEmpty);
+    await after.ensureRag2ChunkSearchTable();
+    final created = await after
+        .customSelect(
+          "SELECT sql FROM sqlite_master WHERE name = 'rag2_chunk_search'",
+        )
+        .get();
+    expect(created, isNotEmpty);
+    expect(created.single.read<String>('sql').toLowerCase(), contains('fts5'));
+    expect(
+      (await after.select(after.embeddings).get()).single.sourceId,
+      'll5-sentinel',
+    );
   });
 
   test(

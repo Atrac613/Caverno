@@ -119,7 +119,9 @@ metadata rewrite to version 2.
 
 Need this Drift DAO write path, the additive schema, and the isolated sqlite3
 instrument frozen. Isolated FTS5 indexing is recorded in
-`docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md`. Retrieval remains
+`docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md`. AppDatabase-hosted
+FTS5 is recorded in
+`docs/rag2_fts5_appdatabase_host_hypothesis_2026-08-27.md`. Retrieval remains
 independent. Do not add settings, tools, prompting, or chat/runtime wiring.
 
 ## Verification

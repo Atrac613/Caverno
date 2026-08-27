@@ -1,44 +1,38 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:caverno/features/chat/data/datasources/app_database.dart';
-import 'package:drift/drift.dart';
-
 import 'rag2_drift_additive_schema_replay.dart';
 import 'rag2_drift_dao_generation_store.dart';
 import 'rag2_explicit_source_roots_replay.dart';
-import 'rag2_knowledge_object_replay.dart';
-import 'rag2_lexical_policy_bakeoff.dart';
+import 'rag2_fts5_additive_index_replay.dart';
 import 'rag2_storage_replay.dart';
 
-const rag2Fts5AdditiveIndexContract = 'rag2-fts5-additive-index-contract-v1';
-const rag2Fts5AdditiveIndexReportSchema =
-    'caverno_rag2_fts5_additive_index_report';
-const rag2ChunkSearchTable = 'rag2_chunk_search';
-const rag2Fts5SqliteTokenizer = 'unicode61';
-const rag2Fts5LexicalPolicyId = 'trigram_or_idf';
+const rag2Fts5AppDatabaseHostContract =
+    'rag2-fts5-appdatabase-host-contract-v1';
+const rag2Fts5AppDatabaseHostReportSchema =
+    'caverno_rag2_fts5_appdatabase_host_report';
 
 Future<void> main(List<String> args) async {
-  final options = Rag2Fts5AdditiveIndexOptions.parse(args);
+  final options = Rag2Fts5AppDatabaseHostOptions.parse(args);
   if (options == null) {
     stderr.writeln(
-      'Usage: dart run tool/rag2_fts5_additive_index_replay.dart '
+      'Usage: dart run tool/rag2_fts5_appdatabase_host_replay.dart '
       '--fixture PATH --out-dir PATH',
     );
     exitCode = 64;
     return;
   }
   try {
-    final report = await runRag2Fts5AdditiveIndexReplay(options);
+    final report = await runRag2Fts5AppDatabaseHostReplay(options);
     stdout.write(report.toMarkdown());
   } on Object catch (error) {
-    stderr.writeln('RAG2 FTS5 additive index replay failed: $error');
+    stderr.writeln('RAG2 FTS5 AppDatabase host replay failed: $error');
     exitCode = 65;
   }
 }
 
-Future<Rag2Fts5AdditiveIndexReport> runRag2Fts5AdditiveIndexReplay(
-  Rag2Fts5AdditiveIndexOptions options,
+Future<Rag2Fts5AppDatabaseHostReport> runRag2Fts5AppDatabaseHostReplay(
+  Rag2Fts5AppDatabaseHostOptions options,
 ) async {
   final fixtureFile = File(options.fixturePath);
   final fixture = await Rag2StorageReplayFixture.load(fixtureFile);
@@ -59,147 +53,125 @@ Future<Rag2Fts5AdditiveIndexReport> runRag2Fts5AdditiveIndexReplay(
     fixture.projectId,
   );
 
-  final indexDir = _freshDirectory('${options.storeRoot}/index');
-  final indexPath = '${indexDir.path}/caverno.sqlite';
+  final hostDir = _freshDirectory('${options.storeRoot}/host');
+  final hostPath = '${hostDir.path}/caverno.sqlite';
   final seeded = await prepareRag2DriftHost(
-    databasePath: indexPath,
+    databasePath: hostPath,
     seedEmbedding: true,
   );
-  final store = Rag2DriftDaoGenerationStore.open(
-    databasePath: indexPath,
+  final hostStore = Rag2DriftDaoGenerationStore.open(
+    databasePath: hostPath,
     projectId: fixture.projectId,
   );
   final conversationSearchSqlBefore = await rag2SqliteMasterSql(
-    store.database,
+    hostStore.database,
     'conversation_search',
   );
-  await createRag2ChunkSearchTable(store.database);
-  await store.apply(
+  final fts5AbsentAfterHostUpgrade = (await rag2SqliteMasterSql(
+    hostStore.database,
+    rag2ChunkSearchTable,
+  )).isEmpty;
+  await hostStore.apply(
     declarationIdentity: declarationIdentity,
     snapshot: baseline,
   );
-  final baselineGeneration = await store.read(declarationIdentity);
-  await replaceRag2ChunkSearchIndex(
-    store.database,
-    target: rag2Fts5IndexTarget(
-      projectId: fixture.projectId,
-      declarationIdentity: declarationIdentity,
-      generation: baselineGeneration!,
-    ),
-    chunks: baseline.chunks,
-  );
-  final baselineIndexedIds = await rag2ChunkSearchChunkIds(
-    store.database,
-    projectIdentity: projectIdentity,
-    declarationIdentity: declarationIdentity,
-  );
-  await store.apply(
+  await hostStore.apply(
     declarationIdentity: declarationIdentity,
     snapshot: updated,
   );
-  final updatedGeneration = await store.read(declarationIdentity);
-  final updatedTarget = rag2Fts5IndexTarget(
-    projectId: fixture.projectId,
+  final applyWithoutIndexLeavesFts5Absent = (await rag2SqliteMasterSql(
+    hostStore.database,
+    rag2ChunkSearchTable,
+  )).isEmpty;
+  final backfill = await hostStore.apply(
     declarationIdentity: declarationIdentity,
-    generation: updatedGeneration!,
+    snapshot: updated,
+    indexSearch: true,
   );
-  await replaceRag2ChunkSearchIndex(
-    store.database,
-    target: updatedTarget,
-    chunks: updated.chunks,
-  );
-  final indexedChunkIds = await rag2ChunkSearchChunkIds(
-    store.database,
+  final generationAfterBackfill = await hostStore.read(declarationIdentity);
+  final indexedIds = await rag2ChunkSearchChunkIds(
+    hostStore.database,
     projectIdentity: projectIdentity,
     declarationIdentity: declarationIdentity,
   );
+  final noOpIndexBackfill =
+      backfill.decision == 'no_op' &&
+      generationAfterBackfill?.generation == 2 &&
+      generationAfterBackfill?.snapshot.snapshotHash == updated.snapshotHash &&
+      _sameStringSet(indexedIds, {
+        for (final chunk in updated.chunks) chunk.chunkId,
+      });
   var applyRollbackPreserved = false;
   try {
-    await replaceRag2ChunkSearchIndex(
-      store.database,
-      target: rag2Fts5IndexTarget(
-        projectId: fixture.projectId,
-        declarationIdentity: declarationIdentity,
-        generation: baselineGeneration,
-      ),
-      chunks: baseline.chunks,
-      beforeCommit: () => throw StateError('injected_index_failure'),
+    await hostStore.apply(
+      declarationIdentity: declarationIdentity,
+      snapshot: baseline,
+      indexSearch: true,
+      beforeTxnCommit: () => throw StateError('injected_index_apply_failure'),
     );
   } on StateError catch (error) {
+    final generation = await hostStore.read(declarationIdentity);
     applyRollbackPreserved =
-        error.message == 'injected_index_failure' &&
+        error.message == 'injected_index_apply_failure' &&
+        generation?.generation == 2 &&
+        generation?.snapshot.snapshotHash == updated.snapshotHash &&
         _sameStringSet(
-          indexedChunkIds,
+          indexedIds,
           await rag2ChunkSearchChunkIds(
-            store.database,
+            hostStore.database,
             projectIdentity: projectIdentity,
             declarationIdentity: declarationIdentity,
           ),
         ) &&
         await rag2ChunkSearchEnvelopeMatches(
-          store.database,
-          target: updatedTarget,
+          hostStore.database,
+          target: rag2Fts5IndexTarget(
+            projectId: fixture.projectId,
+            declarationIdentity: declarationIdentity,
+            generation: generation!,
+          ),
           chunkCount: updated.chunks.length,
         );
   }
-  final indexedChunkCount = indexedChunkIds.length;
   final chunkSearchSql = await rag2SqliteMasterSql(
-    store.database,
+    hostStore.database,
     rag2ChunkSearchTable,
   );
   final conversationSearchSqlAfter = await rag2SqliteMasterSql(
-    store.database,
+    hostStore.database,
     'conversation_search',
   );
-  final writesThroughAppDatabase = await rag2ChunkSearchVisibleToAppDatabase(
-    store.database,
+  final matchedChunkCount = await rag2ChunkSearchMatchedCount(
+    hostStore.database,
     projectIdentity: projectIdentity,
     declarationIdentity: declarationIdentity,
+    chunks: updated.chunks,
   );
   final indexedTermsPretokenized = await rag2ChunkSearchTermsMatchPolicy(
-    store.database,
+    hostStore.database,
     projectIdentity: projectIdentity,
     declarationIdentity: declarationIdentity,
     chunks: updated.chunks,
   );
-  final matchedChunkCount = await rag2ChunkSearchMatchedCount(
-    store.database,
-    projectIdentity: projectIdentity,
-    declarationIdentity: declarationIdentity,
-    chunks: updated.chunks,
-  );
-  final fts5Created =
-      chunkSearchSql.toLowerCase().contains('fts5') &&
-      chunkSearchSql.contains(rag2ChunkSearchTable) &&
-      chunkSearchSql.contains('project_identity') &&
-      chunkSearchSql.contains('declaration_identity') &&
-      chunkSearchSql.contains('generation') &&
-      chunkSearchSql.contains('snapshot_hash');
-  final sqliteTokenizerPreserved =
-      _usesUnicode61(chunkSearchSql) &&
-      _usesUnicode61(conversationSearchSqlAfter) &&
-      conversationSearchSqlAfter == conversationSearchSqlBefore;
-  final allChunksMatchable =
-      matchedChunkCount == updated.chunks.length && updated.chunks.isNotEmpty;
-  final conversationSearch = await store.database
+  final conversationSearch = await hostStore.database
       .customSelect('SELECT id, title, body FROM conversation_search')
       .get();
-  final schemaVersion = await store.database
+  final schemaVersion = await hostStore.database
       .customSelect('PRAGMA user_version')
       .getSingle();
-  final embeddings = await store.database
-      .select(store.database.embeddings)
+  final embeddings = await hostStore.database
+      .select(hostStore.database.embeddings)
       .get();
-  final conversations = await store.database
-      .select(store.database.conversations)
+  final conversations = await hostStore.database
+      .select(hostStore.database.conversations)
       .get();
-  final usage = await store.database
-      .select(store.database.modelUsageDaily)
+  final usage = await hostStore.database
+      .select(hostStore.database.modelUsageDaily)
       .get();
-  await store.close();
+  await hostStore.close();
 
   final reopened = Rag2DriftDaoGenerationStore.open(
-    databasePath: indexPath,
+    databasePath: hostPath,
     projectId: fixture.projectId,
   );
   final reopenedGeneration = await reopened.read(declarationIdentity);
@@ -232,6 +204,21 @@ Future<Rag2Fts5AdditiveIndexReport> runRag2Fts5AdditiveIndexReplay(
     reopenedChunkIds,
     expectedUpdatedIds,
   );
+  final writesThroughAppDatabase =
+      chunkSearchSql.contains('project_identity') &&
+      chunkSearchSql.contains('declaration_identity') &&
+      chunkSearchSql.toLowerCase().contains('fts5') &&
+      chunkSearchSql.toLowerCase().contains('unicode61');
+  final sqliteTokenizerPreserved =
+      chunkSearchSql.toLowerCase().contains('unicode61') &&
+      conversationSearchSqlAfter.toLowerCase().contains('unicode61') &&
+      conversationSearchSqlAfter == conversationSearchSqlBefore;
+  final allChunksMatchable =
+      matchedChunkCount == updated.chunks.length && updated.chunks.isNotEmpty;
+  final applyIndexesLastGeneration = _sameStringSet(
+    indexedIds,
+    expectedUpdatedIds,
+  );
   final embeddingsPreserved =
       embeddings.length == 1 && embeddings.single == seeded;
   final conversationSearchPreserved =
@@ -252,11 +239,52 @@ Future<Rag2Fts5AdditiveIndexReport> runRag2Fts5AdditiveIndexReplay(
       usage.single.totalTokens == rag2DriftHostUsageTokens;
   final appDatabaseSchemaUnchanged =
       schemaVersion.read<int>('user_version') == 5;
-  final replacementIndexedLastGeneration =
-      baselineIndexedIds.length == baseline.chunks.length &&
-      indexedChunkIds.length == updated.chunks.length &&
-      !_sameStringSet(baselineIndexedIds, indexedChunkIds) &&
-      _sameStringSet(indexedChunkIds, expectedUpdatedIds);
+
+  final crashDir = _freshDirectory('${options.storeRoot}/crash');
+  final crashPath = '${crashDir.path}/caverno.sqlite';
+  await prepareRag2DriftHost(databasePath: crashPath, seedEmbedding: true);
+  final crashStore = Rag2DriftDaoGenerationStore.open(
+    databasePath: crashPath,
+    projectId: fixture.projectId,
+  );
+  await crashStore.apply(
+    declarationIdentity: declarationIdentity,
+    snapshot: baseline,
+    indexSearch: true,
+  );
+  await crashStore.close();
+  final recoveredGeneration = await recoverAfterKilledUncommittedDriftDaoWrite(
+    fixturePath: options.fixturePath,
+    databasePath: crashPath,
+    projectId: fixture.projectId,
+    declarationIdentity: declarationIdentity,
+    indexSearch: true,
+  );
+  final recovered = Rag2DriftDaoGenerationStore.open(
+    databasePath: crashPath,
+    projectId: fixture.projectId,
+  );
+  final recoveredIds = await rag2ChunkSearchChunkIds(
+    recovered.database,
+    projectIdentity: projectIdentity,
+    declarationIdentity: declarationIdentity,
+  );
+  final crashRecoveredIndex =
+      recoveredGeneration?.generation == 1 &&
+      recoveredGeneration?.snapshot.snapshotHash == baseline.snapshotHash &&
+      _sameStringSet(recoveredIds, {
+        for (final chunk in baseline.chunks) chunk.chunkId,
+      }) &&
+      await rag2ChunkSearchEnvelopeMatches(
+        recovered.database,
+        target: rag2Fts5IndexTarget(
+          projectId: fixture.projectId,
+          declarationIdentity: declarationIdentity,
+          generation: recoveredGeneration!,
+        ),
+        chunkCount: baseline.chunks.length,
+      );
+  await recovered.close();
 
   final isolateDir = _freshDirectory('${options.storeRoot}/isolate');
   final isolatePath = '${isolateDir.path}/caverno.sqlite';
@@ -277,20 +305,10 @@ Future<Rag2Fts5AdditiveIndexReport> runRag2Fts5AdditiveIndexReplay(
     databasePath: isolatePath,
     projectId: 'persistence-project-a',
   );
-  await createRag2ChunkSearchTable(firstProject.database);
   await firstProject.apply(
     declarationIdentity: declarationIdentity,
     snapshot: firstSnapshot,
-  );
-  final firstGeneration = await firstProject.read(declarationIdentity);
-  await replaceRag2ChunkSearchIndex(
-    firstProject.database,
-    target: rag2Fts5IndexTarget(
-      projectId: 'persistence-project-a',
-      declarationIdentity: declarationIdentity,
-      generation: firstGeneration!,
-    ),
-    chunks: firstSnapshot.chunks,
+    indexSearch: true,
   );
   await firstProject.close();
   final secondProject = Rag2DriftDaoGenerationStore.open(
@@ -300,16 +318,7 @@ Future<Rag2Fts5AdditiveIndexReport> runRag2Fts5AdditiveIndexReplay(
   await secondProject.apply(
     declarationIdentity: declarationIdentity,
     snapshot: secondSnapshot,
-  );
-  final secondGeneration = await secondProject.read(declarationIdentity);
-  await replaceRag2ChunkSearchIndex(
-    secondProject.database,
-    target: rag2Fts5IndexTarget(
-      projectId: 'persistence-project-b',
-      declarationIdentity: declarationIdentity,
-      generation: secondGeneration!,
-    ),
-    chunks: secondSnapshot.chunks,
+    indexSearch: true,
   );
   await secondProject.close();
   final isolated = Rag2DriftDaoGenerationStore.open(
@@ -347,21 +356,12 @@ Future<Rag2Fts5AdditiveIndexReport> runRag2Fts5AdditiveIndexReplay(
     databasePath: mismatchPath,
     projectId: fixture.projectId,
   );
-  await createRag2ChunkSearchTable(mismatchStore.database);
   await mismatchStore.apply(
     declarationIdentity: declarationIdentity,
     snapshot: updated,
+    indexSearch: true,
   );
   final mismatchGeneration = await mismatchStore.read(declarationIdentity);
-  await replaceRag2ChunkSearchIndex(
-    mismatchStore.database,
-    target: rag2Fts5IndexTarget(
-      projectId: fixture.projectId,
-      declarationIdentity: declarationIdentity,
-      generation: mismatchGeneration!,
-    ),
-    chunks: updated.chunks,
-  );
   await mismatchStore.database.customStatement(
     'UPDATE $rag2ChunkSearchTable SET snapshot_hash = ? '
     'WHERE project_identity = ? AND declaration_identity = ?',
@@ -372,27 +372,29 @@ Future<Rag2Fts5AdditiveIndexReport> runRag2Fts5AdditiveIndexReplay(
     target: rag2Fts5IndexTarget(
       projectId: fixture.projectId,
       declarationIdentity: declarationIdentity,
-      generation: mismatchGeneration,
+      generation: mismatchGeneration!,
     ),
     chunkCount: updated.chunks.length,
   );
   await mismatchStore.close();
 
-  final report = Rag2Fts5AdditiveIndexReport(
+  final report = Rag2Fts5AppDatabaseHostReport(
     fixtureId: fixture.fixtureId,
     declarationIdentity: declarationIdentity,
     reopenedGeneration: reopenedGeneration?.generation ?? 0,
     reopenedSnapshotHash: reopenedGeneration?.snapshot.snapshotHash ?? '',
-    indexedChunkCount: indexedChunkCount,
+    indexedChunkCount: indexedIds.length,
     matchedChunkCount: matchedChunkCount,
-    fts5Created: fts5Created,
+    fts5AbsentAfterHostUpgrade: fts5AbsentAfterHostUpgrade,
+    applyWithoutIndexLeavesFts5Absent: applyWithoutIndexLeavesFts5Absent,
+    noOpIndexBackfill: noOpIndexBackfill,
     writesThroughAppDatabase: writesThroughAppDatabase,
     sqliteTokenizerPreserved: sqliteTokenizerPreserved,
-    lexicalPolicy: rag2Fts5LexicalPolicyId,
     indexedTermsPretokenized: indexedTermsPretokenized,
-    replacementIndexedLastGeneration: replacementIndexedLastGeneration,
+    applyIndexesLastGeneration: applyIndexesLastGeneration,
     allChunksMatchable: allChunksMatchable,
     applyRollbackPreserved: applyRollbackPreserved,
+    crashRecoveredIndex: crashRecoveredIndex,
     envelopeMatchesGeneration: envelopeMatchesGeneration,
     envelopeMismatchRejected: envelopeMismatchRejected,
     declarationIsolation: declarationIsolation,
@@ -405,228 +407,31 @@ Future<Rag2Fts5AdditiveIndexReport> runRag2Fts5AdditiveIndexReplay(
   final outputDirectory = Directory(options.outDir)
     ..createSync(recursive: true);
   await File(
-    '${outputDirectory.path}/rag2_fts5_additive_index.json',
+    '${outputDirectory.path}/rag2_fts5_appdatabase_host.json',
   ).writeAsString(
     '${const JsonEncoder.withIndent('  ').convert(report.toJson())}\n',
   );
   await File(
-    '${outputDirectory.path}/rag2_fts5_additive_index.md',
+    '${outputDirectory.path}/rag2_fts5_appdatabase_host.md',
   ).writeAsString(report.toMarkdown());
   return report;
-}
-
-Rag2Fts5IndexTarget rag2Fts5IndexTarget({
-  required String projectId,
-  required String declarationIdentity,
-  required Rag2StoredGeneration generation,
-}) {
-  return Rag2Fts5IndexTarget(
-    projectIdentity: rag2ExplicitSourceRootsProjectIdentity(projectId),
-    declarationIdentity: declarationIdentity,
-    generation: generation.generation,
-    snapshotHash: generation.snapshot.snapshotHash,
-  );
-}
-
-Future<void> createRag2ChunkSearchTable(AppDatabase database) {
-  return database.ensureRag2ChunkSearchTable();
-}
-
-Future<void> replaceRag2ChunkSearchIndex(
-  AppDatabase database, {
-  required Rag2Fts5IndexTarget target,
-  required List<Rag2KnowledgeChunk> chunks,
-  void Function()? beforeCommit,
-}) {
-  return database.writeRag2ChunkSearchIndex(
-    projectIdentity: target.projectIdentity,
-    declarationIdentity: target.declarationIdentity,
-    generation: target.generation,
-    snapshotHash: target.snapshotHash,
-    beforeCommit: beforeCommit,
-    rows: [
-      for (final chunk in chunks)
-        Rag2ChunkSearchRow(
-          chunkId: chunk.chunkId,
-          objectId: chunk.objectId,
-          content: tokenizeRag2Lexical(
-            chunk.content,
-            Rag2LexicalPolicy.trigram,
-          ).join(' '),
-        ),
-    ],
-  );
-}
-
-Future<Set<String>> rag2ChunkSearchChunkIds(
-  AppDatabase database, {
-  required String projectIdentity,
-  required String declarationIdentity,
-}) async {
-  final rows = await database
-      .customSelect(
-        'SELECT chunk_id FROM $rag2ChunkSearchTable '
-        'WHERE project_identity = ? AND declaration_identity = ?',
-        variables: [
-          Variable<String>(projectIdentity),
-          Variable<String>(declarationIdentity),
-        ],
-      )
-      .get();
-  return {for (final row in rows) row.read<String>('chunk_id')};
-}
-
-Future<String> rag2SqliteMasterSql(AppDatabase database, String name) async {
-  final rows = await database
-      .customSelect(
-        'SELECT sql FROM sqlite_master WHERE name = ?',
-        variables: [Variable<String>(name)],
-      )
-      .get();
-  if (rows.isEmpty) {
-    return '';
-  }
-  return rows.single.readNullable<String>('sql') ?? '';
-}
-
-Future<bool> rag2ChunkSearchVisibleToAppDatabase(
-  AppDatabase database, {
-  required String projectIdentity,
-  required String declarationIdentity,
-}) async {
-  final sql = await rag2SqliteMasterSql(database, rag2ChunkSearchTable);
-  final ids = await rag2ChunkSearchChunkIds(
-    database,
-    projectIdentity: projectIdentity,
-    declarationIdentity: declarationIdentity,
-  );
-  return sql.toLowerCase().contains('fts5') && ids.isNotEmpty;
-}
-
-Future<bool> rag2ChunkSearchEnvelopeMatches(
-  AppDatabase database, {
-  required Rag2Fts5IndexTarget target,
-  required int chunkCount,
-}) async {
-  if (chunkCount < 1) {
-    return false;
-  }
-  final rows = await database
-      .customSelect(
-        'SELECT generation, snapshot_hash, COUNT(*) AS row_count '
-        'FROM $rag2ChunkSearchTable '
-        'WHERE project_identity = ? AND declaration_identity = ? '
-        'GROUP BY generation, snapshot_hash',
-        variables: [
-          Variable<String>(target.projectIdentity),
-          Variable<String>(target.declarationIdentity),
-        ],
-      )
-      .get();
-  if (rows.length != 1) {
-    return false;
-  }
-  final row = rows.single;
-  return row.read<int>('generation') == target.generation &&
-      row.read<String>('snapshot_hash') == target.snapshotHash &&
-      row.read<int>('row_count') == chunkCount;
-}
-
-Future<bool> rag2ChunkSearchTermsMatchPolicy(
-  AppDatabase database, {
-  required String projectIdentity,
-  required String declarationIdentity,
-  required List<Rag2KnowledgeChunk> chunks,
-}) async {
-  final rows = await database
-      .customSelect(
-        'SELECT chunk_id, content FROM $rag2ChunkSearchTable '
-        'WHERE project_identity = ? AND declaration_identity = ?',
-        variables: [
-          Variable<String>(projectIdentity),
-          Variable<String>(declarationIdentity),
-        ],
-      )
-      .get();
-  if (rows.length != chunks.length) {
-    return false;
-  }
-  final stored = {
-    for (final row in rows)
-      row.read<String>('chunk_id'): row.read<String>('content'),
-  };
-  for (final chunk in chunks) {
-    final expected = tokenizeRag2Lexical(
-      chunk.content,
-      Rag2LexicalPolicy.trigram,
-    ).join(' ');
-    if (stored[chunk.chunkId] != expected) {
-      return false;
-    }
-  }
-  return true;
-}
-
-Future<int> rag2ChunkSearchMatchedCount(
-  AppDatabase database, {
-  required String projectIdentity,
-  required String declarationIdentity,
-  required List<Rag2KnowledgeChunk> chunks,
-}) async {
-  var matched = 0;
-  for (final chunk in chunks) {
-    final terms = tokenizeRag2Lexical(chunk.content, Rag2LexicalPolicy.trigram);
-    if (terms.isEmpty) {
-      return 0;
-    }
-    final query = terms
-        .map((term) => '"${term.replaceAll('"', '""')}"')
-        .join(' AND ');
-    final rows = await database
-        .customSelect(
-          'SELECT chunk_id FROM $rag2ChunkSearchTable '
-          'WHERE $rag2ChunkSearchTable MATCH ? '
-          'AND project_identity = ? AND declaration_identity = ? '
-          'AND chunk_id = ?',
-          variables: [
-            Variable<String>(query),
-            Variable<String>(projectIdentity),
-            Variable<String>(declarationIdentity),
-            Variable<String>(chunk.chunkId),
-          ],
-        )
-        .get();
-    if (rows.isNotEmpty) {
-      matched += 1;
-    }
-  }
-  return matched;
-}
-
-bool _usesUnicode61(String sql) {
-  return sql.toLowerCase().contains('unicode61');
 }
 
 bool _sameStringSet(Set<String> left, Set<String> right) {
   return left.length == right.length && left.containsAll(right);
 }
 
-final class Rag2Fts5IndexTarget {
-  const Rag2Fts5IndexTarget({
-    required this.projectIdentity,
-    required this.declarationIdentity,
-    required this.generation,
-    required this.snapshotHash,
-  });
-
-  final String projectIdentity;
-  final String declarationIdentity;
-  final int generation;
-  final String snapshotHash;
+Directory _freshDirectory(String path) {
+  final directory = Directory(path);
+  if (directory.existsSync()) {
+    directory.deleteSync(recursive: true);
+  }
+  directory.createSync(recursive: true);
+  return directory;
 }
 
-final class Rag2Fts5AdditiveIndexOptions {
-  const Rag2Fts5AdditiveIndexOptions({
+final class Rag2Fts5AppDatabaseHostOptions {
+  const Rag2Fts5AppDatabaseHostOptions({
     required this.fixturePath,
     required this.outDir,
     required this.storeRoot,
@@ -636,7 +441,7 @@ final class Rag2Fts5AdditiveIndexOptions {
   final String outDir;
   final String storeRoot;
 
-  static Rag2Fts5AdditiveIndexOptions? parse(List<String> args) {
+  static Rag2Fts5AppDatabaseHostOptions? parse(List<String> args) {
     String? fixturePath;
     String? outDir;
     String? storeRoot;
@@ -658,7 +463,7 @@ final class Rag2Fts5AdditiveIndexOptions {
     if (fixturePath == null || outDir == null) {
       return null;
     }
-    return Rag2Fts5AdditiveIndexOptions(
+    return Rag2Fts5AppDatabaseHostOptions(
       fixturePath: fixturePath,
       outDir: outDir,
       storeRoot: storeRoot ?? '$outDir/store',
@@ -666,31 +471,24 @@ final class Rag2Fts5AdditiveIndexOptions {
   }
 }
 
-Directory _freshDirectory(String path) {
-  final directory = Directory(path);
-  if (directory.existsSync()) {
-    directory.deleteSync(recursive: true);
-  }
-  directory.createSync(recursive: true);
-  return directory;
-}
-
-final class Rag2Fts5AdditiveIndexReport {
-  const Rag2Fts5AdditiveIndexReport({
+final class Rag2Fts5AppDatabaseHostReport {
+  const Rag2Fts5AppDatabaseHostReport({
     required this.fixtureId,
     required this.declarationIdentity,
     required this.reopenedGeneration,
     required this.reopenedSnapshotHash,
     required this.indexedChunkCount,
     required this.matchedChunkCount,
-    required this.fts5Created,
+    required this.fts5AbsentAfterHostUpgrade,
+    required this.applyWithoutIndexLeavesFts5Absent,
+    required this.noOpIndexBackfill,
     required this.writesThroughAppDatabase,
     required this.sqliteTokenizerPreserved,
-    required this.lexicalPolicy,
     required this.indexedTermsPretokenized,
-    required this.replacementIndexedLastGeneration,
+    required this.applyIndexesLastGeneration,
     required this.allChunksMatchable,
     required this.applyRollbackPreserved,
+    required this.crashRecoveredIndex,
     required this.envelopeMatchesGeneration,
     required this.envelopeMismatchRejected,
     required this.declarationIsolation,
@@ -707,14 +505,16 @@ final class Rag2Fts5AdditiveIndexReport {
   final String reopenedSnapshotHash;
   final int indexedChunkCount;
   final int matchedChunkCount;
-  final bool fts5Created;
+  final bool fts5AbsentAfterHostUpgrade;
+  final bool applyWithoutIndexLeavesFts5Absent;
+  final bool noOpIndexBackfill;
   final bool writesThroughAppDatabase;
   final bool sqliteTokenizerPreserved;
-  final String lexicalPolicy;
   final bool indexedTermsPretokenized;
-  final bool replacementIndexedLastGeneration;
+  final bool applyIndexesLastGeneration;
   final bool allChunksMatchable;
   final bool applyRollbackPreserved;
+  final bool crashRecoveredIndex;
   final bool envelopeMatchesGeneration;
   final bool envelopeMismatchRejected;
   final bool declarationIsolation;
@@ -725,14 +525,16 @@ final class Rag2Fts5AdditiveIndexReport {
   final bool appDatabaseSchemaUnchanged;
 
   bool get contractPassed =>
-      fts5Created &&
+      fts5AbsentAfterHostUpgrade &&
+      applyWithoutIndexLeavesFts5Absent &&
+      noOpIndexBackfill &&
       writesThroughAppDatabase &&
       sqliteTokenizerPreserved &&
-      lexicalPolicy == rag2Fts5LexicalPolicyId &&
       indexedTermsPretokenized &&
-      replacementIndexedLastGeneration &&
+      applyIndexesLastGeneration &&
       allChunksMatchable &&
       applyRollbackPreserved &&
+      crashRecoveredIndex &&
       envelopeMatchesGeneration &&
       envelopeMismatchRejected &&
       declarationIsolation &&
@@ -746,14 +548,12 @@ final class Rag2Fts5AdditiveIndexReport {
       matchedChunkCount == indexedChunkCount;
 
   Map<String, Object?> toJson() => {
-    'schemaName': rag2Fts5AdditiveIndexReportSchema,
+    'schemaName': rag2Fts5AppDatabaseHostReportSchema,
     'schemaVersion': 1,
-    'contract': rag2Fts5AdditiveIndexContract,
-    'evaluationMode': 'fts5_additive_index_replay',
+    'contract': rag2Fts5AppDatabaseHostContract,
+    'evaluationMode': 'fts5_appdatabase_host_replay',
     'contractDecision': contractPassed ? 'go' : 'no_go',
     'fts5Decision': contractPassed ? 'go' : 'no_go',
-    'lexicalPolicy': lexicalPolicy,
-    'sqliteTokenizer': rag2Fts5SqliteTokenizer,
     'retrievalDecision': 'not_evaluated',
     'productionDecision': 'no_go',
     'appDatabaseSchemaVersion': 5,
@@ -763,13 +563,16 @@ final class Rag2Fts5AdditiveIndexReport {
     'reopenedSnapshotHash': reopenedSnapshotHash,
     'indexedChunkCount': indexedChunkCount,
     'matchedChunkCount': matchedChunkCount,
-    'fts5Created': fts5Created,
+    'fts5AbsentAfterHostUpgrade': fts5AbsentAfterHostUpgrade,
+    'applyWithoutIndexLeavesFts5Absent': applyWithoutIndexLeavesFts5Absent,
+    'noOpIndexBackfill': noOpIndexBackfill,
     'writesThroughAppDatabase': writesThroughAppDatabase,
     'sqliteTokenizerPreserved': sqliteTokenizerPreserved,
     'indexedTermsPretokenized': indexedTermsPretokenized,
-    'replacementIndexedLastGeneration': replacementIndexedLastGeneration,
+    'applyIndexesLastGeneration': applyIndexesLastGeneration,
     'allChunksMatchable': allChunksMatchable,
     'applyRollbackPreserved': applyRollbackPreserved,
+    'crashRecoveredIndex': crashRecoveredIndex,
     'envelopeMatchesGeneration': envelopeMatchesGeneration,
     'envelopeMismatchRejected': envelopeMismatchRejected,
     'declarationIsolation': declarationIsolation,
@@ -781,12 +584,10 @@ final class Rag2Fts5AdditiveIndexReport {
   };
 
   String toMarkdown() =>
-      '# RAG2 FTS5 Additive Index\n\n'
-      '- Contract: `$rag2Fts5AdditiveIndexContract`\n'
+      '# RAG2 FTS5 AppDatabase Host\n\n'
+      '- Contract: `$rag2Fts5AppDatabaseHostContract`\n'
       '- Contract decision: `${contractPassed ? 'go' : 'no_go'}`\n'
       '- FTS5 decision: `${contractPassed ? 'go' : 'no_go'}`\n'
-      '- Lexical policy: `$lexicalPolicy`\n'
-      '- SQLite tokenizer: `$rag2Fts5SqliteTokenizer`\n'
       '- Retrieval decision: `not_evaluated`\n'
       '- Production decision: `no_go`\n'
       '- AppDatabase schema version: `5`\n'
@@ -794,13 +595,16 @@ final class Rag2Fts5AdditiveIndexReport {
       '- Declaration identity: `$declarationIdentity`\n'
       '- Reopened generation / hash: `$reopenedGeneration` / `$reopenedSnapshotHash`\n'
       '- Indexed / matched chunk count: `$indexedChunkCount` / `$matchedChunkCount`\n'
-      '- FTS5 created: `$fts5Created`\n'
+      '- FTS5 absent after host upgrade: `$fts5AbsentAfterHostUpgrade`\n'
+      '- Apply without index leaves FTS5 absent: `$applyWithoutIndexLeavesFts5Absent`\n'
+      '- No-op index backfill: `$noOpIndexBackfill`\n'
       '- Writes through AppDatabase: `$writesThroughAppDatabase`\n'
       '- SQLite tokenizer preserved: `$sqliteTokenizerPreserved`\n'
       '- Indexed terms pretokenized: `$indexedTermsPretokenized`\n'
-      '- Replacement indexed last generation: `$replacementIndexedLastGeneration`\n'
+      '- Apply indexes last generation: `$applyIndexesLastGeneration`\n'
       '- All chunks matchable: `$allChunksMatchable`\n'
       '- Apply rollback preserved: `$applyRollbackPreserved`\n'
+      '- Crash recovered index: `$crashRecoveredIndex`\n'
       '- Envelope matches generation: `$envelopeMatchesGeneration`\n'
       '- Envelope mismatch rejected: `$envelopeMismatchRejected`\n'
       '- Declaration isolation: `$declarationIsolation`\n'

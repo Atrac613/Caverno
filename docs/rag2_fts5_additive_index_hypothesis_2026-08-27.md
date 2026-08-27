@@ -113,10 +113,10 @@ version 5.
 ## Next Entry Condition
 
 Keep this isolated FTS5 index, the Drift DAO write path, the additive schema,
-and the sqlite3 instrument frozen. A later hypothesis may host the virtual
-table in `AppDatabase` only if that does not rewrite conversation-search or
-generation rows. Retrieval quality and no-answer policy remain independent.
-Do not add settings, tools, prompting, or chat/runtime wiring.
+and the sqlite3 instrument frozen. AppDatabase-hosted FTS5 is recorded in
+`docs/rag2_fts5_appdatabase_host_hypothesis_2026-08-27.md`. Retrieval quality
+and no-answer policy remain independent. Do not add settings, tools,
+prompting, or chat/runtime wiring.
 
 ## Verification
 

@@ -147,6 +147,20 @@ class Rag2Generations extends Table {
   Set<Column<Object>> get primaryKey => {projectIdentity, declarationIdentity};
 }
 
+/// One pretokenized RAG2 FTS5 row. Callers supply Dart-side trigram terms;
+/// AppDatabase does not tokenize.
+final class Rag2ChunkSearchRow {
+  const Rag2ChunkSearchRow({
+    required this.chunkId,
+    required this.objectId,
+    required this.content,
+  });
+
+  final String chunkId;
+  final String objectId;
+  final String content;
+}
+
 /// Local epoch-day for [timestamp], matching the convention used by the
 /// dashboard's activity heatmap so both features bucket a day identically.
 int modelUsageDayNumber(DateTime timestamp) {
@@ -178,6 +192,10 @@ class AppDatabase extends _$AppDatabase {
   /// FTS5 virtual table backing conversation history search (F4). It is not a
   /// drift-managed table, so it is created and kept in sync with raw SQL.
   static const _conversationSearchTable = 'conversation_search';
+
+  /// Isolated RAG2 chunk FTS5. Created on demand; not part of schema version 5.
+  static const rag2ChunkSearchTable = 'rag2_chunk_search';
+  static const rag2ChunkSearchTokenizer = 'unicode61';
 
   @override
   int get schemaVersion => 5;
@@ -307,6 +325,99 @@ class AppDatabase extends _$AppDatabase {
         id: row.id,
         title: row.title,
         body: _extractSearchBody(row.payload),
+      );
+    }
+  }
+
+  /// Creates `rag2_chunk_search` beside conversation-search. This is not a
+  /// schema version 5 migration and does not rewrite conversation-search rows.
+  Future<void> ensureRag2ChunkSearchTable() {
+    return customStatement(
+      'CREATE VIRTUAL TABLE IF NOT EXISTS $rag2ChunkSearchTable USING fts5('
+      'project_identity UNINDEXED, declaration_identity UNINDEXED, '
+      'generation UNINDEXED, snapshot_hash UNINDEXED, '
+      'chunk_id UNINDEXED, object_id UNINDEXED, content, '
+      'tokenize=$rag2ChunkSearchTokenizer)',
+    );
+  }
+
+  /// Replaces one project/declaration slot.
+  ///
+  /// Owns `BEGIN IMMEDIATE` / `COMMIT` unless [inTransaction] is true. A
+  /// mid-write failure then rolls back to the previous slot instead of
+  /// leaving an empty or partial index. DELETE is scoped to the target
+  /// project and declaration identities.
+  Future<void> writeRag2ChunkSearchIndex({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required int generation,
+    required String snapshotHash,
+    required List<Rag2ChunkSearchRow> rows,
+    void Function()? beforeCommit,
+    bool inTransaction = false,
+  }) async {
+    if (inTransaction) {
+      await _replaceRag2ChunkSearchRows(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+        generation: generation,
+        snapshotHash: snapshotHash,
+        rows: rows,
+      );
+      return;
+    }
+    var settled = false;
+    await customStatement('BEGIN IMMEDIATE');
+    try {
+      await ensureRag2ChunkSearchTable();
+      await _replaceRag2ChunkSearchRows(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+        generation: generation,
+        snapshotHash: snapshotHash,
+        rows: rows,
+      );
+      beforeCommit?.call();
+      await customStatement('COMMIT');
+      settled = true;
+    } on Object {
+      if (!settled) {
+        try {
+          await customStatement('ROLLBACK');
+        } on Object {
+          // The connection may already have rolled back.
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _replaceRag2ChunkSearchRows({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required int generation,
+    required String snapshotHash,
+    required List<Rag2ChunkSearchRow> rows,
+  }) async {
+    await customStatement(
+      'DELETE FROM $rag2ChunkSearchTable '
+      'WHERE project_identity = ? AND declaration_identity = ?',
+      [projectIdentity, declarationIdentity],
+    );
+    for (final row in rows) {
+      await customStatement(
+        'INSERT INTO $rag2ChunkSearchTable('
+        'project_identity, declaration_identity, generation, snapshot_hash, '
+        'chunk_id, object_id, content) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+          projectIdentity,
+          declarationIdentity,
+          generation,
+          snapshotHash,
+          row.chunkId,
+          row.objectId,
+          row.content,
+        ],
       );
     }
   }

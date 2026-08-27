@@ -93,7 +93,9 @@ is recorded in `docs/rag2_drift_additive_schema_hypothesis_2026-08-27.md`.
 Drift DAO writes are recorded in
 `docs/rag2_drift_dao_generation_store_hypothesis_2026-08-27.md`. Isolated FTS5
 indexing is recorded in
-`docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md`. Retrieval remains
+`docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md`. AppDatabase-hosted
+FTS5 is recorded in
+`docs/rag2_fts5_appdatabase_host_hypothesis_2026-08-27.md`. Retrieval remains
 unselected. Do not add settings, tools, prompting, or chat/runtime wiring.
 
 ## Verification
