@@ -139,7 +139,7 @@ Future<Rag2SqliteDurabilityReport> runRag2SqliteDurabilityReplay(
   final mutatedVersion = mutated
       .select("SELECT value FROM rag2_store_meta WHERE key = 'schema_version'")
       .first['value'];
-  mutated.dispose();
+  mutated.close();
   var unsupportedSchemaRejected = false;
   try {
     await Rag2SqliteGenerationStore(
@@ -156,7 +156,7 @@ Future<Rag2SqliteDurabilityReport> runRag2SqliteDurabilityReplay(
                 )
                 .first['value'] ==
             mutatedVersion;
-    check.dispose();
+    check.close();
   }
 
   final isolateDir = _freshDirectory('${options.storeRoot}/isolate');
@@ -387,7 +387,7 @@ final class Rag2SqliteGenerationStore {
   }
 
   void close() {
-    _database?.dispose();
+    _database?.close();
     _database = null;
   }
 
@@ -415,7 +415,7 @@ final class Rag2SqliteGenerationStore {
         rethrow;
       }
     } on Object {
-      database.dispose();
+      database.close();
       rethrow;
     }
     _database = database;

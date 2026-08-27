@@ -1,13 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
+import 'package:caverno/features/chat/data/datasources/rag2_drift_generation_dao.dart';
+import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../../tool/rag2_drift_additive_schema_replay.dart';
+import '../../tool/rag2_drift_dao_generation_store.dart';
+import '../../tool/rag2_drift_dao_generation_store_replay.dart';
 import '../../tool/rag2_explicit_source_roots_replay.dart';
 import '../../tool/rag2_knowledge_object_replay.dart';
 import '../../tool/rag2_persistence_reopen_replay.dart';
@@ -23,62 +26,16 @@ const _updatedHash =
 const _projectId = 'rag2-storage-replay-project';
 
 void main() {
-  test('migrates v4 AppDatabase without rewriting embedding rows', () async {
-    final output = Directory.systemTemp.createTempSync('rag2-drift-migrate-');
-    addTearDown(() => output.deleteSync(recursive: true));
-    final path = '${output.path}/caverno.sqlite';
-    final seeded = await prepareRag2DriftHost(databasePath: path);
-    final host = AppDatabase(NativeDatabase(File(path)));
-    addTearDown(host.close);
-    final embeddings = await host.select(host.embeddings).get();
-    final version = await host.customSelect('PRAGMA user_version').getSingle();
-
-    expect(embeddings.single.sourceId, seeded.sourceId);
-    expect(embeddings.single.sourceType, 'conversation');
-    expect(embeddings.single.chunkIndex, 0);
-    expect(embeddings.single.model, 'll5-sentinel-model');
-    expect(embeddings.single.dim, 1);
-    expect(embeddings.single.snippet, 'll5-sentinel-snippet');
-    expect(embeddings.single.createdAtMs, 0);
-    expect(embeddings.single.vector, Uint8List.fromList(const [1, 2, 3, 4]));
-    expect(embeddings.single.id, seeded.id);
-    expect(
-      (await host.select(host.conversations).get()).single.id,
-      rag2DriftHostConversationId,
+  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+  test('reopens the last committed generation through a Drift DAO', () async {
+    final output = Directory.systemTemp.createTempSync(
+      'rag2-drift-dao-reopen-',
     );
-    expect(
-      (await host.select(host.conversations).get()).single.title,
-      rag2DriftHostConversationTitle,
-    );
-    expect(
-      (await host.select(host.conversations).get()).single.payload,
-      rag2DriftHostConversationPayload,
-    );
-    expect(
-      (await host.select(host.modelUsageDaily).get()).single.totalTokens,
-      rag2DriftHostUsageTokens,
-    );
-    expect(
-      (await host
-              .customSelect('SELECT id, title, body FROM conversation_search')
-              .get())
-          .single
-          .read<String>('body'),
-      rag2DriftHostSearchBody,
-    );
-    final schema = await inspectRag2DriftHostSchema(host);
-    expect(schema.onlyConversationSearchFts5, isTrue);
-    expect(schema.logicalTables, rag2DriftHostLogicalTables);
-    expect(version.data['user_version'], 5);
-  });
-
-  test('reopens the last committed generation from a new connection', () async {
-    final output = Directory.systemTemp.createTempSync('rag2-drift-reopen-');
     addTearDown(() => output.deleteSync(recursive: true));
     final snapshots = await _snapshots();
     final path = '${output.path}/caverno.sqlite';
     await prepareRag2DriftHost(databasePath: path);
-    final store = Rag2DriftGenerationStore(
+    final store = Rag2DriftDaoGenerationStore.open(
       databasePath: path,
       projectId: _projectId,
     );
@@ -90,10 +47,15 @@ void main() {
       declarationIdentity: _identity,
       snapshot: snapshots.updated,
     );
-    store.close();
+    await store.close();
 
     final host = AppDatabase(NativeDatabase(File(path)));
     addTearDown(host.close);
+    final dao = Rag2DriftGenerationDao(host);
+    final row = await dao.readGeneration(
+      projectIdentity: rag2ExplicitSourceRootsProjectIdentity(_projectId),
+      declarationIdentity: _identity,
+    );
     final generation = await readRag2GenerationFromAppDatabase(
       database: host,
       projectId: _projectId,
@@ -101,6 +63,8 @@ void main() {
     );
     final embeddings = await host.select(host.embeddings).get();
 
+    expect(row?.generation, 2);
+    expect(row?.snapshotHash, _updatedHash);
     expect(generation?.generation, 2);
     expect(generation?.snapshot.snapshotHash, _updatedHash);
     expect(
@@ -115,14 +79,16 @@ void main() {
   });
 
   test(
-    'recovers generation 1 after a killed uncommitted writer',
+    'recovers generation 1 after a killed uncommitted Drift DAO writer',
     () async {
-      final output = Directory.systemTemp.createTempSync('rag2-drift-crash-');
+      final output = Directory.systemTemp.createTempSync(
+        'rag2-drift-dao-crash-',
+      );
       addTearDown(() => output.deleteSync(recursive: true));
       final snapshots = await _snapshots();
       final path = '${output.path}/caverno.sqlite';
       await prepareRag2DriftHost(databasePath: path);
-      final store = Rag2DriftGenerationStore(
+      final store = Rag2DriftDaoGenerationStore.open(
         databasePath: path,
         projectId: _projectId,
       );
@@ -130,9 +96,9 @@ void main() {
         declarationIdentity: _identity,
         snapshot: snapshots.baseline,
       );
-      store.close();
+      await store.close();
 
-      final generation = await recoverAfterKilledUncommittedDriftWrite(
+      final generation = await recoverAfterKilledUncommittedDriftDaoWrite(
         fixturePath: _fixturePath,
         databasePath: path,
         projectId: _projectId,
@@ -146,28 +112,28 @@ void main() {
   );
 
   test(
-    'serializes concurrent writers onto increasing generations',
+    'serializes concurrent Drift DAO writers onto increasing generations',
     () async {
       final output = Directory.systemTemp.createTempSync(
-        'rag2-drift-concurrent-',
+        'rag2-drift-dao-concurrent-',
       );
       addTearDown(() => output.deleteSync(recursive: true));
       final path = '${output.path}/caverno.sqlite';
       await prepareRag2DriftHost(databasePath: path);
       await Future.wait([
-        applyRag2DriftSnapshotInChild(
+        applyRag2DriftDaoSnapshotInChild(
           fixturePath: _fixturePath,
           databasePath: path,
           snapshotIndex: 0,
         ),
-        applyRag2DriftSnapshotInChild(
+        applyRag2DriftDaoSnapshotInChild(
           fixturePath: _fixturePath,
           databasePath: path,
           snapshotIndex: 1,
         ),
       ]);
 
-      final store = Rag2DriftGenerationStore(
+      final store = Rag2DriftDaoGenerationStore.open(
         databasePath: path,
         projectId: _projectId,
       );
@@ -186,13 +152,13 @@ void main() {
     'rejects a generation row whose envelope disagrees with the payload',
     () async {
       final output = Directory.systemTemp.createTempSync(
-        'rag2-drift-envelope-',
+        'rag2-drift-dao-envelope-',
       );
       addTearDown(() => output.deleteSync(recursive: true));
       final snapshots = await _snapshots();
       final path = '${output.path}/caverno.sqlite';
       await prepareRag2DriftHost(databasePath: path);
-      final store = Rag2DriftGenerationStore(
+      final store = Rag2DriftDaoGenerationStore.open(
         databasePath: path,
         projectId: _projectId,
       );
@@ -200,13 +166,13 @@ void main() {
         declarationIdentity: _identity,
         snapshot: snapshots.baseline,
       );
-      store.close();
+      await store.close();
 
       final mutated = sqlite3.open(path);
       mutated.execute('UPDATE rag2_generations SET generation = 99');
       mutated.close();
 
-      final reopened = Rag2DriftGenerationStore(
+      final reopened = Rag2DriftDaoGenerationStore.open(
         databasePath: path,
         projectId: _projectId,
       );
@@ -225,12 +191,14 @@ void main() {
   );
 
   test('rejects an unsupported schema without mutating rows', () async {
-    final output = Directory.systemTemp.createTempSync('rag2-drift-schema-');
+    final output = Directory.systemTemp.createTempSync(
+      'rag2-drift-dao-schema-',
+    );
     addTearDown(() => output.deleteSync(recursive: true));
     final snapshots = await _snapshots();
     final path = '${output.path}/caverno.sqlite';
     await prepareRag2DriftHost(databasePath: path);
-    final store = Rag2DriftGenerationStore(
+    final store = Rag2DriftDaoGenerationStore.open(
       databasePath: path,
       projectId: _projectId,
     );
@@ -238,7 +206,7 @@ void main() {
       declarationIdentity: _identity,
       snapshot: snapshots.baseline,
     );
-    store.close();
+    await store.close();
 
     final mutated = sqlite3.open(path);
     mutated.execute(
@@ -246,7 +214,7 @@ void main() {
     );
     mutated.close();
 
-    final rejected = Rag2DriftGenerationStore(
+    final rejected = Rag2DriftDaoGenerationStore.open(
       databasePath: path,
       projectId: _projectId,
     );
@@ -285,70 +253,78 @@ void main() {
     );
   });
 
-  test('rejects a schema mutation on an already-open store', () async {
+  test(
+    'rejects a schema mutation on an already-open Drift DAO store',
+    () async {
+      final output = Directory.systemTemp.createTempSync(
+        'rag2-drift-dao-open-schema-',
+      );
+      addTearDown(() => output.deleteSync(recursive: true));
+      final snapshots = await _snapshots();
+      final path = '${output.path}/caverno.sqlite';
+      await prepareRag2DriftHost(databasePath: path);
+      final store = Rag2DriftDaoGenerationStore.open(
+        databasePath: path,
+        projectId: _projectId,
+      );
+      addTearDown(store.close);
+      await store.apply(
+        declarationIdentity: _identity,
+        snapshot: snapshots.baseline,
+      );
+
+      final mutated = sqlite3.open(path);
+      mutated.execute(
+        "UPDATE rag2_store_meta SET value = '2' WHERE key = 'schema_version'",
+      );
+      mutated.close();
+
+      await expectLater(
+        store.read(_identity),
+        throwsA(
+          isA<Rag2PersistenceException>().having(
+            (error) => error.reason,
+            'reason',
+            'unsupported_schema',
+          ),
+        ),
+      );
+      await expectLater(
+        store.apply(
+          declarationIdentity: _identity,
+          snapshot: snapshots.updated,
+        ),
+        throwsA(
+          isA<Rag2PersistenceException>().having(
+            (error) => error.reason,
+            'reason',
+            'unsupported_schema',
+          ),
+        ),
+      );
+      final check = sqlite3.open(path);
+      addTearDown(check.close);
+      expect(
+        check
+            .select(
+              "SELECT value FROM rag2_store_meta WHERE key = 'schema_version'",
+            )
+            .first['value'],
+        '2',
+      );
+      expect(
+        check
+            .select('SELECT generation FROM rag2_generations')
+            .first['generation'],
+        1,
+      );
+    },
+  );
+
+  test('isolates two projects through one Drift DAO file', () async {
     final output = Directory.systemTemp.createTempSync(
-      'rag2-drift-open-schema-',
+      'rag2-drift-dao-isolate-',
     );
-    addTearDown(() => output.deleteSync(recursive: true));
-    final snapshots = await _snapshots();
-    final path = '${output.path}/caverno.sqlite';
-    await prepareRag2DriftHost(databasePath: path);
-    final store = Rag2DriftGenerationStore(
-      databasePath: path,
-      projectId: _projectId,
-    );
-    addTearDown(store.close);
-    await store.apply(
-      declarationIdentity: _identity,
-      snapshot: snapshots.baseline,
-    );
-
-    final mutated = sqlite3.open(path);
-    mutated.execute(
-      "UPDATE rag2_store_meta SET value = '2' WHERE key = 'schema_version'",
-    );
-    mutated.close();
-
-    await expectLater(
-      store.read(_identity),
-      throwsA(
-        isA<Rag2PersistenceException>().having(
-          (error) => error.reason,
-          'reason',
-          'unsupported_schema',
-        ),
-      ),
-    );
-    await expectLater(
-      store.apply(declarationIdentity: _identity, snapshot: snapshots.updated),
-      throwsA(
-        isA<Rag2PersistenceException>().having(
-          (error) => error.reason,
-          'reason',
-          'unsupported_schema',
-        ),
-      ),
-    );
-    final check = sqlite3.open(path);
-    addTearDown(check.close);
-    expect(
-      check
-          .select(
-            "SELECT value FROM rag2_store_meta WHERE key = 'schema_version'",
-          )
-          .first['value'],
-      '2',
-    );
-    expect(
-      check
-          .select('SELECT generation FROM rag2_generations')
-          .first['generation'],
-      1,
-    );
-  });
-
-  test('isolates two projects in one AppDatabase file', () async {
-    final output = Directory.systemTemp.createTempSync('rag2-drift-isolate-');
     addTearDown(() => output.deleteSync(recursive: true));
     final fixtureFile = File(_fixturePath);
     final fixture = await Rag2StorageReplayFixture.load(fixtureFile);
@@ -366,13 +342,13 @@ void main() {
     );
     final path = '${output.path}/caverno.sqlite';
     await prepareRag2DriftHost(databasePath: path);
-    final first = Rag2DriftGenerationStore(
+    final first = Rag2DriftDaoGenerationStore.open(
       databasePath: path,
       projectId: 'persistence-project-a',
     );
     await first.apply(declarationIdentity: _identity, snapshot: firstSnapshot);
-    first.close();
-    final second = Rag2DriftGenerationStore(
+    await first.close();
+    final second = Rag2DriftDaoGenerationStore.open(
       databasePath: path,
       projectId: 'persistence-project-b',
     );
@@ -380,13 +356,13 @@ void main() {
       declarationIdentity: _identity,
       snapshot: secondSnapshot,
     );
-    second.close();
+    await second.close();
 
-    final firstRead = Rag2DriftGenerationStore(
+    final firstRead = Rag2DriftDaoGenerationStore.open(
       databasePath: path,
       projectId: 'persistence-project-a',
     );
-    final secondRead = Rag2DriftGenerationStore(
+    final secondRead = Rag2DriftDaoGenerationStore.open(
       databasePath: path,
       projectId: 'persistence-project-b',
     );
@@ -405,12 +381,14 @@ void main() {
   });
 
   test('rejects a snapshot that belongs to another project', () async {
-    final output = Directory.systemTemp.createTempSync('rag2-drift-foreign-');
+    final output = Directory.systemTemp.createTempSync(
+      'rag2-drift-dao-foreign-',
+    );
     addTearDown(() => output.deleteSync(recursive: true));
     final snapshots = await _snapshots();
     final path = '${output.path}/caverno.sqlite';
     await prepareRag2DriftHost(databasePath: path);
-    final store = Rag2DriftGenerationStore(
+    final store = Rag2DriftDaoGenerationStore.open(
       databasePath: path,
       projectId: 'persistence-project-a',
     );
@@ -431,44 +409,51 @@ void main() {
   test(
     'replays twice against the same output directory',
     () async {
-      final output = Directory.systemTemp.createTempSync('rag2-drift-rerun-');
+      final output = Directory.systemTemp.createTempSync(
+        'rag2-drift-dao-rerun-',
+      );
       addTearDown(() => output.deleteSync(recursive: true));
-      final options = Rag2DriftAdditiveSchemaOptions(
+      final options = Rag2DriftDaoGenerationStoreOptions(
         fixturePath: _fixturePath,
         outDir: output.path,
         storeRoot: '${output.path}/store',
       );
-      final first = await runRag2DriftAdditiveSchemaReplay(options);
-      final second = await runRag2DriftAdditiveSchemaReplay(options);
+      final first = await runRag2DriftDaoGenerationStoreReplay(options);
+      final second = await runRag2DriftDaoGenerationStoreReplay(options);
       expect(first.contractPassed, isTrue);
       expect(second.contractPassed, isTrue);
       expect(second.toJson(), first.toJson());
     },
-    timeout: const Timeout(Duration(minutes: 3)),
+    timeout: const Timeout(Duration(minutes: 4)),
   );
 
   test('writes aggregate-only reports', () async {
-    final output = Directory.systemTemp.createTempSync('rag2-drift-report-');
+    final output = Directory.systemTemp.createTempSync(
+      'rag2-drift-dao-report-',
+    );
     addTearDown(() => output.deleteSync(recursive: true));
-    final report = await runRag2DriftAdditiveSchemaReplay(
-      Rag2DriftAdditiveSchemaOptions(
+    final report = await runRag2DriftDaoGenerationStoreReplay(
+      Rag2DriftDaoGenerationStoreOptions(
         fixturePath: _fixturePath,
         outDir: output.path,
         storeRoot: '${output.path}/store',
       ),
     );
     final jsonReport = File(
-      '${output.path}/rag2_drift_additive_schema.json',
+      '${output.path}/rag2_drift_dao_generation_store.json',
     ).readAsStringSync();
     final markdownReport = File(
-      '${output.path}/rag2_drift_additive_schema.md',
+      '${output.path}/rag2_drift_dao_generation_store.md',
     ).readAsStringSync();
 
     expect(report.contractPassed, isTrue);
-    expect(report.toJson()['driftAdditiveDecision'], 'go');
+    expect(report.toJson()['driftDaoDecision'], 'go');
     expect(report.toJson()['fts5Decision'], 'not_selected');
     expect(report.toJson()['productionDecision'], 'no_go');
     expect(report.toJson()['appDatabaseSchemaVersion'], 5);
+    expect(report.toJson()['writesThroughDrift'], isTrue);
+    expect(report.toJson()['applyRollbackPreserved'], isTrue);
+    expect(report.toJson()['concurrentWritersSerialized'], isTrue);
     expect(jsonDecode(jsonReport), report.toJson());
     expect(markdownReport, report.toMarkdown());
     for (final forbidden in [
@@ -482,7 +467,47 @@ void main() {
       expect(jsonReport, isNot(contains(forbidden)));
       expect(markdownReport, isNot(contains(forbidden)));
     }
-  }, timeout: const Timeout(Duration(minutes: 2)));
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('treats missing rollback or concurrent serialization as no-go', () {
+    Rag2DriftDaoGenerationStoreReport report({
+      bool applyRollbackPreserved = true,
+      bool concurrentWritersSerialized = true,
+    }) {
+      return Rag2DriftDaoGenerationStoreReport(
+        fixtureId: 'fixture',
+        declarationIdentity: _identity,
+        reopenedGeneration: 2,
+        reopenedSnapshotHash: _updatedHash,
+        recoveredGeneration: 1,
+        recoveredSnapshotHash: _baselineHash,
+        attestedTextPreserved: true,
+        writesThroughDrift: true,
+        embeddingsPreserved: true,
+        conversationSearchPreserved: true,
+        rag2Fts5Absent: true,
+        crashRecovered: true,
+        unsupportedSchemaRejected: true,
+        declarationIsolation: true,
+        foreignSnapshotRejected: true,
+        applyRollbackPreserved: applyRollbackPreserved,
+        concurrentWritersSerialized: concurrentWritersSerialized,
+      );
+    }
+
+    expect(report().contractPassed, isTrue);
+    expect(report().toJson()['contractDecision'], 'go');
+    expect(report(applyRollbackPreserved: false).contractPassed, isFalse);
+    expect(
+      report(applyRollbackPreserved: false).toJson()['contractDecision'],
+      'no_go',
+    );
+    expect(report(concurrentWritersSerialized: false).contractPassed, isFalse);
+    expect(
+      report(concurrentWritersSerialized: false).toJson()['contractDecision'],
+      'no_go',
+    );
+  });
 }
 
 Future<({Rag2KnowledgeSnapshot baseline, Rag2KnowledgeSnapshot updated})>

@@ -114,7 +114,7 @@ final class Rag2DriftGenerationStore {
   }
 
   void close() {
-    _database?.dispose();
+    _database?.close();
     _database = null;
   }
 
@@ -129,7 +129,7 @@ final class Rag2DriftGenerationStore {
       database.execute('PRAGMA synchronous = FULL');
       database.select('PRAGMA journal_mode = DELETE');
     } on Object {
-      database.dispose();
+      database.close();
       rethrow;
     }
     _database = database;

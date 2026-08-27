@@ -146,7 +146,7 @@ void main() {
 
       final mutated = sqlite3.open(path);
       mutated.execute('UPDATE rag2_generations SET generation = 99');
-      mutated.dispose();
+      mutated.close();
 
       final reopened = Rag2SqliteGenerationStore(
         databasePath: path,
@@ -185,7 +185,7 @@ void main() {
     mutated.execute(
       "UPDATE rag2_store_meta SET value = '2' WHERE key = 'schema_version'",
     );
-    mutated.dispose();
+    mutated.close();
 
     await expectLater(
       Rag2SqliteGenerationStore(
@@ -201,7 +201,7 @@ void main() {
       ),
     );
     final check = sqlite3.open(path);
-    addTearDown(check.dispose);
+    addTearDown(check.close);
     expect(
       check
           .select(

@@ -4,7 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../chat/application/persistence/caverno_persistence_bootstrap.dart';
-import '../../chat/data/datasources/app_database.dart';
+import '../../chat/data/datasources/app_database_open.dart';
 import '../../chat/data/repositories/chat_memory_mutation_coordinator.dart';
 import '../../chat/data/repositories/conversation_repository.dart';
 

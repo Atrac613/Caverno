@@ -113,9 +113,10 @@ stays at version 4.
 ## Next Entry Condition
 
 Keep this additive Drift schema and the isolated sqlite3 instrument frozen.
-A later hypothesis may replace sqlite3 writes with Drift DAOs only if that
-does not change the row contract. RAG2 FTS5 and retrieval remain independent.
-Do not add settings, tools, prompting, or chat/runtime wiring.
+Drift DAO writes are recorded in
+`docs/rag2_drift_dao_generation_store_hypothesis_2026-08-27.md`. RAG2 FTS5 and
+retrieval remain independent. Do not add settings, tools, prompting, or
+chat/runtime wiring.
 
 ## Verification
 

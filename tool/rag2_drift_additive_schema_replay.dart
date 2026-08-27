@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
 import 'package:caverno/features/chat/data/datasources/rag2_drift_schema.dart';
@@ -11,7 +10,6 @@ import 'package:sqlite3/sqlite3.dart';
 import 'rag2_drift_generation_store.dart';
 export 'rag2_drift_generation_store.dart';
 import 'rag2_explicit_source_roots_replay.dart';
-import 'rag2_knowledge_object_replay.dart';
 import 'rag2_persistence_reopen_replay.dart';
 import 'rag2_storage_replay.dart';
 
@@ -191,7 +189,7 @@ Future<Rag2DriftAdditiveSchemaReport> runRag2DriftAdditiveSchemaReplay(
   final mutatedVersion = mutated
       .select("SELECT value FROM rag2_store_meta WHERE key = 'schema_version'")
       .first['value'];
-  mutated.dispose();
+  mutated.close();
   var unsupportedSchemaRejected = false;
   final rejectedStore = Rag2DriftGenerationStore(
     databasePath: schemaPath,
@@ -221,7 +219,7 @@ Future<Rag2DriftAdditiveSchemaReport> runRag2DriftAdditiveSchemaReplay(
           embeddings.single.sourceId == _ll5SentinelSourceId;
     } finally {
       await embeddingCheck.close();
-      check.dispose();
+      check.close();
     }
   } finally {
     rejectedStore.close();

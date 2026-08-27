@@ -85,5 +85,5 @@ fvm flutter test test/tool/rag2_*_test.dart
 
 Keep this contract and fixture frozen, including the attested-text binding and
 shared declaration identity. Persistence reopen, isolated SQLite durability,
-and Drift additive schema are recorded separately. Retrieval remains a later
-independent evaluation. Do not add RAG2 FTS5 yet.
+Drift additive schema, and Drift DAO writes are recorded separately. Retrieval
+remains a later independent evaluation. Do not add RAG2 FTS5 yet.

@@ -15,7 +15,7 @@ import '../../chat/data/datasources/chat_tool_catalogue_snapshot_store.dart';
 import '../../chat/data/repositories/chat_memory_repository.dart';
 import '../../chat/data/repositories/coding_project_repository.dart';
 import '../../chat/data/repositories/conversation_repository.dart';
-import '../../chat/data/datasources/app_database.dart';
+import '../../chat/data/datasources/app_database_open.dart';
 import '../../chat/data/repositories/skill_repository.dart';
 import '../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../chat/domain/services/chat_tool_catalogue_snapshot.dart';

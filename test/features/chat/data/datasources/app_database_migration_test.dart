@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -161,7 +160,7 @@ void main() {
       await after.close();
 
       final check = sqlite3.open(databaseFile.path);
-      addTearDown(check.dispose);
+      addTearDown(check.close);
       expect(check.select('PRAGMA user_version').first['user_version'], 4);
       final tables = check
           .select("SELECT name FROM sqlite_master WHERE type = 'table'")
