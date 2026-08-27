@@ -92,10 +92,10 @@ and `31d8769e4f33bab976367e724440209bc5d3da2c3772559522f7ea655f48c95b`.
 
 ## Next Entry Condition
 
-Keep this isolated SQLite instrument frozen. A later Drift additive-schema
-hypothesis may map the same row contract onto `AppDatabase` without rewriting
-LL5 embedding rows. FTS5 and retrieval remain independent. Do not add
-settings, tools, prompting, or application wiring.
+Keep this isolated SQLite instrument frozen. Drift additive schema mapping is
+recorded in `docs/rag2_drift_additive_schema_hypothesis_2026-08-27.md`. RAG2
+FTS5 and retrieval remain independent. Do not add settings, tools, prompting,
+or chat/runtime wiring.
 
 ## Verification
 

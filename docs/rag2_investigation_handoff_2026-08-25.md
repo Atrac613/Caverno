@@ -172,6 +172,7 @@ stratified stable-hash strategy and do not tune or revive v1.
 | 42 | `Declaration identity alignment` | Shared hasher for acquisition and storage | Storage uses `rag2ExplicitSourceRootsDeclarationIdentity`. Same sorted roots produce the same declaration hash as explicit-root acquisition. Project identity stays separate. The withdrawn storage-contract-plus-project-id hash is not reused. | `docs/rag2_storage_replay_contract_2026-08-26.md` |
 | 43 | `Persistence reopen hypothesis` | Durable reopen, crash discard, and unknown-schema refusal | File-backed JSON reopens generation 2, discards a crash partial or missing-current backup back to generation 1, rejects schema version 2 without mutation, isolates two projects that share roots, and refuses a snapshot from another project. Attested chunk text is persisted; reports still omit it. No production backend is selected. | `docs/rag2_persistence_reopen_hypothesis_2026-08-27.md` |
 | 44 | `SQLite durability mapping` | Isolated sqlite3 file hosting the frozen generation contract | A new connection reopens generation 2. Killing a writer with an uncommitted replacement recovers generation 1. Concurrent writers serialize onto increasing generations. Row envelope fields must match the payload. Unsupported schema fails closed. Two projects share one file without mixing rows. No FTS5 tables. Drift and production remain unselected. | `docs/rag2_sqlite_durability_hypothesis_2026-08-27.md` |
+| 45 | `Drift additive schema mapping` | Frozen generation rows hosted by AppDatabase schema version 5 | A v4 database with LL5 embedding rows upgrades without rewriting those rows or conversation-search FTS5. Generation 2 reopens. Process-death recovery leaves generation 1. No RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_drift_additive_schema_hypothesis_2026-08-27.md` |
 
 ## Rejected shortcuts
 
@@ -205,6 +206,9 @@ stratified stable-hash strategy and do not tune or revive v1.
   Drift selection. It proves durability semantics only.
 - Do not treat the isolated SQLite durability instrument as a Drift schema,
   FTS5 index, or production path. It maps generation reopen onto sqlite3 only.
+- Do not treat the Drift additive schema as RAG2 FTS5, retrieval, settings,
+  tools, or chat/runtime wiring. Empty generation tables are not a production
+  path.
 
 ## Durable artifacts
 
@@ -257,7 +261,7 @@ and promotion evaluation increase it to 129, the storage replay increases it
 to 134, and the attested-text binding increases it to 137. Frozen-declaration
 acquisition CI increases it to 140. Shared declaration identity increases it
 to 141. Persistence reopen increases it to 149. Isolated SQLite durability
-increases it to 158.
+increases it to 158. Drift additive schema increases it to 169.
 
 ## Next entry condition
 
@@ -291,7 +295,8 @@ questions from the admitted set. Acquisition and storage now share
 declaration identity for the same sorted roots. A file-backed persistence
 reopen replay restores the last committed generation, discards a crash
 partial, and refuses an unsupported schema without mutation. Isolated SQLite
-durability maps those rules onto a sqlite3 file through transactions. This
-does not select Drift, FTS5, embeddings, or production wiring. Prompting,
-routing, tools, model calls, settings, and application wiring remain out of
-scope.
+durability maps those rules onto a sqlite3 file through transactions. Drift
+additive schema hosts the same row contract on `AppDatabase` version 5 without
+rewriting LL5 embedding rows or conversation-search FTS5. This does not
+select RAG2 FTS5, retrieval, or production wiring. Prompting, routing, tools,
+model calls, settings, and chat/runtime wiring remain out of scope.

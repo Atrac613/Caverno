@@ -5,6 +5,8 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'rag2_drift_schema.dart';
+
 part 'app_database.g.dart';
 
 /// Opens the production drift database backed by a SQLite file in the app
@@ -137,6 +139,35 @@ class ModelUsageDaily extends Table {
   };
 }
 
+/// RAG2 generation-store metadata. Envelope version 1 lives here; AppDatabase
+/// schema version 5 only hosts the tables.
+@DataClassName('Rag2StoreMetaRow')
+class Rag2StoreMeta extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {key};
+}
+
+/// RAG2 declaration-scoped generation row. Payload reuses the persistence
+/// encoder; envelope columns must match that payload on read.
+@DataClassName('Rag2GenerationRow')
+class Rag2Generations extends Table {
+  TextColumn get projectIdentity => text()();
+  TextColumn get declarationIdentity => text()();
+  TextColumn get schemaName => text()();
+  IntColumn get schemaVersion => integer()();
+  TextColumn get contract => text()();
+  TextColumn get projectId => text()();
+  IntColumn get generation => integer()();
+  TextColumn get snapshotHash => text()();
+  TextColumn get payload => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {projectIdentity, declarationIdentity};
+}
+
 /// Local epoch-day for [timestamp], matching the convention used by the
 /// dashboard's activity heatmap so both features bucket a day identically.
 int modelUsageDayNumber(DateTime timestamp) {
@@ -150,7 +181,14 @@ int modelUsageDayNumber(DateTime timestamp) {
 }
 
 @DriftDatabase(
-  tables: [Conversations, ChatMemoryEntries, Embeddings, ModelUsageDaily],
+  tables: [
+    Conversations,
+    ChatMemoryEntries,
+    Embeddings,
+    ModelUsageDaily,
+    Rag2StoreMeta,
+    Rag2Generations,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
@@ -163,13 +201,14 @@ class AppDatabase extends _$AppDatabase {
   static const _conversationSearchTable = 'conversation_search';
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
       await _createConversationSearchTable();
+      await _seedRag2StoreMeta();
     },
     onUpgrade: (m, from, to) async {
       if (from < 2) {
@@ -182,8 +221,68 @@ class AppDatabase extends _$AppDatabase {
       if (from < 4) {
         await m.createTable(modelUsageDaily);
       }
+      if (from < 5) {
+        await _addRag2TablesIfMissing(m);
+      }
     },
   );
+
+  Future<void> _addRag2TablesIfMissing(Migrator m) async {
+    final tables = await _sqliteTableNames();
+    final hasMeta = tables.contains('rag2_store_meta');
+    final hasGenerations = tables.contains('rag2_generations');
+    if (hasMeta != hasGenerations) {
+      throw const Rag2DriftSchemaException('unsupported_schema');
+    }
+    if (hasMeta && hasGenerations) {
+      await _requireCurrentRag2StoreMeta();
+      return;
+    }
+    await m.createTable(rag2StoreMeta);
+    await m.createTable(rag2Generations);
+    await _seedRag2StoreMeta();
+  }
+
+  Future<Set<String>> _sqliteTableNames() async {
+    final rows = await customSelect(
+      "SELECT name FROM sqlite_master WHERE type = 'table'",
+    ).get();
+    return {for (final row in rows) row.read<String>('name')};
+  }
+
+  Future<void> _requireCurrentRag2StoreMeta() async {
+    final metadata = await _rag2StoreMetaValues();
+    if (metadata['schema_name'] != rag2DriftStoreSchema ||
+        metadata['schema_version'] != '$rag2DriftStoreSchemaVersion' ||
+        metadata['contract'] != rag2DriftAdditiveSchemaContract) {
+      throw const Rag2DriftSchemaException('unsupported_schema');
+    }
+  }
+
+  Future<Map<String, String>> _rag2StoreMetaValues() async {
+    final rows = await customSelect(
+      'SELECT key, value FROM rag2_store_meta',
+    ).get();
+    return {
+      for (final row in rows)
+        row.read<String>('key'): row.read<String>('value'),
+    };
+  }
+
+  Future<void> _seedRag2StoreMeta() async {
+    await customStatement(
+      'INSERT INTO rag2_store_meta(key, value) '
+      'VALUES (?, ?), (?, ?), (?, ?)',
+      [
+        'schema_name',
+        rag2DriftStoreSchema,
+        'schema_version',
+        '$rag2DriftStoreSchemaVersion',
+        'contract',
+        rag2DriftAdditiveSchemaContract,
+      ],
+    );
+  }
 
   Future<void> _createConversationSearchTable() async {
     await customStatement(

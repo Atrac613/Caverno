@@ -86,5 +86,5 @@ right evidence, or that generated answers are complete and correctly cited.
 Live acquisition for this frozen declaration is now a CI gate. See
 `docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`. Acquisition
 and storage now share declaration identity. Persistence reopen is a
-durability Go. Isolated SQLite durability is a separate Go. Do not add Drift
-tables, FTS5, or embeddings yet.
+durability Go. Isolated SQLite durability is a separate Go. Drift additive
+schema is a separate Go. Do not add RAG2 FTS5 or retrieval yet.

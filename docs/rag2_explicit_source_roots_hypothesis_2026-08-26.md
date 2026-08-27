@@ -140,9 +140,9 @@ citation quality. Those remain separate later gates.
 
 Preserve the development and promotion fixtures unchanged. Live acquisition is
 now a CI gate for both frozen declarations. Acquisition and storage share
-declaration identity. Persistence reopen and isolated SQLite durability are
-Go. Do not add Drift tables, FTS5, settings, tools, model calls, application
-wiring, or production behavior.
+declaration identity. Persistence reopen, isolated SQLite durability, and
+Drift additive schema are Go. Do not add RAG2 FTS5, settings, tools, model
+calls, chat/runtime wiring, or production retrieval.
 
 ## Verification
 
@@ -162,4 +162,4 @@ fvm flutter test test/tool/rag2_*_test.dart
 
 The six development-evaluation, five promotion-evaluation, four declaration-
 freeze, and nine explicit-root cases pass. The complete focused RAG2 suite
-passes all 158 tests.
+passes all 169 tests.

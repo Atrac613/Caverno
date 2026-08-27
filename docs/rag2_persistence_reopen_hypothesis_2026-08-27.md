@@ -89,8 +89,9 @@ records keep attested text that reports omit.
 Keep this durable JSON instrument and the storage fixture frozen. Isolated
 SQLite durability mapping is recorded in
 `docs/rag2_sqlite_durability_hypothesis_2026-08-27.md`. Drift additive schema
-and FTS5 remain unselected. Do not add retrieval, settings, tools, prompting,
-or application wiring.
+is recorded in `docs/rag2_drift_additive_schema_hypothesis_2026-08-27.md`.
+RAG2 FTS5 remains unselected. Do not add retrieval, settings, tools,
+prompting, or chat/runtime wiring.
 
 ## Verification
 
