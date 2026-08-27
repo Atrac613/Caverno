@@ -97,4 +97,5 @@ Keep this development declaration and fixture frozen. Live acquisition is now
 a CI gate for both this declaration and the promotion holdout. See
 `docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`. Acquisition
 and storage now share declaration identity. Persistence reopen is a separate
-durability Go. Do not select a persistence backend.
+durability Go. Isolated SQLite durability is a separate Go. Do not add a
+persistence backend to the application.

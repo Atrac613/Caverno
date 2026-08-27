@@ -57,7 +57,8 @@ The implementation must preserve all of these rules:
    mismatch, or an identity mismatch fails closed.
 8. Unsupported schema is not rewritten into v1. Additive migration remains
    unselected until a later schema change exists.
-9. Keep retrieval, backend selection, and production at No-Go.
+9. Keep retrieval and production at No-Go. Isolated SQLite durability is a
+   separate contract.
 
 ## Synthetic Replay Contract
 
@@ -85,10 +86,11 @@ records keep attested text that reports omit.
 
 ## Next Entry Condition
 
-Keep this durable JSON instrument and the storage fixture frozen. A later
-backend-selection hypothesis may map these reopen, crash, and fail-closed
-schema rules onto SQLite, FTS5, or Drift. Do not add retrieval, settings,
-tools, prompting, or application wiring.
+Keep this durable JSON instrument and the storage fixture frozen. Isolated
+SQLite durability mapping is recorded in
+`docs/rag2_sqlite_durability_hypothesis_2026-08-27.md`. Drift additive schema
+and FTS5 remain unselected. Do not add retrieval, settings, tools, prompting,
+or application wiring.
 
 ## Verification
 
