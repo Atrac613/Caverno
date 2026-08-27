@@ -174,6 +174,7 @@ stratified stable-hash strategy and do not tune or revive v1.
 | 44 | `SQLite durability mapping` | Isolated sqlite3 file hosting the frozen generation contract | A new connection reopens generation 2. Killing a writer with an uncommitted replacement recovers generation 1. Concurrent writers serialize onto increasing generations. Row envelope fields must match the payload. Unsupported schema fails closed. Two projects share one file without mixing rows. No FTS5 tables. Drift and production remain unselected. | `docs/rag2_sqlite_durability_hypothesis_2026-08-27.md` |
 | 45 | `Drift additive schema mapping` | Frozen generation rows hosted by AppDatabase schema version 5 | A v4 database with LL5 embedding rows upgrades without rewriting those rows or conversation-search FTS5. Generation 2 reopens. Process-death recovery leaves generation 1. No RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_drift_additive_schema_hypothesis_2026-08-27.md` |
 | 46 | `Drift DAO generation store` | Frozen row contract applied through Drift table accessors | Generation 2 reopens by selecting `rag2_generations` through the DAO. Killing an uncommitted Drift writer recovers generation 1. Concurrent Drift writers serialize. No RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_drift_dao_generation_store_hypothesis_2026-08-27.md` |
+| 47 | `FTS5 additive index` | Isolated chunk FTS5 beside conversation-search | `rag2_chunk_search` binds project, declaration, generation, and snapshot hash. Atomic replacement rolls back on injected failure. Every chunk must MATCH. Two projects stay isolated. AppDatabase stays at v5. Retrieval and production remain No-Go. | `docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md` |
 
 ## Rejected shortcuts
 
@@ -213,6 +214,8 @@ stratified stable-hash strategy and do not tune or revive v1.
 - Do not treat the Drift DAO write path as RAG2 FTS5, retrieval, settings,
   tools, or chat/runtime wiring. Selecting generation rows through Drift is
   not a production path.
+- Do not treat the isolated FTS5 index as retrieval, settings, tools, or
+  chat/runtime wiring. Matching every chunk id is not a quality gate.
 
 ## Durable artifacts
 
@@ -266,7 +269,8 @@ to 134, and the attested-text binding increases it to 137. Frozen-declaration
 acquisition CI increases it to 140. Shared declaration identity increases it
 to 141. Persistence reopen increases it to 149. Isolated SQLite durability
 increases it to 158. Drift additive schema increases it to 169. Drift DAO
-generation-store writes increase it to 182.
+generation-store writes increase it to 182. The isolated FTS5 index increases
+it to 193.
 
 ## Next entry condition
 
@@ -304,6 +308,10 @@ durability maps those rules onto a sqlite3 file through transactions. Drift
 additive schema hosts the same row contract on `AppDatabase` version 5 without
 rewriting LL5 embedding rows or conversation-search FTS5. Drift DAO writes
 apply and reopen that contract through `select` and `insertOnConflictUpdate`
-without changing the row envelope. This does not select RAG2 FTS5, retrieval,
-or production wiring. Prompting, routing, tools, model calls, settings, and
-chat/runtime wiring remain out of scope.
+without changing the row envelope. An isolated `rag2_chunk_search` FTS5 index
+can sit beside conversation-search on that host file without bumping schema
+version 5. Replacement is transactional and bound to project, declaration,
+generation, and snapshot hash; Go requires every chunk to MATCH. This does
+not select retrieval or production wiring. Prompting,
+routing, tools, model calls, settings, and chat/runtime wiring remain out of
+scope.

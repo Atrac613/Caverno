@@ -118,10 +118,9 @@ metadata rewrite to version 2.
 ## Next Entry Condition
 
 Need this Drift DAO write path, the additive schema, and the isolated sqlite3
-instrument frozen. The DAO opener uses `NativeDatabase.opened` so each store
-instance owns a unique sqlite3 connection; generation rows are still read and
-written through Drift accessors. RAG2 FTS5 and retrieval remain independent.
-Do not add settings, tools, prompting, or chat/runtime wiring.
+instrument frozen. Isolated FTS5 indexing is recorded in
+`docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md`. Retrieval remains
+independent. Do not add settings, tools, prompting, or chat/runtime wiring.
 
 ## Verification
 

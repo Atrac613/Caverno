@@ -114,9 +114,10 @@ stays at version 4.
 
 Keep this additive Drift schema and the isolated sqlite3 instrument frozen.
 Drift DAO writes are recorded in
-`docs/rag2_drift_dao_generation_store_hypothesis_2026-08-27.md`. RAG2 FTS5 and
-retrieval remain independent. Do not add settings, tools, prompting, or
-chat/runtime wiring.
+`docs/rag2_drift_dao_generation_store_hypothesis_2026-08-27.md`. Isolated FTS5
+indexing is recorded in
+`docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md`. Retrieval remains
+independent. Do not add settings, tools, prompting, or chat/runtime wiring.
 
 ## Verification
 

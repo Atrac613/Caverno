@@ -91,9 +91,10 @@ SQLite durability mapping is recorded in
 `docs/rag2_sqlite_durability_hypothesis_2026-08-27.md`. Drift additive schema
 is recorded in `docs/rag2_drift_additive_schema_hypothesis_2026-08-27.md`.
 Drift DAO writes are recorded in
-`docs/rag2_drift_dao_generation_store_hypothesis_2026-08-27.md`. RAG2 FTS5
-remains unselected. Do not add retrieval, settings, tools, prompting, or
-chat/runtime wiring.
+`docs/rag2_drift_dao_generation_store_hypothesis_2026-08-27.md`. Isolated FTS5
+indexing is recorded in
+`docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md`. Retrieval remains
+unselected. Do not add settings, tools, prompting, or chat/runtime wiring.
 
 ## Verification
 
