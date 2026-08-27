@@ -277,7 +277,7 @@ to 141. Persistence reopen increases it to 149. Isolated SQLite durability
 increases it to 158. Drift additive schema increases it to 169. Drift DAO
 generation-store writes increase it to 182. The isolated FTS5 index increases
 it to 193. AppDatabase-hosted FTS5 increases it to 203. Incremental FTS5
-indexing increases it to 211.
+indexing increases it to 213.
 
 ## Next entry condition
 

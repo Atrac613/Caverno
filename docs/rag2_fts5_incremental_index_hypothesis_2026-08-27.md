@@ -13,11 +13,12 @@ Metadata-updated chunks rewrite stored terms. Removed chunk ids leave the
 index. Added chunk ids are inserted. Envelope columns stay consistent with
 the generation row so mixed generations still fail closed.
 
-An empty slot, a missing index, or a slot that does not match the previous
-generation still uses full replacement. Generation apply and the index patch
-share one `BEGIN IMMEDIATE` transaction. An injected commit failure and a
-killed uncommitted writer both leave the previously committed generation and
-index, including unchanged rowids.
+An empty slot, a missing index, or a slot whose envelope or stored rows
+do not match the previous generation still uses full replacement.
+Generation apply and the index patch share one `BEGIN IMMEDIATE`
+transaction. An injected commit failure and a killed uncommitted writer
+both leave the previously committed generation and index, including
+unchanged rowids.
 
 This selects incremental indexing only. It does not add RAG2 FTS5 to the
 Drift migration, evaluate retrieval, or add settings, tools, prompting, or
@@ -47,12 +48,15 @@ The implementation must preserve all of these rules:
    rows are inserted. Prove skip with stable FTS5 `rowid` values for
    unchanged chunk ids, using a second indexed project so a slot-wide
    DELETE would reassign ids.
-3. An empty slot, a missing index, or a slot whose chunk ids disagree with
-   the previous generation must full-replace. Opt-in `indexSearch` still
-   writes the generation row and index in one transaction. Injected
-   `beforeTxnCommit` failure must roll back both. A writer killed after the
-   uncommitted generation and index writes must recover generation 1, its
-   chunk ids, and its unchanged rowids.
+3. An empty slot, a missing index, or a slot whose envelope or stored
+   rows disagree with the previous generation must full-replace. Patching
+   requires every existing FTS5 row to match the previous generation,
+   snapshot hash, object id, and pretokenized content — not only chunk
+   ids. Opt-in `indexSearch` still writes the generation row and index in
+   one transaction. Injected `beforeTxnCommit` failure must roll back
+   both. A writer killed after the uncommitted generation and index
+   writes must recover generation 1, its chunk ids, and its unchanged
+   rowids.
 4. Bind the index to project identity, declaration identity, generation, and
    snapshot hash. Every target chunk must MATCH. Reopen must restore
    generation 2, the same chunk ids, and the same unchanged rowids through a
@@ -68,6 +72,10 @@ The implementation must preserve all of these rules:
 
 - Do not keep mixed generations on unchanged rows. The envelope would fail
   closed even when the skip itself succeeded.
+- Do not decide to patch from chunk ids alone. A slot whose generation,
+  snapshot hash, object id, or stored terms disagree with the previous
+  generation must full-replace so broken content cannot be stamped with a
+  new envelope.
 - Do not bump `AppDatabase` to version 6 or add RAG2 FTS5 to `onCreate` /
   `onUpgrade`.
 - Do not treat incremental indexing as authorization to retrieve, change
@@ -92,8 +100,11 @@ against the existing storage fixture:
    new DAO connection;
 7. prove conversation-search SQL and contents, embeddings, and schema
    version 5 are unchanged;
-8. recreate replay files so the same output path can run twice; and
-9. emit aggregate-only reports with retrieval left unevaluated.
+8. recreate replay files so the same output path can run twice;
+9. corrupt an unchanged row's stored content, apply generation 2, and
+   prove the slot full-replaces so the repaired terms match the new
+   generation; and
+10. emit aggregate-only reports with retrieval left unevaluated.
 
 ## Result
 
@@ -101,8 +112,9 @@ The focused replay passes. Generation 1 still full-replaces an empty slot.
 Generation 2 patches from the frozen Knowledge Object delta: 2 unchanged,
 2 metadata-updated, 1 removed, and 1 added. Unchanged FTS5 `rowid` values
 and stored terms survive the patch, reopen, injected commit failure, and
-process-death recovery. Every chunk MATCHES. Generation 2 reopens with
-snapshot hash
+process-death recovery. A slot whose stored content disagrees with the
+previous generation full-replaces instead of promoting the broken terms.
+Every chunk MATCHES. Generation 2 reopens with snapshot hash
 `3d2ef68de7071779c06e45381a761edea6494f4a9207c47463503a759914d610`.
 Conversation-search contents and the seeded LL5 embedding row remain
 identical. `AppDatabase` stays at schema version 5.

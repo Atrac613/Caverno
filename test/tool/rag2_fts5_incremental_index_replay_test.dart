@@ -94,6 +94,122 @@ void main() {
     },
   );
 
+  test(
+    'full-replaces when unchanged FTS5 content disagrees with previous generation',
+    () async {
+      final output = Directory.systemTemp.createTempSync(
+        'rag2-fts5-incremental-corrupt-content-',
+      );
+      addTearDown(() => output.deleteSync(recursive: true));
+      final snapshots = await _snapshots();
+      final delta = Rag2KnowledgeReplayDelta.compare(
+        snapshots.baseline,
+        snapshots.updated,
+      );
+      final path = '${output.path}/caverno.sqlite';
+      await prepareRag2DriftHost(databasePath: path);
+      final store = Rag2DriftDaoGenerationStore.open(
+        databasePath: path,
+        projectId: _projectId,
+      );
+      addTearDown(store.close);
+      await store.apply(
+        declarationIdentity: _identity,
+        snapshot: snapshots.baseline,
+        indexSearch: true,
+      );
+      await store.database.customStatement(
+        'UPDATE $rag2ChunkSearchTable SET content = ? '
+        'WHERE project_identity = ? AND declaration_identity = ? AND chunk_id = ?',
+        [
+          'corrupt-index-token',
+          projectIdentity,
+          _identity,
+          delta.unchangedChunkIds.first,
+        ],
+      );
+      final result = await store.apply(
+        declarationIdentity: _identity,
+        snapshot: snapshots.updated,
+        indexSearch: true,
+      );
+      expect(result.decision, 'applied');
+      expect(
+        await rag2ChunkSearchTermsMatchPolicy(
+          store.database,
+          projectIdentity: projectIdentity,
+          declarationIdentity: _identity,
+          chunks: snapshots.updated.chunks,
+        ),
+        isTrue,
+      );
+      expect(
+        await rag2ChunkSearchContents(
+          store.database,
+          projectIdentity: projectIdentity,
+          declarationIdentity: _identity,
+        ),
+        isNot(containsValue('corrupt-index-token')),
+      );
+    },
+  );
+
+  test(
+    'full-replaces when FTS5 envelope disagrees with previous generation',
+    () async {
+      final output = Directory.systemTemp.createTempSync(
+        'rag2-fts5-incremental-corrupt-envelope-',
+      );
+      addTearDown(() => output.deleteSync(recursive: true));
+      final snapshots = await _snapshots();
+      final path = '${output.path}/caverno.sqlite';
+      await prepareRag2DriftHost(databasePath: path);
+      final store = Rag2DriftDaoGenerationStore.open(
+        databasePath: path,
+        projectId: _projectId,
+      );
+      addTearDown(store.close);
+      await store.apply(
+        declarationIdentity: _identity,
+        snapshot: snapshots.baseline,
+        indexSearch: true,
+      );
+      await store.database.customStatement(
+        'UPDATE $rag2ChunkSearchTable SET snapshot_hash = ? '
+        'WHERE project_identity = ? AND declaration_identity = ?',
+        ['stale-hash', projectIdentity, _identity],
+      );
+      final result = await store.apply(
+        declarationIdentity: _identity,
+        snapshot: snapshots.updated,
+        indexSearch: true,
+      );
+      expect(result.decision, 'applied');
+      final generation = await store.read(_identity);
+      expect(
+        await rag2ChunkSearchEnvelopeMatches(
+          store.database,
+          target: rag2Fts5IndexTarget(
+            projectId: _projectId,
+            declarationIdentity: _identity,
+            generation: generation!,
+          ),
+          chunkCount: snapshots.updated.chunks.length,
+        ),
+        isTrue,
+      );
+      expect(
+        await rag2ChunkSearchTermsMatchPolicy(
+          store.database,
+          projectIdentity: projectIdentity,
+          declarationIdentity: _identity,
+          chunks: snapshots.updated.chunks,
+        ),
+        isTrue,
+      );
+    },
+  );
+
   test('incremental apply reopens generation 2 and its FTS5 slot', () async {
     final output = Directory.systemTemp.createTempSync(
       'rag2-fts5-incremental-reopen-',
@@ -292,6 +408,7 @@ void main() {
     expect(report.contractPassed, isTrue);
     expect(report.toJson()['unchangedRowidsPreserved'], isTrue);
     expect(report.toJson()['emptySlotFullReplace'], isTrue);
+    expect(report.toJson()['mismatchedSlotFullReplace'], isTrue);
     expect(report.toJson()['fts5Decision'], 'go');
     expect(report.toJson()['retrievalDecision'], 'not_evaluated');
     expect(report.toJson()['productionDecision'], 'no_go');
@@ -305,6 +422,7 @@ void main() {
       'sourceRoots',
       'll5-sentinel',
       'stale-hash',
+      'corrupt-index-token',
     ]) {
       expect(jsonReport, isNot(contains(forbidden)));
       expect(markdownReport, isNot(contains(forbidden)));
@@ -318,6 +436,7 @@ void main() {
       bool unchangedContentPreserved = true,
       bool removedChunksAbsent = true,
       bool addedChunksPresent = true,
+      bool mismatchedSlotFullReplace = true,
       bool applyRollbackPreserved = true,
       bool crashRecoveredIndex = true,
       bool allChunksMatchable = true,
@@ -338,6 +457,7 @@ void main() {
         unchangedContentPreserved: unchangedContentPreserved,
         removedChunksAbsent: removedChunksAbsent,
         addedChunksPresent: addedChunksPresent,
+        mismatchedSlotFullReplace: mismatchedSlotFullReplace,
         deltaCountsMatchFixture: true,
         sqliteTokenizerPreserved: true,
         indexedTermsPretokenized: true,
@@ -360,6 +480,7 @@ void main() {
     expect(report(unchangedContentPreserved: false).contractPassed, isFalse);
     expect(report(removedChunksAbsent: false).contractPassed, isFalse);
     expect(report(addedChunksPresent: false).contractPassed, isFalse);
+    expect(report(mismatchedSlotFullReplace: false).contractPassed, isFalse);
     expect(report(applyRollbackPreserved: false).contractPassed, isFalse);
     expect(report(crashRecoveredIndex: false).contractPassed, isFalse);
     expect(report(allChunksMatchable: false).contractPassed, isFalse);

@@ -213,7 +213,7 @@ final class Rag2DriftDaoGenerationStore {
     Rag2KnowledgeReplayDelta? delta,
   }) async {
     await database.ensureRag2ChunkSearchTable();
-    final existing = await _indexedChunkIds(declarationIdentity);
+    final existing = await _indexedSearchRows(declarationIdentity);
     if (previous != null &&
         delta != null &&
         _canPatchSearchIndex(
@@ -253,10 +253,13 @@ final class Rag2DriftDaoGenerationStore {
     );
   }
 
-  Future<Set<String>> _indexedChunkIds(String declarationIdentity) async {
+  Future<List<_IndexedSearchRow>> _indexedSearchRows(
+    String declarationIdentity,
+  ) async {
     final rows = await database
         .customSelect(
-          'SELECT chunk_id FROM ${AppDatabase.rag2ChunkSearchTable} '
+          'SELECT generation, snapshot_hash, chunk_id, object_id, content '
+          'FROM ${AppDatabase.rag2ChunkSearchTable} '
           'WHERE project_identity = ? AND declaration_identity = ?',
           variables: [
             Variable<String>(projectIdentity),
@@ -264,23 +267,46 @@ final class Rag2DriftDaoGenerationStore {
           ],
         )
         .get();
-    return {for (final row in rows) row.read<String>('chunk_id')};
+    return [
+      for (final row in rows)
+        _IndexedSearchRow(
+          generation: row.read<int>('generation'),
+          snapshotHash: row.read<String>('snapshot_hash'),
+          chunkId: row.read<String>('chunk_id'),
+          objectId: row.read<String>('object_id'),
+          content: row.read<String>('content'),
+        ),
+    ];
   }
 
   bool _canPatchSearchIndex({
-    required Set<String> existing,
+    required List<_IndexedSearchRow> existing,
     required Rag2StoredGeneration previous,
     required Rag2KnowledgeReplayDelta delta,
   }) {
-    final previousIds = {
-      for (final chunk in previous.snapshot.chunks) chunk.chunkId,
+    final expected = {
+      for (final chunk in previous.snapshot.chunks)
+        chunk.chunkId: _searchRow(chunk),
     };
-    return existing.isNotEmpty &&
-        existing.length == previousIds.length &&
-        existing.containsAll(previousIds) &&
-        existing.containsAll(delta.removedChunkIds) &&
-        existing.containsAll(delta.unchangedChunkIds) &&
-        existing.containsAll(delta.metadataUpdatedChunkIds);
+    if (existing.isEmpty || existing.length != expected.length) {
+      return false;
+    }
+    final seen = <String>{};
+    for (final row in existing) {
+      final want = expected[row.chunkId];
+      if (want == null ||
+          row.generation != previous.generation ||
+          row.snapshotHash != previous.snapshot.snapshotHash ||
+          row.objectId != want.objectId ||
+          row.content != want.content) {
+        return false;
+      }
+      seen.add(row.chunkId);
+    }
+    return seen.length == expected.length &&
+        seen.containsAll(delta.removedChunkIds) &&
+        seen.containsAll(delta.unchangedChunkIds) &&
+        seen.containsAll(delta.metadataUpdatedChunkIds);
   }
 
   Rag2ChunkSearchRow _searchRow(Rag2KnowledgeChunk chunk) {
@@ -311,6 +337,22 @@ final class Rag2DriftDaoGenerationStore {
           );
         });
   }
+}
+
+final class _IndexedSearchRow {
+  const _IndexedSearchRow({
+    required this.generation,
+    required this.snapshotHash,
+    required this.chunkId,
+    required this.objectId,
+    required this.content,
+  });
+
+  final int generation;
+  final String snapshotHash;
+  final String chunkId;
+  final String objectId;
+  final String content;
 }
 
 Future<int> runRag2DriftDaoCrashUncommittedChild(List<String> args) async {

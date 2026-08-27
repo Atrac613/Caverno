@@ -364,6 +364,61 @@ Future<Rag2Fts5IncrementalIndexReport> runRag2Fts5IncrementalIndexReplay(
       );
   await recovered.close();
 
+  final mismatchDir = _freshDirectory('${options.storeRoot}/mismatch');
+  final mismatchPath = '${mismatchDir.path}/caverno.sqlite';
+  await prepareRag2DriftHost(databasePath: mismatchPath, seedEmbedding: true);
+  final mismatchStore = Rag2DriftDaoGenerationStore.open(
+    databasePath: mismatchPath,
+    projectId: fixture.projectId,
+  );
+  await mismatchStore.apply(
+    declarationIdentity: declarationIdentity,
+    snapshot: baseline,
+    indexSearch: true,
+  );
+  final mismatchedChunkId = delta.unchangedChunkIds.first;
+  await mismatchStore.database.customStatement(
+    'UPDATE $rag2ChunkSearchTable SET content = ? '
+    'WHERE project_identity = ? AND declaration_identity = ? AND chunk_id = ?',
+    [
+      'corrupt-index-token',
+      projectIdentity,
+      declarationIdentity,
+      mismatchedChunkId,
+    ],
+  );
+  await mismatchStore.apply(
+    declarationIdentity: declarationIdentity,
+    snapshot: updated,
+    indexSearch: true,
+  );
+  final mismatchGeneration = await mismatchStore.read(declarationIdentity);
+  final repairedContents = await rag2ChunkSearchContents(
+    mismatchStore.database,
+    projectIdentity: projectIdentity,
+    declarationIdentity: declarationIdentity,
+  );
+  final mismatchedSlotFullReplace =
+      mismatchGeneration?.generation == 2 &&
+      mismatchGeneration?.snapshot.snapshotHash == updated.snapshotHash &&
+      !repairedContents.containsValue('corrupt-index-token') &&
+      await rag2ChunkSearchTermsMatchPolicy(
+        mismatchStore.database,
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+        chunks: updated.chunks,
+      ) &&
+      await rag2ChunkSearchEnvelopeMatches(
+        mismatchStore.database,
+        target: rag2Fts5IndexTarget(
+          projectId: fixture.projectId,
+          declarationIdentity: declarationIdentity,
+          generation: mismatchGeneration!,
+        ),
+        chunkCount: updated.chunks.length,
+      );
+  await mismatchStore.close();
+
   final report = Rag2Fts5IncrementalIndexReport(
     fixtureId: fixture.fixtureId,
     declarationIdentity: declarationIdentity,
@@ -380,6 +435,7 @@ Future<Rag2Fts5IncrementalIndexReport> runRag2Fts5IncrementalIndexReplay(
     unchangedContentPreserved: unchangedContentPreserved,
     removedChunksAbsent: removedChunksAbsent,
     addedChunksPresent: addedChunksPresent,
+    mismatchedSlotFullReplace: mismatchedSlotFullReplace,
     deltaCountsMatchFixture: deltaCountsMatchFixture,
     sqliteTokenizerPreserved: sqliteTokenizerPreserved,
     indexedTermsPretokenized: indexedTermsPretokenized,
@@ -532,6 +588,7 @@ final class Rag2Fts5IncrementalIndexReport {
     required this.unchangedContentPreserved,
     required this.removedChunksAbsent,
     required this.addedChunksPresent,
+    required this.mismatchedSlotFullReplace,
     required this.deltaCountsMatchFixture,
     required this.sqliteTokenizerPreserved,
     required this.indexedTermsPretokenized,
@@ -562,6 +619,7 @@ final class Rag2Fts5IncrementalIndexReport {
   final bool unchangedContentPreserved;
   final bool removedChunksAbsent;
   final bool addedChunksPresent;
+  final bool mismatchedSlotFullReplace;
   final bool deltaCountsMatchFixture;
   final bool sqliteTokenizerPreserved;
   final bool indexedTermsPretokenized;
@@ -582,6 +640,7 @@ final class Rag2Fts5IncrementalIndexReport {
       unchangedContentPreserved &&
       removedChunksAbsent &&
       addedChunksPresent &&
+      mismatchedSlotFullReplace &&
       deltaCountsMatchFixture &&
       sqliteTokenizerPreserved &&
       indexedTermsPretokenized &&
@@ -628,6 +687,7 @@ final class Rag2Fts5IncrementalIndexReport {
     'unchangedContentPreserved': unchangedContentPreserved,
     'removedChunksAbsent': removedChunksAbsent,
     'addedChunksPresent': addedChunksPresent,
+    'mismatchedSlotFullReplace': mismatchedSlotFullReplace,
     'deltaCountsMatchFixture': deltaCountsMatchFixture,
     'sqliteTokenizerPreserved': sqliteTokenizerPreserved,
     'indexedTermsPretokenized': indexedTermsPretokenized,
@@ -661,6 +721,7 @@ final class Rag2Fts5IncrementalIndexReport {
       '- Unchanged content preserved: `$unchangedContentPreserved`\n'
       '- Removed chunks absent: `$removedChunksAbsent`\n'
       '- Added chunks present: `$addedChunksPresent`\n'
+      '- Mismatched slot full replace: `$mismatchedSlotFullReplace`\n'
       '- Delta counts match fixture: `$deltaCountsMatchFixture`\n'
       '- SQLite tokenizer preserved: `$sqliteTokenizerPreserved`\n'
       '- Indexed terms pretokenized: `$indexedTermsPretokenized`\n'
