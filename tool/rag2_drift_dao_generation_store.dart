@@ -27,6 +27,10 @@ Future<void> main(List<String> args) async {
     exitCode = await runRag2DriftDaoCrashUncommittedDropChild(args);
     return;
   }
+  if (args.contains('--rebuild-uncommitted')) {
+    exitCode = await runRag2DriftDaoCrashUncommittedRebuildChild(args);
+    return;
+  }
   if (args.contains('--apply-once')) {
     exitCode = await runRag2DriftDaoApplyOnceChild(args);
     return;
@@ -36,6 +40,8 @@ Future<void> main(List<String> args) async {
     '--crash-uncommitted --fixture PATH --db PATH --ready-file PATH\n'
     '       dart run tool/rag2_drift_dao_generation_store.dart '
     '--drop-uncommitted --fixture PATH --db PATH --ready-file PATH\n'
+    '       dart run tool/rag2_drift_dao_generation_store.dart '
+    '--rebuild-uncommitted --fixture PATH --db PATH --ready-file PATH\n'
     '       dart run tool/rag2_drift_dao_generation_store.dart '
     '--apply-once --fixture PATH --db PATH --snapshot-index N',
   );
@@ -224,6 +230,31 @@ final class Rag2DriftDaoGenerationStore {
     );
   }
 
+  /// Full-replaces the FTS5 slot from the committed generation payload.
+  ///
+  /// Does not bump generation. If no generation exists, this is a no-op and
+  /// does not create `rag2_chunk_search`.
+  Future<void> rebuildSearchIndex({
+    required String declarationIdentity,
+    void Function()? beforeTxnCommit,
+    bool commit = true,
+  }) {
+    return _mutateInTransaction(
+      beforeTxnCommit: beforeTxnCommit,
+      commit: commit,
+      mutate: () async {
+        final generation = await _readLocked(declarationIdentity);
+        if (generation == null) {
+          return;
+        }
+        await _writeSearchIndex(
+          declarationIdentity: declarationIdentity,
+          generation: generation,
+        );
+      },
+    );
+  }
+
   /// Clears FTS5 rows for [declarationIdentity] without deleting the
   /// generation. This is not a durable disable flag; a later indexed apply
   /// may restore the slot.
@@ -250,6 +281,20 @@ final class Rag2DriftDaoGenerationStore {
     required File readyFile,
   }) async {
     await drop(declarationIdentity: declarationIdentity, commit: false);
+    readyFile.writeAsBytesSync(utf8.encode('ready\n'), flush: true);
+    while (true) {
+      await Future<void>.delayed(const Duration(days: 1));
+    }
+  }
+
+  Future<void> hangAfterUncommittedRebuild({
+    required String declarationIdentity,
+    required File readyFile,
+  }) async {
+    await rebuildSearchIndex(
+      declarationIdentity: declarationIdentity,
+      commit: false,
+    );
     readyFile.writeAsBytesSync(utf8.encode('ready\n'), flush: true);
     while (true) {
       await Future<void>.delayed(const Duration(days: 1));
@@ -528,6 +573,47 @@ Future<int> runRag2DriftDaoApplyOnceChild(List<String> args) async {
   }
 }
 
+Future<int> runRag2DriftDaoCrashUncommittedRebuildChild(
+  List<String> args,
+) async {
+  if (args.contains('--index-search') || args.contains('--drop-uncommitted')) {
+    stderr.writeln(
+      '--rebuild-uncommitted cannot be combined with --index-search or '
+      '--drop-uncommitted',
+    );
+    return 64;
+  }
+  final options = Rag2DriftCrashChildOptions.parse(
+    args.where((arg) => arg != '--rebuild-uncommitted').toList(),
+  );
+  if (options == null) {
+    stderr.writeln(
+      'Usage: dart run tool/rag2_drift_dao_generation_store.dart '
+      '--rebuild-uncommitted --fixture PATH --db PATH --ready-file PATH',
+    );
+    return 64;
+  }
+  try {
+    final fixtureFile = File(options.fixturePath);
+    final fixture = await Rag2StorageReplayFixture.load(fixtureFile);
+    final declarationIdentity = rag2ExplicitSourceRootsDeclarationIdentity(
+      fixture.sourceRoots,
+    );
+    final store = Rag2DriftDaoGenerationStore.open(
+      databasePath: options.databasePath,
+      projectId: fixture.projectId,
+    );
+    await store.hangAfterUncommittedRebuild(
+      declarationIdentity: declarationIdentity,
+      readyFile: File(options.readyFilePath),
+    );
+    return 0;
+  } on Object catch (error) {
+    stderr.writeln('RAG2 Drift DAO rebuild crash child failed: $error');
+    return 65;
+  }
+}
+
 Future<int> runRag2DriftDaoCrashUncommittedDropChild(List<String> args) async {
   if (args.contains('--index-search')) {
     stderr.writeln('--drop-uncommitted cannot be combined with --index-search');
@@ -571,7 +657,13 @@ Future<Rag2StoredGeneration?> recoverAfterKilledUncommittedDriftDaoWrite({
   required String declarationIdentity,
   bool indexSearch = false,
   bool dropUncommitted = false,
+  bool rebuildUncommitted = false,
 }) async {
+  if (rebuildUncommitted && (indexSearch || dropUncommitted)) {
+    throw ArgumentError(
+      'rebuildUncommitted cannot be combined with indexSearch or dropUncommitted',
+    );
+  }
   if (dropUncommitted && indexSearch) {
     throw ArgumentError('dropUncommitted and indexSearch cannot be combined');
   }
@@ -580,7 +672,12 @@ Future<Rag2StoredGeneration?> recoverAfterKilledUncommittedDriftDaoWrite({
     readyFile.deleteSync();
   }
   final process = await _startDriftDaoReplayChild([
-    if (dropUncommitted) '--drop-uncommitted' else '--crash-uncommitted',
+    if (rebuildUncommitted)
+      '--rebuild-uncommitted'
+    else if (dropUncommitted)
+      '--drop-uncommitted'
+    else
+      '--crash-uncommitted',
     '--fixture',
     File(fixturePath).absolute.path,
     '--db',

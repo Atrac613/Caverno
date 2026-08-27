@@ -110,8 +110,10 @@ version 5.
 Keep this visibility-drop API, the incremental FTS5 index, the
 AppDatabase-hosted FTS5 API, the isolated FTS5 instrument, the Drift DAO
 write path, the additive schema, and the sqlite3 instrument frozen.
-Retrieval quality and no-answer policy remain independent. Do not add
-settings, tools, prompting, or chat/runtime wiring.
+Rebuild/reopen is recorded in
+`docs/rag2_fts5_rebuild_reopen_hypothesis_2026-08-27.md`. Retrieval quality
+and no-answer policy remain independent. Do not add settings, tools,
+prompting, or chat/runtime wiring.
 
 ## Verification
 
