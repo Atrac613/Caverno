@@ -1,6 +1,6 @@
 # Text Heuristic Inventory and Removal Plan
 
-**Status:** HEU1 and HEU2 landed; HEU3 unblocked (2026-08-27)
+**Status:** HEU1 and HEU2 landed. HEU3 is blocked on a corrected premise and HEU4 measured but held, so nothing in this track is currently actionable from recorded evidence (2026-08-27).
 
 Caverno decides a great deal by pattern-matching prose. Every such decision is
 bound to the languages whose vocabulary someone happened to enumerate — today
@@ -73,10 +73,45 @@ either: typing it is not selecting the option that bears it.
 The wording predicates remain, computing `proseWouldApprove` for shadow
 comparison only. Divergence is logged at the tool-loop call site.
 
-### A2. `git_write_confirmation_policy.dart` (3 predicates)
+### A2. `git_write_confirmation_policy.dart` (3 predicates) — MEASURED 2026-08-27
 
-Decides whether the assistant asked the user to confirm a git write. Same
-shape, lower blast radius. Follows A1's pattern.
+Decides whether the assistant asked the user to confirm a git write, and holds
+the pending write until it is answered. The dangerous direction is inverted
+from A1: a question it fails to recognise does not block, so the assistant asks
+and then commits without waiting.
+
+The judged text is the *assistant's*, which is written in the user's language.
+Running the real predicate over real questions:
+
+```
+BLOCKS   en               Shall I commit these changes?
+PROCEEDS en (no keyword)  Shall I save this to the repository?
+BLOCKS   ja katakana      (katakana "commit") + question marker
+PROCEEDS ja no katakana   a plain Japanese "may I apply the changes?"
+PROCEEDS de, fr, zh, ko   all four
+BLOCKS   es, pt           only because "commit" survives as a loanword
+```
+
+Eight of twelve go unrecognised, and two of those are in the languages the
+predicate claims to cover: the English keyword list misses "save this to the
+repository", and the Japanese path needs a katakana loanword plus one of three
+exact sentence endings.
+
+**Blast radius is bounded, unlike A1.** A non-read-only `git_execute_command`
+still goes through `_resolveToolApprovalGate`, so the user is prompted anyway —
+though that approval is cacheable, unlike the SEC4.4g shell approval. What is
+lost when the predicate misses is the assistant's own question being honoured,
+not the user's say. A degradation rather than a breach.
+
+**Held at `later` for a reason other than severity.** A1 had a structural
+replacement to route to: a token the harness issued and could compare. Here
+there is none. The only structural way to know the assistant asked for
+confirmation is for it to *ask through `ask_user_question`* rather than in
+prose, and the prose detector exists precisely because models ask in prose
+instead. So the real fix is moving confirmations onto the structured channel —
+a prompt-and-contract change, not a predicate replacement. Extending the
+vocabulary would be the symptomatic fix and would fail again on the next
+language.
 
 ### A3. `conversation_plan_execution_guardrails.dart` (6 predicates)
 
@@ -279,17 +314,70 @@ asserting outcome survival.
 
 **Next action.** One-line change; do it before HEU3.
 
-### HEU3: Ground-truth completion claims — `later`
+### HEU3: Completion claims — `blocked`, premise corrected 2026-08-27
 
-**Scope.** Tier B. Decide file and command completion from
-`ToolOutcome.fileMutations` / `exitCode` and, where ground truth cannot settle
-it, from a structured self-report field rather than a sentence. Begin with the
-claims `ToolOutcome` already answers.
+**The scope as first written is not achievable.** It said "decide file and
+command completion from ground truth". Ground truth cannot decide a completion
+*claim*, because a claim guard does two things and only one of them is a
+verdict about the world:
 
-**Acceptance criteria.** Each converted check reaches its verdict without
-consulting a word list; the word list, if kept, only triggers.
+1. **Detection** — does this sentence assert that something was completed?
+2. **Verification** — does the evidence support it?
 
-**Next action.** Gated on HEU2.
+Step 2 is already ground truth throughout Tier B. Step 1 is the heuristic, and
+no amount of tool-result evidence tells you what a sentence asserts. Replacing
+it needs structured self-report (the model declares its claims in a field) or
+the `BlockedMutationNotice` shape (state the fact unconditionally, detect
+nothing). Neither is a slice; both are designs.
+
+**Baseline taken before implementing, per the discipline in
+`docs/execution_contract_design.md`.** Firings of every claim transform across
+715 `turn_exit` records (180 in `~/.caverno/session_logs`, 535 in
+`build/integration_test_reports` — see
+`caverno-canary-logs-outside-the-corpus`):
+
+| transform | firings |
+| --- | --- |
+| `unexecuted_command_action_notice` | 18 |
+| `unexecuted_command_action_retry` | 14 |
+| `unverified_read_only_inspection_notice` | 11 |
+| `failed_command_claim_notice` | 5 |
+| `verification_claim_notice` | 3 |
+| `unwritten_file_claim_notice` | 2 |
+| `narrated_transcript_claim_notice` | 0 |
+
+The command family carries the traffic; the file-claim guards fire 2–3 times in
+715 turns, and `NarratedTranscriptClaimGuard` has never fired at all.
+
+**A low firing rate does not retire a guard.** `unwritten_file_claim_notice`
+fires twice not because the state is rare but because the guard is partly
+blind: session `a0ca65b7` gen-4 produced exactly the state it exists for and it
+scored zero, because the claim used a verb its vocabulary lacks. Rate measures
+where a heuristic fires, never where it silently fails.
+
+**The obvious substitute was measured and rejected.** A command analogue of
+`BlockedMutationNotice` — state the fact when a turn attempted commands and
+none ran — looked justified at 22 of 715 turns. Auditing the instrument
+collapsed it to **3 of 715 (0.4%)**: 19 of the 22 were harness-injected
+results, not refusals. `BlockedMutationNotice` was built at 4.4% *with* a
+confirmed user-facing harm case; 0.4% with none does not carry it.
+
+**Prerequisite this uncovered.** A runtime refusal and a harness-injected
+feedback result are indistinguishable in a tool result — both render as
+`{"ok": false, "code": ..., "error": ...}` with no `stdout`. The synthetic
+codes seen so far are `unexecuted_command_action_retry_required`,
+`unchanged_verifier_replay_before_repair_blocked`,
+`goal_validation_probe_requires_verifier` and
+`duplicate_tool_call_result_reused`; the genuine ones include
+`production_release_explicit_approval_required`,
+`local_shell_git_write_blocked`, `project_mutation_outside_root` and
+`saved_validation_command_modified`. Any measurement gated on refusal rates is
+wrong by roughly 7x until that distinction is structural. Compare
+`caverno-triage-marker-transport-inflation`.
+
+**Next action.** None from this evidence. Unblocking needs either the
+synthetic/refusal distinction (so refusal rates can be trusted) or a decision
+to design structured self-report on its merits rather than on a firing rate.
 
 ### HEU4: Structured git write confirmation — `later`
 
