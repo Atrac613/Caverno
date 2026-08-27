@@ -63,7 +63,7 @@ void main() {
       isTrue,
       reason: 'the retired predicates still read this as approval',
     );
-    expect(evidence.shadowDiverges, isTrue);
+    expect(evidence.shadowDivergenceLogLine, isNotNull);
   });
 
   test('an affirmative reply after a prompt still does not approve', () {

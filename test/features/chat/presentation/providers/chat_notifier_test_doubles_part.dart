@@ -3,6 +3,20 @@
 // chat_notifier_test.dart (F1 test-file ratchet), no behavior change.
 part of 'chat_notifier_test.dart';
 
+/// Project roots the suite's fixtures name by literal path.
+const _fixtureProjectRoots = <String>[
+  '/tmp/project',
+  '/tmp/project-1',
+  '/tmp/content-tools-project',
+  '/tmp/planning-project',
+  '/tmp/thread-switch-project',
+  '/tmp/caverno',
+  '/tmp/caverno-path-dedupe',
+  '/tmp/goal-auto-content-tool',
+  '/tmp/goal-auto-continue-off',
+  '/tmp/question-switch-project',
+];
+
 List<String> _toolNames(List<Map<String, dynamic>> definitions) {
   return definitions
       .map((definition) {

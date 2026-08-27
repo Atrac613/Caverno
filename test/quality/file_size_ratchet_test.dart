@@ -50,6 +50,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/chat_tool_handler_catalog.dart': 271,
   'lib/features/chat/domain/services/ask_user_question_option_parser.dart': 99,
   'lib/features/chat/domain/services/ask_user_question_policy.dart': 383,
+  'lib/features/chat/domain/services/ask_user_question_result_entry.dart': 30,
   'lib/features/chat/domain/services/ask_user_question_turn_cache.dart': 99,
   // -41: the completion bookkeeping every path ended with -- does this
   // completion still belong to the turn, has the approval expired, may a
@@ -80,10 +81,23 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/participant_tool_production_ports.dart':
       259,
   'lib/features/chat/domain/services/participant_turn_planner.dart': 304,
+  // HEU1 split the release gate into the live token verdict, the retired
+  // wording predicates it shadows, and the pieces both blocked-release paths
+  // share, so the vocabulary can be deleted as a file rather than edited out
+  // of live approval code.
   'lib/features/chat/domain/services/production_release_approval_policy.dart':
       388,
   'lib/features/chat/domain/services/production_release_approval_coordinator.dart':
       170,
+  'lib/features/chat/domain/services/production_release_approval_evidence_snapshot.dart':
+      27,
+  'lib/features/chat/domain/services/production_release_approval_token_registry.dart':
+      44,
+  'lib/features/chat/domain/services/production_release_approval_wording_predicates.dart':
+      203,
+  'lib/features/chat/domain/services/production_release_blocked_result.dart':
+      57,
+  'lib/features/chat/domain/services/production_release_prose_shadow.dart': 77,
   'lib/features/chat/domain/services/project_scoped_read_tool_handler.dart':
       102,
   'lib/features/chat/domain/services/run_tests_tool_handler.dart': 465,
@@ -131,6 +145,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/turn_tool_catalog_cache.dart': 44,
   'lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart':
       136,
+  'lib/features/chat/domain/services/final_answer_claim_notice_input.dart': 69,
   'lib/features/chat/domain/services/narrated_transcript_repair_planner.dart':
       179,
   'lib/features/chat/domain/services/file_mutation_effect_coordinator.dart':
