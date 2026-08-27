@@ -177,6 +177,7 @@ stratified stable-hash strategy and do not tune or revive v1.
 | 47 | `FTS5 additive index` | Isolated chunk FTS5 beside conversation-search | `rag2_chunk_search` binds project, declaration, generation, and snapshot hash. Atomic replacement rolls back on injected failure. Every chunk must MATCH. Two projects stay isolated. AppDatabase stays at v5. Retrieval and production remain No-Go. | `docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md` |
 | 48 | `FTS5 AppDatabase host` | Opt-in FTS5 hosted by AppDatabase apply | Schema version 5 does not create RAG2 FTS5. Opt-in `indexSearch` writes the index in the same transaction as the generation row. Injected commit failure and a killed writer recover the previous generation and index. Retrieval and production remain No-Go. | `docs/rag2_fts5_appdatabase_host_hypothesis_2026-08-27.md` |
 | 49 | `FTS5 incremental index` | Delta patch of hosted FTS5 using the frozen Knowledge Object delta | Empty slots still full-replace. Generation 2 skips unchanged `rowid`/`content`, rewrites metadata-updated terms, deletes removed ids, and inserts added ids. Injected commit failure and a killed writer recover the previous generation and unchanged rowids. Retrieval and production remain No-Go. | `docs/rag2_fts5_incremental_index_hypothesis_2026-08-27.md` |
+| 50 | `FTS5 visibility drop` | Drop/clear removes FTS visibility for one identity | `clearSearchIndex` keeps generation 2 and hides MATCH. A later indexed apply may restore the slot. `drop` deletes the generation row and slot together. Injected commit failure and a killed drop recover generation 2 and its envelope, terms, and MATCH. A neighbor project stays visible. Retrieval and production remain No-Go. | `docs/rag2_fts5_visibility_drop_hypothesis_2026-08-27.md` |
 
 ## Rejected shortcuts
 
@@ -222,6 +223,8 @@ stratified stable-hash strategy and do not tune or revive v1.
   chat/runtime wiring. Opt-in indexing is not a production path.
 - Do not treat incremental FTS5 patching as retrieval, settings, tools, or
   chat/runtime wiring. Skipping unchanged `rowid` values is not a quality gate.
+- Do not treat FTS5 visibility drop as retrieval, settings, tools, or
+  chat/runtime wiring. MATCH returning zero rows is not a quality gate.
 
 ## Durable artifacts
 
@@ -277,7 +280,7 @@ to 141. Persistence reopen increases it to 149. Isolated SQLite durability
 increases it to 158. Drift additive schema increases it to 169. Drift DAO
 generation-store writes increase it to 182. The isolated FTS5 index increases
 it to 193. AppDatabase-hosted FTS5 increases it to 203. Incremental FTS5
-indexing increases it to 213.
+indexing increases it to 213. Visibility drop increases it to 223.
 
 ## Next entry condition
 
@@ -323,7 +326,9 @@ AppDatabase-hosted indexing writes that slot in the same transaction as the
 generation upsert without bumping schema version 5. Incremental indexing
 patches that slot from the frozen Knowledge Object delta so unchanged
 content keeps its FTS5 `rowid`, removed ids leave the index, and added ids
-are inserted. This does
+are inserted. `drop` removes a generation and its FTS slot;
+`clearSearchIndex` hides FTS visibility until a later indexed apply,
+without dropping neighbor slots. This does
 not select retrieval or production wiring. Prompting,
 routing, tools, model calls, settings, and chat/runtime wiring remain out of
 scope.

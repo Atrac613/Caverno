@@ -28,7 +28,7 @@ chat/runtime wiring. Production remains No-Go.
 
 AppDatabase-hosted FTS5 proved opt-in indexing in the same apply
 transaction. The remaining storage-adjacent question is the roadmap rule
-that unchanged content is skipped and delete/disable removes FTS visibility.
+that unchanged content is skipped and drop/clear removes FTS visibility.
 The frozen Knowledge Object delta already names unchanged, metadata-updated,
 removed, and added chunk ids. This slice applies that delta to the hosted
 index without changing the generation-row envelope.
@@ -123,9 +123,10 @@ identical. `AppDatabase` stays at schema version 5.
 
 Keep this incremental FTS5 index, the AppDatabase-hosted FTS5 API, the
 isolated FTS5 instrument, the Drift DAO write path, the additive schema,
-and the sqlite3 instrument frozen. Retrieval quality and no-answer policy
-remain independent. Do not add settings, tools, prompting, or chat/runtime
-wiring.
+and the sqlite3 instrument frozen. Visibility drop is recorded in
+`docs/rag2_fts5_visibility_drop_hypothesis_2026-08-27.md`. Retrieval quality
+and no-answer policy remain independent. Do not add settings, tools,
+prompting, or chat/runtime wiring.
 
 ## Verification
 

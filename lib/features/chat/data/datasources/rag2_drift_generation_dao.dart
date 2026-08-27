@@ -53,6 +53,18 @@ final class Rag2DriftGenerationDao {
     return database.into(database.rag2Generations).insertOnConflictUpdate(row);
   }
 
+  Future<int> deleteGeneration({
+    required String projectIdentity,
+    required String declarationIdentity,
+  }) {
+    return (database.delete(database.rag2Generations)..where(
+          (table) =>
+              table.projectIdentity.equals(projectIdentity) &
+              table.declarationIdentity.equals(declarationIdentity),
+        ))
+        .go();
+  }
+
   Future<Set<String>> _tableNames() async {
     final rows = await database
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")

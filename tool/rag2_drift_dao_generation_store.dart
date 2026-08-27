@@ -23,6 +23,10 @@ Future<void> main(List<String> args) async {
     exitCode = await runRag2DriftDaoCrashUncommittedChild(args);
     return;
   }
+  if (args.contains('--drop-uncommitted')) {
+    exitCode = await runRag2DriftDaoCrashUncommittedDropChild(args);
+    return;
+  }
   if (args.contains('--apply-once')) {
     exitCode = await runRag2DriftDaoApplyOnceChild(args);
     return;
@@ -30,6 +34,8 @@ Future<void> main(List<String> args) async {
   stderr.writeln(
     'Usage: dart run tool/rag2_drift_dao_generation_store.dart '
     '--crash-uncommitted --fixture PATH --db PATH --ready-file PATH\n'
+    '       dart run tool/rag2_drift_dao_generation_store.dart '
+    '--drop-uncommitted --fixture PATH --db PATH --ready-file PATH\n'
     '       dart run tool/rag2_drift_dao_generation_store.dart '
     '--apply-once --fixture PATH --db PATH --snapshot-index N',
   );
@@ -196,7 +202,89 @@ final class Rag2DriftDaoGenerationStore {
     }
   }
 
+  Future<void> drop({
+    required String declarationIdentity,
+    void Function()? beforeTxnCommit,
+    bool commit = true,
+  }) {
+    return _mutateInTransaction(
+      beforeTxnCommit: beforeTxnCommit,
+      commit: commit,
+      mutate: () async {
+        await _dao.deleteGeneration(
+          projectIdentity: projectIdentity,
+          declarationIdentity: declarationIdentity,
+        );
+        await database.clearRag2ChunkSearchIndex(
+          projectIdentity: projectIdentity,
+          declarationIdentity: declarationIdentity,
+          inTransaction: true,
+        );
+      },
+    );
+  }
+
+  /// Clears FTS5 rows for [declarationIdentity] without deleting the
+  /// generation. This is not a durable disable flag; a later indexed apply
+  /// may restore the slot.
+  Future<void> clearSearchIndex({
+    required String declarationIdentity,
+    void Function()? beforeTxnCommit,
+    bool commit = true,
+  }) {
+    return _mutateInTransaction(
+      beforeTxnCommit: beforeTxnCommit,
+      commit: commit,
+      mutate: () {
+        return database.clearRag2ChunkSearchIndex(
+          projectIdentity: projectIdentity,
+          declarationIdentity: declarationIdentity,
+          inTransaction: true,
+        );
+      },
+    );
+  }
+
+  Future<void> hangAfterUncommittedDrop({
+    required String declarationIdentity,
+    required File readyFile,
+  }) async {
+    await drop(declarationIdentity: declarationIdentity, commit: false);
+    readyFile.writeAsBytesSync(utf8.encode('ready\n'), flush: true);
+    while (true) {
+      await Future<void>.delayed(const Duration(days: 1));
+    }
+  }
+
   Future<void> close() => database.close();
+
+  Future<void> _mutateInTransaction({
+    required Future<void> Function() mutate,
+    void Function()? beforeTxnCommit,
+    bool commit = true,
+  }) async {
+    await _dao.beginImmediate();
+    var settled = false;
+    try {
+      await _ensureHostedSchema();
+      await mutate();
+      if (!commit) {
+        return;
+      }
+      beforeTxnCommit?.call();
+      await _dao.commit();
+      settled = true;
+    } on Object {
+      if (!settled) {
+        try {
+          await _dao.rollback();
+        } on Object {
+          // The connection may already have rolled back.
+        }
+      }
+      rethrow;
+    }
+  }
 
   Future<void> _ensureHostedSchema() async {
     try {
@@ -440,19 +528,59 @@ Future<int> runRag2DriftDaoApplyOnceChild(List<String> args) async {
   }
 }
 
+Future<int> runRag2DriftDaoCrashUncommittedDropChild(List<String> args) async {
+  if (args.contains('--index-search')) {
+    stderr.writeln('--drop-uncommitted cannot be combined with --index-search');
+    return 64;
+  }
+  final options = Rag2DriftCrashChildOptions.parse(
+    args.where((arg) => arg != '--drop-uncommitted').toList(),
+  );
+  if (options == null) {
+    stderr.writeln(
+      'Usage: dart run tool/rag2_drift_dao_generation_store.dart '
+      '--drop-uncommitted --fixture PATH --db PATH --ready-file PATH',
+    );
+    return 64;
+  }
+  try {
+    final fixtureFile = File(options.fixturePath);
+    final fixture = await Rag2StorageReplayFixture.load(fixtureFile);
+    final declarationIdentity = rag2ExplicitSourceRootsDeclarationIdentity(
+      fixture.sourceRoots,
+    );
+    final store = Rag2DriftDaoGenerationStore.open(
+      databasePath: options.databasePath,
+      projectId: fixture.projectId,
+    );
+    await store.hangAfterUncommittedDrop(
+      declarationIdentity: declarationIdentity,
+      readyFile: File(options.readyFilePath),
+    );
+    return 0;
+  } on Object catch (error) {
+    stderr.writeln('RAG2 Drift DAO drop crash child failed: $error');
+    return 65;
+  }
+}
+
 Future<Rag2StoredGeneration?> recoverAfterKilledUncommittedDriftDaoWrite({
   required String fixturePath,
   required String databasePath,
   required String projectId,
   required String declarationIdentity,
   bool indexSearch = false,
+  bool dropUncommitted = false,
 }) async {
+  if (dropUncommitted && indexSearch) {
+    throw ArgumentError('dropUncommitted and indexSearch cannot be combined');
+  }
   final readyFile = File('$databasePath.crash-ready');
   if (readyFile.existsSync()) {
     readyFile.deleteSync();
   }
   final process = await _startDriftDaoReplayChild([
-    '--crash-uncommitted',
+    if (dropUncommitted) '--drop-uncommitted' else '--crash-uncommitted',
     '--fixture',
     File(fixturePath).absolute.path,
     '--db',

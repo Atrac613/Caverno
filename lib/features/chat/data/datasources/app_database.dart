@@ -455,6 +455,45 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  /// Deletes one project/declaration FTS5 slot without rewriting other slots.
+  ///
+  /// Does not create `rag2_chunk_search` if it is absent. Owns
+  /// `BEGIN IMMEDIATE` / `COMMIT` unless [inTransaction] is true.
+  Future<void> clearRag2ChunkSearchIndex({
+    required String projectIdentity,
+    required String declarationIdentity,
+    void Function()? beforeCommit,
+    bool inTransaction = false,
+  }) async {
+    if (inTransaction) {
+      await _clearRag2ChunkSearchRows(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+      );
+      return;
+    }
+    var settled = false;
+    await customStatement('BEGIN IMMEDIATE');
+    try {
+      await _clearRag2ChunkSearchRows(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+      );
+      beforeCommit?.call();
+      await customStatement('COMMIT');
+      settled = true;
+    } on Object {
+      if (!settled) {
+        try {
+          await customStatement('ROLLBACK');
+        } on Object {
+          // The connection may already have rolled back.
+        }
+      }
+      rethrow;
+    }
+  }
+
   Future<void> _replaceRag2ChunkSearchRows({
     required String projectIdentity,
     required String declarationIdentity,
@@ -548,6 +587,28 @@ class AppDatabase extends _$AppDatabase {
         ],
       );
     }
+  }
+
+  Future<void> _clearRag2ChunkSearchRows({
+    required String projectIdentity,
+    required String declarationIdentity,
+  }) async {
+    if (!await _rag2ChunkSearchTableExists()) {
+      return;
+    }
+    await customStatement(
+      'DELETE FROM $rag2ChunkSearchTable '
+      'WHERE project_identity = ? AND declaration_identity = ?',
+      [projectIdentity, declarationIdentity],
+    );
+  }
+
+  Future<bool> _rag2ChunkSearchTableExists() async {
+    final rows = await customSelect(
+      'SELECT 1 AS present FROM sqlite_master WHERE name = ?',
+      variables: [Variable<String>(rag2ChunkSearchTable)],
+    ).get();
+    return rows.isNotEmpty;
   }
 
   /// Returns conversation ids matching [query], ranked by FTS relevance.
