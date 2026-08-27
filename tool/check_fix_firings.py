@@ -51,6 +51,19 @@ SIGNATURES = {
         "what": "abort notice reports commands that ran cleanly",
         "match": lambda s: "Already ran successfully in this turn:" in s,
     },
+    "release_approval_token": {
+        "commit": "ef6af66d",
+        "what": "release approval decided by an issued token, not by wording",
+        # The blocked-release payload names the token it issued, and that
+        # payload rides into the next request, so the token is the durable
+        # trace. The shadow-divergence line is app log only.
+        "match": lambda s: "approval token rel-" in s,
+    },
+    "honest_inspection_digest": {
+        "commit": "0265fe04",
+        "what": "digest stops claiming inspection output is still readable",
+        "match": lambda s: "Inspections already made this turn" in s,
+    },
     "blocked_mutation_notice": {
         "commit": "ab994dec",
         "what": "turn that changed no files says so",
