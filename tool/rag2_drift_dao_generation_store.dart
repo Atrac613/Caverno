@@ -273,8 +273,8 @@ final class Rag2DriftDaoGenerationStore {
     if (generation == null) {
       return const [];
     }
-    final terms = tokenizeRag2Lexical(queryText, Rag2LexicalPolicy.trigram);
-    if (terms.isEmpty) {
+    final matchQuery = _matchQuery(queryText);
+    if (matchQuery == null) {
       return const [];
     }
     return database.queryRag2ChunkSearchChunkIds(
@@ -282,11 +282,85 @@ final class Rag2DriftDaoGenerationStore {
       declarationIdentity: declarationIdentity,
       generation: generation.generation,
       snapshotHash: generation.snapshot.snapshotHash,
-      matchQuery: [
-        for (final term in terms) '"${term.replaceAll('"', '""')}"',
-      ].join(' AND '),
+      matchQuery: matchQuery,
       limit: limit,
     );
+  }
+
+  /// Projects MATCH hits onto the same committed generation used for MATCH.
+  ///
+  /// Reads the generation once, MATCH-queries that envelope, and joins only
+  /// when every FTS row's `chunk_id`, `object_id`, and stored terms match the
+  /// payload. Duplicate MATCH ids fail closed. Hits omit chunk content and
+  /// carry the generation envelope. This is not a retrieval quality gate.
+  Future<List<Rag2ProjectedSearchHit>> projectSearchIndex({
+    required String declarationIdentity,
+    required String queryText,
+    int limit = 32,
+  }) async {
+    if (limit < 1) {
+      return const [];
+    }
+    await _ensureHostedSchema();
+    final generation = await _readLocked(declarationIdentity);
+    if (generation == null) {
+      return const [];
+    }
+    final matchQuery = _matchQuery(queryText);
+    if (matchQuery == null) {
+      return const [];
+    }
+    final rows = await database.queryRag2ChunkSearchMatchedRows(
+      projectIdentity: projectIdentity,
+      declarationIdentity: declarationIdentity,
+      generation: generation.generation,
+      snapshotHash: generation.snapshot.snapshotHash,
+      matchQuery: matchQuery,
+      limit: limit,
+    );
+    if (rows.isEmpty) {
+      return const [];
+    }
+    final chunks = {
+      for (final chunk in generation.snapshot.chunks) chunk.chunkId: chunk,
+    };
+    if (chunks.length != generation.snapshot.chunks.length) {
+      return const [];
+    }
+    final seen = <String>{};
+    final hits = <Rag2ProjectedSearchHit>[];
+    for (final row in rows) {
+      if (!seen.add(row.chunkId)) {
+        return const [];
+      }
+      final chunk = chunks[row.chunkId];
+      if (chunk == null) {
+        return const [];
+      }
+      final expected = _searchRow(chunk);
+      if (row.objectId != expected.objectId ||
+          row.content != expected.content) {
+        return const [];
+      }
+      hits.add(
+        Rag2ProjectedSearchHit.fromChunk(
+          chunk,
+          generation: generation.generation,
+          snapshotHash: generation.snapshot.snapshotHash,
+        ),
+      );
+    }
+    return hits;
+  }
+
+  String? _matchQuery(String queryText) {
+    final terms = tokenizeRag2Lexical(queryText, Rag2LexicalPolicy.trigram);
+    if (terms.isEmpty) {
+      return null;
+    }
+    return [
+      for (final term in terms) '"${term.replaceAll('"', '""')}"',
+    ].join(' AND ');
   }
 
   /// Clears FTS5 rows for [declarationIdentity] without deleting the
@@ -504,6 +578,72 @@ final class Rag2DriftDaoGenerationStore {
           );
         });
   }
+}
+
+final class Rag2ProjectedSearchHit {
+  const Rag2ProjectedSearchHit({
+    required this.chunkId,
+    required this.objectId,
+    required this.locator,
+    required this.contentHash,
+    required this.projectId,
+    required this.repoRelativePath,
+    required this.revision,
+    required this.lineStart,
+    required this.lineEnd,
+    required this.sourceTrust,
+    required this.generation,
+    required this.snapshotHash,
+  });
+
+  factory Rag2ProjectedSearchHit.fromChunk(
+    Rag2KnowledgeChunk chunk, {
+    required int generation,
+    required String snapshotHash,
+  }) {
+    return Rag2ProjectedSearchHit(
+      chunkId: chunk.chunkId,
+      objectId: chunk.objectId,
+      locator: chunk.locator,
+      contentHash: chunk.contentHash,
+      projectId: chunk.provenance.projectId,
+      repoRelativePath: chunk.provenance.repoRelativePath,
+      revision: chunk.provenance.revision,
+      lineStart: chunk.provenance.lineStart,
+      lineEnd: chunk.provenance.lineEnd,
+      sourceTrust: chunk.provenance.sourceTrust,
+      generation: generation,
+      snapshotHash: snapshotHash,
+    );
+  }
+
+  final String chunkId;
+  final String objectId;
+  final String locator;
+  final String contentHash;
+  final String projectId;
+  final String repoRelativePath;
+  final String revision;
+  final int lineStart;
+  final int lineEnd;
+  final String sourceTrust;
+  final int generation;
+  final String snapshotHash;
+
+  Map<String, Object?> toJson() => {
+    'chunkId': chunkId,
+    'objectId': objectId,
+    'locator': locator,
+    'contentHash': contentHash,
+    'projectId': projectId,
+    'repoRelativePath': repoRelativePath,
+    'revision': revision,
+    'lineStart': lineStart,
+    'lineEnd': lineEnd,
+    'sourceTrust': sourceTrust,
+    'generation': generation,
+    'snapshotHash': snapshotHash,
+  };
 }
 
 final class _IndexedSearchRow {

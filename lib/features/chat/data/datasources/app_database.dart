@@ -161,6 +161,20 @@ final class Rag2ChunkSearchRow {
   final String content;
 }
 
+/// One MATCH hit from `rag2_chunk_search`, including identity columns needed
+/// to fail closed when the FTS row diverges from the generation payload.
+final class Rag2ChunkSearchMatchedRow {
+  const Rag2ChunkSearchMatchedRow({
+    required this.chunkId,
+    required this.objectId,
+    required this.content,
+  });
+
+  final String chunkId;
+  final String objectId;
+  final String content;
+}
+
 /// Local epoch-day for [timestamp], matching the convention used by the
 /// dashboard's activity heatmap so both features bucket a day identically.
 int modelUsageDayNumber(DateTime timestamp) {
@@ -530,6 +544,50 @@ class AppDatabase extends _$AppDatabase {
       ],
     ).get();
     return [for (final row in rows) row.read<String>('chunk_id')];
+  }
+
+  /// Returns MATCH hits with `chunk_id`, `object_id`, and stored terms.
+  ///
+  /// Same identity, envelope, order, and limit rules as
+  /// [queryRag2ChunkSearchChunkIds]. Does not create `rag2_chunk_search`.
+  /// This is not a retrieval quality gate.
+  Future<List<Rag2ChunkSearchMatchedRow>> queryRag2ChunkSearchMatchedRows({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required int generation,
+    required String snapshotHash,
+    required String matchQuery,
+    int limit = 32,
+  }) async {
+    if (limit < 1 ||
+        matchQuery.trim().isEmpty ||
+        !await _rag2ChunkSearchTableExists()) {
+      return const [];
+    }
+    final boundedLimit = limit > 256 ? 256 : limit;
+    final rows = await customSelect(
+      'SELECT chunk_id, object_id, content FROM $rag2ChunkSearchTable '
+      'WHERE $rag2ChunkSearchTable MATCH ? '
+      'AND project_identity = ? AND declaration_identity = ? '
+      'AND generation = ? AND snapshot_hash = ? '
+      'ORDER BY chunk_id LIMIT ?',
+      variables: [
+        Variable<String>(matchQuery),
+        Variable<String>(projectIdentity),
+        Variable<String>(declarationIdentity),
+        Variable<int>(generation),
+        Variable<String>(snapshotHash),
+        Variable<int>(boundedLimit),
+      ],
+    ).get();
+    return [
+      for (final row in rows)
+        Rag2ChunkSearchMatchedRow(
+          chunkId: row.read<String>('chunk_id'),
+          objectId: row.read<String>('object_id'),
+          content: row.read<String>('content'),
+        ),
+    ];
   }
 
   Future<void> _replaceRag2ChunkSearchRows({
