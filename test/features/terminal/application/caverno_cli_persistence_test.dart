@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:caverno/features/chat/application/persistence/caverno_chat_memory_mutation_coordinator.dart';
 import 'package:caverno/features/chat/application/persistence/caverno_persistence_bootstrap.dart';
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
+import 'package:caverno/features/chat/data/datasources/app_database_open.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/drift_conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';

@@ -1,0 +1,119 @@
+{
+  "schemaName": "caverno_rag2_source_role_coverage_fixture",
+  "schemaVersion": 2,
+  "fixtureId": "caverno-active-project-structural-profile-holdout-v1",
+  "questions": [
+    {
+      "id": "runtime-release-listen-boundary",
+      "question": "When may Remote Coding bind a non-loopback address in a release build?",
+      "evidenceSources": [
+        {
+          "evidencePath": "lib/features/remote_coding/domain/remote_coding_listen_policy.dart",
+          "requiredMarkers": [
+            "if (isRelease && !address.isLoopback && !confidential) {",
+            "throw const RemoteCodingPlaintextLanForbiddenException();"
+          ]
+        }
+      ],
+      "expectedSourceRole": "runtime_source"
+    },
+    {
+      "id": "runtime-next-daily-run",
+      "question": "How is the next daily routine time chosen after today's scheduled time has passed?",
+      "evidenceSources": [
+        {
+          "evidencePath": "lib/features/routines/domain/services/routine_schedule_service.dart",
+          "requiredMarkers": [
+            "return candidate.isAfter(from)",
+            ": candidate.add(const Duration(days: 1));"
+          ]
+        }
+      ],
+      "expectedSourceRole": "runtime_source"
+    },
+    {
+      "id": "docs-relay-schema-version",
+      "question": "Which notification relay body schema version is accepted, and what is the status of version 1?",
+      "evidenceSources": [
+        {
+          "evidencePath": "docs/remote_coding_notification_relay_contract.md",
+          "requiredMarkers": [
+            "All request and response bodies use `schemaVersion: 2`.",
+            "Version 1 was never"
+          ]
+        }
+      ],
+      "expectedSourceRole": "documentation"
+    },
+    {
+      "id": "docs-release-script-side-effects",
+      "question": "Which release-management actions does the combined iOS and macOS release script intentionally avoid?",
+      "evidenceSources": [
+        {
+          "evidencePath": "docs/ios_macos_release.md",
+          "requiredMarkers": [
+            "The script does not submit the iOS build for App Review.",
+            "The script does not change `pubspec.yaml`, create commits, push, or tag."
+          ]
+        }
+      ],
+      "expectedSourceRole": "documentation"
+    },
+    {
+      "id": "tests-llm-plaintext-credentials",
+      "question": "Which transport-policy regressions distinguish credentialless plaintext LAN endpoints from credential-bearing ones?",
+      "evidenceSources": [
+        {
+          "evidencePath": "test/core/security/llm_endpoint_transport_policy_test.dart",
+          "requiredMarkers": [
+            "allows credentialless plaintext LAN endpoints",
+            "rejects credentials on plaintext non-loopback endpoints"
+          ]
+        }
+      ],
+      "expectedSourceRole": "tests"
+    },
+    {
+      "id": "tests-release-listen-policy",
+      "question": "Which regressions cover rejected plaintext and allowed confidential non-loopback release binds?",
+      "evidenceSources": [
+        {
+          "evidencePath": "test/features/remote_coding/domain/remote_coding_listen_policy_test.dart",
+          "requiredMarkers": [
+            "release policy refuses a plaintext non-loopback bind address",
+            "release policy allows a confidential non-loopback bind"
+          ]
+        }
+      ],
+      "expectedSourceRole": "tests"
+    },
+    {
+      "id": "tooling-release-gate-output-options",
+      "question": "Which command options write the Remote Coding P0 gate as JSON and Markdown?",
+      "evidenceSources": [
+        {
+          "evidencePath": "tool/remote_coding_p0_release_gate.dart",
+          "requiredMarkers": [
+            "--out-json <path>          Write the gate report as JSON.",
+            "--out-md <path>            Write the gate report as Markdown."
+          ]
+        }
+      ],
+      "expectedSourceRole": "tooling"
+    },
+    {
+      "id": "root-app-store-client-purpose",
+      "question": "Which root metadata source identifies Caverno as a local AI chat client for separately installed OpenAI-compatible servers?",
+      "evidenceSources": [
+        {
+          "evidencePath": "appstore_metadata.md",
+          "requiredMarkers": [
+            "Local AI Chat with Tools",
+            "This app is a client for OpenAI-compatible LLM APIs."
+          ]
+        }
+      ],
+      "expectedSourceRole": "root_sources"
+    }
+  ]
+}

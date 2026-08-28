@@ -1,0 +1,69 @@
+{
+  "schemaName": "caverno_rag2_storage_replay_fixture",
+  "schemaVersion": 1,
+  "fixtureId": "rag2-storage-replay-v1",
+  "projectId": "rag2-storage-replay-project",
+  "sourceRoots": ["docs", "lib"],
+  "snapshots": [
+    {
+      "id": "baseline",
+      "root": "baseline/repository",
+      "gitEvidenceByPath": {
+        "docs/guide.md": {
+          "available": true,
+          "lsFilesExitCode": 0,
+          "statusPorcelain": "",
+          "headBlobRevision": "1111111111111111111111111111111111111111"
+        },
+        "docs/legacy.md": {
+          "available": true,
+          "lsFilesExitCode": 0,
+          "statusPorcelain": "",
+          "headBlobRevision": "2222222222222222222222222222222222222222"
+        },
+        "lib/config.dart": {
+          "available": true,
+          "lsFilesExitCode": 0,
+          "statusPorcelain": "",
+          "headBlobRevision": "3333333333333333333333333333333333333333"
+        }
+      }
+    },
+    {
+      "id": "updated",
+      "root": "updated/repository",
+      "gitEvidenceByPath": {
+        "docs/current.md": {
+          "available": true,
+          "lsFilesExitCode": 0,
+          "statusPorcelain": "",
+          "headBlobRevision": "4444444444444444444444444444444444444444"
+        },
+        "docs/guide.md": {
+          "available": true,
+          "lsFilesExitCode": 0,
+          "statusPorcelain": "",
+          "headBlobRevision": "5555555555555555555555555555555555555555"
+        },
+        "lib/config.dart": {
+          "available": true,
+          "lsFilesExitCode": 0,
+          "statusPorcelain": "",
+          "headBlobRevision": "3333333333333333333333333333333333333333"
+        }
+      }
+    }
+  ],
+  "expected": {
+    "baselineSnapshotHash": "31d8769e4f33bab976367e724440209bc5d3da2c3772559522f7ea655f48c95b",
+    "updatedSnapshotHash": "3d2ef68de7071779c06e45381a761edea6494f4a9207c47463503a759914d610",
+    "initialObjectCount": 3,
+    "initialChunkCount": 5,
+    "retainedChunkCount": 4,
+    "metadataUpdatedChunkCount": 2,
+    "removedChunkCount": 1,
+    "addedChunkCount": 1,
+    "removedObjectCount": 1,
+    "addedObjectCount": 1
+  }
+}

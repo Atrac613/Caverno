@@ -23,8 +23,8 @@ raw Git probe evidence keyed by repository-relative path. Discovery then:
    corpus-byte limit is exceeded;
 5. consumes provenance attestation for every remaining file and excludes any
    source whose Git state, containment, encoding, or trust cannot be attested;
-6. creates metadata-only candidate chunks at Markdown heading or top-level Dart
-   symbol boundaries; and
+6. creates metadata-only candidate chunks from that attested text at Markdown
+   heading or top-level Dart symbol boundaries, without a second file read; and
 7. fails closed when a file produces no stable Dart boundary or a duplicate
    semantic locator.
 
@@ -81,10 +81,14 @@ The durable inputs are:
 
 ## Next entry condition
 
-Add one opt-in, manifest-only live-shadow adapter for an explicitly selected
-`CodingProject`. It may collect the exact Git evidence required by the frozen
-attestation contract and compare the resulting path/exclusion manifest with
-the fixture policy. It must remain read-only, bounded, off by default, omit
-source text, and write no storage. Require reproducible clean, modified,
-untracked, generated, symlink, and limit evidence before considering an index
-schema.
+The bounded typed Git collector prerequisite is now complete and recorded in
+`docs/rag2_git_evidence_collector_2026-08-26.md`.
+
+The subsequent opt-in manifest-only adapter is complete and recorded in
+`docs/rag2_source_manifest_shadow_2026-08-26.md`. Its source-scope measurement
+is also complete and recorded in
+`docs/rag2_source_scope_measurement_2026-08-26.md`. No broad profile satisfies
+both the current file limits and source-role coverage. Bounded batch Git
+inventory parity is now complete. Integrate that inventory into the opt-in
+manifest shadow next; do not raise the cap or consider an index schema from the
+aggregate counts alone.

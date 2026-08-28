@@ -184,7 +184,7 @@ structurally unmotivated to build:
 | Local LLM | LL39 | done | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument and record a RAG2 No-Go because every strong retrieval control returns evidence for 4/4 no-answer cases. |
-| Retrieval | RAG2 | later | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects and an incremental SQLite/FTS5 index over active-project code and Markdown. Offline Knowledge Object v2, provenance-attestation v1, and bounded source-discovery v1 contracts are Go; next is an opt-in manifest-only live shadow, not storage. |
+| Retrieval | RAG2 | later | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects and an incremental SQLite/FTS5 index over active-project code and Markdown. Complete caller-declared source roots are promotion Go. Frozen-declaration acquisition now reruns Git-backed attestation in CI. Acquisition and storage share declaration identity. A backend-neutral atomic generation replay passes apply, no-op, replacement, and rollback gates. File-backed persistence and isolated SQLite durability reopen the last committed generation and refuse unknown schemas. Drift additive schema hosts those rows on `AppDatabase` v5 without rewriting LL5 embedding rows. Drift DAO writes apply and reopen the same envelope. An isolated RAG2 FTS5 chunk index can sit beside conversation-search. Opt-in AppDatabase-hosted indexing writes that slot in the same transaction as the generation row. Incremental indexing patches from the frozen Knowledge Object delta so unchanged content keeps its FTS5 rowid. `drop` removes a generation and its FTS slot; `clearSearchIndex` hides FTS visibility until a later indexed apply. `rebuildSearchIndex` repairs a slot from the committed generation payload without bumping generation. Identity-scoped MATCH reads that slot bound to the committed generation envelope, without BM25 ranking; a mismatched envelope fails closed. MATCH ids project onto committed generation provenance without chunk content; unknown or divergent FTS rows fail closed. Storage and durability semantics are Go; retrieval and production remain unselected. |
 | Retrieval | RAG3 | later | M | RAG2, LL5, F6, LL39 | Bounded local vector retrieval, weighted RRF, context budgeting, and an active-project `search_knowledge` tool. |
 | Retrieval | RAG4 | blocked | M | RAG1, RAG3, HOOK1, SEC1, SEC2, agent-kb provenance | Federate agent-kb memories and wiki pages without copying its raw archive or database into Caverno. Blocked upstream: `kb_search` exposes no timestamp, wiki hits carry no confidence or source agent, and archiving rejects any agent outside `{claude, codex}`. |
 | Retrieval | RAG5 | later | S-M | RAG3, RAG4, LL23 | Evaluate deterministic local/agent-kb routing in shadow before automatic retrieval changes prompts or turn cost. |
@@ -1496,6 +1496,194 @@ Next add only an opt-in, bounded, manifest-only live shadow for one explicitly
 selected `CodingProject`, with no persistence or prompt/tool/model wiring.
 Evidence: `docs/rag2_source_discovery_chunking_replay_2026-08-26.md`.
 
+Live acquisition boundary (2026-08-26): an explicit metadata-only manifest
+shadow, aggregate source-scope measurement, and fixed three-command Git batch
+inventory are now connected through one shared inventory. In-bound temporary
+repositories match the complete frozen per-path manifest JSON, while discovery
+limit failures invoke zero Git commands. Caverno still has no selected source
+profile: runtime-only exceeds the default ceiling, and retaining runtime,
+tests, and top-level docs exceeds the hard ceiling. Before storage, compare
+answer-bearing coverage of the measured profiles with fixed active-project
+questions. Evidence:
+`docs/rag2_batch_manifest_shadow_integration_2026-08-26.md`.
+
+Source-role oracle replay (2026-08-26): eight active-project questions retain
+validated required sources in runtime, documentation, test, tooling, and
+root-source roles. The v1 Go was withdrawn after its read and eligibility
+contract audit. V2 uses all-of markers, bounded fenced evidence reads,
+aggregate inventory/evidence identities, duplicate-path rejection, and
+default-limit-aware eligibility. The three measured profiles still cover 2/8,
+4/8, and 6/8, and every profile exceeds the default ceiling. This remains
+required-source presence, not retrieval or complete-support evidence. V2 is
+frozen as a development fixture; the later structural candidate and holdout
+decision are recorded below.
+Evidence: `docs/rag2_source_role_coverage_replay_2026-08-26.md`.
+
+Structural profile candidate (2026-08-26):
+`structural_stratified_v1` was frozen before loading the question fixture. It
+uses fixed source-role file/byte budgets and stable path-hash ranking, excludes
+instruction-bearing files, and selects 509 files within the default ceiling.
+The informed development replay covered 6/8 questions. An untouched fixture
+with no development evidence-path overlap was frozen before candidate use; the
+unchanged one-time replay covered 4/8. Close stratified stable-hash sampling and
+do not tune or revive v1. A resumed source-scope experiment must predeclare a
+different question-independent policy and reserve a new untouched holdout.
+Evidence: `docs/rag2_structural_profile_candidate_2026-08-26.md` and
+`docs/rag2_structural_profile_holdout_2026-08-26.md`.
+
+Explicit source roots hypothesis (2026-08-26):
+`rag2-explicit-complete-source-roots-v1` replaces automatic partial sampling
+with one to sixteen caller-declared, non-overlapping repository-relative
+directories. Every eligible source below a declared root must be admitted, or
+the declaration fails closed at the unchanged default limits. There are no
+implicit roots, no intra-root ranking, and no live Caverno scope selection.
+The opt-in synthetic replay now passes nine cases, including order-independent
+identities, zero-Git limit failure, and all-or-nothing Git/attestation rollback.
+The chat memory and conversation-persistence development declaration is now
+frozen across five complete roots. Its active-project preflight admits all 451
+eligible sources with zero blockers. The frozen development set passes 11/11
+scope decisions, including 12/12 in-scope evidence paths and 4/4 explicit
+`not_available` controls. A separately frozen routines-lifecycle declaration
+admits 15 eligible sources, and its untouched promotion set passes 11/11 scope
+decisions with 8/8 in-scope paths and 4/4 `not_available` controls. Explicit
+complete source roots are promotion scope Go. CI now reruns live Git-backed
+acquisition against both frozen declarations and scores questions from the
+admitted set. Storage, retrieval, settings, and application wiring remain out
+of scope. Evidence:
+`docs/rag2_explicit_source_roots_hypothesis_2026-08-26.md`,
+`docs/rag2_explicit_source_roots_promotion_eval_2026-08-26.md`, and
+`docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`.
+
+Backend-neutral storage replay (2026-08-26):
+`rag2-storage-replay-contract-v1` composes Knowledge Object v2 identity and
+delta semantics, provenance attestation, source-discovery heading/symbol
+chunks, and explicit complete-root selection in a declaration-scoped in-memory
+generation store. Generation 1 applies atomically, an identical replay remains
+generation 1 with the same hash, and an updated snapshot becomes generation 2
+with exact metadata updates and stale removals from
+`Rag2KnowledgeReplayDelta.compare`. Attestation, policy, and injected apply
+failures preserve the prior generation. Aggregate reports contain no source
+text, paths, declared roots, Git payloads, questions, or evidence markers.
+Storage semantics are Go; retrieval is not evaluated, no persistence backend is
+selected, and production remains No-Go. Evidence:
+`docs/rag2_storage_replay_contract_2026-08-26.md`.
+
+Frozen-declaration acquisition CI (2026-08-26):
+Development and promotion declarations now rerun whole-project inventory,
+three-command batch Git evidence, and all-source attestation in CI. Scope
+questions are classified from the admitted set, not a duplicated path-prefix
+oracle. Selected-metadata hashes remain checkout observations and are not CI
+pins. This does not select a persistence backend. Evidence:
+`docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`.
+
+Declaration identity alignment (2026-08-27):
+Acquisition and storage hash the same sorted source roots through
+`rag2ExplicitSourceRootsDeclarationIdentity`. Storage no longer hashes
+`rag2-storage-replay-contract-v1` plus project id. Project identity remains
+a separate field. This does not select a persistence backend. Evidence:
+`docs/rag2_storage_replay_contract_2026-08-26.md`.
+
+Persistence reopen (2026-08-27):
+`rag2-persistence-reopen-contract-v1` reopens generation 2 from file-backed
+JSON, discards a crash partial or missing-current backup back to generation 1,
+refuses schema version 2 without mutating the committed record, isolates two
+projects that share the same sorted roots, and rejects a snapshot from another
+project. Attested chunk text is stored; reports omit it. This does not select
+SQLite, FTS5, or Drift. Evidence:
+`docs/rag2_persistence_reopen_hypothesis_2026-08-27.md`.
+
+SQLite durability mapping (2026-08-27):
+`rag2-sqlite-durability-contract-v1` maps the frozen generation contract onto
+an isolated sqlite3 file. A new connection reopens generation 2, a killed
+writer with an uncommitted replacement leaves generation 1, and unsupported
+schema fails closed. Drift, FTS5, retrieval, and production remain unselected
+in that instrument. Evidence:
+`docs/rag2_sqlite_durability_hypothesis_2026-08-27.md`.
+
+Drift additive schema mapping (2026-08-27):
+`rag2-drift-additive-schema-contract-v1` hosts the same row contract on
+`AppDatabase` schema version 5. A v4 file with LL5 embedding rows, conversation
+payloads, conversation-search FTS5 contents, and model-usage rows upgrades
+without rewriting those rows. Generation 2 reopens through a new Drift
+connection. RAG2 FTS5, retrieval, settings, tools, and production remain
+unselected. Evidence:
+`docs/rag2_drift_additive_schema_hypothesis_2026-08-27.md`.
+
+Drift DAO generation store (2026-08-27):
+`rag2-drift-dao-generation-store-contract-v1` applies and reopens the frozen
+envelope through Drift `select` and `insertOnConflictUpdate`. Killing an
+uncommitted Drift writer recovers generation 1. Concurrent Drift writers
+serialize. RAG2 FTS5, retrieval, settings, tools, and production remain
+unselected. Evidence:
+`docs/rag2_drift_dao_generation_store_hypothesis_2026-08-27.md`.
+
+Isolated FTS5 additive index (2026-08-27):
+`rag2-fts5-additive-index-contract-v1` creates `rag2_chunk_search` beside
+conversation-search using `unicode61` and Dart trigram terms. Rows bind project,
+declaration, generation, and snapshot hash. Atomic replacement rolls back on
+injected failure. Every chunk must MATCH. Two projects stay isolated.
+Generation 2 still reopens through the Drift DAO. `AppDatabase` stays at schema
+version 5. Retrieval, settings, tools, and production remain unselected.
+Evidence: `docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md`.
+
+AppDatabase-hosted FTS5 (2026-08-27):
+`rag2-fts5-appdatabase-host-contract-v1` hosts `rag2_chunk_search` on
+`AppDatabase` methods without bumping schema version 5. Migration and
+unindexed apply leave RAG2 FTS5 absent. Opt-in apply writes the generation
+row and index in one transaction. Injected commit failure and a killed
+uncommitted writer recover the previous generation and index. Retrieval,
+settings, tools, and production remain unselected. Evidence:
+`docs/rag2_fts5_appdatabase_host_hypothesis_2026-08-27.md`.
+
+Incremental FTS5 index (2026-08-27):
+`rag2-fts5-incremental-index-contract-v1` patches a hosted slot from the
+frozen Knowledge Object delta. Empty slots still full-replace. Generation 2
+skips unchanged FTS5 `rowid` and `content`, rewrites metadata-updated terms,
+deletes removed ids, and inserts added ids. Injected commit failure and a
+killed uncommitted writer recover the previous generation and unchanged
+rowids. Retrieval, settings, tools, and production remain unselected.
+Evidence: `docs/rag2_fts5_incremental_index_hypothesis_2026-08-27.md`.
+
+FTS5 visibility drop (2026-08-27):
+`rag2-fts5-visibility-drop-contract-v1` hides or removes a hosted slot for
+one project/declaration identity. `clearSearchIndex` keeps generation 2 and
+makes MATCH return zero rows; a later indexed apply may restore the slot.
+`drop` deletes the generation row and slot together. Injected commit
+failure and a killed uncommitted drop recover generation 2 and its
+envelope, terms, and MATCH. A neighbor project stays visible. Retrieval,
+settings, tools, and production remain unselected. Evidence:
+`docs/rag2_fts5_visibility_drop_hypothesis_2026-08-27.md`.
+
+FTS5 rebuild/reopen (2026-08-27):
+`rag2-fts5-rebuild-reopen-contract-v1` repairs a hosted slot from the
+committed generation payload. `rebuildSearchIndex` full-replaces a cleared
+or mismatched slot without bumping generation. Rebuild twice and reopen
+keep envelope, terms, and MATCH. Injected commit failure and a killed
+uncommitted rebuild of a cleared slot leave the previous slot. A neighbor
+project stays visible. Retrieval, settings, tools, and production remain
+unselected. Evidence: `docs/rag2_fts5_rebuild_reopen_hypothesis_2026-08-27.md`.
+
+FTS5 hosted query (2026-08-27):
+`rag2-fts5-hosted-query-contract-v1` reads one hosted slot through
+identity-scoped MATCH. `querySearchIndex` tokenizes with Dart trigram
+terms, binds the committed generation envelope, and returns a `List` of
+chunk ids ordered by `chunk_id`, not BM25. A mismatched envelope fails
+closed. Clear hides hits; rebuild restores them. Host and neighbor each
+hit their own ids with no cross-leak. An unindexed generation stays
+without RAG2 FTS5. Retrieval, settings, tools, and production remain
+unselected. Evidence:
+`docs/rag2_fts5_hosted_query_hypothesis_2026-08-27.md`.
+
+FTS5 hosted query projection (2026-08-27):
+`rag2-fts5-hosted-query-projection-contract-v1` joins MATCH hits to the
+same committed generation used for MATCH. `projectSearchIndex` preserves
+MATCH order and returns locator, hash, repo-relative path, revision, line
+span, source trust, and the generation envelope without chunk content.
+Unknown or divergent FTS rows fail closed. Host and neighbor each project
+their own ids. An unindexed generation stays without RAG2 FTS5.
+Retrieval, settings, tools, and production remain unselected. Evidence:
+`docs/rag2_fts5_hosted_query_projection_hypothesis_2026-08-27.md`.
+
 Scope:
 - Add storage-independent Knowledge Object, Chunk, Provenance, retriever, fusion,
   reranker, and router contracts under a dedicated `features/knowledge` boundary.
@@ -1523,7 +1711,7 @@ Scope:
 Acceptance criteria:
 - Migration preserves all existing conversation, memory, LL5 embedding, and
   usage rows.
-- Re-index is atomic, unchanged content is skipped, delete/disable removes FTS
+- Re-index is atomic, unchanged content is skipped, drop/clear removes FTS
   visibility, and rebuild/reopen are deterministic.
 - Absolute home paths are not rendered into prompts or normal result logs.
 - Root escape, secret-like content, partial failure, and UI-isolate blocking have

@@ -1,0 +1,100 @@
+{
+  "schemaName": "caverno_rag2_explicit_source_roots_development_fixture",
+  "schemaVersion": 1,
+  "fixtureId": "caverno-routines-lifecycle-promotion-eval-v1",
+  "declarationId": "caverno-routines-lifecycle-promotion-holdout-v1",
+  "declarationIdentity": "declaration_62f029c04183343e2b6e0616e2afc088a59a0f45f2eb360bb3aa99a0e5b65856",
+  "frozenAt": "2026-08-26",
+  "priorFixtureUse": "forbidden",
+  "cases": [
+    {
+      "id": "routine-aggregate-model",
+      "question": "How are routine schedules, run records, plan artifacts, and objective-evidence contracts represented in the domain model?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/routines/domain/entities/routine.dart"
+      ]
+    },
+    {
+      "id": "routine-prefs-serialization",
+      "question": "How does the routines repository load and persist routine aggregates through SharedPreferences?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/routines/data/routine_repository.dart"
+      ]
+    },
+    {
+      "id": "routine-scheduler-polling",
+      "question": "How does the provider-level scheduler poll for due routines and re-check on app resume?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/routines/presentation/providers/routine_scheduler.dart"
+      ]
+    },
+    {
+      "id": "routine-notifier-mutation-tail",
+      "question": "How does the routines notifier serialize mutations, reconcile repository readbacks, and execute due routines?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/routines/presentation/providers/routines_notifier.dart"
+      ]
+    },
+    {
+      "id": "routine-tool-loop-limits",
+      "question": "How does the routine tool runner loop chat completions and enforce turn and tool-call limits?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/routines/data/routine_tool_runner.dart"
+      ]
+    },
+    {
+      "id": "routine-creation-receipt-ledger",
+      "question": "How are routine-creation side-effect receipts bound, capped, and settled in the provider ledger?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/routines/presentation/providers/routine_creation_receipt.dart",
+        "lib/features/routines/presentation/providers/routine_creation_receipt_ledger.dart"
+      ]
+    },
+    {
+      "id": "routine-catalog-projection-guards",
+      "question": "When may routine-catalog readbacks be collapsed, rejected, or treated as compatible projections?",
+      "expectedDecision": "available",
+      "requiredEvidencePaths": [
+        "lib/features/routines/presentation/providers/routine_catalog_reconciliation.dart"
+      ]
+    },
+    {
+      "id": "routine-editor-sheet-control",
+      "question": "How does the routine editor sheet validate and return edited routine fields?",
+      "expectedDecision": "not_available",
+      "requiredEvidencePaths": [
+        "lib/features/routines/presentation/widgets/routine_editor_sheet.dart"
+      ]
+    },
+    {
+      "id": "routine-home-snapshot-control",
+      "question": "How does the routines home snapshot group routines into attention, scheduled, and paused sections?",
+      "expectedDecision": "not_available",
+      "requiredEvidencePaths": [
+        "lib/features/routines/presentation/models/routine_home_snapshot.dart"
+      ]
+    },
+    {
+      "id": "settings-notifier-control",
+      "question": "How does the settings notifier persist AppSettings changes to SharedPreferences?",
+      "expectedDecision": "not_available",
+      "requiredEvidencePaths": [
+        "lib/features/settings/presentation/providers/settings_notifier.dart"
+      ]
+    },
+    {
+      "id": "google-chat-webhook-control",
+      "question": "How does the core Google Chat delivery service post messages to a webhook URL?",
+      "expectedDecision": "not_available",
+      "requiredEvidencePaths": [
+        "lib/core/services/google_chat_delivery_service.dart"
+      ]
+    }
+  ]
+}

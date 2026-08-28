@@ -12,6 +12,9 @@ const rag2SourceDiscoveryFixtureSchema =
     'caverno_rag2_source_discovery_fixture';
 const rag2SourceDiscoveryReportSchema = 'caverno_rag2_source_discovery_report';
 
+typedef Rag2GitEvidenceProvider =
+    Future<Rag2GitEvidence> Function(String repoRelativePath);
+
 Future<void> main(List<String> args) async {
   final options = Rag2SourceDiscoveryOptions.parse(args);
   if (options == null) {
@@ -69,27 +72,51 @@ Future<Rag2SourceDiscoveryResult> discoverRag2FixtureSources({
   required CodingProject project,
   required Rag2SourceDiscoveryPolicy policy,
   required Map<String, Rag2GitEvidence> gitEvidenceByPath,
+}) => discoverRag2Sources(
+  project: project,
+  policy: policy,
+  gitEvidenceProvider: (path) async =>
+      gitEvidenceByPath[path] ??
+      const Rag2GitEvidence(
+        available: false,
+        lsFilesExitCode: 127,
+        statusPorcelain: '',
+      ),
+);
+
+Future<Rag2SourceDiscoveryResult> discoverRag2Sources({
+  required CodingProject project,
+  required Rag2SourceDiscoveryPolicy policy,
+  required Rag2GitEvidenceProvider gitEvidenceProvider,
+  bool includeChunks = true,
 }) async {
-  final root = Directory(project.normalizedRootPath);
-  final candidates = <({String path, File file, int bytes})>[];
-  final exclusions = <Rag2DiscoveryExclusion>[];
-  await _walkFixtureRoot(
-    root: root,
-    directory: root,
-    policy: policy,
-    candidates: candidates,
-    exclusions: exclusions,
+  final inventory = await inventoryRag2SourceCandidates(
+    project: project,
+    maxFileBytes: policy.maxFileBytes,
   );
-  candidates.sort((left, right) => left.path.compareTo(right.path));
-  exclusions.sort((left, right) {
-    final path = left.path.compareTo(right.path);
-    return path != 0 ? path : left.reason.compareTo(right.reason);
-  });
-  final corpusBytes = candidates.fold<int>(0, (sum, item) => sum + item.bytes);
-  final violations = <String>[
-    if (candidates.length > policy.maxFiles) 'file_count_exceeded',
-    if (corpusBytes > policy.maxCorpusBytes) 'corpus_bytes_exceeded',
-  ];
+  return discoverRag2SourcesFromInventory(
+    project: project,
+    policy: policy,
+    inventory: inventory,
+    gitEvidenceProvider: gitEvidenceProvider,
+    includeChunks: includeChunks,
+  );
+}
+
+Future<Rag2SourceDiscoveryResult> discoverRag2SourcesFromInventory({
+  required CodingProject project,
+  required Rag2SourceDiscoveryPolicy policy,
+  required Rag2SourceCandidateInventory inventory,
+  required Rag2GitEvidenceProvider gitEvidenceProvider,
+  bool includeChunks = true,
+}) async {
+  final candidates = inventory.candidates;
+  final exclusions = List<Rag2DiscoveryExclusion>.from(inventory.exclusions);
+  final corpusBytes = inventory.corpusBytes;
+  final violations = rag2SourceInventoryViolations(
+    inventory: inventory,
+    policy: policy,
+  );
   if (violations.isNotEmpty) {
     return Rag2SourceDiscoveryResult(
       candidates: const [],
@@ -102,19 +129,14 @@ Future<Rag2SourceDiscoveryResult> discoverRag2FixtureSources({
 
   final sources = <Rag2DiscoveredSource>[];
   for (final candidate in candidates) {
-    final evidence = gitEvidenceByPath[candidate.path];
+    final evidence = await gitEvidenceProvider(candidate.path);
     final attestation = await attestRag2ProjectSource(
       caseId: candidate.path,
       project: project,
       repoRelativePath: candidate.path,
-      gitEvidence:
-          evidence ??
-          const Rag2GitEvidence(
-            available: false,
-            lsFilesExitCode: 127,
-            statusPorcelain: '',
-          ),
+      gitEvidence: evidence,
       maxFileBytes: policy.maxFileBytes,
+      retainText: includeChunks,
     );
     if (attestation.decision != 'attested') {
       exclusions.add(
@@ -125,10 +147,18 @@ Future<Rag2SourceDiscoveryResult> discoverRag2FixtureSources({
       );
       continue;
     }
-    final text = _normalizeText(await candidate.file.readAsString());
-    final chunks = candidate.path.endsWith('.md')
-        ? _chunkMarkdown(candidate.path, text)
-        : _chunkDart(candidate.path, text);
+    if (includeChunks && !attestation.hasBoundText) {
+      exclusions.add(
+        Rag2DiscoveryExclusion(
+          path: candidate.path,
+          reason: 'attested_text_unavailable',
+        ),
+      );
+      continue;
+    }
+    final chunks = includeChunks
+        ? _chunkCandidate(candidate.path, attestation.attestedText!)
+        : const <Rag2CandidateChunk>[];
     sources.add(
       Rag2DiscoveredSource(
         attestation: attestation,
@@ -156,11 +186,58 @@ Future<Rag2SourceDiscoveryResult> discoverRag2FixtureSources({
   );
 }
 
+List<String> rag2SourceInventoryViolations({
+  required Rag2SourceCandidateInventory inventory,
+  required Rag2SourceDiscoveryPolicy policy,
+}) => <String>[
+  if (inventory.candidates.length > policy.maxFiles) 'file_count_exceeded',
+  if (inventory.corpusBytes > policy.maxCorpusBytes) 'corpus_bytes_exceeded',
+];
+
+Future<Rag2SourceCandidateInventory> inventoryRag2SourceCandidates({
+  required CodingProject project,
+  required int maxFileBytes,
+}) async {
+  if (maxFileBytes <= 0) {
+    throw const FormatException(
+      'Source inventory max-file-bytes must be positive.',
+    );
+  }
+  final root = Directory(project.normalizedRootPath);
+  final candidates = <Rag2SourceCandidate>[];
+  final exclusions = <Rag2DiscoveryExclusion>[];
+  await _walkFixtureRoot(
+    root: root,
+    directory: root,
+    maxFileBytes: maxFileBytes,
+    candidates: candidates,
+    exclusions: exclusions,
+  );
+  candidates.sort((left, right) => left.path.compareTo(right.path));
+  exclusions.sort((left, right) {
+    final path = left.path.compareTo(right.path);
+    return path != 0 ? path : left.reason.compareTo(right.reason);
+  });
+  final corpusBytes = candidates.fold<int>(0, (sum, item) => sum + item.bytes);
+  return Rag2SourceCandidateInventory(
+    candidates: candidates,
+    exclusions: exclusions,
+    corpusBytes: corpusBytes,
+  );
+}
+
+List<Rag2CandidateChunk> _chunkCandidate(String path, String text) {
+  final normalized = _normalizeText(text);
+  return path.endsWith('.md')
+      ? _chunkMarkdown(path, normalized)
+      : _chunkDart(path, normalized);
+}
+
 Future<void> _walkFixtureRoot({
   required Directory root,
   required Directory directory,
-  required Rag2SourceDiscoveryPolicy policy,
-  required List<({String path, File file, int bytes})> candidates,
+  required int maxFileBytes,
+  required List<Rag2SourceCandidate> candidates,
   required List<Rag2DiscoveryExclusion> exclusions,
 }) async {
   final entities = await directory.list(followLinks: false).toList()
@@ -186,7 +263,7 @@ Future<void> _walkFixtureRoot({
         await _walkFixtureRoot(
           root: root,
           directory: entity,
-          policy: policy,
+          maxFileBytes: maxFileBytes,
           candidates: candidates,
           exclusions: exclusions,
         );
@@ -207,13 +284,15 @@ Future<void> _walkFixtureRoot({
       continue;
     }
     final bytes = await entity.length();
-    if (bytes > policy.maxFileBytes) {
+    if (bytes > maxFileBytes) {
       exclusions.add(
         Rag2DiscoveryExclusion(path: relative, reason: 'file_bytes_exceeded'),
       );
       continue;
     }
-    candidates.add((path: relative, file: entity, bytes: bytes));
+    candidates.add(
+      Rag2SourceCandidate(path: relative, file: entity, bytes: bytes),
+    );
   }
 }
 
@@ -412,6 +491,30 @@ final class Rag2DiscoveredSource {
     'bytes': bytes,
     'chunks': [for (final chunk in chunks) chunk.toJson()],
   };
+}
+
+final class Rag2SourceCandidate {
+  const Rag2SourceCandidate({
+    required this.path,
+    required this.file,
+    required this.bytes,
+  });
+
+  final String path;
+  final File file;
+  final int bytes;
+}
+
+final class Rag2SourceCandidateInventory {
+  const Rag2SourceCandidateInventory({
+    required this.candidates,
+    required this.exclusions,
+    required this.corpusBytes,
+  });
+
+  final List<Rag2SourceCandidate> candidates;
+  final List<Rag2DiscoveryExclusion> exclusions;
+  final int corpusBytes;
 }
 
 final class Rag2DiscoveryExclusion {

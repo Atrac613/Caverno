@@ -2179,6 +2179,811 @@ class ModelUsageDailyCompanion extends UpdateCompanion<ModelUsageDailyRow> {
   }
 }
 
+class $Rag2StoreMetaTable extends Rag2StoreMeta
+    with TableInfo<$Rag2StoreMetaTable, Rag2StoreMetaRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $Rag2StoreMetaTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [key, value];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'rag2_store_meta';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Rag2StoreMetaRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  Rag2StoreMetaRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Rag2StoreMetaRow(
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+    );
+  }
+
+  @override
+  $Rag2StoreMetaTable createAlias(String alias) {
+    return $Rag2StoreMetaTable(attachedDatabase, alias);
+  }
+}
+
+class Rag2StoreMetaRow extends DataClass
+    implements Insertable<Rag2StoreMetaRow> {
+  final String key;
+  final String value;
+  const Rag2StoreMetaRow({required this.key, required this.value});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    return map;
+  }
+
+  Rag2StoreMetaCompanion toCompanion(bool nullToAbsent) {
+    return Rag2StoreMetaCompanion(key: Value(key), value: Value(value));
+  }
+
+  factory Rag2StoreMetaRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Rag2StoreMetaRow(
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+    };
+  }
+
+  Rag2StoreMetaRow copyWith({String? key, String? value}) =>
+      Rag2StoreMetaRow(key: key ?? this.key, value: value ?? this.value);
+  Rag2StoreMetaRow copyWithCompanion(Rag2StoreMetaCompanion data) {
+    return Rag2StoreMetaRow(
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Rag2StoreMetaRow(')
+          ..write('key: $key, ')
+          ..write('value: $value')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, value);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Rag2StoreMetaRow &&
+          other.key == this.key &&
+          other.value == this.value);
+}
+
+class Rag2StoreMetaCompanion extends UpdateCompanion<Rag2StoreMetaRow> {
+  final Value<String> key;
+  final Value<String> value;
+  final Value<int> rowid;
+  const Rag2StoreMetaCompanion({
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  Rag2StoreMetaCompanion.insert({
+    required String key,
+    required String value,
+    this.rowid = const Value.absent(),
+  }) : key = Value(key),
+       value = Value(value);
+  static Insertable<Rag2StoreMetaRow> custom({
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  Rag2StoreMetaCompanion copyWith({
+    Value<String>? key,
+    Value<String>? value,
+    Value<int>? rowid,
+  }) {
+    return Rag2StoreMetaCompanion(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Rag2StoreMetaCompanion(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $Rag2GenerationsTable extends Rag2Generations
+    with TableInfo<$Rag2GenerationsTable, Rag2GenerationRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $Rag2GenerationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _projectIdentityMeta = const VerificationMeta(
+    'projectIdentity',
+  );
+  @override
+  late final GeneratedColumn<String> projectIdentity = GeneratedColumn<String>(
+    'project_identity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _declarationIdentityMeta =
+      const VerificationMeta('declarationIdentity');
+  @override
+  late final GeneratedColumn<String> declarationIdentity =
+      GeneratedColumn<String>(
+        'declaration_identity',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _schemaNameMeta = const VerificationMeta(
+    'schemaName',
+  );
+  @override
+  late final GeneratedColumn<String> schemaName = GeneratedColumn<String>(
+    'schema_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _schemaVersionMeta = const VerificationMeta(
+    'schemaVersion',
+  );
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+    'schema_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contractMeta = const VerificationMeta(
+    'contract',
+  );
+  @override
+  late final GeneratedColumn<String> contract = GeneratedColumn<String>(
+    'contract',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _generationMeta = const VerificationMeta(
+    'generation',
+  );
+  @override
+  late final GeneratedColumn<int> generation = GeneratedColumn<int>(
+    'generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _snapshotHashMeta = const VerificationMeta(
+    'snapshotHash',
+  );
+  @override
+  late final GeneratedColumn<String> snapshotHash = GeneratedColumn<String>(
+    'snapshot_hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    projectIdentity,
+    declarationIdentity,
+    schemaName,
+    schemaVersion,
+    contract,
+    projectId,
+    generation,
+    snapshotHash,
+    payload,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'rag2_generations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Rag2GenerationRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('project_identity')) {
+      context.handle(
+        _projectIdentityMeta,
+        projectIdentity.isAcceptableOrUnknown(
+          data['project_identity']!,
+          _projectIdentityMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdentityMeta);
+    }
+    if (data.containsKey('declaration_identity')) {
+      context.handle(
+        _declarationIdentityMeta,
+        declarationIdentity.isAcceptableOrUnknown(
+          data['declaration_identity']!,
+          _declarationIdentityMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_declarationIdentityMeta);
+    }
+    if (data.containsKey('schema_name')) {
+      context.handle(
+        _schemaNameMeta,
+        schemaName.isAcceptableOrUnknown(data['schema_name']!, _schemaNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_schemaNameMeta);
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+        _schemaVersionMeta,
+        schemaVersion.isAcceptableOrUnknown(
+          data['schema_version']!,
+          _schemaVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_schemaVersionMeta);
+    }
+    if (data.containsKey('contract')) {
+      context.handle(
+        _contractMeta,
+        contract.isAcceptableOrUnknown(data['contract']!, _contractMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contractMeta);
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('generation')) {
+      context.handle(
+        _generationMeta,
+        generation.isAcceptableOrUnknown(data['generation']!, _generationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_generationMeta);
+    }
+    if (data.containsKey('snapshot_hash')) {
+      context.handle(
+        _snapshotHashMeta,
+        snapshotHash.isAcceptableOrUnknown(
+          data['snapshot_hash']!,
+          _snapshotHashMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_snapshotHashMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {
+    projectIdentity,
+    declarationIdentity,
+  };
+  @override
+  Rag2GenerationRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Rag2GenerationRow(
+      projectIdentity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_identity'],
+      )!,
+      declarationIdentity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}declaration_identity'],
+      )!,
+      schemaName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}schema_name'],
+      )!,
+      schemaVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}schema_version'],
+      )!,
+      contract: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contract'],
+      )!,
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      generation: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}generation'],
+      )!,
+      snapshotHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}snapshot_hash'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+    );
+  }
+
+  @override
+  $Rag2GenerationsTable createAlias(String alias) {
+    return $Rag2GenerationsTable(attachedDatabase, alias);
+  }
+}
+
+class Rag2GenerationRow extends DataClass
+    implements Insertable<Rag2GenerationRow> {
+  final String projectIdentity;
+  final String declarationIdentity;
+  final String schemaName;
+  final int schemaVersion;
+  final String contract;
+  final String projectId;
+  final int generation;
+  final String snapshotHash;
+  final String payload;
+  const Rag2GenerationRow({
+    required this.projectIdentity,
+    required this.declarationIdentity,
+    required this.schemaName,
+    required this.schemaVersion,
+    required this.contract,
+    required this.projectId,
+    required this.generation,
+    required this.snapshotHash,
+    required this.payload,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['project_identity'] = Variable<String>(projectIdentity);
+    map['declaration_identity'] = Variable<String>(declarationIdentity);
+    map['schema_name'] = Variable<String>(schemaName);
+    map['schema_version'] = Variable<int>(schemaVersion);
+    map['contract'] = Variable<String>(contract);
+    map['project_id'] = Variable<String>(projectId);
+    map['generation'] = Variable<int>(generation);
+    map['snapshot_hash'] = Variable<String>(snapshotHash);
+    map['payload'] = Variable<String>(payload);
+    return map;
+  }
+
+  Rag2GenerationsCompanion toCompanion(bool nullToAbsent) {
+    return Rag2GenerationsCompanion(
+      projectIdentity: Value(projectIdentity),
+      declarationIdentity: Value(declarationIdentity),
+      schemaName: Value(schemaName),
+      schemaVersion: Value(schemaVersion),
+      contract: Value(contract),
+      projectId: Value(projectId),
+      generation: Value(generation),
+      snapshotHash: Value(snapshotHash),
+      payload: Value(payload),
+    );
+  }
+
+  factory Rag2GenerationRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Rag2GenerationRow(
+      projectIdentity: serializer.fromJson<String>(json['projectIdentity']),
+      declarationIdentity: serializer.fromJson<String>(
+        json['declarationIdentity'],
+      ),
+      schemaName: serializer.fromJson<String>(json['schemaName']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+      contract: serializer.fromJson<String>(json['contract']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      generation: serializer.fromJson<int>(json['generation']),
+      snapshotHash: serializer.fromJson<String>(json['snapshotHash']),
+      payload: serializer.fromJson<String>(json['payload']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'projectIdentity': serializer.toJson<String>(projectIdentity),
+      'declarationIdentity': serializer.toJson<String>(declarationIdentity),
+      'schemaName': serializer.toJson<String>(schemaName),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+      'contract': serializer.toJson<String>(contract),
+      'projectId': serializer.toJson<String>(projectId),
+      'generation': serializer.toJson<int>(generation),
+      'snapshotHash': serializer.toJson<String>(snapshotHash),
+      'payload': serializer.toJson<String>(payload),
+    };
+  }
+
+  Rag2GenerationRow copyWith({
+    String? projectIdentity,
+    String? declarationIdentity,
+    String? schemaName,
+    int? schemaVersion,
+    String? contract,
+    String? projectId,
+    int? generation,
+    String? snapshotHash,
+    String? payload,
+  }) => Rag2GenerationRow(
+    projectIdentity: projectIdentity ?? this.projectIdentity,
+    declarationIdentity: declarationIdentity ?? this.declarationIdentity,
+    schemaName: schemaName ?? this.schemaName,
+    schemaVersion: schemaVersion ?? this.schemaVersion,
+    contract: contract ?? this.contract,
+    projectId: projectId ?? this.projectId,
+    generation: generation ?? this.generation,
+    snapshotHash: snapshotHash ?? this.snapshotHash,
+    payload: payload ?? this.payload,
+  );
+  Rag2GenerationRow copyWithCompanion(Rag2GenerationsCompanion data) {
+    return Rag2GenerationRow(
+      projectIdentity: data.projectIdentity.present
+          ? data.projectIdentity.value
+          : this.projectIdentity,
+      declarationIdentity: data.declarationIdentity.present
+          ? data.declarationIdentity.value
+          : this.declarationIdentity,
+      schemaName: data.schemaName.present
+          ? data.schemaName.value
+          : this.schemaName,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+      contract: data.contract.present ? data.contract.value : this.contract,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      generation: data.generation.present
+          ? data.generation.value
+          : this.generation,
+      snapshotHash: data.snapshotHash.present
+          ? data.snapshotHash.value
+          : this.snapshotHash,
+      payload: data.payload.present ? data.payload.value : this.payload,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Rag2GenerationRow(')
+          ..write('projectIdentity: $projectIdentity, ')
+          ..write('declarationIdentity: $declarationIdentity, ')
+          ..write('schemaName: $schemaName, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('contract: $contract, ')
+          ..write('projectId: $projectId, ')
+          ..write('generation: $generation, ')
+          ..write('snapshotHash: $snapshotHash, ')
+          ..write('payload: $payload')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    projectIdentity,
+    declarationIdentity,
+    schemaName,
+    schemaVersion,
+    contract,
+    projectId,
+    generation,
+    snapshotHash,
+    payload,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Rag2GenerationRow &&
+          other.projectIdentity == this.projectIdentity &&
+          other.declarationIdentity == this.declarationIdentity &&
+          other.schemaName == this.schemaName &&
+          other.schemaVersion == this.schemaVersion &&
+          other.contract == this.contract &&
+          other.projectId == this.projectId &&
+          other.generation == this.generation &&
+          other.snapshotHash == this.snapshotHash &&
+          other.payload == this.payload);
+}
+
+class Rag2GenerationsCompanion extends UpdateCompanion<Rag2GenerationRow> {
+  final Value<String> projectIdentity;
+  final Value<String> declarationIdentity;
+  final Value<String> schemaName;
+  final Value<int> schemaVersion;
+  final Value<String> contract;
+  final Value<String> projectId;
+  final Value<int> generation;
+  final Value<String> snapshotHash;
+  final Value<String> payload;
+  final Value<int> rowid;
+  const Rag2GenerationsCompanion({
+    this.projectIdentity = const Value.absent(),
+    this.declarationIdentity = const Value.absent(),
+    this.schemaName = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.contract = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.generation = const Value.absent(),
+    this.snapshotHash = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  Rag2GenerationsCompanion.insert({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required String schemaName,
+    required int schemaVersion,
+    required String contract,
+    required String projectId,
+    required int generation,
+    required String snapshotHash,
+    required String payload,
+    this.rowid = const Value.absent(),
+  }) : projectIdentity = Value(projectIdentity),
+       declarationIdentity = Value(declarationIdentity),
+       schemaName = Value(schemaName),
+       schemaVersion = Value(schemaVersion),
+       contract = Value(contract),
+       projectId = Value(projectId),
+       generation = Value(generation),
+       snapshotHash = Value(snapshotHash),
+       payload = Value(payload);
+  static Insertable<Rag2GenerationRow> custom({
+    Expression<String>? projectIdentity,
+    Expression<String>? declarationIdentity,
+    Expression<String>? schemaName,
+    Expression<int>? schemaVersion,
+    Expression<String>? contract,
+    Expression<String>? projectId,
+    Expression<int>? generation,
+    Expression<String>? snapshotHash,
+    Expression<String>? payload,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (projectIdentity != null) 'project_identity': projectIdentity,
+      if (declarationIdentity != null)
+        'declaration_identity': declarationIdentity,
+      if (schemaName != null) 'schema_name': schemaName,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (contract != null) 'contract': contract,
+      if (projectId != null) 'project_id': projectId,
+      if (generation != null) 'generation': generation,
+      if (snapshotHash != null) 'snapshot_hash': snapshotHash,
+      if (payload != null) 'payload': payload,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  Rag2GenerationsCompanion copyWith({
+    Value<String>? projectIdentity,
+    Value<String>? declarationIdentity,
+    Value<String>? schemaName,
+    Value<int>? schemaVersion,
+    Value<String>? contract,
+    Value<String>? projectId,
+    Value<int>? generation,
+    Value<String>? snapshotHash,
+    Value<String>? payload,
+    Value<int>? rowid,
+  }) {
+    return Rag2GenerationsCompanion(
+      projectIdentity: projectIdentity ?? this.projectIdentity,
+      declarationIdentity: declarationIdentity ?? this.declarationIdentity,
+      schemaName: schemaName ?? this.schemaName,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      contract: contract ?? this.contract,
+      projectId: projectId ?? this.projectId,
+      generation: generation ?? this.generation,
+      snapshotHash: snapshotHash ?? this.snapshotHash,
+      payload: payload ?? this.payload,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (projectIdentity.present) {
+      map['project_identity'] = Variable<String>(projectIdentity.value);
+    }
+    if (declarationIdentity.present) {
+      map['declaration_identity'] = Variable<String>(declarationIdentity.value);
+    }
+    if (schemaName.present) {
+      map['schema_name'] = Variable<String>(schemaName.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (contract.present) {
+      map['contract'] = Variable<String>(contract.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (generation.present) {
+      map['generation'] = Variable<int>(generation.value);
+    }
+    if (snapshotHash.present) {
+      map['snapshot_hash'] = Variable<String>(snapshotHash.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Rag2GenerationsCompanion(')
+          ..write('projectIdentity: $projectIdentity, ')
+          ..write('declarationIdentity: $declarationIdentity, ')
+          ..write('schemaName: $schemaName, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('contract: $contract, ')
+          ..write('projectId: $projectId, ')
+          ..write('generation: $generation, ')
+          ..write('snapshotHash: $snapshotHash, ')
+          ..write('payload: $payload, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2187,6 +2992,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ChatMemoryEntriesTable(this);
   late final $EmbeddingsTable embeddings = $EmbeddingsTable(this);
   late final $ModelUsageDailyTable modelUsageDaily = $ModelUsageDailyTable(
+    this,
+  );
+  late final $Rag2StoreMetaTable rag2StoreMeta = $Rag2StoreMetaTable(this);
+  late final $Rag2GenerationsTable rag2Generations = $Rag2GenerationsTable(
     this,
   );
   @override
@@ -2198,6 +3007,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     chatMemoryEntries,
     embeddings,
     modelUsageDaily,
+    rag2StoreMeta,
+    rag2Generations,
   ];
 }
 
@@ -3322,6 +4133,444 @@ typedef $$ModelUsageDailyTableProcessedTableManager =
       ModelUsageDailyRow,
       PrefetchHooks Function()
     >;
+typedef $$Rag2StoreMetaTableCreateCompanionBuilder =
+    Rag2StoreMetaCompanion Function({
+      required String key,
+      required String value,
+      Value<int> rowid,
+    });
+typedef $$Rag2StoreMetaTableUpdateCompanionBuilder =
+    Rag2StoreMetaCompanion Function({
+      Value<String> key,
+      Value<String> value,
+      Value<int> rowid,
+    });
+
+class $$Rag2StoreMetaTableFilterComposer
+    extends Composer<_$AppDatabase, $Rag2StoreMetaTable> {
+  $$Rag2StoreMetaTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$Rag2StoreMetaTableOrderingComposer
+    extends Composer<_$AppDatabase, $Rag2StoreMetaTable> {
+  $$Rag2StoreMetaTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$Rag2StoreMetaTableAnnotationComposer
+    extends Composer<_$AppDatabase, $Rag2StoreMetaTable> {
+  $$Rag2StoreMetaTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+}
+
+class $$Rag2StoreMetaTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $Rag2StoreMetaTable,
+          Rag2StoreMetaRow,
+          $$Rag2StoreMetaTableFilterComposer,
+          $$Rag2StoreMetaTableOrderingComposer,
+          $$Rag2StoreMetaTableAnnotationComposer,
+          $$Rag2StoreMetaTableCreateCompanionBuilder,
+          $$Rag2StoreMetaTableUpdateCompanionBuilder,
+          (
+            Rag2StoreMetaRow,
+            BaseReferences<
+              _$AppDatabase,
+              $Rag2StoreMetaTable,
+              Rag2StoreMetaRow
+            >,
+          ),
+          Rag2StoreMetaRow,
+          PrefetchHooks Function()
+        > {
+  $$Rag2StoreMetaTableTableManager(_$AppDatabase db, $Rag2StoreMetaTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$Rag2StoreMetaTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$Rag2StoreMetaTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$Rag2StoreMetaTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> key = const Value.absent(),
+                Value<String> value = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) =>
+                  Rag2StoreMetaCompanion(key: key, value: value, rowid: rowid),
+          createCompanionCallback:
+              ({
+                required String key,
+                required String value,
+                Value<int> rowid = const Value.absent(),
+              }) => Rag2StoreMetaCompanion.insert(
+                key: key,
+                value: value,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$Rag2StoreMetaTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $Rag2StoreMetaTable,
+      Rag2StoreMetaRow,
+      $$Rag2StoreMetaTableFilterComposer,
+      $$Rag2StoreMetaTableOrderingComposer,
+      $$Rag2StoreMetaTableAnnotationComposer,
+      $$Rag2StoreMetaTableCreateCompanionBuilder,
+      $$Rag2StoreMetaTableUpdateCompanionBuilder,
+      (
+        Rag2StoreMetaRow,
+        BaseReferences<_$AppDatabase, $Rag2StoreMetaTable, Rag2StoreMetaRow>,
+      ),
+      Rag2StoreMetaRow,
+      PrefetchHooks Function()
+    >;
+typedef $$Rag2GenerationsTableCreateCompanionBuilder =
+    Rag2GenerationsCompanion Function({
+      required String projectIdentity,
+      required String declarationIdentity,
+      required String schemaName,
+      required int schemaVersion,
+      required String contract,
+      required String projectId,
+      required int generation,
+      required String snapshotHash,
+      required String payload,
+      Value<int> rowid,
+    });
+typedef $$Rag2GenerationsTableUpdateCompanionBuilder =
+    Rag2GenerationsCompanion Function({
+      Value<String> projectIdentity,
+      Value<String> declarationIdentity,
+      Value<String> schemaName,
+      Value<int> schemaVersion,
+      Value<String> contract,
+      Value<String> projectId,
+      Value<int> generation,
+      Value<String> snapshotHash,
+      Value<String> payload,
+      Value<int> rowid,
+    });
+
+class $$Rag2GenerationsTableFilterComposer
+    extends Composer<_$AppDatabase, $Rag2GenerationsTable> {
+  $$Rag2GenerationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get projectIdentity => $composableBuilder(
+    column: $table.projectIdentity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get declarationIdentity => $composableBuilder(
+    column: $table.declarationIdentity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get schemaName => $composableBuilder(
+    column: $table.schemaName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+    column: $table.schemaVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contract => $composableBuilder(
+    column: $table.contract,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get projectId => $composableBuilder(
+    column: $table.projectId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get snapshotHash => $composableBuilder(
+    column: $table.snapshotHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$Rag2GenerationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $Rag2GenerationsTable> {
+  $$Rag2GenerationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get projectIdentity => $composableBuilder(
+    column: $table.projectIdentity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get declarationIdentity => $composableBuilder(
+    column: $table.declarationIdentity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get schemaName => $composableBuilder(
+    column: $table.schemaName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+    column: $table.schemaVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contract => $composableBuilder(
+    column: $table.contract,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get projectId => $composableBuilder(
+    column: $table.projectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get snapshotHash => $composableBuilder(
+    column: $table.snapshotHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$Rag2GenerationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $Rag2GenerationsTable> {
+  $$Rag2GenerationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get projectIdentity => $composableBuilder(
+    column: $table.projectIdentity,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get declarationIdentity => $composableBuilder(
+    column: $table.declarationIdentity,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get schemaName => $composableBuilder(
+    column: $table.schemaName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+    column: $table.schemaVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contract =>
+      $composableBuilder(column: $table.contract, builder: (column) => column);
+
+  GeneratedColumn<String> get projectId =>
+      $composableBuilder(column: $table.projectId, builder: (column) => column);
+
+  GeneratedColumn<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get snapshotHash => $composableBuilder(
+    column: $table.snapshotHash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+}
+
+class $$Rag2GenerationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $Rag2GenerationsTable,
+          Rag2GenerationRow,
+          $$Rag2GenerationsTableFilterComposer,
+          $$Rag2GenerationsTableOrderingComposer,
+          $$Rag2GenerationsTableAnnotationComposer,
+          $$Rag2GenerationsTableCreateCompanionBuilder,
+          $$Rag2GenerationsTableUpdateCompanionBuilder,
+          (
+            Rag2GenerationRow,
+            BaseReferences<
+              _$AppDatabase,
+              $Rag2GenerationsTable,
+              Rag2GenerationRow
+            >,
+          ),
+          Rag2GenerationRow,
+          PrefetchHooks Function()
+        > {
+  $$Rag2GenerationsTableTableManager(
+    _$AppDatabase db,
+    $Rag2GenerationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$Rag2GenerationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$Rag2GenerationsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$Rag2GenerationsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> projectIdentity = const Value.absent(),
+                Value<String> declarationIdentity = const Value.absent(),
+                Value<String> schemaName = const Value.absent(),
+                Value<int> schemaVersion = const Value.absent(),
+                Value<String> contract = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<int> generation = const Value.absent(),
+                Value<String> snapshotHash = const Value.absent(),
+                Value<String> payload = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => Rag2GenerationsCompanion(
+                projectIdentity: projectIdentity,
+                declarationIdentity: declarationIdentity,
+                schemaName: schemaName,
+                schemaVersion: schemaVersion,
+                contract: contract,
+                projectId: projectId,
+                generation: generation,
+                snapshotHash: snapshotHash,
+                payload: payload,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String projectIdentity,
+                required String declarationIdentity,
+                required String schemaName,
+                required int schemaVersion,
+                required String contract,
+                required String projectId,
+                required int generation,
+                required String snapshotHash,
+                required String payload,
+                Value<int> rowid = const Value.absent(),
+              }) => Rag2GenerationsCompanion.insert(
+                projectIdentity: projectIdentity,
+                declarationIdentity: declarationIdentity,
+                schemaName: schemaName,
+                schemaVersion: schemaVersion,
+                contract: contract,
+                projectId: projectId,
+                generation: generation,
+                snapshotHash: snapshotHash,
+                payload: payload,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$Rag2GenerationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $Rag2GenerationsTable,
+      Rag2GenerationRow,
+      $$Rag2GenerationsTableFilterComposer,
+      $$Rag2GenerationsTableOrderingComposer,
+      $$Rag2GenerationsTableAnnotationComposer,
+      $$Rag2GenerationsTableCreateCompanionBuilder,
+      $$Rag2GenerationsTableUpdateCompanionBuilder,
+      (
+        Rag2GenerationRow,
+        BaseReferences<_$AppDatabase, $Rag2GenerationsTable, Rag2GenerationRow>,
+      ),
+      Rag2GenerationRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3334,4 +4583,8 @@ class $AppDatabaseManager {
       $$EmbeddingsTableTableManager(_db, _db.embeddings);
   $$ModelUsageDailyTableTableManager get modelUsageDaily =>
       $$ModelUsageDailyTableTableManager(_db, _db.modelUsageDaily);
+  $$Rag2StoreMetaTableTableManager get rag2StoreMeta =>
+      $$Rag2StoreMetaTableTableManager(_db, _db.rag2StoreMeta);
+  $$Rag2GenerationsTableTableManager get rag2Generations =>
+      $$Rag2GenerationsTableTableManager(_db, _db.rag2Generations);
 }

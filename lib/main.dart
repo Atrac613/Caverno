@@ -18,7 +18,7 @@ import 'core/utils/logger.dart';
 import 'core/widgets/quit_confirmation_dialog.dart';
 import 'features/chat/application/persistence/caverno_persistence_bootstrap.dart';
 import 'features/chat/application/persistence/caverno_chat_memory_mutation_coordinator.dart';
-import 'features/chat/data/datasources/app_database.dart';
+import 'features/chat/data/datasources/app_database_open.dart';
 import 'features/chat/data/repositories/chat_memory_repository.dart';
 import 'features/chat/data/repositories/conversation_repository.dart';
 import 'features/chat/data/repositories/skill_repository.dart';

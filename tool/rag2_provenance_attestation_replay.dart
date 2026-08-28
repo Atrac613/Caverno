@@ -93,6 +93,7 @@ Future<Rag2SourceAttestation> attestRag2ProjectSource({
   required String repoRelativePath,
   required Rag2GitEvidence gitEvidence,
   int maxFileBytes = 1024 * 1024,
+  bool retainText = false,
   ProjectReadPathFence pathFence = const ProjectReadPathFence(),
 }) async {
   if (project.id.trim().isEmpty) {
@@ -140,7 +141,8 @@ Future<Rag2SourceAttestation> attestRag2ProjectSource({
       );
     }
     final text = utf8.decode(bytes, allowMalformed: false);
-    final contentHash = _sha256(_normalizeText(text));
+    final attestedText = _normalizeText(text);
+    final contentHash = _sha256(attestedText);
     final derived = _deriveGitState(
       repoRelativePath: repoRelativePath,
       evidence: gitEvidence,
@@ -171,6 +173,7 @@ Future<Rag2SourceAttestation> attestRag2ProjectSource({
       contentHash: contentHash,
       capabilityClass: capability.capabilityClass.name,
       capabilityRisk: capability.riskTier.name,
+      attestedText: retainText ? attestedText : null,
     );
   } on FormatException {
     return Rag2SourceAttestation.rejected(
@@ -215,6 +218,35 @@ _deriveGitState({
   required String contentHash,
 }) {
   if (!evidence.available) return null;
+  switch (evidence.collectedState) {
+    case Rag2CollectedGitState.cleanTracked:
+      final blob = evidence.headBlobRevision?.trim() ?? '';
+      if (evidence.lsFilesExitCode != 0 || blob.isEmpty) return null;
+      return (
+        sourceTrust: 'workspace_tracked',
+        worktreeState: 'clean',
+        revisionKind: 'git_blob',
+        revision: 'git_blob:$blob',
+      );
+    case Rag2CollectedGitState.modifiedTracked:
+      if (evidence.lsFilesExitCode != 0) return null;
+      return (
+        sourceTrust: 'workspace_tracked',
+        worktreeState: 'modified',
+        revisionKind: 'working_tree_content',
+        revision: 'working_tree_sha256:$contentHash',
+      );
+    case Rag2CollectedGitState.untracked:
+      if (evidence.lsFilesExitCode != 1) return null;
+      return (
+        sourceTrust: 'workspace_untracked',
+        worktreeState: 'untracked',
+        revisionKind: 'working_tree_content',
+        revision: 'working_tree_sha256:$contentHash',
+      );
+    case null:
+      break;
+  }
   final status = evidence.statusPorcelain.trimRight();
   if (evidence.lsFilesExitCode == 0) {
     if (status.isEmpty) {
@@ -286,6 +318,7 @@ final class Rag2SourceAttestation {
     this.contentHash,
     this.capabilityClass,
     this.capabilityRisk,
+    this.attestedText,
   });
 
   factory Rag2SourceAttestation.attested({
@@ -299,6 +332,7 @@ final class Rag2SourceAttestation {
     required String contentHash,
     required String capabilityClass,
     required String capabilityRisk,
+    String? attestedText,
   }) => Rag2SourceAttestation._(
     caseId: caseId,
     decision: 'attested',
@@ -311,6 +345,7 @@ final class Rag2SourceAttestation {
     contentHash: contentHash,
     capabilityClass: capabilityClass,
     capabilityRisk: capabilityRisk,
+    attestedText: attestedText,
   );
 
   factory Rag2SourceAttestation.rejected({
@@ -336,6 +371,13 @@ final class Rag2SourceAttestation {
   final String? contentHash;
   final String? capabilityClass;
   final String? capabilityRisk;
+  final String? attestedText;
+
+  bool get hasBoundText =>
+      decision == 'attested' &&
+      attestedText != null &&
+      contentHash != null &&
+      contentHash == _sha256(attestedText!);
 
   Map<String, Object?> toJson() => {
     'caseId': caseId,
@@ -360,12 +402,14 @@ final class Rag2GitEvidence {
     required this.lsFilesExitCode,
     required this.statusPorcelain,
     this.headBlobRevision,
+    this.collectedState,
   });
 
   final bool available;
   final int lsFilesExitCode;
   final String statusPorcelain;
   final String? headBlobRevision;
+  final Rag2CollectedGitState? collectedState;
 
   factory Rag2GitEvidence.fromJson(Map<String, Object?> json) =>
       Rag2GitEvidence(
@@ -375,6 +419,8 @@ final class Rag2GitEvidence {
         headBlobRevision: json['headBlobRevision'] as String?,
       );
 }
+
+enum Rag2CollectedGitState { cleanTracked, modifiedTracked, untracked }
 
 final class Rag2ProvenanceCaseSpec {
   const Rag2ProvenanceCaseSpec({

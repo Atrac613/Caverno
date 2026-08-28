@@ -8,7 +8,7 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/application/persistence/caverno_persistence_bootstrap.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
-import 'package:caverno/features/chat/data/datasources/app_database.dart';
+import 'package:caverno/features/chat/data/datasources/app_database_open.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/tool_result_artifact_store.dart';

@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This document is the durable index for the ongoing RAG2 investigation on
-`feature/rag2-lexical-policy-spike`. Update it in every investigation slice. It
-preserves the sequence of experiments,
+This document is the durable index for the ongoing RAG2 investigation across
+`main` and its focused follow-up branches. Update it in every investigation
+slice. It preserves the sequence of experiments,
 decisions, rejected approaches, frozen evidence, and next entry condition when
 the branch is squash-merged.
 
@@ -63,6 +63,67 @@ boundaries, and duplicate semantic locators fail closed. Reports contain only
 metadata and hashes. The offline discovery contract is Go; no active workspace
 is enumerated, storage is not evaluated, and production remains No-Go.
 
+`rag2-git-evidence-collector-contract-v1` closes the execution-boundary gap
+found before live shadowing. Exact, shell-free, NUL-delimited Git probes run
+under timeout and output limits, require the selected project root to equal the
+repository root, and produce typed clean-tracked / modified-tracked / untracked
+states. Command failure, malformed or inconsistent output, subdirectory roots,
+and resource overflow fail closed. The discovery evaluator now resolves
+evidence lazily through a provider while preserving frozen fixture output. No
+live manifest or app path existed in that slice; storage and production
+remained No-Go.
+
+`rag2-source-manifest-shadow-contract-v1` connects discovery and typed Git
+evidence only through an explicit CLI opt-in. It emits metadata JSON to stdout,
+builds no chunks, writes no application storage, hashes project identity, and
+omits roots, source text, and command output. Temporary repositories prove
+clean, modified, untracked, generated, symlink, limit, and root-mismatch
+behavior. The final Caverno live preflight measured 2,816 candidates and failed
+closed on a 16-file limit before Git collection; this also exceeds the v1 hard
+ceiling of 2,048. The adapter contract is Go, the current Caverno manifest is
+No-Go, and production remains No-Go.
+
+`rag2-source-scope-measurement-contract-v1` reuses the discovery walk before
+Git, emits only aggregate top-level/source-role counts, and compares explicit
+profiles without selecting one. The final snapshot has 2,819 candidates.
+Runtime-only and runtime-plus-top-level-doc profiles exceed the default file
+ceiling; retaining tests as well reaches 2,557 files and exceeds the hard
+ceiling. The measurement contract is Go and scope selection remains No-Go.
+
+`rag2-batch-git-inventory-contract-v1` obtains exact-root preflight,
+repository-wide NUL status, and stage-zero index blobs in three fixed commands.
+A real temporary repository matches the frozen per-path state and clean
+revision semantics for clean, modified, untracked, staged, renamed, space, and
+Unicode cases. Bounded transport and ambiguous inventories fail closed. Batch
+parity is Go.
+
+The batch collector is now integrated into the opt-in manifest shadow through
+one shared source inventory. In-bound repositories use exactly three Git
+commands, discovery-limit failures use zero, and the complete report JSON
+matches the frozen per-path oracle. Manifest integration is Go; Caverno source
+scope, storage, retrieval, and production remain No-Go. The final live
+preflight measured 2,823 candidates and failed closed before Git on a 16-file
+limit.
+
+The `rag2-source-role-coverage-contract-v1` Go was withdrawn after audit: it
+used an unbounded evidence read, did not block eligibility at the default
+ceiling, accepted only one marker per question, and emitted no inventory
+identity. `rag2-source-role-coverage-contract-v2` uses all-of required markers,
+bounded path-fenced reads with post-read reauthorization, aggregate inventory
+and evidence identities, duplicate-path rejection, and default-limit-aware
+eligibility. The profiles still cover 2/8, 4/8, and 6/8 development questions;
+all exceed the default ceiling. V2 required-source coverage is Go;
+source-profile selection, retrieval, storage, and production remain No-Go.
+
+`rag2-structural-profile-candidate-contract-v1` freezes one question-independent
+candidate before reading the development fixture. Fixed role quotas and stable
+path-hash ranking select 509 files and about 5.34 MiB within default limits,
+with instruction-bearing files excluded. The later development replay covers
+6/8 questions, missing one runtime and the tooling question at the aggregate
+role level. The unchanged candidate then covered 4/8 on one untouched holdout,
+missing one documentation, both test, and the tooling question. Close this
+stratified stable-hash strategy and do not tune or revive v1.
+
 ## Investigation sequence
 
 | Step | Pre-squash commit | Experiment | Result and durable decision | Evidence |
@@ -91,6 +152,35 @@ is enumerated, storage is not evaluated, and production remains No-Go.
 | 22 | `Knowledge Object audit slice` | Identity, invalidation, lifecycle, and report-safety audit | V2 corrects ordinal identity, provenance-only updates, object add/remove accounting, and raw report leakage. The offline contract is Go; discovery, storage, and production remain deferred/No-Go. | `docs/rag2_knowledge_object_contract_audit_2026-08-25.md` |
 | 23 | `Provenance attestation slice` | Project, root, revision, trust, and read-capability attestation | Persisted project identity survives a root move; clean/modified/untracked Git states derive exact revisions and trust; unavailable Git, symlink escape, binary, and oversized inputs fail closed. Source discovery remains absent. | `docs/rag2_provenance_attestation_contract_2026-08-25.md` |
 | 24 | `Source discovery slice` | Fixture-root source discovery and candidate chunking | Two attested sources produce five deterministic Markdown/Dart chunks under file and corpus limits. Generated content, unsupported extensions, symlinks, missing evidence, and ambiguous locators fail closed. Production discovery and storage remain absent. | `docs/rag2_source_discovery_chunking_replay_2026-08-26.md` |
+| 25 | `Git evidence collector slice` | Bounded Git execution and typed evidence collection | Exact NUL-delimited probes classify clean, modified, untracked, Unicode, space-bearing, and renamed paths. Root mismatch, timeout, output overflow, invalid paths, and ambiguous output fail closed. Discovery gains a lazy provider boundary; no live manifest is connected. | `docs/rag2_git_evidence_collector_2026-08-26.md` |
+| 26 | `Source manifest shadow slice` | Explicit live project manifest without chunks or storage | An opt-in stdout-only CLI preserves bounded exclusions and typed Git failures without roots or source text. Temporary repositories pass; the Caverno preflight finds 2,816 candidates and fails closed before Git because file count exceeds both the selected limit and v1 hard ceiling. | `docs/rag2_source_manifest_shadow_2026-08-26.md` |
+| 27 | `Source scope measurement slice` | Pre-Git aggregate scope and role measurement | Shared discovery inventory reports no individual paths or text. Runtime-only is 1,116 files, runtime plus top-level docs is 1,572, and adding tests reaches 2,557. No scope or limit change is selected. | `docs/rag2_source_scope_measurement_2026-08-26.md` |
+| 28 | `Batch Git inventory slice` | Fixed-command state and revision parity | One exact-root preflight, one NUL status inventory, and one NUL stage inventory match the per-path oracle across clean, changed, untracked, staged, renamed, and unusual-name cases. Aggregate reports omit paths and Git payloads; manifest integration remains absent. | `docs/rag2_batch_git_inventory_replay_2026-08-26.md` |
+| 29 | `Batch manifest integration slice` | Single-inventory manifest evidence integration | The opt-in shadow checks limits before Git, uses exactly three Git commands in-bound, and matches the frozen per-path manifest JSON. Scope selection, storage, and production remain No-Go. | `docs/rag2_batch_manifest_shadow_integration_2026-08-26.md` |
+| 30 | `Source-role coverage slice` | Active-project oracle path coverage by measured profile | V1 reported 2/8, 4/8, and 6/8 question coverage, but its Go was later withdrawn by the contract audit. Path coverage is not retrieval evidence. | `docs/rag2_source_role_coverage_replay_2026-08-26.md` |
+| 31 | `Source-role coverage contract audit` | Bounded reads, evidence completeness, identity, and eligibility semantics | V1 Go is withdrawn. V2 requires all markers, rejects post-inventory growth and symlink substitution, fingerprints aggregate inventory/evidence state, and makes the default ceiling an eligibility blocker. The 2/8, 4/8, and 6/8 results remain development diagnostics only. | `docs/rag2_source_role_coverage_replay_2026-08-26.md` |
+| 32 | `Structural profile candidate` | Question-independent bounded source-role sampling | Fixed role quotas and stable path hashing select 509 files within default limits. The candidate was frozen before fixture use, then covered 6/8 informed development questions. It remains No-Go and cannot be tuned before an untouched holdout. | `docs/rag2_structural_profile_candidate_2026-08-26.md` |
+| 33 | `Structural profile untouched holdout` | Independent required-source coverage for the unchanged candidate | The fixture was frozen before candidate use with no development evidence-path overlap. V1 covered 4/8: runtime 2/2, documentation 1/2, tests 0/2, tooling 0/1, and root sources 1/1. Close stratified stable-hash sampling; scope and production remain No-Go. | `docs/rag2_structural_profile_holdout_2026-08-26.md` |
+| 34 | `Explicit source roots hypothesis` | Caller-declared complete directories with no intra-root sampling | Freeze `rag2-explicit-complete-source-roots-v1`: explicit non-overlapping directories, complete eligible inclusion, unchanged default limits, zero admission on failure, and aggregate-only output. The policy was frozen before the synthetic implementation; no Caverno roots are selected. | `docs/rag2_explicit_source_roots_hypothesis_2026-08-26.md` |
+| 35 | `Explicit source roots synthetic replay` | Root validation, complete admission, batch Git, and all-or-nothing attestation | Nine synthetic cases prove complete in-root admission, explicit repository root, order-independent identities, invalid/duplicate/overlapping/missing/file/symlink rejection, default file-limit zero-Git failure, Git failure rollback, attestation rollback, and aggregate-only output. Contract Go; active-project evaluation and scope selection remain No-Go. | `docs/rag2_explicit_source_roots_hypothesis_2026-08-26.md` |
+| 36 | `Explicit roots development declaration` | Freeze a realistic task context and complete roots before questions | The chat memory and conversation-persistence declaration fixes five layer roots. Active-project preflight admits all 451 eligible sources in 3 Git commands with zero blockers. Questions have not been created; storage, retrieval, and production remain No-Go. | `docs/rag2_explicit_source_roots_development_declaration_2026-08-26.md` |
+| 37 | `Explicit roots development evaluation` | Frozen in-scope evidence and out-of-scope availability controls | The unchanged five-root declaration passes 11/11 decisions: 12/12 required in-scope paths admitted, 4/4 out-of-scope paths excluded, and 4/4 controls reported `not_available`. Development Go only; an untouched declaration and holdout are still required. | `docs/rag2_explicit_source_roots_development_eval_2026-08-26.md` |
+| 38 | `Explicit roots promotion evaluation` | Untouched routines-lifecycle declaration and holdout | The separately frozen declaration passes 11/11 decisions with 8/8 in-scope paths admitted and 4/4 out-of-scope controls unavailable. Complete explicit roots are promotion scope Go. | `docs/rag2_explicit_source_roots_promotion_eval_2026-08-26.md` |
+| 39 | `Backend-neutral storage replay` | Declaration-scoped atomic generation semantics | Initial apply, identical no-op, exact stale replacement, deterministic replay, and attestation/policy/injected-failure rollback pass over composed frozen contracts. Storage semantics are Go; retrieval is not evaluated and production remains No-Go. | `docs/rag2_storage_replay_contract_2026-08-26.md` |
+| 40 | `Attested-text binding` | One bounded read for hash, chunks, and stored content | Discovery chunks and storage objects reuse the attested normalized snapshot. A later file change cannot alter stored chunk text. Reports still omit source text. | `docs/rag2_storage_replay_contract_2026-08-26.md` |
+| 41 | `Frozen-declaration acquisition CI` | Live Git-backed acquisition for both frozen explicit-root declarations | Development and promotion declarations rerun inventory, batch Git, and attestation in CI. Questions score from admitted paths on the evaluation envelope, not a duplicated prefix oracle. Selected-metadata hashes remain checkout observations, not CI pins. | `docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md` |
+| 42 | `Declaration identity alignment` | Shared hasher for acquisition and storage | Storage uses `rag2ExplicitSourceRootsDeclarationIdentity`. Same sorted roots produce the same declaration hash as explicit-root acquisition. Project identity stays separate. The withdrawn storage-contract-plus-project-id hash is not reused. | `docs/rag2_storage_replay_contract_2026-08-26.md` |
+| 43 | `Persistence reopen hypothesis` | Durable reopen, crash discard, and unknown-schema refusal | File-backed JSON reopens generation 2, discards a crash partial or missing-current backup back to generation 1, rejects schema version 2 without mutation, isolates two projects that share roots, and refuses a snapshot from another project. Attested chunk text is persisted; reports still omit it. No production backend is selected. | `docs/rag2_persistence_reopen_hypothesis_2026-08-27.md` |
+| 44 | `SQLite durability mapping` | Isolated sqlite3 file hosting the frozen generation contract | A new connection reopens generation 2. Killing a writer with an uncommitted replacement recovers generation 1. Concurrent writers serialize onto increasing generations. Row envelope fields must match the payload. Unsupported schema fails closed. Two projects share one file without mixing rows. No FTS5 tables. Drift and production remain unselected. | `docs/rag2_sqlite_durability_hypothesis_2026-08-27.md` |
+| 45 | `Drift additive schema mapping` | Frozen generation rows hosted by AppDatabase schema version 5 | A v4 database with LL5 embedding rows upgrades without rewriting those rows or conversation-search FTS5. Generation 2 reopens. Process-death recovery leaves generation 1. No RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_drift_additive_schema_hypothesis_2026-08-27.md` |
+| 46 | `Drift DAO generation store` | Frozen row contract applied through Drift table accessors | Generation 2 reopens by selecting `rag2_generations` through the DAO. Killing an uncommitted Drift writer recovers generation 1. Concurrent Drift writers serialize. No RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_drift_dao_generation_store_hypothesis_2026-08-27.md` |
+| 47 | `FTS5 additive index` | Isolated chunk FTS5 beside conversation-search | `rag2_chunk_search` binds project, declaration, generation, and snapshot hash. Atomic replacement rolls back on injected failure. Every chunk must MATCH. Two projects stay isolated. AppDatabase stays at v5. Retrieval and production remain No-Go. | `docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md` |
+| 48 | `FTS5 AppDatabase host` | Opt-in FTS5 hosted by AppDatabase apply | Schema version 5 does not create RAG2 FTS5. Opt-in `indexSearch` writes the index in the same transaction as the generation row. Injected commit failure and a killed writer recover the previous generation and index. Retrieval and production remain No-Go. | `docs/rag2_fts5_appdatabase_host_hypothesis_2026-08-27.md` |
+| 49 | `FTS5 incremental index` | Delta patch of hosted FTS5 using the frozen Knowledge Object delta | Empty slots still full-replace. Generation 2 skips unchanged `rowid`/`content`, rewrites metadata-updated terms, deletes removed ids, and inserts added ids. Injected commit failure and a killed writer recover the previous generation and unchanged rowids. Retrieval and production remain No-Go. | `docs/rag2_fts5_incremental_index_hypothesis_2026-08-27.md` |
+| 50 | `FTS5 visibility drop` | Drop/clear removes FTS visibility for one identity | `clearSearchIndex` keeps generation 2 and hides MATCH. A later indexed apply may restore the slot. `drop` deletes the generation row and slot together. Injected commit failure and a killed drop recover generation 2 and its envelope, terms, and MATCH. A neighbor project stays visible. Retrieval and production remain No-Go. | `docs/rag2_fts5_visibility_drop_hypothesis_2026-08-27.md` |
+| 51 | `FTS5 rebuild reopen` | Rebuild/reopen repair FTS from the generation payload | `rebuildSearchIndex` full-replaces a cleared or mismatched slot from generation 2 without a new snapshot. Rebuild twice and reopen keep envelope, terms, and MATCH. Injected commit failure and a killed rebuild of a cleared slot leave the previous slot. A neighbor project stays visible. Retrieval and production remain No-Go. | `docs/rag2_fts5_rebuild_reopen_hypothesis_2026-08-27.md` |
+| 52 | `FTS5 hosted query` | Identity-scoped MATCH reads one hosted slot | `querySearchIndex` tokenizes with Dart trigram terms, binds the committed generation envelope, and returns a `List` of chunk ids ordered by `chunk_id`, not BM25. A mismatched envelope fails closed. Clear hides hits; rebuild restores them. Host and neighbor each hit their own ids with no cross-leak. An unindexed generation stays without RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_fts5_hosted_query_hypothesis_2026-08-27.md` |
+| 53 | `FTS5 query projection` | MATCH ids join committed generation provenance | `projectSearchIndex` reads the generation once, MATCH-queries that envelope, and returns locator, hash, repo-relative path, revision, line span, source trust, and the generation envelope without chunk content. Unknown or divergent FTS rows fail closed. Host and neighbor stay isolated. An unindexed generation stays without RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_fts5_hosted_query_projection_hypothesis_2026-08-27.md` |
 
 ## Rejected shortcuts
 
@@ -107,6 +197,45 @@ is enumerated, storage is not evaluated, and production remains No-Go.
 - Do not treat the fixture-root discovery pass as authorization to enumerate an
   active project, execute Git in production, persist chunks, or inject retrieved
   content. Its evidence proves only the bounded offline acquisition contract.
+- Do not reuse `GitChangedPathsService` as RAG2 evidence. Its fail-open empty
+  result is correct for its current caller but cannot prove a clean repository.
+- Do not treat the standalone Git collector as authorization to enumerate a
+  project. Project selection and manifest-only report safety remain a separate
+  live-shadow gate.
+- Do not raise the live-shadow file ceiling from the Caverno aggregate count.
+  Measure source scope first; per-path Git collection over the whole repository
+  would multiply process cost without deciding which sources belong in RAG2.
+- Do not treat oracle path membership as retrieval or answer-quality evidence.
+  The source-role fixture informed the comparison and cannot promote a profile.
+- Do not tune or revive `structural_stratified_v1` from its 6/8 development or
+  4/8 untouched-holdout misses. A different policy needs a new predeclared
+  hypothesis and a new untouched holdout.
+- Do not treat the file-backed JSON reopen instrument as a SQLite, FTS5, or
+  Drift selection. It proves durability semantics only.
+- Do not treat the isolated SQLite durability instrument as a Drift schema,
+  FTS5 index, or production path. It maps generation reopen onto sqlite3 only.
+- Do not treat the Drift additive schema as RAG2 FTS5, retrieval, settings,
+  tools, or chat/runtime wiring. Empty generation tables are not a production
+  path.
+- Do not treat the Drift DAO write path as RAG2 FTS5, retrieval, settings,
+  tools, or chat/runtime wiring. Selecting generation rows through Drift is
+  not a production path.
+- Do not treat the isolated FTS5 index as retrieval, settings, tools, or
+  chat/runtime wiring. Matching every chunk id is not a quality gate.
+- Do not treat AppDatabase-hosted RAG2 FTS5 as retrieval, settings, tools, or
+  chat/runtime wiring. Opt-in indexing is not a production path.
+- Do not treat incremental FTS5 patching as retrieval, settings, tools, or
+  chat/runtime wiring. Skipping unchanged `rowid` values is not a quality gate.
+- Do not treat FTS5 visibility drop as retrieval, settings, tools, or
+  chat/runtime wiring. MATCH returning zero rows is not a quality gate.
+- Do not treat FTS5 rebuild/reopen as retrieval, settings, tools, or
+  chat/runtime wiring. Repairing MATCH from the generation payload is not a
+  quality gate.
+- Do not treat hosted FTS5 MATCH as retrieval, settings, tools, or
+  chat/runtime wiring. A hit count is not a quality gate.
+- Do not treat FTS5 query projection as retrieval, settings, tools, or
+  chat/runtime wiring. Joining MATCH ids to generation provenance is not
+  a quality gate.
 
 ## Durable artifacts
 
@@ -144,20 +273,82 @@ sequence and reproduction inputs do not rely on its individual commits.
 
 ## Verification baseline
 
-The final branch state passed static analysis, package tests, 70 focused RAG2
-tests, and 10 notification-relay tests through `tool/codex_verify.sh`. Future
-changes should run the RAG2 tests listed under `test/tool/` through the same
-entrypoint and must not rewrite the frozen fixture versions.
+The squash-merged baseline passed static analysis, package tests, 70 focused
+RAG2 tests, and 10 notification-relay tests through `tool/codex_verify.sh`. The
+Git collector slice adds seven focused cases. Future changes should run the RAG2
+tests listed under `test/tool/` through the same entrypoint and must not rewrite
+the frozen fixture versions. The collector baseline has 77 RAG2 tests; the
+manifest-shadow slice adds five focused cases, the source-scope measurement
+adds three, the batch inventory adds five, and the batch manifest integration
+adds one. The source-role coverage replay v2 replaces five focused cases with
+11, and the structural-profile candidate adds five. Project/package static
+analysis remains the required gate. The current complete suite contains 123
+focused RAG2 tests before the promotion slice; the frozen holdout declaration
+and promotion evaluation increase it to 129, the storage replay increases it
+to 134, and the attested-text binding increases it to 137. Frozen-declaration
+acquisition CI increases it to 140. Shared declaration identity increases it
+to 141. Persistence reopen increases it to 149. Isolated SQLite durability
+increases it to 158. Drift additive schema increases it to 169. Drift DAO
+generation-store writes increase it to 182. The isolated FTS5 index increases
+it to 193. AppDatabase-hosted FTS5 increases it to 203. Incremental FTS5
+indexing increases it to 213. Visibility drop increases it to 223.
+Rebuild/reopen increases it to 235. Hosted query increases it to 245.
+Query projection increases it to 255.
 
 ## Next entry condition
 
 Freeze the extraction suites, `rag2-passage-role-oracle-v1`, corrected
 `rag2-knowledge-object-contract-v2`, and
 `rag2-provenance-attestation-contract-v1`, and
-`rag2-source-discovery-contract-v1`; retain withdrawn versions only as history.
-The next slice may add one opt-in, manifest-only live-shadow adapter for an
-explicitly selected `CodingProject`. It must collect the frozen attestation's
-Git evidence read-only, remain bounded and off by default, omit source text,
-write no storage, and prove clean, modified, untracked, generated, symlink, and
-limit behavior before any index schema is considered. Do not add FTS5,
-embeddings, prompting, routing, tools, or model calls.
+`rag2-source-discovery-contract-v1`, and
+`rag2-git-evidence-collector-contract-v1`, and
+`rag2-source-manifest-shadow-contract-v1`, and
+`rag2-source-scope-measurement-contract-v1`, and
+`rag2-batch-git-inventory-contract-v1`, and
+`rag2-source-role-coverage-contract-v2`; retain v1 only as withdrawn history.
+Freeze `rag2-structural-profile-candidate-contract-v1` and its failed holdout
+unchanged. The batch manifest integration is Go, the per-path collector stays
+the frozen parity oracle, and stratified stable-hash sampling is closed. The
+synthetic replay for `rag2-explicit-complete-source-roots-v1` is Go. The chat
+memory and conversation-persistence development declaration is frozen and
+passes active-project acquisition preflight and all development scope gates. A
+separately frozen routines-lifecycle declaration passes the unchanged evaluator
+on an untouched 11-case promotion holdout: 8/8 in-scope evidence paths are
+admitted and 4/4 out-of-scope controls are excluded. Explicit complete source
+roots are promotion scope Go. The backend-neutral
+`rag2-storage-replay-contract-v1` now composes the frozen Knowledge Object v2,
+provenance, discovery, and source-scope contracts and passes atomic generation,
+no-op, invalidation, deterministic replay, and rollback gates. Storage semantics
+are Go; retrieval is not evaluated and production remains No-Go. Keep this
+fixture frozen. Discovery and storage now reuse the attested bounded-read
+snapshot; do not restore a second unfenced file read. Frozen development and
+promotion declarations now rerun Git-backed acquisition in CI and score
+questions from the admitted set. Acquisition and storage now share
+declaration identity for the same sorted roots. A file-backed persistence
+reopen replay restores the last committed generation, discards a crash
+partial, and refuses an unsupported schema without mutation. Isolated SQLite
+durability maps those rules onto a sqlite3 file through transactions. Drift
+additive schema hosts the same row contract on `AppDatabase` version 5 without
+rewriting LL5 embedding rows or conversation-search FTS5. Drift DAO writes
+apply and reopen that contract through `select` and `insertOnConflictUpdate`
+without changing the row envelope. An isolated `rag2_chunk_search` FTS5 index
+can sit beside conversation-search on that host file without bumping schema
+version 5. Replacement is transactional and bound to project, declaration,
+generation, and snapshot hash; Go requires every chunk to MATCH. Opt-in
+AppDatabase-hosted indexing writes that slot in the same transaction as the
+generation upsert without bumping schema version 5. Incremental indexing
+patches that slot from the frozen Knowledge Object delta so unchanged
+content keeps its FTS5 `rowid`, removed ids leave the index, and added ids
+are inserted. `drop` removes a generation and its FTS slot;
+`clearSearchIndex` hides FTS visibility until a later indexed apply,
+without dropping neighbor slots. `rebuildSearchIndex` full-replaces a
+cleared or mismatched slot from the committed generation payload without
+bumping generation; reopen keeps that repaired slot. Identity-scoped MATCH
+reads that slot through Dart trigram terms bound to the committed
+generation envelope, without BM25 ranking or a no-answer gate. A
+mismatched envelope fails closed. MATCH ids project onto committed
+generation provenance without chunk content; an unknown or divergent FTS
+row fails closed. This does
+not select retrieval or production wiring. Prompting,
+routing, tools, model calls, settings, and chat/runtime wiring remain out of
+scope.

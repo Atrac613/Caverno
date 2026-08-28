@@ -1,30 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-import 'package:path_provider/path_provider.dart';
+
+import 'rag2_drift_schema.dart';
 
 part 'app_database.g.dart';
-
-/// Opens the production drift database backed by a SQLite file in the app
-/// support directory. F4 bootstrap calls this once; failures fall back to Hive.
-Future<AppDatabase> openAppDatabase({File? databaseFile}) async {
-  final file =
-      databaseFile ??
-      File('${(await resolveCavernoDataRoot()).path}/caverno.sqlite');
-  await file.parent.create(recursive: true);
-  return AppDatabase(NativeDatabase.createInBackground(file));
-}
-
-/// Resolves the shared persistence and execution-lease root for a frontend.
-Future<Directory> resolveCavernoDataRoot({
-  Directory? explicitDataDirectory,
-}) async {
-  final directory =
-      explicitDataDirectory ?? await getApplicationSupportDirectory();
-  return Directory.fromUri(directory.absolute.uri.normalizePath());
-}
 
 /// F4: conversations stored in SQLite via drift.
 ///
@@ -137,6 +118,63 @@ class ModelUsageDaily extends Table {
   };
 }
 
+/// RAG2 generation-store metadata. Envelope version 1 lives here; AppDatabase
+/// schema version 5 only hosts the tables.
+@DataClassName('Rag2StoreMetaRow')
+class Rag2StoreMeta extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {key};
+}
+
+/// RAG2 declaration-scoped generation row. Payload reuses the persistence
+/// encoder; envelope columns must match that payload on read.
+@DataClassName('Rag2GenerationRow')
+class Rag2Generations extends Table {
+  TextColumn get projectIdentity => text()();
+  TextColumn get declarationIdentity => text()();
+  TextColumn get schemaName => text()();
+  IntColumn get schemaVersion => integer()();
+  TextColumn get contract => text()();
+  TextColumn get projectId => text()();
+  IntColumn get generation => integer()();
+  TextColumn get snapshotHash => text()();
+  TextColumn get payload => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {projectIdentity, declarationIdentity};
+}
+
+/// One pretokenized RAG2 FTS5 row. Callers supply Dart-side trigram terms;
+/// AppDatabase does not tokenize.
+final class Rag2ChunkSearchRow {
+  const Rag2ChunkSearchRow({
+    required this.chunkId,
+    required this.objectId,
+    required this.content,
+  });
+
+  final String chunkId;
+  final String objectId;
+  final String content;
+}
+
+/// One MATCH hit from `rag2_chunk_search`, including identity columns needed
+/// to fail closed when the FTS row diverges from the generation payload.
+final class Rag2ChunkSearchMatchedRow {
+  const Rag2ChunkSearchMatchedRow({
+    required this.chunkId,
+    required this.objectId,
+    required this.content,
+  });
+
+  final String chunkId;
+  final String objectId;
+  final String content;
+}
+
 /// Local epoch-day for [timestamp], matching the convention used by the
 /// dashboard's activity heatmap so both features bucket a day identically.
 int modelUsageDayNumber(DateTime timestamp) {
@@ -150,7 +188,14 @@ int modelUsageDayNumber(DateTime timestamp) {
 }
 
 @DriftDatabase(
-  tables: [Conversations, ChatMemoryEntries, Embeddings, ModelUsageDaily],
+  tables: [
+    Conversations,
+    ChatMemoryEntries,
+    Embeddings,
+    ModelUsageDaily,
+    Rag2StoreMeta,
+    Rag2Generations,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
@@ -162,14 +207,19 @@ class AppDatabase extends _$AppDatabase {
   /// drift-managed table, so it is created and kept in sync with raw SQL.
   static const _conversationSearchTable = 'conversation_search';
 
+  /// Isolated RAG2 chunk FTS5. Created on demand; not part of schema version 5.
+  static const rag2ChunkSearchTable = 'rag2_chunk_search';
+  static const rag2ChunkSearchTokenizer = 'unicode61';
+
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
       await _createConversationSearchTable();
+      await _seedRag2StoreMeta();
     },
     onUpgrade: (m, from, to) async {
       if (from < 2) {
@@ -182,8 +232,68 @@ class AppDatabase extends _$AppDatabase {
       if (from < 4) {
         await m.createTable(modelUsageDaily);
       }
+      if (from < 5) {
+        await _addRag2TablesIfMissing(m);
+      }
     },
   );
+
+  Future<void> _addRag2TablesIfMissing(Migrator m) async {
+    final tables = await _sqliteTableNames();
+    final hasMeta = tables.contains('rag2_store_meta');
+    final hasGenerations = tables.contains('rag2_generations');
+    if (hasMeta != hasGenerations) {
+      throw const Rag2DriftSchemaException('unsupported_schema');
+    }
+    if (hasMeta && hasGenerations) {
+      await _requireCurrentRag2StoreMeta();
+      return;
+    }
+    await m.createTable(rag2StoreMeta);
+    await m.createTable(rag2Generations);
+    await _seedRag2StoreMeta();
+  }
+
+  Future<Set<String>> _sqliteTableNames() async {
+    final rows = await customSelect(
+      "SELECT name FROM sqlite_master WHERE type = 'table'",
+    ).get();
+    return {for (final row in rows) row.read<String>('name')};
+  }
+
+  Future<void> _requireCurrentRag2StoreMeta() async {
+    final metadata = await _rag2StoreMetaValues();
+    if (metadata['schema_name'] != rag2DriftStoreSchema ||
+        metadata['schema_version'] != '$rag2DriftStoreSchemaVersion' ||
+        metadata['contract'] != rag2DriftAdditiveSchemaContract) {
+      throw const Rag2DriftSchemaException('unsupported_schema');
+    }
+  }
+
+  Future<Map<String, String>> _rag2StoreMetaValues() async {
+    final rows = await customSelect(
+      'SELECT key, value FROM rag2_store_meta',
+    ).get();
+    return {
+      for (final row in rows)
+        row.read<String>('key'): row.read<String>('value'),
+    };
+  }
+
+  Future<void> _seedRag2StoreMeta() async {
+    await customStatement(
+      'INSERT INTO rag2_store_meta(key, value) '
+      'VALUES (?, ?), (?, ?), (?, ?)',
+      [
+        'schema_name',
+        rag2DriftStoreSchema,
+        'schema_version',
+        '$rag2DriftStoreSchemaVersion',
+        'contract',
+        rag2DriftAdditiveSchemaContract,
+      ],
+    );
+  }
 
   Future<void> _createConversationSearchTable() async {
     await customStatement(
@@ -231,6 +341,370 @@ class AppDatabase extends _$AppDatabase {
         body: _extractSearchBody(row.payload),
       );
     }
+  }
+
+  /// Creates `rag2_chunk_search` beside conversation-search. This is not a
+  /// schema version 5 migration and does not rewrite conversation-search rows.
+  Future<void> ensureRag2ChunkSearchTable() {
+    return customStatement(
+      'CREATE VIRTUAL TABLE IF NOT EXISTS $rag2ChunkSearchTable USING fts5('
+      'project_identity UNINDEXED, declaration_identity UNINDEXED, '
+      'generation UNINDEXED, snapshot_hash UNINDEXED, '
+      'chunk_id UNINDEXED, object_id UNINDEXED, content, '
+      'tokenize=$rag2ChunkSearchTokenizer)',
+    );
+  }
+
+  /// Replaces one project/declaration slot.
+  ///
+  /// Owns `BEGIN IMMEDIATE` / `COMMIT` unless [inTransaction] is true. A
+  /// mid-write failure then rolls back to the previous slot instead of
+  /// leaving an empty or partial index. DELETE is scoped to the target
+  /// project and declaration identities. Use this for an empty slot, a
+  /// missing index, or a slot that does not match the previous generation.
+  Future<void> writeRag2ChunkSearchIndex({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required int generation,
+    required String snapshotHash,
+    required List<Rag2ChunkSearchRow> rows,
+    void Function()? beforeCommit,
+    bool inTransaction = false,
+  }) async {
+    if (inTransaction) {
+      await _replaceRag2ChunkSearchRows(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+        generation: generation,
+        snapshotHash: snapshotHash,
+        rows: rows,
+      );
+      return;
+    }
+    var settled = false;
+    await customStatement('BEGIN IMMEDIATE');
+    try {
+      await ensureRag2ChunkSearchTable();
+      await _replaceRag2ChunkSearchRows(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+        generation: generation,
+        snapshotHash: snapshotHash,
+        rows: rows,
+      );
+      beforeCommit?.call();
+      await customStatement('COMMIT');
+      settled = true;
+    } on Object {
+      if (!settled) {
+        try {
+          await customStatement('ROLLBACK');
+        } on Object {
+          // The connection may already have rolled back.
+        }
+      }
+      rethrow;
+    }
+  }
+
+  /// Patches one project/declaration slot from a Knowledge Object delta.
+  ///
+  /// Unchanged rows keep `content` and should keep their FTS5 `rowid`.
+  /// Envelope columns (`generation`, `snapshot_hash`) are updated so the
+  /// slot stays consistent. Metadata-updated rows rewrite `object_id` and
+  /// `content`. Removed ids are deleted. Added rows are inserted.
+  ///
+  /// Owns `BEGIN IMMEDIATE` / `COMMIT` unless [inTransaction] is true.
+  Future<void> patchRag2ChunkSearchIndex({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required int generation,
+    required String snapshotHash,
+    required List<String> unchangedChunkIds,
+    required List<Rag2ChunkSearchRow> metadataUpdatedRows,
+    required List<String> removedChunkIds,
+    required List<Rag2ChunkSearchRow> addedRows,
+    void Function()? beforeCommit,
+    bool inTransaction = false,
+  }) async {
+    if (inTransaction) {
+      await _patchRag2ChunkSearchRows(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+        generation: generation,
+        snapshotHash: snapshotHash,
+        unchangedChunkIds: unchangedChunkIds,
+        metadataUpdatedRows: metadataUpdatedRows,
+        removedChunkIds: removedChunkIds,
+        addedRows: addedRows,
+      );
+      return;
+    }
+    var settled = false;
+    await customStatement('BEGIN IMMEDIATE');
+    try {
+      await ensureRag2ChunkSearchTable();
+      await _patchRag2ChunkSearchRows(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+        generation: generation,
+        snapshotHash: snapshotHash,
+        unchangedChunkIds: unchangedChunkIds,
+        metadataUpdatedRows: metadataUpdatedRows,
+        removedChunkIds: removedChunkIds,
+        addedRows: addedRows,
+      );
+      beforeCommit?.call();
+      await customStatement('COMMIT');
+      settled = true;
+    } on Object {
+      if (!settled) {
+        try {
+          await customStatement('ROLLBACK');
+        } on Object {
+          // The connection may already have rolled back.
+        }
+      }
+      rethrow;
+    }
+  }
+
+  /// Deletes one project/declaration FTS5 slot without rewriting other slots.
+  ///
+  /// Does not create `rag2_chunk_search` if it is absent. Owns
+  /// `BEGIN IMMEDIATE` / `COMMIT` unless [inTransaction] is true.
+  Future<void> clearRag2ChunkSearchIndex({
+    required String projectIdentity,
+    required String declarationIdentity,
+    void Function()? beforeCommit,
+    bool inTransaction = false,
+  }) async {
+    if (inTransaction) {
+      await _clearRag2ChunkSearchRows(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+      );
+      return;
+    }
+    var settled = false;
+    await customStatement('BEGIN IMMEDIATE');
+    try {
+      await _clearRag2ChunkSearchRows(
+        projectIdentity: projectIdentity,
+        declarationIdentity: declarationIdentity,
+      );
+      beforeCommit?.call();
+      await customStatement('COMMIT');
+      settled = true;
+    } on Object {
+      if (!settled) {
+        try {
+          await customStatement('ROLLBACK');
+        } on Object {
+          // The connection may already have rolled back.
+        }
+      }
+      rethrow;
+    }
+  }
+
+  /// Returns chunk ids matching [matchQuery] in one project/declaration slot.
+  ///
+  /// Does not create `rag2_chunk_search` if it is absent. Rows must carry
+  /// [generation] and [snapshotHash] or the query fails closed. Results are
+  /// ordered by `chunk_id`, not BM25 rank. A non-positive [limit] returns no
+  /// ids. This is not a retrieval quality gate.
+  Future<List<String>> queryRag2ChunkSearchChunkIds({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required int generation,
+    required String snapshotHash,
+    required String matchQuery,
+    int limit = 32,
+  }) async {
+    if (limit < 1 ||
+        matchQuery.trim().isEmpty ||
+        !await _rag2ChunkSearchTableExists()) {
+      return const [];
+    }
+    final boundedLimit = limit > 256 ? 256 : limit;
+    final rows = await customSelect(
+      'SELECT chunk_id FROM $rag2ChunkSearchTable '
+      'WHERE $rag2ChunkSearchTable MATCH ? '
+      'AND project_identity = ? AND declaration_identity = ? '
+      'AND generation = ? AND snapshot_hash = ? '
+      'ORDER BY chunk_id LIMIT ?',
+      variables: [
+        Variable<String>(matchQuery),
+        Variable<String>(projectIdentity),
+        Variable<String>(declarationIdentity),
+        Variable<int>(generation),
+        Variable<String>(snapshotHash),
+        Variable<int>(boundedLimit),
+      ],
+    ).get();
+    return [for (final row in rows) row.read<String>('chunk_id')];
+  }
+
+  /// Returns MATCH hits with `chunk_id`, `object_id`, and stored terms.
+  ///
+  /// Same identity, envelope, order, and limit rules as
+  /// [queryRag2ChunkSearchChunkIds]. Does not create `rag2_chunk_search`.
+  /// This is not a retrieval quality gate.
+  Future<List<Rag2ChunkSearchMatchedRow>> queryRag2ChunkSearchMatchedRows({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required int generation,
+    required String snapshotHash,
+    required String matchQuery,
+    int limit = 32,
+  }) async {
+    if (limit < 1 ||
+        matchQuery.trim().isEmpty ||
+        !await _rag2ChunkSearchTableExists()) {
+      return const [];
+    }
+    final boundedLimit = limit > 256 ? 256 : limit;
+    final rows = await customSelect(
+      'SELECT chunk_id, object_id, content FROM $rag2ChunkSearchTable '
+      'WHERE $rag2ChunkSearchTable MATCH ? '
+      'AND project_identity = ? AND declaration_identity = ? '
+      'AND generation = ? AND snapshot_hash = ? '
+      'ORDER BY chunk_id LIMIT ?',
+      variables: [
+        Variable<String>(matchQuery),
+        Variable<String>(projectIdentity),
+        Variable<String>(declarationIdentity),
+        Variable<int>(generation),
+        Variable<String>(snapshotHash),
+        Variable<int>(boundedLimit),
+      ],
+    ).get();
+    return [
+      for (final row in rows)
+        Rag2ChunkSearchMatchedRow(
+          chunkId: row.read<String>('chunk_id'),
+          objectId: row.read<String>('object_id'),
+          content: row.read<String>('content'),
+        ),
+    ];
+  }
+
+  Future<void> _replaceRag2ChunkSearchRows({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required int generation,
+    required String snapshotHash,
+    required List<Rag2ChunkSearchRow> rows,
+  }) async {
+    await customStatement(
+      'DELETE FROM $rag2ChunkSearchTable '
+      'WHERE project_identity = ? AND declaration_identity = ?',
+      [projectIdentity, declarationIdentity],
+    );
+    for (final row in rows) {
+      await customStatement(
+        'INSERT INTO $rag2ChunkSearchTable('
+        'project_identity, declaration_identity, generation, snapshot_hash, '
+        'chunk_id, object_id, content) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+          projectIdentity,
+          declarationIdentity,
+          generation,
+          snapshotHash,
+          row.chunkId,
+          row.objectId,
+          row.content,
+        ],
+      );
+    }
+  }
+
+  Future<void> _patchRag2ChunkSearchRows({
+    required String projectIdentity,
+    required String declarationIdentity,
+    required int generation,
+    required String snapshotHash,
+    required List<String> unchangedChunkIds,
+    required List<Rag2ChunkSearchRow> metadataUpdatedRows,
+    required List<String> removedChunkIds,
+    required List<Rag2ChunkSearchRow> addedRows,
+  }) async {
+    for (final chunkId in unchangedChunkIds) {
+      await customStatement(
+        'UPDATE $rag2ChunkSearchTable '
+        'SET generation = ?, snapshot_hash = ? '
+        'WHERE project_identity = ? AND declaration_identity = ? AND chunk_id = ?',
+        [
+          generation,
+          snapshotHash,
+          projectIdentity,
+          declarationIdentity,
+          chunkId,
+        ],
+      );
+    }
+    for (final row in metadataUpdatedRows) {
+      await customStatement(
+        'UPDATE $rag2ChunkSearchTable '
+        'SET generation = ?, snapshot_hash = ?, object_id = ?, content = ? '
+        'WHERE project_identity = ? AND declaration_identity = ? AND chunk_id = ?',
+        [
+          generation,
+          snapshotHash,
+          row.objectId,
+          row.content,
+          projectIdentity,
+          declarationIdentity,
+          row.chunkId,
+        ],
+      );
+    }
+    for (final chunkId in removedChunkIds) {
+      await customStatement(
+        'DELETE FROM $rag2ChunkSearchTable '
+        'WHERE project_identity = ? AND declaration_identity = ? AND chunk_id = ?',
+        [projectIdentity, declarationIdentity, chunkId],
+      );
+    }
+    for (final row in addedRows) {
+      await customStatement(
+        'INSERT INTO $rag2ChunkSearchTable('
+        'project_identity, declaration_identity, generation, snapshot_hash, '
+        'chunk_id, object_id, content) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+          projectIdentity,
+          declarationIdentity,
+          generation,
+          snapshotHash,
+          row.chunkId,
+          row.objectId,
+          row.content,
+        ],
+      );
+    }
+  }
+
+  Future<void> _clearRag2ChunkSearchRows({
+    required String projectIdentity,
+    required String declarationIdentity,
+  }) async {
+    if (!await _rag2ChunkSearchTableExists()) {
+      return;
+    }
+    await customStatement(
+      'DELETE FROM $rag2ChunkSearchTable '
+      'WHERE project_identity = ? AND declaration_identity = ?',
+      [projectIdentity, declarationIdentity],
+    );
+  }
+
+  Future<bool> _rag2ChunkSearchTableExists() async {
+    final rows = await customSelect(
+      'SELECT 1 AS present FROM sqlite_master WHERE name = ?',
+      variables: [Variable<String>(rag2ChunkSearchTable)],
+    ).get();
+    return rows.isNotEmpty;
   }
 
   /// Returns conversation ids matching [query], ranked by FTS relevance.

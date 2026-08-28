@@ -188,10 +188,62 @@ void main() {
           headBlobRevision: '1111111111111111111111111111111111111111',
         ),
       );
+      final inconsistentTypedState = await attestRag2ProjectSource(
+        caseId: 'inconsistent-typed-state',
+        project: _project(directory.path),
+        repoRelativePath: 'source.md',
+        gitEvidence: const Rag2GitEvidence(
+          available: true,
+          lsFilesExitCode: 1,
+          statusPorcelain: '',
+          headBlobRevision: '1111111111111111111111111111111111111111',
+          collectedState: Rag2CollectedGitState.cleanTracked,
+        ),
+      );
 
       expect(ambiguous.reason, 'git_state_ambiguous');
       expect(missingProject.reason, 'project_identity_unavailable');
       expect(mismatchedStatus.reason, 'git_state_ambiguous');
+      expect(inconsistentTypedState.reason, 'git_state_ambiguous');
+    },
+  );
+
+  test(
+    'binds retained text to the attested hash and omits it from JSON',
+    () async {
+      final directory = Directory.systemTemp.createTempSync('rag2-bound-text-');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      const original = 'attested-bound-marker\r\nsecond line\n';
+      File('${directory.path}/source.md').writeAsStringSync(original);
+
+      final discarded = await attestRag2ProjectSource(
+        caseId: 'discarded',
+        project: _project(directory.path),
+        repoRelativePath: 'source.md',
+        gitEvidence: _trackedCleanEvidence,
+      );
+      final retained = await attestRag2ProjectSource(
+        caseId: 'retained',
+        project: _project(directory.path),
+        repoRelativePath: 'source.md',
+        gitEvidence: _trackedCleanEvidence,
+        retainText: true,
+      );
+      File(
+        '${directory.path}/source.md',
+      ).writeAsStringSync('mutated-after-attest');
+
+      expect(discarded.hasBoundText, isFalse);
+      expect(discarded.attestedText, isNull);
+      expect(retained.hasBoundText, isTrue);
+      expect(retained.attestedText, 'attested-bound-marker\nsecond line\n');
+      expect(retained.attestedText, isNot(contains('\r')));
+      expect(
+        jsonEncode(retained.toJson()),
+        isNot(contains('attested-bound-marker')),
+      );
+      expect(jsonEncode(retained.toJson()), isNot(contains('attestedText')));
+      expect(retained.attestedText, isNot('mutated-after-attest'));
     },
   );
 }
