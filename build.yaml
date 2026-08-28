@@ -1,0 +1,12 @@
+# tool/fixtures/ holds replay corpora that are read as plain files at test time,
+# never compiled as part of this package. One of them
+# (rag2_source_discovery_replay) ships a checked-in `lib/config.g.dart` on
+# purpose: the discovery contract has to prove that generated files are excluded
+# from a RAG corpus. Without this exclusion build_runner claims that path as one
+# of its own outputs and `--delete-conflicting-outputs` deletes it, which turns
+# CI's "Ensure generated files were committed" gate red on every run.
+targets:
+  $default:
+    sources:
+      exclude:
+        - tool/fixtures/**

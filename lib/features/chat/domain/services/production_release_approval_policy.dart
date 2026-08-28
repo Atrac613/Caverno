@@ -5,27 +5,16 @@ import '../entities/chat_turn_owner.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'ask_user_question_turn_cache.dart';
+import 'production_release_approval_wording_predicates.dart';
+import 'production_release_blocked_result.dart';
 import 'tool_call_execution_policy.dart';
-// ChatNotifier decomposition collaborator: production-release-approval-policy
-/// Directs a blocked release through recorded approval UI.
-///
-/// The instruction names a token because the harness must not decide approval
-/// by reading words. Every wording-based verdict is bound to the languages
-/// somebody enumerated: the predicates below read "never release this" and
-/// "nao execute o release" as approvals, and refuse genuine approvals in
-/// German and Chinese. A token the harness issued and can compare by equality
-/// is language-independent, and the model stays free to write the human half
-/// of the label in whatever language the user speaks.
-String productionReleaseApprovalRequiredActionFor(String approvalToken) =>
-    'Call ask_user_question with exactly one option whose label contains the '
-    'approval token $approvalToken, and no other option carrying that token. '
-    'Write the rest of that label, and the question, in the language the user '
-    'is speaking. Retry the release only after the user selects that option. '
-    'A plain-text reply is not recorded as release approval, and neither is a '
-    'free-text answer -- the user has to select the token-bearing option.';
 
-/// Length of an issued approval token, in hex characters.
-const int productionReleaseApprovalTokenLength = 16;
+export 'production_release_blocked_result.dart'
+    show
+        productionReleaseApprovalRequiredActionFor,
+        productionReleaseApprovalTokenLength;
+
+// ChatNotifier decomposition collaborator: production-release-approval-policy
 
 final class ProductionReleasePrecedingMessage {
   const ProductionReleasePrecedingMessage({
@@ -82,6 +71,8 @@ final class ProductionReleaseApprovalPolicy {
 
   static const ToolCallExecutionPolicy _executionPolicy =
       ToolCallExecutionPolicy();
+  static const ProductionReleaseApprovalWordingPredicates _wording =
+      ProductionReleaseApprovalWordingPredicates();
 
   ProductionReleaseApprovalProof captureProof({
     required ChatTurnOwner owner,
@@ -165,28 +156,11 @@ final class ProductionReleaseApprovalPolicy {
     if (!isProductionReleaseCommandToolCall(toolCall) || ownerApproved) {
       return null;
     }
-
-    final command =
-        _executionPolicy.toolCommandArgument(toolCall.arguments) ?? '';
-    final assistantIntent = currentAssistantContent?.trim() ?? '';
-    final payload = jsonEncode({
-      'ok': false,
-      'code': 'production_release_explicit_approval_required',
-      'error':
-          'A production release command was blocked because the latest user '
-          'message or ask_user_question answer did not explicitly approve '
-          'production release execution.',
-      'command': command,
-      if (assistantIntent.isNotEmpty)
-        'assistant_intent': _clipForDiagnostic(assistantIntent),
-      'required_action': productionReleaseApprovalRequiredActionFor(
-        approvalToken,
-      ),
-    });
-    return McpToolResult(
+    return buildProductionReleaseBlockedResult(
       toolName: toolCall.name,
-      result: payload,
-      isSuccess: true,
+      command: _executionPolicy.toolCommandArgument(toolCall.arguments) ?? '',
+      assistantIntent: currentAssistantContent ?? '',
+      approvalToken: approvalToken,
     );
   }
 
@@ -262,198 +236,31 @@ final class ProductionReleaseApprovalPolicy {
     if (selected is! List) return false;
     for (final option in selected) {
       final label = option is Map ? option['label'] : option;
-      if (label is String &&
-          label.toLowerCase().contains(normalizedToken)) {
+      if (label is String && label.toLowerCase().contains(normalizedToken)) {
         return true;
       }
     }
     return false;
   }
 
-  /// Legacy wording-based verdict, kept for shadow comparison only.
+  /// Legacy wording-based verdicts, kept for shadow comparison only.
   ///
-  /// Do not grant approval from this. See [answerApprovesToken].
-  bool answerApproves(McpToolResult answerResult) {
-    if (!answerResult.isSuccess) return false;
-    final decoded = _decodeJsonObject(answerResult.result);
-    if (decoded == null || decoded['status'] != 'answered') return false;
+  /// Do not grant approval from any of these. See [answerApprovesToken], and
+  /// [ProductionReleaseApprovalWordingPredicates] for why they are wrong.
+  bool answerApproves(McpToolResult answerResult) =>
+      _wording.answerApproves(answerResult);
 
-    var questionText = '';
-    final answerEvidence = <String>[];
-    void addEvidence(Object? value) {
-      if (value is String && value.trim().isNotEmpty) {
-        answerEvidence.add(value.trim());
-      }
-    }
+  bool looksLikeExplicitProductionReleaseApproval(String content) =>
+      _wording.looksLikeExplicitProductionReleaseApproval(content);
 
-    final questionValue = decoded['question'];
-    if (questionValue is String && questionValue.trim().isNotEmpty) {
-      questionText = questionValue.trim();
-    }
-    addEvidence(decoded['answer']);
-    addEvidence(decoded['other']);
-    final selected = decoded['selected'];
-    if (selected is List) {
-      for (final option in selected) {
-        if (option is Map) {
-          addEvidence(option['label']);
-          addEvidence(option['description']);
-          addEvidence(option['preview']);
-        } else {
-          addEvidence(option);
-        }
-      }
-    }
+  bool looksLikeProductionReleaseApprovalPrompt(String content) =>
+      _wording.looksLikeProductionReleaseApprovalPrompt(content);
 
-    if (answerEvidence.isEmpty) return false;
-    if (answerEvidence.any(looksLikeExplicitProductionReleaseApproval)) {
-      return true;
-    }
-    if (!looksLikeExplicitProductionReleaseApproval(questionText)) {
-      return false;
-    }
-    return answerEvidence.any(looksLikeAffirmativeReleaseApprovalAnswer);
-  }
+  bool mentionsProductionRelease(String content) =>
+      _wording.mentionsProductionRelease(content);
 
-  bool looksLikeExplicitProductionReleaseApproval(String content) {
-    final lowerContent = content.toLowerCase();
-    if (RegExp(r'^\s*(release|ship)\b').hasMatch(lowerContent)) return true;
-    if (!mentionsProductionRelease(content)) return false;
-    return _containsAny(lowerContent, const [
-          'run',
-          'execute',
-          'start',
-          'publish',
-          'upload',
-          'ship',
-          'production',
-          'prod',
-          'go ahead',
-        ]) ||
-        _containsAnyCodeUnitSequence(content, const [
-          [0x5b9f, 0x884c],
-          [0x9032, 0x3081],
-          [0x516c, 0x958b],
-          [0x30a2, 0x30c3, 0x30d7, 0x30ed, 0x30fc, 0x30c9],
-          [0x672c, 0x756a],
-          [0x3057, 0x3066],
-          [0x304a, 0x9858, 0x3044],
-          [0x3084, 0x3063, 0x3066],
-        ]);
-  }
-
-  bool looksLikeProductionReleaseApprovalPrompt(String content) {
-    if (!mentionsProductionRelease(content)) return false;
-    final lowerContent = content.toLowerCase();
-    final asksForApproval =
-        _containsAny(lowerContent, const [
-          'approve',
-          'approval',
-          'confirm',
-          'permission',
-          'authorize',
-          'run',
-          'execute',
-          'proceed',
-        ]) ||
-        content.contains('?') ||
-        content.contains(String.fromCharCode(0xff1f)) ||
-        _containsAnyCodeUnitSequence(content, const [
-          [0x627f, 0x8a8d],
-          [0x8a31, 0x53ef],
-          [0x5b9f, 0x884c],
-          [0x9032, 0x3081],
-          [0x3057, 0x307e, 0x3059, 0x304b],
-        ]);
-    if (!asksForApproval) return false;
-    return _containsAny(lowerContent, const [
-          'production',
-          'prod',
-          'command',
-          'release',
-        ]) ||
-        _containsAnyCodeUnitSequence(content, const [
-          [0x672c, 0x756a],
-          [0x30b3, 0x30de, 0x30f3, 0x30c9],
-          [0x30ea, 0x30ea, 0x30fc, 0x30b9],
-        ]);
-  }
-
-  bool mentionsProductionRelease(String content) {
-    final lowerContent = content.toLowerCase();
-    return _containsAny(lowerContent, const [
-          'release',
-          'publish',
-          'upload',
-          'app store connect',
-          'sparkle',
-          's3',
-        ]) ||
-        _containsAnyCodeUnitSequence(content, const [
-          [0x30ea, 0x30ea, 0x30fc, 0x30b9],
-          [0x672c, 0x756a],
-          [0x516c, 0x958b],
-          [0x30a2, 0x30c3, 0x30d7, 0x30ed, 0x30fc, 0x30c9],
-        ]);
-  }
-
-  bool looksLikeAffirmativeReleaseApprovalAnswer(String content) {
-    final lowerContent = content.toLowerCase();
-    if (_containsAny(lowerContent, const [
-      'do not',
-      "don't",
-      'dont',
-      'no',
-      'cancel',
-      'decline',
-      'deny',
-      'reject',
-      'skip',
-      'stop',
-      'block',
-      'not release',
-      'not now',
-    ])) {
-      return false;
-    }
-    return _containsAny(lowerContent, const [
-          'approve',
-          'approved',
-          'yes',
-          'go ahead',
-          'proceed',
-          'run',
-          'execute',
-          'release',
-          'ship',
-        ]) ||
-        _containsAnyCodeUnitSequence(content, const [
-          [0x627f, 0x8a8d],
-          [0x306f, 0x3044],
-          [0x9032, 0x3081],
-          [0x5b9f, 0x884c],
-          [0x516c, 0x958b],
-          [0x672c, 0x756a],
-          [0x304a, 0x9858, 0x3044],
-          [0x3084, 0x3063, 0x3066],
-        ]);
-  }
-
-  String _clipForDiagnostic(String value, {int maxLength = 240}) {
-    final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (normalized.length <= maxLength) return normalized;
-    return '${normalized.substring(0, maxLength)}...';
-  }
-
-  bool _containsAny(String value, List<String> needles) {
-    return needles.any(value.contains);
-  }
-
-  bool _containsAnyCodeUnitSequence(String text, List<List<int>> sequences) {
-    return sequences.any(
-      (sequence) => text.contains(String.fromCharCodes(sequence)),
-    );
-  }
+  bool looksLikeAffirmativeReleaseApprovalAnswer(String content) =>
+      _wording.looksLikeAffirmativeReleaseApprovalAnswer(content);
 
   Map<String, dynamic>? _decodeJsonObject(String value) {
     try {

@@ -105,20 +105,6 @@ part 'chat_notifier_network_mutation_part.dart';
 part 'chat_notifier_unexecuted_action_retry_part.dart';
 part 'chat_notifier_printed_tool_call_part.dart';
 
-/// Project roots the fixtures below name by literal path.
-const _fixtureProjectRoots = <String>[
-  '/tmp/project',
-  '/tmp/project-1',
-  '/tmp/content-tools-project',
-  '/tmp/planning-project',
-  '/tmp/thread-switch-project',
-  '/tmp/caverno',
-  '/tmp/caverno-path-dedupe',
-  '/tmp/goal-auto-content-tool',
-  '/tmp/goal-auto-continue-off',
-  '/tmp/question-switch-project',
-];
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(registerChatTurnOwnerFallback);
