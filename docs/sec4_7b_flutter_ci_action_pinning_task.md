@@ -66,6 +66,14 @@ tool/codex_verify.sh --no-codegen \
   --test test/tool/flutter_ci_action_pinning_test.dart
 ```
 
+## Superseded Test Location
+
+`test/tool/flutter_ci_action_pinning_test.dart` was renamed to
+`test/tool/supply_chain_pinning_test.dart` by SEC4.7c and generalized to every
+workflow, so the action allowlist below lives in exactly one place. Use
+`fvm flutter test --no-pub test/tool/supply_chain_pinning_test.dart` in place of
+the command in the Verification section above.
+
 ## Handoff Notes
 
 - Summary: all ten external-action invocations in pull-request CI now resolve to

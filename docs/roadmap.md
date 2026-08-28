@@ -132,7 +132,7 @@ handoffs can refer to the same unit of work over time.
 | Platform Vision | API1 | later | Normalize Chat Completions, Responses-style APIs, and local-provider extensions into one Agent Event Core. | Promote only after the current LL backlog is stable; first slice defines the event schema and replay fixture. |
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC2 | done | Enforce taint-aware execution before cached or full-access authorization. | SEC2.3b is complete: high-risk tainted mutations block, other tainted network/state actions require fresh approval, and cache/full-access regressions pass. |
-| Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Continue SEC4.7/SA-16 supply-chain hardening. SEC4.5g completed same-device Remote Coding interaction ownership on 2026-08-24. |
+| Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | SEC4.7/SA-16 is closed by SEC4.7c on 2026-08-28. Continue with the remaining P1-3 lifecycle items: SA-18 debug-log handling and attachment deletion are still partial, and SA-09 reviewed routine MCP grants are pending. |
 | Platform Vision | OBS1 | later | Build an Agent Trace Timeline for model calls, tools, checkpoints, slots, evals, and maintenance runs. | Start before making LL13 parallel worktrees a product-facing agent-farm feature. |
 | Platform Vision | COMPAT1 | next | Add an OpenAI-compatible endpoint conformance suite for protocol and provider-behavior diagnostics. | Start with a diagnostic CLI seeded by LL9 live lifecycle evidence; keep model capability separate from endpoint protocol support. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
@@ -174,11 +174,11 @@ Remote Coding product promotion remain gated by their SEC4 owner.
 | 3 | SEC4.3f | done | SA-21 | Apply bounded streaming and decompression limits to application-owned MCP and QR inputs. | Completed 2026-08-24: MCP HTTP/stdio and parse limits are bounded; settings QR import rejects oversized Base64/compressed input and caps chunked gzip output before decoding. |
 | 4 | SEC4.6k | done | SA-22 | Enforce owner-only sensitive log storage and structured diagnostic redaction. | Completed 2026-08-24: sensitive logs use owner-only modes; MCP diagnostics redact structured secrets and omit bodies; fresh installs default session logging off while stored choices remain unchanged. |
 | 5 | SEC4.5g / RC1 | done | SA-23 | Recheck pending-interaction origin and enforce device ownership at resolution. | Completed 2026-08-24: paired devices are separate principals; only the active initiating device can view or resolve its pending interactions, while same-device reconnects retain access. |
+| 6 | SEC4.7c | done | SA-16 | Close the supply-chain residuals left by SEC4.7a/SEC4.7b: immutable actions in the last two workflows, least-privilege write credentials, a pinned FVM, the Gradle distribution checksum, and npm dependency monitoring. | Completed 2026-08-28: all seventeen external action invocations resolve to five reviewed SHAs, the write-capable SDK-update job runs on `contents: read`, FVM and the Gradle distribution are pinned and checksum-verified, and the deployed npm relay is monitored. `test/tool/supply_chain_pinning_test.dart` passes with four injected defects detected. |
 
-Keep each row as a separate task and focused PR. Remaining SEC4.7/SA-16 work is
-still required, but follows the two High severity release blockers unless the
-affected local-command and HTML Preview capabilities are absent from the release
-artifact under the audit risk-acceptance policy.
+Keep each row as a separate task and focused PR. SEC4.7/SA-16 is now closed;
+the two High severity release blockers (SEC4.4g, SEC4.3e) closed before it, in
+the order this queue records.
 
 ## Plan Mode Track
 

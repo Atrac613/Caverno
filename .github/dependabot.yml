@@ -14,6 +14,19 @@ updates:
       prefix: chore
     open-pull-requests-limit: 10
 
+  - package-ecosystem: npm
+    directory: /services/notification_relay
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:10"
+      timezone: Asia/Tokyo
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+    open-pull-requests-limit: 5
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

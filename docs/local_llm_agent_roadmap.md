@@ -6035,10 +6035,15 @@ Slice plan:
    omits response and stderr bodies. **SEC4.6k-C (P1 follow-up, completed
    2026-08-24)** defaults session logging off for new installs while preserving
    explicit and migrated existing choices.
-7. **SEC4.7 — Supply-chain and release hardening (P1).** Pin GitHub Actions to
-   immutable commits, minimize write credentials, pin automation tool versions,
-   monitor npm dependencies, add the Gradle distribution checksum, and fail
-   Android release builds without release signing material.
+7. **SEC4.7 — Supply-chain and release hardening (P1, completed 2026-08-28).**
+   Pin GitHub Actions to immutable commits, minimize write credentials, pin
+   automation tool versions, monitor npm dependencies, add the Gradle
+   distribution checksum, and fail Android release builds without release
+   signing material. **SEC4.7a (completed 2026-08-23)** removes the Android
+   release-to-debug signing fallback. **SEC4.7b (completed 2026-08-23)** pins
+   pull-request CI actions. **SEC4.7c (completed 2026-08-28)** closes the
+   remaining four controls; see
+   `docs/sec4_7c_supply_chain_residuals_task.md`.
 
 Acceptance criteria:
 - The P0 release criteria in `docs/security_audit_2026-08-14.md` are all met.
