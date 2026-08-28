@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/ask_user_question_turn_cache.dart';
@@ -11,36 +12,61 @@ import 'package:test/test.dart';
 void main() {
   late Map<int, ChatTurnOwner> owners;
   late Map<int, String> activeConversations;
+  late AskUserQuestionTurnCache questionResults;
   late ProductionReleaseApprovalCoordinator coordinator;
+  const token = 'rel-0123456789abcdef';
 
   setUp(() {
     owners = {7: _owner()};
     activeConversations = {7: 'conversation-a'};
+    questionResults = AskUserQuestionTurnCache();
     coordinator = ProductionReleaseApprovalCoordinator(
       activeConversationId: (generation) => activeConversations[generation],
       ownerForGeneration: (generation) => owners[generation],
-      questionResults: AskUserQuestionTurnCache(),
+      questionResults: questionResults,
+      approvalTokenFactory: () => token,
     );
   });
 
-  test('keeps captured approval scoped to its generation and conversation', () {
+  /// Records the user selecting the one offered option carrying [token].
+  void selectTokenOption({String approveLabel = 'Approve $token'}) {
+    questionResults.store(
+      owner: _owner(),
+      question: 'Approve the production release?',
+      optionLabels: [approveLabel, 'Cancel'],
+      result: McpToolResult(
+        toolName: 'ask_user_question',
+        result: jsonEncode({
+          'status': 'answered',
+          'question': 'Approve the production release?',
+          'selected': [
+            {'label': approveLabel},
+          ],
+          'answer': approveLabel,
+        }),
+        isSuccess: true,
+      ),
+    );
+  }
+
+  test('a chat message never approves, and the divergence is recorded', () {
     coordinator.captureProof(
       generation: 7,
       conversation: _conversation(),
       submittedContent: 'Run the production release now.',
     );
 
-    expect(coordinator.evidenceFor(7).approved, isTrue);
-
-    activeConversations[7] = 'conversation-b';
-    expect(coordinator.evidenceFor(7).approved, isFalse);
-
-    activeConversations[7] = 'conversation-a';
-    coordinator.clearGeneration(7);
-    expect(coordinator.evidenceFor(7).approved, isFalse);
+    final evidence = coordinator.evidenceFor(7);
+    expect(evidence.approved, isFalse);
+    expect(
+      evidence.proseWouldApprove,
+      isTrue,
+      reason: 'the retired predicates still read this as approval',
+    );
+    expect(evidence.shadowDivergenceLogLine, isNotNull);
   });
 
-  test('accepts an affirmative reply only after an approval prompt', () {
+  test('an affirmative reply after a prompt still does not approve', () {
     coordinator.captureProof(
       generation: 7,
       conversation: _conversation(
@@ -54,7 +80,54 @@ void main() {
       submittedContent: 'Yes, proceed.',
     );
 
-    expect(coordinator.evidenceFor(7).approved, isTrue);
+    expect(coordinator.evidenceFor(7).approved, isFalse);
+  });
+
+  test('the shadow verdict agrees once the token option is selected', () {
+    selectTokenOption();
+    // Nothing is pending yet, so no token has been issued.
+    expect(coordinator.evidenceFor(7).approved, isFalse);
+  });
+
+  test('a token issued for one conversation cannot approve another', () {
+    final toolCall = ToolCallInfo(
+      id: 'release-call',
+      name: 'local_execute_command',
+      arguments: const {'command': './release_ios_macos.sh'},
+    );
+    // Block in conversation-a, which issues the token there.
+    coordinator.buildGuardResult(
+      toolCall,
+      currentAssistantContent: null,
+      evidence: coordinator.evidenceFor(7),
+    );
+    expect(coordinator.approvalToken('conversation-a'), token);
+
+    // The same answer, recorded against another conversation's turn owner.
+    questionResults.store(
+      owner: ChatTurnOwner(
+        conversationId: 'conversation-b',
+        interactionGeneration: 7,
+      ),
+      question: 'Approve the production release?',
+      optionLabels: ['Approve $token', 'Cancel'],
+      result: McpToolResult(
+        toolName: 'ask_user_question',
+        result: jsonEncode({
+          'status': 'answered',
+          'selected': [
+            {'label': 'Approve $token'},
+          ],
+        }),
+        isSuccess: true,
+      ),
+    );
+
+    expect(
+      coordinator.evidenceFor(7).approved,
+      isFalse,
+      reason: 'approval is scoped to the turn owner that was blocked',
+    );
   });
 
   test('tracks a blocked release until the owner approves it', () {
@@ -79,11 +152,25 @@ void main() {
       './release_ios_macos.sh',
     );
 
+    expect(coordinator.approvalToken('conversation-a'), token);
+
+    // Prose approval leaves the release blocked.
     coordinator.captureProof(
       generation: 7,
       conversation: _conversation(),
       submittedContent: 'I explicitly approve the production release.',
     );
+    expect(
+      coordinator.buildGuardResult(
+        toolCall,
+        currentAssistantContent: null,
+        evidence: coordinator.evidenceFor(7),
+      ),
+      isNotNull,
+    );
+
+    // Selecting the token-bearing option releases it.
+    selectTokenOption();
     final allowed = coordinator.buildGuardResult(
       toolCall,
       currentAssistantContent: null,
@@ -92,6 +179,11 @@ void main() {
 
     expect(allowed, isNull);
     expect(coordinator.pendingRelease('conversation-a'), isNull);
+    expect(
+      coordinator.approvalToken('conversation-a'),
+      isNull,
+      reason: 'the token authorized this release and nothing else',
+    );
   });
 }
 

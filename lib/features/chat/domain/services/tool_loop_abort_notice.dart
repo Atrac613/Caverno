@@ -11,13 +11,28 @@ import 'file_mutation_evidence_policy.dart';
 ///   saying "check your server configuration" sends the reader to the LLM
 ///   endpoint for a local `edit_file` whose `old_text` was not in the file;
 /// * what the turn already wrote to disk, because an abort can follow several
-///   successful edits and used to report only the failure that stopped it.
+///   successful edits and used to report only the failure that stopped it;
+/// * what the turn already ran, for the same reason. File evidence alone was
+///   blind to work done through the shell: in session 0e94a103 the whole task
+///   — `fvm use 3.47.1`, exit 0, `.fvmrc` moved 3.47.0 → 3.47.1 — landed four
+///   loops before an unrelated read aborted the turn, and the user was shown
+///   only "check the path with the user" about a file that never mattered. A
+///   turn that did the work must never report as a turn that did nothing.
 final class ToolLoopAbortNotice {
   const ToolLoopAbortNotice({
     FileMutationEvidencePolicy mutations = const FileMutationEvidencePolicy(),
   }) : _mutations = mutations;
 
   final FileMutationEvidencePolicy _mutations;
+
+  /// Longest command echoed into the notice.
+  static const int _maxCommandChars = 120;
+
+  /// Tools whose successful runs are worth reporting back to the user.
+  static const Set<String> _commandToolNames = <String>{
+    'local_execute_command',
+    'git_execute_command',
+  };
 
   /// Builds the notice appended to the assistant message on abort.
   ///
@@ -59,7 +74,53 @@ final class ToolLoopAbortNotice {
         'Already changed in this turn: ${changed.join(', ')}',
       );
     }
+    final ran = completedCommands(executedToolResults);
+    if (ran.isNotEmpty) {
+      buffer.writeln(
+        'Already ran successfully in this turn: ${ran.join(', ')}',
+      );
+    }
     return buffer.toString();
+  }
+
+  /// Commands this turn ran to a clean exit, in the order first issued.
+  ///
+  /// A command's file effects cannot be enumerated the way an `edit_file`
+  /// result's can, so the command itself is reported rather than a path. The
+  /// verdict comes from [ToolOutcome.exitCode] rather than from any phrase in
+  /// the output: an absent status means the process never reached an exit — it
+  /// was denied, timed out, or failed to spawn — and is left out, because an
+  /// unknown result must never read as a clean one.
+  ///
+  /// Read-only commands are reported alongside mutating ones. Telling the two
+  /// apart would mean classifying a command string, and the line claims only
+  /// what is actually known: these ran, and they exited cleanly.
+  List<String> completedCommands(List<ToolResultInfo> executedToolResults) {
+    // Insertion-ordered, so a re-run keeps the position of its first issue
+    // while the latest verdict decides whether it is reported at all.
+    final succeededByCommand = <String, bool>{};
+    for (final toolResult in executedToolResults) {
+      if (!_commandToolNames.contains(toolResult.name.trim().toLowerCase())) {
+        continue;
+      }
+      final rawCommand = toolResult.arguments['command']?.toString().trim();
+      if (rawCommand == null || rawCommand.isEmpty) continue;
+      // Last run wins: a command that failed and was then re-run cleanly has
+      // landed, and one that succeeded and then broke has not.
+      succeededByCommand[_normalizeCommand(rawCommand)] =
+          toolResult.outcome?.exitCode == 0;
+    }
+    return [
+      for (final entry in succeededByCommand.entries)
+        if (entry.value) '`${entry.key}`',
+    ];
+  }
+
+  static String _normalizeCommand(String command) {
+    final normalized = command.replaceAll(RegExp(r'\s+'), ' ');
+    return normalized.length > _maxCommandChars
+        ? '${normalized.substring(0, _maxCommandChars)}…'
+        : normalized;
   }
 
   /// Paths this turn successfully mutated, in the order they were written.

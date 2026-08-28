@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/coding_verification_evidence_contract.dart';
 import 'package:caverno/features/chat/domain/services/final_answer_claim_notice_applicator.dart';
@@ -197,6 +199,79 @@ All 5 tests passed.''';
 
     expect(result.content, content);
     expect(result.transformIds, isEmpty);
+  });
+
+  // HEU2: the applicator used to rebuild every ToolResultInfo without its
+  // outcome, so these three ground-truth paths were unreachable here and every
+  // check fell through to its prose fallback.
+  group('structured outcomes survive the freeze', () {
+    test('a no-op write does not count as a change', () {
+      final result = applicator.apply(
+        _input(
+          candidateContent: 'Updated: `lib/new.dart`.',
+          projectRoot: ownerRoot.path,
+          toolResults: [_noOpWrite(ownerRoot.path, 'lib/new.dart')],
+        ),
+      );
+
+      expect(
+        result.transformIds,
+        contains(FinalAnswerClaimNoticeApplicator.unwrittenFileTransformId),
+        reason: 'writing the same bytes back did not update the file',
+      );
+    });
+
+    test('a write that changed the file still counts as a change', () {
+      final result = applicator.apply(
+        _input(
+          candidateContent: 'Updated: `lib/new.dart`.',
+          projectRoot: ownerRoot.path,
+          toolResults: [
+            ToolResultInfo(
+              id: 'write-changed',
+              name: 'write_file',
+              arguments: const {'path': 'lib/new.dart'},
+              result: jsonEncode({
+                'path': '${ownerRoot.path}/lib/new.dart',
+                'bytes_written': 12,
+              }),
+              outcome: ToolOutcome(
+                fileMutations: [
+                  ToolFileMutation(
+                    path: '${ownerRoot.path}/lib/new.dart',
+                    byteSize: 12,
+                    changed: true,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        result.transformIds,
+        isNot(
+          contains(FinalAnswerClaimNoticeApplicator.unwrittenFileTransformId),
+        ),
+      );
+    });
+
+    test('typed test counts reach the verification guard', () {
+      final result = applicator.apply(
+        _input(
+          candidateContent: 'All 5 tests passed.',
+          projectRoot: ownerRoot.path,
+          toolResults: [_typedVerificationEvidence(passed: 1)],
+        ),
+      );
+
+      expect(
+        result.transformIds,
+        contains(FinalAnswerClaimNoticeApplicator.verificationTransformId),
+        reason: 'the structured counts contradict the claimed five',
+      );
+    });
   });
 
   test('checks file claims against the explicit owning project root', () {
@@ -401,6 +476,43 @@ ToolResultInfo _verificationEvidence({
         'arguments': ['test'],
       },
     }),
+  );
+}
+
+/// A write that reported the file unchanged: the same bytes went back.
+ToolResultInfo _noOpWrite(String root, String path) {
+  return ToolResultInfo(
+    id: 'write-$path',
+    name: 'write_file',
+    arguments: {'path': path},
+    result: jsonEncode({'path': '$root/$path', 'bytes_written': 12}),
+    outcome: ToolOutcome(
+      fileMutations: [
+        ToolFileMutation(path: '$root/$path', byteSize: 12, changed: false),
+      ],
+    ),
+  );
+}
+
+/// Verification evidence carried structurally rather than in the payload.
+ToolResultInfo _typedVerificationEvidence({
+  required int passed,
+  int failed = 0,
+  int skipped = 0,
+}) {
+  return ToolResultInfo(
+    id: 'typed-verification-evidence',
+    name: CodingVerificationEvidenceContract.toolName,
+    arguments: const {},
+    result: '{}',
+    outcome: ToolOutcome(
+      testOutcome: ToolTestOutcome(
+        passedCount: passed,
+        failedCount: failed,
+        skippedCount: skipped,
+        command: 'dart test',
+      ),
+    ),
   );
 }
 

@@ -24,6 +24,10 @@ handoffs can refer to the same unit of work over time.
   `docs/knowledge_currency_track_design.md`.
 - Use `TOOL<number>` for the user-created Tools workspace and manifest runtime
   milestones documented in `docs/tools_mvp_roadmap.md`.
+- Use `HEU<number>` for text-heuristic removal milestones — replacing prose
+  pattern matching with ground truth, structured self-report, or structured
+  elicitation so decisions stop being bound to the languages someone happened
+  to enumerate — documented in `docs/text_heuristic_inventory.md`.
 - Use `FORK<number>` for conversation fork/branching (chat + coding)
   milestones documented in this file under "Conversation Fork Track".
 - Use `CLI<number>` for the headless runtime and user-facing terminal client
@@ -67,6 +71,12 @@ handoffs can refer to the same unit of work over time.
 | Caverno CLI | CLI1 | done | Extract a shared application execution runtime without changing GUI behavior. | Use the shared typed runtime and CLI1 parity evidence as the terminal frontend boundary. |
 | Caverno CLI | CLI2 | done | Ship the interactive terminal MVP on the shared execution runtime. | Preserve the passing terminal and three-headless-plus-one-macOS parity gates as the CLI2 baseline; keep persistence, resume, and concurrent ownership in CLI3. |
 | Caverno CLI | CLI3 | done | Reuse production persistence and enforce cross-process ownership before conversation resume. | Preserve the persistence, resume, migration-retry, and direct-lock contention gates as the CLI3 baseline. |
+| Heuristic Removal | HEU1 | done | Make production release approval decidable only from a structured answer, never from prose. | Landed in `ef6af66d`: approval is decided by a per-release token, prose predicates run in shadow, and a six-language table asserts the coordinator verdict. Watch `[ProductionRelease] Shadow divergence` before deleting the predicates. |
+| Heuristic Removal | HEU2 | done | Stop discarding structured tool evidence at the claim-notice boundary. | Landed in `9cc6b68c`: `outcome` survives the freeze, reviving the typed mutation path, the no-op-mutation check, and the structured test-count path. HEU3 is unblocked. |
+| Heuristic Removal | HEU3 | blocked | Completion claims. Premise corrected 2026-08-27: ground truth verifies a claim but cannot detect one, so this needs structured self-report or unconditional fact-stating, not a conversion. | Baseline taken: file-claim guards fire 2-3 times in 715 turns and the narrated-transcript guard never has; the measured substitute collapsed from 22 to 3 turns once harness-injected results were separated from refusals. Unblock by making that distinction structural. |
+| Heuristic Removal | HEU4 | later | Git write confirmation. Measured 2026-08-27: 8 of 12 confirmation questions go unrecognised, including two in English and Japanese, so the assistant asks and commits without waiting. | Held deliberately: there is no token to route to, and the structural fix is moving confirmations onto `ask_user_question` rather than replacing a predicate. Blast radius is bounded by the (cacheable) git approval gate. |
+| Heuristic Removal | HEU5 | later | Replace the tool-role acceptance carve-outs. | Blocked on the tool-role regeneration measurement; do not change on current evidence. |
+| Heuristic Removal | HEU6 | later | Reduce proposal, goal-suggestion, and memory-extraction prose parsing. | Largest surface, lowest stakes; may stay best-effort by decision. |
 | Caverno CLI | CLI4 | later | Package and release the terminal client with automation-grade diagnostics. | The F5 dependency is satisfied; resume with macOS archive, launcher, checksum, and packaged-process gates, and require the signed packaged doctor for promotion. |
 | Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |

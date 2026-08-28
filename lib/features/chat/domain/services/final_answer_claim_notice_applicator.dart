@@ -1,42 +1,12 @@
-import '../entities/tool_call_info.dart';
+import 'blocked_mutation_notice.dart';
 import 'coding_verification_claim_guard.dart';
-import 'immutable_json_snapshot.dart';
+import 'final_answer_claim_notice_input.dart';
 import 'narrated_transcript_claim_guard.dart';
 import 'unwritten_file_claim_guard.dart';
 
+export 'final_answer_claim_notice_input.dart';
+
 // ChatNotifier decomposition collaborator: final-answer-claim-notice-applicator
-
-/// Immutable owner-scoped evidence used to annotate one final answer.
-final class FinalAnswerClaimNoticeInput {
-  FinalAnswerClaimNoticeInput({
-    required this.isCodingWorkspaceOrMode,
-    required this.candidateContent,
-    required List<ToolResultInfo> toolResults,
-    required List<String> executedCommands,
-    required String? projectRoot,
-    required this.offersCommandExecution,
-  }) : toolResults = List<ToolResultInfo>.unmodifiable(
-         toolResults.map(_freezeToolResult),
-       ),
-       executedCommands = List<String>.unmodifiable(executedCommands),
-       projectRoot = projectRoot?.trim();
-
-  final bool isCodingWorkspaceOrMode;
-  final String candidateContent;
-  final List<ToolResultInfo> toolResults;
-  final List<String> executedCommands;
-  final String? projectRoot;
-  final bool offersCommandExecution;
-
-  static ToolResultInfo _freezeToolResult(ToolResultInfo result) {
-    return ToolResultInfo(
-      id: result.id,
-      name: result.name,
-      arguments: ImmutableJsonSnapshot.freezeMap(result.arguments),
-      result: result.result,
-    );
-  }
-}
 
 /// Final content and owner-scoped transform IDs produced by the applicator.
 final class FinalAnswerClaimNoticeResult {
@@ -52,21 +22,25 @@ final class FinalAnswerClaimNoticeResult {
 /// Applies final-answer claim notices using only supplied owner evidence.
 final class FinalAnswerClaimNoticeApplicator {
   const FinalAnswerClaimNoticeApplicator({
+    BlockedMutationNotice blockedMutationNotice = const BlockedMutationNotice(),
     CodingVerificationClaimGuard verificationClaimGuard =
         const CodingVerificationClaimGuard(),
     NarratedTranscriptClaimGuard narratedTranscriptClaimGuard =
         const NarratedTranscriptClaimGuard(),
     UnwrittenFileClaimGuard unwrittenFileClaimGuard =
         const UnwrittenFileClaimGuard(),
-  }) : _verificationClaimGuard = verificationClaimGuard,
+  }) : _blockedMutationNotice = blockedMutationNotice,
+       _verificationClaimGuard = verificationClaimGuard,
        _narratedTranscriptClaimGuard = narratedTranscriptClaimGuard,
        _unwrittenFileClaimGuard = unwrittenFileClaimGuard;
 
+  static const blockedMutationTransformId = 'blocked_mutation_notice';
   static const unwrittenFileTransformId = 'unwritten_file_claim_notice';
   static const narratedTranscriptTransformId =
       'narrated_transcript_claim_notice';
   static const verificationTransformId = 'verification_claim_notice';
 
+  final BlockedMutationNotice _blockedMutationNotice;
   final CodingVerificationClaimGuard _verificationClaimGuard;
   final NarratedTranscriptClaimGuard _narratedTranscriptClaimGuard;
   final UnwrittenFileClaimGuard _unwrittenFileClaimGuard;
@@ -81,6 +55,19 @@ final class FinalAnswerClaimNoticeApplicator {
 
     var content = input.candidateContent;
     final transformIds = <String>[];
+
+    // Stated first, and from tool results alone: what the turn did to files is
+    // the ground the claim notices below are measured against, so it is the
+    // one line that must not depend on reading the answer.
+    final blockedMutations = _blockedMutationNotice.assess(input.toolResults);
+    if (blockedMutations.hasBlockedMutations) {
+      final notice = blockedMutations.buildNotice();
+      if (!content.contains(notice)) {
+        content = _appendNotice(content, notice);
+        transformIds.add(blockedMutationTransformId);
+      }
+    }
+
     final projectRoot = input.projectRoot;
     if (projectRoot != null && projectRoot.isNotEmpty) {
       final assessment = _unwrittenFileClaimGuard.assess(

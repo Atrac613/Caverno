@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop_abort_notice.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +16,14 @@ ToolResultInfo _edit(String path, {bool succeeded = true}) => ToolResultInfo(
           'error': 'old_text was not found in the target file',
           'path': path,
         }),
+);
+
+ToolResultInfo _command(String command, {int? exitCode}) => ToolResultInfo(
+  id: 'call-$command',
+  name: 'local_execute_command',
+  arguments: {'command': command},
+  result: jsonEncode({'command': command, 'exit_code': exitCode}),
+  outcome: exitCode == null ? null : ToolOutcome(exitCode: exitCode),
 );
 
 void main() {
@@ -111,6 +121,93 @@ void main() {
       ]);
 
       expect(paths, ['/repo/b.md', '/repo/a.md']);
+    });
+
+    // Session 0e94a103: `fvm use 3.47.1` succeeded and `.fvmrc` moved to
+    // 3.47.1, then an unrelated repeated read aborted the turn and the user
+    // was told only to check a path that never mattered.
+    test('reports work the turn completed through the shell', () {
+      final message = notice.build(
+        toolName: 'read_file',
+        errorMessage: 'The read target does not exist or cannot be opened.',
+        isApprovalDenial: false,
+        isExternalMcpResult: false,
+        executedToolResults: [
+          _command('fvm use 3.47.1', exitCode: 0),
+          _command('fvm list', exitCode: 0),
+        ],
+      );
+
+      expect(
+        message,
+        contains(
+          'Already ran successfully in this turn: `fvm use 3.47.1`, '
+          '`fvm list`',
+        ),
+      );
+    });
+
+    test('leaves out a command that ran and failed', () {
+      final commands = notice.completedCommands([
+        _command('fvm use 3.47.1', exitCode: 1),
+        _command('fvm list', exitCode: 0),
+      ]);
+
+      expect(commands, ['`fvm list`']);
+    });
+
+    test('leaves out a command that never reached an exit', () {
+      final commands = notice.completedCommands([
+        _command('rm -rf /'),
+      ]);
+
+      expect(
+        commands,
+        isEmpty,
+        reason: 'an absent status must not read as a clean exit',
+      );
+    });
+
+    test('reports a re-run command by its latest verdict', () {
+      final repaired = notice.completedCommands([
+        _command('fvm use 3.47.1', exitCode: 1),
+        _command('fvm doctor', exitCode: 0),
+        _command('fvm use 3.47.1', exitCode: 0),
+      ]);
+
+      expect(
+        repaired,
+        ['`fvm use 3.47.1`', '`fvm doctor`'],
+        reason: 'a re-run keeps the position of its first issue',
+      );
+
+      final broken = notice.completedCommands([
+        _command('fvm use 3.47.1', exitCode: 0),
+        _command('fvm use 3.47.1', exitCode: 1),
+      ]);
+
+      expect(broken, isEmpty);
+    });
+
+    test('truncates an oversized command', () {
+      final commands = notice.completedCommands([
+        _command('gh api ${'x' * 400}', exitCode: 0),
+      ]);
+
+      expect(commands.single, endsWith('…`'));
+      expect(commands.single.length, lessThanOrEqualTo(123));
+    });
+
+    test('says nothing about commands when none ran cleanly', () {
+      final message = notice.build(
+        toolName: 'edit_file',
+        errorMessage: 'old_text was not found in the target file',
+        isApprovalDenial: false,
+        isExternalMcpResult: false,
+        executedToolResults: [_command('fvm flutter test', exitCode: 1)],
+      );
+
+      expect(message, isNot(contains('Already ran successfully')));
     });
 
     test('ignores read-only tools that touched the same paths', () {

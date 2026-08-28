@@ -1,5 +1,9 @@
 part of 'chat_notifier_test.dart';
 
+/// Deterministic stand-in for the per-release approval token, installed via
+/// [ProductionReleaseApprovalCoordinator.debugApprovalTokenFactory].
+const String _releaseToken = 'rel-0123456789abcdef';
+
 void registerChatNotifierGitGuardrailTests() {
   test('worktree conversations scope project tools to the worktree root', () {
     final localController = StreamController<String>();
@@ -459,8 +463,11 @@ void registerChatNotifierGitGuardrailTests() {
   test(
     'sendMessage blocks duplicate side-effect command after timeout',
     () async {
+      // A long-running side-effect command, deliberately not a release: this
+      // test is about duplicate suppression, and a release command would drag
+      // the production release approval gate into it.
       const command =
-          'bash tool/release_ios_macos.sh --macos-release-notes docs/releases/caverno-1.3.4.md';
+          'bash tool/run_integration_suite.sh --report docs/reports/suite.md';
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
           ToolCallInfo(
@@ -754,6 +761,13 @@ void registerChatNotifierGitGuardrailTests() {
   test(
     'sendMessage accepts production release after ask-user-question approval',
     () async {
+      ProductionReleaseApprovalCoordinator.debugApprovalTokenFactory =
+          () => _releaseToken;
+      addTearDown(
+        () => ProductionReleaseApprovalCoordinator
+                .debugApprovalTokenFactory =
+            null,
+      );
       const dryRunCommand =
           'bash tool/release_ios_macos.sh --dry-run --macos-release-notes docs/releases/caverno-1.3.6.md';
       const productionCommand =
@@ -770,6 +784,24 @@ void registerChatNotifierGitGuardrailTests() {
           ),
         ],
         toolLoopResponses: [
+          // The token only exists once a release has actually been blocked,
+          // so the model attempts the release, is refused with the token, and
+          // only then can build the approving option. The refusal names the
+          // exact command, which is what the user is being asked about.
+          ChatCompletionResult(
+            content: 'Dry run succeeded. Attempting the production release.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'release-production-blocked',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': productionCommand,
+                  'working_directory': '/tmp/project',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
           ChatCompletionResult(
             content: 'Dry run succeeded. I need production release approval.',
             toolCalls: [
@@ -780,7 +812,10 @@ void registerChatNotifierGitGuardrailTests() {
                   'question':
                       'Approve running the production release command now?',
                   'options': [
-                    {'label': 'Approve production release'},
+                    // The harness issues the token; the model puts it on
+                    // exactly one option and writes the rest of the label in
+                    // whatever language the user speaks.
+                    {'label': 'Approve production release $_releaseToken'},
                     {'label': 'Do not release'},
                   ],
                 },
@@ -872,7 +907,7 @@ void registerChatNotifierGitGuardrailTests() {
             selectedOptions: const [
               AskUserQuestionSelection(
                 id: 'approve-production-release',
-                label: 'Approve production release',
+                label: 'Approve production release $_releaseToken',
               ),
             ],
           ),
@@ -880,14 +915,21 @@ void registerChatNotifierGitGuardrailTests() {
 
         await sendFuture;
 
+        // Turn one ends with the release still blocked: only the dry run
+        // reached the shell. Approval is recorded, and the retry belongs to
+        // the next turn -- BlockedProductionReleaseRetryPolicy exists because
+        // the answer normally arrives after the blocked turn has ended.
+        expect(toolService.executedToolNames, ['local_execute_command']);
+
+        await toolNotifier.sendMessage('Retry the release.');
+
         expect(toolService.executedToolNames, [
           'local_execute_command',
           'local_execute_command',
         ]);
-        expect(toolDataSource.toolResultBatches, hasLength(3));
-        final productionResult =
-            jsonDecode(toolDataSource.toolResultBatches.last.last.result)
-                as Map<String, dynamic>;
+        final productionResult = jsonDecode(
+          toolDataSource.toolResultBatches.last.last.result,
+        ) as Map<String, dynamic>;
         expect(productionResult, containsPair('command', productionCommand));
         expect(productionResult, containsPair('exit_code', 0));
       } finally {
@@ -897,7 +939,7 @@ void registerChatNotifierGitGuardrailTests() {
   );
 
   test(
-    'sendMessage accepts production release after direct user approval reply',
+    'sendMessage refuses a production release approved only in chat prose',
     () async {
       const productionCommand =
           'bash tool/release_ios_macos.sh --macos-release-notes docs/releases/caverno-1.3.6.md';
@@ -982,15 +1024,29 @@ void registerChatNotifierGitGuardrailTests() {
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
+        // An approval typed into the chat used to release. It no longer does:
+        // deciding approval from the words of a message is what binds the gate
+        // to whichever languages someone enumerated, and those predicates read
+        // denials as approvals in several of them. The user now has to select
+        // the option carrying the issued token.
         await toolNotifier.sendMessage('承認します。続けてください。');
 
-        expect(toolService.executedToolNames, ['process_start']);
-        expect(toolDataSource.toolResultBatches, hasLength(1));
-        final productionResult =
+        expect(
+          toolService.executedToolNames,
+          isEmpty,
+          reason: 'the release command must not reach the shell',
+        );
+        final blocked =
             jsonDecode(toolDataSource.toolResultBatches.single.single.result)
                 as Map<String, dynamic>;
-        expect(productionResult, containsPair('command', productionCommand));
-        expect(productionResult, containsPair('job_id', 'release-job-1'));
+        expect(
+          blocked,
+          containsPair(
+            'code',
+            'production_release_explicit_approval_required',
+          ),
+        );
+        expect(blocked, containsPair('command', productionCommand));
       } finally {
         toolContainer.dispose();
       }

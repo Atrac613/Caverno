@@ -7,6 +7,8 @@ import 'package:caverno/features/chat/domain/services/ask_user_question_turn_cac
 import 'package:caverno/features/chat/domain/services/production_release_approval_policy.dart';
 import 'package:test/test.dart';
 
+const _token = 'rel-0123456789abcdef';
+
 void main() {
   const policy = ProductionReleaseApprovalPolicy();
 
@@ -77,7 +79,7 @@ void main() {
 
   group('owner-scoped approval evidence', () {
     test(
-      'accepts direct proof only from the exact conversation generation',
+      'never approves from a chat message, whatever the message says',
       () {
         final owner = _owner();
         final cache = AskUserQuestionTurnCache();
@@ -97,15 +99,31 @@ void main() {
           precedingOwnerMessage: null,
         );
 
+        // The wording predicates still read this as approval; the verdict no
+        // longer does. Approving a production release from the words of a
+        // chat message is exactly what the token replaces.
+        expect(matching.approved, isTrue, reason: 'prose proof still computed');
         expect(
           policy
               .evidenceFor(
                 owner: owner,
                 capturedProof: matching,
                 questionResults: cache,
+                approvalToken: _token,
               )
               .directlyApproved,
-          isTrue,
+          isFalse,
+        );
+        expect(
+          policy
+              .evidenceFor(
+                owner: owner,
+                capturedProof: matching,
+                questionResults: cache,
+                approvalToken: _token,
+              )
+              .approved,
+          isFalse,
         );
         expect(
           policy
@@ -113,6 +131,7 @@ void main() {
                 owner: owner,
                 capturedProof: otherConversation,
                 questionResults: cache,
+                approvalToken: _token,
               )
               .approved,
           isFalse,
@@ -123,6 +142,7 @@ void main() {
                 owner: owner,
                 capturedProof: otherGeneration,
                 questionResults: cache,
+                approvalToken: _token,
               )
               .approved,
           isFalse,
@@ -133,6 +153,7 @@ void main() {
                 owner: owner,
                 capturedProof: null,
                 questionResults: cache,
+                approvalToken: _token,
               )
               .approved,
           isFalse,
@@ -143,16 +164,8 @@ void main() {
     test('accepts question approval only from the exact owner', () {
       final cache = AskUserQuestionTurnCache();
       final owner = _owner();
-      _storeQuestionResult(
-        cache,
-        _owner(conversationId: 'conversation-b'),
-        _answeredResult(answer: 'Release now.'),
-      );
-      _storeQuestionResult(
-        cache,
-        _owner(generation: 8),
-        _answeredResult(answer: 'Release now.'),
-      );
+      _storeTokenApproval(cache, _owner(conversationId: 'conversation-b'));
+      _storeTokenApproval(cache, _owner(generation: 8));
 
       expect(
         policy
@@ -160,20 +173,18 @@ void main() {
               owner: owner,
               capturedProof: null,
               questionResults: cache,
+              approvalToken: _token,
             )
             .approved,
         isFalse,
       );
 
-      _storeQuestionResult(
-        cache,
-        owner,
-        _answeredResult(answer: 'Release now.'),
-      );
+      _storeTokenApproval(cache, owner);
       final evidence = policy.evidenceFor(
         owner: owner,
         capturedProof: null,
         questionResults: cache,
+        approvalToken: _token,
       );
 
       expect(evidence.owner, owner);
@@ -187,31 +198,9 @@ void main() {
       () {
         final owner = _owner();
         final reusedCache = AskUserQuestionTurnCache();
-        _storeQuestionResult(
-          reusedCache,
-          owner,
-          _questionResult(
-            jsonEncode({
-              'status': 'answered',
-              'question': 'Approve the production release?',
-              'answer': 'Yes',
-              'reused': true,
-            }),
-          ),
-        );
+        _storeTokenApproval(reusedCache, owner);
         final savedTaskCache = AskUserQuestionTurnCache();
-        _storeQuestionResult(
-          savedTaskCache,
-          owner,
-          _questionResult(
-            jsonEncode({
-              'status': 'policy_resolved',
-              'question': 'Approve the production release?',
-              'answer': 'Release now.',
-              'saved_task_id': 'task-1',
-            }),
-          ),
-        );
+        _storeTokenApproval(savedTaskCache, owner, status: 'policy_resolved');
 
         expect(
           policy
@@ -219,6 +208,7 @@ void main() {
                 owner: owner,
                 capturedProof: null,
                 questionResults: reusedCache,
+                approvalToken: _token,
               )
               .questionApproved,
           isTrue,
@@ -229,6 +219,7 @@ void main() {
                 owner: owner,
                 capturedProof: null,
                 questionResults: savedTaskCache,
+                approvalToken: _token,
               )
               .questionApproved,
           isFalse,
@@ -243,6 +234,7 @@ void main() {
                 ),
                 capturedProof: null,
                 questionResults: reusedCache,
+                approvalToken: _token,
               )
               .guardResult,
           isNull,
@@ -257,6 +249,7 @@ void main() {
                 ),
                 capturedProof: null,
                 questionResults: savedTaskCache,
+                approvalToken: _token,
               )
               .guardResult,
           isNotNull,
@@ -271,17 +264,15 @@ void main() {
         owner: owner,
         capturedProof: null,
         questionResults: cache,
+        approvalToken: _token,
       );
 
-      _storeQuestionResult(
-        cache,
-        owner,
-        _answeredResult(answer: 'Release now.'),
-      );
+      _storeTokenApproval(cache, owner);
       final afterApproval = policy.evidenceFor(
         owner: owner,
         capturedProof: null,
         questionResults: cache,
+        approvalToken: _token,
       );
       cache.clear();
 
@@ -402,8 +393,11 @@ void main() {
         toolCall: _tool('local_execute_command', 'dart analyze'),
         capturedProof: null,
         questionResults: emptyCache,
+        approvalToken: _token,
       );
-      final approved = policy.evaluate(
+      // "Ship the release." used to pass the gate on its own. Only the
+      // selected token-bearing option does now.
+      final proseOnly = policy.evaluate(
         owner: owner,
         toolCall: _tool('local_execute_command', './release_ios_macos.sh'),
         capturedProof: policy.captureProof(
@@ -412,10 +406,22 @@ void main() {
           precedingOwnerMessage: null,
         ),
         questionResults: emptyCache,
+        approvalToken: _token,
+      );
+      final tokenCache = AskUserQuestionTurnCache();
+      _storeTokenApproval(tokenCache, owner);
+      final approved = policy.evaluate(
+        owner: owner,
+        toolCall: _tool('local_execute_command', './release_ios_macos.sh'),
+        capturedProof: null,
+        questionResults: tokenCache,
+        approvalToken: _token,
       );
 
       expect(nonRelease.guardResult, isNull);
       expect(nonRelease.evidence.approved, isFalse);
+      expect(proseOnly.guardResult, isNotNull);
+      expect(proseOnly.evidence.approved, isFalse);
       expect(approved.guardResult, isNull);
       expect(approved.evidence.approved, isTrue);
     });
@@ -433,6 +439,7 @@ void main() {
         ),
         capturedProof: null,
         questionResults: AskUserQuestionTurnCache(),
+        approvalToken: _token,
         currentAssistantContent: longIntent,
       );
       final result = decision.guardResult!;
@@ -447,7 +454,7 @@ void main() {
         'command': './release_ios_macos.sh',
         'assistant_intent':
             '${longIntent.replaceAll(RegExp(r'\s+'), ' ').trim().substring(0, 240)}...',
-        'required_action': productionReleaseApprovalRequiredAction,
+        'required_action': productionReleaseApprovalRequiredActionFor(_token),
       };
 
       expect(result.toolName, ' process_start ');
@@ -470,12 +477,14 @@ void main() {
           owner: _owner(),
           currentAssistantContent: ' \n ',
           approvalEvidence: evidence,
+        approvalToken: _token,
         )!;
         final withIntent = policy.buildGuardResult(
           _tool('local_execute_command', './release_ios_macos.sh'),
           owner: _owner(),
           currentAssistantContent: '  Prepare   release. ',
           approvalEvidence: evidence,
+        approvalToken: _token,
         )!;
 
         expect(
@@ -503,6 +512,7 @@ void main() {
             directlyApproved: true,
             questionApproved: true,
           ),
+          approvalToken: _token,
         );
 
         expect(result, isNotNull, reason: evidenceOwner.toString());
@@ -785,15 +795,31 @@ McpToolResult _answeredResult({
   );
 }
 
-void _storeQuestionResult(
+/// Stores an answer in which exactly one offered option carried the approval
+/// token and the user selected it.
+void _storeTokenApproval(
   AskUserQuestionTurnCache cache,
-  ChatTurnOwner owner,
-  McpToolResult result,
-) {
+  ChatTurnOwner owner, {
+  String approveLabel = 'Approve the release $_token',
+  List<String> offeredLabels = const [],
+  String status = 'answered',
+}) {
   cache.store(
     owner: owner,
     question: 'Approve the production release?',
-    optionLabels: const ['Approve', 'Cancel'],
-    result: result,
+    optionLabels: offeredLabels.isEmpty
+        ? [approveLabel, 'Cancel']
+        : offeredLabels,
+    result: _questionResult(
+      jsonEncode({
+        'status': status,
+        'question': 'Approve the production release?',
+        'selected': [
+          {'label': approveLabel},
+        ],
+        'answer': approveLabel,
+      }),
+    ),
   );
 }
+
