@@ -17,6 +17,14 @@ reproduction step depends on those commits remaining reachable after a squash.
 RAG2 remains `later`, and production retrieval, prompting, storage, and tool
 behavior remain unchanged.
 
+The file-backed AppDatabase-hosted retrieval evaluation is complete. The
+frozen `trigram_or_idf` candidate at threshold `0.15` retained 16/16
+answerable cases and 4/4 Japanese cases, but returned evidence for 2/4
+no-answer cases against a predeclared maximum of 1/4. Provenance, the empty
+negative control, schema version 5, conversation search, and the seeded LL5
+embedding row remained valid. The evaluation contract is Go, the candidate is
+No-Go, and production plus RAG3 remain No-Go.
+
 Extraction v2 is the frozen diagnostic precision baseline because a third
 untouched holdout measured exact precision `1.000` for both supported families
 without a true-positive regression from v1.
@@ -181,6 +189,7 @@ stratified stable-hash strategy and do not tune or revive v1.
 | 51 | `FTS5 rebuild reopen` | Rebuild/reopen repair FTS from the generation payload | `rebuildSearchIndex` full-replaces a cleared or mismatched slot from generation 2 without a new snapshot. Rebuild twice and reopen keep envelope, terms, and MATCH. Injected commit failure and a killed rebuild of a cleared slot leave the previous slot. A neighbor project stays visible. Retrieval and production remain No-Go. | `docs/rag2_fts5_rebuild_reopen_hypothesis_2026-08-27.md` |
 | 52 | `FTS5 hosted query` | Identity-scoped MATCH reads one hosted slot | `querySearchIndex` tokenizes with Dart trigram terms, binds the committed generation envelope, and returns a `List` of chunk ids ordered by `chunk_id`, not BM25. A mismatched envelope fails closed. Clear hides hits; rebuild restores them. Host and neighbor each hit their own ids with no cross-leak. An unindexed generation stays without RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_fts5_hosted_query_hypothesis_2026-08-27.md` |
 | 53 | `FTS5 query projection` | MATCH ids join committed generation provenance | `projectSearchIndex` reads the generation once, MATCH-queries that envelope, and returns locator, hash, repo-relative path, revision, line span, source trust, and the generation envelope without chunk content. Unknown or divergent FTS rows fail closed. Host and neighbor stay isolated. An unindexed generation stays without RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_fts5_hosted_query_projection_hypothesis_2026-08-27.md` |
+| 54 | `Hosted retrieval evaluation` | Frozen RAG1 candidate through file-backed AppDatabase FTS5 | The actual hosted slot reproduces 16/16 answerable and 4/4 Japanese hits, with MRR@5 `0.896`, but retrieves 2/4 no-answer cases against the unchanged 1/4 maximum. The contract and provenance checks are Go; the candidate, production retrieval, and RAG3 are No-Go. | `docs/rag2_hosted_retrieval_eval_2026-08-30.md` |
 
 ## Rejected shortcuts
 
@@ -236,6 +245,9 @@ stratified stable-hash strategy and do not tune or revive v1.
 - Do not treat FTS5 query projection as retrieval, settings, tools, or
   chat/runtime wiring. Joining MATCH ids to generation provenance is not
   a quality gate.
+- Do not weaken the hosted retrieval no-answer maximum from 1/4 or tune another
+  lexical threshold from the two observed failures. A new hypothesis requires
+  a predeclared policy and an untouched holdout.
 
 ## Durable artifacts
 
@@ -294,6 +306,8 @@ it to 193. AppDatabase-hosted FTS5 increases it to 203. Incremental FTS5
 indexing increases it to 213. Visibility drop increases it to 223.
 Rebuild/reopen increases it to 235. Hosted query increases it to 245.
 Query projection increases it to 255.
+The hosted retrieval evaluation adds five focused cases, increasing the
+complete focused RAG2 suite to 260.
 
 ## Next entry condition
 
@@ -349,6 +363,10 @@ generation envelope, without BM25 ranking or a no-answer gate. A
 mismatched envelope fails closed. MATCH ids project onto committed
 generation provenance without chunk content; an unknown or divergent FTS
 row fails closed. This does
-not select retrieval or production wiring. Prompting,
-routing, tools, model calls, settings, and chat/runtime wiring remain out of
+not select retrieval or production wiring. The frozen hosted retrieval
+candidate now also fails its unchanged no-answer gate at 2/4 despite 16/16
+answerable and 4/4 Japanese hits. Freeze that candidate and result. A resumed
+retrieval experiment must predeclare a different answerability hypothesis and
+an untouched holdout while keeping relevance and answerability separate.
+Prompting, routing, tools, model calls, settings, and chat/runtime wiring remain out of
 scope.
