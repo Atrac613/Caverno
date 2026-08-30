@@ -16,8 +16,8 @@ void main() {
         version: 'v7.0.1',
       ),
       'actions/setup-java': (
-        sha: 'b6effb05e454b25005698d916606bdc6ffcbf961',
-        version: 'v5.7.0',
+        sha: 'dd06d9cba3e5552c54d9f8ea23572deb30010f7c',
+        version: 'v6.0.0',
       ),
       'subosito/flutter-action': (
         sha: '1a449444c387b1966244ae4d4f8c696479add0b2',
