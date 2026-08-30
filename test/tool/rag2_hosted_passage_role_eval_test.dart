@@ -44,6 +44,20 @@ void main() {
       expect(report.toJson()['rag3Decision'], 'no_go');
       expect(report.datasets.every((item) => item.provenanceValidated), isTrue);
       expect(report.datasets.every((item) => item.hostPreserved), isTrue);
+      final semantic = report.datasets[0];
+      final compositional = report.datasets[1];
+      expect(semantic.answerSupportRetrieved, 14);
+      expect(semantic.abstentionSupportRetrieved, 2);
+      expect(semantic.japaneseSupportRetrieved, 4);
+      expect(semantic.unavailableOnlyIrrelevant, 0);
+      expect(semantic.rawNoAnswerRetrieved, 3);
+      expect(semantic.totalContextTokens, 2174);
+      expect(compositional.answerSupportRetrieved, 13);
+      expect(compositional.abstentionSupportRetrieved, 3);
+      expect(compositional.japaneseSupportRetrieved, 2);
+      expect(compositional.unavailableOnlyIrrelevant, 0);
+      expect(compositional.rawNoAnswerRetrieved, 3);
+      expect(compositional.totalContextTokens, 2986);
     },
   );
 
@@ -72,7 +86,19 @@ void main() {
       expect(dataset.unavailableCases, hasLength(4));
       expect(dataset.japaneseCases, hasLength(4));
       expect(report.gate!.holdoutShapeValid, isTrue);
-      expect(report.candidateDecision, report.gate!.passed ? 'go' : 'no_go');
+      expect(report.candidateDecision, 'go');
+      expect(report.gate!.passed, isTrue);
+      expect(dataset.answerSupportRetrieved, 14);
+      expect(dataset.japaneseSupportRetrieved, 4);
+      expect(dataset.abstentionSupportRetrieved, 2);
+      expect(dataset.unavailableWithAbstentionSupport, 2);
+      expect(dataset.unavailableWithTopicalOnly, 1);
+      expect(dataset.unavailableOnlyIrrelevant, 0);
+      expect(dataset.unavailableWithoutEvidence, 1);
+      expect(dataset.rawNoAnswerRetrieved, 3);
+      expect(dataset.supportMrrAtK, 1.0);
+      expect(dataset.supportNdcgAtK, closeTo(0.9949825493217618, 1e-12));
+      expect(dataset.totalContextTokens, 3776);
     },
   );
 
