@@ -13,6 +13,21 @@ updates:
     commit-message:
       prefix: chore
     open-pull-requests-limit: 10
+    ignore:
+      # Dependabot resolves with its own Dart SDK, not the one .fvmrc pins, so
+      # it proposes bumps the project cannot compile. freezed 4.x requires Dart
+      # >= 3.13.0 while Flutter 3.44.8 ships Dart 3.12.2; because Dependabot
+      # batches interdependent pub packages into one PR, that single member
+      # made version solving fail and blocked the safe build_runner, analyzer
+      # and drift_dev bumps riding along with it (#182).
+      # Drop these entries once .fvmrc moves to a Flutter release with Dart
+      # >= 3.13.0.
+      - dependency-name: freezed
+        update-types:
+          - version-update:semver-major
+      - dependency-name: freezed_annotation
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
