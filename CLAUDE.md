@@ -44,10 +44,20 @@ tool/prepare_serious_python.sh
 # Lint
 flutter analyze
 
-# Run tests
-flutter test
+# Run tests. Prints one line when green, and only the failing tests -- error,
+# filtered stack, and that test's own captured output -- when red. The raw
+# reporter emits ~3.4 MB for a green full run (and ~844 KB for
+# chat_notifier_test.dart alone), which an agent harness truncates to a 2 KB
+# preview -- hiding the very failure the run was meant to surface.
+tool/flutter_test_quiet.sh                       # whole suite
+tool/flutter_test_quiet.sh test/widget_test.dart # single file
+tool/flutter_test_quiet.sh --slowest 5           # add a slow-test list
+tool/flutter_test_quiet.sh --verbose             # also stream the raw reporter
+# The full JSON reporter log stays at build/test_reports/flutter_test.json.
+# tool/codex_verify.sh summarizes the same way; pass --raw-tests to opt out.
 
-# Run a single test file
+# Raw reporter, for when the streaming output itself is what you need
+flutter test
 flutter test test/widget_test.dart
 
 # Run the embedded-Python integration test on a device/simulator (real

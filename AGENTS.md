@@ -21,10 +21,20 @@ fvm dart run build_runner build --delete-conflicting-outputs
 # Lint
 fvm flutter analyze
 
-# Run tests
-fvm flutter test
+# Run tests. Prints one line when green, and only the failing tests -- error,
+# filtered stack, and that test's own captured output -- when red. The raw
+# reporter emits ~3.4 MB for a green full run (and ~844 KB for
+# chat_notifier_test.dart alone), which an agent harness truncates to a 2 KB
+# preview -- hiding the very failure the run was meant to surface.
+tool/flutter_test_quiet.sh                       # whole suite
+tool/flutter_test_quiet.sh test/widget_test.dart # single file
+tool/flutter_test_quiet.sh --slowest 5           # add a slow-test list
+tool/flutter_test_quiet.sh --verbose             # also stream the raw reporter
+# The full JSON reporter log stays at build/test_reports/flutter_test.json.
+# tool/codex_verify.sh summarizes the same way; pass --raw-tests to opt out.
 
-# Run a single test file
+# Raw reporter, for when the streaming output itself is what you need
+fvm flutter test
 fvm flutter test test/widget_test.dart
 
 # Run app
@@ -46,6 +56,8 @@ fvm flutter run
   when the pattern is important.
 - Use `tool/codex_verify.sh` as the default local verification entrypoint. Add
   `--coverage` when test coverage or missing edge cases are part of the task.
+  Test output is summarized by default (`--raw-tests` restores the full
+  reporter stream).
   The script automatically uses `fvm flutter` and `fvm dart` when FVM metadata
   is present.
 - When a macOS `flutter_tester` live canary targets an HTTP LAN endpoint, use
