@@ -97,3 +97,12 @@ retrieval work must predeclare a different answerability hypothesis and a new
 untouched holdout, while keeping retrieval relevance and semantic
 answerability separate. Storage, settings, tools, prompts, and RAG3 wiring must
 remain unchanged until that independent gate passes.
+
+## Follow-up
+
+`rag2-hosted-passage-role-eval-contract-v2` preserves this v1 result and
+replaces the withdrawn raw no-answer promotion question with post-retrieval
+oracle roles. The unchanged hosted candidate passes its separately committed
+20-case promotion holdout. This v1 No-Go remains frozen; the v2 offline lexical
+retrieval decision is Go, while production and RAG3 remain No-Go. Evidence:
+`docs/rag2_hosted_passage_role_eval_2026-08-30.md`.

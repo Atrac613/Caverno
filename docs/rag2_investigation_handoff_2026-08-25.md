@@ -14,8 +14,9 @@ reproduction step depends on those commits remaining reachable after a squash.
 
 ## Final decision
 
-RAG2 remains `later`, and production retrieval, prompting, storage, and tool
-behavior remain unchanged.
+RAG2 is complete for its offline acquisition, storage, provenance, and lexical
+retrieval boundaries. Production retrieval, prompting, and tool behavior remain
+unchanged and are deferred to separately gated RAG3 work.
 
 The file-backed AppDatabase-hosted retrieval evaluation is complete. The
 frozen `trigram_or_idf` candidate at threshold `0.15` retained 16/16
@@ -24,6 +25,14 @@ no-answer cases against a predeclared maximum of 1/4. Provenance, the empty
 negative control, schema version 5, conversation search, and the seeded LL5
 embedding row remained valid. The evaluation contract is Go, the candidate is
 No-Go, and production plus RAG3 remain No-Go.
+
+The follow-up hosted passage-role v2 evaluation preserves that v1 result but
+withdraws raw no-answer count as a promotion gate. The unchanged candidate
+passes a separately committed 20-case holdout with 14/14 answer support, 4/4
+Japanese support, 2/2 expected abstention support, zero unavailable cases with
+only irrelevant evidence, and 3,776/6,000 context tokens. RAG2 offline lexical
+retrieval is Go. Runtime passage role stays `unknown`; production and RAG3
+wiring remain No-Go.
 
 Extraction v2 is the frozen diagnostic precision baseline because a third
 untouched holdout measured exact precision `1.000` for both supported families
@@ -190,6 +199,7 @@ stratified stable-hash strategy and do not tune or revive v1.
 | 52 | `FTS5 hosted query` | Identity-scoped MATCH reads one hosted slot | `querySearchIndex` tokenizes with Dart trigram terms, binds the committed generation envelope, and returns a `List` of chunk ids ordered by `chunk_id`, not BM25. A mismatched envelope fails closed. Clear hides hits; rebuild restores them. Host and neighbor each hit their own ids with no cross-leak. An unindexed generation stays without RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_fts5_hosted_query_hypothesis_2026-08-27.md` |
 | 53 | `FTS5 query projection` | MATCH ids join committed generation provenance | `projectSearchIndex` reads the generation once, MATCH-queries that envelope, and returns locator, hash, repo-relative path, revision, line span, source trust, and the generation envelope without chunk content. Unknown or divergent FTS rows fail closed. Host and neighbor stay isolated. An unindexed generation stays without RAG2 FTS5. Retrieval and production remain No-Go. | `docs/rag2_fts5_hosted_query_projection_hypothesis_2026-08-27.md` |
 | 54 | `Hosted retrieval evaluation` | Frozen RAG1 candidate through file-backed AppDatabase FTS5 | The actual hosted slot reproduces 16/16 answerable and 4/4 Japanese hits, with MRR@5 `0.896`, but retrieves 2/4 no-answer cases against the unchanged 1/4 maximum. The contract and provenance checks are Go; the candidate, production retrieval, and RAG3 are No-Go. | `docs/rag2_hosted_retrieval_eval_2026-08-30.md` |
+| 55 | `Hosted passage-role v2` | Role-aware scoring after the actual hosted FTS5 path | The unchanged candidate passes the separately committed promotion holdout: 14/14 answer support, 4/4 Japanese support, 2/2 expected abstention, 0/4 only-irrelevant unavailable, and 3,776/6,000 context tokens. Offline lexical retrieval is Go; runtime role stays unknown and production plus RAG3 remain No-Go. | `docs/rag2_hosted_passage_role_eval_2026-08-30.md` |
 
 ## Rejected shortcuts
 
@@ -248,6 +258,9 @@ stratified stable-hash strategy and do not tune or revive v1.
 - Do not weaken the hosted retrieval no-answer maximum from 1/4 or tune another
   lexical threshold from the two observed failures. A new hypothesis requires
   a predeclared policy and an untouched holdout.
+- Do not reinterpret the v1 raw no-answer No-Go as a pass. V2 asks a different,
+  role-aware promotion question and leaves v1 immutable. Do not turn its oracle
+  labels into a runtime classifier.
 
 ## Durable artifacts
 
@@ -309,6 +322,8 @@ The historical slice ledger records query projection at 255, while the
 currently enumerated pre-evaluation suite contains 253 executable cases. The
 hosted retrieval evaluation adds five focused cases, and the complete current
 suite passes 258 cases.
+The hosted passage-role v2 evaluation adds five focused cases, increasing the
+currently enumerated complete suite to 263 cases.
 
 ## Next entry condition
 
@@ -369,5 +384,12 @@ candidate now also fails its unchanged no-answer gate at 2/4 despite 16/16
 answerable and 4/4 Japanese hits. Freeze that candidate and result. A resumed
 retrieval experiment must predeclare a different answerability hypothesis and
 an untouched holdout while keeping relevance and answerability separate.
-Prompting, routing, tools, model calls, settings, and chat/runtime wiring remain out of
-scope.
+The separately frozen passage-role v2 contract now resolves that promotion
+question without changing v1: the unchanged hosted candidate passes 14/14
+answer support, 4/4 Japanese support, 2/2 expected abstention support, and zero
+only-irrelevant unavailable cases on its committed holdout. Freeze v2 and its
+Go result. The RAG2 offline acquisition, storage, provenance, and lexical
+retrieval boundaries are Go. The next slice may define the RAG3 offline
+vector/RRF and context-budget evaluation contract, but prompting, routing,
+tools, model calls, settings, and chat/runtime wiring remain out of scope until
+that separate contract passes.
