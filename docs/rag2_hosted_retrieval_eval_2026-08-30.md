@@ -85,6 +85,9 @@ fvm dart run tool/rag2_hosted_retrieval_eval.dart \
 
 The focused evaluator suite passes five tests. The clean evaluation command
 completed successfully and recorded `candidateDecision: no_go`.
+The complete currently enumerated `test/tool/rag2_*_test.dart` suite passes
+258 tests; this corrects the historical handoff ledger, which was two cases
+higher than the executable pre-evaluation suite.
 
 ## Next Entry Condition
 

@@ -305,9 +305,10 @@ generation-store writes increase it to 182. The isolated FTS5 index increases
 it to 193. AppDatabase-hosted FTS5 increases it to 203. Incremental FTS5
 indexing increases it to 213. Visibility drop increases it to 223.
 Rebuild/reopen increases it to 235. Hosted query increases it to 245.
-Query projection increases it to 255.
-The hosted retrieval evaluation adds five focused cases, increasing the
-complete focused RAG2 suite to 260.
+The historical slice ledger records query projection at 255, while the
+currently enumerated pre-evaluation suite contains 253 executable cases. The
+hosted retrieval evaluation adds five focused cases, and the complete current
+suite passes 258 cases.
 
 ## Next entry condition
 
