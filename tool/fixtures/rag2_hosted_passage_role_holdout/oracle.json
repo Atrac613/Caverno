@@ -1,0 +1,34 @@
+{
+  "schemaName": "caverno_rag2_passage_role_oracle",
+  "schemaVersion": 1,
+  "oracleId": "rag2-hosted-passage-role-holdout-oracle-v1",
+  "defaultRole": "irrelevant",
+  "datasets": [
+    {
+      "fixtureId": "rag2-hosted-passage-role-holdout-v1",
+      "corpusHash": "e9d063df93d935297fe44050073c219f9813acf48d1769ba04642ec9db7e5f07",
+      "cases": [
+        {"caseId":"hosted-v2-current-retry","objectRoles":{"lib/dispatch_defaults.dart":"answer_support","docs/history.md":"topical_only"}},
+        {"caseId":"hosted-v2-current-control-port","objectRoles":{"docs/current_endpoints.md":"answer_support","docs/history.md":"topical_only"}},
+        {"caseId":"hosted-v2-current-webhook-port","objectRoles":{"docs/current_endpoints.md":"abstention_support"}},
+        {"caseId":"hosted-v2-current-owner","objectRoles":{"docs/current_policy.md":"abstention_support","docs/authority.md":"topical_only"}},
+        {"caseId":"hosted-v2-history-retry","objectRoles":{"docs/history.md":"answer_support","lib/dispatch_defaults.dart":"topical_only"}},
+        {"caseId":"hosted-v2-history-format","objectRoles":{"docs/history.md":"answer_support","lib/dispatch_defaults.dart":"topical_only"}},
+        {"caseId":"hosted-v2-history-port","objectRoles":{"docs/history.md":"answer_support","docs/current_endpoints.md":"topical_only"}},
+        {"caseId":"hosted-v2-history-format-rationale","objectRoles":{"docs/history.md":"answer_support"}},
+        {"caseId":"hosted-v2-conflict-retry","objectRoles":{"lib/dispatch_defaults.dart":"answer_support","docs/history.md":"answer_support"}},
+        {"caseId":"hosted-v2-conflict-format","objectRoles":{"lib/dispatch_defaults.dart":"answer_support","docs/history.md":"answer_support"}},
+        {"caseId":"hosted-v2-conflict-port","objectRoles":{"docs/current_endpoints.md":"answer_support","docs/history.md":"answer_support"}},
+        {"caseId":"hosted-v2-conflict-authority","objectRoles":{"docs/authority.md":"answer_support"}},
+        {"caseId":"hosted-v2-ja-control-port","objectRoles":{"docs/japanese_facts.json":"answer_support","docs/current_endpoints.md":"topical_only","docs/history.md":"topical_only"}},
+        {"caseId":"hosted-v2-ja-retention","objectRoles":{"docs/japanese_facts.json":"answer_support","docs/current_policy.md":"topical_only"}},
+        {"caseId":"hosted-v2-ja-guard","objectRoles":{"docs/japanese_facts.json":"answer_support","docs/current_policy.md":"topical_only","docs/history.md":"topical_only"}},
+        {"caseId":"hosted-v2-ja-prototype-port","objectRoles":{"docs/japanese_facts.json":"answer_support","docs/history.md":"topical_only","docs/current_endpoints.md":"topical_only"}},
+        {"caseId":"hosted-v2-none-release-date","objectRoles":{"docs/history.md":"topical_only"}},
+        {"caseId":"hosted-v2-none-signing-token","objectRoles":{"docs/current_endpoints.md":"abstention_support"}},
+        {"caseId":"hosted-v2-none-weather","objectRoles":{}},
+        {"caseId":"hosted-v2-none-execute","objectRoles":{"docs/current_endpoints.md":"abstention_support"}}
+      ]
+    }
+  ]
+}
