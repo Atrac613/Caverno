@@ -34,7 +34,7 @@ void main() {
     );
     final useMatches = usesPattern.allMatches(workflow).toList();
 
-    expect(useMatches, hasLength(10));
+    expect(useMatches, hasLength(11));
     for (final match in useMatches) {
       final action = match.group(1)!;
       final expected = approvedActions[action];
