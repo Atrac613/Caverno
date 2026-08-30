@@ -129,7 +129,7 @@ dependencies:
   # WiFi scanning tool
   wifi_scan: ^0.4.1
   network_info_plus: ^7.0.0
-  desktop_drop: ^0.7.1
+  desktop_drop: ^0.8.2
 
   # AC/battery power state for the LL18 idle-maintenance gate
   # (macOS/Windows/Linux/iOS/Android)
