@@ -120,7 +120,7 @@ dependencies:
   window_manager: ^0.5.2
 
   # SSH remote server tool
-  dartssh2: ^2.22.5
+  dartssh2: ^3.3.1
   flutter_secure_storage: ^10.0.0
 
   # BLE (Bluetooth Low Energy) tool

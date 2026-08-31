@@ -572,7 +572,9 @@ void _stubClient(
     () => client.authenticated,
   ).thenAnswer((_) => authenticated ?? Future<void>.value());
   when(() => client.done).thenAnswer((_) => done ?? Future<void>.value());
-  when(client.close).thenReturn(null);
+  // dartssh2 3.0.0 changed SSHClient.close() from void to Future<void> so the
+  // caller can await socket and channel teardown.
+  when(client.close).thenAnswer((_) async {});
 }
 
 final class _ClientQueueConnector {
