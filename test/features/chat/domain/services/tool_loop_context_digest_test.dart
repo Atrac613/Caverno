@@ -508,6 +508,156 @@ void main() {
       );
     });
 
+
+    test('lists the files the turn changed', () {
+      final block = digest.build([
+        _mutation('write_file', 'lib/a.dart'),
+        _mutation('edit_file', 'lib/b.dart'),
+        _mutation('delete_file', 'bin/old.dart'),
+      ]);
+
+      expect(block, contains('Files this turn changed'));
+      expect(block, contains('wrote lib/a.dart'));
+      expect(block, contains('edited lib/b.dart'));
+      expect(block, contains('deleted bin/old.dart'));
+    });
+
+    test('renders a lone mutation, below the inspection entry threshold', () {
+      final block = digest.build([_mutation('write_file', 'lib/a.dart')]);
+
+      expect(
+        block,
+        contains('wrote lib/a.dart'),
+        reason: 'a single unchecked edit is the fact worth stating on its own',
+      );
+    });
+
+    test('says nothing has run since an edit when nothing has', () {
+      final block = digest.build([
+        _result('read_file', {'path': 'lib/a.dart'}),
+        _mutation('write_file', 'lib/a.dart'),
+      ]);
+
+      expect(block, contains('no command or check has run since'));
+    });
+
+    test('stays silent once a command has run after the edit', () {
+      final block = digest.build([
+        _mutation('write_file', 'lib/a.dart'),
+        _result('local_execute_command', {'command': 'dart analyze'}),
+      ]);
+
+      expect(block, isNot(contains('no command or check has run since')));
+    });
+
+    test('counts a non-command check as having run after the edit', () {
+      final block = digest.build([
+        _mutation('write_file', 'lib/a.dart'),
+        _result('dart_analyze_feedback', {'path': 'lib/a.dart'}),
+      ]);
+
+      expect(
+        block,
+        isNot(contains('no command or check has run since')),
+        reason: 'claiming nothing ran when analyze did would be untrue',
+      );
+    });
+
+    test('re-arms the notice when a later edit follows the last check', () {
+      final block = digest.build([
+        _mutation('write_file', 'lib/a.dart'),
+        _result('local_execute_command', {'command': 'dart analyze'}),
+        _mutation('edit_file', 'lib/b.dart'),
+      ]);
+
+      expect(block, contains('edited lib/b.dart (no command or check has run since)'));
+      expect(block, contains('- wrote lib/a.dart\n'));
+    });
+
+    test('flags a write that changed nothing', () {
+      final block = digest.build([
+        _mutation('write_file', 'lib/a.dart', changed: false),
+        _result('local_execute_command', {'command': 'dart analyze'}),
+      ]);
+
+      expect(block, contains('no-op: the file was already exactly this'));
+    });
+
+    test('does not guess unchanged when the tool reported nothing', () {
+      final block = digest.build([
+        _mutation('write_file', 'lib/a.dart'),
+        _result('local_execute_command', {'command': 'dart analyze'}),
+      ]);
+
+      expect(block, isNot(contains('no-op')));
+    });
+
+    test('reports a failed mutation as failed, never as a change', () {
+      final block = digest.build([
+        _mutation(
+          'write_file',
+          'lib/a.dart',
+          result: '{"ok":false,"code":"path_outside_root"}',
+        ),
+      ]);
+
+      expect(block, contains('FAILED (path_outside_root)'));
+      expect(block, contains('the file was not changed'));
+    });
+
+    test('names a bare error payload as an unknown failure', () {
+      final block = digest.build([
+        _mutation(
+          'delete_file',
+          'bin/old.dart',
+          result: '{"error":"File does not exist: bin/old.dart"}',
+        ),
+      ]);
+
+      expect(block, contains('deleted bin/old.dart — FAILED (unknown_error)'));
+    });
+
+    test('treats a mutation that failed and then succeeded as a change', () {
+      final block = digest.build([
+        _mutation(
+          'write_file',
+          'lib/a.dart',
+          result: '{"ok":false,"code":"path_outside_root"}',
+        ),
+        _mutation('write_file', 'lib/a.dart'),
+      ]);
+
+      expect(block, isNot(contains('FAILED')));
+      expect('wrote lib/a.dart'.allMatches(block).length, 1);
+    });
+
+    test('never argues against changing a file again', () {
+      final block = digest.build([
+        _mutation('write_file', 'lib/a.dart'),
+        _mutation('edit_file', 'lib/b.dart'),
+      ]);
+
+      expect(
+        block,
+        isNot(contains('Do not repeat')),
+        reason: 're-writing a file is how a bad edit is repaired',
+      );
+      expect(block, contains('change it again when it needs fixing'));
+    });
+
+    test('leads the block with the mutation section', () {
+      final block = digest.build([
+        _result('read_file', {'path': 'lib/a.dart'}),
+        _result('read_file', {'path': 'lib/b.dart'}),
+        _mutation('write_file', 'lib/a.dart'),
+      ]);
+
+      expect(
+        block.indexOf('Files this turn changed'),
+        lessThan(block.indexOf('Inspections already made')),
+      );
+    });
+
     test('truncates an oversized command label', () {
       final long = 'gh api ${'x' * 400}';
       final block = digest.build([
@@ -546,6 +696,25 @@ ToolResultInfo _result(
                     byteSize: result.length,
                     lineCount: 1,
                   ),
+          ),
+  );
+}
+
+ToolResultInfo _mutation(
+  String name,
+  String path, {
+  String result = '{"path":"x","changed":true}',
+  bool? changed,
+}) {
+  return ToolResultInfo(
+    id: 'result-$name-$path',
+    name: name,
+    arguments: {'path': path},
+    result: result,
+    outcome: changed == null
+        ? null
+        : ToolOutcome(
+            fileMutations: [ToolFileMutation(path: path, changed: changed)],
           ),
   );
 }

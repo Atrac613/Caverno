@@ -143,7 +143,8 @@ class WordFrequencyBehaviorVerifier {
       diagnostics.add(
         _diagnostic(
           code: 'word_frequency_missing_argument_failed',
-          message: 'Missing file argument must explain usage and exit non-zero.',
+          message:
+              'Missing file argument must explain usage and exit non-zero.',
         ),
       );
     }
@@ -273,8 +274,7 @@ class WordFrequencyBehaviorVerifier {
     for (final shape in shapes) {
       final args = shape
           .map(
-            (token) =>
-                token.replaceAll('%p', path).replaceAll('%n', '$count'),
+            (token) => token.replaceAll('%p', path).replaceAll('%n', '$count'),
           )
           .toList(growable: false);
       final result = await runCommand(args, work);
@@ -308,7 +308,8 @@ class WordFrequencyBehaviorVerifier {
         .map(
           (issue) => _diagnostic(
             code: switch (issue.kind) {
-              DartCliEntrypointIssueKind.missing => 'word_frequency_cli_missing',
+              DartCliEntrypointIssueKind.missing =>
+                'word_frequency_cli_missing',
               DartCliEntrypointIssueKind.unexpected =>
                 'word_frequency_unexpected_entrypoint',
               DartCliEntrypointIssueKind.ambiguous =>

@@ -99,7 +99,8 @@ class MarkdownTocBehaviorVerifier {
       diagnostics.add(
         _diagnostic(
           code: 'markdown_toc_execution_failed',
-          message: 'Generating a TOC from a readable Markdown file must exit 0.',
+          message:
+              'Generating a TOC from a readable Markdown file must exit 0.',
         ),
       );
     }
@@ -158,7 +159,8 @@ class MarkdownTocBehaviorVerifier {
       diagnostics.add(
         _diagnostic(
           code: 'markdown_toc_seven_hash_heading_failed',
-          message: 'Seven or more leading hash characters are not ATX headings.',
+          message:
+              'Seven or more leading hash characters are not ATX headings.',
         ),
       );
     }

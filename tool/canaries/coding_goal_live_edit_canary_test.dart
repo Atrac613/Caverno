@@ -20,6 +20,8 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
+import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
@@ -37,6 +39,8 @@ import 'package:caverno/features/chat/presentation/providers/conversations_notif
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+
+import 'support/live_canary_approval_responder.dart';
 
 const _editMarker = 'CODING_GOAL_EDIT_TEST_OK';
 const _testCommand = 'dart lib/canary_greeting_test.dart';
@@ -146,6 +150,7 @@ void main() {
         );
 
         final notifier = container.read(chatNotifierProvider.notifier);
+        LiveCanaryApprovalResponder.attach(container);
         await notifier.sendMessage(
           'Use the active coding goal. Inspect the fixture if needed, make the '
           'smallest code change, run exactly "$_testCommand", and finish only '
@@ -258,6 +263,7 @@ void main() {
         );
 
         final notifier = container.read(chatNotifierProvider.notifier);
+        LiveCanaryApprovalResponder.attach(container);
         await notifier.sendMessage(
           'Use the active coding goal. Run exactly "$_testCommand" before '
           'editing any file, inspect the failure, make the smallest repair, '
@@ -399,6 +405,7 @@ void main() {
         );
 
         final notifier = container.read(chatNotifierProvider.notifier);
+        LiveCanaryApprovalResponder.attach(container);
         await notifier.sendMessage(
           'Use the active coding goal. Inspect both production files, update '
           'lib/canary_suffix.dart and lib/canary_greeting.dart, run exactly '
@@ -522,6 +529,7 @@ void main() {
         );
 
         final notifier = container.read(chatNotifierProvider.notifier);
+        LiveCanaryApprovalResponder.attach(container);
         await notifier.sendMessage(
           'Use the active coding goal. Read the package-like fixture, update '
           'only the production files under lib/src, run exactly '
@@ -662,6 +670,7 @@ void main() {
         );
 
         final notifier = container.read(chatNotifierProvider.notifier);
+        LiveCanaryApprovalResponder.attach(container);
         await notifier.sendMessage(
           'Use the active coding goal. Actually create, read, update, read '
           'again, delete, and verify deletion for $_fileLifecyclePath. Finish '
@@ -799,6 +808,7 @@ void main() {
         );
 
         final notifier = container.read(chatNotifierProvider.notifier);
+        LiveCanaryApprovalResponder.attach(container);
         await notifier.sendMessage(
           'Use the active coding goal. Use git_execute_command with command '
           '"init" for initialization, use git_execute_command for each later '
@@ -881,7 +891,7 @@ ProviderContainer _buildCodingGoalLiveEditContainer({
 }) {
   final appLifecycleService = _MockAppLifecycleService();
   when(() => appLifecycleService.isInBackground).thenReturn(false);
-  return ProviderContainer(
+  final container = ProviderContainer(
     overrides: [
       settingsNotifierProvider.overrideWith(() => _LiveSettingsNotifier(env)),
       conversationRepositoryProvider.overrideWithValue(
@@ -890,7 +900,21 @@ ProviderContainer _buildCodingGoalLiveEditContainer({
       codingProjectsNotifierProvider.overrideWith(
         () => _LiveCodingProjectsNotifier(project),
       ),
-      chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+      // Wrapped here rather than relying on ChatNotifier._withChatSessionLogging,
+      // which skips any source that is not a ChatRemoteDataSource. This canary's
+      // scripted source only `implements ChatDataSource`, so the notifier would
+      // hand back an unwrapped source and the run would emit marker-only session
+      // logs -- files with a turn_exit and zero requests, which every analysis
+      // tool correctly discards as ungrounded. Wrapping here keeps the scripted
+      // source's own capture intact and avoids making it extend the live class
+      // ([[caverno-scripted-datasource-inherits-live-methods]]). The request
+      // context comes from the zone ChatNotifier establishes per turn.
+      chatRemoteDataSourceProvider.overrideWithValue(
+        SessionLoggingChatDataSource(
+          delegate: dataSource,
+          logStore: LlmSessionLogStore(),
+        ),
+      ),
       sessionMemoryServiceProvider.overrideWithValue(
         _NoopSessionMemoryService(),
       ),
@@ -902,6 +926,7 @@ ProviderContainer _buildCodingGoalLiveEditContainer({
       notificationServiceProvider.overrideWithValue(_NoopNotificationService()),
     ],
   );
+  return container;
 }
 
 Future<void> _waitForChatIdle(
@@ -1390,6 +1415,10 @@ class _LiveSettingsNotifier extends SettingsNotifier {
       confirmLocalCommands: false,
       confirmGitWrites: false,
       demoMode: false,
+      // Without this the run produces no session log at all: the
+      // setting defaults to false, so every measurement tool sees an
+      // empty corpus for this surface no matter how often it runs.
+      enableLlmSessionLogs: true,
       modelCapabilityProfiles: _modelCapabilityProfilesFromEnvironment(env),
     );
   }
@@ -2234,7 +2263,13 @@ class _CodingGoalLiveEditDataSource implements ChatDataSource {
         .where(
           (message) =>
               message.role == MessageRole.system &&
-              message.content.startsWith('Current local date and time'),
+              // `contains`, not `startsWith`: the system prompt gained a
+              // safety preamble above the temporal block, so the marker now
+              // sits ~16k characters in. The old prefix match silently
+              // selected nothing, `firstSystemPrompt` returned '', and every
+              // assertion against it failed on an empty string rather than on
+              // what the prompt actually said.
+              message.content.contains('Current local date and time'),
         )
         .map((message) => message.content)
         .toList(growable: false);

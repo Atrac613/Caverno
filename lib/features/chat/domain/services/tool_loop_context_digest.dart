@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../entities/tool_call_info.dart';
 
 /// Builds a compact "already gathered this turn" digest from the tool results
@@ -85,6 +87,43 @@ class ToolLoopContextDigest {
     'git_execute_command',
   };
 
+  /// File mutations, digested separately from inspections and commands.
+  ///
+  /// These were absent from both sets, which made a turn's own edits the one
+  /// class of action leaving no trace at all in the follow-up request: the
+  /// results are not carried, and nothing named the file. Measured over 965
+  /// turns, 56.2% mutated a file and then continued a mean of 2.4 further
+  /// steps — up to 27 — unable to see what they had changed, and 29.9% of them
+  /// ran no command or check after their last edit
+  /// (`docs/self_correction_baseline_2026-08-30.md`).
+  ///
+  /// The section exists to *state a fact the model cannot otherwise recover*,
+  /// never to discourage a repeat. Re-writing a file is how a bad edit is
+  /// repaired, so — unlike the inspection section, which suppresses reflex
+  /// re-reads — nothing here argues against acting again.
+  static const Set<String> _digestableMutationTools = <String>{
+    'write_file',
+    'edit_file',
+    'delete_file',
+  };
+
+  /// Tools whose run counts as having exercised the code after an edit.
+  ///
+  /// Used only to decide whether the digest may say that nothing has run since
+  /// a mutation, so the set is deliberately generous: a false "nothing has run"
+  /// states something untrue about the turn, while a missed line merely stays
+  /// silent. The word *verified* is avoided in the rendered text — this repo
+  /// has two disagreeing definitions of it, and neither is what this observes.
+  static const Set<String> _postMutationCheckTools = <String>{
+    'local_execute_command',
+    'git_execute_command',
+    'dart_analyze_feedback',
+    'dart_test_verification_evidence',
+    'run_tests',
+    'process_start',
+    'process_wait',
+  };
+
   /// Longest command echoed into a digest line.
   static const int _maxCommandLabelChars = 120;
 
@@ -117,9 +156,35 @@ class ToolLoopContextDigest {
     final commandLabels = <String>{};
     final inspectionStatus = <String, _InspectionStatus>{};
     final commandExitCodes = <String, int?>{};
+    // Mutation bookkeeping is kept apart from the label maps above: those drive
+    // the `unchanged` comparison and the recency budget, neither of which means
+    // anything for a write.
+    final mutationOrder = <String>[];
+    final mutationStatus = <String, _MutationStatus>{};
+    final lastMutationPosition = <String, int>{};
+    var lastCheckPosition = -1;
+    var position = -1;
     var index = 0;
     for (final result in results) {
+      position++;
       final name = result.name.trim().toLowerCase();
+      if (_postMutationCheckTools.contains(name)) {
+        lastCheckPosition = position;
+      }
+      if (_digestableMutationTools.contains(name)) {
+        final label = _mutationLabelFor(name, result.arguments);
+        if (label != null) {
+          if (!mutationStatus.containsKey(label)) {
+            mutationOrder.add(label);
+          }
+          // Last write wins, for the same reason a re-read supersedes an
+          // earlier failed one: a path that failed and then succeeded is
+          // changed, and one that succeeded and then failed is not.
+          mutationStatus[label] = _MutationStatus.from(result);
+          lastMutationPosition[label] = position;
+        }
+        continue;
+      }
       final isCommand = _digestableCommandTools.contains(name);
       if (!isCommand && !_digestableTools.contains(name)) {
         continue;
@@ -153,7 +218,7 @@ class ToolLoopContextDigest {
           .add(result.outcome?.effectiveContentHash);
       lastSeen[label] = index++;
     }
-    if (order.length < minEntries) {
+    if (order.length < minEntries && mutationOrder.isEmpty) {
       return '';
     }
 
@@ -218,10 +283,39 @@ class ToolLoopContextDigest {
             : '- $label',
       );
     }
-    if (lines.length + commandLines.length < minEntries) {
+    final mutationLines = <String>[];
+    for (final label in mutationOrder) {
+      final status = mutationStatus[label]!;
+      if (status.failureCode case final code?) {
+        mutationLines.add('- $label — FAILED ($code); the file was not changed');
+        continue;
+      }
+      final facts = <String>[
+        // A byte-identical write reports the same success as a real one, which
+        // is what lets an edit → run → re-read loop spin without progress.
+        if (status.changed == false)
+          'no-op: the file was already exactly this',
+        if ((lastMutationPosition[label] ?? -1) > lastCheckPosition)
+          'no command or check has run since',
+      ];
+      mutationLines.add(
+        facts.isEmpty ? '- $label' : '- $label (${facts.join('; ')})',
+      );
+    }
+
+    if (mutationLines.isEmpty &&
+        lines.length + commandLines.length < minEntries) {
       return '';
     }
     final sections = <String>[
+      // Mutations lead: they are the turn's own actions, they are the entries
+      // most likely to change what the model does next, and unlike the other
+      // two sections they are never trimmed by the entry budget.
+      if (mutationLines.isNotEmpty)
+        'Files this turn changed — the edits themselves are not carried into '
+            'this request, and nothing here says a change is correct. Read a '
+            'file again when you need to see its current state, and change it '
+            'again when it needs fixing:\n${mutationLines.join('\n')}',
       if (lines.isNotEmpty)
         'Inspections already made this turn — what they returned is not '
             'carried into this request. Do not repeat one by reflex; read it '
@@ -357,6 +451,24 @@ class ToolLoopContextDigest {
     );
   }
 
+  /// Label for one file mutation. Verb-per-tool so the line reads as the
+  /// action the model took, matching how the inspection labels read.
+  String? _mutationLabelFor(String name, Map<String, dynamic> arguments) {
+    final path = arguments['path']?.toString().trim();
+    if (path == null || path.isEmpty) {
+      return null;
+    }
+    switch (name) {
+      case 'write_file':
+        return 'wrote $path';
+      case 'edit_file':
+        return 'edited $path';
+      case 'delete_file':
+        return 'deleted $path';
+    }
+    return null;
+  }
+
   String? _labelFor(String name, Map<String, dynamic> arguments) {
     final path = arguments['path']?.toString().trim();
     switch (name) {
@@ -376,6 +488,69 @@ class ToolLoopContextDigest {
         return path == null || path.isEmpty ? null : 'searched $path';
     }
     return null;
+  }
+}
+
+/// What a mutation-class tool reported about one invocation.
+class _MutationStatus {
+  const _MutationStatus({this.failureCode, this.changed});
+
+  /// Structured failure code, null when the mutation reported no failure.
+  ///
+  /// A failed write digested as a plain `- wrote <path>` would assert a change
+  /// that never happened, and the payload carrying the reason is gone by the
+  /// next request — the same trap [_InspectionStatus] exists to avoid on the
+  /// read side. Mutation failures are reported as `{'error': …}` without an
+  /// `ok` key, so both shapes are accepted here.
+  final String? failureCode;
+
+  /// Whether the write actually altered the file, when the tool said so.
+  ///
+  /// Read from [ToolOutcome.fileMutations] / [ToolOutcome.fileChanged] rather
+  /// than from the payload: this is exactly the typed field LL34 exists to
+  /// provide. Null means the tool did not report it, never "unchanged".
+  final bool? changed;
+
+  static _MutationStatus from(ToolResultInfo result) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(result.result);
+    } on FormatException {
+      return _MutationStatus(changed: _changedFrom(result.outcome));
+    }
+    if (decoded is Map<String, dynamic>) {
+      final error = decoded['error'];
+      if (decoded['ok'] == false || (error is String && error.trim().isNotEmpty)) {
+        final code = decoded['code'];
+        return _MutationStatus(
+          failureCode: code is String && code.trim().isNotEmpty
+              ? code.trim()
+              : 'unknown_error',
+        );
+      }
+    }
+    return _MutationStatus(changed: _changedFrom(result.outcome));
+  }
+
+  static bool? _changedFrom(ToolOutcome? outcome) {
+    if (outcome == null) {
+      return null;
+    }
+    if (outcome.fileChanged != null) {
+      return outcome.fileChanged;
+    }
+    final mutations = outcome.fileMutations;
+    if (mutations.isEmpty) {
+      return null;
+    }
+    // Any file actually altered makes the call a change; only a report that
+    // every touched file held still is a no-op.
+    if (mutations.any((mutation) => mutation.changed == true)) {
+      return true;
+    }
+    return mutations.every((mutation) => mutation.changed == false)
+        ? false
+        : null;
   }
 }
 

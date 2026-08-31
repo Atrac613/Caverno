@@ -515,7 +515,13 @@ class _WeatherCodeLiveDataSource implements ChatDataSource {
         .where(
           (message) =>
               message.role == MessageRole.system &&
-              message.content.startsWith('Current local date and time'),
+              // `contains`, not `startsWith`: the system prompt gained a
+              // safety preamble above the temporal block, so the marker now
+              // sits ~16k characters in. The old prefix match silently
+              // selected nothing, `firstSystemPrompt` returned '', and every
+              // assertion against it failed on an empty string rather than on
+              // what the prompt actually said.
+              message.content.contains('Current local date and time'),
         )
         .map((message) => message.content)
         .toList(growable: false);

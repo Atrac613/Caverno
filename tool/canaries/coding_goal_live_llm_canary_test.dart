@@ -799,6 +799,10 @@ class _LiveSettingsNotifier extends SettingsNotifier {
       maxTokens: env.maxTokens,
       mcpEnabled: mcpEnabled,
       demoMode: false,
+      // Without this the run produces no session log at all: the
+      // setting defaults to false, so every measurement tool sees an
+      // empty corpus for this surface no matter how often it runs.
+      enableLlmSessionLogs: true,
     );
   }
 }
@@ -963,7 +967,13 @@ class _CodingGoalLiveDataSource implements ChatDataSource {
         .where(
           (message) =>
               message.role == MessageRole.system &&
-              message.content.startsWith('Current local date and time'),
+              // `contains`, not `startsWith`: the system prompt gained a
+              // safety preamble above the temporal block, so the marker now
+              // sits ~16k characters in. The old prefix match silently
+              // selected nothing, `firstSystemPrompt` returned '', and every
+              // assertion against it failed on an empty string rather than on
+              // what the prompt actually said.
+              message.content.contains('Current local date and time'),
         )
         .map((message) => message.content)
         .toList(growable: false);

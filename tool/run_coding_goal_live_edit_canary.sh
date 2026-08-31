@@ -10,6 +10,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 REPORT_ROOT="${CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY_REPORT_ROOT:-${CAVERNO_LIVE_LLM_CANARY_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}}"
 RUN_DIR="${REPORT_ROOT}/coding_goal_live_edit_canary_$(date +%s)"
+SESSION_LOG_ROOT="${RUN_DIR}/session_logs"
 LOG_PATH="${RUN_DIR}/flutter_test.jsonl"
 WORK_ROOT="${RUN_DIR}/workspace"
 REPORTER="json"
@@ -19,6 +20,15 @@ if ! [[ "${REPEAT_COUNT}" =~ ^[0-9]+$ ]] || [[ "${REPEAT_COUNT}" -lt 1 ]]; then
   echo "CAVERNO_CODING_GOAL_LIVE_EDIT_REPEAT_COUNT must be a positive integer." >&2
   exit 64
 fi
+
+BUILD_COMMIT="$(git -C "${ROOT_DIR}" rev-parse --short HEAD)"
+BUILD_DIRTY=false
+if ! git -C "${ROOT_DIR}" diff --quiet ||
+  ! git -C "${ROOT_DIR}" diff --cached --quiet ||
+  [ -n "$(git -C "${ROOT_DIR}" ls-files --others --exclude-standard)" ]; then
+  BUILD_DIRTY=true
+fi
+BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 echo "Running Coding Goal live edit canary"
 echo "  Base URL: ${CAVERNO_LLM_BASE_URL}"
@@ -30,6 +40,7 @@ echo "  Workspace root: ${WORK_ROOT}"
 
 cd "${ROOT_DIR}"
 mkdir -p "${RUN_DIR}"
+mkdir -p "${SESSION_LOG_ROOT}"
 : > "${LOG_PATH}"
 
 TEST_STATUS=0
@@ -46,7 +57,12 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   CAVERNO_LLM_BASE_URL="${CAVERNO_LLM_BASE_URL}" \
   CAVERNO_LLM_API_KEY="${CAVERNO_LLM_API_KEY}" \
   CAVERNO_LLM_MODEL="${CAVERNO_LLM_MODEL}" \
-  flutter test tool/canaries/coding_goal_live_edit_canary_test.dart -r "${REPORTER}" > "${run_log_path}" 2>&1
+  CAVERNO_SESSION_LOG_DIR="${SESSION_LOG_ROOT}" \
+  flutter test \
+  --dart-define="CAVERNO_BUILD_COMMIT=${BUILD_COMMIT}" \
+  --dart-define="CAVERNO_BUILD_DIRTY=${BUILD_DIRTY}" \
+  --dart-define="CAVERNO_BUILD_TIME=${BUILD_TIME}" \
+    tool/canaries/coding_goal_live_edit_canary_test.dart -r "${REPORTER}" > "${run_log_path}" 2>&1
   run_status=$?
   set -e
 

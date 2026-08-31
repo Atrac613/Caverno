@@ -34,6 +34,7 @@ import 'package:caverno/features/chat/presentation/providers/conversations_notif
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'support/live_canary_approval_responder.dart';
 
 const _trigger = 'DIAGNOSTIC_FEEDBACK_LIVE_CANARY_TRIGGER';
 const _marker = 'DIAGNOSTIC_FEEDBACK_LIVE_OK';
@@ -113,6 +114,7 @@ void main() {
           );
 
           final notifier = container.read(chatNotifierProvider.notifier);
+          LiveCanaryApprovalResponder.attach(container);
           await notifier.sendMessage(
             'Run $_trigger. The first tool call is intentionally scripted to '
             'write a broken Dart file. After analyzer feedback is available, '
@@ -193,7 +195,7 @@ ProviderContainer _buildDiagnosticFeedbackContainer({
 }) {
   final appLifecycleService = _MockAppLifecycleService();
   when(() => appLifecycleService.isInBackground).thenReturn(false);
-  return ProviderContainer(
+  final container = ProviderContainer(
     overrides: [
       settingsNotifierProvider.overrideWith(
         () => _DiagnosticFeedbackSettingsNotifier(env),
@@ -216,6 +218,7 @@ ProviderContainer _buildDiagnosticFeedbackContainer({
       notificationServiceProvider.overrideWithValue(_NoopNotificationService()),
     ],
   );
+  return container;
 }
 
 Future<void> _waitForChatIdle(
@@ -421,6 +424,10 @@ class _DiagnosticFeedbackSettingsNotifier extends SettingsNotifier {
       confirmFileMutations: false,
       confirmLocalCommands: false,
       demoMode: false,
+      // Without this the run produces no session log at all: the
+      // setting defaults to false, so every measurement tool sees an
+      // empty corpus for this surface no matter how often it runs.
+      enableLlmSessionLogs: true,
     );
   }
 }

@@ -64,6 +64,21 @@ SIGNATURES = {
         "what": "digest stops claiming inspection output is still readable",
         "match": lambda s: "Inspections already made this turn" in s,
     },
+    "mutation_digest_section": {
+        "commit": "99c05391",
+        "what": "digest names the files the turn changed",
+        "match": lambda s: "Files this turn changed" in s,
+    },
+    "unchecked_mutation_notice": {
+        "commit": "99c05391",
+        "what": "digest says an edit has had no command or check since",
+        "match": lambda s: "no command or check has run since" in s,
+    },
+    "noop_write_notice": {
+        "commit": "99c05391",
+        "what": "digest flags a write that changed nothing",
+        "match": lambda s: "no-op: the file was already exactly this" in s,
+    },
     "blocked_mutation_notice": {
         "commit": "ab994dec",
         "what": "turn that changed no files says so",

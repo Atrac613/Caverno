@@ -147,7 +147,9 @@ class ExpenseTrackerBehaviorVerifier {
       }
     }
     final afterInvalid = await runCommand(['list'], work);
-    transcript.writeln(_formatProcess('list after invalid input', afterInvalid));
+    transcript.writeln(
+      _formatProcess('list after invalid input', afterInvalid),
+    );
     if (beforeInvalid.exitCode != 0 ||
         afterInvalid.exitCode != 0 ||
         beforeInvalid.stdout.toString().trim() !=

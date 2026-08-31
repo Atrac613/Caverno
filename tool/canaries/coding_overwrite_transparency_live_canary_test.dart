@@ -509,6 +509,10 @@ class _OverwriteTransparencySettingsNotifier extends SettingsNotifier {
       confirmFileMutations: false,
       confirmLocalCommands: false,
       demoMode: false,
+      // Without this the run produces no session log at all: the
+      // setting defaults to false, so every measurement tool sees an
+      // empty corpus for this surface no matter how often it runs.
+      enableLlmSessionLogs: true,
     );
   }
 }

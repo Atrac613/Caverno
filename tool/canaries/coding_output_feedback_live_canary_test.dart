@@ -34,6 +34,7 @@ import 'package:caverno/features/chat/presentation/providers/conversations_notif
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'support/live_canary_approval_responder.dart';
 
 const _trigger = 'OUTPUT_FEEDBACK_LIVE_CANARY_TRIGGER';
 const _marker = 'OUTPUT_FEEDBACK_LIVE_OK';
@@ -76,6 +77,7 @@ void main() {
         );
 
         final notifier = container.read(chatNotifierProvider.notifier);
+        LiveCanaryApprovalResponder.attach(container);
         await notifier.sendMessage(
           'Run $_trigger. The first tool call is intentionally scripted to '
           'execute $_command, which exits 0 while writing an error report. '
@@ -159,7 +161,7 @@ ProviderContainer _buildOutputFeedbackContainer({
 }) {
   final appLifecycleService = _MockAppLifecycleService();
   when(() => appLifecycleService.isInBackground).thenReturn(false);
-  return ProviderContainer(
+  final container = ProviderContainer(
     overrides: [
       settingsNotifierProvider.overrideWith(
         () => _OutputFeedbackSettingsNotifier(env),
@@ -182,6 +184,7 @@ ProviderContainer _buildOutputFeedbackContainer({
       notificationServiceProvider.overrideWithValue(_NoopNotificationService()),
     ],
   );
+  return container;
 }
 
 Future<void> _waitForChatIdle(
@@ -400,6 +403,10 @@ class _OutputFeedbackSettingsNotifier extends SettingsNotifier {
       confirmFileMutations: false,
       confirmLocalCommands: false,
       demoMode: false,
+      // Without this the run produces no session log at all: the
+      // setting defaults to false, so every measurement tool sees an
+      // empty corpus for this surface no matter how often it runs.
+      enableLlmSessionLogs: true,
     );
   }
 }

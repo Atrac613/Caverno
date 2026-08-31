@@ -83,6 +83,10 @@ class _LiveSmokeSettingsNotifier extends SettingsNotifier {
       model: env.model,
       assistantMode: AssistantMode.coding,
       demoMode: false,
+      // Without this the run produces no session log at all: the
+      // setting defaults to false, so every measurement tool sees an
+      // empty corpus for this surface no matter how often it runs.
+      enableLlmSessionLogs: true,
       mcpEnabled: false,
     );
   }

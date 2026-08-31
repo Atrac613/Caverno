@@ -18,8 +18,18 @@ fi
 
 REPORT_ROOT="${CAVERNO_CODING_OVERWRITE_TRANSPARENCY_LIVE_CANARY_REPORT_ROOT:-${CAVERNO_LIVE_LLM_CANARY_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}}"
 RUN_DIR="${REPORT_ROOT}/coding_overwrite_transparency_live_canary_$(date +%s)"
+SESSION_LOG_ROOT="${RUN_DIR}/session_logs"
 LOG_PATH="${RUN_DIR}/flutter_test.jsonl"
 REPORTER="json"
+
+BUILD_COMMIT="$(git -C "${ROOT_DIR}" rev-parse --short HEAD)"
+BUILD_DIRTY=false
+if ! git -C "${ROOT_DIR}" diff --quiet ||
+  ! git -C "${ROOT_DIR}" diff --cached --quiet ||
+  [ -n "$(git -C "${ROOT_DIR}" ls-files --others --exclude-standard)" ]; then
+  BUILD_DIRTY=true
+fi
+BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 echo "Running Coding Overwrite Transparency live canary"
 echo "  Base URL: ${CAVERNO_LLM_BASE_URL}"
@@ -29,13 +39,18 @@ echo "  Report directory: ${RUN_DIR}"
 
 cd "${ROOT_DIR}"
 mkdir -p "${RUN_DIR}"
+mkdir -p "${SESSION_LOG_ROOT}"
 
 set +e
 CAVERNO_CODING_OVERWRITE_TRANSPARENCY_LIVE_CANARY=1 \
 CAVERNO_LLM_BASE_URL="${CAVERNO_LLM_BASE_URL}" \
 CAVERNO_LLM_API_KEY="${CAVERNO_LLM_API_KEY}" \
 CAVERNO_LLM_MODEL="${CAVERNO_LLM_MODEL}" \
+CAVERNO_SESSION_LOG_DIR="${SESSION_LOG_ROOT}" \
 "${FLUTTER_CMD[@]}" test \
+  --dart-define="CAVERNO_BUILD_COMMIT=${BUILD_COMMIT}" \
+  --dart-define="CAVERNO_BUILD_DIRTY=${BUILD_DIRTY}" \
+  --dart-define="CAVERNO_BUILD_TIME=${BUILD_TIME}" \
   tool/canaries/coding_overwrite_transparency_live_canary_test.dart \
   -r "${REPORTER}" > "${LOG_PATH}" 2>&1
 TEST_STATUS=$?

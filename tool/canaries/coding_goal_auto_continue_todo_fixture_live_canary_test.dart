@@ -44,6 +44,7 @@ import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.d
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
+import 'support/live_canary_approval_responder.dart';
 import 'support/dart_cli_entrypoint_resolver.dart';
 import 'support/fixture_verification_runner.dart';
 import 'support/todo_app_behavior_verifier.dart';
@@ -1525,6 +1526,7 @@ void main() {
         );
 
         final notifier = container.read(chatNotifierProvider.notifier);
+        LiveCanaryApprovalResponder.attach(container);
         // This scenario gates the auto-continuation path, so the project ships
         // with a working implementation and the model is asked to get it
         // verified rather than to write it. What the model still decides for
@@ -1908,6 +1910,7 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
       turnBudget: 6,
     );
 
+    LiveCanaryApprovalResponder.attach(container);
     await container
         .read(chatNotifierProvider.notifier)
         .sendMessage(prompt, bypassPlanMode: true);
@@ -2222,6 +2225,7 @@ Future<void> _runShortPromptMvpLiveScenario<T extends _TodoToolService>({
       turnBudget: 5,
     );
 
+    LiveCanaryApprovalResponder.attach(container);
     await container
         .read(chatNotifierProvider.notifier)
         .sendMessage(effectivePrompt, bypassPlanMode: true);
@@ -2358,6 +2362,7 @@ Future<void> _runTodoMvpLiveScenario(
       turnBudget: 5,
     );
 
+    LiveCanaryApprovalResponder.attach(container);
     await container
         .read(chatNotifierProvider.notifier)
         .sendMessage(prompt, bypassPlanMode: true);
@@ -2498,6 +2503,7 @@ Future<void> _runPendingActionLengthRecoveryLiveScenario() async {
       turnBudget: 5,
     );
 
+    LiveCanaryApprovalResponder.attach(container);
     await container
         .read(chatNotifierProvider.notifier)
         .sendMessage(
@@ -2604,7 +2610,7 @@ ProviderContainer _buildContainer({
 }) {
   final appLifecycleService = _MockAppLifecycleService();
   when(() => appLifecycleService.isInBackground).thenReturn(false);
-  return ProviderContainer(
+  final container = ProviderContainer(
     overrides: [
       settingsNotifierProvider.overrideWith(() => _LiveSettingsNotifier(env)),
       conversationRepositoryProvider.overrideWithValue(
@@ -2632,6 +2638,7 @@ ProviderContainer _buildContainer({
       notificationServiceProvider.overrideWithValue(_NoopNotificationService()),
     ],
   );
+  return container;
 }
 
 String _builderSpec() {
