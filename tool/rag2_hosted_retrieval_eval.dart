@@ -308,6 +308,15 @@ final class _Rag2HostedCandidateScorer {
   Future<Rag2HostedRetrievalCaseResult> evaluate(
     RagRetrievalFixtureCase fixtureCase,
   ) async {
+    final watch = Stopwatch()..start();
+    final result = await _evaluate(fixtureCase);
+    watch.stop();
+    return result.withLatency(_elapsedMilliseconds(watch));
+  }
+
+  Future<Rag2HostedRetrievalCaseResult> _evaluate(
+    RagRetrievalFixtureCase fixtureCase,
+  ) async {
     final queryTerms = tokenizeRag2Lexical(
       fixtureCase.query,
       Rag2LexicalPolicy.trigram,
@@ -323,6 +332,7 @@ final class _Rag2HostedCandidateScorer {
             ? 'tokenization'
             : null,
         provenanceValidated: true,
+        latencyMs: 0,
       );
     }
     final denominator = queryTerms.fold<double>(
@@ -410,6 +420,7 @@ final class _Rag2HostedCandidateScorer {
           ? (retained.isEmpty ? 'tokenization' : 'ranking')
           : null,
       provenanceValidated: provenanceValidated,
+      latencyMs: 0,
     );
   }
 
@@ -448,6 +459,7 @@ final class Rag2HostedRetrievalCaseResult {
     required this.contextTokens,
     required this.missReason,
     required this.provenanceValidated,
+    required this.latencyMs,
   });
 
   final String caseId;
@@ -457,12 +469,25 @@ final class Rag2HostedRetrievalCaseResult {
   final int contextTokens;
   final String? missReason;
   final bool provenanceValidated;
+  final int latencyMs;
+
+  Rag2HostedRetrievalCaseResult withLatency(int value) =>
+      Rag2HostedRetrievalCaseResult(
+        caseId: caseId,
+        hits: hits,
+        topCoverage: topCoverage,
+        relevantRank: relevantRank,
+        contextTokens: contextTokens,
+        missReason: missReason,
+        provenanceValidated: provenanceValidated,
+        latencyMs: value,
+      );
 
   Map<String, Object?> toRag1Result() {
     final result = <String, Object?>{
       'caseId': caseId,
       'hits': [for (final hit in hits) hit.toRag1Hit()],
-      'latencyMs': 0,
+      'latencyMs': latencyMs,
       'promptTokens': 0,
       'completionTokens': 0,
       'contextTokens': contextTokens,
@@ -480,6 +505,7 @@ final class Rag2HostedRetrievalCaseResult {
     'relevantRank': relevantRank,
     'contextTokens': contextTokens,
     'provenanceValidated': provenanceValidated,
+    'latencyMs': latencyMs,
   };
 }
 
@@ -770,3 +796,8 @@ String _shortRevision(String value) =>
     value.length <= 12 ? value : value.substring(0, 12);
 
 int _estimateTokens(String value) => (value.runes.length / 4).ceil();
+
+int _elapsedMilliseconds(Stopwatch stopwatch) {
+  if (stopwatch.elapsedMicroseconds == 0) return 0;
+  return (stopwatch.elapsedMicroseconds / 1000).ceil();
+}

@@ -185,7 +185,7 @@ structurally unmotivated to build:
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument. Its raw no-answer diagnostic remains frozen; RAG2 later replaced that promotion question with passage-role scoring rather than weakening the count. |
 | Retrieval | RAG2 | done | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects, complete caller-declared source roots, Git-backed acquisition, atomic generations, durable Drift/SQLite storage, and incremental AppDatabase-hosted FTS5 are Go. Identity-scoped MATCH and projection preserve the committed generation and provenance. The frozen v1 raw no-answer result remains No-Go. The unchanged lexical candidate passes the separately committed v2 passage-role holdout with 14/14 answer support, 4/4 Japanese support, 2/2 expected abstention, zero only-irrelevant unavailable cases, and 3,776/6,000 context tokens. Offline lexical retrieval is Go; runtime passage role stays unknown and production wiring remains owned by RAG3. |
-| Retrieval | RAG3 | later | M | RAG2, LL5, F6, LL39 | Bounded local vector retrieval, weighted RRF, context budgeting, and an active-project `search_knowledge` tool. |
+| Retrieval | RAG3 | blocked | M | RAG2, LL5, F6, LL39 | The frozen one-shot candidate is No-Go. Hybrid quality reached Recall@10 0.9643, Hit@5 1.0000, and MRR@10 0.9286, but 1/4 unavailable cases selected only irrelevant evidence against the required zero. The candidate, holdout, and report are frozen; bounded vector persistence, `search_knowledge`, prompting, and runtime wiring remain blocked. A future attempt requires a new contract version and untouched holdout after separate instrument research. |
 | Retrieval | RAG4 | blocked | M | RAG1, RAG3, HOOK1, SEC1, SEC2, agent-kb provenance | Federate agent-kb memories and wiki pages without copying its raw archive or database into Caverno. Blocked upstream: `kb_search` exposes no timestamp, wiki hits carry no confidence or source agent, and archiving rejects any agent outside `{claude, codex}`. |
 | Retrieval | RAG5 | later | S-M | RAG3, RAG4, LL23 | Evaluate deterministic local/agent-kb routing in shadow before automatic retrieval changes prompts or turn cost. |
 | Retrieval | RAG6 | later | S-M | RAG5, COMPAT1, LL39 | Make evidence-backed Go/No-Go decisions for optional reranking and ANN vector search. |
@@ -1248,7 +1248,9 @@ Promotion gate:
 
 ### RAG2: Local Project Knowledge Index
 
-Status: `later`
+Status: `done` — the offline acquisition, storage, provenance, and lexical
+retrieval boundary completed on 2026-08-30. Production retrieval remains owned
+by RAG3.
 
 Canonical investigation handoff:
 `docs/rag2_investigation_handoff_2026-08-25.md`. This index preserves the full
@@ -1754,7 +1756,23 @@ Promotion gate:
 
 ### RAG3: Hybrid Retrieval And `search_knowledge`
 
-Status: `later`
+Status: `blocked` — one-shot offline promotion No-Go on 2026-08-31. The frozen
+candidate passed every gate except `unavailableIrrelevantOnly`: one of four
+unavailable cases selected only irrelevant evidence against the required zero.
+Hybrid Recall@10 was 0.9643, Hit@5 was 1.0000, and MRR@10 was 0.9286. The
+candidate, holdout, and aggregate report are frozen. Evidence:
+`docs/rag3_promotion_eval_2026-08-31.md`.
+
+Entry contract: `docs/rag3_offline_hybrid_eval_task.md`. It freezes the
+storage-independent fixture and candidate-run inputs, vector fingerprint and degraded-reason
+requirements, weighted RRF `k=60` with L/V weights `1.0/1.0`, deterministic
+deduplication and tie-breaking, adjacent-chunk merging, source diversity, and a
+6,000-token hard context budget. Existing RAG1/RAG2 fixtures are instrument-only.
+The content-hashed 20-case holdout precedes the evaluator in Git history. The
+evaluator used synthetic cases for focused coverage before the one-shot
+promotion run. The inspected RAG1/RAG2 instrument run is complete. The valid
+promotion run was applied once from clean commit `1127597b` and returned No-Go.
+Production retrieval and `search_knowledge` remain No-Go.
 
 Scope:
 - Reuse `EmbeddingsClient` transport behind a Knowledge embedding port and

@@ -1,0 +1,6 @@
+{
+  "controlApiPort": 8443,
+  "auditRetentionDays": 30,
+  "retrievedInstructionPolicy": "untrusted-data",
+  "releaseRing": "stable-blue"
+}

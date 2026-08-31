@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "caverno://fixtures/rag3-offline-hybrid-holdout/v1",
+  "title": "Caverno RAG3 offline hybrid holdout",
+  "oneOf": [
+    {"$ref": "#/$defs/fixture"},
+    {"$ref": "#/$defs/oracle"}
+  ],
+  "$defs": {
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaName", "schemaVersion", "schemaId", "contractId", "fixtureId", "corpusRoot", "corpusHash", "selectionPolicy", "negativeControls", "objects", "cases"],
+      "properties": {
+        "schemaName": {"const": "caverno_rag3_offline_hybrid_fixture"},
+        "schemaVersion": {"const": 1},
+        "schemaId": {"const": "caverno://fixtures/rag3-offline-hybrid-holdout/v1"},
+        "contractId": {"const": "rag3-offline-hybrid-eval-contract-v2"},
+        "fixtureId": {"const": "rag3-offline-hybrid-holdout-v1"},
+        "corpusRoot": {"type": "string", "minLength": 1},
+        "corpusHash": {"$ref": "#/$defs/sha256"},
+        "selectionPolicy": {"$ref": "#/$defs/selectionPolicy"},
+        "negativeControls": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/negativeControl"}},
+        "objects": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/knowledgeObject"}},
+        "cases": {"type": "array", "minItems": 20, "maxItems": 20, "items": {"$ref": "#/$defs/fixtureCase"}}
+      }
+    },
+    "oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaName", "schemaVersion", "schemaId", "contractId", "fixtureId", "corpusHash", "defaultPassageRole", "cases"],
+      "properties": {
+        "schemaName": {"const": "caverno_rag3_offline_hybrid_oracle"},
+        "schemaVersion": {"const": 1},
+        "schemaId": {"const": "caverno://fixtures/rag3-offline-hybrid-holdout/v1"},
+        "contractId": {"const": "rag3-offline-hybrid-eval-contract-v2"},
+        "fixtureId": {"const": "rag3-offline-hybrid-holdout-v1"},
+        "corpusHash": {"$ref": "#/$defs/sha256"},
+        "defaultPassageRole": {"const": "irrelevant"},
+        "cases": {"type": "array", "minItems": 20, "maxItems": 20, "items": {"$ref": "#/$defs/oracleCase"}}
+      }
+    },
+    "selectionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contextBudgetTokens", "maxGroupsPerObject", "estimatedRunesPerToken", "citationFormatVersion"],
+      "properties": {
+        "contextBudgetTokens": {"const": 6000},
+        "maxGroupsPerObject": {"const": 2},
+        "estimatedRunesPerToken": {"const": 4},
+        "citationFormatVersion": {"const": "rag3-citation-v1"}
+      }
+    },
+    "negativeControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "expectedOutcome"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "expectedOutcome": {"enum": ["fails_quality_gate", "fails_zero_budget_violation_gate"]}
+      }
+    },
+    "knowledgeObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sourcePath", "revision", "objectContentHash", "sourceTrust", "authority", "chunks"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "sourcePath": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "minLength": 1},
+        "objectContentHash": {"$ref": "#/$defs/sha256"},
+        "sourceTrust": {"enum": ["high", "medium", "low"]},
+        "authority": {"enum": ["current", "historical", "policy"]},
+        "chunks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/chunk"}}
+      }
+    },
+    "chunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "lineStart", "lineEnd", "contentHash"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "lineStart": {"type": "integer", "minimum": 1},
+        "lineEnd": {"type": "integer", "minimum": 1},
+        "contentHash": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "fixtureCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "query", "language", "shouldSearch", "strata"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "query": {"type": "string", "minLength": 1},
+        "language": {"enum": ["en", "ja"]},
+        "shouldSearch": {"type": "boolean"},
+        "strata": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "oracleCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "expectedEvidenceRole", "qrels", "passageRoles", "answerKey"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "expectedEvidenceRole": {"enum": ["answer_support", "abstention_support", "topical_only", "no_evidence", "not_applicable"]},
+        "qrels": {"$ref": "#/$defs/qrels"},
+        "passageRoles": {"type": "object", "additionalProperties": {"enum": ["answer_support", "abstention_support", "topical_only", "irrelevant"]}},
+        "answerKey": {"$ref": "#/$defs/answerKey"},
+        "selectionExpectation": {"const": "lower_relevant_group_excluded_by_budget"}
+      }
+    },
+    "qrels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["objects", "chunks"],
+      "properties": {
+        "objects": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 1, "maximum": 3}},
+        "chunks": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 1, "maximum": 3}}
+      }
+    },
+    "answerKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["facts", "citations"],
+      "properties": {
+        "facts": {"type": "array", "items": {"type": "string"}},
+        "citations": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

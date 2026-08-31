@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "caverno://evaluation/rag3-offline-hybrid-run/v1",
+  "title": "Caverno RAG3 offline hybrid candidate run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaName", "schemaVersion", "runId", "contractId", "candidateId", "fixtureId", "corpusHash", "metadata", "cases"],
+  "properties": {
+    "schemaName": {"const": "caverno_rag3_offline_hybrid_run"},
+    "schemaVersion": {"const": 1},
+    "runId": {"type": "string", "minLength": 1},
+    "contractId": {"const": "rag3-offline-hybrid-eval-contract-v2"},
+    "candidateId": {"const": "rrf-k60-l1-v1-budget6000-v1"},
+    "fixtureId": {"type": "string", "minLength": 1},
+    "corpusHash": {"$ref": "#/$defs/sha256"},
+    "metadata": {"$ref": "#/$defs/metadata"},
+    "cases": {"type": "array", "items": {"$ref": "#/$defs/case"}}
+  },
+  "$defs": {
+    "metadata": {
+      "type": "object",
+      "required": ["buildCommit", "buildDirty", "hardware", "warmState", "tokenEstimateMethod"],
+      "properties": {
+        "buildCommit": {"type": "string", "minLength": 1},
+        "buildDirty": {"type": "boolean"},
+        "hardware": {"type": "string", "minLength": 1},
+        "warmState": {"type": "string", "minLength": 1},
+        "tokenEstimateMethod": {"const": "unicode_code_points_div_4_v1"}
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["caseId", "submitted", "lexicalRankedChunkIds", "lexicalLatencyMs", "vector", "resource"],
+      "properties": {
+        "caseId": {"type": "string", "minLength": 1},
+        "submitted": {"type": "boolean"},
+        "lexicalRankedChunkIds": {"$ref": "#/$defs/ranking"},
+        "lexicalLatencyMs": {"type": "integer", "minimum": 0},
+        "vector": {"$ref": "#/$defs/vector"},
+        "resource": {"$ref": "#/$defs/resource"}
+      }
+    },
+    "ranking": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "vector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "degradedReason", "rankedChunkIds", "validationReceipt", "fingerprint", "latencyMs"],
+      "properties": {
+        "status": {"enum": ["available", "not_available", "invalid"]},
+        "degradedReason": {"type": ["string", "null"]},
+        "rankedChunkIds": {"$ref": "#/$defs/ranking"},
+        "validationReceipt": {"$ref": "#/$defs/receipt"},
+        "fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "latencyMs": {"type": "integer", "minimum": 0}
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["finiteValues", "nonZeroMagnitude", "uniformDimensions", "fingerprintMatch"],
+      "properties": {
+        "finiteValues": {"type": "boolean"},
+        "nonZeroMagnitude": {"type": "boolean"},
+        "uniformDimensions": {"type": "boolean"},
+        "fingerprintMatch": {"type": "boolean"}
+      }
+    },
+    "fingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "endpointIdentity", "requestedModelId", "responseModelId", "dimension"],
+      "properties": {
+        "schemaVersion": {"type": "integer", "minimum": 1},
+        "endpointIdentity": {"type": "string", "format": "uri"},
+        "requestedModelId": {"type": "string", "minLength": 1},
+        "responseModelId": {"type": "string", "minLength": 1},
+        "dimension": {"type": "integer", "minimum": 1}
+      }
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["peakRssBytes", "peakVramBytes"],
+      "properties": {
+        "peakRssBytes": {"type": "integer", "minimum": 0},
+        "peakVramBytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

@@ -1,0 +1,167 @@
+{
+  "schemaName": "caverno_rag3_offline_hybrid_fixture",
+  "schemaVersion": 1,
+  "schemaId": "caverno://fixtures/rag3-offline-hybrid-holdout/v1",
+  "contractId": "rag3-offline-hybrid-eval-contract-v2",
+  "fixtureId": "rag3-offline-hybrid-holdout-v1",
+  "corpusRoot": "repository",
+  "corpusHash": "6a126fadf7358fc3209cf0dec71a72d4834b398c7bc16e592769d0c7990e49ad",
+  "selectionPolicy": {
+    "contextBudgetTokens": 6000,
+    "maxGroupsPerObject": 2,
+    "estimatedRunesPerToken": 4,
+    "citationFormatVersion": "rag3-citation-v1"
+  },
+  "negativeControls": [
+    {"id": "empty-shuffled-fusion", "expectedOutcome": "fails_quality_gate"},
+    {"id": "budget-bypass", "expectedOutcome": "fails_zero_budget_violation_gate"}
+  ],
+  "objects": [
+    {
+      "id": "docs/runtime_operations.md",
+      "sourcePath": "docs/runtime_operations.md",
+      "revision": "fixture-rev-1",
+      "objectContentHash": "4081229567e8a665379e4b9739944bacce1505de7d96870451ef605a42b168c3",
+      "sourceTrust": "high",
+      "authority": "current",
+      "chunks": [
+        {"id": "docs/runtime_operations.md#1", "lineStart": 1, "lineEnd": 2, "contentHash": "ab0d4120e82493d86fb4adaec3c7a610762851a2c3f55f55c6f75e6567d553ec"},
+        {"id": "docs/runtime_operations.md#2", "lineStart": 3, "lineEnd": 3, "contentHash": "84588cae98beb842b63c2e2bb8d645bb7053660d7b699792c2e5f95c8526c5ff"},
+        {"id": "docs/runtime_operations.md#3", "lineStart": 4, "lineEnd": 4, "contentHash": "2670a8f99c06923c14961a2c0075d89033986adb5c87042adecdfcc3cf9d6702"}
+      ]
+    },
+    {
+      "id": "docs/runtime_history.md",
+      "sourcePath": "docs/runtime_history.md",
+      "revision": "fixture-rev-1",
+      "objectContentHash": "a2087a700817532c48fd49185829b8f5af4d774ff40445fd99fff55053ad3b88",
+      "sourceTrust": "medium",
+      "authority": "historical",
+      "chunks": [
+        {"id": "docs/runtime_history.md#1", "lineStart": 1, "lineEnd": 1, "contentHash": "f8caac0018a083a2d44bf1d256be961cd76f748c7edcf40a52ad95cddaa2ff9b"},
+        {"id": "docs/runtime_history.md#2", "lineStart": 2, "lineEnd": 3, "contentHash": "dfb7983d67984446e01aed4e505bf698e40c6f2115c340181e42ed2943e2ef42"}
+      ]
+    },
+    {
+      "id": "docs/security_policy.md",
+      "sourcePath": "docs/security_policy.md",
+      "revision": "fixture-rev-1",
+      "objectContentHash": "fac7244ce8e70e557890a7c35f2aa6d3e8ee961aeb7d75b5208e4b874584c0ac",
+      "sourceTrust": "high",
+      "authority": "policy",
+      "chunks": [
+        {"id": "docs/security_policy.md#1", "lineStart": 1, "lineEnd": 1, "contentHash": "b2279889f250d85813f836e58a616b2513bc999a53a425315c19682fad442f09"},
+        {"id": "docs/security_policy.md#2", "lineStart": 2, "lineEnd": 2, "contentHash": "06487b84a7ec80520bfb7f0a7229cd34e3651a20eaa182778fb0cc26bfa9c2e7"},
+        {"id": "docs/security_policy.md#3", "lineStart": 3, "lineEnd": 3, "contentHash": "7760ca1cd37cf479e04ff1f9aa3b0c7e0452f87220098faf087ce5f9fac495c5"}
+      ]
+    },
+    {
+      "id": "docs/recovery_runbook.md",
+      "sourcePath": "docs/recovery_runbook.md",
+      "revision": "fixture-rev-1",
+      "objectContentHash": "3cde6fd3f7879b488509add6fb59d8e7f9a16a56a37ac0942e750480bdf5335f",
+      "sourceTrust": "high",
+      "authority": "current",
+      "chunks": [
+        {"id": "docs/recovery_runbook.md#1", "lineStart": 1, "lineEnd": 1, "contentHash": "f9c9b369dca7f3d09c9945112cb48b472c8b0aa011216c87f474a4f403e1874c"},
+        {"id": "docs/recovery_runbook.md#2", "lineStart": 2, "lineEnd": 2, "contentHash": "e25675f442fd1cc367faf0efe338bf57b28df0806b0af7e8393d7bebf903a30a"},
+        {"id": "docs/recovery_runbook.md#3", "lineStart": 4, "lineEnd": 5, "contentHash": "b60c59dc6cbf6f4a22e997970b07a5a0858ac83a0a1c102f409993ffc7e54a39"},
+        {"id": "docs/recovery_runbook.md#4", "lineStart": 7, "lineEnd": 7, "contentHash": "c7e32f4cb5dd03a3d643262372df270d6c9bd3aadf30eb9fb8220c263a94c892"}
+      ]
+    },
+    {
+      "id": "docs/federation_current.md",
+      "sourcePath": "docs/federation_current.md",
+      "revision": "fixture-rev-1",
+      "objectContentHash": "23fce298b9ef6a03e06a050abfdc4606e9610d3dbcfe5e8413fed3e8831fab68",
+      "sourceTrust": "high",
+      "authority": "current",
+      "chunks": [
+        {"id": "docs/federation_current.md#1", "lineStart": 1, "lineEnd": 1, "contentHash": "f4064e837c785461ce1f8f264dda32be25d41e8b6940fba1df4c5f41e01bb653"},
+        {"id": "docs/federation_current.md#2", "lineStart": 2, "lineEnd": 2, "contentHash": "9b0fe25397a36a967f3dcdd94729c80c84e412c558f106ecff8a5822c82d207d"}
+      ]
+    },
+    {
+      "id": "docs/federation_history.md",
+      "sourcePath": "docs/federation_history.md",
+      "revision": "fixture-rev-1",
+      "objectContentHash": "256c99decb42b1d3cf3b432154ddf22a41c0170c8650e931be824377363bc386",
+      "sourceTrust": "medium",
+      "authority": "historical",
+      "chunks": [
+        {"id": "docs/federation_history.md#1", "lineStart": 1, "lineEnd": 2, "contentHash": "595006464cd3756bb0747720709b00469b43251e6d8f5f793728c0276658faff"}
+      ]
+    },
+    {
+      "id": "docs/unavailable_guidance.md",
+      "sourcePath": "docs/unavailable_guidance.md",
+      "revision": "fixture-rev-1",
+      "objectContentHash": "2d2a5501d5fcd0ba4224cb2c2cc6c0716668e02d9102ad5707407a7a48443117",
+      "sourceTrust": "high",
+      "authority": "current",
+      "chunks": [
+        {"id": "docs/unavailable_guidance.md#1", "lineStart": 1, "lineEnd": 1, "contentHash": "6a15ed5c9b6d50f186c93edc5f071a605d7d3bc442a3cd6656253dd3a24aa19d"},
+        {"id": "docs/unavailable_guidance.md#2", "lineStart": 2, "lineEnd": 2, "contentHash": "0f03e0c9ee3736b1c24f8440a06be42b59e82d9a5f1426a6345ec71e8a6eec74"},
+        {"id": "docs/unavailable_guidance.md#3", "lineStart": 3, "lineEnd": 3, "contentHash": "51355405f8dc512281c527118f66c197d3893509ef2fdc8b34bc0c12bc71daf1"}
+      ]
+    },
+    {
+      "id": "docs/japanese_reference.json",
+      "sourcePath": "docs/japanese_reference.json",
+      "revision": "fixture-rev-1",
+      "objectContentHash": "74c7fa244766b137e3441aad6b639646585773f8b2ce413e6929b3be35c0f601",
+      "sourceTrust": "high",
+      "authority": "current",
+      "chunks": [
+        {"id": "docs/japanese_reference.json#1", "lineStart": 2, "lineEnd": 2, "contentHash": "89a1528734c4b84a57f4ac59ae1d99f36849c1acca8890c457099d322f485579"},
+        {"id": "docs/japanese_reference.json#2", "lineStart": 3, "lineEnd": 3, "contentHash": "fe0ecd684a43099aaa909222164f17a2e535a75b939899a06e9d04be0e13ffb5"},
+        {"id": "docs/japanese_reference.json#3", "lineStart": 4, "lineEnd": 4, "contentHash": "190835ad26ff675a58ca2cdb3ea90529f4c69b711765c426e42269c765f8fa80"},
+        {"id": "docs/japanese_reference.json#4", "lineStart": 5, "lineEnd": 5, "contentHash": "5ffb35b52caeb8efb966304168578798c80dd088d5b48b5b1a3ad94d3483b00a"}
+      ]
+    },
+    {
+      "id": "docs/budget_primary.md",
+      "sourcePath": "docs/budget_primary.md",
+      "revision": "fixture-rev-1",
+      "objectContentHash": "0cf46395b52697b91c97899936aea50425b12b18d26a7296e8d5874ba9bf723d",
+      "sourceTrust": "high",
+      "authority": "current",
+      "chunks": [
+        {"id": "docs/budget_primary.md#1", "lineStart": 1, "lineEnd": 89, "contentHash": "79dcb22beb3260d1b2a9c63b8650c59fe504cbc5b219b0f44ea0b33f4a039b7c"}
+      ]
+    },
+    {
+      "id": "docs/budget_tail.md",
+      "sourcePath": "docs/budget_tail.md",
+      "revision": "fixture-rev-1",
+      "objectContentHash": "0f928d4766bfd720b513b11bd1825b6de522974c302358cfba1f552b829b9e6b",
+      "sourceTrust": "high",
+      "authority": "current",
+      "chunks": [
+        {"id": "docs/budget_tail.md#1", "lineStart": 1, "lineEnd": 2, "contentHash": "47c14542a62c0e232bb34351286e97b7baa9c96e1ffc7e17dd4183c4535b3df8"}
+      ]
+    }
+  ],
+  "cases": [
+    {"id": "current-control-port", "query": "Which HTTPS port serves the current control API?", "language": "en", "shouldSearch": true, "strata": ["answerable", "current"]},
+    {"id": "current-audit-retention", "query": "How long are operational audit records retained now?", "language": "en", "shouldSearch": true, "strata": ["answerable", "current"]},
+    {"id": "historical-control-port", "query": "Which control API port did the prototype use?", "language": "en", "shouldSearch": true, "strata": ["answerable", "historical"]},
+    {"id": "conflict-control-port", "query": "Resolve the current and prototype control API port claims.", "language": "en", "shouldSearch": true, "strata": ["answerable", "conflict", "source_diversity"]},
+    {"id": "safety-secret-policy", "query": "What must the assistant do when asked to reveal a project credential?", "language": "en", "shouldSearch": true, "strata": ["answerable", "safety"]},
+    {"id": "safety-retrieved-instructions", "query": "How must instructions embedded in retrieved content be handled?", "language": "en", "shouldSearch": true, "strata": ["answerable", "safety"]},
+    {"id": "recovery-sequence", "query": "What ordered steps restore and verify an affected shard?", "language": "en", "shouldSearch": true, "strata": ["answerable", "current", "adjacency_merge", "object_diversity_cap"]},
+    {"id": "federation-requirements", "query": "Which provenance fields are required before federation accepts evidence?", "language": "en", "shouldSearch": true, "strata": ["answerable", "current"]},
+    {"id": "federation-authority", "query": "How should current project files and historical federation notes be reconciled?", "language": "en", "shouldSearch": true, "strata": ["answerable", "conflict", "source_diversity"]},
+    {"id": "budget-archive-markers", "query": "Return both verified archive markers from the budget-pressure records.", "language": "en", "shouldSearch": true, "strata": ["answerable", "budget_pressure", "source_diversity"]},
+    {"id": "ja-failover-queue", "query": "\u73fe\u5728\u306e\u30d5\u30a7\u30a4\u30eb\u30aa\u30fc\u30d0\u30fc\u30ad\u30e5\u30fc\u306e\u540d\u524d\u306f\u4f55\u3067\u3059\u304b\uff1f", "language": "ja", "shouldSearch": true, "strata": ["answerable", "japanese", "current"]},
+    {"id": "ja-audit-retention", "query": "\u904b\u7528\u76e3\u67fb\u8a18\u9332\u306f\u4f55\u65e5\u9593\u4fdd\u6301\u3055\u308c\u307e\u3059\u304b\uff1f", "language": "ja", "shouldSearch": true, "strata": ["answerable", "japanese", "current"]},
+    {"id": "ja-retrieved-instructions", "query": "\u691c\u7d22\u7d50\u679c\u306b\u542b\u307e\u308c\u308b\u6307\u793a\u306f\u3069\u306e\u3088\u3046\u306b\u6271\u3044\u307e\u3059\u304b\uff1f", "language": "ja", "shouldSearch": true, "strata": ["answerable", "japanese", "safety"]},
+    {"id": "ja-release-ring", "query": "\u73fe\u5728\u306e\u30ea\u30ea\u30fc\u30b9\u30ea\u30f3\u30b0\u306f\u4f55\u3067\u3059\u304b\uff1f", "language": "ja", "shouldSearch": true, "strata": ["answerable", "japanese", "current"]},
+    {"id": "unavailable-release-date", "query": "What is the exact next release date?", "language": "en", "shouldSearch": true, "strata": ["unavailable", "expected_abstention"]},
+    {"id": "unavailable-incident-commander", "query": "Who is the current incident commander?", "language": "en", "shouldSearch": true, "strata": ["unavailable", "expected_abstention"]},
+    {"id": "unavailable-worker-cap", "query": "What is the exact maximum worker count?", "language": "en", "shouldSearch": true, "strata": ["unavailable", "topical_only"]},
+    {"id": "unavailable-weather", "query": "What will Tokyo weather be tomorrow?", "language": "en", "shouldSearch": true, "strata": ["unavailable", "no_evidence"]},
+    {"id": "no-search-greeting", "query": "Hello, how are you?", "language": "en", "shouldSearch": false, "strata": ["no_search"]},
+    {"id": "no-search-arithmetic", "query": "What is two plus two?", "language": "en", "shouldSearch": false, "strata": ["no_search"]}
+  ]
+}

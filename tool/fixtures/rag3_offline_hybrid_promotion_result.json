@@ -1,0 +1,72 @@
+{
+  "schemaName": "caverno_rag3_offline_hybrid_promotion_result",
+  "schemaVersion": 1,
+  "contractId": "rag3-offline-hybrid-eval-contract-v2",
+  "candidateId": "rrf-k60-l1-v1-budget6000-v1",
+  "fixtureId": "rag3-offline-hybrid-holdout-v1",
+  "corpusHash": "6a126fadf7358fc3209cf0dec71a72d4834b398c7bc16e592769d0c7990e49ad",
+  "runId": "rag3-promotion-run-v1",
+  "buildCommit": "1127597bf3af4fc4719bba131730509878d00ce8",
+  "result": "no_go",
+  "sourceArtifacts": {
+    "reportSha256": "6b7d8a41331b3eb28f9ff4bf71cc1cc1194423521ef776d2d18391978304854c",
+    "runSha256": "b94e83a298c7fd3192ed3825188354c395d72b28ada642f1792e32fd477c58f2"
+  },
+  "embeddingFingerprintDigest": "279fceba38183b742f0ca2e56c914f32de77fe3b90bae208a50851193b5c4637",
+  "arms": {
+    "lexical": {
+      "objectRecallAt10": 0.6785714285714286,
+      "objectHitAt5": 0.7142857142857143,
+      "objectMrrAt10": 0.7142857142857143
+    },
+    "vector": {
+      "objectRecallAt10": 0.9642857142857143,
+      "objectHitAt5": 1.0,
+      "objectMrrAt10": 0.8928571428571429
+    },
+    "hybrid": {
+      "objectRecallAt10": 0.9642857142857143,
+      "objectHitAt5": 1.0,
+      "objectMrrAt10": 0.9285714285714286
+    }
+  },
+  "support": {
+    "answer": {"retrieved": 14, "cases": 14},
+    "japaneseAnswer": {"retrieved": 4, "cases": 4},
+    "abstention": {"retrieved": 2, "cases": 2},
+    "unavailableIrrelevantOnly": 1
+  },
+  "betterArmMissCount": 0,
+  "noSearchRetrievalCount": 0,
+  "contextBudgetViolationCount": 0,
+  "provenanceViolationCount": 0,
+  "negativeControls": {
+    "emptyFusion": {
+      "expectedOutcome": "fails_quality_gate",
+      "detected": true
+    },
+    "budgetBypass": {
+      "expectedOutcome": "fails_zero_budget_violation_gate",
+      "detected": true,
+      "contextTokens": 7063
+    }
+  },
+  "gates": {
+    "objectRecallAt10": true,
+    "objectHitAt5": true,
+    "objectMrrAt10": true,
+    "hybridBetterArmMisses": true,
+    "answerSupport": true,
+    "japaneseAnswerSupport": true,
+    "abstentionSupport": true,
+    "unavailableIrrelevantOnly": false,
+    "contextBudget": true,
+    "noSearch": true,
+    "citationAndProvenance": true,
+    "emptyFusionNegativeControl": true,
+    "budgetBypassNegativeControl": true,
+    "vectorDegradation": true
+  },
+  "failingCases": ["unavailable-weather"],
+  "deterministicReplayPassed": true
+}
