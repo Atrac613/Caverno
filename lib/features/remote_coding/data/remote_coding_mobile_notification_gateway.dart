@@ -192,7 +192,13 @@ RemoteCodingNotificationPermission _mapAuthorizationStatus(
   return switch (status) {
     AuthorizationStatus.authorized =>
       RemoteCodingNotificationPermission.authorized,
-    AuthorizationStatus.denied => RemoteCodingNotificationPermission.denied,
+    // firebase_messaging 16.6.0 split out the state where the platform will no
+    // longer surface a permission prompt. The remedy is identical to a plain
+    // denial here -- the user has to re-enable notifications in system
+    // settings -- and that is exactly what the denied copy already says.
+    AuthorizationStatus.denied ||
+    AuthorizationStatus.deniedPermanently =>
+      RemoteCodingNotificationPermission.denied,
     AuthorizationStatus.notDetermined =>
       RemoteCodingNotificationPermission.notDetermined,
     AuthorizationStatus.provisional =>
