@@ -12,6 +12,7 @@ RUN_ANALYZE=true
 RUN_TESTS=true
 RUN_COVERAGE=false
 COVERAGE_THRESHOLD=60
+QUIET_TESTS=true
 TEST_TARGETS=()
 PACKAGE_DIRS=()
 PACKAGE_COVERAGE_DIR=""
@@ -24,6 +25,10 @@ Usage:
 
 Options:
   --coverage                 Run tests with coverage and print a line summary.
+  --raw-tests                Echo every Flutter test progress and log line.
+                             The default summarizes the run through
+                             tool/flutter_test_quiet.sh, which prints one line
+                             on success and only the failing tests otherwise.
   --coverage-threshold PCT   Show files below this line coverage percent.
                              Default: 60.
   --test PATH                Run a focused test target. May be repeated.
@@ -36,6 +41,7 @@ Examples:
   tool/codex_verify.sh
   tool/codex_verify.sh --test test/core/utils/content_parser_test.dart
   tool/codex_verify.sh --coverage --coverage-threshold 75
+  tool/codex_verify.sh --raw-tests
 EOF
 }
 
@@ -43,6 +49,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --coverage)
       RUN_COVERAGE=true
+      shift
+      ;;
+    --raw-tests)
+      QUIET_TESTS=false
       shift
       ;;
     --coverage-threshold)
@@ -317,17 +327,26 @@ if $RUN_TESTS; then
     fi
   done
 
-  if [[ ${#TEST_TARGETS[@]} -gt 0 ]]; then
-    if $RUN_COVERAGE; then
-      run_step "Run focused tests with coverage" \
-        "${FLUTTER_CMD[@]}" test --coverage "${TEST_TARGETS[@]}"
-    else
-      run_step "Run focused tests" "${FLUTTER_CMD[@]}" test "${TEST_TARGETS[@]}"
-    fi
-  elif $RUN_COVERAGE; then
-    run_step "Run tests with coverage" "${FLUTTER_CMD[@]}" test --coverage
+  # The wrapper forwards unknown arguments to `flutter test`, so --coverage
+  # still produces coverage/lcov.info while the console output stays summarized.
+  if $QUIET_TESTS; then
+    TEST_CMD=("$SCRIPT_DIR/flutter_test_quiet.sh")
   else
-    run_step "Run tests" "${FLUTTER_CMD[@]}" test
+    TEST_CMD=("${FLUTTER_CMD[@]}" test)
+  fi
+
+  COVERAGE_ARGS=()
+  if $RUN_COVERAGE; then
+    COVERAGE_ARGS=(--coverage)
+  fi
+
+  if [[ ${#TEST_TARGETS[@]} -gt 0 ]]; then
+    run_step "Run focused tests" \
+      "${TEST_CMD[@]}" ${COVERAGE_ARGS[@]+"${COVERAGE_ARGS[@]}"} \
+      "${TEST_TARGETS[@]}"
+  else
+    run_step "Run tests" \
+      "${TEST_CMD[@]}" ${COVERAGE_ARGS[@]+"${COVERAGE_ARGS[@]}"}
   fi
 
   if [[ -f "$NOTIFICATION_RELAY_DIR/package.json" ]]; then
