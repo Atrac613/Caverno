@@ -82,7 +82,7 @@ import '../widgets/file_workspace_viewer_sheet.dart';
 import '../widgets/subagent_task_banner.dart';
 import '../widgets/worktree_agent_task_banner.dart';
 import '../widgets/message_bubble.dart';
-import '../widgets/composer_video_picker.dart';
+import '../coordinators/chat_dropped_attachments.dart';
 import '../widgets/message_input.dart';
 import '../widgets/mobile_keyboard_dismiss.dart';
 import '../widgets/participant_roster_bar.dart';
@@ -153,11 +153,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   late bool _showDashboard;
   FileWorkspaceViewerRequest? _fileWorkspaceViewerRequest;
   ChatRightSidebarTab _rightSidebarTab = ChatRightSidebarTab.companion;
-  int _droppedImageAttachmentId = 0;
   String? _switchingCompanionBranchName;
-  MessageInputImageAttachment? _droppedImageAttachment;
-  MessageInputVideoAttachment? _droppedVideoAttachment;
-  int _droppedVideoAttachmentId = 0;
+  final ChatDroppedAttachments _droppedAttachments = ChatDroppedAttachments();
   static const double _browserPanelBreakpoint = 1280;
   static const double _browserPanelWidth = 480;
   static const double _compactBrowserPanelHeightFraction = 0.55;
@@ -430,6 +427,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
+  /// Records a drop and rebuilds, unless the page is already gone.
+  void _takeDrop(void Function() record) {
+    if (!mounted) return;
+    setState(record);
+  }
+
   Widget _buildMediaDropTarget(
     BuildContext context, {
     required bool enabled,
@@ -440,28 +443,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       videoEnabled: ref
           .watch(settingsNotifierProvider)
           .videoAttachmentsAvailable,
-      onVideoDropped: (filePath, mimeType) {
-        if (!mounted) return;
-        setState(() {
-          _droppedVideoAttachment = MessageInputVideoAttachment(
-            id: ++_droppedVideoAttachmentId,
-            filePath: filePath,
-            mimeType: mimeType,
-          );
-        });
-      },
-      onImageDropped: (bytes, mimeType, filePath) {
-        if (!mounted) return;
-        final attachment = MessageInputImageAttachment(
-          id: ++_droppedImageAttachmentId,
+      onVideoDropped: (filePath, mimeType) => _takeDrop(
+        () => _droppedAttachments.takeVideo(
+          filePath: filePath,
+          mimeType: mimeType,
+        ),
+      ),
+      onFileDropped: (filePath) =>
+          _takeDrop(() => _droppedAttachments.takeFile(filePath)),
+      onImageDropped: (bytes, mimeType, filePath) => _takeDrop(
+        () => _droppedAttachments.takeImage(
           bytes: bytes,
           mimeType: mimeType,
           filePath: filePath,
-        );
-        setState(() {
-          _droppedImageAttachment = attachment;
-        });
-      },
+        ),
+      ),
       child: child,
     );
   }
@@ -798,8 +794,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             : 'message.input_hint',
         composerPrefillText: _composerPrefillText,
         composerPrefillVersion: _composerPrefillVersion,
-        droppedImageAttachment: _droppedImageAttachment,
-        droppedVideoAttachment: _droppedVideoAttachment,
+        droppedImageAttachment: _droppedAttachments.image,
+        droppedVideoAttachment: _droppedAttachments.video,
+        droppedFileAttachment: _droppedAttachments.file,
         // Where a session starts is a choice about a session that has not run
         // yet, so the selector shows only while the thread is still empty.
         // Offering it inside a thread already under way implies that thread

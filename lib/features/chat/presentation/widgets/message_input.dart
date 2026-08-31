@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show File, Platform;
+import 'dart:io' show Platform;
 import 'dart:ui' as ui;
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
@@ -8,7 +8,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 
@@ -26,6 +25,7 @@ import 'composer_attachment_button.dart';
 import 'composer_control_chip.dart';
 import 'composer_model_selector.dart';
 import 'composer_shortcut_bar.dart';
+import 'composer_file_picker.dart';
 import 'composer_video_picker.dart';
 import '../../domain/entities/video_attachment_draft.dart';
 import 'conversation_goal_status_presentation.dart';
@@ -71,6 +71,7 @@ class MessageInput extends ConsumerStatefulWidget {
     this.composerPrefillVersion = 0,
     this.droppedImageAttachment,
     this.droppedVideoAttachment,
+    this.droppedFileAttachment,
     this.codingGoal,
     this.onCodingGoalEdit,
     this.onCodingGoalMarkComplete,
@@ -123,6 +124,7 @@ class MessageInput extends ConsumerStatefulWidget {
   final int composerPrefillVersion;
   final MessageInputImageAttachment? droppedImageAttachment;
   final MessageInputVideoAttachment? droppedVideoAttachment;
+  final MessageInputFileAttachment? droppedFileAttachment;
   final ConversationGoal? codingGoal;
   final VoidCallback? onCodingGoalEdit;
   final VoidCallback? onCodingGoalMarkComplete;
@@ -147,22 +149,19 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   late final FocusNode _focusNode;
   final _imagePicker = ImagePicker();
   final _videoPicker = const ComposerVideoPicker();
+  final _filePicker = const ComposerFilePicker();
 
   Uint8List? _selectedImageBytes;
   String? _selectedImageMimeType;
   String? _selectedOriginalImagePath;
   String? _selectedOriginalImageMimeType;
   VideoAttachmentDraft? _selectedVideo;
-  String? _selectedFileName;
-  String? _selectedFileContent;
-  int? _selectedFileSize;
-  // Set instead of [_selectedFileContent] for large attachments: the file is
-  // copied to a durable path and referenced by path rather than inlined.
-  String? _selectedFileDurablePath;
+  ComposerFileAttachment? _selectedFile;
   bool _isRecording = false;
   bool _hasText = false;
   int? _handledDroppedImageAttachmentId;
   int? _handledDroppedVideoAttachmentId;
+  int? _handledDroppedFileAttachmentId;
   MessageInputSlashSuggestionState _slashSuggestionState =
       MessageInputSlashSuggestionState.empty;
   MessageInputWorktreeMode _worktreeMode = MessageInputWorktreeMode.local;
@@ -230,6 +229,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     _controller.addListener(_handleTextChanged);
     _handleDroppedImageAttachment();
     _handleDroppedVideoAttachment();
+    _handleDroppedFileAttachment();
     // Whether this endpoint takes video decides whether the attachments menu
     // offers it, and nothing resolves that at launch: the capability probe runs
     // on a model switch or from a settings screen, so somebody who opens the
@@ -255,6 +255,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     super.didUpdateWidget(oldWidget);
     _handleDroppedImageAttachment();
     _handleDroppedVideoAttachment();
+    _handleDroppedFileAttachment();
 
     if (!identical(widget.slashCommands, oldWidget.slashCommands)) {
       _refreshSlashSuggestions();
@@ -291,6 +292,21 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       final choice = await _videoPicker.fromDroppedFile(attachment);
       if (!mounted || _handledDroppedVideoAttachmentId != attachment.id) return;
       _applyVideoChoice(choice, focusComposer: true);
+    }());
+  }
+
+  void _handleDroppedFileAttachment() {
+    final attachment = widget.droppedFileAttachment;
+    if (attachment == null ||
+        attachment.id == _handledDroppedFileAttachmentId) {
+      return;
+    }
+
+    _handledDroppedFileAttachmentId = attachment.id;
+    unawaited(() async {
+      final choice = await _filePicker.fromDroppedFile(attachment);
+      if (!mounted || _handledDroppedFileAttachmentId != attachment.id) return;
+      _applyFileChoice(choice, focusComposer: true);
     }());
   }
 
@@ -356,8 +372,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   bool get _hasAttachment {
     return _selectedImageBytes != null ||
         _selectedVideo != null ||
-        _selectedFileContent != null ||
-        _selectedFileDurablePath != null;
+        _selectedFile != null;
   }
 
   bool get _worktreeControlsEnabled {
@@ -861,92 +876,23 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     _refreshSlashSuggestions();
   }
 
-  /// Files at or below this size are inlined into the message text (the
-  /// original behavior). Larger files are copied to a durable path and
-  /// referenced by path so the model can analyze them with the file tools
-  /// without bloating the message or the context window.
-  static const int _inlineFileMaxBytes = 256 * 1024;
+  Future<void> _pickFile() async =>
+      _applyFileChoice(await _filePicker.pick());
 
-  Future<void> _pickFile() async {
-    try {
-      final result = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const [
-          'csv', 'txt', 'json', 'md', //
-          'log', 'jsonl', 'ndjson', 'tsv', 'xml', 'yaml', 'yml',
-        ],
-        // Fetch the path (available on mobile too) instead of loading the whole
-        // file into memory — large files must never be read fully here.
-        withData: false,
-      );
-
-      if (result == null || result.files.isEmpty) return;
-
-      final picked = result.files.first;
-      final size = picked.size;
-      final sourcePath = picked.path;
-
-      if (size <= _inlineFileMaxBytes) {
-        // Small text file: keep the existing inline behavior.
-        final bytes =
-            picked.bytes ??
-            (sourcePath != null ? await File(sourcePath).readAsBytes() : null);
-        if (bytes == null) {
-          _showFileError();
-          return;
-        }
-        final content = utf8.decode(bytes, allowMalformed: false);
-        if (!mounted) return;
-        setState(() {
-          _selectedFileName = picked.name;
-          _selectedFileContent = content;
-          _selectedFileDurablePath = null;
-          _selectedFileSize = bytes.length;
-        });
-        _refreshSlashSuggestions();
-        return;
-      }
-
-      // Large file: copy to a durable location and reference it by path. The
-      // model analyzes it on disk via inspect_file / search_files / read_file.
-      if (sourcePath == null) {
-        _showFileError();
-        return;
-      }
-      final durablePath = await AttachmentStorageService.persist(
-        sourcePath: sourcePath,
-        originalName: picked.name,
-      );
-      if (!mounted) return;
-      setState(() {
-        _selectedFileName = picked.name;
-        _selectedFileContent = null;
-        _selectedFileDurablePath = durablePath;
-        _selectedFileSize = size;
-      });
-      _refreshSlashSuggestions();
-    } on FormatException {
-      _showFileError();
-    } catch (e) {
-      appDebugPrint('Failed to pick file: $e');
-      _showFileError();
-    }
-  }
-
-  void _showFileError() {
+  /// Takes the attachment a [ComposerFileChoice] produced, says what it said.
+  void _applyFileChoice(ComposerFileChoice choice, {bool focusComposer = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('message.file_read_error'.tr())));
+    if (choice.file != null) {
+      setState(() => _selectedFile = choice.file);
+      _refreshSlashSuggestions();
+      if (focusComposer) _focusNode.requestFocus();
+    }
+    final notice = choice.notice;
+    if (notice != null) _showSlashCommandFeedback(notice);
   }
 
   void _clearFile() {
-    setState(() {
-      _selectedFileName = null;
-      _selectedFileContent = null;
-      _selectedFileSize = null;
-      _selectedFileDurablePath = null;
-    });
+    setState(() => _selectedFile = null);
     _refreshSlashSuggestions();
   }
 
@@ -977,6 +923,27 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     if (clipboard == null) return false;
 
     final reader = await clipboard.read();
+
+    // Checked before the image formats: a PDF is not one, and it is the only
+    // pasteable attachment whose payload has to reach disk before it can be
+    // read, so it takes the durable-path route the picker already knows.
+    if (reader.canProvide(Formats.pdf)) {
+      final completer = Completer<bool>();
+      reader.getFile(Formats.pdf, (file) async {
+        try {
+          final choice = await _filePicker.fromBytes(
+            bytes: await file.readAll(),
+            originalName: file.fileName ?? 'clipboard.pdf',
+          );
+          _applyFileChoice(choice);
+          completer.complete(choice.file != null);
+        } catch (e) {
+          appDebugPrint('Failed to read clipboard PDF: $e');
+          completer.complete(false);
+        }
+      });
+      return completer.future;
+    }
 
     // Map formats to MIME types and file extensions
     const formatInfo = <SimpleFileFormat, (String, String)>{
@@ -1140,8 +1107,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     if (text.isEmpty &&
         _selectedImageBytes == null &&
         _selectedVideo == null &&
-        _selectedFileContent == null &&
-        _selectedFileDurablePath == null) {
+        _selectedFile == null) {
       return;
     }
 
@@ -1152,17 +1118,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
     // Embed small file content inline; reference large files by durable path.
     String finalText = text;
-    if (_selectedFileContent != null) {
-      final fileBlock = '[File: $_selectedFileName]\n$_selectedFileContent';
-      finalText = text.isEmpty ? fileBlock : '$fileBlock\n\n$text';
-    } else if (_selectedFileDurablePath != null) {
-      final human = formatAttachmentSize(_selectedFileSize ?? 0);
-      final ref =
-          '[Attached file: $_selectedFileDurablePath ($human)]\n'
-          'This file is large and is available on disk at the path above. '
-          'Use inspect_file first, then search_files / read_file with offset '
-          'and limit. Do not try to read it all at once.';
-      finalText = text.isEmpty ? ref : '$ref\n\n$text';
+    final selectedFile = _selectedFile;
+    if (selectedFile != null) {
+      final block = ComposerFilePicker.composeMessageBlock(selectedFile);
+      finalText = text.isEmpty ? block : '$block\n\n$text';
     }
 
     if (_shouldSendWorktreeSession) {
@@ -1667,8 +1626,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         _hasText ||
         _selectedImageBytes != null ||
         _selectedVideo != null ||
-        _selectedFileContent != null ||
-        _selectedFileDurablePath != null;
+        _selectedFile != null;
 
     // The composer is a rounded surface card with alert-sized corners; the
     // inner TextField stays flat (filled: false). The recording state tints
@@ -1723,23 +1681,26 @@ class _MessageInputState extends ConsumerState<MessageInput> {
             if (_selectedVideo != null)
               ComposerVideoChip(video: _selectedVideo!, onCleared: _clearVideo),
             // File preview
-            if (_selectedFileName != null)
+            if (_selectedFile case final file?)
               Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: Tooltip(
-                  message: _selectedFileDurablePath != null
+                  message: file.isPathReference
                       ? 'message.attached_as_path'.tr()
                       : '',
                   child: Chip(
                     avatar: Icon(
-                      _selectedFileDurablePath != null
-                          ? Icons.link
-                          : Icons.description,
+                      switch (file) {
+                        _ when file.isPathReference => Icons.link,
+                        _ when file.pdfPageCount != null =>
+                          Icons.picture_as_pdf,
+                        _ => Icons.description,
+                      },
                       size: 18,
                     ),
                     label: Text(
-                      '$_selectedFileName '
-                      '(${formatAttachmentSize(_selectedFileSize ?? 0)})',
+                      '${file.name} '
+                      '(${formatAttachmentSize(file.sizeBytes)})',
                       overflow: TextOverflow.ellipsis,
                     ),
                     deleteIcon: const Icon(Icons.close, size: 18),

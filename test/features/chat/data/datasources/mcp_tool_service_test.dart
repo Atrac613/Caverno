@@ -1204,11 +1204,15 @@ void main() {
         inspectionDefinitions.map(_openAiFunctionName),
         _filesystemInspectionToolNames,
       );
+      // Pinned so an accidental edit to a definition cannot silently move the
+      // prompt prefix. Updated deliberately when read_file and inspect_file
+      // gained their PDF sentences; a model that is not told PDFs are
+      // supported never tries one.
       expect(
         sha256
             .convert(utf8.encode(jsonEncode(inspectionDefinitions)))
             .toString(),
-        'e43cff1a45c1c8ba66c3aaae892dd5ad421a86e77b2c72ac72d98291df5cf15c',
+        'd192cc6fd7d64ba76d391e0a812e2c057094388ce2df45a64556c1264b3c0f9c',
       );
       if (FilesystemTools.isDesktopPlatform) {
         expect(

@@ -87,6 +87,15 @@ dependencies:
   # Image picker
   image_picker: ^1.2.3
 
+  # PDF text extraction for chat attachments and read_file/inspect_file.
+  # Pure Dart on purpose: a PDFium-backed plugin would add Mach-O binaries to
+  # the macOS bundle and a new signing/notarization root, which python.bundle
+  # has already cost us once.
+  # Held below 33.2.13+1: from there it needs xml ^7, which needs
+  # petitparser ^7, while serious_python -> toml 0.15 pins petitparser ^6.
+  # Raising this requires serious_python to ship a newer toml first.
+  syncfusion_flutter_pdf: ^33.2.12
+
   # Speech I/O
   speech_to_text: ^7.0.0
   flutter_tts: ^4.2.0

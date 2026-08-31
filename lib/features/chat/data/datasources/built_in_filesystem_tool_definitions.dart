@@ -42,7 +42,11 @@ abstract final class BuiltInFilesystemToolDefinitions {
           'Read a UTF-8 text file from the local project. Use offset and limit '
           'to inspect a specific line range in large files. For very large '
           'files (logs, exports), call inspect_file first, then read only the '
-          'ranges you need — never try to read the whole file at once.',
+          'ranges you need — never try to read the whole file at once. PDFs '
+          'are also supported: the text layer is extracted and returned with '
+          'a [page N] marker before each page, so offset and limit still '
+          'select lines. A scanned PDF has no text layer and returns an error '
+          'saying so; do not describe its contents when it does.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -77,7 +81,9 @@ abstract final class BuiltInFilesystemToolDefinitions {
           'Returns byte size, total line count, head and tail samples, detected '
           'encoding, and a format hint. Call this FIRST on large or unknown '
           'files (logs, JSONL/CSV exports, multi-MB text) before searching or '
-          'range-reading them.',
+          'range-reading them. On a PDF it reports the page count and samples '
+          'the extracted text, so it also answers whether read_file will get '
+          'anything out of that document.',
       'parameters': {
         'type': 'object',
         'properties': {

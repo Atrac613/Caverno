@@ -308,6 +308,60 @@ be. If this residual ever hurts in practice, the escalation path is a
 secondary-LLM verdict on the final answer (same pattern as memory extraction),
 not a fourth round of substring surgery.
 
+### PDF reading: the fence you can't see is the one that gets you
+
+Adding PDF support looked like a shopping trip. Pick a library, call
+`extractText`, done. Three things went differently.
+
+**The dependency wouldn't fit.** `syncfusion_flutter_pdf` at its current
+version wants `xml ^7`, which wants `petitparser ^7`. `serious_python` — the
+embedded interpreter behind `run_python_script` — pulls `toml 0.15`, which
+pins `petitparser ^6`. Two packages that have nothing to do with each other,
+deadlocked four levels down a dependency graph, over a parser-combinator
+library neither of them mentions. The fix was to hold Syncfusion at 33.2.12,
+the last version on the xml 6 line, and write *why* in `pubspec.yaml` so the
+next person who tries to bump it doesn't rediscover it from a wall of solver
+output. Lesson: when a version constraint looks arbitrary, the reason is
+usually two hops further down than the error message shows.
+
+**The classifier lied by being right.** `read_file` refuses binary files, and
+it decides using `BoundedTextFileClassifier`, which sniffs 8KB for NUL bytes
+and bad UTF-8. Every PDF I tested — printed by CUPS, produced by `sips`,
+encrypted by Syncfusion — came back binary, so hooking the PDF branch inside
+that "it's binary" branch passed all three fixtures on the first try. It was
+still wrong. An *uncompressed* PDF is entirely printable ASCII: a 600-byte
+hand-built one sails through the sniff as ordinary text, and `read_file` would
+have cheerfully handed the model `%PDF-1.4 1 0 obj <</Type/Catalog...` as if
+it were source code. The fix was to ask "is this a PDF?" *before* asking "is
+this text?", and to answer it from the `%PDF-` header rather than the
+extension. That reordering cost a small refactor — the classifier now returns
+the prefix it sniffed alongside its verdict, so one read answers both
+questions instead of two.
+
+The general shape here is worth keeping: **fixtures that all agree can hide a
+gap, because they were all produced the same way.** Three PDFs from three
+tools still shared one property (compressed streams) that made the buggy
+ordering look correct. The fixture that found the bug was the one I built by
+hand specifically to violate the assumption I had just noticed I was making.
+It lives in `test/fixtures/pdf/ascii_uncompressed.pdf` and is the only reason
+that test file has a case named "reads an uncompressed PDF that a text sniff
+would pass".
+
+**Two errors that look the same are not the same.** Syncfusion throws
+`ArgumentError` for a password-protected document and `ArgumentError` for a
+truncated one. The obvious move is to match on the message text — and the
+standing rule in this codebase is that heuristics may *trigger* but never
+*judge*. So the file decides instead: only an encrypted PDF carries an
+`/Encrypt` entry in its trailer, so `_hasEncryptMarker` reads the bytes rather
+than the exception. Same answer, but grounded in the document instead of in a
+vendor's phrasing, which means a library upgrade that rewords its exceptions
+cannot silently turn "this PDF needs a password" into "this PDF is corrupt".
+
+One deliberate non-feature: a scanned PDF returns an error that says the words
+"scanned document" and "OCR", and tells the model not to describe the
+contents. Silence would have been worse than failure — handed nothing, a model
+will answer from the filename. Naming the failure is part of the fix.
+
 ## Where to start reading
 
 - The loop: `lib/features/chat/presentation/providers/chat_notifier.dart` and its

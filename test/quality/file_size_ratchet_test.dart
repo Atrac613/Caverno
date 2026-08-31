@@ -366,7 +366,12 @@ const Map<String, int> _lineBudgets = {
   // -77: message-list scrolling moved to ThreadScrollCoordinator, a plain
   // class outside this library. The page kept the controller hand-off and the
   // one build-time call that tells the coordinator which thread is on screen.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1918,
+  // -3 despite gaining a dropped-file route: the three pending drop
+  // attachments and their id counters became one ChatDroppedAttachments held
+  // outside this library, so each drop callback is now one expression.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1915,
+  'lib/features/chat/presentation/coordinators/chat_dropped_attachments.dart':
+      45,
   'lib/features/chat/presentation/pages/thread_scroll_coordinator.dart': 287,
   'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
   // The device listing moved to flutter_run_device_lister.dart when it grew
@@ -420,7 +425,13 @@ const Map<String, int> _lineBudgets = {
   // the menu entry stayed invisible. The composer is the only consumer of the
   // answer, so moving the call elsewhere only moves the lines to another
   // ratcheted file.
-  'lib/features/chat/presentation/widgets/message_input.dart': 2276,
+  // -39 for PDF attachments. Picking, the inline-versus-path size policy, PDF
+  // extraction and the message block the attachment contributes are all in
+  // composer_file_picker.dart, mirroring composer_video_picker.dart. The
+  // composer kept one state field, four delegating actions and the clipboard
+  // branch, and still came out smaller than before the feature.
+  'lib/features/chat/presentation/widgets/message_input.dart': 2237,
+  'lib/features/chat/presentation/widgets/composer_file_picker.dart': 372,
   // -15: the submenu value and check icon are chip-level presentation, so
   // they sit beside buildComposerControlChip instead.
   'lib/features/chat/presentation/widgets/composer_model_selector.dart': 260,
@@ -709,7 +720,9 @@ const Map<String, int> _libraryLineBudgets = {
   // prompted it -- per-thread scroll restore -- added code.
   // -23: the phone-only tap-to-dismiss listener never touched _ChatPageState,
   // so it is a plain widget helper rather than a part of the page library.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8865,
+  // -3 matching the primary file: the dropped-attachment state left the
+  // library rather than moving into a part.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8862,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };

@@ -9,6 +9,7 @@ export 'filesystem_text_snapshot.dart';
 import 'bounded_text_file_classifier.dart';
 import 'filesystem_diff_builder.dart';
 import 'filesystem_mutation_operations.dart';
+import 'filesystem_pdf_reader.dart';
 import 'filesystem_overview_format.dart';
 import 'filesystem_path_resolver.dart';
 import 'filesystem_text_snapshot.dart';
@@ -181,7 +182,20 @@ class FilesystemTools {
     }
 
     try {
-      if (await BoundedTextFileClassifier.looksBinary(file)) {
+      // One prefix read answers both questions. PDFs are asked about first:
+      // an uncompressed one is printable ASCII, so the encoding check would
+      // wave it through and the tool would return raw `%PDF` syntax.
+      final prefix = await BoundedTextFileClassifier.sniff(file);
+      final pdf = await FilesystemPdfReader.readFileResult(
+        file: file,
+        absolutePath: absolutePath,
+        prefix: prefix.bytes,
+        offset: offset,
+        limit: limit,
+        maxChars: maxChars,
+      );
+      if (pdf != null) return pdf;
+      if (prefix.looksBinary) {
         return FirstPartyToolExecutionResult.payloadOnly(
           jsonEncode({
             'error':
@@ -313,7 +327,16 @@ class FilesystemTools {
 
     try {
       final sizeBytes = await file.length();
-      if (await BoundedTextFileClassifier.looksBinary(file)) {
+      final prefix = await BoundedTextFileClassifier.sniff(file);
+      final pdf = await FilesystemPdfReader.inspectFile(
+        file: file,
+        absolutePath: absolutePath,
+        prefix: prefix.bytes,
+        headLimit: headLimit,
+        tailLimit: tailLimit,
+      );
+      if (pdf != null) return pdf;
+      if (prefix.looksBinary) {
         return jsonEncode({
           'path': absolutePath,
           'size_bytes': sizeBytes,
