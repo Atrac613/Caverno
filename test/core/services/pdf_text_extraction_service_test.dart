@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:caverno/core/services/pdf_text_extraction_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/pdf_fixture_builder.dart';
+
 /// Fixtures are checked in rather than generated: see
 /// test/fixtures/pdf/README.md for how each one was produced and why two of
 /// the three deliberately come from outside this package.
@@ -132,6 +134,121 @@ void main() {
       final result = await PdfTextExtractionService.extract(oversized);
 
       expect(result.error, PdfExtractionError.tooLarge);
+    });
+  });
+
+  group('page windows', () {
+    test('leaves out a page that does not fit and points next_page at it',
+        () async {
+      final bytes = await buildPagedPdf(pages: 4);
+      final whole = PdfTextExtractionService.extractBytesSync(bytes);
+      final wholeLength = whole.text!.length;
+
+      // A budget that fits the first pages but not the last one.
+      final result = PdfTextExtractionService.extractBytesSync(
+        bytes,
+        maxTextChars: wholeLength - 20,
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(result.truncated, isTrue);
+      expect(result.textTruncated, isFalse, reason: 'no page was cut in half');
+      expect(result.extractedPages, lessThan(4));
+      // The dropped page is the one to continue from: counting it as
+      // extracted made the advertised continuation skip its text entirely.
+      expect(result.nextPage, result.extractedPages + 1);
+      expect(result.text, contains('[page ${result.extractedPages}]'));
+      expect(result.text, isNot(contains('[page ${result.nextPage}]')));
+    });
+
+    test('continuing from next_page loses nothing', () async {
+      final bytes = await buildPagedPdf(pages: 4);
+      final whole = PdfTextExtractionService.extractBytesSync(bytes);
+      final first = PdfTextExtractionService.extractBytesSync(
+        bytes,
+        maxTextChars: whole.text!.length - 20,
+      );
+
+      final rest = PdfTextExtractionService.extractBytesSync(
+        bytes,
+        startPageIndex: first.nextPage - 1,
+      );
+
+      for (var page = 1; page <= 4; page++) {
+        final marker = '[page $page]';
+        expect(
+          first.text!.contains(marker) || rest.text!.contains(marker),
+          isTrue,
+          reason: 'page $page fell between the two windows',
+        );
+      }
+      expect(rest.text, contains('page 4 line 1'));
+    });
+
+    test('cuts the first page only when nothing else can be dropped',
+        () async {
+      final bytes = await buildPagedPdf(pages: 2);
+
+      final result = PdfTextExtractionService.extractBytesSync(
+        bytes,
+        maxTextChars: 40,
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(result.extractedPages, 1);
+      expect(result.textTruncated, isTrue);
+      expect(result.text, startsWith('[page 1]'));
+    });
+
+    test('maxPages bounds the window', () async {
+      final bytes = await buildPagedPdf(pages: 5);
+
+      final result = PdfTextExtractionService.extractBytesSync(
+        bytes,
+        startPageIndex: 1,
+        maxPages: 2,
+      );
+
+      expect(result.pageCount, 5);
+      expect(result.extractedPages, 2);
+      expect(result.startPageIndex, 1);
+      expect(result.text, contains('[page 2]'));
+      expect(result.text, contains('[page 3]'));
+      expect(result.text, isNot(contains('[page 4]')));
+      expect(result.nextPage, 4);
+    });
+  });
+
+  group('extractWindowsBytes', () {
+    test('returns head and tail from one parse', () async {
+      final bytes = await buildPagedPdf(pages: 8);
+
+      final windows = await PdfTextExtractionService.extractWindowsBytes(
+        bytes,
+        const [
+          PdfPageWindow(maxPages: 3),
+          PdfPageWindow(maxPages: 2, fromEnd: true),
+        ],
+      );
+
+      expect(windows, hasLength(2));
+      expect(windows.first.text, startsWith('[page 1]'));
+      expect(windows.first.extractedPages, 3);
+      expect(windows.last.startPageIndex, 6);
+      expect(windows.last.text, contains('[page 7]'));
+      expect(windows.last.text, contains('[page 8]'));
+    });
+
+    test('reports the same failure for every window', () async {
+      final windows = await PdfTextExtractionService.extractWindowsBytes(
+        Uint8List.fromList('not a pdf'.codeUnits),
+        const [PdfPageWindow(), PdfPageWindow(fromEnd: true)],
+      );
+
+      expect(
+        windows.map((window) => window.error),
+        everyElement(PdfExtractionError.malformed),
+      );
     });
   });
 }

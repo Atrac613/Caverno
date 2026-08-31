@@ -107,8 +107,9 @@ class ComposerFilePicker {
   Future<ComposerFileChoice> fromDroppedFile(
     MessageInputFileAttachment attachment,
   ) async {
-    if (!attachment.alreadyDurable &&
-        !acceptsPath(attachment.filePath) &&
+    // No bypass for a staged path: the type gate is the only thing standing
+    // between a drop and utf8-decoding an arbitrary binary into the message.
+    if (!acceptsPath(attachment.filePath) &&
         !acceptsMime(attachment.mimeType)) {
       return const ComposerFileChoice.notice('message.drop_file_unsupported');
     }
@@ -124,7 +125,6 @@ class ComposerFilePicker {
         sourcePath: attachment.filePath,
         originalName: file.uri.pathSegments.last,
         sizeBytes: await file.length(),
-        alreadyDurable: attachment.alreadyDurable,
       );
     } catch (e) {
       appDebugPrint('Failed to attach dropped file: $e');

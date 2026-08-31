@@ -10,16 +10,12 @@ class MessageInputFileAttachment {
   const MessageInputFileAttachment({
     required this.id,
     required this.filePath,
-    this.alreadyDurable = false,
     this.mimeType,
     this.appleBookmark,
   });
 
   final int id;
   final String filePath;
-
-  /// Whether [filePath] already lives in the attachments directory.
-  final bool alreadyDurable;
 
   final String? mimeType;
 

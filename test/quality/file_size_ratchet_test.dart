@@ -436,10 +436,21 @@ const Map<String, int> _lineBudgets = {
   // branch, and still came out smaller than before the feature.
   // -17: drop prepare is a gate, clipboard PDF has its own helper, and the
   // Screen Recording paste hint left the composer.
-  'lib/features/chat/presentation/widgets/message_input.dart': 2218,
+  // -17: the file attachment chip is a widget like the video one, the drop
+  // intake bookkeeping is a class, and both left. What is added here is the
+  // interrupt guard on the prepare gate and the input-history doc comment the
+  // previous pass deleted by accident.
+  'lib/features/chat/presentation/widgets/message_input.dart': 2201,
   'lib/features/chat/presentation/widgets/composer_file_picker.dart': 360,
-  'lib/features/chat/presentation/widgets/composer_file_models.dart': 87,
-  'lib/features/chat/presentation/widgets/composer_file_intake.dart': 63,
+  // -4: the dead alreadyDurable flag and the drop gate it could disable.
+  'lib/features/chat/presentation/widgets/composer_file_models.dart': 83,
+  'lib/features/chat/presentation/widgets/composer_file_chip.dart': 46,
+  // -20: the prepare gate moved to its own file when it grew the error
+  // isolation that keeps one failed prepare from breaking every later Send.
+  'lib/features/chat/presentation/widgets/composer_file_intake.dart': 43,
+  'lib/features/chat/presentation/widgets/composer_file_prepare_gate.dart': 30,
+  'lib/features/chat/presentation/widgets/composer_dropped_attachment_intake.dart':
+      26,
   'lib/features/chat/presentation/widgets/composer_macos_paste_hint.dart': 34,
   // -15: the submenu value and check icon are chip-level presentation, so
   // they sit beside buildComposerControlChip instead.
@@ -524,6 +535,8 @@ const Map<String, int> _lineBudgets = {
       74,
   'lib/features/chat/data/datasources/lsp_server_process_manager.dart': 375,
   'lib/features/chat/data/datasources/filesystem_tools.dart': 1184,
+  'lib/features/chat/data/datasources/filesystem_pdf_reader.dart': 393,
+  'lib/core/services/pdf_text_extraction_service.dart': 457,
   'lib/features/chat/data/datasources/filesystem_overview_format.dart': 55,
   'lib/features/chat/data/datasources/filesystem_diff_builder.dart': 213,
   'lib/features/chat/data/datasources/project_scoped_tool_argument_resolver.dart':

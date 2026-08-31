@@ -54,14 +54,23 @@ class PdfExtractionResult {
   /// 0-based page where this extraction began.
   final int startPageIndex;
 
-  /// Whether the last included page was cut to fit [PdfTextExtractionService.maxTextChars].
+  /// Whether the last included page was cut to fit
+  /// [PdfTextExtractionService.maxTextChars].
+  ///
+  /// Only ever true when that page is the first of the window: a later page
+  /// that does not fit is left out whole, so [nextPage] can point at it.
   final bool textTruncated;
 
   final PdfExtractionError? error;
 
   bool get isSuccess => error == null && text != null;
 
-  /// 1-based page to pass as `start_page` to continue after a truncated read.
+  /// 1-based page to pass as `start_page` to continue a windowed read.
+  ///
+  /// Points at the first page this window did not deliver in full. A page cut
+  /// by the character budget is not counted as delivered unless it was the
+  /// only page in the window, in which case continuing past it is the only way
+  /// to make progress and [textTruncated] says its tail was dropped.
   int get nextPage => startPageIndex + extractedPages + 1;
 
   /// Whether [text] stops short of the document's last page, or a page was cut.
@@ -131,16 +140,10 @@ abstract final class PdfTextExtractionService {
     final version = prefix[versionAt];
     if (version < 0x30 || version > 0x39) return false;
     for (var i = 0; i < index; i++) {
+      // Control bytes, spaces and DEL may precede the header; anything a
+      // reader would see as text means this is a document about PDFs.
       final byte = prefix[i];
-      final preamble =
-          byte == 0x00 ||
-          byte == 0x09 ||
-          byte == 0x0A ||
-          byte == 0x0D ||
-          byte == 0x20 ||
-          byte < 0x20 ||
-          byte == 0x7F;
-      if (!preamble) return false;
+      if (byte > 0x20 && byte != 0x7F) return false;
     }
     return true;
   }
@@ -190,6 +193,61 @@ abstract final class PdfTextExtractionService {
       maxTextChars: maxTextChars,
     ),
   );
+
+  /// Extracts several page windows from one buffer in a single isolate.
+  ///
+  /// `inspect_file` wants the first pages and the last pages of the same
+  /// document. Two [extractBytes] calls would copy the whole file to two
+  /// isolates and parse it twice; this copies and parses once.
+  static Future<List<PdfExtractionResult>> extractWindowsBytes(
+    Uint8List bytes,
+    List<PdfPageWindow> windows,
+  ) => Isolate.run(() => extractWindowsBytesSync(bytes, windows));
+
+  /// The synchronous core of [extractWindowsBytes].
+  static List<PdfExtractionResult> extractWindowsBytesSync(
+    Uint8List bytes,
+    List<PdfPageWindow> windows,
+  ) {
+    if (bytes.length > maxBytes) {
+      return List<PdfExtractionResult>.filled(
+        windows.length,
+        const PdfExtractionResult.failure(PdfExtractionError.tooLarge),
+      );
+    }
+    if (!looksLikePdf(bytes)) {
+      return List<PdfExtractionResult>.filled(
+        windows.length,
+        const PdfExtractionResult.failure(PdfExtractionError.malformed),
+      );
+    }
+
+    PdfDocument? document;
+    try {
+      document = PdfDocument(inputBytes: bytes);
+      final opened = document;
+      final pageCount = opened.pages.count;
+      return windows
+          .map(
+            (window) => _extractPages(
+              opened,
+              startPageIndex: window.resolveStart(pageCount),
+              maxPages: window.maxPages,
+              maxTextChars: window.maxTextChars ?? maxTextChars,
+            ),
+          )
+          .toList();
+    } catch (_) {
+      final failure = PdfExtractionResult.failure(
+        _hasEncryptMarker(bytes)
+            ? PdfExtractionError.encrypted
+            : PdfExtractionError.malformed,
+      );
+      return List<PdfExtractionResult>.filled(windows.length, failure);
+    } finally {
+      document?.dispose();
+    }
+  }
 
   /// The synchronous core, exposed for tests that would rather not hop.
   static PdfExtractionResult extractBytesSync(
@@ -266,25 +324,30 @@ abstract final class PdfTextExtractionService {
 
       final marker = '[page ${index + 1}]';
       final separator = buffer.isEmpty ? 0 : 1;
-      var remaining = maxTextChars - buffer.length - separator - marker.length;
-      if (remaining <= 1) {
-        textTruncated = true;
-        break;
-      }
-      remaining -= 1; // newline after the marker
+      // Room for this page's body: the budget less what is written, the
+      // separating newline, the marker, and the newline after it.
+      final remaining =
+          maxTextChars - buffer.length - separator - marker.length - 1;
 
-      var body = page;
-      if (body.length > remaining) {
-        body = remaining > 0 ? body.substring(0, remaining) : '';
+      if (page.length > remaining) {
+        // A page that does not fit is left out entirely so [nextPage] points
+        // at it and the caller can read it whole. Cutting it here and still
+        // counting it -- what the first version did -- made the advertised
+        // `start_page = next_page` continuation skip the rest of the page.
+        if (extractedPages > 0) break;
+        // Unless it is the first page of the window: there is no smaller
+        // window to fall back to, so emit what fits and say it was cut.
+        if (remaining <= 0) break;
         textTruncated = true;
       }
 
+      final body = textTruncated ? page.substring(0, remaining) : page;
       if (buffer.isNotEmpty) buffer.writeln();
       buffer.writeln(marker);
       if (body.isNotEmpty) buffer.writeln(body);
       extractedPages++;
 
-      if (textTruncated || buffer.length >= maxTextChars) break;
+      if (textTruncated) break;
     }
 
     if (!anyText) {
@@ -360,5 +423,35 @@ abstract final class PdfTextExtractionService {
       if (haystack[start + offset] != needle[offset]) return false;
     }
     return true;
+  }
+}
+
+/// One page range to pull out of a document.
+class PdfPageWindow {
+  const PdfPageWindow({
+    this.startPageIndex = 0,
+    this.maxPages,
+    this.maxTextChars,
+    this.fromEnd = false,
+  });
+
+  /// 0-based first page, or ignored when [fromEnd] is set.
+  final int startPageIndex;
+
+  final int? maxPages;
+  final int? maxTextChars;
+
+  /// Whether the window is the document's last [maxPages] pages.
+  ///
+  /// A caller outside the isolate does not know the page count yet, so the
+  /// alternative is a second parse just to find out where the tail begins.
+  final bool fromEnd;
+
+  /// Where this window starts once [pageCount] is known.
+  int resolveStart(int pageCount) {
+    if (!fromEnd) return startPageIndex;
+    final pages = maxPages ?? pageCount;
+    final start = pageCount - pages;
+    return start < 0 ? 0 : start;
   }
 }

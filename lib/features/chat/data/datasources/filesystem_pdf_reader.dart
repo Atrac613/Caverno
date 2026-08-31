@@ -30,6 +30,18 @@ abstract final class FilesystemPdfReader {
   static const int _inspectHeadPages = 3;
   static const int _inspectTailPages = 2;
 
+  /// How much more text than one response carries the extractor may build.
+  ///
+  /// `offset` pages *within* an extraction window, so the window has to hold
+  /// more than the window's first `max_chars`. Eight times leaves room for a
+  /// deep offset while cutting the extractor's default budget by half on a
+  /// default read, instead of building two megabytes and discarding 94% of it.
+  static const int _extractionBudgetFactor = 8;
+
+  static int _extractionBudget(int maxChars) => (maxChars *
+          _extractionBudgetFactor)
+      .clamp(maxChars, PdfTextExtractionService.maxTextChars);
+
   /// `read_file` over a PDF's text layer, or null when [file] is not one.
   ///
   /// [prefix] is the sample the caller already sniffed to classify the file's
@@ -57,12 +69,15 @@ abstract final class FilesystemPdfReader {
     }
 
     final loaded = await _readBounded(file, absolutePath);
-    if (loaded.error != null) return loaded.error;
+    if (loaded.readError case final error?) {
+      return FirstPartyToolExecutionResult.payloadOnly(error);
+    }
     final bytes = loaded.bytes!;
 
     final extraction = await PdfTextExtractionService.extractBytes(
       bytes,
       startPageIndex: startPage - 1,
+      maxTextChars: _extractionBudget(maxChars),
     );
     if (!extraction.isSuccess) {
       return FirstPartyToolExecutionResult.payloadOnly(
@@ -114,6 +129,10 @@ abstract final class FilesystemPdfReader {
         'truncated': true,
       if (selection.truncatedByChars) 'truncated_by_chars': true,
       if (selection.truncatedByLimit) 'truncated_by_limit': true,
+      // total_lines counts the extraction window, which is the whole document
+      // unless paging cut it short. Say so rather than let a windowed count
+      // read like the file total the text path reports.
+      if (extraction.truncated) 'total_lines_is_estimate': true,
       if (extraction.truncated) 'pages_truncated': true,
       if (extraction.truncated) 'pages_extracted': extraction.extractedPages,
       if (extraction.truncated) 'next_page': extraction.nextPage,
@@ -152,15 +171,17 @@ abstract final class FilesystemPdfReader {
     if (!PdfTextExtractionService.looksLikePdf(prefix)) return null;
 
     final loaded = await _readBounded(file, absolutePath);
-    if (loaded.errorPayload != null) return loaded.errorPayload;
+    if (loaded.inspectError case final error?) return error;
     final bytes = loaded.bytes!;
     final sizeBytes = bytes.length;
 
-    final head = await PdfTextExtractionService.extractBytes(
-      bytes,
-      startPageIndex: 0,
-      maxPages: _inspectHeadPages,
-    );
+    // Both windows come out of one isolate run so a 30 MB document is copied
+    // and parsed once rather than twice for five sampled pages.
+    final windows = await PdfTextExtractionService.extractWindowsBytes(bytes, [
+      const PdfPageWindow(maxPages: _inspectHeadPages),
+      const PdfPageWindow(maxPages: _inspectTailPages, fromEnd: true),
+    ]);
+    final head = windows.first;
     if (!head.isSuccess) {
       return jsonEncode({
         'error': describeError(head.error!),
@@ -178,44 +199,40 @@ abstract final class FilesystemPdfReader {
         .map(FilesystemOverviewFormat.clipLine)
         .toList();
 
-    var tail = const <String>[];
-    final tailStart = head.pageCount - _inspectTailPages;
-    if (tailLimit > 0 && tailStart >= _inspectHeadPages) {
-      final tailExtraction = await PdfTextExtractionService.extractBytes(
-        bytes,
-        startPageIndex: tailStart,
-        maxPages: _inspectTailPages,
-      );
-      if (tailExtraction.isSuccess) {
-        final tailLines = _splitLines(tailExtraction.text!);
-        tail = tailLines.length <= tailLimit
-            ? tailLines.map(FilesystemOverviewFormat.clipLine).toList()
-            : tailLines
-                  .skip(tailLines.length - tailLimit)
-                  .map(FilesystemOverviewFormat.clipLine)
-                  .toList();
-      }
-    } else if (tailLimit > 0) {
-      tail = headLines.length <= tailLimit
-          ? headLines.map(FilesystemOverviewFormat.clipLine).toList()
-          : headLines
-                .skip(headLines.length - tailLimit)
-                .map(FilesystemOverviewFormat.clipLine)
-                .toList();
-    }
+    // The tail window only earns its own lines when it sits past the head;
+    // on a short document the two overlap and the head already holds them.
+    final tailWindow = windows.last;
+    final tailLines =
+        tailWindow.isSuccess && tailWindow.startPageIndex >= _inspectHeadPages
+        ? _splitLines(tailWindow.text!)
+        : headLines;
+    final tail = tailLimit <= 0
+        ? const <String>[]
+        : tailLines
+              .skip(
+                tailLines.length > tailLimit ? tailLines.length - tailLimit : 0,
+              )
+              .map(FilesystemOverviewFormat.clipLine)
+              .toList();
+    final sampledWholeDocument = head.pageCount <= _inspectHeadPages;
 
     return jsonEncode({
       'path': absolutePath,
       'size_bytes': sizeBytes,
       'size_human': FilesystemOverviewFormat.formatBytes(sizeBytes),
-      'total_lines': headLines.length,
+      // Only a document that fit entirely in the head window can report a
+      // real total. Reporting the sample's line count as `total_lines` told a
+      // model planning offset/limit reads that a 20-page PDF held 41 lines
+      // when read_file returns 279, so the count is named for what it is.
+      if (sampledWholeDocument) 'total_lines': headLines.length,
+      if (!sampledWholeDocument) 'sampled_lines': headLines.length,
       'encoding': 'pdf',
       'format_hint': 'pdf',
       'text_extractable': true,
       'page_count': head.pageCount,
       'head': sampledHead,
       if (tailLimit > 0) 'tail': tail,
-      if (head.pageCount > _inspectHeadPages) 'pages_sampled': true,
+      if (!sampledWholeDocument) 'pages_sampled': true,
     });
   }
 
@@ -244,44 +261,29 @@ abstract final class FilesystemPdfReader {
   static List<String> _splitLines(String text) =>
       const LineSplitter().convert(text);
 
-  static Future<
-    ({
-      Uint8List? bytes,
-      FirstPartyToolExecutionResult? error,
-      String? errorPayload,
-    })
-  >
-  _readBounded(File file, String absolutePath) async {
+  /// Reads [file] whole, or explains why it will not.
+  ///
+  /// `read_file` wants the bare error and `inspect_file` wants the overview
+  /// fields around it, so the failure carries both shapes built from one
+  /// message rather than two encodings that can drift apart.
+  static Future<_BoundedPdfBytes> _readBounded(
+    File file,
+    String absolutePath,
+  ) async {
     try {
       final length = await file.length();
-      if (length > PdfTextExtractionService.maxBytes) {
-        final message = jsonEncode({
-          'error': describeError(PdfExtractionError.tooLarge),
-          'path': absolutePath,
-        });
-        return (
-          bytes: null,
-          error: FirstPartyToolExecutionResult.payloadOnly(message),
-          errorPayload: jsonEncode({
-            'error': describeError(PdfExtractionError.tooLarge),
-            'path': absolutePath,
-            'size_bytes': length,
-            'size_human': FilesystemOverviewFormat.formatBytes(length),
-            'format_hint': 'pdf',
-            'text_extractable': false,
-          }),
-        );
+      if (length <= PdfTextExtractionService.maxBytes) {
+        return _BoundedPdfBytes.loaded(await file.readAsBytes());
       }
-      return (bytes: await file.readAsBytes(), error: null, errorPayload: null);
+      return _BoundedPdfBytes.failure(
+        error: describeError(PdfExtractionError.tooLarge),
+        absolutePath: absolutePath,
+        sizeBytes: length,
+      );
     } on FileSystemException {
-      final message = jsonEncode({
-        'error': describeError(PdfExtractionError.malformed),
-        'path': absolutePath,
-      });
-      return (
-        bytes: null,
-        error: FirstPartyToolExecutionResult.payloadOnly(message),
-        errorPayload: message,
+      return _BoundedPdfBytes.failure(
+        error: describeError(PdfExtractionError.malformed),
+        absolutePath: absolutePath,
       );
     }
   }
@@ -339,6 +341,39 @@ abstract final class FilesystemPdfReader {
       truncatedByChars: truncatedByChars,
     );
   }
+}
+
+/// A PDF's bytes, or the two renderings of why they could not be read.
+class _BoundedPdfBytes {
+  const _BoundedPdfBytes._({this.bytes, this.readError, this.inspectError});
+
+  factory _BoundedPdfBytes.loaded(Uint8List bytes) =>
+      _BoundedPdfBytes._(bytes: bytes);
+
+  factory _BoundedPdfBytes.failure({
+    required String error,
+    required String absolutePath,
+    int? sizeBytes,
+  }) => _BoundedPdfBytes._(
+    readError: jsonEncode({'error': error, 'path': absolutePath}),
+    inspectError: jsonEncode({
+      'error': error,
+      'path': absolutePath,
+      'size_bytes': ?sizeBytes,
+      if (sizeBytes != null)
+        'size_human': FilesystemOverviewFormat.formatBytes(sizeBytes),
+      'format_hint': 'pdf',
+      'text_extractable': false,
+    }),
+  );
+
+  final Uint8List? bytes;
+
+  /// `read_file`'s payload: the cause and the path, nothing else.
+  final String? readError;
+
+  /// `inspect_file`'s payload: the same cause inside the overview fields.
+  final String? inspectError;
 }
 
 /// One line window taken out of a PDF's extracted text.

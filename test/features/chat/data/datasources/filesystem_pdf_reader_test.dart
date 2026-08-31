@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:caverno/features/chat/data/datasources/filesystem_pdf_reader.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
+
+import '../../../../support/pdf_fixture_builder.dart';
 
 /// See test/fixtures/pdf/README.md for how each fixture was produced.
 String _fixturePath(String name) => 'test/fixtures/pdf/$name.pdf';
@@ -97,7 +97,7 @@ void main() {
       );
       addTearDown(() => directory.deleteSync(recursive: true));
       final path = '${directory.path}/pages.pdf';
-      File(path).writeAsBytesSync(await _buildPagedPdf(pages: 3));
+      File(path).writeAsBytesSync(await buildPagedPdf(pages: 3));
 
       final late =
           jsonDecode(await FilesystemTools.readFile(path: path, startPage: 3))
@@ -106,7 +106,7 @@ void main() {
       expect(late['error'], isNull);
       expect(late['start_page'], 3);
       expect(late['content'], contains('[page 3]'));
-      expect(late['content'], contains('page body 3'));
+      expect(late['content'], contains('page 3 line 1'));
       expect(late['content'], isNot(contains('[page 1]')));
     });
 
@@ -226,19 +226,79 @@ void main() {
       expect(response['content'], contains('The %PDF-1.7 signature'));
     },
   );
-}
 
-Future<List<int>> _buildPagedPdf({required int pages}) async {
-  final document = PdfDocument();
-  final font = PdfStandardFont(PdfFontFamily.helvetica, 12);
-  for (var page = 1; page <= pages; page++) {
-    document.pages.add().graphics.drawString(
-      'page body $page',
-      font,
-      bounds: const Rect.fromLTWH(20, 20, 400, 40),
-    );
-  }
-  final bytes = await document.save();
-  document.dispose();
-  return bytes;
+
+  group('a PDF longer than the inspect sample', () {
+    late Directory workspace;
+    late File file;
+
+    setUp(() async {
+      workspace = Directory.systemTemp.createTempSync('caverno_pdf_paging');
+      file = File('${workspace.path}/paged.pdf')
+        ..writeAsBytesSync(await buildPagedPdf(pages: 20));
+    });
+
+    tearDown(() {
+      if (workspace.existsSync()) workspace.deleteSync(recursive: true);
+    });
+
+    test('inspect_file never passes its sample off as the total', () async {
+      final inspect =
+          jsonDecode(await FilesystemTools.inspectFile(path: file.path))
+              as Map<String, dynamic>;
+      final read = jsonDecode(await FilesystemTools.readFile(path: file.path))
+          as Map<String, dynamic>;
+
+      // Reporting the sampled line count as `total_lines` told a model
+      // planning offset/limit reads that this document held 41 lines when
+      // read_file returns hundreds.
+      expect(inspect['total_lines'], isNull);
+      expect(inspect['sampled_lines'], isA<int>());
+      expect(inspect['pages_sampled'], isTrue);
+      expect(inspect['page_count'], 20);
+      expect(inspect['sampled_lines'], lessThan(read['total_lines'] as int));
+    });
+
+    test('inspect_file samples the last pages, not the first again', () async {
+      final inspect =
+          jsonDecode(await FilesystemTools.inspectFile(path: file.path))
+              as Map<String, dynamic>;
+
+      expect((inspect['head'] as List).first, '[page 1]');
+      expect((inspect['tail'] as List).join('\n'), contains('page 20'));
+    });
+
+    test('read_file pages from start_page', () async {
+      final second = jsonDecode(
+            await FilesystemTools.readFile(path: file.path, startPage: 19),
+          )
+          as Map<String, dynamic>;
+
+      expect(second['start_page'], 19);
+      expect(second['content'], startsWith('[page 19]'));
+      expect(second['content'], contains('page 20 line 1'));
+      expect(second['page_count'], 20);
+    });
+
+    test('read_file rejects a start_page past the end', () async {
+      final response = jsonDecode(
+            await FilesystemTools.readFile(path: file.path, startPage: 99),
+          )
+          as Map<String, dynamic>;
+
+      expect(response['error'], contains('past the end'));
+      expect(response['page_count'], 20);
+    });
+  });
+
+  test('inspect_file reports a real total when it sampled everything',
+      () async {
+    final inspect =
+        jsonDecode(await FilesystemTools.inspectFile(path: _fixturePath('text_layer')))
+            as Map<String, dynamic>;
+
+    expect(inspect['total_lines'], isA<int>());
+    expect(inspect['sampled_lines'], isNull);
+    expect(inspect['pages_sampled'], isNull);
+  });
 }

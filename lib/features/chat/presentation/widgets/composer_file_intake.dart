@@ -5,26 +5,6 @@ import 'package:super_clipboard/super_clipboard.dart';
 import '../../../../core/utils/logger.dart';
 import 'composer_file_picker.dart';
 
-/// Serializes composer file prepares so Send can wait for an in-flight drop.
-class ComposerFilePrepareGate {
-  Future<void>? _inFlight;
-  int _epoch = 0;
-
-  Future<void> wait() async {
-    final pending = _inFlight;
-    if (pending != null) await pending;
-  }
-
-  Future<void> enqueue(Future<void> Function(int epoch) work) {
-    final epoch = ++_epoch;
-    final future = work(epoch);
-    _inFlight = future;
-    return future;
-  }
-
-  bool isCurrent(int epoch) => epoch == _epoch;
-}
-
 /// Reads a PDF from the clipboard. `null` means the clipboard had no PDF.
 Future<bool?> pasteClipboardPdf({
   required DataReader reader,

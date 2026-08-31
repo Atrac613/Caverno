@@ -366,6 +366,47 @@ will answer from the filename. Naming the failure is part of the fix. A blank
 or vector-only page is the same error; we cannot tell a scan from an empty
 page without rendering.
 
+### The review that found three more
+
+The PDF work shipped green twice — 8,765 tests, analyzer clean, macOS build
+fine — and a proper review still found three real bugs. All three shared a
+shape worth naming: **the test suite agreed with the code because both were
+written from the same wrong assumption.**
+
+**A sample that called itself a total.** `inspect_file` samples the first three
+pages of a PDF so it stays an overview, and it reported the line count of that
+sample as `total_lines` — the same field name the text path uses for the whole
+file. On a 20-page document it said 41 lines where `read_file` returns 279.
+Nothing was broken in a way a unit test would notice; the field was populated,
+the number was a real count of something. It was just an answer to a different
+question than the one the model asks. The fix renames it: a document that fits
+in the sample reports `total_lines`, one that does not reports `sampled_lines`
+and `pages_sampled`, so there is no field a planner can misread.
+
+**A callback that fired one frame too early.** The composer clears a pending
+drop by calling back into the page, and it did so from `didUpdateWidget` —
+which runs while the page is building. Calling `setState` on an ancestor there
+trips `'!_dirty': is not true` in the framework, on *every* drop, image and
+video included. It shipped because no test mounts the page and the composer
+together; the drop-target tests exercise the widget in isolation, where there
+is no ancestor to dirty. The fix defers to `addPostFrameCallback`, and the
+regression test is a two-widget harness that reproduces exactly that lifecycle
+— verified by making the fix synchronous again and watching it fail.
+
+**Paging that skipped what it truncated.** When the character budget ran out
+mid-page, the extractor emitted the page's prefix, counted the page as
+extracted, and told the caller to continue from the *next* one. Measured: 19 of
+5,084 characters returned, `next_page: 2`, the other 5,065 unreachable through
+the documented continuation. The fix is a rule rather than a patch: a page that
+does not fit is left out whole, so `next_page` points at it — unless it is the
+window's first page, where there is nothing smaller to fall back to and the cut
+is reported instead of hidden.
+
+The transferable part: **when you add a field, ask what question a reader will
+think it answers**, and when you write a fixture, ask what assumption it
+shares with the code. Three fixtures produced by three different tools still
+agreed on one property, and the bug lived in exactly that gap.
+
 ## Where to start reading
 
 - The loop: `lib/features/chat/presentation/providers/chat_notifier.dart` and its

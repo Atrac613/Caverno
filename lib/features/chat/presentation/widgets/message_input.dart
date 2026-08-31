@@ -15,7 +15,6 @@ import '../../../../core/services/attachment_storage_service.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/types/assistant_mode.dart';
-import '../../../../core/utils/attachment_format.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -24,7 +23,10 @@ import 'composer_attachment_button.dart';
 import 'composer_control_chip.dart';
 import 'composer_model_selector.dart';
 import 'composer_shortcut_bar.dart';
+import 'composer_dropped_attachment_intake.dart';
+import 'composer_file_chip.dart';
 import 'composer_file_intake.dart';
+import 'composer_file_prepare_gate.dart';
 import 'composer_file_picker.dart';
 import 'composer_macos_paste_hint.dart';
 import 'composer_video_picker.dart';
@@ -167,9 +169,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   ComposerFileAttachment? _selectedFile;
   bool _isRecording = false;
   bool _hasText = false;
-  int? _handledDroppedImageAttachmentId;
-  int? _handledDroppedVideoAttachmentId;
-  int? _handledDroppedFileAttachmentId;
+  final _droppedImageIntake = DroppedAttachmentIntake();
+  final _droppedVideoIntake = DroppedAttachmentIntake();
+  final _droppedFileIntake = DroppedAttachmentIntake();
   MessageInputSlashSuggestionState _slashSuggestionState =
       MessageInputSlashSuggestionState.empty;
   MessageInputWorktreeMode _worktreeMode = MessageInputWorktreeMode.local;
@@ -291,15 +293,13 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   void _handleDroppedVideoAttachment() {
     final attachment = widget.droppedVideoAttachment;
     if (attachment == null ||
-        attachment.id == _handledDroppedVideoAttachmentId) {
+        !_droppedVideoIntake.take(attachment.id, widget.onDroppedVideoHandled)) {
       return;
     }
 
-    _handledDroppedVideoAttachmentId = attachment.id;
-    widget.onDroppedVideoHandled?.call();
     unawaited(() async {
       final choice = await _videoPicker.fromDroppedFile(attachment);
-      if (!mounted || _handledDroppedVideoAttachmentId != attachment.id) return;
+      if (!mounted || !_droppedVideoIntake.isCurrent(attachment.id)) return;
       _applyVideoChoice(choice, focusComposer: true);
     }());
   }
@@ -307,12 +307,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   void _handleDroppedFileAttachment() {
     final attachment = widget.droppedFileAttachment;
     if (attachment == null ||
-        attachment.id == _handledDroppedFileAttachmentId) {
+        !_droppedFileIntake.take(attachment.id, widget.onDroppedFileHandled)) {
       return;
     }
 
-    _handledDroppedFileAttachmentId = attachment.id;
-    widget.onDroppedFileHandled?.call();
     unawaited(
       _filePrepareGate.enqueue((epoch) async {
         final choice = await _filePicker.fromDroppedFile(attachment);
@@ -325,12 +323,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   void _handleDroppedImageAttachment() {
     final attachment = widget.droppedImageAttachment;
     if (attachment == null ||
-        attachment.id == _handledDroppedImageAttachmentId) {
+        !_droppedImageIntake.take(attachment.id, widget.onDroppedImageHandled)) {
       return;
     }
 
-    _handledDroppedImageAttachmentId = attachment.id;
-    widget.onDroppedImageHandled?.call();
     unawaited(_attachDroppedImage(attachment));
   }
 
@@ -343,7 +339,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         mimeType: attachment.mimeType,
         filePath: attachment.filePath,
       );
-      if (!mounted || _handledDroppedImageAttachmentId != attachment.id) {
+      if (!mounted || !_droppedImageIntake.isCurrent(attachment.id)) {
         return;
       }
 
@@ -598,6 +594,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   /// Navigate the input history with Up/Down arrows.
+  ///
+  /// Up starts browsing only when the composer is empty, to avoid hijacking
+  /// caret movement inside multi-line drafts. Once browsing, both arrows stay
+  /// active until the user returns to the saved draft or types something new.
   bool _tryRecallHistory({required bool older}) {
     if (_inputHistory.isEmpty) return false;
 
@@ -1085,8 +1085,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   Future<void> _handleSendAsync({bool interrupt = false}) async {
-    await _filePrepareGate.wait();
-    if (!mounted) return;
+    // Only a send waits for an in-flight attachment. Interrupt is the escape
+    // hatch from a running reply and must not queue behind a PDF parse.
+    if (!interrupt) {
+      await _filePrepareGate.wait();
+      if (!mounted) return;
+    }
 
     final text = _controller.text.trim();
     if (text.isEmpty &&
@@ -1667,28 +1671,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
               ComposerVideoChip(video: _selectedVideo!, onCleared: _clearVideo),
             // File preview
             if (_selectedFile case final file?)
-              Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: Tooltip(
-                  message: file.isPathReference
-                      ? 'message.attached_as_path'.tr()
-                      : '',
-                  child: Chip(
-                    avatar: Icon(switch (file) {
-                      _ when file.isPathReference => Icons.link,
-                      _ when file.pdfPageCount != null => Icons.picture_as_pdf,
-                      _ => Icons.description,
-                    }, size: 18),
-                    label: Text(
-                      '${file.name} '
-                      '(${formatAttachmentSize(file.sizeBytes)})',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    deleteIcon: const Icon(Icons.close, size: 18),
-                    onDeleted: _clearFile,
-                  ),
-                ),
-              ),
+              ComposerFileChip(file: file, onCleared: _clearFile),
             // Never both at once: the slash list owns this space when open.
             if (_slashSuggestionState.hasSuggestions)
               _buildSlashCommandSuggestions(context, theme)
