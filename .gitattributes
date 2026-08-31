@@ -1,0 +1,4 @@
+# Mark PDF fixtures as binary so checkout cannot rewrite xref offsets
+# (ascii_uncompressed.pdf is printable ASCII, so Git would otherwise treat
+# it as text and convert line endings).
+test/fixtures/pdf/*.pdf binary

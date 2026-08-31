@@ -36,6 +36,15 @@ void main() {
       expect(ComposerFilePicker.acceptsPath('/tmp/report.pdf'), isTrue);
     });
 
+    test('takes a PDF MIME type even without an extension', () {
+      expect(ComposerFilePicker.acceptsMime('application/pdf'), isTrue);
+      expect(
+        ComposerFilePicker.acceptsMime('text/plain; charset=utf-8'),
+        isTrue,
+      );
+      expect(ComposerFilePicker.acceptsMime('image/png'), isFalse);
+    });
+
     test('refuses everything else', () {
       expect(ComposerFilePicker.acceptsPath('/tmp/photo.png'), isFalse);
       expect(ComposerFilePicker.acceptsPath('/tmp/archive.zip'), isFalse);
@@ -86,7 +95,10 @@ void main() {
       expect(choice.file!.pdfPageCount, 1);
       expect(choice.file!.isPathReference, isFalse);
       expect(choice.file!.content, contains('Caverno PDF fixture'));
-      expect(choice.file!.sizeBytes, File(_fixturePath('text_layer')).lengthSync());
+      expect(
+        choice.file!.sizeBytes,
+        File(_fixturePath('text_layer')).lengthSync(),
+      );
     });
 
     test('recognises one whose bytes look like text', () async {
@@ -109,6 +121,18 @@ void main() {
 
       expect(choice.file, isNull);
       expect(choice.noticeKey, 'message.pdf_encrypted');
+    });
+
+    test('refuses a PDF above the extractor memory bound', () async {
+      final choice = await picker.prepare(
+        sourcePath: _fixturePath('text_layer'),
+        originalName: 'huge.pdf',
+        sizeBytes: 33 * 1024 * 1024,
+        alreadyDurable: true,
+      );
+
+      expect(choice.file, isNull);
+      expect(choice.noticeKey, 'message.pdf_too_large');
     });
 
     test('reports a corrupt document', () async {
@@ -174,7 +198,8 @@ void main() {
 
       final block = ComposerFilePicker.composeMessageBlock(file);
 
-      expect(block, startsWith('[Attached PDF: /attachments/huge.pdf'));
+      expect(block, startsWith('[Attached file: /attachments/huge.pdf'));
+      expect(block, contains('PDF'));
       expect(block, contains('read_file'));
       expect(block, contains('inspect_file'));
       expect(block, isNot(contains('search_files')));
@@ -203,9 +228,10 @@ void main() {
 Future<List<int>> _buildWordyPdf({required int pages}) async {
   final document = PdfDocument();
   final font = PdfStandardFont(PdfFontFamily.courier, 9);
-  final paragraph = List<String>.filled(100, 'lorem ipsum dolor sit amet').join(
-    ' ',
-  );
+  final paragraph = List<String>.filled(
+    100,
+    'lorem ipsum dolor sit amet',
+  ).join(' ');
   for (var page = 0; page < pages; page++) {
     document.pages.add().graphics.drawString(
       paragraph,

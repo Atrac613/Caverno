@@ -1205,14 +1205,14 @@ void main() {
         _filesystemInspectionToolNames,
       );
       // Pinned so an accidental edit to a definition cannot silently move the
-      // prompt prefix. Updated deliberately when read_file and inspect_file
-      // gained their PDF sentences; a model that is not told PDFs are
-      // supported never tries one.
+      // prompt prefix. Updated when read_file gained start_page / next_page
+      // for long PDFs and inspect_file began sampling ends instead of the
+      // whole document.
       expect(
         sha256
             .convert(utf8.encode(jsonEncode(inspectionDefinitions)))
             .toString(),
-        'd192cc6fd7d64ba76d391e0a812e2c057094388ce2df45a64556c1264b3c0f9c',
+        '410a374cfaffdc09736c8d3346c9aa4badc601954b0d9999393e23c87e8c4cab',
       );
       if (FilesystemTools.isDesktopPlatform) {
         expect(

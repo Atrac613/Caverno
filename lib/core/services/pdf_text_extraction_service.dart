@@ -19,9 +19,9 @@ enum PdfExtractionError {
   /// the file and attach it again.
   encrypted,
 
-  /// Parsed fine but every page came back empty — a scanned document whose
-  /// pages are images. Distinguished from [malformed] because the remedy is
-  /// completely different (OCR, not a repaired file).
+  /// Parsed fine but every page came back empty. May be a scan, a vector-only
+  /// drawing, or a blank document — distinguished from [malformed] because
+  /// retrying with a repaired file will not help.
   noTextLayer,
 
   /// Truncated, corrupt, or not a PDF at all.
@@ -34,6 +34,8 @@ class PdfExtractionResult {
     this.text,
     this.pageCount = 0,
     this.extractedPages = 0,
+    this.startPageIndex = 0,
+    this.textTruncated = false,
     this.error,
   });
 
@@ -46,16 +48,26 @@ class PdfExtractionResult {
   /// Pages the document holds.
   final int pageCount;
 
-  /// Pages actually represented in [text]. Lower than [pageCount] only when
-  /// the character budget ran out part way through.
+  /// Pages actually represented in [text], counting from [startPageIndex].
   final int extractedPages;
+
+  /// 0-based page where this extraction began.
+  final int startPageIndex;
+
+  /// Whether the last included page was cut to fit [PdfTextExtractionService.maxTextChars].
+  final bool textTruncated;
 
   final PdfExtractionError? error;
 
   bool get isSuccess => error == null && text != null;
 
-  /// Whether [text] stops short of the document's last page.
-  bool get truncated => isSuccess && extractedPages < pageCount;
+  /// 1-based page to pass as `start_page` to continue after a truncated read.
+  int get nextPage => startPageIndex + extractedPages + 1;
+
+  /// Whether [text] stops short of the document's last page, or a page was cut.
+  bool get truncated =>
+      isSuccess &&
+      (textTruncated || startPageIndex + extractedPages < pageCount);
 }
 
 /// Extracts a text layer from a PDF.
@@ -65,8 +77,9 @@ class PdfExtractionResult {
 /// the model see the same text for the same document.
 ///
 /// Deliberately text-only: rendering pages to images for a vision model is a
-/// different feature with a different cost, and a scanned PDF is reported as
-/// [PdfExtractionError.noTextLayer] rather than silently yielding nothing.
+/// different feature with a different cost, and a document with no characters
+/// is reported as [PdfExtractionError.noTextLayer] rather than silently
+/// yielding nothing.
 abstract final class PdfTextExtractionService {
   /// Largest PDF we will parse.
   ///
@@ -74,12 +87,13 @@ abstract final class PdfTextExtractionService {
   /// memory on a phone, where the file tools already halve their scan ceiling.
   static const int maxBytes = 32 * 1024 * 1024;
 
-  /// Character budget for the joined text of one document.
+  /// Character budget for the joined text of one extraction window.
   ///
   /// A thousand-page export would otherwise build a string far larger than any
   /// caller can use: `read_file` clips to 120k characters and the composer
   /// inlines at most 256KB. Stopping early keeps a runaway document from
-  /// costing memory nobody spends.
+  /// costing memory nobody spends. Callers that need later pages pass
+  /// [startPageIndex] (or `start_page` on `read_file`).
   static const int maxTextChars = 2 * 1024 * 1024;
 
   /// `%PDF-`, the header every PDF starts with.
@@ -87,32 +101,71 @@ abstract final class PdfTextExtractionService {
 
   /// How far into the file the header may sit.
   ///
-  /// The spec says offset zero, but files that grew a mail or scanner preamble
+  /// The spec says offset zero, but files that grew a scanner or NUL preamble
   /// are common enough that every real reader scans a window instead.
+  /// Printable text before the header is rejected: that is a document talking
+  /// about PDFs, not a PDF.
   static const int _signatureSearchWindow = 1024;
 
-  /// `/Encrypt`, the trailer entry a password-protected PDF carries.
+  /// `/Encrypt`, the trailer dictionary key a password-protected PDF carries.
   static final List<int> _encryptMarker = '/Encrypt'.codeUnits;
+
+  static final List<int> _trailerMarker = 'trailer'.codeUnits;
+
+  /// Trailer sits near EOF. Searching the whole file would treat `/Encrypt`
+  /// inside a content stream as encryption.
+  static const int _encryptSearchTailBytes = 32 * 1024;
 
   /// Whether [prefix] begins a PDF.
   ///
-  /// Matches the header bytes rather than the extension so a `report.bin` that
-  /// is really a PDF still reads, and a text file someone renamed to `.pdf`
-  /// does not get routed into the parser.
-  static bool looksLikePdf(List<int> prefix) =>
-      _indexOfBytes(prefix, _signature, _signatureSearchWindow) >= 0;
+  /// Matches `%PDF-` plus a version digit rather than the extension so a
+  /// `report.bin` that is really a PDF still reads, and a text file someone
+  /// renamed to `.pdf` does not get routed into the parser. A README that
+  /// mentions the signature is not a PDF: printable bytes before the header
+  /// fail the check.
+  static bool looksLikePdf(List<int> prefix) {
+    final index = _indexOfBytes(prefix, _signature, _signatureSearchWindow);
+    if (index < 0) return false;
+    final versionAt = index + _signature.length;
+    if (versionAt >= prefix.length) return false;
+    final version = prefix[versionAt];
+    if (version < 0x30 || version > 0x39) return false;
+    for (var i = 0; i < index; i++) {
+      final byte = prefix[i];
+      final preamble =
+          byte == 0x00 ||
+          byte == 0x09 ||
+          byte == 0x0A ||
+          byte == 0x0D ||
+          byte == 0x20 ||
+          byte < 0x20 ||
+          byte == 0x7F;
+      if (!preamble) return false;
+    }
+    return true;
+  }
 
   /// Reads and extracts [file], or explains why it could not.
   ///
   /// Never throws: both callers need a value to render, and a malformed
   /// attachment is an ordinary outcome rather than an error condition.
-  static Future<PdfExtractionResult> extract(File file) async {
+  static Future<PdfExtractionResult> extract(
+    File file, {
+    int startPageIndex = 0,
+    int? maxPages,
+    int? maxTextChars,
+  }) async {
     try {
       final length = await file.length();
       if (length > maxBytes) {
         return const PdfExtractionResult.failure(PdfExtractionError.tooLarge);
       }
-      return extractBytes(await file.readAsBytes());
+      return extractBytes(
+        await file.readAsBytes(),
+        startPageIndex: startPageIndex,
+        maxPages: maxPages,
+        maxTextChars: maxTextChars,
+      );
     } on FileSystemException {
       return const PdfExtractionResult.failure(PdfExtractionError.malformed);
     }
@@ -124,11 +177,27 @@ abstract final class PdfTextExtractionService {
   /// that would freeze the composer mid-attachment and stall the tool loop's
   /// event loop, so the work is handed off even though the payload has to be
   /// copied to get there.
-  static Future<PdfExtractionResult> extractBytes(Uint8List bytes) =>
-      Isolate.run(() => extractBytesSync(bytes));
+  static Future<PdfExtractionResult> extractBytes(
+    Uint8List bytes, {
+    int startPageIndex = 0,
+    int? maxPages,
+    int? maxTextChars,
+  }) => Isolate.run(
+    () => extractBytesSync(
+      bytes,
+      startPageIndex: startPageIndex,
+      maxPages: maxPages,
+      maxTextChars: maxTextChars,
+    ),
+  );
 
   /// The synchronous core, exposed for tests that would rather not hop.
-  static PdfExtractionResult extractBytesSync(Uint8List bytes) {
+  static PdfExtractionResult extractBytesSync(
+    Uint8List bytes, {
+    int startPageIndex = 0,
+    int? maxPages,
+    int? maxTextChars,
+  }) {
     if (bytes.length > maxBytes) {
       return const PdfExtractionResult.failure(PdfExtractionError.tooLarge);
     }
@@ -139,7 +208,12 @@ abstract final class PdfTextExtractionService {
     PdfDocument? document;
     try {
       document = PdfDocument(inputBytes: bytes);
-      return _extractPages(document);
+      return _extractPages(
+        document,
+        startPageIndex: startPageIndex,
+        maxPages: maxPages,
+        maxTextChars: maxTextChars ?? PdfTextExtractionService.maxTextChars,
+      );
     } catch (_) {
       // The parser reports a wrong password and a corrupt xref table with the
       // same exception type, so the file itself decides which one this was:
@@ -154,14 +228,35 @@ abstract final class PdfTextExtractionService {
     }
   }
 
-  static PdfExtractionResult _extractPages(PdfDocument document) {
+  static PdfExtractionResult _extractPages(
+    PdfDocument document, {
+    required int startPageIndex,
+    required int? maxPages,
+    required int maxTextChars,
+  }) {
     final pageCount = document.pages.count;
+    if (pageCount <= 0) {
+      return const PdfExtractionResult.failure(PdfExtractionError.noTextLayer);
+    }
+    if (startPageIndex < 0 || startPageIndex >= pageCount) {
+      return PdfExtractionResult(
+        text: '',
+        pageCount: pageCount,
+        extractedPages: 0,
+        startPageIndex: startPageIndex.clamp(0, pageCount),
+      );
+    }
+
     final extractor = PdfTextExtractor(document);
     final buffer = StringBuffer();
     var extractedPages = 0;
     var anyText = false;
+    var textTruncated = false;
+    final lastExclusive = maxPages == null
+        ? pageCount
+        : (startPageIndex + maxPages).clamp(startPageIndex, pageCount);
 
-    for (var index = 0; index < pageCount; index++) {
+    for (var index = startPageIndex; index < lastExclusive; index++) {
       // Page at a time rather than one whole-document call: it is what makes
       // the page markers below true, and it is where the budget can stop.
       final page = extractor
@@ -169,12 +264,27 @@ abstract final class PdfTextExtractionService {
           .trimRight();
       if (page.trim().isNotEmpty) anyText = true;
 
+      final marker = '[page ${index + 1}]';
+      final separator = buffer.isEmpty ? 0 : 1;
+      var remaining = maxTextChars - buffer.length - separator - marker.length;
+      if (remaining <= 1) {
+        textTruncated = true;
+        break;
+      }
+      remaining -= 1; // newline after the marker
+
+      var body = page;
+      if (body.length > remaining) {
+        body = remaining > 0 ? body.substring(0, remaining) : '';
+        textTruncated = true;
+      }
+
       if (buffer.isNotEmpty) buffer.writeln();
-      buffer.writeln('[page ${index + 1}]');
-      if (page.isNotEmpty) buffer.writeln(page);
+      buffer.writeln(marker);
+      if (body.isNotEmpty) buffer.writeln(body);
       extractedPages++;
 
-      if (buffer.length >= maxTextChars) break;
+      if (textTruncated || buffer.length >= maxTextChars) break;
     }
 
     if (!anyText) {
@@ -184,11 +294,37 @@ abstract final class PdfTextExtractionService {
       text: buffer.toString().trimRight(),
       pageCount: pageCount,
       extractedPages: extractedPages,
+      startPageIndex: startPageIndex,
+      textTruncated: textTruncated,
     );
   }
 
-  static bool _hasEncryptMarker(List<int> bytes) =>
-      _indexOfBytes(bytes, _encryptMarker, bytes.length) >= 0;
+  static bool _hasEncryptMarker(List<int> bytes) {
+    final tailStart = bytes.length > _encryptSearchTailBytes
+        ? bytes.length - _encryptSearchTailBytes
+        : 0;
+    final tailLength = bytes.length - tailStart;
+    final trailerAt = _lastIndexOfBytes(
+      bytes,
+      _trailerMarker,
+      start: tailStart,
+      length: tailLength,
+    );
+    if (trailerAt >= 0) {
+      return _indexOfBytes(
+            bytes.sublist(trailerAt),
+            _encryptMarker,
+            bytes.length - trailerAt,
+          ) >=
+          0;
+    }
+    return _indexOfBytes(
+          bytes.sublist(tailStart),
+          _encryptMarker,
+          tailLength,
+        ) >=
+        0;
+  }
 
   /// First index of [needle] in [haystack], searching at most [searchLimit]
   /// starting positions. Hand-rolled because the payload is bytes, not a
@@ -201,15 +337,28 @@ abstract final class PdfTextExtractionService {
     final last = (searchLimit < haystack.length ? searchLimit : haystack.length)
         .clamp(0, haystack.length);
     for (var start = 0; start + needle.length <= last; start++) {
-      var matched = true;
-      for (var offset = 0; offset < needle.length; offset++) {
-        if (haystack[start + offset] != needle[offset]) {
-          matched = false;
-          break;
-        }
-      }
-      if (matched) return start;
+      if (_matchAt(haystack, needle, start)) return start;
     }
     return -1;
+  }
+
+  static int _lastIndexOfBytes(
+    List<int> haystack,
+    List<int> needle, {
+    required int start,
+    required int length,
+  }) {
+    final end = (start + length).clamp(0, haystack.length);
+    for (var i = end - needle.length; i >= start; i--) {
+      if (_matchAt(haystack, needle, i)) return i;
+    }
+    return -1;
+  }
+
+  static bool _matchAt(List<int> haystack, List<int> needle, int start) {
+    for (var offset = 0; offset < needle.length; offset++) {
+      if (haystack[start + offset] != needle[offset]) return false;
+    }
+    return true;
   }
 }

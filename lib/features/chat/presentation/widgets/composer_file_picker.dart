@@ -2,84 +2,16 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:easy_localization/easy_localization.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../../../../core/services/attachment_storage_service.dart';
 import '../../../../core/services/pdf_text_extraction_service.dart';
 import '../../../../core/utils/attachment_format.dart';
 import '../../../../core/utils/logger.dart';
+import 'composer_file_models.dart';
 
-/// A file dropped onto the chat surface, waiting to be picked up.
-///
-/// Mirrors [MessageInputVideoAttachment]: the path travels, not the bytes,
-/// because a dropped file is delivered by reference and reading it in the drop
-/// handler would only buy a copy in memory.
-class MessageInputFileAttachment {
-  const MessageInputFileAttachment({required this.id, required this.filePath});
-
-  final int id;
-  final String filePath;
-}
-
-/// A file the composer is holding, either inlined or referenced by path.
-class ComposerFileAttachment {
-  const ComposerFileAttachment({
-    required this.name,
-    required this.sizeBytes,
-    this.content,
-    this.durablePath,
-    this.isPdf = false,
-    this.pdfPageCount,
-  });
-
-  final String name;
-
-  /// Size of the file on disk, which for a PDF is not the size of [content].
-  final int sizeBytes;
-
-  /// Text carried in the message body, null when referenced by path instead.
-  final String? content;
-
-  /// Durable copy the model reads with the file tools, null when inlined.
-  final String? durablePath;
-
-  /// Whether the source file is a PDF.
-  ///
-  /// Carried rather than inferred from [name]: the picker decides from the
-  /// file's header, so a PDF with a misleading extension still gets PDF
-  /// advice, and a `.pdf` that is really text does not.
-  final bool isPdf;
-
-  /// Pages the source PDF had, null when referenced by path or not a PDF.
-  final int? pdfPageCount;
-
-  bool get isPathReference => durablePath != null;
-}
-
-/// What choosing a file produced, and what the person should be told.
-///
-/// Follows [ComposerVideoChoice]: the two travel together because a rejected
-/// file yields no attachment and one message, and holding a `BuildContext`
-/// here would make the whole picker untestable.
-class ComposerFileChoice {
-  const ComposerFileChoice({this.file, this.noticeKey, this.noticeArgs});
-
-  const ComposerFileChoice.notice(String key, {Map<String, String>? args})
-    : this(noticeKey: key, noticeArgs: args);
-
-  static const ComposerFileChoice none = ComposerFileChoice();
-
-  final ComposerFileAttachment? file;
-
-  /// Translation key for a message to surface, or null when there is nothing
-  /// to say. Kept as a key so this stays a plain object with no context.
-  final String? noticeKey;
-  final Map<String, String>? noticeArgs;
-
-  String? get notice =>
-      noticeKey?.tr(namedArgs: noticeArgs ?? const <String, String>{});
-}
+export 'composer_file_models.dart';
 
 /// Chooses a file for the composer, from the picker, a drop, or the clipboard.
 ///
@@ -98,6 +30,20 @@ class ComposerFilePicker {
     'log', 'jsonl', 'ndjson', 'tsv', 'xml', 'yaml', 'yml',
     'pdf',
   ];
+
+  static const Set<String> _allowedMimes = {
+    'application/pdf',
+    'text/plain',
+    'text/markdown',
+    'text/csv',
+    'text/tab-separated-values',
+    'text/xml',
+    'text/yaml',
+    'application/json',
+    'application/xml',
+    'application/x-yaml',
+    'application/yaml',
+  };
 
   /// Files at or below this size are inlined into the message text. Larger
   /// ones are copied to a durable path and referenced by path so the model can
@@ -118,6 +64,17 @@ class ComposerFilePicker {
     return allowedExtensions.any((extension) => lower.endsWith('.$extension'));
   }
 
+  /// Whether a drop's declared MIME type is a document this picker will take.
+  ///
+  /// Used for files that arrive without an extension, such as a browser
+  /// download named `download` whose type is still `application/pdf`.
+  static bool acceptsMime(String? mimeType) {
+    if (mimeType == null || mimeType.isEmpty) return false;
+    final mime = mimeType.toLowerCase().split(';').first.trim();
+    if (_allowedMimes.contains(mime)) return true;
+    return mime.startsWith('text/');
+  }
+
   /// Opens the file dialog and prepares whatever the person chose.
   Future<ComposerFileChoice> pick() async {
     try {
@@ -128,7 +85,9 @@ class ComposerFilePicker {
         // file into memory — large files must never be read fully here.
         withData: false,
       );
-      if (result == null || result.files.isEmpty) return ComposerFileChoice.none;
+      if (result == null || result.files.isEmpty) {
+        return ComposerFileChoice.none;
+      }
 
       final picked = result.files.first;
       final sourcePath = picked.path;
@@ -148,19 +107,34 @@ class ComposerFilePicker {
   Future<ComposerFileChoice> fromDroppedFile(
     MessageInputFileAttachment attachment,
   ) async {
-    if (!acceptsPath(attachment.filePath)) {
+    if (!attachment.alreadyDurable &&
+        !acceptsPath(attachment.filePath) &&
+        !acceptsMime(attachment.mimeType)) {
       return const ComposerFileChoice.notice('message.drop_file_unsupported');
     }
+    var scoped = false;
+    final bookmark = attachment.appleBookmark;
     try {
+      if (Platform.isMacOS && bookmark != null && bookmark.isNotEmpty) {
+        scoped = await DesktopDrop.instance
+            .startAccessingSecurityScopedResource(bookmark: bookmark);
+      }
       final file = File(attachment.filePath);
       return await prepare(
         sourcePath: attachment.filePath,
         originalName: file.uri.pathSegments.last,
         sizeBytes: await file.length(),
+        alreadyDurable: attachment.alreadyDurable,
       );
     } catch (e) {
       appDebugPrint('Failed to attach dropped file: $e');
       return _readError();
+    } finally {
+      if (scoped && bookmark != null) {
+        await DesktopDrop.instance.stopAccessingSecurityScopedResource(
+          bookmark: bookmark,
+        );
+      }
     }
   }
 
@@ -169,19 +143,23 @@ class ComposerFilePicker {
     required List<int> bytes,
     required String originalName,
   }) async {
+    String? durablePath;
     try {
-      final durablePath = await AttachmentStorageService.persistBytes(
+      durablePath = await AttachmentStorageService.persistBytes(
         bytes: Uint8List.fromList(bytes),
         originalName: originalName,
       );
-      return await prepare(
+      final choice = await prepare(
         sourcePath: durablePath,
         originalName: originalName,
         sizeBytes: bytes.length,
         alreadyDurable: true,
       );
+      await _discardUnusedStaging(durablePath, choice);
+      return choice;
     } catch (e) {
       appDebugPrint('Failed to attach pasted file: $e');
+      await _deleteQuietly(durablePath);
       return _readError();
     }
   }
@@ -238,16 +216,14 @@ class ComposerFilePicker {
     required int sizeBytes,
     required bool alreadyDurable,
   }) async {
-    // Above the extractor's memory bound nothing can be inlined, so hand the
-    // model the path: read_file parses PDFs and applies the same bound with
-    // paging behind it.
+    // The extractor refuses this size, and paging cannot help: the whole file
+    // has to be in memory before the first page comes out.
     if (sizeBytes > PdfTextExtractionService.maxBytes) {
-      return _asPathReference(
-        sourcePath: file.path,
-        originalName: originalName,
-        sizeBytes: sizeBytes,
-        alreadyDurable: alreadyDurable,
-        isPdf: true,
+      return ComposerFileChoice.notice(
+        'message.pdf_too_large',
+        args: {
+          'limit': formatAttachmentSize(PdfTextExtractionService.maxBytes),
+        },
       );
     }
 
@@ -264,14 +240,11 @@ class ComposerFilePicker {
         PdfExtractionError.malformed => const ComposerFileChoice.notice(
           'message.pdf_read_error',
         ),
-        // Only reachable if the file grew between the check above and the
-        // read; the path reference stays a correct answer either way.
-        PdfExtractionError.tooLarge => await _asPathReference(
-          sourcePath: file.path,
-          originalName: originalName,
-          sizeBytes: sizeBytes,
-          alreadyDurable: alreadyDurable,
-          isPdf: true,
+        PdfExtractionError.tooLarge => ComposerFileChoice.notice(
+          'message.pdf_too_large',
+          args: {
+            'limit': formatAttachmentSize(PdfTextExtractionService.maxBytes),
+          },
         ),
       };
     }
@@ -338,6 +311,21 @@ class ComposerFilePicker {
     }
   }
 
+  Future<void> _discardUnusedStaging(
+    String durablePath,
+    ComposerFileChoice choice,
+  ) async {
+    if (choice.file?.isPathReference == true) return;
+    await _deleteQuietly(durablePath);
+  }
+
+  Future<void> _deleteQuietly(String? path) async {
+    if (path == null || path.isEmpty) return;
+    try {
+      await File(path).delete();
+    } catch (_) {}
+  }
+
   ComposerFileChoice _readError() =>
       const ComposerFileChoice.notice('message.file_read_error');
 
@@ -356,13 +344,13 @@ class ComposerFilePicker {
 
     final human = formatAttachmentSize(file.sizeBytes);
     if (file.isPdf) {
-      // Deliberately does not offer search_files: it skips binary files, so a
-      // grep over a PDF silently finds nothing.
-      return '[Attached PDF: $durablePath ($human)]\n'
+      // Keep the [Attached file:] prefix so conversation deletion can collect
+      // the managed copy. search_files skips binary files and would find nothing.
+      return '[Attached file: $durablePath ($human)]\n'
           'This PDF is large and is available on disk at the path above. '
           'read_file extracts its text layer — call inspect_file first for the '
-          'page count, then read_file with offset and limit. Do not try to '
-          'read it all at once.';
+          'page count, then read_file with offset, limit, and start_page. Do '
+          'not try to read it all at once.';
     }
     return '[Attached file: $durablePath ($human)]\n'
         'This file is large and is available on disk at the path above. '

@@ -134,6 +134,9 @@ class BuiltInFilesystemToolHandler {
                 .clamp(1, 1000000000)
                 .toInt(),
             'limit': rawLimit?.clamp(1, 20000).toInt(),
+            'start_page': ((arguments['start_page'] as num?)?.toInt() ?? 1)
+                .clamp(1, 1000000000)
+                .toInt(),
           },
         );
         return McpToolResultNormalizer.success(

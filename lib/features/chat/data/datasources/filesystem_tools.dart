@@ -141,11 +141,13 @@ class FilesystemTools {
     int maxChars = _maxReadChars,
     int offset = 1,
     int? limit,
+    int startPage = 1,
   }) async => (await readFileResult(
     path: path,
     maxChars: maxChars,
     offset: offset,
     limit: limit,
+    startPage: startPage,
   )).result;
 
   static Future<FirstPartyToolExecutionResult> readFileResult({
@@ -153,6 +155,7 @@ class FilesystemTools {
     int maxChars = _maxReadChars,
     int offset = 1,
     int? limit,
+    int startPage = 1,
   }) async {
     final file = File(path);
     if (!file.existsSync()) {
@@ -193,6 +196,7 @@ class FilesystemTools {
         offset: offset,
         limit: limit,
         maxChars: maxChars,
+        startPage: startPage,
       );
       if (pdf != null) return pdf;
       if (prefix.looksBinary) {

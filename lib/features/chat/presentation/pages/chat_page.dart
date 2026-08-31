@@ -83,6 +83,7 @@ import '../widgets/subagent_task_banner.dart';
 import '../widgets/worktree_agent_task_banner.dart';
 import '../widgets/message_bubble.dart';
 import '../coordinators/chat_dropped_attachments.dart';
+import '../coordinators/chat_dropped_attachments_take.dart';
 import '../widgets/message_input.dart';
 import '../widgets/mobile_keyboard_dismiss.dart';
 import '../widgets/participant_roster_bar.dart';
@@ -94,7 +95,6 @@ import '../widgets/workflow_status_presentation.dart';
 import '../widgets/workflow/workflow_editor_sheet.dart';
 import '../widgets/workflow/workflow_task_editor_sheet.dart';
 import '../widgets/chat_error_banner.dart';
-import '../widgets/chat_media_drop_target.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
 import '../providers/html_preview_provider.dart';
@@ -427,37 +427,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  /// Records a drop and rebuilds, unless the page is already gone.
   void _takeDrop(void Function() record) {
     if (!mounted) return;
     setState(record);
   }
 
-  Widget _buildMediaDropTarget(
-    BuildContext context, {
+  Widget _buildMediaDropTarget({
     required bool enabled,
     required Widget child,
   }) {
-    return ChatMediaDropTarget(
+    return wrapChatMediaDropTarget(
       enabled: enabled,
       videoEnabled: ref
           .watch(settingsNotifierProvider)
           .videoAttachmentsAvailable,
-      onVideoDropped: (filePath, mimeType) => _takeDrop(
-        () => _droppedAttachments.takeVideo(
-          filePath: filePath,
-          mimeType: mimeType,
-        ),
-      ),
-      onFileDropped: (filePath) =>
-          _takeDrop(() => _droppedAttachments.takeFile(filePath)),
-      onImageDropped: (bytes, mimeType, filePath) => _takeDrop(
-        () => _droppedAttachments.takeImage(
-          bytes: bytes,
-          mimeType: mimeType,
-          filePath: filePath,
-        ),
-      ),
+      dropped: _droppedAttachments,
+      takeDrop: _takeDrop,
       child: child,
     );
   }
@@ -797,6 +782,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         droppedImageAttachment: _droppedAttachments.image,
         droppedVideoAttachment: _droppedAttachments.video,
         droppedFileAttachment: _droppedAttachments.file,
+        onDroppedImageHandled: () =>
+            _takeDrop(() => _droppedAttachments.image = null),
+        onDroppedVideoHandled: () =>
+            _takeDrop(() => _droppedAttachments.video = null),
+        onDroppedFileHandled: () =>
+            _takeDrop(() => _droppedAttachments.file = null),
         // Where a session starts is a choice about a session that has not run
         // yet, so the selector shows only while the thread is still empty.
         // Offering it inside a thread already under way implies that thread
@@ -928,7 +919,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           : isMobileRemoteCoding
           ? const RemoteCodingPage()
           : _buildMediaDropTarget(
-              context,
               enabled: canCompose,
               child: LayoutBuilder(
                 builder: (context, constraints) {

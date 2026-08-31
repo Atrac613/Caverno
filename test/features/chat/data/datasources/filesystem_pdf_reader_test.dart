@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 
+import 'package:caverno/features/chat/data/datasources/filesystem_pdf_reader.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 /// See test/fixtures/pdf/README.md for how each fixture was produced.
 String _fixturePath(String name) => 'test/fixtures/pdf/$name.pdf';
@@ -12,12 +15,14 @@ Future<Map<String, dynamic>> _read(
   int offset = 1,
   int? limit,
   int maxChars = 120000,
+  int startPage = 1,
 }) async {
   final raw = await FilesystemTools.readFile(
     path: _fixturePath(name),
     offset: offset,
     limit: limit,
     maxChars: maxChars,
+    startPage: startPage,
   );
   return jsonDecode(raw) as Map<String, dynamic>;
 }
@@ -64,12 +69,52 @@ void main() {
       expect(window['total_lines'], whole['total_lines']);
     });
 
+    test('clips to max_chars without counting omitted lines', () {
+      final selection = FilesystemPdfReader.selectLines(
+        text: 'alpha\nbeta\ngamma',
+        offset: 1,
+        limit: 10,
+        maxChars: 3,
+      );
+
+      expect(selection.content, 'alp');
+      expect(selection.lineCount, 1);
+      expect(selection.truncatedByChars, isTrue);
+      expect(selection.totalLines, 3);
+    });
+
     test('clips to max_chars and says so', () async {
       final response = await _read('text_layer', maxChars: 12);
 
       expect((response['content'] as String).length, lessThanOrEqualTo(12));
       expect(response['truncated_by_chars'], isTrue);
       expect(response['truncated'], isTrue);
+    });
+
+    test('start_page extracts from a later page', () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'caverno_pdf_pages',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final path = '${directory.path}/pages.pdf';
+      File(path).writeAsBytesSync(await _buildPagedPdf(pages: 3));
+
+      final late =
+          jsonDecode(await FilesystemTools.readFile(path: path, startPage: 3))
+              as Map<String, dynamic>;
+
+      expect(late['error'], isNull);
+      expect(late['start_page'], 3);
+      expect(late['content'], contains('[page 3]'));
+      expect(late['content'], contains('page body 3'));
+      expect(late['content'], isNot(contains('[page 1]')));
+    });
+
+    test('rejects start_page past the end of the document', () async {
+      final response = await _read('text_layer', startPage: 2);
+
+      expect(response['error'], contains('past the end'));
+      expect(response['page_count'], 1);
     });
 
     test('reads an uncompressed PDF that a text sniff would pass', () async {
@@ -86,7 +131,7 @@ void main() {
     test('names OCR when the document has no text layer', () async {
       final response = await _read('image_only');
 
-      expect(response['error'], contains('scanned document'));
+      expect(response['error'], contains('no extractable text'));
       expect(response['error'], contains('OCR'));
       expect(response['content'], isNull);
     });
@@ -161,4 +206,39 @@ void main() {
       expect(response['encoding'], 'binary');
     });
   });
+
+  test(
+    'a text file that mentions the PDF signature still reads as text',
+    () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'caverno_pdf_mention',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final notes = File('${directory.path}/notes.md')
+        ..writeAsStringSync('The %PDF-1.7 signature identifies PDFs.\n');
+
+      final response =
+          jsonDecode(await FilesystemTools.readFile(path: notes.path))
+              as Map<String, dynamic>;
+
+      expect(response['error'], isNull);
+      expect(response['format'], isNull);
+      expect(response['content'], contains('The %PDF-1.7 signature'));
+    },
+  );
+}
+
+Future<List<int>> _buildPagedPdf({required int pages}) async {
+  final document = PdfDocument();
+  final font = PdfStandardFont(PdfFontFamily.helvetica, 12);
+  for (var page = 1; page <= pages; page++) {
+    document.pages.add().graphics.drawString(
+      'page body $page',
+      font,
+      bounds: const Rect.fromLTWH(20, 20, 400, 40),
+    );
+  }
+  final bytes = await document.save();
+  document.dispose();
+  return bytes;
 }

@@ -747,10 +747,13 @@ Most dependencies are permissively licensed. One is not:
 
 - **syncfusion_flutter_pdf**, used to extract the text layer from attached
   PDFs, ships under the Syncfusion Essential Studio license. Syncfusion offers
-  a free Community License to individuals and to companies under the revenue
-  and headcount thresholds it publishes; everyone else needs a commercial
-  license. Caverno's own MIT license does not extend to it, so building this
-  project from source means holding a Syncfusion license of your own.
+  a Community License and a commercial license; eligibility for the Community
+  License is defined by Syncfusion's current terms (not only revenue and
+  headcount), so check
+  [those terms](https://www.syncfusion.com/products/communitylicense) rather
+  than this summary. Caverno's own MIT license does not extend to it, so
+  building this project from source means holding a Syncfusion license of
+  your own.
 
 PDF support is confined to `lib/core/services/pdf_text_extraction_service.dart`
 precisely so this dependency can be swapped without touching its callers.

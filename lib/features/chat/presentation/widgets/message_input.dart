@@ -12,7 +12,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 
 import '../../../../core/services/attachment_storage_service.dart';
-import '../../../../core/services/macos_main_app_permissions_service.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/types/assistant_mode.dart';
@@ -25,7 +24,9 @@ import 'composer_attachment_button.dart';
 import 'composer_control_chip.dart';
 import 'composer_model_selector.dart';
 import 'composer_shortcut_bar.dart';
+import 'composer_file_intake.dart';
 import 'composer_file_picker.dart';
+import 'composer_macos_paste_hint.dart';
 import 'composer_video_picker.dart';
 import '../../domain/entities/video_attachment_draft.dart';
 import 'conversation_goal_status_presentation.dart';
@@ -72,6 +73,9 @@ class MessageInput extends ConsumerStatefulWidget {
     this.droppedImageAttachment,
     this.droppedVideoAttachment,
     this.droppedFileAttachment,
+    this.onDroppedImageHandled,
+    this.onDroppedVideoHandled,
+    this.onDroppedFileHandled,
     this.codingGoal,
     this.onCodingGoalEdit,
     this.onCodingGoalMarkComplete,
@@ -125,6 +129,9 @@ class MessageInput extends ConsumerStatefulWidget {
   final MessageInputImageAttachment? droppedImageAttachment;
   final MessageInputVideoAttachment? droppedVideoAttachment;
   final MessageInputFileAttachment? droppedFileAttachment;
+  final VoidCallback? onDroppedImageHandled;
+  final VoidCallback? onDroppedVideoHandled;
+  final VoidCallback? onDroppedFileHandled;
   final ConversationGoal? codingGoal;
   final VoidCallback? onCodingGoalEdit;
   final VoidCallback? onCodingGoalMarkComplete;
@@ -150,6 +157,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   final _imagePicker = ImagePicker();
   final _videoPicker = const ComposerVideoPicker();
   final _filePicker = const ComposerFilePicker();
+  final _filePrepareGate = ComposerFilePrepareGate();
 
   Uint8List? _selectedImageBytes;
   String? _selectedImageMimeType;
@@ -288,6 +296,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     }
 
     _handledDroppedVideoAttachmentId = attachment.id;
+    widget.onDroppedVideoHandled?.call();
     unawaited(() async {
       final choice = await _videoPicker.fromDroppedFile(attachment);
       if (!mounted || _handledDroppedVideoAttachmentId != attachment.id) return;
@@ -303,11 +312,14 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     }
 
     _handledDroppedFileAttachmentId = attachment.id;
-    unawaited(() async {
-      final choice = await _filePicker.fromDroppedFile(attachment);
-      if (!mounted || _handledDroppedFileAttachmentId != attachment.id) return;
-      _applyFileChoice(choice, focusComposer: true);
-    }());
+    widget.onDroppedFileHandled?.call();
+    unawaited(
+      _filePrepareGate.enqueue((epoch) async {
+        final choice = await _filePicker.fromDroppedFile(attachment);
+        if (!mounted || !_filePrepareGate.isCurrent(epoch)) return;
+        _applyFileChoice(choice, focusComposer: true);
+      }),
+    );
   }
 
   void _handleDroppedImageAttachment() {
@@ -318,6 +330,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     }
 
     _handledDroppedImageAttachmentId = attachment.id;
+    widget.onDroppedImageHandled?.call();
     unawaited(_attachDroppedImage(attachment));
   }
 
@@ -585,10 +598,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   /// Navigate the input history with Up/Down arrows.
-  ///
-  /// Up starts browsing only when the composer is empty, to avoid hijacking
-  /// caret movement inside multi-line drafts. Once browsing, both arrows stay
-  /// active until the user returns to the saved draft or types something new.
   bool _tryRecallHistory({required bool older}) {
     if (_inputHistory.isEmpty) return false;
 
@@ -876,11 +885,19 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     _refreshSlashSuggestions();
   }
 
-  Future<void> _pickFile() async =>
-      _applyFileChoice(await _filePicker.pick());
+  Future<void> _pickFile() async {
+    await _filePrepareGate.enqueue((epoch) async {
+      final choice = await _filePicker.pick();
+      if (!mounted || !_filePrepareGate.isCurrent(epoch)) return;
+      _applyFileChoice(choice);
+    });
+  }
 
   /// Takes the attachment a [ComposerFileChoice] produced, says what it said.
-  void _applyFileChoice(ComposerFileChoice choice, {bool focusComposer = false}) {
+  void _applyFileChoice(
+    ComposerFileChoice choice, {
+    bool focusComposer = false,
+  }) {
     if (!mounted) return;
     if (choice.file != null) {
       setState(() => _selectedFile = choice.file);
@@ -927,23 +944,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     // Checked before the image formats: a PDF is not one, and it is the only
     // pasteable attachment whose payload has to reach disk before it can be
     // read, so it takes the durable-path route the picker already knows.
-    if (reader.canProvide(Formats.pdf)) {
-      final completer = Completer<bool>();
-      reader.getFile(Formats.pdf, (file) async {
-        try {
-          final choice = await _filePicker.fromBytes(
-            bytes: await file.readAll(),
-            originalName: file.fileName ?? 'clipboard.pdf',
-          );
-          _applyFileChoice(choice);
-          completer.complete(choice.file != null);
-        } catch (e) {
-          appDebugPrint('Failed to read clipboard PDF: $e');
-          completer.complete(false);
-        }
-      });
-      return completer.future;
-    }
+    final pastedPdf = await pasteClipboardPdf(
+      reader: reader,
+      picker: _filePicker,
+      apply: _applyFileChoice,
+    );
+    if (pastedPdf != null) return pastedPdf;
 
     // Map formats to MIME types and file extensions
     const formatInfo = <SimpleFileFormat, (String, String)>{
@@ -992,32 +998,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     return false;
   }
 
-  /// On macOS, super_clipboard / super_native_extensions reads of image
-  /// clipboard data go through CoreGraphics window APIs that require
-  /// Screen Recording. When the user has revoked that grant, the read
-  /// fails silently. Detect the case and surface a recovery snackbar
-  /// instead of leaving the paste failure invisible.
-  Future<void> _surfaceMacOSScreenRecordingHintIfNeeded() async {
-    if (!Platform.isMacOS) return;
-    final granted = await MacosMainAppPermissions.isScreenCaptureGranted();
-    if (granted) return;
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: const Text(
-          'Image paste requires Screen Recording for Caverno. '
-          'Grant it in System Settings to enable clipboard images.',
-        ),
-        action: SnackBarAction(
-          label: 'Open Settings',
-          onPressed: MacosMainAppPermissions.openScreenRecordingSettings,
-        ),
-        duration: const Duration(seconds: 8),
-      ),
-    );
-  }
+  Future<void> _surfaceMacOSScreenRecordingHintIfNeeded() =>
+      surfaceMacOSScreenRecordingHintIfNeeded(context);
 
   Future<void> _handleContentInserted(KeyboardInsertedContent content) async {
     if (!content.hasData) return;
@@ -1103,6 +1085,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   Future<void> _handleSendAsync({bool interrupt = false}) async {
+    await _filePrepareGate.wait();
+    if (!mounted) return;
+
     final text = _controller.text.trim();
     if (text.isEmpty &&
         _selectedImageBytes == null &&
@@ -1689,15 +1674,11 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                       ? 'message.attached_as_path'.tr()
                       : '',
                   child: Chip(
-                    avatar: Icon(
-                      switch (file) {
-                        _ when file.isPathReference => Icons.link,
-                        _ when file.pdfPageCount != null =>
-                          Icons.picture_as_pdf,
-                        _ => Icons.description,
-                      },
-                      size: 18,
-                    ),
+                    avatar: Icon(switch (file) {
+                      _ when file.isPathReference => Icons.link,
+                      _ when file.pdfPageCount != null => Icons.picture_as_pdf,
+                      _ => Icons.description,
+                    }, size: 18),
                     label: Text(
                       '${file.name} '
                       '(${formatAttachmentSize(file.sizeBytes)})',

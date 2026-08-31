@@ -352,15 +352,19 @@ would pass".
 truncated one. The obvious move is to match on the message text — and the
 standing rule in this codebase is that heuristics may *trigger* but never
 *judge*. So the file decides instead: only an encrypted PDF carries an
-`/Encrypt` entry in its trailer, so `_hasEncryptMarker` reads the bytes rather
-than the exception. Same answer, but grounded in the document instead of in a
-vendor's phrasing, which means a library upgrade that rewords its exceptions
+`/Encrypt` key in its trailer dictionary, so `_hasEncryptMarker` looks for
+that token after `trailer` in the last 32KB rather than scanning the whole
+file (where the same bytes can appear in a content stream). Same answer, but
+grounded in the document instead of in a vendor's phrasing, which means a
+library upgrade that rewords its exceptions
 cannot silently turn "this PDF needs a password" into "this PDF is corrupt".
 
-One deliberate non-feature: a scanned PDF returns an error that says the words
-"scanned document" and "OCR", and tells the model not to describe the
+One deliberate non-feature: a PDF with no extractable text returns an error
+that names OCR as one possibility and tells the model not to describe the
 contents. Silence would have been worse than failure — handed nothing, a model
-will answer from the filename. Naming the failure is part of the fix.
+will answer from the filename. Naming the failure is part of the fix. A blank
+or vector-only page is the same error; we cannot tell a scan from an empty
+page without rendering.
 
 ## Where to start reading
 

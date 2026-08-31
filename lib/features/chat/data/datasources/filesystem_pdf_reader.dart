@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:crypto/crypto.dart';
@@ -19,6 +20,16 @@ import 'first_party_tool_execution_result.dart';
 /// Every entry point returns null for a file that is not a PDF, which leaves
 /// the callers' original "binary files are not supported" error in place.
 abstract final class FilesystemPdfReader {
+  /// Same ceiling the text `read_file` path uses: a hash that needs the whole
+  /// file in memory is skipped above it. The PDF path already holds [bytes],
+  /// so this is "do not publish a hash", not "do not re-read".
+  static const int maxContentHashBytes = 8 * 1024 * 1024;
+
+  /// Pages `inspect_file` extracts from each end. Enough to fill the head/tail
+  /// line samples without parsing a thousand-page middle.
+  static const int _inspectHeadPages = 3;
+  static const int _inspectTailPages = 2;
+
   /// `read_file` over a PDF's text layer, or null when [file] is not one.
   ///
   /// [prefix] is the sample the caller already sniffed to classify the file's
@@ -33,10 +44,26 @@ abstract final class FilesystemPdfReader {
     required int offset,
     required int? limit,
     required int maxChars,
+    int startPage = 1,
   }) async {
     if (!PdfTextExtractionService.looksLikePdf(prefix)) return null;
+    if (startPage < 1) {
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({
+          'error': 'start_page must be greater than or equal to 1',
+          'path': absolutePath,
+        }),
+      );
+    }
 
-    final extraction = await PdfTextExtractionService.extract(file);
+    final loaded = await _readBounded(file, absolutePath);
+    if (loaded.error != null) return loaded.error;
+    final bytes = loaded.bytes!;
+
+    final extraction = await PdfTextExtractionService.extractBytes(
+      bytes,
+      startPageIndex: startPage - 1,
+    );
     if (!extraction.isSuccess) {
       return FirstPartyToolExecutionResult.payloadOnly(
         jsonEncode({
@@ -45,8 +72,17 @@ abstract final class FilesystemPdfReader {
         }),
       );
     }
+    if (startPage > extraction.pageCount) {
+      return FirstPartyToolExecutionResult.payloadOnly(
+        jsonEncode({
+          'error': 'start_page is past the end of the document.',
+          'path': absolutePath,
+          'page_count': extraction.pageCount,
+        }),
+      );
+    }
 
-    final sizeBytes = await file.length();
+    final sizeBytes = bytes.length;
     final selection = selectLines(
       text: extraction.text!,
       offset: offset,
@@ -55,10 +91,9 @@ abstract final class FilesystemPdfReader {
     );
     // Hashes the raw PDF, not the extracted text: the question this answers is
     // "is this the same file I read before", and two documents can render the
-    // same characters. Safe to publish because the hash is only read by the
-    // tool-loop digest and the result summary -- edit_file's precondition
-    // fingerprints a text snapshot of its own and never consults this one.
-    final contentHash = await _contentHash(file, sizeBytes);
+    // same characters. Uses the buffer we already hold so a concurrent rewrite
+    // cannot pair text from A with a hash of B.
+    final contentHash = _contentHash(bytes);
 
     final response = <String, dynamic>{
       'path': absolutePath,
@@ -67,6 +102,7 @@ abstract final class FilesystemPdfReader {
       'size_bytes': sizeBytes,
       'format': 'pdf',
       'page_count': extraction.pageCount,
+      'start_page': startPage,
       'start_line': selection.startLine,
       'line_count': selection.lineCount,
       'total_lines': selection.totalLines,
@@ -80,6 +116,7 @@ abstract final class FilesystemPdfReader {
       if (selection.truncatedByLimit) 'truncated_by_limit': true,
       if (extraction.truncated) 'pages_truncated': true,
       if (extraction.truncated) 'pages_extracted': extraction.extractedPages,
+      if (extraction.truncated) 'next_page': extraction.nextPage,
     };
 
     return FirstPartyToolExecutionResult(
@@ -102,6 +139,9 @@ abstract final class FilesystemPdfReader {
   /// Deliberately omits `is_binary` instead of answering it: a PDF is a binary
   /// container whose text is readable, and either value alone would send the
   /// model the wrong way. `format_hint` and `page_count` say what it needs.
+  ///
+  /// Samples the first and last pages rather than extracting the whole
+  /// document, so the call stays an overview even on a long export.
   static Future<String?> inspectFile({
     required File file,
     required String absolutePath,
@@ -111,11 +151,19 @@ abstract final class FilesystemPdfReader {
   }) async {
     if (!PdfTextExtractionService.looksLikePdf(prefix)) return null;
 
-    final sizeBytes = await file.length();
-    final extraction = await PdfTextExtractionService.extract(file);
-    if (!extraction.isSuccess) {
+    final loaded = await _readBounded(file, absolutePath);
+    if (loaded.errorPayload != null) return loaded.errorPayload;
+    final bytes = loaded.bytes!;
+    final sizeBytes = bytes.length;
+
+    final head = await PdfTextExtractionService.extractBytes(
+      bytes,
+      startPageIndex: 0,
+      maxPages: _inspectHeadPages,
+    );
+    if (!head.isSuccess) {
       return jsonEncode({
-        'error': describeError(extraction.error!),
+        'error': describeError(head.error!),
         'path': absolutePath,
         'size_bytes': sizeBytes,
         'size_human': FilesystemOverviewFormat.formatBytes(sizeBytes),
@@ -124,37 +172,56 @@ abstract final class FilesystemPdfReader {
       });
     }
 
-    final lines = _splitLines(extraction.text!);
-    final head = lines
+    final headLines = _splitLines(head.text!);
+    final sampledHead = headLines
         .take(headLimit)
         .map(FilesystemOverviewFormat.clipLine)
         .toList();
-    final tail = tailLimit <= 0
-        ? const <String>[]
-        : lines
-              .skip(lines.length > tailLimit ? lines.length - tailLimit : 0)
-              .map(FilesystemOverviewFormat.clipLine)
-              .toList();
+
+    var tail = const <String>[];
+    final tailStart = head.pageCount - _inspectTailPages;
+    if (tailLimit > 0 && tailStart >= _inspectHeadPages) {
+      final tailExtraction = await PdfTextExtractionService.extractBytes(
+        bytes,
+        startPageIndex: tailStart,
+        maxPages: _inspectTailPages,
+      );
+      if (tailExtraction.isSuccess) {
+        final tailLines = _splitLines(tailExtraction.text!);
+        tail = tailLines.length <= tailLimit
+            ? tailLines.map(FilesystemOverviewFormat.clipLine).toList()
+            : tailLines
+                  .skip(tailLines.length - tailLimit)
+                  .map(FilesystemOverviewFormat.clipLine)
+                  .toList();
+      }
+    } else if (tailLimit > 0) {
+      tail = headLines.length <= tailLimit
+          ? headLines.map(FilesystemOverviewFormat.clipLine).toList()
+          : headLines
+                .skip(headLines.length - tailLimit)
+                .map(FilesystemOverviewFormat.clipLine)
+                .toList();
+    }
 
     return jsonEncode({
       'path': absolutePath,
       'size_bytes': sizeBytes,
       'size_human': FilesystemOverviewFormat.formatBytes(sizeBytes),
-      'total_lines': lines.length,
+      'total_lines': headLines.length,
       'encoding': 'pdf',
       'format_hint': 'pdf',
       'text_extractable': true,
-      'page_count': extraction.pageCount,
-      'head': head,
+      'page_count': head.pageCount,
+      'head': sampledHead,
       if (tailLimit > 0) 'tail': tail,
-      if (extraction.truncated) 'pages_truncated': true,
-      if (extraction.truncated) 'pages_extracted': extraction.extractedPages,
+      if (head.pageCount > _inspectHeadPages) 'pages_sampled': true,
     });
   }
 
   /// English prose for the model, one cause per line of remedy.
   ///
-  /// The scanned-document case names OCR on purpose: told only that reading
+  /// The empty-text case names OCR as one possibility: told only that reading
   /// failed, a model will answer from the filename instead of stopping.
   static String describeError(PdfExtractionError error) => switch (error) {
     PdfExtractionError.tooLarge =>
@@ -163,24 +230,61 @@ abstract final class FilesystemPdfReader {
     PdfExtractionError.encrypted =>
       'PDF is password-protected and cannot be opened.',
     PdfExtractionError.noTextLayer =>
-      'PDF has no extractable text layer, so it is a scanned document. '
-          'Reading it would require OCR, which is not available. Do not '
-          'describe its contents.',
+      'PDF has no extractable text. It may be scanned, image-only, or blank. '
+          'OCR is not available. Do not describe its contents.',
     PdfExtractionError.malformed =>
       'PDF could not be parsed; the file is truncated or corrupt.',
   };
 
-  static Future<String?> _contentHash(File file, int sizeBytes) async {
-    try {
-      return sha256.convert(await file.readAsBytes()).toString();
-    } catch (_) {
-      // Absent means unknown, never unchanged.
-      return null;
-    }
+  static String? _contentHash(Uint8List bytes) {
+    if (bytes.length > maxContentHashBytes) return null;
+    return sha256.convert(bytes).toString();
   }
 
   static List<String> _splitLines(String text) =>
       const LineSplitter().convert(text);
+
+  static Future<
+    ({
+      Uint8List? bytes,
+      FirstPartyToolExecutionResult? error,
+      String? errorPayload,
+    })
+  >
+  _readBounded(File file, String absolutePath) async {
+    try {
+      final length = await file.length();
+      if (length > PdfTextExtractionService.maxBytes) {
+        final message = jsonEncode({
+          'error': describeError(PdfExtractionError.tooLarge),
+          'path': absolutePath,
+        });
+        return (
+          bytes: null,
+          error: FirstPartyToolExecutionResult.payloadOnly(message),
+          errorPayload: jsonEncode({
+            'error': describeError(PdfExtractionError.tooLarge),
+            'path': absolutePath,
+            'size_bytes': length,
+            'size_human': FilesystemOverviewFormat.formatBytes(length),
+            'format_hint': 'pdf',
+            'text_extractable': false,
+          }),
+        );
+      }
+      return (bytes: await file.readAsBytes(), error: null, errorPayload: null);
+    } on FileSystemException {
+      final message = jsonEncode({
+        'error': describeError(PdfExtractionError.malformed),
+        'path': absolutePath,
+      });
+      return (
+        bytes: null,
+        error: FirstPartyToolExecutionResult.payloadOnly(message),
+        errorPayload: message,
+      );
+    }
+  }
 
   /// Line window over already-extracted text.
   ///
@@ -208,23 +312,21 @@ abstract final class FilesystemPdfReader {
     for (var index = startIndex; index < endIndexExclusive; index++) {
       if (index < 0 || index >= totalLines) break;
       final line = lines[index];
-      if (!truncatedByChars) {
-        final separator = selectedLineCount == 0 ? 0 : 1;
-        final projected = charsCollected + separator + line.length;
-        if (projected > maxChars) {
-          final remaining = maxChars - charsCollected - separator;
-          if (remaining > 0) {
-            if (selectedLineCount > 0) buffer.write('\n');
-            buffer.write(line.substring(0, remaining));
-            charsCollected += separator + remaining;
-          }
-          truncatedByChars = true;
-        } else {
+      final separator = selectedLineCount == 0 ? 0 : 1;
+      final projected = charsCollected + separator + line.length;
+      if (projected > maxChars) {
+        final remaining = maxChars - charsCollected - separator;
+        if (remaining > 0) {
           if (selectedLineCount > 0) buffer.write('\n');
-          buffer.write(line);
-          charsCollected = projected;
+          buffer.write(line.substring(0, remaining));
+          selectedLineCount += 1;
         }
+        truncatedByChars = true;
+        break;
       }
+      if (selectedLineCount > 0) buffer.write('\n');
+      buffer.write(line);
+      charsCollected = projected;
       selectedLineCount += 1;
     }
 

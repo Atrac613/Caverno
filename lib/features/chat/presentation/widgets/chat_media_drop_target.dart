@@ -29,11 +29,15 @@ class ChatMediaDropTarget extends StatefulWidget {
   /// by reference, so reading it here would buy nothing but a copy in memory.
   final void Function(String filePath, String mimeType)? onVideoDropped;
 
-  /// Handed a dropped document's path, for the extensions
-  /// [ComposerFilePicker.acceptsPath] takes — text formats and PDF. Like a
-  /// video, it travels by reference: the composer decides whether to inline it
-  /// or hand the model the path, and reading it here would prejudge that.
-  final void Function(String filePath)? onFileDropped;
+  /// Handed a dropped document's path, for the extensions and MIME types
+  /// [ComposerFilePicker] takes — text formats and PDF. Like a video, it
+  /// travels by reference; the bookmark is forwarded so macOS can reopen it.
+  final void Function(
+    String filePath, {
+    String? mimeType,
+    Uint8List? appleBookmark,
+  })?
+  onFileDropped;
 
   /// Whether the endpoint in use accepts video. A drop is refused with the
   /// usual "not supported" notice when it does not.
@@ -171,13 +175,23 @@ class ChatMediaDropTargetState extends State<ChatMediaDropTarget> {
             ? null
             : _dropItemPathForImageHandling(fileItem);
         if (filePath != null && filePath.trim().isNotEmpty) {
-          widget.onFileDropped!(filePath);
+          widget.onFileDropped!(
+            filePath,
+            mimeType: fileItem!.mimeType,
+            appleBookmark: fileItem.extraAppleBookmark,
+          );
           return;
         }
       }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('message.drop_unsupported'.tr())),
+        SnackBar(
+          content: Text(
+            widget.videoEnabled
+                ? 'message.drop_unsupported'.tr()
+                : 'message.drop_unsupported_no_video'.tr(),
+          ),
+        ),
       );
       return;
     }
@@ -239,8 +253,10 @@ class ChatMediaDropTargetState extends State<ChatMediaDropTarget> {
     return 'video/mp4';
   }
 
-  bool _isFileDropItem(DropItem item) =>
-      ComposerFilePicker.acceptsPath(_dropItemPathForImageHandling(item));
+  bool _isFileDropItem(DropItem item) {
+    if (ComposerFilePicker.acceptsMime(item.mimeType)) return true;
+    return ComposerFilePicker.acceptsPath(_dropItemPathForImageHandling(item));
+  }
 
   bool _isImageDropItem(DropItem item) {
     final mimeType = item.mimeType?.toLowerCase();

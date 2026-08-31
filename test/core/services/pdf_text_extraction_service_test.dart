@@ -24,11 +24,17 @@ void main() {
       expect(PdfTextExtractionService.looksLikePdf(bytes), isTrue);
     });
 
-    test('rejects text that merely has a .pdf name', () {
+    test('rejects a header mentioned in a text preamble', () {
       expect(
-        PdfTextExtractionService.looksLikePdf('hello, world'.codeUnits),
+        PdfTextExtractionService.looksLikePdf(
+          'The %PDF-1.7 signature identifies PDFs'.codeUnits,
+        ),
         isFalse,
       );
+    });
+
+    test('rejects a header without a version digit', () {
+      expect(PdfTextExtractionService.looksLikePdf('%PDF-'.codeUnits), isFalse);
     });
 
     test('rejects a header past the search window', () {
@@ -64,6 +70,20 @@ void main() {
       expect(result.error, PdfExtractionError.noTextLayer);
       expect(result.text, isNull);
       expect(result.isSuccess, isFalse);
+    });
+
+    test('caps a page that exceeds the character budget', () {
+      final bytes = _fixture('text_layer').readAsBytesSync();
+
+      final result = PdfTextExtractionService.extractBytesSync(
+        Uint8List.fromList(bytes),
+        maxTextChars: 24,
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(result.truncated, isTrue);
+      expect(result.textTruncated, isTrue);
+      expect(result.text!.length, lessThanOrEqualTo(24));
     });
 
     test('reports a password-protected document as encrypted', () async {

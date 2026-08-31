@@ -369,9 +369,13 @@ const Map<String, int> _lineBudgets = {
   // -3 despite gaining a dropped-file route: the three pending drop
   // attachments and their id counters became one ChatDroppedAttachments held
   // outside this library, so each drop callback is now one expression.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1915,
+  // -8: drop-target wiring moved onto ChatDroppedAttachmentsTake so the page
+  // only watches settings and forwards the rebuild.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1905,
   'lib/features/chat/presentation/coordinators/chat_dropped_attachments.dart':
-      45,
+      15,
+  'lib/features/chat/presentation/coordinators/chat_dropped_attachments_take.dart':
+      74,
   'lib/features/chat/presentation/pages/thread_scroll_coordinator.dart': 287,
   'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
   // The device listing moved to flutter_run_device_lister.dart when it grew
@@ -430,8 +434,13 @@ const Map<String, int> _lineBudgets = {
   // composer_file_picker.dart, mirroring composer_video_picker.dart. The
   // composer kept one state field, four delegating actions and the clipboard
   // branch, and still came out smaller than before the feature.
-  'lib/features/chat/presentation/widgets/message_input.dart': 2237,
-  'lib/features/chat/presentation/widgets/composer_file_picker.dart': 372,
+  // -17: drop prepare is a gate, clipboard PDF has its own helper, and the
+  // Screen Recording paste hint left the composer.
+  'lib/features/chat/presentation/widgets/message_input.dart': 2218,
+  'lib/features/chat/presentation/widgets/composer_file_picker.dart': 360,
+  'lib/features/chat/presentation/widgets/composer_file_models.dart': 87,
+  'lib/features/chat/presentation/widgets/composer_file_intake.dart': 63,
+  'lib/features/chat/presentation/widgets/composer_macos_paste_hint.dart': 34,
   // -15: the submenu value and check icon are chip-level presentation, so
   // they sit beside buildComposerControlChip instead.
   'lib/features/chat/presentation/widgets/composer_model_selector.dart': 260,
@@ -722,7 +731,8 @@ const Map<String, int> _libraryLineBudgets = {
   // so it is a plain widget helper rather than a part of the page library.
   // -3 matching the primary file: the dropped-attachment state left the
   // library rather than moving into a part.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8862,
+  // -8 matching the primary file: drop-target wiring left the library.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8852,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };

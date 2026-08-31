@@ -210,12 +210,14 @@ void main() {
                 'max_chars': 1,
                 'offset': 0,
                 'limit': 99999,
+                'start_page': 0,
               },
               normalized: {
                 'path': '/tmp/file.txt',
                 'max_chars': 100,
                 'offset': 1,
                 'limit': 20000,
+                'start_page': 1,
               },
               capturesSnapshot: false,
             ),
@@ -544,6 +546,7 @@ void main() {
         'max_chars': 120000,
         'offset': 1,
         'limit': null,
+        'start_page': 1,
       });
     },
   );

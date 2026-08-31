@@ -19,7 +19,7 @@ cupsfilter /tmp/sample.txt > test/fixtures/pdf/text_layer.pdf
 ## `image_only.pdf` — a scanned document
 
 A 64x64 PNG wrapped in a PDF, so the page parses but yields no characters.
-This is the `noTextLayer` case: the remedy is OCR, not a repaired file.
+This is the `noTextLayer` case: the file parsed, but no characters came out.
 
 ```bash
 sips -s format pdf /tmp/scan.png --out test/fixtures/pdf/image_only.pdf
