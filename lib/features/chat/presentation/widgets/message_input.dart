@@ -28,6 +28,7 @@ import 'composer_file_chip.dart';
 import 'composer_file_intake.dart';
 import 'composer_file_prepare_gate.dart';
 import 'composer_file_picker.dart';
+import 'composer_file_submission.dart';
 import 'composer_macos_paste_hint.dart';
 import 'composer_video_picker.dart';
 import '../../domain/entities/video_attachment_draft.dart';
@@ -35,6 +36,7 @@ import 'conversation_goal_status_presentation.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../slash_commands/slash_command.dart';
 import 'message_input_control_labels.dart';
+import 'message_input_send_handler.dart';
 import 'message_input_slash_suggestion_list.dart';
 import 'message_input_slash_suggestion_state.dart';
 import 'pro_reasoning_mode_button.dart';
@@ -94,27 +96,11 @@ class MessageInput extends ConsumerStatefulWidget {
     this.isFloating = false,
   });
 
-  final void Function(
-    String message,
-    String? imageBase64,
-    String? imageMimeType,
-    String? originalImagePath,
-    String? originalImageMimeType, {
-    VideoAttachmentDraft? video,
-  })
-  onSend;
+  final MessageInputSendHandler onSend;
 
   /// Same payload as [onSend], but asking to join the reply already running
   /// rather than queue behind it. Null when the surface cannot interrupt.
-  final void Function(
-    String message,
-    String? imageBase64,
-    String? imageMimeType,
-    String? originalImagePath,
-    String? originalImageMimeType, {
-    VideoAttachmentDraft? video,
-  })?
-  onInterrupt;
+  final MessageInputSendHandler? onInterrupt;
   final VoidCallback onCancel;
   final bool isLoading;
   final AssistantMode assistantMode;
@@ -293,7 +279,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   void _handleDroppedVideoAttachment() {
     final attachment = widget.droppedVideoAttachment;
     if (attachment == null ||
-        !_droppedVideoIntake.take(attachment.id, widget.onDroppedVideoHandled)) {
+        !_droppedVideoIntake.take(
+          attachment.id,
+          widget.onDroppedVideoHandled,
+        )) {
       return;
     }
 
@@ -323,7 +312,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   void _handleDroppedImageAttachment() {
     final attachment = widget.droppedImageAttachment;
     if (attachment == null ||
-        !_droppedImageIntake.take(attachment.id, widget.onDroppedImageHandled)) {
+        !_droppedImageIntake.take(
+          attachment.id,
+          widget.onDroppedImageHandled,
+        )) {
       return;
     }
 
@@ -1105,13 +1097,14 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       return;
     }
 
-    // Embed small file content inline; reference large files by durable path.
-    String finalText = text;
-    final selectedFile = _selectedFile;
-    if (selectedFile != null) {
-      final block = ComposerFilePicker.composeMessageBlock(selectedFile);
-      finalText = text.isEmpty ? block : '$block\n\n$text';
-    }
+    // Keep the visible transcript compact while preserving the complete file
+    // context for the model request and future follow-up turns.
+    final submission = ComposerFileSubmission.compose(
+      file: _selectedFile,
+      userText: text,
+    );
+    final finalText = submission.visibleContent;
+    final modelText = submission.modelContent;
 
     if (_shouldSendWorktreeSession) {
       if (_selectedImageBytes != null || _selectedVideo != null) {
@@ -1119,7 +1112,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         _focusNode.requestFocus();
         return;
       }
-      await _sendWorktreeSession(finalText, historyText: text);
+      await _sendWorktreeSession(modelText ?? finalText, historyText: text);
       return;
     }
 
@@ -1161,6 +1154,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       _selectedOriginalImagePath,
       _selectedOriginalImageMimeType,
       video: _selectedVideo,
+      modelContent: modelText,
     );
     _pushToHistory(text);
     _controller.clear();

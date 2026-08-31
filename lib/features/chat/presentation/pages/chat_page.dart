@@ -432,10 +432,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     setState(record);
   }
 
-  Widget _buildMediaDropTarget({
-    required bool enabled,
-    required Widget child,
-  }) {
+  Widget _buildMediaDropTarget({required bool enabled, required Widget child}) {
     return wrapChatMediaDropTarget(
       enabled: enabled,
       videoEnabled: ref
@@ -682,6 +679,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       String? originalImagePath,
       String? originalImageMimeType, {
       VideoAttachmentDraft? video,
+      String? modelContent,
       bool interrupt = false,
     }) {
       setState(() {
@@ -689,21 +687,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         _composerPrefillVersion++;
       });
       _leaveDashboard();
-      final languageCode = context.locale.languageCode;
       unawaited(
         chatNotifier.sendMessage(
           message,
+          modelContent: modelContent,
           imageBase64: imageBase64,
           imageMimeType: imageMimeType,
           originalImagePath: originalImagePath,
           originalImageMimeType: originalImageMimeType,
           video: video,
-          languageCode: languageCode,
+          languageCode: context.locale.languageCode,
           interrupt: interrupt,
         ),
       );
     }
-
     void handleComposerSend(
       String message,
       String? imageBase64,
@@ -711,6 +708,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       String? originalImagePath,
       String? originalImageMimeType, {
       VideoAttachmentDraft? video,
+      String? modelContent,
     }) => submitComposerMessage(
       message,
       imageBase64,
@@ -718,8 +716,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       originalImagePath,
       originalImageMimeType,
       video: video,
+      modelContent: modelContent,
     );
-
     bool handleProReasoningSend(String question) =>
         _composerRuntimeCoordinator.startProReasoning(context, question);
 
@@ -730,6 +728,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       String? originalImagePath,
       String? originalImageMimeType, {
       VideoAttachmentDraft? video,
+      String? modelContent,
     }) => submitComposerMessage(
       message,
       imageBase64,
@@ -737,6 +736,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       originalImagePath,
       originalImageMimeType,
       video: video,
+      modelContent: modelContent,
       interrupt: true,
     );
 

@@ -570,7 +570,11 @@ const Map<String, int> _lineBudgets = {
   // -7: LL5 index bookkeeping -- the signature map, the dedup, and the
   // forget-on-failure rule -- is one job, and ConversationSemanticIndexSync
   // owns it now.
-  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1831,
+  // -12: naming an untitled thread is pure string work with no notifier
+  // state, so it moved to ConversationDefaultTitle where it can be tested on
+  // its own.
+  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1819,
+  'lib/features/chat/domain/services/conversation_default_title.dart': 46,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
       329,
   'lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart':

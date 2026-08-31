@@ -2357,9 +2357,9 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
   }
-
   Future<ChatTurnOwner?> sendMessage(
     String content, {
+    String? modelContent,
     String? imageBase64,
     String? imageMimeType,
     String? originalImagePath,
@@ -2395,6 +2395,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final queuedMessage = QueuedChatMessage(
       id: _uuid.v4(),
       content: content,
+      modelContent: modelContent,
       imageBase64: imageBase64,
       imageMimeType: imageMimeType,
       originalImagePath: originalImagePath,
@@ -2441,7 +2442,6 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     return _sendMessageNow(queuedMessage);
   }
-
   Future<ChatTurnOwner?> _sendMessageNow(
     QueuedChatMessage queuedMessage, {
     bool fromQueue = false,
@@ -2453,6 +2453,7 @@ class ChatNotifier extends Notifier<ChatState> {
     var runtimeStarted = false;
     try {
       final content = queuedMessage.content;
+      final modelContent = queuedMessage.modelContent;
       final imageBase64 = queuedMessage.imageBase64;
       final imageMimeType = queuedMessage.imageMimeType;
       final originalImagePath = queuedMessage.originalImagePath;
@@ -2575,8 +2576,7 @@ class ChatNotifier extends Notifier<ChatState> {
       final ownerMessagesBeforeTurn = effectiveOwner == conversationId
           ? state.messages
           : currentConversation?.messages ?? const <Message>[];
-
-      final isFirstTurn = state.messages.isEmpty;
+    final isFirstTurn = state.messages.isEmpty;
       if (isFirstTurn) {
         _sessionMemoryContext = _memoryService.buildPromptContext(
           currentUserInput: content.trim(),
@@ -2586,10 +2586,10 @@ class ChatNotifier extends Notifier<ChatState> {
           appLog('[Memory] Injecting context for new session');
         }
       }
-
       final userMessage = Message(
         id: _uuid.v4(),
         content: content.trim(),
+        modelContent: modelContent?.trim(),
         role: MessageRole.user,
         timestamp: DateTime.now(),
         imageBase64: imageBase64,

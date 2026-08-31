@@ -1093,81 +1093,110 @@ class _ProjectAccessErrorCard extends StatelessWidget {
   }
 }
 
-/// Regex that matches a `[File: name]` header followed by its content block.
-final _fileBlockPattern = RegExp(r'^\[File: (.+?)\]\n([\s\S]*?)(?:\n\n|$)');
+/// The `[File: name]` header a composer attachment leaves in the transcript.
+///
+/// Current messages put the person's text first and append the header, and it
+/// carries no body — the file's text goes to the model, not into the bubble.
+final _trailingFileBlockPattern = RegExp(r'(?:\n\n|^)\[File: (.+?)\]\s*$');
 
-/// Renders user message content, collapsing embedded file blocks.
-class _UserMessageContent extends StatefulWidget {
+/// The same header as messages written before the visible/model split wrote
+/// it: first in the content, with the whole file inlined beneath it.
+final _leadingFileBlockPattern = RegExp(r'^\[File: (.+?)\]\n([\s\S]*?)(?:\n\n|$)');
+
+/// One attachment header pulled out of a user message.
+class _FileBlock {
+  const _FileBlock({
+    required this.label,
+    required this.userText,
+    required this.inlinedBody,
+  });
+
+  final String label;
+  final String userText;
+
+  /// The file's text, for a message old enough to have carried it inline.
+  final String inlinedBody;
+
+  static _FileBlock? parse(String content) {
+    final trailing = _trailingFileBlockPattern.firstMatch(content);
+    if (trailing != null) {
+      return _FileBlock(
+        label: trailing.group(1)!,
+        userText: content.substring(0, trailing.start).trim(),
+        inlinedBody: '',
+      );
+    }
+    final leading = _leadingFileBlockPattern.firstMatch(content);
+    if (leading == null) return null;
+    return _FileBlock(
+      label: leading.group(1)!,
+      userText: content.substring(leading.end).trim(),
+      inlinedBody: leading.group(2)!.trim(),
+    );
+  }
+}
+
+/// Renders user message content, naming any file the message carried.
+///
+/// The header is a label, not a control: there is nothing behind it to open on
+/// a current message, because the attachment's text is sent to the model
+/// rather than kept in the transcript. A message from before that split still
+/// holds its file inline, so that text is shown in a bounded scroll area
+/// instead of being hidden behind a disclosure nobody can see is there.
+class _UserMessageContent extends StatelessWidget {
   const _UserMessageContent({required this.content, required this.textColor});
 
   final String content;
   final Color textColor;
 
   @override
-  State<_UserMessageContent> createState() => _UserMessageContentState();
-}
-
-class _UserMessageContentState extends State<_UserMessageContent> {
-  bool _expanded = false;
-
-  @override
   Widget build(BuildContext context) {
-    final match = _fileBlockPattern.firstMatch(widget.content);
-    if (match == null) {
-      return SelectableText(
-        widget.content,
-        style: TextStyle(color: widget.textColor),
-      );
+    final block = _FileBlock.parse(content);
+    if (block == null) {
+      return SelectableText(content, style: TextStyle(color: textColor));
     }
-
-    final fileName = match.group(1)!;
-    final fileContent = match.group(2)!;
-    final userText = widget.content.substring(match.end).trim();
-    final lineCount = '\n'.allMatches(fileContent).length + 1;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Collapsible file block
-        GestureDetector(
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black12,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.description,
-                  size: 16,
-                  color: widget.textColor.withValues(alpha: 0.8),
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    '$fileName ($lineCount lines)',
-                    style: TextStyle(
-                      color: widget.textColor,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  _expanded ? Icons.expand_less : Icons.expand_more,
-                  size: 18,
-                  color: widget.textColor.withValues(alpha: 0.7),
-                ),
-              ],
+        if (block.userText.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: SelectableText(
+              block.userText,
+              style: TextStyle(color: textColor),
             ),
           ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black12,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.description,
+                size: 16,
+                color: textColor.withValues(alpha: 0.8),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  block.label,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
         ),
-        if (_expanded)
+        if (block.inlinedBody.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Container(
@@ -1179,9 +1208,9 @@ class _UserMessageContentState extends State<_UserMessageContent> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(8),
                 child: SelectableText(
-                  fileContent,
+                  block.inlinedBody,
                   style: TextStyle(
-                    color: widget.textColor.withValues(alpha: 0.9),
+                    color: textColor.withValues(alpha: 0.9),
                     fontSize: 12,
                     fontFamily: kMonoFontFamily,
                   ),
@@ -1189,20 +1218,10 @@ class _UserMessageContentState extends State<_UserMessageContent> {
               ),
             ),
           ),
-        // User's own message text
-        if (userText.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: SelectableText(
-              userText,
-              style: TextStyle(color: widget.textColor),
-            ),
-          ),
       ],
     );
   }
 }
-
 
 /// Names a video the message carried, without trying to play it.
 ///

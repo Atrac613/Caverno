@@ -20,6 +20,7 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/conversation_compaction_service.dart';
+import '../../domain/services/conversation_default_title.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_goal_progress_inference.dart';
 import '../../domain/services/conversation_goal_status_transition.dart';
@@ -677,7 +678,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
     String title = conversation.title;
     if (title == defaultConversationTitle && messages.isNotEmpty) {
-      title = _deriveDefaultTitle(messages) ?? title;
+      title = ConversationDefaultTitle.deriveFrom(messages) ?? title;
     }
 
     final compactionArtifact = _buildCompactionArtifact(
@@ -751,7 +752,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final updatedConversation = conversation.copyWith(
       title:
           checkpoint?.title ??
-          _deriveDefaultTitle(retainedMessages) ??
+          ConversationDefaultTitle.deriveFrom(retainedMessages) ??
           defaultConversationTitle,
       messages: retainedMessages,
       executionMode:
@@ -885,7 +886,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         yield p.normalize(p.absolute(videoPath));
       }
       for (final match in _largeAttachmentReferencePattern.allMatches(
-        message.content,
+        message.effectiveModelContent,
       )) {
         final path = match.group(1)?.trim();
         if (path != null && path.isNotEmpty) {
@@ -929,19 +930,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   /// The semantic indexer, or null when semantic search is off or its provider
   /// chain is unavailable (e.g. unit tests without a settings override). Never
   /// throws — indexing is best-effort and must not break the chat loop.
-  String? _deriveDefaultTitle(List<Message> messages) {
-    for (final message in messages) {
-      if (message.role != MessageRole.user) continue;
-
-      final trimmed = message.content.trim();
-      if (trimmed.isEmpty) continue;
-
-      return trimmed.length > 30 ? '${trimmed.substring(0, 30)}...' : trimmed;
-    }
-
-    return null;
-  }
-
   Future<void> updateCurrentWorkflow({
     ConversationWorkflowStage? workflowStage,
     ConversationWorkflowSpec? workflowSpec,

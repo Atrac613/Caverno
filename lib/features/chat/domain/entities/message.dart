@@ -30,6 +30,14 @@ abstract class Message with _$Message {
   const factory Message({
     required String id,
     required String content,
+
+    /// Content sent to the model when it differs from [content].
+    ///
+    /// Attachment text can be large and useful to the model without belonging
+    /// in the chat bubble. [content] remains the user-visible transcript while
+    /// this field preserves the complete request across persistence and
+    /// follow-up turns.
+    String? modelContent,
     required MessageRole role,
     required DateTime timestamp,
     @Default(false) bool isStreaming,
@@ -75,6 +83,11 @@ abstract class Message with _$Message {
 
   factory Message.fromJson(Map<String, dynamic> json) =>
       _$MessageFromJson(json);
+}
+
+extension MessageModelContent on Message {
+  /// Text to put on the wire for this message.
+  String get effectiveModelContent => modelContent ?? content;
 }
 
 extension MessageVideoAttachment on Message {

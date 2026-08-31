@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:caverno/features/chat/presentation/widgets/composer_file_picker.dart';
+import 'package:caverno/features/chat/presentation/widgets/composer_file_submission.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
@@ -216,6 +217,55 @@ void main() {
 
       expect(block, startsWith('[Attached file: /attachments/huge.log'));
       expect(block, contains('search_files'));
+    });
+
+    test('keeps PDF text out of the visible attachment summary', () {
+      const file = ComposerFileAttachment(
+        name: 'report.pdf',
+        sizeBytes: 2048,
+        content: '[page 1]\nprivate body',
+        isPdf: true,
+        pdfPageCount: 3,
+      );
+
+      expect(
+        ComposerFileSubmission.compose(file: file, userText: '').visibleContent,
+        '[File: report.pdf (PDF, 3 pages, 2.0 KB)]',
+      );
+      expect(
+        ComposerFileSubmission.compose(file: file, userText: '').visibleContent,
+        isNot(contains('private body')),
+      );
+
+      final submission = ComposerFileSubmission.compose(
+        file: file,
+        userText: 'Summarize it.',
+      );
+      // The person's words lead the bubble, and the conversation title is
+      // taken from the head of this string.
+      expect(
+        submission.visibleContent,
+        'Summarize it.\n\n[File: report.pdf (PDF, 3 pages, 2.0 KB)]',
+      );
+      expect(submission.visibleContent, isNot(contains('private body')));
+      // The model still reads the document before the instruction.
+      expect(submission.modelContent, contains('[page 1]\nprivate body'));
+      expect(submission.modelContent, endsWith('\n\nSummarize it.'));
+    });
+
+    test('an attachment with no question is just the header', () {
+      const file = ComposerFileAttachment(
+        name: 'notes.txt',
+        sizeBytes: 12,
+        content: 'alpha',
+      );
+
+      final submission = ComposerFileSubmission.compose(
+        file: file,
+        userText: '',
+      );
+
+      expect(submission.visibleContent, '[File: notes.txt (12 B)]');
     });
   });
 }

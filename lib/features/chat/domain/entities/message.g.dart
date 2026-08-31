@@ -29,6 +29,7 @@ Map<String, dynamic> _$MessageResponseMetricsToJson(
 _Message _$MessageFromJson(Map<String, dynamic> json) => _Message(
   id: json['id'] as String,
   content: json['content'] as String,
+  modelContent: json['modelContent'] as String?,
   role: $enumDecode(_$MessageRoleEnumMap, json['role']),
   timestamp: DateTime.parse(json['timestamp'] as String),
   isStreaming: json['isStreaming'] as bool? ?? false,
@@ -65,6 +66,7 @@ _Message _$MessageFromJson(Map<String, dynamic> json) => _Message(
 Map<String, dynamic> _$MessageToJson(_Message instance) => <String, dynamic>{
   'id': instance.id,
   'content': instance.content,
+  'modelContent': instance.modelContent,
   'role': _$MessageRoleEnumMap[instance.role]!,
   'timestamp': instance.timestamp.toIso8601String(),
   'isStreaming': instance.isStreaming,

@@ -121,4 +121,41 @@ void main() {
 
     expect((body['messages'] as List).first['content'], 'hello');
   });
+
+  test(
+    'sends hidden model content instead of the visible transcript',
+    () async {
+      final body = await send([
+        Message(
+          id: 'pdf',
+          content: 'Summarize it.\n\n[File: report.pdf (PDF, 3 pages, 2 KB)]',
+          modelContent:
+              '[File: report.pdf (PDF, 3 pages)]\n[page 1]\nprivate body'
+              '\n\nSummarize it.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026),
+        ),
+      ], resolved: const {});
+
+      final content = (body['messages'] as List).first['content'];
+      expect(content, contains('[page 1]\nprivate body'));
+      expect(content, isNot(contains('3 pages, 2 KB')));
+    },
+  );
+
+  test('persists hidden model content for follow-up requests', () {
+    final message = Message(
+      id: 'pdf',
+      content: 'Summarize it.\n\n[File: report.pdf (PDF, 3 pages, 2.0 KB)]',
+      modelContent: '[File: report.pdf]\n[page 1]\nprivate body',
+      role: MessageRole.user,
+      timestamp: DateTime(2026),
+    );
+
+    final restored = Message.fromJson(message.toJson());
+
+    expect(restored.content, message.content);
+    expect(restored.modelContent, message.modelContent);
+    expect(restored.effectiveModelContent, contains('private body'));
+  });
 }

@@ -119,6 +119,56 @@ void main() {
     },
   );
 
+  test('names a thread after the question, not the attached file', () async {
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!;
+
+    await notifier.updateConversationMessages(conversation.id, [
+      Message(
+        id: 'asked',
+        content: 'これは何？\n\n[File: 20190401_rules.pdf (PDF, 20 pages, 1.0 MB)]',
+        role: MessageRole.user,
+        timestamp: DateTime(2026, 9, 1, 7, 42),
+      ),
+    ]);
+
+    expect(
+      container
+          .read(conversationsNotifierProvider)
+          .conversations
+          .firstWhere((item) => item.id == conversation.id)
+          .title,
+      'これは何？',
+    );
+  });
+
+  test('falls back to the file name when only a file was sent', () async {
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!;
+
+    await notifier.updateConversationMessages(conversation.id, [
+      Message(
+        id: 'attached',
+        content: '[File: 20190401_rules.pdf (PDF, 20 pages, 1.0 MB)]',
+        role: MessageRole.user,
+        timestamp: DateTime(2026, 9, 1, 7, 42),
+      ),
+    ]);
+
+    expect(
+      container
+          .read(conversationsNotifierProvider)
+          .conversations
+          .firstWhere((item) => item.id == conversation.id)
+          .title,
+      '20190401_rules.pdf (PDF, 20 pa...',
+    );
+  });
+
   test('startup reuses the latest empty chat conversation', () async {
     final savedConversation = Conversation(
       id: 'empty-chat',
@@ -389,7 +439,8 @@ void main() {
           messages: [
             Message(
               id: 'message-1',
-              content: '[Attached file: $filePath (100 MB)]\nInspect it.',
+              content: 'Inspect it.\n\n[File: large.log (100 MB)]',
+              modelContent: '[Attached file: $filePath (100 MB)]\nInspect it.',
               role: MessageRole.user,
               timestamp: DateTime(2026, 8, 23, 10),
               originalImagePath: imagePath,

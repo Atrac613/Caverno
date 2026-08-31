@@ -590,6 +590,7 @@ class QueuedChatMessage {
   const QueuedChatMessage({
     required this.id,
     required this.content,
+    this.modelContent,
     required this.imageBase64,
     required this.imageMimeType,
     required this.languageCode,
@@ -607,9 +608,9 @@ class QueuedChatMessage {
   /// thread's turn must come back to its own thread, never to whichever one
   /// the user is looking at when the queue drains.
   final String? conversationId;
-
   final String id;
   final String content;
+  final String? modelContent;
   final String? imageBase64;
   final String? imageMimeType;
   final String? originalImagePath;
@@ -620,17 +621,15 @@ class QueuedChatMessage {
   final bool bypassPlanMode;
   final ChatInteractionOrigin origin;
   final String? remoteDeviceId;
-
   bool get hasImage => imageBase64 != null && imageBase64!.isNotEmpty;
-
   bool get hasVideo => video != null;
-
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         other is QueuedChatMessage &&
             id == other.id &&
             content == other.content &&
+            modelContent == other.modelContent &&
             imageBase64 == other.imageBase64 &&
             imageMimeType == other.imageMimeType &&
             originalImagePath == other.originalImagePath &&
@@ -648,6 +647,7 @@ class QueuedChatMessage {
   int get hashCode => Object.hash(
     id,
     content,
+    modelContent,
     imageBase64,
     imageMimeType,
     originalImagePath,

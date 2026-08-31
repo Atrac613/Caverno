@@ -14,7 +14,6 @@ class ThreadScopedMessageQueue {
 
   bool get isEmpty => _messages.isEmpty;
   int get length => _messages.length;
-
   Future<ChatTurnOwner?> add(QueuedChatMessage message) {
     _messages.add(message);
     return _turnOwnerReceiptFor(message.id);
@@ -69,6 +68,7 @@ class ThreadScopedMessageQueue {
           : QueuedChatMessage(
               id: message.id,
               content: message.content,
+              modelContent: message.modelContent,
               imageBase64: message.imageBase64,
               imageMimeType: message.imageMimeType,
               originalImagePath: message.originalImagePath,
