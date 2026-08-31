@@ -154,7 +154,7 @@ dependencies:
   flutter_pty: ^0.4.2
   firebase_core: ^4.13.0
   firebase_messaging: ^16.6.0
-  firebase_app_check: ^0.4.6
+  firebase_app_check: ^0.4.7
 
 dev_dependencies:
   flutter_test:
