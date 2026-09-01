@@ -44,7 +44,7 @@ final class WatchSpeaker: NSObject, ObservableObject {
       text.startIndex, offsetBy: spokenPrefix.count + tail.distance(
         from: tail.startIndex, to: boundary))])
     guard !sentence.isEmpty else { return }
-    enqueue(sentence)
+    enqueue(PlainText.from(sentence))
   }
 
   func speakAll(_ text: String) {
@@ -53,7 +53,7 @@ final class WatchSpeaker: NSObject, ObservableObject {
     guard !trimmed.isEmpty else { return }
     reset()
     spokenPrefix = text
-    enqueue(trimmed)
+    enqueue(PlainText.from(trimmed))
   }
 
   func stop() {

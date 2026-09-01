@@ -35,7 +35,7 @@ struct VoiceView: View {
         }
 
         if !client.streamedText.isEmpty {
-          Text(client.streamedText)
+          Text(PlainText.from(client.streamedText))
             .font(.footnote)
             .foregroundStyle(.secondary)
         }

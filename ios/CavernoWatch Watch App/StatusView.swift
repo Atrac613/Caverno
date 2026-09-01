@@ -76,15 +76,19 @@ struct StatusView: View {
   }
 
   private var title: String {
-    if !snapshot.conversationTitle.isEmpty { return snapshot.conversationTitle }
+    if !snapshot.conversationTitle.isEmpty {
+      return PlainText.from(snapshot.conversationTitle)
+    }
     return snapshot.status == .streaming ? "Working" : "Idle"
   }
 
   /// Prefers live stream text over the last completed answer, so a turn in
   /// flight reads as progress rather than as stale history.
   private var displayText: String {
-    client.streamedText.isEmpty ? snapshot.lastAssistantText
-      : client.streamedText
+    PlainText.from(
+      client.streamedText.isEmpty
+        ? snapshot.lastAssistantText : client.streamedText
+    )
   }
 
   private var elapsed: String {
