@@ -2,6 +2,7 @@ import Combine
 import Foundation
 import WatchConnectivity
 import WatchKit
+import WidgetKit
 
 /// The watch side of the bridge implemented by `WatchBridgePlugin` in
 /// `ios/Runner/AppDelegate.swift`.
@@ -154,6 +155,26 @@ final class WatchSessionClient: NSObject, ObservableObject {
     // snapshots for one approval does not buzz repeatedly.
     if next.needsAttention && !wasWaiting {
       WKInterfaceDevice.current().play(.notification)
+    }
+    publishGlance(next)
+  }
+
+  /// Mirrors the little the Smart Stack shows into the shared App Group.
+  ///
+  /// Only counts and a status word: a widget renders without anyone opening
+  /// anything, so conversation text has no business there. The store reports
+  /// whether the value actually changed, and the timeline is reloaded only
+  /// then — WidgetKit budget is finite and a re-render of the same glance
+  /// spends it for nothing.
+  private func publishGlance(_ snapshot: WatchSnapshot) {
+    let glance = WatchGlance(
+      status: snapshot.status.rawValue,
+      busyThreadCount: snapshot.busyThreadCount,
+      needsAttention: snapshot.needsAttention,
+      updatedAt: Date()
+    )
+    if WatchGlanceStore.save(glance) {
+      WidgetCenter.shared.reloadTimelines(ofKind: WatchGlanceStore.widgetKind)
     }
   }
 

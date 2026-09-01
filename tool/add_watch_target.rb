@@ -16,11 +16,16 @@ require 'xcodeproj'
 PROJECT_PATH = File.expand_path('../ios/Runner.xcodeproj', __dir__)
 WATCH_TARGET_NAME = 'CavernoWatch Watch App'
 WATCH_SOURCE_DIR = 'CavernoWatch Watch App'
+WIDGET_TARGET_NAME = 'CavernoWatchWidgetExtension'
+WIDGET_SOURCE_DIR = 'CavernoWatchWidget'
 APP_BUNDLE_ID = 'com.noguwo.apps.caverno'
 WATCH_BUNDLE_ID = "#{APP_BUNDLE_ID}.watchkitapp"
+WIDGET_BUNDLE_ID = "#{WATCH_BUNDLE_ID}.widget"
+APP_GROUP_ID = "group.#{APP_BUNDLE_ID}"
 WATCHOS_DEPLOYMENT_TARGET = '10.0'
 DEVELOPMENT_TEAM = '89UG59TBNX'
 EMBED_PHASE_NAME = 'Embed Watch Content'
+WIDGET_EMBED_PHASE_NAME = 'Embed Foundation Extensions'
 
 project = Xcodeproj::Project.open(PROJECT_PATH)
 runner = project.targets.find { |target| target.name == 'Runner' }
@@ -60,6 +65,8 @@ watch.build_configurations.each do |config|
   settings['DEVELOPMENT_TEAM[sdk=watchos*]'] = DEVELOPMENT_TEAM
   settings['DEVELOPMENT_TEAM[sdk=watchsimulator*]'] = DEVELOPMENT_TEAM
   settings['SKIP_INSTALL'] = 'YES'
+  settings['CODE_SIGN_ENTITLEMENTS'] =
+    "#{WATCH_SOURCE_DIR}/CavernoWatch.entitlements"
 
   # Single-target watch app layout (Xcode 14+): no separate WatchKit extension,
   # and the Info.plist is generated from these keys instead of a checked-in
@@ -147,6 +154,104 @@ if resources_index
     runner.build_phases.delete_at(current_index)
     runner.build_phases.insert(desired_index, embed)
     puts "Moved #{EMBED_PHASE_NAME} to index #{desired_index} (was #{current_index})"
+  end
+end
+
+# ---------------------------------------------------------------------------
+# Smart Stack widget extension.
+#
+# Lives on the watch beside the app and reads its glance from the shared App
+# Group. App Group containers are per-device, which is what makes this work:
+# both processes run on the same watch. Nothing here crosses to the phone.
+# ---------------------------------------------------------------------------
+
+widget = project.targets.find { |target| target.name == WIDGET_TARGET_NAME }
+if widget.nil?
+  widget = project.new_target(
+    :app_extension,
+    WIDGET_TARGET_NAME,
+    :watchos,
+    WATCHOS_DEPLOYMENT_TARGET
+  )
+  puts "Created target #{WIDGET_TARGET_NAME}"
+else
+  puts "Updating existing target #{WIDGET_TARGET_NAME}"
+end
+
+widget.build_configurations.each do |config|
+  settings = config.build_settings
+  settings['SDKROOT'] = 'watchos'
+  settings['SUPPORTED_PLATFORMS'] = 'watchsimulator watchos'
+  settings['TARGETED_DEVICE_FAMILY'] = '4'
+  settings['WATCHOS_DEPLOYMENT_TARGET'] = WATCHOS_DEPLOYMENT_TARGET
+  settings['PRODUCT_BUNDLE_IDENTIFIER'] = WIDGET_BUNDLE_ID
+  settings['PRODUCT_NAME'] = '$(TARGET_NAME)'
+  settings['SWIFT_VERSION'] = '5.0'
+  settings['SKIP_INSTALL'] = 'YES'
+  settings['CODE_SIGN_STYLE'] = 'Automatic'
+  settings['DEVELOPMENT_TEAM[sdk=watchos*]'] = DEVELOPMENT_TEAM
+  settings['DEVELOPMENT_TEAM[sdk=watchsimulator*]'] = DEVELOPMENT_TEAM
+  settings['CODE_SIGN_ENTITLEMENTS'] =
+    "#{WIDGET_SOURCE_DIR}/CavernoWatchWidget.entitlements"
+  settings['GENERATE_INFOPLIST_FILE'] = 'YES'
+  settings['INFOPLIST_KEY_CFBundleDisplayName'] = 'Caverno'
+  settings['INFOPLIST_KEY_NSExtensionPointIdentifier'] =
+    'com.apple.widgetkit-extension'
+  settings['MARKETING_VERSION'] = '$(FLUTTER_BUILD_NAME)'
+  settings['CURRENT_PROJECT_VERSION'] = '$(FLUTTER_BUILD_NUMBER)'
+end
+
+widget_group = project.main_group.find_subpath(WIDGET_SOURCE_DIR, true)
+widget_group.set_source_tree('SOURCE_ROOT')
+widget_group.set_path(WIDGET_SOURCE_DIR)
+
+widget_root = File.join(File.dirname(PROJECT_PATH), WIDGET_SOURCE_DIR)
+widget_sources = Dir.glob(File.join(widget_root, '*.swift')).sort
+raise "No Swift sources under #{widget_root}" if widget_sources.empty?
+
+widget_sources.each do |path|
+  name = File.basename(path)
+  file = widget_group.files.find { |f| f.path == name } ||
+         widget_group.new_reference(name)
+  unless widget.source_build_phase.files_references.include?(file)
+    widget.add_file_references([file])
+  end
+  # The glance store is the contract between the two processes, so the watch
+  # app compiles the same file rather than keeping a copy that can drift.
+  next unless name == 'WatchGlanceStore.swift'
+  unless watch.source_build_phase.files_references.include?(file)
+    watch.add_file_references([file])
+  end
+end
+
+watch.add_dependency(widget) unless watch.dependencies.any? { |d| d.target == widget }
+
+widget_embed = watch.build_phases.find do |phase|
+  phase.is_a?(Xcodeproj::Project::Object::PBXCopyFilesBuildPhase) &&
+    phase.name == WIDGET_EMBED_PHASE_NAME
+end
+if widget_embed.nil?
+  widget_embed = watch.new_copy_files_build_phase(WIDGET_EMBED_PHASE_NAME)
+  widget_embed.dst_subfolder_spec = '13' # PlugIns directory
+  widget_embed.dst_path = ''
+end
+unless widget_embed.files_references.include?(widget.product_reference)
+  build_file = widget_embed.add_file_reference(widget.product_reference)
+  build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
+end
+
+# Same ordering rule as Embed Watch Content: an embed phase appended after the
+# phases that rewrite the binary produces a dependency cycle.
+watch_resources_index = watch.build_phases.index do |phase|
+  phase.is_a?(Xcodeproj::Project::Object::PBXResourcesBuildPhase)
+end
+if watch_resources_index
+  desired = watch_resources_index + 1
+  current = watch.build_phases.index(widget_embed)
+  if current != desired
+    watch.build_phases.delete_at(current)
+    watch.build_phases.insert(desired, widget_embed)
+    puts "Moved #{WIDGET_EMBED_PHASE_NAME} to index #{desired} (was #{current})"
   end
 end
 

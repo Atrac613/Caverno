@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		178A02FCAF83989A94980C69 /* StatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB86A78F72E0C886741E2B1 /* StatusView.swift */; };
+		1C3FB44DBE1985C6F54430C9 /* CavernoWatchWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2883BE6A5E5350F7AF28CC3 /* CavernoWatchWidget.swift */; };
+		2C0DBF10A7857ACB61BC61DD /* CavernoWatchWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F15897DA7D2BC93A8E1AEB6C /* CavernoWatchWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		402B467DBA2B3A266BAD3441 /* CavernoWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B970CD3D6ACBDEF32389D4DC /* CavernoWatchApp.swift */; };
@@ -18,6 +20,7 @@
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		84BA2C0FB352D78B596D1984 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 094B0ACA26BAF1E1985EB780 /* Assets.xcassets */; };
 		947E72F5C73537F3FC7115F8 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 675DDD5890FAE0E7A44F8FA2 /* Pods_Runner.framework */; };
+		95844863DF08E80FF337E8CB /* ThreadPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1FA6B793C380740FD70860E /* ThreadPickerView.swift */; };
 		9595137F1F5431082A6AC190 /* VoiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9DCD67A4FD77736FA6B88A5 /* VoiceView.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
@@ -29,7 +32,10 @@
 		A1BDA8B41FBB171753B6F893 /* WatchSessionClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C35E3A534B742462DCF1442 /* WatchSessionClient.swift */; };
 		A30295D22F6AC23E00141940 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A30295D32F6AC23E00141940 /* PrivacyInfo.xcprivacy */; };
 		A30295D72F6AC24000141944 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A30295D42F6AC24000141941 /* InfoPlist.strings */; };
+		A5B8F3EB6BD8BB5A1B26028C /* WatchGlanceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F292F4C353F66DF13A93E9B /* WatchGlanceStore.swift */; };
+		C4D65DA33AF15F284A886DDB /* WatchGlanceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F292F4C353F66DF13A93E9B /* WatchGlanceStore.swift */; };
 		C61AFAE1E1D343440201D290 /* QuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398CEB898F2775FC26300CEE /* QuestionView.swift */; };
+		EFCF33E8449E6DBCEF40A473 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA0DDD702B0F3F2E050FEBFF /* Foundation.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -47,9 +53,27 @@
 			remoteGlobalIDString = DBF3A11F69283823688BD281;
 			remoteInfo = "CavernoWatch Watch App";
 		};
+		ED8C553282F22BD59F90FF23 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4E3311FB6A522BE9D3313EC3;
+			remoteInfo = CavernoWatchWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		95F6ABF70875188A93028978 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				2C0DBF10A7857ACB61BC61DD /* CavernoWatchWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		96EAE4C5F30C13526A6CCB1D /* Embed Watch Content */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -77,6 +101,7 @@
 		094B0ACA26BAF1E1985EB780 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0C35E3A534B742462DCF1442 /* WatchSessionClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchSessionClient.swift; sourceTree = "<group>"; };
 		0C92E38007344963815A24DC /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		0F292F4C353F66DF13A93E9B /* WatchGlanceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchGlanceStore.swift; sourceTree = "<group>"; };
 		1276D87C68353570C30DA457 /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
@@ -113,6 +138,9 @@
 		BD276E0877C7895ED7065FA7 /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		BEB86A78F72E0C886741E2B1 /* StatusView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StatusView.swift; sourceTree = "<group>"; };
 		C9DCD67A4FD77736FA6B88A5 /* VoiceView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VoiceView.swift; sourceTree = "<group>"; };
+		E2883BE6A5E5350F7AF28CC3 /* CavernoWatchWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CavernoWatchWidget.swift; sourceTree = "<group>"; };
+		F15897DA7D2BC93A8E1AEB6C /* CavernoWatchWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CavernoWatchWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F1FA6B793C380740FD70860E /* ThreadPickerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThreadPickerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -140,6 +168,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FA7E69FA785181AEC5614370 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EFCF33E8449E6DBCEF40A473 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -156,6 +192,7 @@
 				0C35E3A534B742462DCF1442 /* WatchSessionClient.swift */,
 				9C84CFDAEB4CFC40A6970453 /* WatchSpeaker.swift */,
 				094B0ACA26BAF1E1985EB780 /* Assets.xcassets */,
+				F1FA6B793C380740FD70860E /* ThreadPickerView.swift */,
 			);
 			name = "CavernoWatch Watch App";
 			path = "CavernoWatch Watch App";
@@ -211,6 +248,7 @@
 				6A7EEF9E27261089A3920924 /* Pods */,
 				E29163176268C2167454379A /* Frameworks */,
 				042FDBE2402E305C373FAEE4 /* CavernoWatch Watch App */,
+				BDD56E9128F8873E133E3B4C /* CavernoWatchWidget */,
 			);
 			sourceTree = "<group>";
 		};
@@ -220,6 +258,7 @@
 				97C146EE1CF9000F007C117D /* Runner.app */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
 				19D1B886FFBDC774B2665270 /* CavernoWatch Watch App.app */,
+				F15897DA7D2BC93A8E1AEB6C /* CavernoWatchWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -241,6 +280,16 @@
 			);
 			path = Runner;
 			sourceTree = "<group>";
+		};
+		BDD56E9128F8873E133E3B4C /* CavernoWatchWidget */ = {
+			isa = PBXGroup;
+			children = (
+				E2883BE6A5E5350F7AF28CC3 /* CavernoWatchWidget.swift */,
+				0F292F4C353F66DF13A93E9B /* WatchGlanceStore.swift */,
+			);
+			name = CavernoWatchWidget;
+			path = CavernoWatchWidget;
+			sourceTree = SOURCE_ROOT;
 		};
 		E29163176268C2167454379A /* Frameworks */ = {
 			isa = PBXGroup;
@@ -273,6 +322,23 @@
 			productName = RunnerTests;
 			productReference = 331C8081294A63A400263BE5 /* RunnerTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		4E3311FB6A522BE9D3313EC3 /* CavernoWatchWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D4300286AC8A81DA9BEEC4D9 /* Build configuration list for PBXNativeTarget "CavernoWatchWidgetExtension" */;
+			buildPhases = (
+				F4972140358B0EE9A7B3F17E /* Sources */,
+				FA7E69FA785181AEC5614370 /* Frameworks */,
+				3C8EC9F49B5A341BF29EF18B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CavernoWatchWidgetExtension;
+			productName = CavernoWatchWidgetExtension;
+			productReference = F15897DA7D2BC93A8E1AEB6C /* CavernoWatchWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		97C146ED1CF9000F007C117D /* Runner */ = {
 			isa = PBXNativeTarget;
@@ -307,10 +373,12 @@
 				EA6993F41943EE42F3225AEE /* Sources */,
 				6C70564496E54EF030213B38 /* Frameworks */,
 				DA093F6E0713D9D14A175021 /* Resources */,
+				95F6ABF70875188A93028978 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				0E760D674FB9C6872D31B6FB /* PBXTargetDependency */,
 			);
 			name = "CavernoWatch Watch App";
 			productName = "CavernoWatch Watch App";
@@ -362,12 +430,20 @@
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
 				DBF3A11F69283823688BD281 /* CavernoWatch Watch App */,
+				4E3311FB6A522BE9D3313EC3 /* CavernoWatchWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		331C807F294A63A400263BE5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3C8EC9F49B5A341BF29EF18B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -555,12 +631,29 @@
 				9B38DF968631B6F843B974A5 /* WatchModels.swift in Sources */,
 				A1BDA8B41FBB171753B6F893 /* WatchSessionClient.swift in Sources */,
 				5EFA02AC2E348E8C6257F5FA /* WatchSpeaker.swift in Sources */,
+				95844863DF08E80FF337E8CB /* ThreadPickerView.swift in Sources */,
+				C4D65DA33AF15F284A886DDB /* WatchGlanceStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F4972140358B0EE9A7B3F17E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1C3FB44DBE1985C6F54430C9 /* CavernoWatchWidget.swift in Sources */,
+				A5B8F3EB6BD8BB5A1B26028C /* WatchGlanceStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		0E760D674FB9C6872D31B6FB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = CavernoWatchWidgetExtension;
+			target = 4E3311FB6A522BE9D3313EC3 /* CavernoWatchWidgetExtension */;
+			targetProxy = ED8C553282F22BD59F90FF23 /* PBXContainerItemProxy */;
+		};
 		331C8086294A63A400263BE5 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 97C146ED1CF9000F007C117D /* Runner */;
@@ -686,6 +779,30 @@
 			};
 			name = Profile;
 		};
+		32450890A1212F7F61C0E30E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CavernoWatchWidget/CavernoWatchWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
+				"DEVELOPMENT_TEAM[sdk=watchsimulator*]" = 89UG59TBNX;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Caverno;
+				INFOPLIST_KEY_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.noguwo.apps.caverno.watchkitapp.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchsimulator watchos";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
 		331C8088294A63A400263BE5 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BBC0CDA51A67479B2C2F6523 /* Pods-RunnerTests.debug.xcconfig */;
@@ -741,6 +858,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "CavernoWatch Watch App/CavernoWatch.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
@@ -769,6 +887,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "CavernoWatch Watch App/CavernoWatch.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
@@ -791,6 +910,30 @@
 				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Release;
+		};
+		72111A89025CE24AF801AC23 /* Profile */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CavernoWatchWidget/CavernoWatchWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
+				"DEVELOPMENT_TEAM[sdk=watchsimulator*]" = 89UG59TBNX;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Caverno;
+				INFOPLIST_KEY_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.noguwo.apps.caverno.watchkitapp.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchsimulator watchos";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Profile;
 		};
 		97C147031CF9000F007C117D /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -967,11 +1110,35 @@
 			};
 			name = Release;
 		};
+		CA65F51691367B2435D6DCD8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CavernoWatchWidget/CavernoWatchWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
+				"DEVELOPMENT_TEAM[sdk=watchsimulator*]" = 89UG59TBNX;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Caverno;
+				INFOPLIST_KEY_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.noguwo.apps.caverno.watchkitapp.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchsimulator watchos";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
 		E2ABF9106574F0A5C1FC2294 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "CavernoWatch Watch App/CavernoWatch.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
@@ -1033,6 +1200,16 @@
 				97C147061CF9000F007C117D /* Debug */,
 				97C147071CF9000F007C117D /* Release */,
 				249021D4217E4FDB00AE95B9 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D4300286AC8A81DA9BEEC4D9 /* Build configuration list for PBXNativeTarget "CavernoWatchWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				32450890A1212F7F61C0E30E /* Release */,
+				CA65F51691367B2435D6DCD8 /* Debug */,
+				72111A89025CE24AF801AC23 /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
