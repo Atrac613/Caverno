@@ -367,6 +367,18 @@ extension WatchBridgePlugin: WCSessionDelegate {
     }
   }
 
+  /// Asks Dart for a fresh frame when the watch app comes to the foreground.
+  ///
+  /// Without this the phone only ever answers a snapshot the watch thought to
+  /// request. A synthetic `requestSnapshot` reuses the existing command path
+  /// rather than adding a second channel method for the same effect.
+  func sessionReachabilityDidChange(_ session: WCSession) {
+    guard session.isReachable else { return }
+    emitCommand([
+      Self.payloadKey: #"{"type":"requestSnapshot","payload":{}}"#
+    ])
+  }
+
   func sessionDidBecomeInactive(_ session: WCSession) {}
 
   /// Re-activates after the user switches to a different paired watch.

@@ -8,6 +8,7 @@ import 'package:caverno/features/chat/data/repositories/conversation_repository_
 import 'package:caverno/features/chat/data/repositories/key_value_store.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/watch/domain/watch_command.dart';
 import 'package:caverno/features/watch/domain/watch_snapshot.dart';
@@ -256,6 +257,27 @@ void main() {
     expect(
       bridge.streamChunks.map((chunk) => chunk['text']),
       ['Original answer.', 'Corrected answer.'],
+    );
+  });
+
+  test('an untitled conversation does not leak its sentinel title', () async {
+    final instance = await notifier();
+    container
+        .read(conversationsNotifierProvider.notifier)
+        .createNewConversation();
+
+    await instance.handleCommandForTest(
+      const WatchCommand(type: WatchCommand.requestSnapshot),
+    );
+
+    final snapshot = bridge.pushedSnapshots.last;
+    expect(snapshot.conversationId, isNotNull);
+    expect(
+      snapshot.conversationTitle,
+      isEmpty,
+      reason:
+          'defaultConversationTitle is a marker, not a label; passing it '
+          'through put a literal __new_conversation__ on the watch.',
     );
   });
 

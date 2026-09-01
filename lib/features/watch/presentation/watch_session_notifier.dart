@@ -7,7 +7,9 @@ import '../../../core/services/watch_bridge_service.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/chat_state.dart';
-import '../../chat/presentation/providers/conversations_notifier.dart';
+import '../../chat/presentation/providers/conversations_notifier.dart'
+    show ConversationsState, conversationsNotifierProvider,
+        defaultConversationTitle;
 import '../../chat/presentation/providers/pending_approval_resolution.dart';
 import '../domain/watch_approval_mapper.dart';
 import '../domain/watch_command.dart';
@@ -154,7 +156,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       sequence: _sequence,
       generatedAt: DateTime.now().toUtc(),
       conversationId: current?.id,
-      conversationTitle: current?.title ?? '',
+      conversationTitle: _titleFor(current?.title),
       status: _statusFor(chatState, approval: approval, question: question),
       lastAssistantText: _lastAssistantText(chatState.messages),
       approval: approval,
@@ -166,6 +168,19 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       busyThreadCount: chatState.busyConversationIds.length,
       error: chatState.error,
     );
+  }
+
+  /// Drops the untitled-conversation sentinel.
+  ///
+  /// `defaultConversationTitle` is a marker, not a label: every other surface
+  /// substitutes something for it, and passing it through put a literal
+  /// `__new_conversation__` on the watch. An empty title is right here rather
+  /// than an English stand-in, because the watch already falls back to its own
+  /// idle/working label and the phone has no business hardcoding a string it
+  /// cannot localise for the watch.
+  String _titleFor(String? title) {
+    final normalized = title?.trim() ?? '';
+    return normalized == defaultConversationTitle ? '' : normalized;
   }
 
   WatchTurnStatus _statusFor(
