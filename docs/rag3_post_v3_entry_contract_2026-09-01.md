@@ -76,8 +76,16 @@ stricter gates but cannot silently weaken these ones.
 ## Roadmap Consequence
 
 RAG3 stays `blocked`, and RAG4-RAG6 remain downstream. The next repository work
-should come from an independent roadmap item rather than another RAG3
-experiment until the first resume condition exists.
+must not be another closed-family RAG3 experiment. `RAG3R` is a separate,
+research-only qualification milestone for dedicated post-answer groundedness
+detectors. It begins with artifact and runtime feasibility and may freeze a new
+non-promotion contract only if a candidate has a credible path to the existing
+quality and latency gates. Research:
+`docs/rag_groundedness_detector_research_2026-09-01.md`.
+
+`RAG3R` does not reopen RAG3 and authorizes no production or promotion wiring.
+If it cannot establish a runnable materially new signal, this closure remains
+the terminal retrieval decision.
 
 This decision changes no runtime behavior and authorizes no network run.
 
