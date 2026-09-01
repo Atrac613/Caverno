@@ -211,28 +211,71 @@ void main() {
         LiveLlmDiagnosticService.matchedChartAnswers('78, 41, Dune, Cobalt'),
         4,
       );
+    });
+
+    test('reads the answer out of a sentence around it', () {
       expect(
         LiveLlmDiagnosticService.matchedChartAnswers(
-          'The values are 78 and 41; Dune is tallest and Cobalt shortest.',
+          'Here are the readings:\n78, 41, Dune, Cobalt',
         ),
         4,
       );
     });
 
-    test('is positional, so a reordered answer is not a reading', () {
-      // The same four tokens in the wrong order answer a different question.
+    test('grades the answer, not the reasoning that led to it', () {
+      // The narration names the gridlines on its way to the answer. Scoring
+      // the raw response scored that narration; this is the response a
+      // production consumer would display.
       expect(
-        LiveLlmDiagnosticService.matchedChartAnswers('41, 78, Cobalt, Dune'),
-        1,
+        LiveLlmDiagnosticService.matchedChartAnswers(
+          '<think>Gridlines are 0, 20, 40, 60, 80, 100. Aster is 41, Briar '
+          '78.</think>78, 41, Dune, Cobalt',
+        ),
+        4,
       );
     });
 
-    test('stops at the first reading the model missed', () {
+    test('is positional, so a reordered answer answers nothing', () {
+      // The same four readings against the wrong four questions.
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers('41, 78, Cobalt, Dune'),
+        0,
+      );
+    });
+
+    test('one wrong reading does not swallow the rest', () {
+      // Measured against a live model, which read Aster as 40 where the bar is
+      // 41 and got the other three exactly right.
       expect(
         LiveLlmDiagnosticService.matchedChartAnswers('78, 40, Dune, Cobalt'),
-        1,
+        4,
       );
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers('78, 12, Dune, Cobalt'),
+        3,
+      );
+    });
+
+    test('accepts a numeric reading only within the tolerance', () {
+      final justInside = 41 + LiveLlmDiagnosticService.chartValueTolerance;
+      final justOutside = justInside + 1;
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers(
+          '78, $justInside, Dune, Cobalt',
+        ),
+        4,
+      );
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers(
+          '78, $justOutside, Dune, Cobalt',
+        ),
+        3,
+      );
+    });
+
+    test('scores nothing for an empty or short answer', () {
       expect(LiveLlmDiagnosticService.matchedChartAnswers(''), 0);
+      expect(LiveLlmDiagnosticService.matchedChartAnswers('78'), 1);
     });
   });
 
@@ -248,6 +291,22 @@ void main() {
     final result = _result(report, 'chart_reading');
     expect(result.status, LiveLlmDiagnosticStatus.failed);
     expect(result.details, contains('model_guessed_without_reading'));
+  });
+
+  test('a chart answer that never arrived is not a failed reading', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: _FakeDiagnosticDataSource(silentChart: true),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: const {'chart_reading'});
+
+    final result = _result(report, 'chart_reading');
+    // Warning, not failed: a model that spent its budget reasoning was never
+    // measured, and scoring that as blindness reports the harness's limit.
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(result.details, contains('no_answer_within_budget'));
   });
 
   test('skips tool probes when MCP tools are disabled', () async {
@@ -1242,6 +1301,7 @@ class _FakeDiagnosticDataSource
     this.structuredOutputSupport = ModelStructuredOutputSupport.jsonSchema,
     this.bracedReasoning = false,
     this.blindChart = false,
+    this.silentChart = false,
   });
 
   final bool textToolCalls;
@@ -1250,6 +1310,9 @@ class _FakeDiagnosticDataSource
   /// Answers the chart question the same with and without the image, which is
   /// what a model that never looked at the picture does.
   final bool blindChart;
+
+  /// Spends the whole budget inside a think block and never answers.
+  final bool silentChart;
 
   /// Prefixes structured answers with a `<think>` block that itself contains
   /// braces, the way a reasoning model's merged content arrives.
@@ -1401,6 +1464,12 @@ class _FakeDiagnosticDataSource
     if (user.contains('bar chart with a labelled y axis')) {
       // Stands in for a model that reads the chart: the control arm gets the
       // shape of an answer right and the readings wrong.
+      if (silentChart) {
+        return ChatCompletionResult(
+          content: '<think>Gridlines are 0, 20, 40, 60, 80, 100. Aster sits',
+          finishReason: 'length',
+        );
+      }
       return ChatCompletionResult(
         content: messages.last.imageBase64 == null && !blindChart
             ? '10, 4, Briar, Aster'

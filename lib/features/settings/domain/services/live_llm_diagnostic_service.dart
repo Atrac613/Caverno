@@ -271,7 +271,17 @@ class LiveLlmDiagnosticService {
       'labelled Aster, the label of the tallest bar, the label of the '
       'shortest bar.';
 
+  /// A larger budget than the other probes get.
+  ///
+  /// This one asks for four readings off a picture, and a reasoning model
+  /// narrates the axis before it answers: a measured run spent 628 completion
+  /// tokens across the two arms, and at 1024 one run in three still ended
+  /// inside the think block with no answer at all. The shared 512 would have
+  /// reported that as a model that cannot read charts.
+  static const _chartProbeMaxTokens = 1024;
+
   static const _chartClassificationRejected = 'endpoint_rejected';
+  static const _chartClassificationNoAnswer = 'no_answer_within_budget';
   static const _chartClassificationGuessed = 'model_guessed_without_reading';
   static const _chartClassificationPartial = 'partially_read';
   static const _chartClassificationRead = 'read_correctly';
@@ -2261,6 +2271,25 @@ class LiveLlmDiagnosticService {
       );
     }
 
+    // An answer that never arrived is not a reading the model got wrong. A
+    // reasoning model can spend the whole budget narrating the axis, and
+    // scoring that as blindness would report the harness's limit as the
+    // model's -- the same mistake the quadrant probe's image size once made.
+    if (_visibleDiagnosticContent(withImage.content).isEmpty) {
+      return LiveLlmDiagnosticProbeResult(
+        id: _chartReadingProbeId,
+        status: LiveLlmDiagnosticStatus.warning,
+        summary: 'The model produced no answer within the token budget.',
+        details:
+            'Classification: $_chartClassificationNoAnswer\n'
+            'Nothing was measured: the response carried reasoning and no '
+            'readings. Re-run, or raise the probe budget if it persists.',
+        modelContent: _preview(withImage.content, maxChars: 400),
+        usage: _totalUsage([if (withImage.result != null) withImage.result!]),
+        totalChecks: LiveLlmChartProbeImage.expectedAnswers.length,
+      );
+    }
+
     final expected = LiveLlmChartProbeImage.expectedAnswers;
     final matched = withImage.matchedColors;
     final controlMatched = control.matchedColors;
@@ -2294,8 +2323,10 @@ class LiveLlmDiagnosticService {
         'No-image control: $controlMatched/${expected.length}',
       ].join('\n'),
       modelContent: [
-        'with_chart: ${_preview(withImage.content, maxChars: 240)}',
-        'control: ${_preview(control.content, maxChars: 240)}',
+        // The visible answer, not the reasoning: a think block filled the
+        // whole preview and left the actual reading invisible in the report.
+        'with_chart: ${_preview(_visibleDiagnosticContent(withImage.content), maxChars: 240)}',
+        'control: ${_preview(_visibleDiagnosticContent(control.content), maxChars: 240)}',
       ].join('\n'),
       usage: _totalUsage([
         if (withImage.result != null) withImage.result!,
@@ -2325,7 +2356,7 @@ class LiveLlmDiagnosticService {
         messages: messages,
         model: _diagnosticModel,
         temperature: _diagnosticTemperature,
-        maxTokens: _diagnosticMaxTokens,
+        maxTokens: _chartProbeMaxTokens,
       );
       return _VisionProbeArm(
         result: result,
@@ -2342,30 +2373,75 @@ class LiveLlmDiagnosticService {
     }
   }
 
-  /// How many of the chart's readings appear, in the order they were asked for.
+  /// How close a numeric reading may be and still count.
   ///
-  /// Positional rather than a set intersection: "78, 41, Dune, Cobalt" and
-  /// "41, 78, Cobalt, Dune" contain the same four answers and only one of them
-  /// read the chart.
+  /// Measured, not guessed. Asked for all four readings in one turn against
+  /// qwen3.8-27b-vision, the model answered "78, 40, Dune, Cobalt": three
+  /// exactly right and Aster read as 40 where the bar is 41. Demanding the
+  /// unit meant failing a model whose own reasoning said "Aster: top aligns
+  /// with 40" -- it had read the chart, off a y axis whose gridlines are 20
+  /// apart, and the probe was measuring interpolation to the pixel instead.
+  ///
+  /// The cost is that snapping every bar to the nearest gridline now passes.
+  /// That is the intended floor: reading a chart to the nearest gridline is
+  /// reading it, and a model that never looked still cannot land within two
+  /// units of both 78 and 41 by chance.
+  static const int chartValueTolerance = 2;
+
+  /// How many of the chart's readings the model got right, position by
+  /// position.
+  ///
+  /// Grades the visible answer rather than the raw response. A reasoning model
+  /// narrates the axis on its way to an answer -- "gridlines (0, 20, 40, 60,
+  /// 80, 100)" -- and scanning that text for the expected numbers scores the
+  /// thinking, not the reading.
+  ///
+  /// Compares field to field rather than scanning for each answer in turn. The
+  /// prompt asks for four comma-separated items, so the second item is the
+  /// answer to the second question: "41, 78, Cobalt, Dune" holds all four
+  /// readings and answers none of the questions asked. Scanning also let one
+  /// wrong reading swallow the rest, which is how a 3-of-4 answer was first
+  /// reported as 1/4.
   @visibleForTesting
   static int matchedChartAnswers(String content) {
-    final normalized = content.toLowerCase().replaceAll(',', ' ');
-    final tokens = normalized
-        .split(RegExp(r'[\s]+'))
-        .where((token) => token.isNotEmpty)
-        .toList();
+    final expected = LiveLlmChartProbeImage.expectedAnswers;
+    final fields = _chartAnswerFields(ContentParser.parse(content).text.trim());
     var matched = 0;
-    var cursor = 0;
-    for (final expected in LiveLlmChartProbeImage.expectedAnswers) {
-      final index = tokens.indexWhere(
-        (token) => token.replaceAll(RegExp(r'[^a-z0-9]'), '') == expected,
-        cursor,
-      );
-      if (index < 0) break;
-      matched += 1;
-      cursor = index + 1;
+    for (var index = 0; index < expected.length && index < fields.length; index++) {
+      if (_chartFieldMatches(fields[index], expected[index])) matched += 1;
     }
     return matched;
+  }
+
+  /// The four answers out of whatever the model wrapped them in.
+  ///
+  /// Read from the last line that carries enough commas, so a model that
+  /// prefaces the list with a sentence is still graded on the list.
+  static List<String> _chartAnswerFields(String answer) {
+    final expectedCount = LiveLlmChartProbeImage.expectedAnswers.length;
+    final lines = const LineSplitter()
+        .convert(answer)
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    for (final line in lines.reversed) {
+      final fields = line.split(',');
+      if (fields.length >= expectedCount) {
+        return fields.map(_normalizeChartField).toList();
+      }
+    }
+    return answer.split(',').map(_normalizeChartField).toList();
+  }
+
+  static String _normalizeChartField(String field) =>
+      field.toLowerCase().replaceAll(RegExp(r'[^a-z0-9.]'), '');
+
+  static bool _chartFieldMatches(String actual, String expected) {
+    final expectedValue = num.tryParse(expected);
+    if (expectedValue == null) return actual == expected;
+    final actualValue = num.tryParse(actual);
+    if (actualValue == null) return false;
+    return (actualValue - expectedValue).abs() <= chartValueTolerance;
   }
 
   /// Reads the image through the computer-use path: a tool result whose JSON
