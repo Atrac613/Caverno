@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- An app extension is identified by its extension point, and there is no
+	     INFOPLIST_KEY_ build setting that produces this nested dictionary.
+	     Without it the appex has no NSExtension key at all, the system cannot
+	     load it, and installing the containing watch app fails with
+	     "Invalid placeholder attributes". Merged into the generated plist via
+	     GENERATE_INFOPLIST_FILE. -->
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.widgetkit-extension</string>
+	</dict>
+</dict>
+</plist>

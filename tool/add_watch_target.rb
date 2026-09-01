@@ -27,6 +27,24 @@ DEVELOPMENT_TEAM = '89UG59TBNX'
 EMBED_PHASE_NAME = 'Embed Watch Content'
 WIDGET_EMBED_PHASE_NAME = 'Embed Foundation Extensions'
 
+# Flutter writes the app version into ios/Flutter/Generated.xcconfig as
+# FLUTTER_BUILD_NAME / FLUTTER_BUILD_NUMBER. Only the Runner target includes
+# that file, so `$(FLUTTER_BUILD_NAME)` expands to empty everywhere else and
+# GENERATE_INFOPLIST_FILE then omits CFBundleVersion entirely. A watch app
+# without it installs (simctl tolerates it) but an extension without it does
+# not: the install fails with "Invalid placeholder attributes", and App Store
+# submission requires the keys to be present and to match the host app.
+def attach_flutter_version_config(project, target)
+  config_ref = project.files.find do |file|
+    file.path == 'Flutter/Generated.xcconfig' ||
+      file.path == 'Generated.xcconfig'
+  end
+  config_ref ||= project.main_group.new_reference('Flutter/Generated.xcconfig')
+  target.build_configurations.each do |config|
+    config.base_configuration_reference = config_ref
+  end
+end
+
 project = Xcodeproj::Project.open(PROJECT_PATH)
 runner = project.targets.find { |target| target.name == 'Runner' }
 raise 'Runner target not found' unless runner
@@ -83,6 +101,8 @@ watch.build_configurations.each do |config|
   settings['MARKETING_VERSION'] = '$(FLUTTER_BUILD_NAME)'
   settings['CURRENT_PROJECT_VERSION'] = '$(FLUTTER_BUILD_NUMBER)'
 end
+
+attach_flutter_version_config(project, watch)
 
 # Source group and files.
 group = project.main_group.find_subpath(WATCH_SOURCE_DIR, true)
@@ -195,11 +215,16 @@ widget.build_configurations.each do |config|
     "#{WIDGET_SOURCE_DIR}/CavernoWatchWidget.entitlements"
   settings['GENERATE_INFOPLIST_FILE'] = 'YES'
   settings['INFOPLIST_KEY_CFBundleDisplayName'] = 'Caverno'
-  settings['INFOPLIST_KEY_NSExtensionPointIdentifier'] =
-    'com.apple.widgetkit-extension'
+  # An extension point lives in a nested NSExtension dictionary, and no
+  # INFOPLIST_KEY_ setting produces one. Supplying a partial plist alongside
+  # GENERATE_INFOPLIST_FILE is the only way to get it; without it the appex
+  # ships with no NSExtension key and the watch app cannot be installed.
+  settings['INFOPLIST_FILE'] = "#{WIDGET_SOURCE_DIR}/Info.plist"
   settings['MARKETING_VERSION'] = '$(FLUTTER_BUILD_NAME)'
   settings['CURRENT_PROJECT_VERSION'] = '$(FLUTTER_BUILD_NUMBER)'
 end
+
+attach_flutter_version_config(project, widget)
 
 widget_group = project.main_group.find_subpath(WIDGET_SOURCE_DIR, true)
 widget_group.set_source_tree('SOURCE_ROOT')
