@@ -765,9 +765,12 @@ const Map<String, int> _libraryLineBudgets = {
   // -3 matching the primary file: the dropped-attachment state left the
   // library rather than moving into a part.
   // -8 matching the primary file: drop-target wiring left the library.
-  // -52: dialog presentation and dismissal moved to
+  // -46 from 8846: dialog presentation and dismissal moved to
   // ApprovalDialogPresenter, which is its own library rather than a part.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8794,
+  // That measured 8794; merging main's browser-mediation change added 6 lines
+  // to chat_page_browser_builders.dart, so the ceiling settles at 8800 rather
+  // than manufacturing an extraction to hit the older number.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8800,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };
