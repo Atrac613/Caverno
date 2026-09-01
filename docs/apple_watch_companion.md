@@ -83,8 +83,10 @@ path therefore serves a desktop-driven turn, or the kinds mobile does have —
 BLE, SSH, browser, participant. `ask_user_question` is unconditional and is the
 interaction the companion answers most often on a phone-only setup.
 
-A dialog the watch resolves is not yet dismissed on the phone; see WATCH6 in
-`docs/roadmap.md`.
+A dialog the watch resolves is dismissed on the phone by `ApprovalDialogPresenter`,
+which pops by route name. That is deliberately a no-op when the dialog is not
+topmost: popping whatever is on top would let a mistimed resolution close the
+screen the user is actually looking at.
 
 
 `ChatState` keeps ten independent `Pending*` fields.

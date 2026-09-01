@@ -161,7 +161,7 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH3 | done | Bind a deferred watch command to the conversation it was composed against, so a queued `sendMessage` cannot land in whichever thread happens to be current when it is finally delivered. | Shipped 2026-09-01. The watch stamps the thread; the phone refuses a mismatch with its own code and still accepts unstamped commands from older watch builds. |
 | Watch | WATCH4 | done | Glanceable surfaces and thread choice: Smart Stack widget plus switching the mirrored conversation from the watch. | Shipped 2026-09-01. Thread switching is verified; the widget's App Group data path is not, because an unsigned simulator build applies no entitlements. Confirm it on a signed build. |
 | Watch | WATCH5 | blocked | Approve/Deny on a push-delivered notification, not only a locally raised one. | Blocked on a contract that does not exist: no push carries an approval, only a run-completion. Do not build the delegate plumbing until a push needs to carry one. |
-| Watch | WATCH6 | next | Dismiss an approval or question dialog on the phone when the watch resolves it. The phone opens the sheet but nothing closes it, so the user is left answering something already answered. | Give the approval dialog listeners a dismissal path keyed by pending id; today they only open. |
+| Watch | WATCH6 | done | Dismiss an approval or question dialog on the phone when the watch resolves it. | Shipped 2026-09-02 and verified on paired simulators: answering from the wrist closes the phone's sheet. Dismissal pops by route name, so it is a no-op when the dialog is not topmost. |
 
 Foundation F5 and the future platform vision milestones are
 detailed in `docs/local_llm_agent_roadmap.md`. The user-created Tools MVP is
@@ -1553,38 +1553,34 @@ Next action:
 
 ### WATCH6: Dismiss A Resolved Interaction On The Phone
 
-Status: `next`
+Status: `done`
 
 Scope:
 - Close an approval or question dialog on the phone when it is resolved
-  somewhere else — today, the watch.
+  somewhere else — today, the Apple Watch.
 
-Why (observed 2026-09-02):
-- Answering a question from the wrist leaves the phone's sheet open, showing a
-  question the model has already moved past. `chat_page_approval_listeners.dart`
-  opens a dialog when a pending appears and has no path that closes it when the
-  pending clears; on the phone the dialog closes itself because the phone is
-  what answered it.
-- Remote Coding never hit this because `shouldPresentDesktopQuestion` suppresses
-  remote-origin questions entirely. The watch sends with
-  `ChatInteractionOrigin.local` — deliberately, see the trust model — so the
-  phone does present the sheet, and nothing dismisses it.
-- The same applies to every approval dialog the watch can resolve.
+Shipped 2026-09-02 (`8caa529c`):
+- `ApprovalDialogPresenter` owns both halves. Twelve listeners were repeating
+  the same open-on-id-change shape and none of them closed anything; they
+  collapse into one helper.
+- Dismissal pops by route name, not by popping the top route. `popUntil` with a
+  name predicate closes the dialog when it is topmost and does nothing at all
+  when something else is, so a mistimed resolution cannot take away the screen
+  the user is looking at. A test pushes an unrelated route over an open
+  approval sheet and asserts it survives.
+- The route name lives beside the approval sheets rather than with the
+  presenter: the sheets push the route, and a widget should not import from
+  `pages/`.
 
-Not a data-integrity problem: `resolveAskUserQuestion` returns early on an id
-that is no longer pending, so the completer cannot be completed twice. It is a
-stale surface the user has to dismiss by hand.
+Verified 2026-09-02 on paired simulators: a pending `ask_user_question`
+answered from the wrist closes the phone's sheet, and the model continues from
+that answer.
 
-Acceptance criteria:
-- Resolving from the watch closes the corresponding phone dialog.
-- A dialog the phone itself answered still closes exactly once.
-- Focused tests cover the remote-resolution dismissal for a question and for one
-  approval kind.
+The refactor paid for itself against the line ratchet — `chat_page.dart` fell
+38 lines and its library 52 — so both budgets were lowered rather than raised.
 
 Next action:
-- Give the listeners a dismissal path keyed by pending id. The dialogs are
-  `showDialog` / `showModalBottomSheet` calls across roughly ten presenters, so
-  the mechanism belongs in `_showApprovalDialogOnce` rather than in each one.
+- None.
 
 ## Foundation, Local LLM Agent, And Future Platform Vision Tracks
 
