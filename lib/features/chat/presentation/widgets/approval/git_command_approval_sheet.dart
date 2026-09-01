@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../data/datasources/git_tools.dart';
 import '../../providers/chat_state.dart';
 import '../tool_perimeter_summary.dart';
+import 'approval_dialog_route.dart';
 
 class GitCommandApprovalSheet extends StatelessWidget {
   const GitCommandApprovalSheet({required this.pending, super.key});
@@ -16,6 +17,7 @@ class GitCommandApprovalSheet extends StatelessWidget {
       enableDrag: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      routeSettings: RouteSettings(name: approvalDialogRouteName(pending.id)),
       builder: (_) => GitCommandApprovalSheet(pending: pending),
     );
   }

@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../../providers/chat_state.dart';
+import 'approval_dialog_route.dart';
 
 class ParticipantToolApprovalSheet extends StatelessWidget {
   const ParticipantToolApprovalSheet({required this.pending, super.key});
@@ -20,6 +21,7 @@ class ParticipantToolApprovalSheet extends StatelessWidget {
       enableDrag: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      routeSettings: RouteSettings(name: approvalDialogRouteName(pending.id)),
       builder: (_) => ParticipantToolApprovalSheet(pending: pending),
     );
   }

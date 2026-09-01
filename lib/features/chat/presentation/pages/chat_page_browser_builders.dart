@@ -235,6 +235,7 @@ extension _ChatPageBrowserBuilders on _ChatPageState {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      routeSettings: RouteSettings(name: approvalDialogRouteName(pending.id)),
       builder: (sheetContext) {
         final theme = Theme.of(sheetContext);
         return SafeArea(

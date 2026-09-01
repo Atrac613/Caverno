@@ -114,6 +114,9 @@ import '../widgets/plan/plan_open_question_section.dart';
 import '../widgets/plan/plan_review_sheet.dart';
 import '../widgets/plan/plan_revision_history_sheet.dart';
 
+import '../widgets/approval/approval_dialog_route.dart';
+import 'approval_dialog_presenter.dart';
+
 part 'chat_page_empty_state_builders.dart';
 part 'chat_page_approval_listeners.dart';
 part 'chat_page_browser_builders.dart';
@@ -138,7 +141,7 @@ class ChatPage extends ConsumerStatefulWidget {
 class _ChatPageState extends ConsumerState<ChatPage> {
   final _threadScroll = ThreadScrollCoordinator();
   final _workflowPanelScrollController = ScrollController();
-  final Set<String> _activeApprovalDialogIds = <String>{};
+  final ApprovalDialogPresenter _approvalDialogs = ApprovalDialogPresenter();
   final Set<String> _rolledBackTurnDiffIds = <String>{};
   final _uuid = const Uuid();
   String? _workflowPanelConversationId;
@@ -484,47 +487,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ),
       ),
     );
-  }
-
-  Future<void> _showWorkflowDecisionDialog(
-    BuildContext context,
-    PendingWorkflowDecision pending,
-  ) async {
-    final approvedAnswer =
-        await showModalBottomSheet<WorkflowPlanningDecisionAnswer>(
-          context: context,
-          isDismissible: false,
-          enableDrag: true,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (sheetContext) => _WorkflowDecisionSheet(pending: pending),
-        );
-
-    if (!mounted) return;
-
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveWorkflowDecision(id: pending.id, answer: approvedAnswer);
-  }
-
-  Future<void> _showAskUserQuestionDialog(
-    BuildContext context,
-    PendingAskUserQuestion pending,
-  ) async {
-    final answer = await showModalBottomSheet<AskUserQuestionAnswer>(
-      context: context,
-      isDismissible: false,
-      enableDrag: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => _AskUserQuestionSheet(pending: pending),
-    );
-
-    if (!mounted) return;
-
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveAskUserQuestion(id: pending.id, answer: answer);
   }
 
   @override

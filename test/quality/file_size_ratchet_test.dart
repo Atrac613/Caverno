@@ -377,7 +377,10 @@ const Map<String, int> _lineBudgets = {
   // only watches settings and forwards the rebuild.
   // -6: send and interrupt took the same payload and differed only in whether
   // the running turn is joined, so one factory makes both.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1899,
+  // -38: the twelve approval-dialog listeners collapsed into one helper,
+  // and the two presenters that lived here joined the other ten in the
+  // approval-listeners part.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1861,
   'lib/features/chat/presentation/coordinators/chat_dropped_attachments.dart':
       15,
   'lib/features/chat/presentation/coordinators/chat_dropped_attachments_take.dart':
@@ -762,7 +765,9 @@ const Map<String, int> _libraryLineBudgets = {
   // -3 matching the primary file: the dropped-attachment state left the
   // library rather than moving into a part.
   // -8 matching the primary file: drop-target wiring left the library.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8846,
+  // -52: dialog presentation and dismissal moved to
+  // ApprovalDialogPresenter, which is its own library rather than a part.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8794,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };

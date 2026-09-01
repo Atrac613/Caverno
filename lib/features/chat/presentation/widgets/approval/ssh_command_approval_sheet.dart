@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../providers/chat_state.dart';
 import '../tool_perimeter_summary.dart';
+import 'approval_dialog_route.dart';
 
 class SshCommandApprovalSheet extends StatelessWidget {
   const SshCommandApprovalSheet({required this.pending, super.key});
@@ -15,6 +16,7 @@ class SshCommandApprovalSheet extends StatelessWidget {
       enableDrag: false,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      routeSettings: RouteSettings(name: approvalDialogRouteName(pending.id)),
       builder: (_) => SshCommandApprovalSheet(pending: pending),
     );
   }

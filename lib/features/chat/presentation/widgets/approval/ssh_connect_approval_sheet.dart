@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../domain/entities/ssh_auth_credential.dart';
 import '../../providers/chat_state.dart';
+import 'approval_dialog_route.dart';
 
 /// Connect-dialog authentication choices.
 ///
@@ -29,6 +30,7 @@ class SshConnectApprovalSheet extends StatefulWidget {
       enableDrag: false,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      routeSettings: RouteSettings(name: approvalDialogRouteName(pending.id)),
       builder: (_) => SshConnectApprovalSheet(pending: pending),
     );
   }

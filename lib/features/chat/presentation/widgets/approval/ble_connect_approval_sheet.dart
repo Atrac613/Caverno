@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../providers/chat_state.dart';
+import 'approval_dialog_route.dart';
 
 class BleConnectApprovalSheet extends StatelessWidget {
   const BleConnectApprovalSheet({required this.pending, super.key});
@@ -14,6 +15,7 @@ class BleConnectApprovalSheet extends StatelessWidget {
       enableDrag: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      routeSettings: RouteSettings(name: approvalDialogRouteName(pending.id)),
       builder: (_) => BleConnectApprovalSheet(pending: pending),
     );
   }

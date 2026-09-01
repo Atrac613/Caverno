@@ -1,181 +1,166 @@
 part of 'chat_page.dart';
 
 extension _ChatPageApprovalListeners on _ChatPageState {
-  void _showApprovalDialogOnce(String id, Future<void> Function() showDialog) {
-    if (!_activeApprovalDialogIds.add(id)) return;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) {
-        _activeApprovalDialogIds.remove(id);
-        return;
-      }
-
-      try {
-        await showDialog();
-      } finally {
-        _activeApprovalDialogIds.remove(id);
-      }
-    });
+  /// Wires one pending interaction to its dialog.
+  ///
+  /// Twelve of these used to be written out longhand, each repeating the
+  /// "open when the id changes" shape and none of them closing anything. The
+  /// dismissal half now lives in [ApprovalDialogPresenter]; see there for why
+  /// the watch made it necessary.
+  void _syncApprovalDialog<T extends Object>(
+    BuildContext context,
+    T? Function(ChatState) select,
+    String Function(T) idOf,
+    Future<void> Function(T) present, {
+    bool Function(T)? shouldPresent,
+  }) {
+    ref.listen<T?>(
+      chatNotifierProvider.select(select),
+      (previous, next) => _approvalDialogs.sync<T>(
+        context: context,
+        previous: previous,
+        next: next,
+        idOf: idOf,
+        present: present,
+        isMounted: () => mounted,
+        shouldPresent: shouldPresent,
+      ),
+    );
   }
 
   void _registerApprovalDialogListeners(BuildContext context) {
-    // SSH connect confirmation dialog. Dialogs are deferred to the next
-    // frame so they don't fire during a build / InheritedElement
-    // lifecycle transition (avoids `_dependents.isEmpty` assertions).
-    ref.listen<PendingSshConnect?>(
-      chatNotifierProvider.select((s) => s.pendingSshConnect),
-      (prev, next) {
-        if (next != null && prev?.id != next.id) {
-          _showApprovalDialogOnce(
-            next.id,
-            () => _showSshConnectDialog(context, next),
-          );
-        }
-      },
+    _syncApprovalDialog<PendingSshConnect>(
+      context,
+      (s) => s.pendingSshConnect,
+      (p) => p.id,
+      (p) => _showSshConnectDialog(context, p),
     );
 
-    // SSH per-command confirmation dialog.
-    ref.listen<PendingSshCommand?>(
-      chatNotifierProvider.select((s) => s.pendingSshCommand),
-      (prev, next) {
-        if (next != null && prev?.id != next.id) {
-          _showApprovalDialogOnce(
-            next.id,
-            () => _showSshCommandDialog(context, next),
-          );
-        }
-      },
+    _syncApprovalDialog<PendingSshCommand>(
+      context,
+      (s) => s.pendingSshCommand,
+      (p) => p.id,
+      (p) => _showSshCommandDialog(context, p),
     );
 
-    // Git write-command confirmation dialog.
-    ref.listen<PendingGitCommand?>(
-      chatNotifierProvider.select((s) => s.pendingGitCommand),
-      (prev, next) {
-        if (next != null &&
-            shouldPresentDesktopApproval(next.origin) &&
-            prev?.id != next.id) {
-          _showApprovalDialogOnce(
-            next.id,
-            () => _showGitCommandDialog(context, next),
-          );
-        }
-      },
+    _syncApprovalDialog<PendingGitCommand>(
+      context,
+      (s) => s.pendingGitCommand,
+      (p) => p.id,
+      (p) => _showGitCommandDialog(context, p),
+      shouldPresent: (p) => shouldPresentDesktopApproval(p.origin),
     );
 
-    ref.listen<PendingLocalCommand?>(
-      chatNotifierProvider.select((s) => s.pendingLocalCommand),
-      (prev, next) {
-        if (next != null &&
-            shouldPresentDesktopApproval(next.origin) &&
-            prev?.id != next.id) {
-          _showApprovalDialogOnce(
-            next.id,
-            () => _showLocalCommandDialog(context, next),
-          );
-        }
-      },
+    _syncApprovalDialog<PendingLocalCommand>(
+      context,
+      (s) => s.pendingLocalCommand,
+      (p) => p.id,
+      (p) => _showLocalCommandDialog(context, p),
+      shouldPresent: (p) => shouldPresentDesktopApproval(p.origin),
     );
 
-    ref.listen<PendingComputerUseAction?>(
-      chatNotifierProvider.select((s) => s.pendingComputerUseAction),
-      (prev, next) {
-        if (next != null && prev?.id != next.id) {
-          _showApprovalDialogOnce(
-            next.id,
-            () => _showComputerUseActionDialog(context, next),
-          );
-        }
-      },
+    _syncApprovalDialog<PendingComputerUseAction>(
+      context,
+      (s) => s.pendingComputerUseAction,
+      (p) => p.id,
+      (p) => _showComputerUseActionDialog(context, p),
     );
 
-    ref.listen<PendingBrowserAction?>(
-      chatNotifierProvider.select((s) => s.pendingBrowserAction),
-      (prev, next) {
-        if (next != null && prev?.id != next.id) {
-          _showApprovalDialogOnce(
-            next.id,
-            () => _showBrowserActionDialog(context, next),
-          );
-        }
-      },
+    _syncApprovalDialog<PendingBrowserAction>(
+      context,
+      (s) => s.pendingBrowserAction,
+      (p) => p.id,
+      (p) => _showBrowserActionDialog(context, p),
     );
 
-    ref.listen<PendingFileOperation?>(
-      chatNotifierProvider.select((s) => s.pendingFileOperation),
-      (prev, next) {
-        if (next != null &&
-            shouldPresentDesktopApproval(next.origin) &&
-            prev?.id != next.id) {
-          _showApprovalDialogOnce(
-            next.id,
-            () => _showFileOperationDialog(context, next),
-          );
-        }
-      },
+    _syncApprovalDialog<PendingFileOperation>(
+      context,
+      (s) => s.pendingFileOperation,
+      (p) => p.id,
+      (p) => _showFileOperationDialog(context, p),
+      shouldPresent: (p) => shouldPresentDesktopApproval(p.origin),
     );
 
-    ref.listen<PendingWorkflowDecision?>(
-      chatNotifierProvider.select((s) => s.pendingWorkflowDecision),
-      (prev, next) {
-        if (next != null && prev?.id != next.id) {
-          _showApprovalDialogOnce(
-            next.id,
-            () => _showWorkflowDecisionDialog(context, next),
-          );
-        }
-      },
+    _syncApprovalDialog<PendingWorkflowDecision>(
+      context,
+      (s) => s.pendingWorkflowDecision,
+      (p) => p.id,
+      (p) => _showWorkflowDecisionDialog(context, p),
     );
 
-    ref.listen<PendingAskUserQuestion?>(
-      chatNotifierProvider.select((s) => s.pendingAskUserQuestion),
-      (prev, next) {
-        if (next != null &&
-            shouldPresentDesktopQuestion(next.origin) &&
-            prev?.id != next.id) {
-          _showApprovalDialogOnce(
-            next.id,
-            () => _showAskUserQuestionDialog(context, next),
-          );
-        }
-      },
+    _syncApprovalDialog<PendingAskUserQuestion>(
+      context,
+      (s) => s.pendingAskUserQuestion,
+      (p) => p.id,
+      (p) => _showAskUserQuestionDialog(context, p),
+      shouldPresent: (p) => shouldPresentDesktopQuestion(p.origin),
     );
 
-    // BLE connect confirmation dialog.
-    ref.listen<PendingBleConnect?>(
-      chatNotifierProvider.select((s) => s.pendingBleConnect),
-      (prev, next) {
-        if (next != null && prev?.id != next.id) {
-          _showApprovalDialogOnce(
-            next.id,
-            () => _showBleConnectDialog(context, next),
-          );
-        }
-      },
+    _syncApprovalDialog<PendingBleConnect>(
+      context,
+      (s) => s.pendingBleConnect,
+      (p) => p.id,
+      (p) => _showBleConnectDialog(context, p),
     );
 
-    ref.listen<PendingSerialOpen?>(
-      chatNotifierProvider.select((s) => s.pendingSerialOpen),
-      (prev, next) {
-        if (next != null && prev?.id != next.id) {
-          _showApprovalDialogOnce(
-            next.id,
-            () => _showSerialOpenDialog(context, next),
-          );
-        }
-      },
+    _syncApprovalDialog<PendingSerialOpen>(
+      context,
+      (s) => s.pendingSerialOpen,
+      (p) => p.id,
+      (p) => _showSerialOpenDialog(context, p),
     );
 
-    ref.listen<PendingParticipantToolApproval?>(
-      chatNotifierProvider.select((s) => s.pendingParticipantToolApproval),
-      (prev, next) {
-        if (next != null && prev?.id != next.id) {
-          _showApprovalDialogOnce(
-            next.id,
-            () => _showParticipantToolApprovalDialog(context, next),
-          );
-        }
-      },
+    _syncApprovalDialog<PendingParticipantToolApproval>(
+      context,
+      (s) => s.pendingParticipantToolApproval,
+      (p) => p.id,
+      (p) => _showParticipantToolApprovalDialog(context, p),
     );
+  }
+
+  Future<void> _showWorkflowDecisionDialog(
+    BuildContext context,
+    PendingWorkflowDecision pending,
+  ) async {
+    final approvedAnswer =
+        await showModalBottomSheet<WorkflowPlanningDecisionAnswer>(
+          context: context,
+          isDismissible: false,
+          enableDrag: true,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          routeSettings: RouteSettings(
+            name: approvalDialogRouteName(pending.id),
+          ),
+          builder: (sheetContext) => _WorkflowDecisionSheet(pending: pending),
+        );
+
+    if (!mounted) return;
+
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveWorkflowDecision(id: pending.id, answer: approvedAnswer);
+  }
+
+  Future<void> _showAskUserQuestionDialog(
+    BuildContext context,
+    PendingAskUserQuestion pending,
+  ) async {
+    final answer = await showModalBottomSheet<AskUserQuestionAnswer>(
+      context: context,
+      isDismissible: false,
+      enableDrag: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      routeSettings: RouteSettings(name: approvalDialogRouteName(pending.id)),
+      builder: (sheetContext) => _AskUserQuestionSheet(pending: pending),
+    );
+
+    if (!mounted) return;
+
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveAskUserQuestion(id: pending.id, answer: answer);
   }
 
   Future<void> _showSshConnectDialog(
