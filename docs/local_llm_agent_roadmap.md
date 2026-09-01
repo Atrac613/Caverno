@@ -183,6 +183,7 @@ structurally unmotivated to build:
 | Local LLM | LL38 | done | S-M | LL31, LL33 | Mid-turn interruption (steering): an opt-in `interrupt: true` send joins the running turn instead of queueing behind it. Committed into the turn history at the top of `_prepareMessagesForLLM`, so every request path (native tools, content-tag tools, plain streaming) carries it without a per-site injection; rules in `TurnSteeringPolicy`, per-owner state in `TurnSteeringRegistry`, uncarried steers returned to `ThreadScopedMessageQueue` by the turn release scope. Ground-truth live canary with a queued control arm. |
 | Local LLM | LL39 | done | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
+| Local LLM | LL41 | later | M | LL34, LL35, LL37 | Deterministic goal verification contract: a `ConversationGoal` may carry a user-declared verification command and acceptance criteria whose exit code is ground truth for the goal auto-continue stop decision. Adds no judge and no inline panel — LL37's no-inline-stage decision stands; this is ground truth, not a verdict. Evidence-gated on an LL31 turn-exit triage of `awaitingConfirmation` and `noProgress` terminations. |
 | Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument. Its raw no-answer diagnostic remains frozen; RAG2 later replaced that promotion question with passage-role scoring rather than weakening the count. |
 | Retrieval | RAG2 | done | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects, complete caller-declared source roots, Git-backed acquisition, atomic generations, durable Drift/SQLite storage, and incremental AppDatabase-hosted FTS5 are Go. Identity-scoped MATCH and projection preserve the committed generation and provenance. The frozen v1 raw no-answer result remains No-Go. The unchanged lexical candidate passes the separately committed v2 passage-role holdout with 14/14 answer support, 4/4 Japanese support, 2/2 expected abstention, zero only-irrelevant unavailable cases, and 3,776/6,000 context tokens. Offline lexical retrieval is Go; runtime passage role stays unknown and production wiring remains owned by RAG3. |
 | Retrieval | RAG3 | blocked | M | RAG2, LL5, F6, LL39 | The frozen one-shot candidate is No-Go. The verbose two-bucket classifier is quality Go but inline latency No-Go at 6,464 ms p95, 5.39x the 1,200 ms ceiling. Prior deterministic score, intent, and cross-arm policies remain rejected. `rag3-compact-support-filter-v3` now freezes the same semantic decision as an ordered binary mask with at most 32 output tokens and the unchanged zero-error/1,200 ms gate; it has not run an instrument, validation, or promotion. Bounded vector persistence, `search_knowledge`, prompting, and runtime wiring remain blocked. |
@@ -238,6 +239,7 @@ structurally unmotivated to build:
 | Tools | TOOL7 | later | S | TOOL0-TOOL6 | MVP release gate and store/privacy readiness for workspace switching, validation, persistence, rendering, confirmation, data-egress copy, and receipt-ledger behavior. |
 | Routines | ROUTINE1 | done | M | F2, SKILL1 | In-chat scheduled-routine authoring: a `create_routine` built-in tool that schedules a recurring routine from the conversation behind a non-cacheable user approval. |
 | Routines | ROUTINE2 | later | M | ROUTINE1 | Chat-driven routine lifecycle: list/update/enable/disable/delete from chat plus a near-duplicate-by-name guard. |
+| Routines | ROUTINE3 | next | M | ROUTINE1, LL38 | In-chat `/loop <interval> <prompt>`: repeat a prompt inside the current conversation on an interval, preserving conversation history, tool-approval cache, workspace lease, and thread identity — the property that separates it from ROUTINE1's isolated catalog routine. |
 | Threat Posture | THREAT1 | later | M | F2, SEC1, SEC2 | Agent-as-malware-vector hardening: non-cacheable approval plus explicit resolved-command and destination-domain review for network-fetch-then-execute and persistence-write shapes in `local_shell`. |
 | Threat Posture | THREAT2 | later | M | F2, SEC1 | Read-only host compromise triage: a fixed-command `host_security_snapshot` IoC collector, a routine allowlist entry, and an AMOS-style TTP triage prompt/mode. |
 | Threat Posture | THREAT3 | later | L | THREAT2, LL10, LL18, LL5, SEC1 | Local threat-intelligence pre-learning: idle-orchestrated ingestion of CISA KEV / scoped NVD CVE feeds and malware advisories, map-reduced into a provenance-tracked local KB that feeds THREAT2 triage and installed-software vulnerability matching. |
@@ -5648,6 +5650,57 @@ ships the same design (`xai-grok-tools/src/types/agents_md_tracker.rs`,
 corroboration justifies keeping it on the roadmap, not jumping it ahead of the
 Grounded Verification Track.
 
+### LL41: Deterministic Goal Verification Contract
+
+Status: `later`
+
+Problem:
+- Goal auto-continue decides whether to stop from two disagreeing notions of
+  "verified". `ToolResultCompletionEvidence` counts any verification-classified
+  command that ran this turn; the verification generation counter only advances
+  when verification catches up with the latest mutation. A static check such as
+  `dart analyze` satisfies the first and not the second. The two disagree in
+  production: a measured session burned 163k tokens rejecting `update_goal`
+  five times against a stale "verification failed" flag while `dart test` was
+  passing.
+- Routines already carry the missing piece — `RoutineObjectiveEvidenceContract`
+  (`objective`, `acceptanceCriteria`, `verificationCommand`) and
+  `RoutineRunMechanicalVerification` (`command`, `exitCode`) — but interactive
+  goals have no equivalent, so the interactive stop decision is inferred from
+  evidence classification rather than observed from a command result.
+
+Scope:
+- Let a `ConversationGoal` carry an optional user-declared verification command
+  and acceptance criteria, settable from the goal editor and from `/goal`.
+- Run that command through the existing approval path and treat its exit code as
+  ground truth in `GoalAutoContinuePolicy`: a green run is the only mechanical
+  evidence that satisfies the goal's stop condition, and a red run keeps the
+  loop going while naming the failing command.
+- Reconcile the evidence/generation disagreement against that single fact rather
+  than introducing a third notion of "verified".
+
+Non-scope (deliberate):
+- No verifier, judge, or panel is added to the interactive turn. LL37 decided
+  that while a user is present, LL35's confirmation rung is cheaper and more
+  accurate than a local verifier; that decision stands. LL41 adds ground truth
+  (a command's exit code), not a judgement.
+- No heuristic may set terminal state (LL36).
+
+Acceptance criteria:
+- A goal with a verification command never reaches `completed` while that
+  command's most recent run is non-zero, and the continuation/blocked message
+  names the command and its exit code.
+- A goal with no verification command behaves exactly as it does today.
+- The evidence/generation disagreement resolves from the command result, with a
+  focused test covering the `dart analyze` passes / verification generation
+  stale case.
+
+Promotion gate: stays `later` until a triage of the LL31 turn-exit corpus
+(`tool/triage_session_logs.py`) measures how often interactive goals actually end
+in `awaitingConfirmation` or stop on `noProgress`. LL29 was demoted when its LL31
+gate came back negative; the same standard applies here. Current evidence is a
+single session, not a rate. Scoped 2026-09-01.
+
 ## Future Platform Vision Milestone Notes
 
 ### API1: Responses-Compatible Agent Event Core
@@ -6679,7 +6732,7 @@ Acceptance criteria:
 
 ### ROUTINE1: In-Chat Scheduled-Routine Authoring
 
-Status: `next`
+Status: `done`
 
 Context:
 - Routines (recurring agent runs) are created only through the routine editor UI
@@ -6732,6 +6785,60 @@ Acceptance criteria:
   without confirmation.
 - Enabling/disabling and deleting a routine from chat reflect immediately in the
   scheduler and the routines list.
+
+### ROUTINE3: In-Chat Interval Loop (`/loop`)
+
+Status: `next`
+
+Context:
+- Caverno already covers three of the four loop shapes described in
+  <https://claude.com/blog/getting-started-with-loops>: turn-based (the
+  `ChatNotifier` tool loop), goal-based (`/goal` + `ConversationGoal` +
+  `GoalAutoContinuePolicy`, with turn/token budgets and no-progress stops), and
+  proactive (Routines with `RoutineToolPolicy`, completion delivery, and the LL7
+  retry-until-green preset).
+- The missing shape is the time-based loop *inside a conversation*. ROUTINE1's
+  `create_routine` already schedules recurring work from chat, but a `Routine` is
+  a separate entity executed by `RoutineExecutionService` against its own
+  context. The worked example from the article — "every 5 minutes, check my PR,
+  address review comments, and fix failing CI" — needs the conversation's own
+  history, tool approvals, and workspace to carry across iterations. That
+  carry-over is the entire delta against ROUTINE1, and the milestone should be
+  judged on it.
+- `RoutineSchedulerController` is a one-minute in-app `Timer` plus an
+  `AppLifecycleState.resumed` catch-up, so every loop shape here runs only while
+  the app is alive. Cloud-resident scheduling needs a server and is out of scope.
+
+Scope:
+- Add a `/loop` slash command: `/loop <interval> <prompt>` to arm, `/loop stop`
+  to disarm, bare `/loop` to report state. The armed loop belongs to the
+  conversation and is visible in its UI.
+- Resend through the normal send path so each iteration inherits the
+  conversation's history, `ToolApprovalCache`, workspace lease, and thread
+  identity.
+- Gate every tick on `GoalAutoContinueSafeBoundary`: never fire while a turn is
+  loading, while any approval or `ask_user_question` is pending, or while the
+  chat state carries an error. Skip the tick rather than accumulating a backlog.
+- Honor the LL38 steering contract: a tick must not advance the interaction
+  generation of a running turn or displace a queued user message.
+- Cap runaway loops with a visible iteration budget, in the shape `/goal`
+  already uses (`turnBudget` / `tokenBudget`).
+
+Acceptance criteria:
+- `/loop 5m <prompt>` resends that prompt every five minutes into the same
+  conversation, and each iteration sees the previous iterations' history.
+- No tick fires while an approval is pending, and a skipped tick is reported
+  rather than silently dropped.
+- `/loop stop`, `/new`, and `/clear` all disarm the loop; no timer survives a
+  conversation switch, and a loop armed in one thread never sends into another.
+- The iteration budget stops the loop and says why.
+
+Follow-ups (not required for ROUTINE3):
+- Model-paced intervals: the model chooses when to wake instead of a fixed
+  interval.
+- Push-woken ticks while the app is backgrounded, reusing the
+  `firebase_messaging` path already present for remote coding. True
+  cloud-resident scheduling stays out of scope.
 
 ### THREAT1: Agent-As-Malware-Vector Hardening
 
