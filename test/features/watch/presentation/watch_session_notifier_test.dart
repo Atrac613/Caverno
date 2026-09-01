@@ -226,6 +226,74 @@ void main() {
     expect(bridge.results.single.code, 'empty_message');
   });
 
+  group('thread switching', () {
+    test('the snapshot offers the threads the watch can switch to', () async {
+      final instance = await notifier();
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation();
+      conversations.createNewConversation();
+
+      await instance.handleCommandForTest(
+        const WatchCommand(type: WatchCommand.requestSnapshot),
+      );
+
+      final snapshot = bridge.pushedSnapshots.last;
+      expect(snapshot.conversations.length, greaterThanOrEqualTo(2));
+      expect(snapshot.conversationsTruncated, isFalse);
+    });
+
+    test('selecting a thread changes which one is current', () async {
+      final instance = await notifier();
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation();
+      final first = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .id;
+      conversations.createNewConversation();
+      final second = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .id;
+      expect(first, isNot(second));
+
+      await instance.handleCommandForTest(
+        WatchCommand(
+          type: WatchCommand.selectConversation,
+          id: 'c-1',
+          payload: {'conversationId': first},
+        ),
+      );
+
+      expect(bridge.results.single.ok, isTrue);
+      expect(
+        container.read(conversationsNotifierProvider).currentConversationId,
+        first,
+      );
+      expect(bridge.pushedSnapshots.last.conversationId, first);
+    });
+
+    test('selecting a thread that is gone is refused', () async {
+      final instance = await notifier();
+
+      await instance.handleCommandForTest(
+        const WatchCommand(
+          type: WatchCommand.selectConversation,
+          id: 'c-1',
+          payload: {'conversationId': 'vanished'},
+        ),
+      );
+
+      final result = bridge.results.single;
+      expect(result.ok, isFalse);
+      expect(result.code, 'conversation_not_found');
+    });
+  });
+
   group('deferred command conversation binding', () {
     test('a message stamped for another thread is refused', () async {
       final instance = await notifier();

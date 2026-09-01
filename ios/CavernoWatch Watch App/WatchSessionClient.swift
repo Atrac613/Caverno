@@ -48,6 +48,10 @@ final class WatchSessionClient: NSObject, ObservableObject {
     send(.cancelStreaming)
   }
 
+  func selectConversation(id: String) {
+    send(.selectConversation, payload: ["conversationId": id])
+  }
+
   func sendMessage(_ content: String, isVoiceMode: Bool) {
     let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return }

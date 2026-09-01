@@ -19,6 +19,7 @@ class WatchCommand {
   static const String resolveQuestion = 'resolveQuestion';
   static const String cancelStreaming = 'cancelStreaming';
   static const String requestSnapshot = 'requestSnapshot';
+  static const String selectConversation = 'selectConversation';
 
   /// Commands the bridge will act on. Anything else is answered with an error
   /// rather than ignored, so a watch build that is newer than the iPhone build
@@ -29,6 +30,7 @@ class WatchCommand {
     resolveQuestion,
     cancelStreaming,
     requestSnapshot,
+    selectConversation,
   };
 
   factory WatchCommand.fromJson(Map<String, dynamic> json) {

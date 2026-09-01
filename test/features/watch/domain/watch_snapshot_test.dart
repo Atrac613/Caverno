@@ -53,6 +53,10 @@ void main() {
       elapsedSeconds: 91,
       queuedCount: 3,
       busyThreadCount: 2,
+      conversations: List.generate(
+        40,
+        (index) => WatchConversation(id: 'c$index', title: 'T' * 4000),
+      ),
       error: 'E' * 4000,
     );
 
@@ -66,6 +70,28 @@ void main() {
             'WCSession rejects oversized dictionaries at runtime, so the '
             'projection must cap every unbounded field.',
       );
+    });
+
+    test('caps the thread list and says that it did', () {
+      final json = maximal().toJson();
+
+      expect(
+        (json['conversations'] as List<dynamic>).length,
+        watchSnapshotMaxConversations,
+      );
+      expect(json['conversationsTruncated'], isTrue);
+    });
+
+    test('does not flag truncation when every thread fits', () {
+      final snapshot = WatchSnapshot(
+        sequence: 1,
+        generatedAt: DateTime.utc(2026, 9, 1),
+        conversations: const [
+          WatchConversation(id: 'a', title: 'Fix the parser'),
+        ],
+      );
+
+      expect(snapshot.toJson()['conversationsTruncated'], isFalse);
     });
 
     test('caps the question option list and says that it did', () {

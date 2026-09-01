@@ -21,6 +21,13 @@ const int watchSnapshotDetailLimit = 300;
 const int watchSnapshotOptionLabelLimit = 60;
 const int watchSnapshotMaxQuestionOptions = 4;
 
+/// How many threads the watch is offered to switch between.
+///
+/// A cap, not a preference: the snapshot has a payload budget and a watch
+/// screen cannot usefully present more. The frame says when the list was cut
+/// so the watch can point at the iPhone instead of implying it is complete.
+const int watchSnapshotMaxConversations = 8;
+
 /// What the watch should show for the conversation it is mirroring.
 enum WatchTurnStatus {
   idle,
@@ -157,6 +164,25 @@ class WatchQuestion {
   };
 }
 
+/// A thread the watch can switch to.
+class WatchConversation {
+  const WatchConversation({required this.id, required this.title});
+
+  final String id;
+  final String title;
+
+  factory WatchConversation.fromJson(Map<String, dynamic> json) =>
+      WatchConversation(
+        id: (json['id'] as String?)?.trim() ?? '',
+        title: (json['title'] as String?)?.trim() ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': truncateForWatch(title, watchSnapshotTitleLimit),
+  };
+}
+
 /// One frame of iPhone chat state, projected for the watch.
 class WatchSnapshot {
   const WatchSnapshot({
@@ -171,6 +197,8 @@ class WatchSnapshot {
     this.elapsedSeconds = 0,
     this.queuedCount = 0,
     this.busyThreadCount = 0,
+    this.conversations = const <WatchConversation>[],
+    this.conversationsTruncated = false,
     this.error,
   });
 
@@ -188,6 +216,10 @@ class WatchSnapshot {
   final int elapsedSeconds;
   final int queuedCount;
   final int busyThreadCount;
+
+  /// Threads the watch may switch to, most recent first, already capped.
+  final List<WatchConversation> conversations;
+  final bool conversationsTruncated;
   final String? error;
 
   bool get needsAttention =>
@@ -215,6 +247,12 @@ class WatchSnapshot {
       elapsedSeconds: (json['elapsedSeconds'] as num?)?.toInt() ?? 0,
       queuedCount: (json['queuedCount'] as num?)?.toInt() ?? 0,
       busyThreadCount: (json['busyThreadCount'] as num?)?.toInt() ?? 0,
+      conversations:
+          (json['conversations'] as List<dynamic>? ?? const <dynamic>[])
+              .whereType<Map<String, dynamic>>()
+              .map(WatchConversation.fromJson)
+              .toList(growable: false),
+      conversationsTruncated: json['conversationsTruncated'] == true,
       error: json['error'] as String?,
     );
   }
@@ -238,6 +276,13 @@ class WatchSnapshot {
     'elapsedSeconds': elapsedSeconds,
     'queuedCount': queuedCount,
     'busyThreadCount': busyThreadCount,
+    'conversations': conversations
+        .take(watchSnapshotMaxConversations)
+        .map((conversation) => conversation.toJson())
+        .toList(growable: false),
+    'conversationsTruncated':
+        conversationsTruncated ||
+        conversations.length > watchSnapshotMaxConversations,
     if (error != null && error!.isNotEmpty)
       'error': truncateForWatch(error!, watchSnapshotTitleLimit),
   };

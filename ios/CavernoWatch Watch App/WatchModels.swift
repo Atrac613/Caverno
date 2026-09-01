@@ -65,6 +65,11 @@ struct WatchQuestion: Decodable, Equatable {
   }
 }
 
+struct WatchConversation: Decodable, Equatable, Identifiable {
+  let id: String
+  let title: String
+}
+
 struct WatchSnapshot: Decodable, Equatable {
   let sequence: Int
   let generatedAt: String
@@ -77,6 +82,8 @@ struct WatchSnapshot: Decodable, Equatable {
   let elapsedSeconds: Int
   let queuedCount: Int
   let busyThreadCount: Int
+  let conversations: [WatchConversation]
+  let conversationsTruncated: Bool
   let error: String?
 
   var needsAttention: Bool {
@@ -86,7 +93,7 @@ struct WatchSnapshot: Decodable, Equatable {
   private enum CodingKeys: String, CodingKey {
     case sequence, generatedAt, conversationId, conversationTitle, status
     case lastAssistantText, approval, question, elapsedSeconds, queuedCount
-    case busyThreadCount, error
+    case busyThreadCount, conversations, conversationsTruncated, error
   }
 
   init(from decoder: Decoder) throws {
@@ -115,6 +122,12 @@ struct WatchSnapshot: Decodable, Equatable {
       try container.decodeIfPresent(Int.self, forKey: .queuedCount) ?? 0
     busyThreadCount =
       try container.decodeIfPresent(Int.self, forKey: .busyThreadCount) ?? 0
+    conversations =
+      try container.decodeIfPresent(
+        [WatchConversation].self, forKey: .conversations) ?? []
+    conversationsTruncated =
+      try container.decodeIfPresent(
+        Bool.self, forKey: .conversationsTruncated) ?? false
     error = try container.decodeIfPresent(String.self, forKey: .error)
   }
 }
@@ -142,4 +155,5 @@ enum WatchCommandType: String {
   case resolveQuestion
   case cancelStreaming
   case requestSnapshot
+  case selectConversation
 }

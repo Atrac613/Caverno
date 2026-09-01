@@ -29,6 +29,18 @@ struct StatusView: View {
           Label("Speak", systemImage: "mic.fill")
         }
 
+        if snapshot.conversations.count > 1 {
+          NavigationLink {
+            ThreadPickerView(
+              conversations: snapshot.conversations,
+              currentId: snapshot.conversationId,
+              truncated: snapshot.conversationsTruncated
+            )
+          } label: {
+            Label("Threads", systemImage: "list.bullet")
+          }
+        }
+
         if snapshot.status == .streaming {
           Button(role: .destructive) {
             client.cancelStreaming()

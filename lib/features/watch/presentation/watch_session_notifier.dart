@@ -183,6 +183,9 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
           : DateTime.now().difference(startedAt).inSeconds,
       queuedCount: chatState.queuedMessages.length,
       busyThreadCount: chatState.busyConversationIds.length,
+      conversations: _switchableConversations(conversations),
+      conversationsTruncated:
+          conversations.conversations.length > watchSnapshotMaxConversations,
       error: chatState.error,
     );
   }
@@ -199,6 +202,22 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     final normalized = title?.trim() ?? '';
     return normalized == defaultConversationTitle ? '' : normalized;
   }
+
+  /// Threads the watch may switch to.
+  ///
+  /// Capped at the source rather than only in the wire model so the projection
+  /// never builds a list it is about to discard, and titled with the same
+  /// sentinel handling as the header.
+  List<WatchConversation> _switchableConversations(ConversationsState state) =>
+      state.conversations
+          .take(watchSnapshotMaxConversations)
+          .map(
+            (conversation) => WatchConversation(
+              id: conversation.id,
+              title: _titleFor(conversation.title),
+            ),
+          )
+          .toList(growable: false);
 
   WatchTurnStatus _statusFor(
     ChatState chatState, {
@@ -285,6 +304,8 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       case WatchCommand.requestSnapshot:
         await _pushSnapshot(ref.read(chatNotifierProvider));
         await _succeed(command);
+      case WatchCommand.selectConversation:
+        await _handleSelectConversation(command);
     }
   }
 
@@ -334,6 +355,25 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
           ),
     );
     await _succeed(command);
+  }
+
+  Future<void> _handleSelectConversation(WatchCommand command) async {
+    final id = (command.payload['conversationId'] as String?)?.trim() ?? '';
+    final conversations = ref.read(conversationsNotifierProvider);
+    if (id.isEmpty ||
+        !conversations.conversations.any(
+          (conversation) => conversation.id == id,
+        )) {
+      await _fail(
+        command,
+        code: 'conversation_not_found',
+        message: 'That thread no longer exists.',
+      );
+      return;
+    }
+    ref.read(conversationsNotifierProvider.notifier).selectConversation(id);
+    await _succeed(command);
+    await _pushSnapshot(ref.read(chatNotifierProvider));
   }
 
   Future<void> _handleResolveApproval(WatchCommand command) async {
