@@ -157,7 +157,7 @@ handoffs can refer to the same unit of work over time.
 | Fork | FORK2 | later | Coding conversation fork: reproduce the worktree/git + LL2 file state as of the fork point into an isolated worktree/branch (never shared with the parent), with a non-git snapshot fallback. Gated on FORK1 + LL2 + LL13. | Seed a fresh worktree from the parent's turn commit or LL2 checkpoint; carry `projectId`; assign a new `worktreePath`/branch. |
 | Fork | FORK3 | later | Fork-tree navigation and compare: drawer fork tree, jump-to-parent, and parent-vs-fork diff. | Start after FORK1/FORK2 ship; reuse `TurnDiff` rendering for the compare view. |
 | Watch | WATCH1 | done | Apple Watch companion: approvals and questions from the wrist, a running-turn glance with cancel, dictated prompts spoken back, and Approve/Deny on the approval notification itself. | Shipped 2026-09-01 (`docs/apple_watch_companion.md`). Nothing has been run end to end yet; that is WATCH2. |
-| Watch | WATCH2 | next | Prove the companion actually works: the native/Dart bridge boundary is the one seam unit tests cannot reach, and no build has been run. | Repair `pod install` (stale CocoaPods spec repo), pair an iPhone and Watch simulator in Xcode, then drive requestSnapshot, an approval, and a dictated turn. |
+| Watch | WATCH2 | current | Prove the companion actually works: the native/Dart bridge boundary is the one seam unit tests cannot reach. Transport verified on paired simulators 2026-09-01, surfacing three defects (build-phase cycle, leaked title sentinel, missing reachability handler), all fixed. | Configure an endpoint on the simulator and drive an approval turn plus a dictated prompt; the approval and voice round trips are still unproven. |
 | Watch | WATCH3 | next | Bind a deferred watch command to the conversation it was composed against, so a queued `sendMessage` cannot land in whichever thread happens to be current when it is finally delivered. | Carry `conversationId` on the command, reject on mismatch in `_handleSendMessage`. |
 | Watch | WATCH4 | later | Glanceable surfaces and thread choice: Smart Stack widget or complication, plus switching the mirrored conversation from the watch. | Start after WATCH2 confirms the transport; `transferCurrentComplicationUserInfo` has a delivery budget, so keep the payload to a running-thread count. |
 | Watch | WATCH5 | later | Approve/Deny on a push-delivered notification, not only a locally raised one. | Needs a native `UNUserNotificationCenter` delegate: `firebase_messaging` does not surface `actionIdentifier` on iOS. |
@@ -1404,38 +1404,59 @@ Next action:
 
 ### WATCH2: End-To-End Device Verification
 
-Status: `next`
+Status: `current`
 
 Scope:
-- Run the companion for the first time. Every unit test crosses a fake bridge,
-  so the `WatchBridgePlugin` <-> `WatchBridgeService` boundary — channel names,
-  payload framing, `WCSession` activation and reachability — is the one seam
-  the suite cannot reach, and a green suite only shows each side is
-  self-consistent.
-- Repair the local iOS build first: `pod install` fails in this worktree
-  because the CocoaPods spec repository is too old, so `ios/Pods` has no
-  `Pods.xcodeproj` and no full iOS build has ever run against this change.
-- Validate packaging as well as runtime: the watch app is embedded by an
-  `Embed Watch Content` phase and carries `SKIP_INSTALL = YES`, neither of
-  which has been exercised by an archive.
+- Run the companion. Every unit test crosses a fake bridge, so the
+  `WatchBridgePlugin` <-> `WatchBridgeService` boundary — channel names, payload
+  framing, `WCSession` activation and reachability, and the embed phase — is
+  the one seam the suite cannot reach.
 
-Acceptance criteria:
-- On a paired iPhone + Watch simulator: `requestSnapshot` returns a frame, a
-  turn's progress appears on the watch, Approve actually runs the tool, and a
-  dictated prompt starts a turn whose reply is spoken.
-- An archive validates with the watch app inside `Runner.app/Watch/` and no
-  stray product at the archive root.
-- Three checks that need real hardware are recorded as pass or fail:
-  notification forwarding while the phone is locked, the effective background
-  window around a turn, and haptics.
+Evidence (2026-09-01, iPhone 17 Pro Max / iOS 26.5 paired with Apple Watch
+Series 11 / watchOS 26.5):
+- The round trip works. Unified log on the phone shows
+  `reachable: YES, paired: YES, appInstalled: YES`, a 94-byte dictionary
+  message inbound from the watch (`requestSnapshot`), and the answer going out
+  as both `updateApplicationContext size: 231` and `sendMessageData size: 231`,
+  followed by a 67-byte command result. The watch renders its status view.
+- The embedded artifact is the one tested: `flutter build ios` reports "Watch
+  companion app found" and produces
+  `Runner.app/Watch/CavernoWatch Watch App.app`, which is what was installed.
+- Simulator pairing needs no GUI: `xcrun simctl pair` exists, pairs are already
+  configured, and `simctl boot <pair-udid>` brings both up.
 
-Dependencies:
-- A working `pod repo update` / `pod install`.
-- Xcode Devices window for simulator pairing; the session's iOS Simulator
-  tooling cannot pair a Watch simulator.
+Three defects only a real run could surface, all fixed:
+- `Cycle inside Runner`. `Embed Watch Content` was appended at the end of the
+  build phases, after the Flutter and CocoaPods script phases. Xcode's template
+  puts it immediately after Resources; `tool/add_watch_target.rb` now places it
+  there on every run. A `xcodebuild -target` build of the watch alone never
+  touches Runner, so this class of failure cannot appear before a full build.
+- The watch showed a literal `__new_conversation__`. That is
+  `defaultConversationTitle`, a marker every other surface substitutes; the
+  watch projection passed it through.
+- `delegate Runner.WatchBridgePlugin does not implement
+  sessionReachabilityDidChange:`, named by the OS log. The phone never re-pushed
+  when the watch became reachable, so the frame only arrived because the watch
+  asked.
+
+Two environment blockers, both pre-existing and unrelated to the companion:
+- CocoaPods died with `Encoding::CompatibilityError` because `LANG` was not
+  UTF-8, while printing the misleading "specs repository is too out-of-date".
+  `pod repo update` does not fix it; `LANG=en_US.UTF-8` does.
+- `ios/Podfile.lock` still pinned Firebase 12.17.0 while the plugins resolve to
+  12.18.0, so no iOS build could run at all.
+
+Remaining:
+- The approval and voice round trips are unproven. Both need a turn, which needs
+  a configured LLM endpoint; the simulator was on the onboarding screen.
+- Three checks need real hardware: notification forwarding while the phone is
+  locked, the effective background window around a turn, and haptics.
+- An archive has not been validated (the watch app inside `Runner.app/Watch/`
+  with no stray product at the archive root).
 
 Next action:
-- `pod repo update`, then pair the simulators and drive the three flows above.
+- Configure an endpoint on the simulator, drive a tool-approval turn, and answer
+  it from the watch; then dictate a prompt and confirm the reply is spoken.
 
 ### WATCH3: Deferred Watch Command Conversation Binding
 
