@@ -32,6 +32,9 @@ handoffs can refer to the same unit of work over time.
   milestones documented in this file under "Conversation Fork Track".
 - Use `CLI<number>` for the headless runtime and user-facing terminal client
   milestones documented in this file under "Caverno CLI Track".
+- Use `WATCH<number>` for the Apple Watch companion milestones documented in
+  this file under "Apple Watch Companion Track", with the shipped design in
+  `docs/apple_watch_companion.md`.
 - Use one of these statuses: `done`, `current`, `next`, `blocked`, `later`.
 - Every active milestone should record scope, acceptance criteria, verification
   evidence, and the next action.
@@ -153,11 +156,17 @@ handoffs can refer to the same unit of work over time.
 | Fork | FORK1 | next | Chat conversation fork: branch a new thread from any message, copying history up to that point with parent linkage and drawer grouping. | Add `parentConversationId`/fork-origin fields to `Conversation`, reuse `_createConversation`/`save`, and add a per-message "fork here" affordance. |
 | Fork | FORK2 | later | Coding conversation fork: reproduce the worktree/git + LL2 file state as of the fork point into an isolated worktree/branch (never shared with the parent), with a non-git snapshot fallback. Gated on FORK1 + LL2 + LL13. | Seed a fresh worktree from the parent's turn commit or LL2 checkpoint; carry `projectId`; assign a new `worktreePath`/branch. |
 | Fork | FORK3 | later | Fork-tree navigation and compare: drawer fork tree, jump-to-parent, and parent-vs-fork diff. | Start after FORK1/FORK2 ship; reuse `TurnDiff` rendering for the compare view. |
+| Watch | WATCH1 | done | Apple Watch companion: approvals and questions from the wrist, a running-turn glance with cancel, dictated prompts spoken back, and Approve/Deny on the approval notification itself. | Shipped 2026-09-01 (`docs/apple_watch_companion.md`). Nothing has been run end to end yet; that is WATCH2. |
+| Watch | WATCH2 | next | Prove the companion actually works: the native/Dart bridge boundary is the one seam unit tests cannot reach, and no build has been run. | Repair `pod install` (stale CocoaPods spec repo), pair an iPhone and Watch simulator in Xcode, then drive requestSnapshot, an approval, and a dictated turn. |
+| Watch | WATCH3 | next | Bind a deferred watch command to the conversation it was composed against, so a queued `sendMessage` cannot land in whichever thread happens to be current when it is finally delivered. | Carry `conversationId` on the command, reject on mismatch in `_handleSendMessage`. |
+| Watch | WATCH4 | later | Glanceable surfaces and thread choice: Smart Stack widget or complication, plus switching the mirrored conversation from the watch. | Start after WATCH2 confirms the transport; `transferCurrentComplicationUserInfo` has a delivery budget, so keep the payload to a running-thread count. |
+| Watch | WATCH5 | later | Approve/Deny on a push-delivered notification, not only a locally raised one. | Needs a native `UNUserNotificationCenter` delegate: `firebase_messaging` does not surface `actionIdentifier` on iOS. |
 
 Foundation F5 and the future platform vision milestones are
 detailed in `docs/local_llm_agent_roadmap.md`. The user-created Tools MVP is
 detailed in `docs/tools_mvp_roadmap.md`. Conversation fork milestones are
-detailed below under "Conversation Fork Track".
+detailed below under "Conversation Fork Track", and Apple Watch companion
+milestones under "Apple Watch Companion Track".
 
 The canonical security finding record is
 `docs/security_audit_2026-08-14.md`, with the current evidence and patch plan in
@@ -1345,6 +1354,157 @@ Acceptance criteria:
 
 Next action:
 - Start after FORK1 and FORK2 ship.
+
+## Apple Watch Companion Track
+
+The companion exists to answer a blocked turn without taking the phone out.
+Flutter does not run on watchOS, so it is a SwiftUI target embedded in
+`Runner.app` talking to the Flutter app over `WCSession`; the design, and the
+reasoning behind treating the watch as a peripheral of this device rather than
+as a paired principal, is in `docs/apple_watch_companion.md`. These milestones
+use `WATCH<number>` and live here rather than in the Local LLM roadmap because
+this is a user-facing surface, not local-LLM execution work.
+
+### WATCH1: Companion Bridge, Approvals, And Voice
+
+Status: `done`
+
+Scope:
+- `WatchBridgePlugin` (`ios/Runner/AppDelegate.swift`) plus
+  `WatchBridgeService` and `WatchSessionNotifier` on the Dart side: project
+  `ChatState` outward as a bounded `WatchSnapshot`, apply `sendMessage`,
+  `resolveApproval`, `resolveQuestion`, `cancelStreaming`, and
+  `requestSnapshot` back onto `ChatNotifier`.
+- watchOS app: running-turn glance with cancel, Approve/Deny with haptics, a
+  tappable `ask_user_question` option list, and dictation with the reply read
+  back by `AVSpeechSynthesizer`.
+- Actionable approval notifications as the fallback for when the watch app is
+  closed, which iOS forwards to the wrist with no watchOS code involved.
+
+Acceptance criteria (met):
+- The watch sees local-origin pending interactions and never one owned by
+  another paired Remote Coding device, preserving SEC4.5g.
+- A maximal snapshot stays inside the WatchConnectivity payload budget.
+- Notification actions appear only when the approval id is known and the kind
+  is a plain yes/no; SSH connect and computer-use stay read-only.
+- `flutter analyze` clean of new issues, full suite green (8899 tests), and the
+  watchOS target builds for `watchsimulator`.
+
+Verification evidence:
+- Commits `d3f46c89`, `473826d9`, `6af09bff`, `67955486` on
+  `claude/apple-watch-app-features-d25b53`.
+- `tool/flutter_test_quiet.sh` (44 new tests under `test/features/watch/` and
+  `test/features/chat/.../pending_approval_*`).
+- `xcodebuild -target "CavernoWatch Watch App" -sdk watchsimulator26.5` →
+  BUILD SUCCEEDED; `AppDelegate.swift` typechecked against the real
+  `Flutter.xcframework`.
+
+Next action:
+- None. The gap this leaves is that nothing has been run; see WATCH2.
+
+### WATCH2: End-To-End Device Verification
+
+Status: `next`
+
+Scope:
+- Run the companion for the first time. Every unit test crosses a fake bridge,
+  so the `WatchBridgePlugin` <-> `WatchBridgeService` boundary — channel names,
+  payload framing, `WCSession` activation and reachability — is the one seam
+  the suite cannot reach, and a green suite only shows each side is
+  self-consistent.
+- Repair the local iOS build first: `pod install` fails in this worktree
+  because the CocoaPods spec repository is too old, so `ios/Pods` has no
+  `Pods.xcodeproj` and no full iOS build has ever run against this change.
+- Validate packaging as well as runtime: the watch app is embedded by an
+  `Embed Watch Content` phase and carries `SKIP_INSTALL = YES`, neither of
+  which has been exercised by an archive.
+
+Acceptance criteria:
+- On a paired iPhone + Watch simulator: `requestSnapshot` returns a frame, a
+  turn's progress appears on the watch, Approve actually runs the tool, and a
+  dictated prompt starts a turn whose reply is spoken.
+- An archive validates with the watch app inside `Runner.app/Watch/` and no
+  stray product at the archive root.
+- Three checks that need real hardware are recorded as pass or fail:
+  notification forwarding while the phone is locked, the effective background
+  window around a turn, and haptics.
+
+Dependencies:
+- A working `pod repo update` / `pod install`.
+- Xcode Devices window for simulator pairing; the session's iOS Simulator
+  tooling cannot pair a Watch simulator.
+
+Next action:
+- `pod repo update`, then pair the simulators and drive the three flows above.
+
+### WATCH3: Deferred Watch Command Conversation Binding
+
+Status: `next`
+
+Scope:
+- Bind a watch command to the conversation it was composed against.
+  `WatchSessionClient.send` falls back to `transferUserInfo` when the phone is
+  unreachable, which guarantees delivery but not promptness, and the command
+  carries no conversation id. `resolveApproval` degrades safely because
+  approval ids are unique and a stale one simply fails to resolve, but a
+  `sendMessage` delivered minutes later lands in whichever thread is current
+  by then.
+
+Acceptance criteria:
+- `sendMessage` carries the `conversationId` the watch was showing, and
+  `_handleSendMessage` refuses it with a distinct code when it no longer
+  matches, rather than sending into the wrong thread.
+- The watch reports the refusal instead of silently dropping the text.
+- A focused test covers the mismatch path.
+
+Next action:
+- Add the field to the command payload and the check in
+  `watch_session_notifier.dart`; roughly ten lines plus its test.
+
+### WATCH4: Glanceable Surfaces And Thread Choice
+
+Status: `later`
+
+Scope:
+- A Smart Stack widget or complication showing how many threads are running,
+  and switching which conversation the watch mirrors.
+
+Acceptance criteria:
+- The glance updates without the watch app being opened.
+- Conversation switching reuses the existing snapshot projection rather than a
+  second one.
+
+Dependencies:
+- WATCH2, so the transport is proven before more is layered on it.
+- `transferCurrentComplicationUserInfo` has a delivery budget, so the payload
+  stays a running-thread count rather than any content.
+
+Next action:
+- Start after WATCH2 records a passing end-to-end run.
+
+### WATCH5: Push-Originated Notification Actions
+
+Status: `later`
+
+Scope:
+- Let Approve/Deny work on a notification delivered by push, not only one
+  raised locally. The relay (`services/notification_relay/`) can already add
+  the APNs `category`, but `firebase_messaging` does not surface
+  `actionIdentifier` on iOS, so the action has to be read by a native
+  `UNUserNotificationCenter` delegate and handed to Dart.
+
+Acceptance criteria:
+- An approval action chosen on a pushed notification resolves the right
+  request by id, under the same "known id and simple decision" gate as the
+  local path.
+
+Dependencies:
+- The Remote Coding FCM release gate (`docs/remote_coding_fcm_release_gate.md`)
+  owns whether pushes ship at all.
+
+Next action:
+- Start only once a push path actually needs to carry an approval; the local
+  notification already covers the watch case.
 
 ## Foundation, Local LLM Agent, And Future Platform Vision Tracks
 
