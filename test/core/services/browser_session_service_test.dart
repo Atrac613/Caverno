@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:caverno/core/services/browser_session_service.dart';
+import 'package:caverno/core/services/browser_pinned_http_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -184,8 +185,39 @@ void main() {
       final decision = service.navigationDecision('https://example.com/');
 
       expect(decision.allowed, isFalse);
+      expect(decision.shouldMediate, isFalse);
       expect(decision.code, 'browser_peer_verification_unavailable');
     });
+
+    test(
+      'classifies public HTTP as mediated once browser tools are enabled',
+      () {
+        final service = BrowserSessionService();
+        service.updateEnabled(true);
+
+        final decision = service.navigationDecision('https://example.com/');
+
+        expect(decision.allowed, isFalse);
+        expect(decision.shouldMediate, isTrue);
+        expect(decision.code, 'mediate_pinned_proxy');
+      },
+    );
+
+    test(
+      'preview sessions do not reroute WebView clicks to the public web',
+      () {
+        final service = BrowserSessionService();
+        service.updateEnabled(true);
+        service.armLocalPreviewOriginForTest(
+          Uri.parse('http://127.0.0.1:4321/index.html'),
+        );
+
+        final decision = service.navigationDecision('https://example.com/');
+        expect(decision.allowed, isFalse);
+        expect(decision.shouldMediate, isFalse);
+        expect(decision.code, 'browser_peer_verification_unavailable');
+      },
+    );
 
     test('allows only the active loopback HTML preview origin', () {
       final service = BrowserSessionService();
@@ -251,5 +283,116 @@ void main() {
         expect(service.isPanelOpen, isFalse);
       },
     );
+
+    test(
+      'browser_open can leave a preview session to mediate a public URL',
+      () async {
+        final service = BrowserSessionService(
+          pinnedHttpClient: BrowserPinnedHttpClient(
+            addressLookup: (_) async => [InternetAddress('192.168.1.1')],
+            socketConnector: (uri, address, port) =>
+                throw StateError('unreachable'),
+          ),
+        );
+        service.updateEnabled(true);
+        service.armLocalPreviewOriginForTest(
+          Uri.parse('http://127.0.0.1:4321/index.html'),
+        );
+
+        final result = jsonDecode(
+          await service.openUrl('https://example.com/'),
+        );
+
+        expect(result, containsPair('ok', false));
+        expect(result, containsPair('code', 'unsafe_address'));
+        expect(service.isPanelOpen, isFalse);
+      },
+    );
+
+    test(
+      'browser_open rejects a private DNS answer before opening the panel',
+      () async {
+        final service = BrowserSessionService(
+          pinnedHttpClient: BrowserPinnedHttpClient(
+            addressLookup: (_) async => [InternetAddress('127.0.0.1')],
+            socketConnector: (uri, address, port) =>
+                throw StateError('unreachable'),
+          ),
+        );
+        service.updateEnabled(true);
+
+        final result = jsonDecode(
+          await service.openUrl('https://example.com/'),
+        );
+
+        expect(result, containsPair('ok', false));
+        expect(result, containsPair('code', 'unsafe_address'));
+        expect(service.isPanelOpen, isFalse);
+      },
+    );
+
+    test(
+      'allows mediation-proxy subresources after the proxy starts',
+      () async {
+        final service = BrowserSessionService();
+        addTearDown(service.dispose);
+        final origin = await service.startMediationProxyForTest();
+
+        expect(service.navigationDecision(origin.toString()).allowed, isTrue);
+        expect(
+          service.allowsResourceRequest(
+            origin.replace(path: '/app.js').toString(),
+          ),
+          isTrue,
+        );
+        expect(
+          service.allowsResourceRequest('https://example.com/app.js'),
+          isFalse,
+        );
+      },
+    );
+
+    test(
+      'maps mediation-proxy URLs back to the upstream display URL',
+      () async {
+        final service = BrowserSessionService();
+        addTearDown(service.dispose);
+        final origin = await service.startMediationProxyForTest(
+          upstream: Uri.parse('https://example.com/r/foo?t=day'),
+        );
+
+        expect(
+          service.displayUrlForTest(origin.toString()),
+          'https://example.com/r/foo?t=day',
+        );
+      expect(
+        service.displayUrlForTest(
+          Uri(
+            scheme: origin.scheme,
+            host: origin.host,
+            port: origin.port,
+            path: '/r/bar',
+          ).toString(),
+        ),
+        'https://example.com/r/bar',
+      );
+      },
+    );
+
+    test('keeps an in-flight load waiter when arming another navigation', () {
+      final service = BrowserSessionService();
+      final waiter = service.createLoadWaitForTest();
+
+      service.armLoadCompleterForTest();
+
+      expect(identical(service.loadCompleterForTest, waiter), isTrue);
+      expect(waiter.isCompleted, isFalse);
+
+      waiter.complete();
+      service.armLoadCompleterForTest();
+
+      expect(identical(service.loadCompleterForTest, waiter), isFalse);
+      expect(service.loadCompleterForTest!.isCompleted, isFalse);
+    });
   });
 }
