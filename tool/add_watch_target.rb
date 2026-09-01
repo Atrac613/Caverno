@@ -127,5 +127,23 @@ unless embed.files_references.include?(watch.product_reference)
   build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 end
 
+# Order matters, and getting it wrong fails the build rather than degrading:
+# appended at the end, the copy lands after the Flutter and CocoaPods script
+# phases and Xcode reports "Cycle inside Runner". Xcode's own template puts
+# Embed Watch Content immediately after Resources, before anything that embeds
+# frameworks or rewrites the binary, so place it there on every run.
+resources_index = runner.build_phases.index do |phase|
+  phase.is_a?(Xcodeproj::Project::Object::PBXResourcesBuildPhase)
+end
+if resources_index
+  desired_index = resources_index + 1
+  current_index = runner.build_phases.index(embed)
+  if current_index != desired_index
+    runner.build_phases.delete_at(current_index)
+    runner.build_phases.insert(desired_index, embed)
+    puts "Moved #{EMBED_PHASE_NAME} to index #{desired_index} (was #{current_index})"
+  end
+end
+
 project.save
 puts "Saved #{PROJECT_PATH}"
