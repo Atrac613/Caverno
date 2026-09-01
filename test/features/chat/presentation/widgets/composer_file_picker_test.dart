@@ -102,6 +102,37 @@ void main() {
       );
     });
 
+    test('keeps a copy on disk so the document can be opened', () async {
+      // The app cannot render PDF pages, so the only way to show the person
+      // the document is to hand the file to the platform viewer.
+      final choice = await prepare(File(_fixturePath('text_layer')));
+
+      expect(choice.file!.previewPath, _fixturePath('text_layer'));
+      expect(choice.file!.openablePath, _fixturePath('text_layer'));
+      expect(choice.file!.isPathReference, isFalse);
+    });
+
+    test('an attachment with no copy on disk has nothing to open', () {
+      const inlineText = ComposerFileAttachment(
+        name: 'notes.txt',
+        sizeBytes: 5,
+        content: 'alpha',
+      );
+
+      expect(inlineText.openablePath, isNull);
+    });
+
+    test('a path reference opens the copy it references', () {
+      const referenced = ComposerFileAttachment(
+        name: 'huge.pdf',
+        sizeBytes: 40 * 1024 * 1024,
+        durablePath: '/attachments/huge.pdf',
+        isPdf: true,
+      );
+
+      expect(referenced.openablePath, '/attachments/huge.pdf');
+    });
+
     test('recognises one whose bytes look like text', () async {
       final choice = await prepare(File(_fixturePath('ascii_uncompressed')));
 

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../../../../core/services/attachment_storage_service.dart';
@@ -10,6 +11,8 @@ import '../../../../core/services/pdf_text_extraction_service.dart';
 import '../../../../core/utils/attachment_format.dart';
 import '../../../../core/utils/logger.dart';
 import 'composer_file_models.dart';
+
+import 'composer_pdf_attachment.dart';
 
 export 'composer_file_models.dart';
 
@@ -176,7 +179,8 @@ class ComposerFilePicker {
   }) async {
     final file = File(sourcePath);
     if (await _looksLikePdf(file)) {
-      return _preparePdf(
+      return preparePdfAttachment(
+        picker: this,
         file: file,
         originalName: originalName,
         sizeBytes: sizeBytes,
@@ -185,7 +189,7 @@ class ComposerFilePicker {
     }
 
     if (sizeBytes > inlineMaxBytes) {
-      return _asPathReference(
+      return asPathReference(
         sourcePath: sourcePath,
         originalName: originalName,
         sizeBytes: sizeBytes,
@@ -210,68 +214,11 @@ class ComposerFilePicker {
     }
   }
 
-  Future<ComposerFileChoice> _preparePdf({
-    required File file,
-    required String originalName,
-    required int sizeBytes,
-    required bool alreadyDurable,
-  }) async {
-    // The extractor refuses this size, and paging cannot help: the whole file
-    // has to be in memory before the first page comes out.
-    if (sizeBytes > PdfTextExtractionService.maxBytes) {
-      return ComposerFileChoice.notice(
-        'message.pdf_too_large',
-        args: {
-          'limit': formatAttachmentSize(PdfTextExtractionService.maxBytes),
-        },
-      );
-    }
-
-    final extraction = await PdfTextExtractionService.extract(file);
-    final error = extraction.error;
-    if (error != null) {
-      return switch (error) {
-        PdfExtractionError.noTextLayer => const ComposerFileChoice.notice(
-          'message.pdf_no_text_layer',
-        ),
-        PdfExtractionError.encrypted => const ComposerFileChoice.notice(
-          'message.pdf_encrypted',
-        ),
-        PdfExtractionError.malformed => const ComposerFileChoice.notice(
-          'message.pdf_read_error',
-        ),
-        PdfExtractionError.tooLarge => ComposerFileChoice.notice(
-          'message.pdf_too_large',
-          args: {
-            'limit': formatAttachmentSize(PdfTextExtractionService.maxBytes),
-          },
-        ),
-      };
-    }
-
-    final text = extraction.text!;
-    if (utf8.encode(text).length > inlineMaxBytes) {
-      return _asPathReference(
-        sourcePath: file.path,
-        originalName: originalName,
-        sizeBytes: sizeBytes,
-        alreadyDurable: alreadyDurable,
-        isPdf: true,
-      );
-    }
-
-    return ComposerFileChoice(
-      file: ComposerFileAttachment(
-        name: originalName,
-        sizeBytes: sizeBytes,
-        content: text,
-        isPdf: true,
-        pdfPageCount: extraction.pageCount,
-      ),
-    );
-  }
-
-  Future<ComposerFileChoice> _asPathReference({
+  /// Persists [sourcePath] when needed and references it by path.
+  ///
+  /// Not private: the PDF policy in composer_pdf_attachment.dart falls back to
+  /// it when a document's text will not fit inline.
+  Future<ComposerFileChoice> asPathReference({
     required String sourcePath,
     required String originalName,
     required int sizeBytes,
@@ -315,7 +262,7 @@ class ComposerFilePicker {
     String durablePath,
     ComposerFileChoice choice,
   ) async {
-    if (choice.file?.isPathReference == true) return;
+    if (choice.file?.openablePath == durablePath) return;
     await _deleteQuietly(durablePath);
   }
 
@@ -357,4 +304,28 @@ class ComposerFilePicker {
         'Use inspect_file first, then search_files / read_file with offset '
         'and limit. Do not try to read it all at once.';
   }
+}
+
+/// What choosing a file produced, and what the person should be told.
+///
+/// Follows [ComposerVideoChoice]: the two travel together because a rejected
+/// file yields no attachment and one message, and holding a `BuildContext`
+/// here would make the whole picker untestable.
+class ComposerFileChoice {
+  const ComposerFileChoice({this.file, this.noticeKey, this.noticeArgs});
+
+  const ComposerFileChoice.notice(String key, {Map<String, String>? args})
+    : this(noticeKey: key, noticeArgs: args);
+
+  static const ComposerFileChoice none = ComposerFileChoice();
+
+  final ComposerFileAttachment? file;
+
+  /// Translation key for a message to surface, or null when there is nothing
+  /// to say. Kept as a key so this stays a plain object with no context.
+  final String? noticeKey;
+  final Map<String, String>? noticeArgs;
+
+  String? get notice =>
+      noticeKey?.tr(namedArgs: noticeArgs ?? const <String, String>{});
 }

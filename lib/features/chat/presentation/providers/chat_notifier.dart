@@ -1610,9 +1610,8 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   @visibleForTesting
-  WorkflowTaskProposalDraft? parseTaskProposalForTest(String rawContent) {
-    return _taskProposalParser.parseWithFallback(rawContent);
-  }
+  WorkflowTaskProposalDraft? parseTaskProposalForTest(String rawContent) =>
+      _taskProposalParser.parseWithFallback(rawContent);
 
   @visibleForTesting
   WorkflowTaskProposalDraft? buildTaskProposalTruncationFallbackForTest({
@@ -1823,9 +1822,7 @@ class ChatNotifier extends Notifier<ChatState> {
   Map<String, dynamic> resolveProjectScopedArgumentsForTest(
     String toolName,
     Map<String, dynamic> arguments,
-  ) {
-    return _resolveProjectScopedArguments(toolName, arguments);
-  }
+  ) => _resolveProjectScopedArguments(toolName, arguments);
 
   Map<String, dynamic> _resolveProjectScopedArguments(
     String toolName,
@@ -2360,6 +2357,7 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<ChatTurnOwner?> sendMessage(
     String content, {
     String? modelContent,
+    String? attachmentPath,
     String? imageBase64,
     String? imageMimeType,
     String? originalImagePath,
@@ -2396,6 +2394,7 @@ class ChatNotifier extends Notifier<ChatState> {
       id: _uuid.v4(),
       content: content,
       modelContent: modelContent,
+      attachmentPath: attachmentPath,
       imageBase64: imageBase64,
       imageMimeType: imageMimeType,
       originalImagePath: originalImagePath,
@@ -2453,7 +2452,6 @@ class ChatNotifier extends Notifier<ChatState> {
     var runtimeStarted = false;
     try {
       final content = queuedMessage.content;
-      final modelContent = queuedMessage.modelContent;
       final imageBase64 = queuedMessage.imageBase64;
       final imageMimeType = queuedMessage.imageMimeType;
       final originalImagePath = queuedMessage.originalImagePath;
@@ -2589,7 +2587,8 @@ class ChatNotifier extends Notifier<ChatState> {
       final userMessage = Message(
         id: _uuid.v4(),
         content: content.trim(),
-        modelContent: modelContent?.trim(),
+        modelContent: queuedMessage.modelContent?.trim(),
+        attachmentPath: queuedMessage.attachmentPath,
         role: MessageRole.user,
         timestamp: DateTime.now(),
         imageBase64: imageBase64,

@@ -57,6 +57,15 @@ abstract class Message with _$Message {
     String? originalImagePath,
     String? originalImageMimeType,
 
+    /// Durable copy of a file attachment, kept out of band.
+    ///
+    /// Set for a message that carried a document so the bubble can hand it to
+    /// the platform viewer. Like [videoPath] the payload never rides on the
+    /// message: the file stays in the attachments directory and only its path
+    /// is persisted, and the directory's retention sweep may remove it, so a
+    /// reader has to tolerate the file being gone.
+    String? attachmentPath,
+
     /// Video attachment, kept out of band.
     ///
     /// Unlike [imageBase64] the payload is never stored on the message: a

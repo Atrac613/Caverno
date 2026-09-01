@@ -69,6 +69,7 @@ class ThreadScopedMessageQueue {
               id: message.id,
               content: message.content,
               modelContent: message.modelContent,
+              attachmentPath: message.attachmentPath,
               imageBase64: message.imageBase64,
               imageMimeType: message.imageMimeType,
               originalImagePath: message.originalImagePath,
@@ -126,9 +127,8 @@ class ThreadScopedMessageQueue {
     _turnOwnerReceipts.clear();
   }
 
-  bool _belongsTo(QueuedChatMessage message, String? conversationId) {
-    return message.conversationId == conversationId;
-  }
+  bool _belongsTo(QueuedChatMessage message, String? conversationId) =>
+      message.conversationId == conversationId;
 
   Future<ChatTurnOwner?> _turnOwnerReceiptFor(String messageId) {
     return _turnOwnerReceipts

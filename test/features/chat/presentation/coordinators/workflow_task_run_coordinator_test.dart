@@ -183,6 +183,7 @@ class _ValidationChatNotifier extends ChatNotifier {
   Future<ChatTurnOwner?> sendMessage(
     String content, {
     String? modelContent,
+    String? attachmentPath,
     String? imageBase64,
     String? imageMimeType,
     String? originalImagePath,

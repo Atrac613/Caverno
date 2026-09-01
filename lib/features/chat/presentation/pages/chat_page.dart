@@ -83,6 +83,7 @@ import '../widgets/subagent_task_banner.dart';
 import '../widgets/worktree_agent_task_banner.dart';
 import '../widgets/message_bubble.dart';
 import '../coordinators/chat_dropped_attachments.dart';
+import '../widgets/message_input_send_handler.dart';
 import '../coordinators/chat_dropped_attachments_take.dart';
 import '../widgets/message_input.dart';
 import '../widgets/mobile_keyboard_dismiss.dart';
@@ -680,6 +681,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       String? originalImageMimeType, {
       VideoAttachmentDraft? video,
       String? modelContent,
+      String? attachmentPath,
       bool interrupt = false,
     }) {
       setState(() {
@@ -691,6 +693,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         chatNotifier.sendMessage(
           message,
           modelContent: modelContent,
+          attachmentPath: attachmentPath,
           imageBase64: imageBase64,
           imageMimeType: imageMimeType,
           originalImagePath: originalImagePath,
@@ -701,44 +704,35 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ),
       );
     }
-    void handleComposerSend(
-      String message,
-      String? imageBase64,
-      String? imageMimeType,
-      String? originalImagePath,
-      String? originalImageMimeType, {
-      VideoAttachmentDraft? video,
-      String? modelContent,
-    }) => submitComposerMessage(
-      message,
-      imageBase64,
-      imageMimeType,
-      originalImagePath,
-      originalImageMimeType,
-      video: video,
-      modelContent: modelContent,
-    );
+    // Send and interrupt take the same payload and differ only in whether the
+    // running turn is joined, so one factory makes both rather than two
+    // hand-written forwarders that have to be edited together.
+    MessageInputSendHandler composerSender({bool interrupt = false}) =>
+        (
+          message,
+          imageBase64,
+          imageMimeType,
+          originalImagePath,
+          originalImageMimeType, {
+          video,
+          modelContent,
+          attachmentPath,
+        }) => submitComposerMessage(
+          message,
+          imageBase64,
+          imageMimeType,
+          originalImagePath,
+          originalImageMimeType,
+          video: video,
+          modelContent: modelContent,
+          attachmentPath: attachmentPath,
+          interrupt: interrupt,
+        );
+    final handleComposerSend = composerSender();
+    final handleComposerInterrupt = composerSender(interrupt: true);
+
     bool handleProReasoningSend(String question) =>
         _composerRuntimeCoordinator.startProReasoning(context, question);
-
-    void handleComposerInterrupt(
-      String message,
-      String? imageBase64,
-      String? imageMimeType,
-      String? originalImagePath,
-      String? originalImageMimeType, {
-      VideoAttachmentDraft? video,
-      String? modelContent,
-    }) => submitComposerMessage(
-      message,
-      imageBase64,
-      imageMimeType,
-      originalImagePath,
-      originalImageMimeType,
-      video: video,
-      modelContent: modelContent,
-      interrupt: true,
-    );
 
     Widget buildMessageInput({bool floating = false}) {
       final input = MessageInput(

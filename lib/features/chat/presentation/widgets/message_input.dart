@@ -1155,6 +1155,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       _selectedOriginalImageMimeType,
       video: _selectedVideo,
       modelContent: modelText,
+      attachmentPath: _selectedFile?.openablePath,
     );
     _pushToHistory(text);
     _controller.clear();

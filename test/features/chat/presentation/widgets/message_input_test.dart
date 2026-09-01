@@ -72,6 +72,7 @@ Future<SharedPreferences> _pumpMessageInput(
     String? originalImageMimeType, {
     VideoAttachmentDraft? video,
     String? modelContent,
+    String? attachmentPath,
   })?
   onSend,
   MessageInputImageAttachment? droppedImageAttachment,
@@ -133,7 +134,7 @@ Future<SharedPreferences> _pumpMessageInput(
                     builder: (context, loading, child) {
                       return MessageInput(
                         onSend:
-                            onSend ?? (_, _, _, _, _, {video, modelContent}) {},
+                            onSend ?? (_, _, _, _, _, {video, modelContent, attachmentPath}) {},
                         onCancel: onCancel,
                         isLoading: loading,
                         assistantMode: AssistantMode.general,
@@ -236,7 +237,7 @@ void main() {
       onCancel: () {
         cancelCount += 1;
       },
-      onSend: (message, _, _, _, _, {video, modelContent}) {
+      onSend: (message, _, _, _, _, {video, modelContent, attachmentPath}) {
         sentMessages.add(message);
       },
     );
@@ -364,7 +365,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _, {video, modelContent}) {
+      onSend: (message, _, _, _, _, {video, modelContent, attachmentPath}) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -400,7 +401,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _, {video, modelContent}) {
+      onSend: (message, _, _, _, _, {video, modelContent, attachmentPath}) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -439,7 +440,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _, {video, modelContent}) {
+      onSend: (message, _, _, _, _, {video, modelContent, attachmentPath}) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -478,7 +479,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _, {video, modelContent}) {
+      onSend: (message, _, _, _, _, {video, modelContent, attachmentPath}) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -512,7 +513,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _, {video, modelContent}) {
+      onSend: (message, _, _, _, _, {video, modelContent, attachmentPath}) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -556,7 +557,7 @@ void main() {
         tester,
         isLoading: isLoading,
         onCancel: () {},
-        onSend: (message, imageBase64, _, _, _, {video, modelContent}) {
+        onSend: (message, imageBase64, _, _, _, {video, modelContent, attachmentPath}) {
           sentMessage = message;
           sentImageBase64 = imageBase64;
         },
@@ -607,7 +608,7 @@ void main() {
         isLoading: isLoading,
         onCancel: () {},
         onSend:
-            (message, imageBase64, imageMimeType, _, _, {video, modelContent}) {
+            (message, imageBase64, imageMimeType, _, _, {video, modelContent, attachmentPath}) {
               sentMessage = message;
               sentImageBase64 = imageBase64;
               sentImageMimeType = imageMimeType;
@@ -685,7 +686,7 @@ void main() {
       initialSettings: AppSettings.defaults().copyWith(
         proReasoningEnabled: true,
       ),
-      onSend: (message, _, _, _, _, {video, modelContent}) =>
+      onSend: (message, _, _, _, _, {video, modelContent, attachmentPath}) =>
           ordinaryMessages.add(message),
       onProReasoningSend: (question) {
         proQuestions.add(question);
@@ -774,7 +775,7 @@ void main() {
       initialSettings: AppSettings.defaults().copyWith(
         proReasoningEnabled: true,
       ),
-      onSend: (message, _, _, _, _, {video, modelContent}) =>
+      onSend: (message, _, _, _, _, {video, modelContent, attachmentPath}) =>
           ordinaryMessages.add(message),
       onProReasoningSend: (_) => true,
     );
@@ -1083,7 +1084,7 @@ void main() {
       isLoading: isLoading,
       onCancel: () {},
       isCodingWorkspace: true,
-      onSend: (message, _, _, _, _, {video, modelContent}) {
+      onSend: (message, _, _, _, _, {video, modelContent, attachmentPath}) {
         localMessages.add(message);
       },
       onWorktreeSessionSend: (prompt) async {
@@ -1144,7 +1145,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _, {video, modelContent}) =>
+      onSend: (message, _, _, _, _, {video, modelContent, attachmentPath}) =>
           sentMessages.add(message),
       composerShortcuts: shortcuts,
     );
@@ -1199,7 +1200,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _, {video, modelContent}) =>
+      onSend: (message, _, _, _, _, {video, modelContent, attachmentPath}) =>
           sentMessages.add(message),
       composerShortcuts: _SeededComposerShortcutsNotifier(
         shortcuts: _testShortcuts,
@@ -1287,7 +1288,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _, _, _, {video, modelContent}) =>
+      onSend: (message, _, _, _, _, {video, modelContent, attachmentPath}) =>
           sentMessages.add(message),
       composerShortcuts: _SeededComposerShortcutsNotifier(
         shortcuts: _testShortcuts,

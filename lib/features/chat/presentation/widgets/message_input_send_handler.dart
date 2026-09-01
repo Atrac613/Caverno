@@ -9,4 +9,5 @@ typedef MessageInputSendHandler =
       String? originalImageMimeType, {
       VideoAttachmentDraft? video,
       String? modelContent,
+      String? attachmentPath,
     });

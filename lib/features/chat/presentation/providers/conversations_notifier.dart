@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/services/attachment_storage_service.dart';
@@ -20,6 +19,7 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/conversation_compaction_service.dart';
+import '../../domain/services/conversation_attachment_paths.dart';
 import '../../domain/services/conversation_default_title.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_goal_progress_inference.dart';
@@ -851,10 +851,10 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final deletedIds = deleted.map((conversation) => conversation.id).toSet();
     final retainedPaths = state.conversations
         .where((conversation) => !deletedIds.contains(conversation.id))
-        .expand(_attachmentPathsForConversation)
+        .expand(ConversationAttachmentPaths.of)
         .toSet();
     final paths = deleted
-        .expand(_attachmentPathsForConversation)
+        .expand(ConversationAttachmentPaths.of)
         .where((path) => !retainedPaths.contains(path))
         .toSet();
     if (paths.isEmpty) return;
@@ -865,34 +865,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         '[ConversationsNotifier] Failed to delete conversation attachments: '
         '$error',
       );
-    }
-  }
-
-  static final RegExp _largeAttachmentReferencePattern = RegExp(
-    r'^\[Attached file: (.+) \([^)]+\)\]$',
-    multiLine: true,
-  );
-
-  Iterable<String> _attachmentPathsForConversation(
-    Conversation conversation,
-  ) sync* {
-    for (final message in conversation.messages) {
-      final originalImagePath = message.originalImagePath?.trim();
-      if (originalImagePath != null && originalImagePath.isNotEmpty) {
-        yield p.normalize(p.absolute(originalImagePath));
-      }
-      final videoPath = message.videoPath?.trim();
-      if (videoPath != null && videoPath.isNotEmpty) {
-        yield p.normalize(p.absolute(videoPath));
-      }
-      for (final match in _largeAttachmentReferencePattern.allMatches(
-        message.effectiveModelContent,
-      )) {
-        final path = match.group(1)?.trim();
-        if (path != null && path.isNotEmpty) {
-          yield p.normalize(p.absolute(path));
-        }
-      }
     }
   }
 

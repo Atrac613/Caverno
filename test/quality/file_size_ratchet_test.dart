@@ -315,7 +315,11 @@ const Map<String, int> _lineBudgets = {
       107,
   // The registry can already answer an approval by id from any thread; it
   // just could not say which ones were open. +9 for that listing.
-  'lib/features/chat/presentation/providers/chat_state.dart': 754,
+  // -70: QueuedChatMessage is a hand-written value class with its own
+  // equality, not part of the ChatState freezed graph, and it grows a field
+  // every time the composer learns to carry something new.
+  'lib/features/chat/presentation/providers/chat_state.dart': 684,
+  'lib/features/chat/presentation/providers/queued_chat_message.dart': 87,
   'lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart':
       361,
   'lib/features/chat/presentation/providers/thread_scoped_chat_state.dart': 238,
@@ -371,7 +375,9 @@ const Map<String, int> _lineBudgets = {
   // outside this library, so each drop callback is now one expression.
   // -8: drop-target wiring moved onto ChatDroppedAttachmentsTake so the page
   // only watches settings and forwards the rebuild.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1905,
+  // -6: send and interrupt took the same payload and differed only in whether
+  // the running turn is joined, so one factory makes both.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1899,
   'lib/features/chat/presentation/coordinators/chat_dropped_attachments.dart':
       15,
   'lib/features/chat/presentation/coordinators/chat_dropped_attachments_take.dart':
@@ -441,9 +447,13 @@ const Map<String, int> _lineBudgets = {
   // interrupt guard on the prepare gate and the input-history doc comment the
   // previous pass deleted by accident.
   'lib/features/chat/presentation/widgets/message_input.dart': 2201,
-  'lib/features/chat/presentation/widgets/composer_file_picker.dart': 360,
+  // -29: the PDF policy is its own file, and the choice object moved here
+  // from the models file beside the picker that produces it.
+  'lib/features/chat/presentation/widgets/composer_file_picker.dart': 331,
+  'lib/features/chat/presentation/widgets/composer_pdf_attachment.dart': 103,
+  'lib/features/chat/presentation/widgets/message_attachment_io.dart': 49,
   // -4: the dead alreadyDurable flag and the drop gate it could disable.
-  'lib/features/chat/presentation/widgets/composer_file_models.dart': 83,
+  'lib/features/chat/presentation/widgets/composer_file_models.dart': 65,
   'lib/features/chat/presentation/widgets/composer_file_chip.dart': 46,
   // -20: the prepare gate moved to its own file when it grew the error
   // isolation that keeps one failed prepare from breaking every later Send.
@@ -573,7 +583,10 @@ const Map<String, int> _lineBudgets = {
   // -12: naming an untitled thread is pure string work with no notifier
   // state, so it moved to ConversationDefaultTitle where it can be tested on
   // its own.
-  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1819,
+  // -28: collecting the files a conversation owns is per-message string work
+  // with no notifier state, and deletion is the only caller.
+  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1791,
+  'lib/features/chat/domain/services/conversation_attachment_paths.dart': 46,
   'lib/features/chat/domain/services/conversation_default_title.dart': 46,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
       329,
@@ -749,7 +762,7 @@ const Map<String, int> _libraryLineBudgets = {
   // -3 matching the primary file: the dropped-attachment state left the
   // library rather than moving into a part.
   // -8 matching the primary file: drop-target wiring left the library.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8852,
+  'lib/features/chat/presentation/pages/chat_page.dart': 8846,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };
