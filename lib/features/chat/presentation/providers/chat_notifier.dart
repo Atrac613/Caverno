@@ -209,6 +209,7 @@ import '../../domain/services/workflow_task_proposal_quality_service.dart';
 import '../../../settings/domain/services/local_command_permission_service.dart';
 import 'active_response_registry.dart';
 import 'chat_error_message_builder.dart';
+import 'pending_approval_resolution.dart';
 import 'chat_state.dart';
 import 'hidden_prompt_launch_options.dart';
 import 'chat_tool_execution_log_formatter.dart';

@@ -10,9 +10,34 @@ import '../../features/remote_coding/data/remote_coding_notification_payload.dar
 ///
 /// Permissions are requested lazily on the first notification attempt
 /// rather than at init, so the permission dialog appears in context.
+/// A notification action the user chose, rather than a plain tap.
+class NotificationActionEvent {
+  const NotificationActionEvent({
+    required this.actionId,
+    required this.conversationId,
+    required this.approvalId,
+  });
+
+  final String actionId;
+  final String conversationId;
+  final String approvalId;
+
+  bool get isApprove => actionId == NotificationService.approveActionId;
+  bool get isDeny => actionId == NotificationService.denyActionId;
+}
+
 class NotificationService {
   static const remoteCodingChannelId = 'remote_coding_completion';
   static const remoteCodingChannelName = 'Remote Coding Completion';
+
+  /// Category carrying Approve/Deny. Registering it is what makes the buttons
+  /// appear on the lock screen and, because iOS forwards notifications and
+  /// their actions to a paired Apple Watch, on the wrist as well — with no
+  /// watchOS code involved. That is the fallback path for when the watch app
+  /// itself is not running.
+  static const approvalCategoryId = 'caverno_approval';
+  static const approveActionId = 'caverno_approve';
+  static const denyActionId = 'caverno_deny';
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -21,9 +46,16 @@ class NotificationService {
   bool _permissionRequested = false;
   final StreamController<String> _notificationTapController =
       StreamController<String>.broadcast();
+  final StreamController<NotificationActionEvent> _notificationActionController =
+      StreamController<NotificationActionEvent>.broadcast();
 
   Stream<String> get notificationTapPayloads =>
       _notificationTapController.stream;
+
+  /// Approve/Deny chosen from a notification, on the phone or on a paired
+  /// Apple Watch.
+  Stream<NotificationActionEvent> get notificationActions =>
+      _notificationActionController.stream;
 
   /// Initialize the plugin without requesting permissions upfront.
   Future<void> init() {
@@ -40,13 +72,30 @@ class NotificationService {
     );
 
     // Do not request permissions at init — defer to first notification.
-    const darwinSettings = DarwinInitializationSettings(
+    // Not const: DarwinNotificationAction.plain is not a const constructor.
+    final darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestSoundPermission: false,
       requestBadgePermission: false,
+      notificationCategories: [
+        DarwinNotificationCategory(
+          approvalCategoryId,
+          actions: [
+            DarwinNotificationAction.plain(approveActionId, 'Approve'),
+            DarwinNotificationAction.plain(
+              denyActionId,
+              'Deny',
+              options: {DarwinNotificationActionOption.destructive},
+            ),
+          ],
+          // The buttons must be reachable without unlocking, or the feature
+          // solves nothing that opening the app does not already solve.
+          options: {DarwinNotificationCategoryOption.hiddenPreviewShowTitle},
+        ),
+      ],
     );
 
-    const settings = InitializationSettings(
+    final settings = InitializationSettings(
       android: androidSettings,
       iOS: darwinSettings,
       macOS: darwinSettings,
@@ -56,9 +105,16 @@ class NotificationService {
       settings: settings,
       onDidReceiveNotificationResponse: (response) {
         final payload = response.payload?.trim();
-        if (payload != null && payload.isNotEmpty) {
-          _notificationTapController.add(payload);
+        if (payload == null || payload.isEmpty) return;
+        final actionId = response.actionId?.trim() ?? '';
+        if (actionId == approveActionId || actionId == denyActionId) {
+          final action = _decodeApprovalAction(actionId, payload);
+          if (action != null) {
+            _notificationActionController.add(action);
+          }
+          return;
         }
+        _notificationTapController.add(payload);
       },
     );
     _initialized = true;
@@ -109,18 +165,53 @@ class NotificationService {
 
   /// Show a notification that a thread the user is not looking at has stopped
   /// to ask for approval. Keyed per thread so two waiting threads both show.
+  ///
+  /// When [approvalId] is known and [allowsDirectDecision] is true, the
+  /// notification carries Approve/Deny buttons. Both are required: without the
+  /// id the decision could land on the wrong request once a second approval
+  /// queues up behind the first, and kinds needing structured input (SSH
+  /// credentials, computer-use arming) cannot be answered with a button at all.
   Future<void> showApprovalRequiredNotification({
     required String conversationId,
     required String title,
     required String body,
+    String? approvalId,
+    bool allowsDirectDecision = false,
   }) async {
+    final actionable =
+        allowsDirectDecision && (approvalId?.isNotEmpty ?? false);
     await _showNotification(
       id: conversationId.hashCode & 0x7fffffff,
       title: title,
       body: body,
       channelId: 'approval_required',
       channelName: 'Approval Required',
+      payload: jsonEncode({
+        'kind': 'approval_required',
+        'conversationId': conversationId,
+        'approvalId': ?approvalId,
+      }),
+      darwinCategoryId: actionable ? approvalCategoryId : null,
     );
+  }
+
+  NotificationActionEvent? _decodeApprovalAction(
+    String actionId,
+    String payload,
+  ) {
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map<String, dynamic>) return null;
+      final approvalId = (decoded['approvalId'] as String?)?.trim() ?? '';
+      if (approvalId.isEmpty) return null;
+      return NotificationActionEvent(
+        actionId: actionId,
+        conversationId: (decoded['conversationId'] as String?)?.trim() ?? '',
+        approvalId: approvalId,
+      );
+    } on FormatException {
+      return null;
+    }
   }
 
   /// Show a notification for a scheduled routine completion.
@@ -207,6 +298,7 @@ class NotificationService {
     required String channelId,
     required String channelName,
     String? payload,
+    String? darwinCategoryId,
   }) async {
     await init();
     if (!_initialized) return;
@@ -219,7 +311,9 @@ class NotificationService {
       priority: Priority.defaultPriority,
     );
 
-    const darwinDetails = DarwinNotificationDetails();
+    final darwinDetails = DarwinNotificationDetails(
+      categoryIdentifier: darwinCategoryId,
+    );
 
     final details = NotificationDetails(
       android: androidDetails,
@@ -238,5 +332,6 @@ class NotificationService {
 
   void dispose() {
     unawaited(_notificationTapController.close());
+    unawaited(_notificationActionController.close());
   }
 }

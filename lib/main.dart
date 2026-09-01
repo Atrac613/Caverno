@@ -31,6 +31,7 @@ import 'features/maintenance/presentation/providers/maintenance_scheduler_provid
 import 'features/settings/data/settings_repository.dart';
 import 'features/settings/domain/services/app_language_resolver.dart';
 import 'features/settings/presentation/providers/settings_notifier.dart';
+import 'features/chat/presentation/providers/approval_notification_actions.dart';
 import 'features/settings/presentation/widgets/settings_modal.dart';
 import 'features/remote_coding/presentation/remote_coding_server_notifier.dart';
 import 'features/terminal/application/caverno_cli_arguments.dart';
@@ -311,6 +312,10 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
       ref.watch(remoteCodingServerProvider);
     }
+    // Approve/Deny straight from a notification, on every platform that shows
+    // one. On iOS this is also what puts the buttons on a paired Apple Watch
+    // when the companion app is not running.
+    ref.watch(approvalNotificationActionsProvider);
 
     final languagePreference = ref.watch(
       settingsNotifierProvider.select((settings) => settings.language),

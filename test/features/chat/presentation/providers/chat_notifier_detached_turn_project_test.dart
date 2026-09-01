@@ -1728,6 +1728,8 @@ ProviderContainer _buildContainer({
       conversationId: any(named: 'conversationId'),
       title: any(named: 'title'),
       body: any(named: 'body'),
+      approvalId: any(named: 'approvalId'),
+      allowsDirectDecision: any(named: 'allowsDirectDecision'),
     ),
   ).thenAnswer((_) async {});
 

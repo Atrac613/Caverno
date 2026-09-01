@@ -88,17 +88,16 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
       apply: apply,
     );
     if (turnThread == null || turnThread == conversationId) return;
-    final threadTitle = _conversationForId(turnThread)?.title.trim() ?? '';
     unawaited(
-      ref
-          .read(notificationServiceProvider)
-          .showApprovalRequiredNotification(
-            conversationId: turnThread,
-            title: 'Caverno',
-            body: threadTitle.isEmpty
-                ? 'A thread is waiting for your approval.'
-                : '$threadTitle is waiting for your approval.',
-          ),
+      showPendingApprovalNotification(
+        ref.read(notificationServiceProvider),
+        conversationId: turnThread,
+        threadTitle: _conversationForId(turnThread)?.title.trim() ?? '',
+        summary: findPendingApprovalSummary(
+          _pendingToolApprovals,
+          conversationId: turnThread,
+        ),
+      ),
     );
   }
 
