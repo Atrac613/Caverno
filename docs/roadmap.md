@@ -157,7 +157,7 @@ handoffs can refer to the same unit of work over time.
 | Fork | FORK2 | later | Coding conversation fork: reproduce the worktree/git + LL2 file state as of the fork point into an isolated worktree/branch (never shared with the parent), with a non-git snapshot fallback. Gated on FORK1 + LL2 + LL13. | Seed a fresh worktree from the parent's turn commit or LL2 checkpoint; carry `projectId`; assign a new `worktreePath`/branch. |
 | Fork | FORK3 | later | Fork-tree navigation and compare: drawer fork tree, jump-to-parent, and parent-vs-fork diff. | Start after FORK1/FORK2 ship; reuse `TurnDiff` rendering for the compare view. |
 | Watch | WATCH1 | done | Apple Watch companion: approvals and questions from the wrist, a running-turn glance with cancel, dictated prompts spoken back, and Approve/Deny on the approval notification itself. | Shipped 2026-09-01 (`docs/apple_watch_companion.md`). Nothing has been run end to end yet; that is WATCH2. |
-| Watch | WATCH2 | current | Prove the companion actually works: the native/Dart bridge boundary is the one seam unit tests cannot reach. Transport verified on paired simulators 2026-09-01, surfacing three defects (build-phase cycle, leaked title sentinel, missing reachability handler), all fixed. | Configure an endpoint on the simulator and drive an approval turn plus a dictated prompt; the approval and voice round trips are still unproven. |
+| Watch | WATCH2 | current | Prove the companion actually works: the native/Dart bridge boundary is the one seam unit tests cannot reach. Transport and archive packaging verified 2026-09-01, surfacing four defects (build-phase cycle, leaked title sentinel, missing reachability handler, missing SUPPORTED_PLATFORMS), all fixed. | Restore simulator input (`sudo xcode-select -s`), then drive an approval turn and a dictated prompt; those two round trips are still unproven. |
 | Watch | WATCH3 | next | Bind a deferred watch command to the conversation it was composed against, so a queued `sendMessage` cannot land in whichever thread happens to be current when it is finally delivered. | Carry `conversationId` on the command, reject on mismatch in `_handleSendMessage`. |
 | Watch | WATCH4 | later | Glanceable surfaces and thread choice: Smart Stack widget or complication, plus switching the mirrored conversation from the watch. | Start after WATCH2 confirms the transport; `transferCurrentComplicationUserInfo` has a delivery budget, so keep the payload to a running-thread count. |
 | Watch | WATCH5 | later | Approve/Deny on a push-delivered notification, not only a locally raised one. | Needs a native `UNUserNotificationCenter` delegate: `firebase_messaging` does not surface `actionIdentifier` on iOS. |
@@ -1425,7 +1425,7 @@ Series 11 / watchOS 26.5):
 - Simulator pairing needs no GUI: `xcrun simctl pair` exists, pairs are already
   configured, and `simctl boot <pair-udid>` brings both up.
 
-Three defects only a real run could surface, all fixed:
+Four defects only a real build or run could surface, all fixed:
 - `Cycle inside Runner`. `Embed Watch Content` was appended at the end of the
   build phases, after the Flutter and CocoaPods script phases. Xcode's template
   puts it immediately after Resources; `tool/add_watch_target.rb` now places it
@@ -1438,6 +1438,11 @@ Three defects only a real run could surface, all fixed:
   sessionReachabilityDidChange:`, named by the OS log. The phone never re-pushed
   when the watch became reachable, so the frame only arrived because the watch
   asked.
+- `unable to resolve module dependency: 'WatchKit'` when archiving.
+  `SDKROOT = watchos` is not enough: `xcodebuild archive` with
+  `-destination generic/platform=iOS` resolves a dependency target's platform
+  from the destination, so the watch target was compiled against the iOS SDK.
+  `SUPPORTED_PLATFORMS = "watchsimulator watchos"` fixes it.
 
 Two environment blockers, both pre-existing and unrelated to the companion:
 - CocoaPods died with `Encoding::CompatibilityError` because `LANG` was not
@@ -1446,17 +1451,33 @@ Two environment blockers, both pre-existing and unrelated to the companion:
 - `ios/Podfile.lock` still pinned Firebase 12.17.0 while the plugins resolve to
   12.18.0, so no iOS build could run at all.
 
+Packaging is validated. `flutter build ipa --no-codesign` produces an archive
+whose only root product is `Runner.app`, with the companion at
+`Runner.app/Watch/CavernoWatch Watch App.app` as a watchOS binary (arm64_32 +
+arm64, `DTPlatformName watchos`, `WKApplication true`,
+`WKCompanionAppBundleIdentifier com.noguwo.apps.caverno`) — which also confirms
+the `SKIP_INSTALL = YES` choice.
+
+Use the pinned SDK for this work. Bare `flutter` on this machine is 3.47.0 while
+`.fvmrc` pins 3.44.8; running the wrong one rewrites
+`.dart_tool/package_config.json` and makes a direct `xcodebuild archive` fail
+with `Type 'ui.HitTestResponse' not found`. `tool/flutter_test_quiet.sh` and
+`tool/safe-flutter` both go through fvm.
+
 Remaining:
-- The approval and voice round trips are unproven. Both need a turn, which needs
-  a configured LLM endpoint; the simulator was on the onboarding screen.
+- The approval and voice round trips are unproven. The simulator now has an
+  endpoint configured (settings injected into the sandboxed preferences plist;
+  note the app is not reachable through `simctl spawn defaults`, and cfprefsd
+  caches the container until the device is rebooted), but starting a turn needs
+  UI input and the app exposes no URL scheme.
 - Three checks need real hardware: notification forwarding while the phone is
   locked, the effective background window around a turn, and haptics.
-- An archive has not been validated (the watch app inside `Runner.app/Watch/`
-  with no stray product at the archive root).
 
 Next action:
-- Configure an endpoint on the simulator, drive a tool-approval turn, and answer
-  it from the watch; then dictate a prompt and confirm the reply is spoken.
+- Restore simulator input by running
+  `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`, then drive
+  a tool-approval turn and answer it from the watch, and dictate a prompt to
+  confirm the reply is spoken.
 
 ### WATCH3: Deferred Watch Command Conversation Binding
 
