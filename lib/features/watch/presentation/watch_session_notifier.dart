@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -65,6 +66,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
 
   late final WatchBridgeService _bridge;
   StreamSubscription<WatchCommand>? _commandSubscription;
+  bool _available = false;
   int _sequence = 0;
   DateTime? _turnStartedAt;
   String _turnId = '';
@@ -88,14 +90,29 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       unawaited(_commandSubscription?.cancel());
     });
 
-    unawaited(_refreshAvailability());
+    unawaited(_ensureAvailable());
     return const WatchSessionState();
   }
 
-  Future<void> _refreshAvailability() async {
+  /// Resolves whether a watch is reachable, re-querying when the last answer
+  /// was negative.
+  ///
+  /// `WCSession.activate()` is asynchronous, so an availability answer taken
+  /// once at build time is a race: on a cold start the session is often still
+  /// activating, and latching that `false` left the watch sitting on its
+  /// connecting screen forever — observed after a simulator reboot, where the
+  /// watch's `requestSnapshot` reached the phone and got no reply. A negative
+  /// answer is therefore treated as "not yet", never as settled.
+  Future<bool> _ensureAvailable() async {
+    if (_available) return true;
     final available = await _bridge.isAvailable();
-    if (!ref.mounted) return;
-    state = state.copyWith(isAvailable: available);
+    // Tracked in a field rather than read back from [state]: build() calls this
+    // before the notifier's state exists, and Riverpod throws on that read.
+    _available = available;
+    if (available && ref.mounted) {
+      state = state.copyWith(isAvailable: true);
+    }
+    return available;
   }
 
   /// Records when a turn starts so the watch can show elapsed time without the
@@ -120,7 +137,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
   /// is reading aloud. Deltas go over the message path instead, which does not
   /// coalesce.
   Future<void> _pushStreamDelta(ChatState chatState) async {
-    if (!state.isAvailable) return;
+    if (!await _ensureAvailable()) return;
     final text = _lastAssistantText(chatState.messages);
     if (text.isEmpty || !text.startsWith(_streamedPrefix)) {
       // The visible answer was replaced rather than extended (a guard rewrote
@@ -197,17 +214,26 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     return WatchTurnStatus.idle;
   }
 
+  /// The prose of the most recent assistant message.
+  ///
+  /// Parsed, not raw. `Message.content` still carries `<think>` and
+  /// `<tool_use>` blocks — the phone strips them at render time via
+  /// [ContentParser], and projecting the raw field put a session-memory
+  /// `<tool_use>{...}</tool_use>` envelope on the watch, which the speaker
+  /// would then have read aloud. `ParseResult.text` is documented as a pure
+  /// concatenation of the text segments, which is also what
+  /// [_pushStreamDelta] needs to diff successive frames safely.
   String _lastAssistantText(List<Message> messages) {
     for (final message in messages.reversed) {
       if (message.role != MessageRole.assistant) continue;
-      final content = message.content.trim();
+      final content = ContentParser.parse(message.content).text.trim();
       if (content.isNotEmpty) return content;
     }
     return '';
   }
 
   Future<void> _pushSnapshot(ChatState chatState) async {
-    if (!state.isAvailable) return;
+    if (!await _ensureAvailable()) return;
     final snapshot = buildSnapshot(chatState);
     await _bridge.pushSnapshot(snapshot);
     if (!ref.mounted) return;

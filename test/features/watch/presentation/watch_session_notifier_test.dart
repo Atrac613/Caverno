@@ -24,7 +24,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _FakeWatchBridge implements WatchBridgeService {
   _FakeWatchBridge({this.available = true});
 
-  final bool available;
+  bool available;
+  int availabilityQueries = 0;
   final StreamController<WatchCommand> _commands =
       StreamController<WatchCommand>.broadcast();
   final List<WatchSnapshot> pushedSnapshots = [];
@@ -35,7 +36,10 @@ class _FakeWatchBridge implements WatchBridgeService {
   Stream<WatchCommand> get commands => _commands.stream;
 
   @override
-  Future<bool> isAvailable() async => available;
+  Future<bool> isAvailable() async {
+    availabilityQueries += 1;
+    return available;
+  }
 
   @override
   Future<void> pushSnapshot(WatchSnapshot snapshot) async {
@@ -123,6 +127,44 @@ void main() {
 
     expect(bridge.pushedSnapshots, isEmpty);
     expect(bridge.results.single.ok, isTrue);
+  });
+
+  test('a watch that becomes available later still gets a frame', () async {
+    // WCSession.activate() is asynchronous, so build() can legitimately see
+    // "unavailable". Latching that answer left the watch on its connecting
+    // screen forever after a phone restart.
+    container.dispose();
+    bridge = _FakeWatchBridge(available: false);
+    container = buildContainer(bridge);
+    addTearDown(container.dispose);
+    final instance = await notifier();
+
+    await instance.handleCommandForTest(
+      const WatchCommand(type: WatchCommand.requestSnapshot),
+    );
+    expect(bridge.pushedSnapshots, isEmpty);
+
+    bridge.available = true;
+    await instance.handleCommandForTest(
+      const WatchCommand(type: WatchCommand.requestSnapshot),
+    );
+
+    expect(bridge.pushedSnapshots, hasLength(1));
+    expect(container.read(watchSessionProvider).isAvailable, isTrue);
+  });
+
+  test('an available watch is not re-queried on every push', () async {
+    final instance = await notifier();
+    final afterBuild = bridge.availabilityQueries;
+
+    await instance.handleCommandForTest(
+      const WatchCommand(type: WatchCommand.requestSnapshot),
+    );
+    await instance.handleCommandForTest(
+      const WatchCommand(type: WatchCommand.requestSnapshot),
+    );
+
+    expect(bridge.availabilityQueries, afterBuild);
   });
 
   test('requestSnapshot pushes a frame and acknowledges', () async {
@@ -244,6 +286,36 @@ void main() {
     expect(
       bridge.streamChunks.map((chunk) => chunk['text']! as String).join(),
       'Reading the failing test.',
+    );
+  });
+
+  test('internal markup never reaches the watch', () async {
+    final instance = await notifier();
+
+    // Session-memory extraction leaves a <tool_use> envelope in the raw
+    // message content. The phone strips it at render time; projecting the raw
+    // field put the JSON on the watch, where the speaker would read it aloud.
+    await instance.pushStreamDeltaForTest(
+      'Here is the answer.'
+      '<tool_use>{"name":"memory-update","arguments":{"added":0}}</tool_use>',
+    );
+
+    expect(
+      bridge.streamChunks.map((chunk) => chunk['text']! as String).join(),
+      'Here is the answer.',
+    );
+  });
+
+  test('reasoning blocks are stripped too', () async {
+    final instance = await notifier();
+
+    await instance.pushStreamDeltaForTest(
+      '<think>weighing the options</think>The answer is four.',
+    );
+
+    expect(
+      bridge.streamChunks.map((chunk) => chunk['text']! as String).join(),
+      'The answer is four.',
     );
   });
 

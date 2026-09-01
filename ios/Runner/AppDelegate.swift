@@ -222,6 +222,16 @@ class WatchBridgePlugin: NSObject, FlutterPlugin {
 
   private var commandSink: FlutterEventSink?
 
+  /// Payloads that arrived before Dart subscribed to the command channel.
+  ///
+  /// WatchConnectivity delivers queued `transferUserInfo` items within
+  /// milliseconds of process start, long before the Flutter engine has run
+  /// `WatchSessionNotifier.build()`. Dropping them left the watch waiting on a
+  /// snapshot nobody was going to send. Bounded so a watch that talks to a
+  /// phone which never finishes launching cannot grow this without limit.
+  private var pendingCommands: [String] = []
+  private static let maxPendingCommands = 16
+
   static func register(with registrar: FlutterPluginRegistrar) {
     let instance = WatchBridgePlugin()
 
@@ -335,9 +345,30 @@ class WatchBridgePlugin: NSObject, FlutterPlugin {
   /// channels must be touched from the platform thread.
   private func emitCommand(_ message: [String: Any]) {
     guard let payload = message[Self.payloadKey] as? String else { return }
+    emit(payload: payload)
+  }
+
+  private func emit(payload: String) {
     DispatchQueue.main.async { [weak self] in
-      self?.commandSink?(payload)
+      guard let self else { return }
+      guard let sink = self.commandSink else {
+        if self.pendingCommands.count < Self.maxPendingCommands {
+          self.pendingCommands.append(payload)
+        }
+        return
+      }
+      sink(payload)
     }
+  }
+
+  /// Asks Dart for a fresh frame.
+  ///
+  /// Used whenever the phone has reason to believe the watch's picture is
+  /// stale but has not been asked: activation completing, reachability coming
+  /// up, or Dart subscribing after the watch already asked. Reuses the command
+  /// path rather than adding a second channel method for the same effect.
+  private func requestSnapshotFromDart() {
+    emit(payload: #"{"type":"requestSnapshot","payload":{}}"#)
   }
 }
 
@@ -347,6 +378,13 @@ extension WatchBridgePlugin: FlutterStreamHandler {
     eventSink events: @escaping FlutterEventSink
   ) -> FlutterError? {
     commandSink = events
+    let queued = pendingCommands
+    pendingCommands.removeAll()
+    queued.forEach { events($0) }
+    // Even with nothing queued, Dart has just become able to answer and the
+    // watch may have given up asking. One snapshot here is what stops a
+    // cold start from leaving the watch on its connecting screen.
+    requestSnapshotFromDart()
     return nil
   }
 
@@ -364,7 +402,10 @@ extension WatchBridgePlugin: WCSessionDelegate {
   ) {
     if let error {
       NSLog("WatchBridgePlugin: activation failed: \(error)")
+      return
     }
+    guard activationState == .activated else { return }
+    requestSnapshotFromDart()
   }
 
   /// Asks Dart for a fresh frame when the watch app comes to the foreground.
@@ -374,9 +415,7 @@ extension WatchBridgePlugin: WCSessionDelegate {
   /// rather than adding a second channel method for the same effect.
   func sessionReachabilityDidChange(_ session: WCSession) {
     guard session.isReachable else { return }
-    emitCommand([
-      Self.payloadKey: #"{"type":"requestSnapshot","payload":{}}"#
-    ])
+    requestSnapshotFromDart()
   }
 
   func sessionDidBecomeInactive(_ session: WCSession) {}
