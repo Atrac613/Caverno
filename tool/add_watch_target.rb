@@ -43,6 +43,11 @@ end
 watch.build_configurations.each do |config|
   settings = config.build_settings
   settings['SDKROOT'] = 'watchos'
+  # Required, not redundant with SDKROOT: archiving with
+  # `-destination generic/platform=iOS` resolves each dependency's platform from
+  # the destination, and without this the watch target is built against the iOS
+  # SDK, where WatchKit does not exist.
+  settings['SUPPORTED_PLATFORMS'] = 'watchsimulator watchos'
   settings['TARGETED_DEVICE_FAMILY'] = '4'
   settings['WATCHOS_DEPLOYMENT_TARGET'] = WATCHOS_DEPLOYMENT_TARGET
   settings['PRODUCT_BUNDLE_IDENTIFIER'] = WATCH_BUNDLE_ID
