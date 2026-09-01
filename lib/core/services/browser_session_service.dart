@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../security/egress_destination_policy.dart';
 import '../utils/logger.dart';
+import 'browser_mediation_proxy.dart';
+import 'browser_pinned_http_client.dart';
 
 /// Singleton service backing the built-in agent-controlled browser.
 ///
@@ -58,12 +60,29 @@ class BrowserNavigationDecision {
         message: 'User-initiated local HTML preview is allowed.',
       );
 
+  const BrowserNavigationDecision.allowMediatedProxy()
+    : this._(
+        allowed: true,
+        code: 'mediated_proxy',
+        message: 'Loopback proxy navigation is allowed.',
+      );
+
+  const BrowserNavigationDecision.mediatePinnedProxy()
+    : this._(
+        allowed: false,
+        code: 'mediate_pinned_proxy',
+        message:
+            'External browser navigation is loaded through a pinned loopback proxy.',
+      );
+
   const BrowserNavigationDecision.deny(this.code, this.message)
     : allowed = false;
 
   final bool allowed;
   final String code;
   final String message;
+
+  bool get shouldMediate => code == 'mediate_pinned_proxy';
 }
 
 class BrowserSaveTarget {
@@ -142,14 +161,25 @@ class BrowserSessionService extends ChangeNotifier {
   BrowserSessionService({
     Directory? saveDirectoryOverride,
     EgressDestinationPolicy destinationPolicy = const EgressDestinationPolicy(),
+    BrowserPinnedHttpClient? pinnedHttpClient,
+    Future<HttpServer> Function(InternetAddress address, int port)? proxyBind,
   }) : _saveDirectoryOverride = saveDirectoryOverride,
-       _destinationPolicy = destinationPolicy;
+       _destinationPolicy = destinationPolicy,
+       _pinnedHttpClient =
+           pinnedHttpClient ??
+           BrowserPinnedHttpClient(destinationPolicy: destinationPolicy),
+       _proxyBind = proxyBind;
 
   InAppWebViewController? _controller;
   Completer<InAppWebViewController>? _controllerReady;
   Completer<void>? _loadCompleter;
   final Directory? _saveDirectoryOverride;
   final EgressDestinationPolicy _destinationPolicy;
+  final BrowserPinnedHttpClient _pinnedHttpClient;
+  final Future<HttpServer> Function(InternetAddress address, int port)?
+  _proxyBind;
+  BrowserMediationProxy? _mediationProxy;
+  String? _inFlightReroute;
 
   bool _enabled = false;
   bool _isPanelOpen = false;
@@ -202,6 +232,30 @@ class BrowserSessionService extends ChangeNotifier {
     );
   }
 
+  @visibleForTesting
+  Future<Uri> startMediationProxyForTest({Uri? upstream}) async {
+    final proxy = await _ensureMediationProxy();
+    return proxy.proxyUrlFor(
+      upstream ?? Uri.parse('https://example.com/app.js'),
+    );
+  }
+
+  @visibleForTesting
+  String displayUrlForTest(String raw) => _displayUrlFor(raw);
+
+  @visibleForTesting
+  Completer<void> createLoadWaitForTest() {
+    final completer = Completer<void>();
+    _loadCompleter = completer;
+    return completer;
+  }
+
+  @visibleForTesting
+  Completer<void>? get loadCompleterForTest => _loadCompleter;
+
+  @visibleForTesting
+  void armLoadCompleterForTest() => _armLoadCompleter();
+
   /// Pushed in from the settings listener without recreating this singleton.
   void updateEnabled(bool enabled) {
     if (_enabled == enabled) return;
@@ -210,6 +264,7 @@ class BrowserSessionService extends ChangeNotifier {
       // Tear down the session so a disabled feature holds no live page.
       _isPanelOpen = false;
       _localPreviewOrigin = null;
+      unawaited(_stopMediationProxy());
       _resetController();
     }
     notifyListeners();
@@ -226,9 +281,11 @@ class BrowserSessionService extends ChangeNotifier {
       ready.complete(controller);
     }
     // If we reopened onto a known URL, restore it.
-    if (_currentUrl != null &&
-        navigationDecision(_currentUrl, allowInternalBlank: true).allowed) {
-      controller.loadUrl(urlRequest: URLRequest(url: WebUri(_currentUrl!)));
+    if (_currentUrl != null) {
+      final loadUrl = _webviewUrlFor(_currentUrl!);
+      if (loadUrl != null) {
+        controller.loadUrl(urlRequest: URLRequest(url: WebUri(loadUrl)));
+      }
     }
   }
 
@@ -240,14 +297,14 @@ class BrowserSessionService extends ChangeNotifier {
 
   void handleLoadStart(String? url) {
     _isLoading = true;
-    if (url != null && url.isNotEmpty) _currentUrl = url;
+    if (url != null && url.isNotEmpty) _currentUrl = _displayUrlFor(url);
     _lastError = null;
     notifyListeners();
   }
 
   Future<void> handleLoadStop(String? url) async {
     _isLoading = false;
-    if (url != null && url.isNotEmpty) _currentUrl = url;
+    if (url != null && url.isNotEmpty) _currentUrl = _displayUrlFor(url);
     await _refreshNavState();
     final completer = _loadCompleter;
     if (completer != null && !completer.isCompleted) completer.complete();
@@ -298,10 +355,22 @@ class BrowserSessionService extends ChangeNotifier {
     if (_isAllowedLocalPreview(parsed)) {
       return const BrowserNavigationDecision.allowLocalPreview();
     }
+    if (_isAllowedMediationProxy(parsed)) {
+      return const BrowserNavigationDecision.allowMediatedProxy();
+    }
     try {
       _destinationPolicy.validateUri(parsed);
     } on EgressPolicyException catch (error) {
       return BrowserNavigationDecision.deny(error.code, error.message);
+    }
+    if (_localPreviewOrigin != null) {
+      return const BrowserNavigationDecision.deny(
+        'browser_peer_verification_unavailable',
+        'External browser navigation is disabled until the connected peer can be verified.',
+      );
+    }
+    if (_enabled) {
+      return const BrowserNavigationDecision.mediatePinnedProxy();
     }
     return const BrowserNavigationDecision.deny(
       'browser_peer_verification_unavailable',
@@ -324,7 +393,7 @@ class BrowserSessionService extends ChangeNotifier {
     }
     if (parsed.scheme == 'data' || parsed.scheme == 'blob') return true;
     if (normalized == 'about:blank') return true;
-    return _isAllowedLocalPreview(parsed);
+    return _isAllowedLocalPreview(parsed) || _isAllowedMediationProxy(parsed);
   }
 
   void handleBlockedNavigation(BrowserNavigationDecision decision) {
@@ -348,6 +417,7 @@ class BrowserSessionService extends ChangeNotifier {
   String closePanel() {
     final hadPreview = _localPreviewOrigin != null;
     _localPreviewOrigin = null;
+    unawaited(_stopMediationProxy());
     if (_isPanelOpen) {
       _isPanelOpen = false;
       // The webview unmounts when the pane closes, disposing its controller;
@@ -377,6 +447,7 @@ class BrowserSessionService extends ChangeNotifier {
         'Local preview URLs must be loopback HTTP.',
       );
     }
+    await _stopMediationProxy();
     _localPreviewOrigin = Uri(
       scheme: 'http',
       host: '127.0.0.1',
@@ -431,6 +502,9 @@ class BrowserSessionService extends ChangeNotifier {
       return _error('invalid_url', 'A non-empty url is required');
     }
     final decision = navigationDecision(normalized);
+    if (decision.shouldMediate || _agentShouldMediate(normalized, decision)) {
+      return _openMediatedUrl(normalized);
+    }
     if (!decision.allowed) {
       return _error(decision.code, decision.message);
     }
@@ -442,17 +516,57 @@ class BrowserSessionService extends ChangeNotifier {
       await controller.loadUrl(urlRequest: URLRequest(url: WebUri(normalized)));
       await _waitForLoad();
       final title = await controller.getTitle();
-      final current = await controller.getUrl();
       _pageTitle = title;
       return jsonEncode({
         'ok': true,
         'requestedUrl': normalized,
-        'url': current?.toString() ?? normalized,
+        'url':
+            _toolReportedUrl((await controller.getUrl())?.toString()) ??
+            normalized,
         'title': title ?? '',
         'nextAction':
             'Call browser_snapshot to list interactive elements before acting.',
       });
     });
+  }
+
+  Future<String> _openMediatedUrl(String normalized) async {
+    final parsed = Uri.parse(normalized);
+    try {
+      await _pinnedHttpClient.approve(parsed);
+    } on EgressPolicyException catch (error) {
+      return _error(error.code, error.message);
+    } catch (error) {
+      return _error('browser_error', error.toString());
+    }
+    return _guard('browser_open', () async {
+      _localPreviewOrigin = null;
+      final proxy = await _ensureMediationProxy();
+      final loadUrl = await proxy.proxyUrlFor(parsed);
+      _currentUrl = normalized;
+      open();
+      final controller = await _ensureReady();
+      _loadCompleter = Completer<void>();
+      await controller.loadUrl(
+        urlRequest: URLRequest(url: WebUri(loadUrl.toString())),
+      );
+      await _waitForLoad();
+      final title = await controller.getTitle();
+      _pageTitle = title;
+      return jsonEncode({
+        'ok': true,
+        'requestedUrl': normalized,
+        'url': _currentUrl ?? normalized,
+        'title': title ?? '',
+        'nextAction':
+            'Call browser_snapshot to list interactive elements before acting.',
+      });
+    });
+  }
+
+  /// Cancels a direct public navigation and reloads it through the proxy.
+  void rerouteMediatedNavigation(String rawUrl) {
+    unawaited(_rerouteMediatedNavigation(rawUrl));
   }
 
   Future<String> snapshot({int? maxElements}) async {
@@ -462,7 +576,9 @@ class BrowserSessionService extends ChangeNotifier {
     return _guard('browser_snapshot', () async {
       final raw = await _runJs(_snapshotScript(cap));
       final decoded = _decodeJsResult(raw);
-      if (decoded is Map) return jsonEncode(decoded);
+      if (decoded is Map) {
+        return jsonEncode(_rewriteSnapshotPayload(decoded));
+      }
       return jsonEncode({'ok': true, 'raw': decoded});
     });
   }
@@ -516,17 +632,25 @@ class BrowserSessionService extends ChangeNotifier {
     return _guard('browser_click', () async {
       final controller = await _ensureReady();
       final expr = _resolveExpr(ref: ref, selector: selector);
-      final beforeUrl = (await controller.getUrl())?.toString() ?? _currentUrl;
+      final beforeUrl = _toolReportedUrl(
+        (await controller.getUrl())?.toString(),
+      );
       final beforeTitle = await controller.getTitle();
-      _loadCompleter = Completer<void>();
+      _armLoadCompleter();
       final raw = await _runJs(_clickScript(expr));
       // A click may trigger navigation; give it a short window to settle.
       await _waitForLoad(timeout: const Duration(seconds: 8));
-      final afterUrl = (await controller.getUrl())?.toString() ?? _currentUrl;
+      final afterUrl = _toolReportedUrl(
+        (await controller.getUrl())?.toString(),
+      );
       final afterTitle = await controller.getTitle();
       final decoded = _decodeJsResult(raw);
       if (decoded is Map) {
         final result = Map<String, dynamic>.from(decoded);
+        final href = result['href'];
+        if (href is String) {
+          result['href'] = _displayUrlFor(href);
+        }
         result['beforeUrl'] = beforeUrl;
         result['beforeTitle'] = beforeTitle ?? '';
         result['url'] = afterUrl;
@@ -553,16 +677,16 @@ class BrowserSessionService extends ChangeNotifier {
       final expr = (selector == null || selector.isEmpty)
           ? 'null'
           : _resolveExpr(selector: selector);
-      _loadCompleter = Completer<void>();
+      _armLoadCompleter();
       final raw = await _runJs(_submitScript(expr));
       await _waitForLoad(timeout: const Duration(seconds: 12));
       final result = _decodeJsResult(raw);
-      final url = await _controller?.getUrl();
+      final url = _toolReportedUrl((await _controller?.getUrl())?.toString());
       if (result is Map) {
-        result['url'] = url?.toString() ?? _currentUrl;
+        result['url'] = url;
         return jsonEncode(result);
       }
-      return jsonEncode({'ok': true, 'url': url?.toString() ?? _currentUrl});
+      return jsonEncode({'ok': true, 'url': url});
     });
   }
 
@@ -622,8 +746,8 @@ class BrowserSessionService extends ChangeNotifier {
   }
 
   Future<String> navigateHistory(String direction) async {
-    final decision = navigationDecision(_currentUrl);
-    if (!decision.allowed) {
+    final decision = navigationDecision(_currentUrl, allowInternalBlank: true);
+    if (!decision.allowed && !decision.shouldMediate) {
       return _error(decision.code, decision.message);
     }
     return _guard('browser_navigate_history', () async {
@@ -754,6 +878,14 @@ class BrowserSessionService extends ChangeNotifier {
     }
   }
 
+  /// Reuses an in-flight load waiter so a click/submit that is rerouted
+  /// through the mediation proxy still observes the replacement navigation.
+  void _armLoadCompleter() {
+    final existing = _loadCompleter;
+    if (existing != null && !existing.isCompleted) return;
+    _loadCompleter = Completer<void>();
+  }
+
   Future<void> _refreshNavState() async {
     final controller = _controller;
     if (controller == null) return;
@@ -844,6 +976,131 @@ class BrowserSessionService extends ChangeNotifier {
     if (origin == null) return false;
     if (!_isLoopbackHttp(url)) return false;
     return url.port == origin.port;
+  }
+
+  bool _isAllowedMediationProxy(Uri url) {
+    return _mediationProxy?.isProxyUrl(url) ?? false;
+  }
+
+  /// [browser_open] may take over a preview session; WebView clicks may not.
+  bool _agentShouldMediate(
+    String normalized,
+    BrowserNavigationDecision decision,
+  ) {
+    if (!_enabled || decision.allowed) return false;
+    if (decision.code != 'browser_peer_verification_unavailable') {
+      return false;
+    }
+    try {
+      _destinationPolicy.validateUri(Uri.parse(normalized));
+      return true;
+    } on EgressPolicyException {
+      return false;
+    }
+  }
+
+  Future<BrowserMediationProxy> _ensureMediationProxy() async {
+    final existing = _mediationProxy;
+    if (existing != null && !existing.isStopped) return existing;
+    final proxy = BrowserMediationProxy(
+      httpClient: _pinnedHttpClient,
+      bind: _proxyBind,
+    );
+    _mediationProxy = proxy;
+    return proxy;
+  }
+
+  Future<void> _stopMediationProxy() async {
+    final proxy = _mediationProxy;
+    _mediationProxy = null;
+    if (proxy != null) {
+      await proxy.stop();
+    }
+  }
+
+  String? _toolReportedUrl(String? webviewUrl) {
+    final raw = (webviewUrl == null || webviewUrl.isEmpty)
+        ? _currentUrl
+        : webviewUrl;
+    if (raw == null || raw.isEmpty) return raw;
+    return _displayUrlFor(raw);
+  }
+
+  String _displayUrlFor(String raw) {
+    final parsed = Uri.tryParse(raw.trim());
+    if (parsed == null) return raw;
+    final proxy = _mediationProxy;
+    if (proxy == null) return raw;
+    if (parsed.host.isEmpty) {
+      final current = _currentUrl;
+      if (current == null || current.isEmpty) return raw;
+      return Uri.parse(current).resolveUri(parsed).toString();
+    }
+    return proxy.targetFromProxyUrl(parsed)?.toString() ?? raw;
+  }
+
+  String? _webviewUrlFor(String displayUrl) {
+    final decision = navigationDecision(displayUrl, allowInternalBlank: true);
+    if (decision.allowed) return displayUrl;
+    if (!decision.shouldMediate) return null;
+    final parsed = Uri.tryParse(_normalizeUrl(displayUrl));
+    if (parsed == null) return null;
+    return _mediationProxy?.proxyUrlForSync(parsed)?.toString();
+  }
+
+  Future<void> _rerouteMediatedNavigation(String rawUrl) async {
+    final normalized = _normalizeUrl(rawUrl);
+    if (normalized.isEmpty) return;
+    if (_inFlightReroute == normalized) return;
+    _inFlightReroute = normalized;
+    try {
+      await _pinnedHttpClient.approve(Uri.parse(normalized));
+      _localPreviewOrigin = null;
+      final proxy = await _ensureMediationProxy();
+      final loadUrl = await proxy.proxyUrlFor(Uri.parse(normalized));
+      _currentUrl = normalized;
+      open();
+      final controller = await _ensureReady();
+      _armLoadCompleter();
+      await controller.loadUrl(
+        urlRequest: URLRequest(url: WebUri(loadUrl.toString())),
+      );
+    } on EgressPolicyException catch (error) {
+      handleBlockedNavigation(
+        BrowserNavigationDecision.deny(error.code, error.message),
+      );
+    } catch (error) {
+      handleError(error.toString());
+    } finally {
+      if (_inFlightReroute == normalized) {
+        _inFlightReroute = null;
+      }
+    }
+  }
+
+  Map<String, dynamic> _rewriteSnapshotPayload(Map<dynamic, dynamic> decoded) {
+    final result = Map<String, dynamic>.from(decoded);
+    final url = result['url'];
+    if (url is String) {
+      result['url'] = _displayUrlFor(url);
+    }
+    final elements = result['elements'];
+    if (elements is List) {
+      result['elements'] = [
+        for (final element in elements)
+          if (element is Map) _rewriteSnapshotElement(element) else element,
+      ];
+    }
+    return result;
+  }
+
+  Map<String, dynamic> _rewriteSnapshotElement(Map<dynamic, dynamic> element) {
+    final result = Map<String, dynamic>.from(element);
+    final href = result['href'];
+    if (href is String) {
+      result['href'] = _displayUrlFor(href);
+    }
+    return result;
   }
 
   static bool _isLoopbackHost(String host) {
@@ -1082,6 +1339,7 @@ class BrowserSessionService extends ChangeNotifier {
 
   @override
   void dispose() {
+    unawaited(_stopMediationProxy());
     _resetController();
     super.dispose();
   }

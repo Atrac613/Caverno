@@ -424,11 +424,17 @@ class _BrowserWebViewHostState extends State<_BrowserWebViewHost> {
           navigationAction.request.url?.toString(),
           allowInternalBlank: true,
         );
-        if (!decision.allowed) {
-          widget.service.handleBlockedNavigation(decision);
+        if (decision.allowed) {
+          return NavigationActionPolicy.ALLOW;
+        }
+        if (decision.shouldMediate) {
+          widget.service.rerouteMediatedNavigation(
+            navigationAction.request.url?.toString() ?? '',
+          );
           return NavigationActionPolicy.CANCEL;
         }
-        return NavigationActionPolicy.ALLOW;
+        widget.service.handleBlockedNavigation(decision);
+        return NavigationActionPolicy.CANCEL;
       },
       shouldInterceptRequest: (controller, request) async {
         if (widget.service.allowsResourceRequest(request.url.toString())) {
