@@ -42,7 +42,12 @@ abstract final class BuiltInFilesystemToolDefinitions {
           'Read a UTF-8 text file from the local project. Use offset and limit '
           'to inspect a specific line range in large files. For very large '
           'files (logs, exports), call inspect_file first, then read only the '
-          'ranges you need — never try to read the whole file at once.',
+          'ranges you need — never try to read the whole file at once. PDFs '
+          'are also supported: the text layer is extracted and returned with '
+          'a [page N] marker before each page, so offset and limit still '
+          'select lines. Long PDFs are windowed; when pages_truncated is set, '
+          'call again with start_page equal to next_page. A PDF with no '
+          'extractable text returns an error; do not describe its contents.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -62,6 +67,12 @@ abstract final class BuiltInFilesystemToolDefinitions {
             'type': 'integer',
             'description': 'Maximum number of lines to return.',
           },
+          'start_page': {
+            'type': 'integer',
+            'description':
+                '1-based PDF page to start text extraction from. Ignored for '
+                'plain text. Use with next_page from a truncated PDF read.',
+          },
         },
         'required': ['path'],
       },
@@ -77,7 +88,10 @@ abstract final class BuiltInFilesystemToolDefinitions {
           'Returns byte size, total line count, head and tail samples, detected '
           'encoding, and a format hint. Call this FIRST on large or unknown '
           'files (logs, JSONL/CSV exports, multi-MB text) before searching or '
-          'range-reading them.',
+          'range-reading them. On a PDF it reports the page count and samples '
+          'the first and last pages rather than extracting every page, so it '
+          'also answers whether read_file will get anything out of that '
+          'document.',
       'parameters': {
         'type': 'object',
         'properties': {

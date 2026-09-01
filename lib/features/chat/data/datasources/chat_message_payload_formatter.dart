@@ -66,12 +66,13 @@ class ChatMessagePayloadFormatter {
     required bool stripImages,
     required Map<String, String> videoUrls,
   }) {
+    final content = message.effectiveModelContent;
     final carriesImage = message.imageBase64 != null && !stripImages;
     final videoUrl = message.hasVideoAttachment ? videoUrls[message.id] : null;
 
     if (carriesImage || videoUrl != null) {
       final parts = <ContentPart>[
-        if (message.content.isNotEmpty) ContentPart.text(message.content),
+        if (content.isNotEmpty) ContentPart.text(content),
         if (carriesImage)
           ContentPart.imageBase64(
             data: message.imageBase64!,
@@ -80,7 +81,8 @@ class ChatMessagePayloadFormatter {
         // Placeholder only: VideoContentPartClient turns this into the
         // `video_url` part once the body is JSON, because the typed request
         // has no video content part to build here.
-        if (videoUrl != null) ContentPart.text(VideoAttachmentPart.encode(videoUrl)),
+        if (videoUrl != null)
+          ContentPart.text(VideoAttachmentPart.encode(videoUrl)),
       ];
       return ChatMessage.user(parts);
     }
@@ -91,10 +93,8 @@ class ChatMessagePayloadFormatter {
       if (message.imageBase64 != null) imageOmittedNotice,
       if (message.hasVideoAttachment) VideoAttachmentPart.omittedNotice,
     ];
-    if (notices.isEmpty) return ChatMessage.user(message.content);
+    if (notices.isEmpty) return ChatMessage.user(content);
     final omitted = notices.join('\n');
-    return ChatMessage.user(
-      message.content.isEmpty ? omitted : '${message.content}\n\n$omitted',
-    );
+    return ChatMessage.user(content.isEmpty ? omitted : '$content\n\n$omitted');
   }
 }

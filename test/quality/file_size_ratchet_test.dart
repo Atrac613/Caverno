@@ -315,7 +315,11 @@ const Map<String, int> _lineBudgets = {
       107,
   // The registry can already answer an approval by id from any thread; it
   // just could not say which ones were open. +9 for that listing.
-  'lib/features/chat/presentation/providers/chat_state.dart': 754,
+  // -70: QueuedChatMessage is a hand-written value class with its own
+  // equality, not part of the ChatState freezed graph, and it grows a field
+  // every time the composer learns to carry something new.
+  'lib/features/chat/presentation/providers/chat_state.dart': 684,
+  'lib/features/chat/presentation/providers/queued_chat_message.dart': 87,
   'lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart':
       361,
   'lib/features/chat/presentation/providers/thread_scoped_chat_state.dart': 238,
@@ -366,7 +370,18 @@ const Map<String, int> _lineBudgets = {
   // -77: message-list scrolling moved to ThreadScrollCoordinator, a plain
   // class outside this library. The page kept the controller hand-off and the
   // one build-time call that tells the coordinator which thread is on screen.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1918,
+  // -3 despite gaining a dropped-file route: the three pending drop
+  // attachments and their id counters became one ChatDroppedAttachments held
+  // outside this library, so each drop callback is now one expression.
+  // -8: drop-target wiring moved onto ChatDroppedAttachmentsTake so the page
+  // only watches settings and forwards the rebuild.
+  // -6: send and interrupt took the same payload and differed only in whether
+  // the running turn is joined, so one factory makes both.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1899,
+  'lib/features/chat/presentation/coordinators/chat_dropped_attachments.dart':
+      15,
+  'lib/features/chat/presentation/coordinators/chat_dropped_attachments_take.dart':
+      74,
   'lib/features/chat/presentation/pages/thread_scroll_coordinator.dart': 287,
   'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
   // The device listing moved to flutter_run_device_lister.dart when it grew
@@ -420,7 +435,33 @@ const Map<String, int> _lineBudgets = {
   // the menu entry stayed invisible. The composer is the only consumer of the
   // answer, so moving the call elsewhere only moves the lines to another
   // ratcheted file.
-  'lib/features/chat/presentation/widgets/message_input.dart': 2276,
+  // -39 for PDF attachments. Picking, the inline-versus-path size policy, PDF
+  // extraction and the message block the attachment contributes are all in
+  // composer_file_picker.dart, mirroring composer_video_picker.dart. The
+  // composer kept one state field, four delegating actions and the clipboard
+  // branch, and still came out smaller than before the feature.
+  // -17: drop prepare is a gate, clipboard PDF has its own helper, and the
+  // Screen Recording paste hint left the composer.
+  // -17: the file attachment chip is a widget like the video one, the drop
+  // intake bookkeeping is a class, and both left. What is added here is the
+  // interrupt guard on the prepare gate and the input-history doc comment the
+  // previous pass deleted by accident.
+  'lib/features/chat/presentation/widgets/message_input.dart': 2201,
+  // -29: the PDF policy is its own file, and the choice object moved here
+  // from the models file beside the picker that produces it.
+  'lib/features/chat/presentation/widgets/composer_file_picker.dart': 331,
+  'lib/features/chat/presentation/widgets/composer_pdf_attachment.dart': 103,
+  'lib/features/chat/presentation/widgets/message_attachment_io.dart': 49,
+  // -4: the dead alreadyDurable flag and the drop gate it could disable.
+  'lib/features/chat/presentation/widgets/composer_file_models.dart': 65,
+  'lib/features/chat/presentation/widgets/composer_file_chip.dart': 46,
+  // -20: the prepare gate moved to its own file when it grew the error
+  // isolation that keeps one failed prepare from breaking every later Send.
+  'lib/features/chat/presentation/widgets/composer_file_intake.dart': 43,
+  'lib/features/chat/presentation/widgets/composer_file_prepare_gate.dart': 30,
+  'lib/features/chat/presentation/widgets/composer_dropped_attachment_intake.dart':
+      26,
+  'lib/features/chat/presentation/widgets/composer_macos_paste_hint.dart': 34,
   // -15: the submenu value and check icon are chip-level presentation, so
   // they sit beside buildComposerControlChip instead.
   'lib/features/chat/presentation/widgets/composer_model_selector.dart': 260,
@@ -504,6 +545,8 @@ const Map<String, int> _lineBudgets = {
       74,
   'lib/features/chat/data/datasources/lsp_server_process_manager.dart': 375,
   'lib/features/chat/data/datasources/filesystem_tools.dart': 1184,
+  'lib/features/chat/data/datasources/filesystem_pdf_reader.dart': 393,
+  'lib/core/services/pdf_text_extraction_service.dart': 457,
   'lib/features/chat/data/datasources/filesystem_overview_format.dart': 55,
   'lib/features/chat/data/datasources/filesystem_diff_builder.dart': 213,
   'lib/features/chat/data/datasources/project_scoped_tool_argument_resolver.dart':
@@ -537,7 +580,14 @@ const Map<String, int> _lineBudgets = {
   // -7: LL5 index bookkeeping -- the signature map, the dedup, and the
   // forget-on-failure rule -- is one job, and ConversationSemanticIndexSync
   // owns it now.
-  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1831,
+  // -12: naming an untitled thread is pure string work with no notifier
+  // state, so it moved to ConversationDefaultTitle where it can be tested on
+  // its own.
+  // -28: collecting the files a conversation owns is per-message string work
+  // with no notifier state, and deletion is the only caller.
+  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1791,
+  'lib/features/chat/domain/services/conversation_attachment_paths.dart': 46,
+  'lib/features/chat/domain/services/conversation_default_title.dart': 46,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
       329,
   'lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart':
@@ -709,7 +759,10 @@ const Map<String, int> _libraryLineBudgets = {
   // prompted it -- per-thread scroll restore -- added code.
   // -23: the phone-only tap-to-dismiss listener never touched _ChatPageState,
   // so it is a plain widget helper rather than a part of the page library.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8865,
+  // -3 matching the primary file: the dropped-attachment state left the
+  // library rather than moving into a part.
+  // -8 matching the primary file: drop-target wiring left the library.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8846,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };

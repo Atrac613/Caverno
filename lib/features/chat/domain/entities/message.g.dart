@@ -29,6 +29,7 @@ Map<String, dynamic> _$MessageResponseMetricsToJson(
 _Message _$MessageFromJson(Map<String, dynamic> json) => _Message(
   id: json['id'] as String,
   content: json['content'] as String,
+  modelContent: json['modelContent'] as String?,
   role: $enumDecode(_$MessageRoleEnumMap, json['role']),
   timestamp: DateTime.parse(json['timestamp'] as String),
   isStreaming: json['isStreaming'] as bool? ?? false,
@@ -38,6 +39,7 @@ _Message _$MessageFromJson(Map<String, dynamic> json) => _Message(
   isSynthesizedPrompt: json['isSynthesizedPrompt'] as bool? ?? false,
   originalImagePath: json['originalImagePath'] as String?,
   originalImageMimeType: json['originalImageMimeType'] as String?,
+  attachmentPath: json['attachmentPath'] as String?,
   videoPath: json['videoPath'] as String?,
   videoUrl: json['videoUrl'] as String?,
   videoMimeType: json['videoMimeType'] as String?,
@@ -65,6 +67,7 @@ _Message _$MessageFromJson(Map<String, dynamic> json) => _Message(
 Map<String, dynamic> _$MessageToJson(_Message instance) => <String, dynamic>{
   'id': instance.id,
   'content': instance.content,
+  'modelContent': instance.modelContent,
   'role': _$MessageRoleEnumMap[instance.role]!,
   'timestamp': instance.timestamp.toIso8601String(),
   'isStreaming': instance.isStreaming,
@@ -74,6 +77,7 @@ Map<String, dynamic> _$MessageToJson(_Message instance) => <String, dynamic>{
   'isSynthesizedPrompt': instance.isSynthesizedPrompt,
   'originalImagePath': instance.originalImagePath,
   'originalImageMimeType': instance.originalImageMimeType,
+  'attachmentPath': instance.attachmentPath,
   'videoPath': instance.videoPath,
   'videoUrl': instance.videoUrl,
   'videoMimeType': instance.videoMimeType,

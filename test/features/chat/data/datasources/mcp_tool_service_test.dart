@@ -1204,11 +1204,15 @@ void main() {
         inspectionDefinitions.map(_openAiFunctionName),
         _filesystemInspectionToolNames,
       );
+      // Pinned so an accidental edit to a definition cannot silently move the
+      // prompt prefix. Updated when read_file gained start_page / next_page
+      // for long PDFs and inspect_file began sampling ends instead of the
+      // whole document.
       expect(
         sha256
             .convert(utf8.encode(jsonEncode(inspectionDefinitions)))
             .toString(),
-        'e43cff1a45c1c8ba66c3aaae892dd5ad421a86e77b2c72ac72d98291df5cf15c',
+        '410a374cfaffdc09736c8d3346c9aa4badc601954b0d9999393e23c87e8c4cab',
       );
       if (FilesystemTools.isDesktopPlatform) {
         expect(

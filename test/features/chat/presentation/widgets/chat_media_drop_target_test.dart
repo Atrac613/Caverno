@@ -59,6 +59,117 @@ void main() {
     expect(droppedFilePath, '/tmp/photo.png');
   });
 
+  testWidgets('PDF drop hands over the path', (tester) async {
+    String? droppedPath;
+    await _pumpHarness(
+      tester,
+      onImageDropped: (_, _, _) {},
+      onFileDropped: (filePath, {mimeType, appleBookmark}) =>
+          droppedPath = filePath,
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state<ChatMediaDropTargetState>(
+      find.byType(ChatMediaDropTarget),
+    );
+    await state.handleDrop([
+      DropItemFile.fromData(
+        Uint8List.fromList([1, 2, 3]),
+        name: 'report.pdf',
+        path: '/tmp/report.pdf',
+      ),
+    ]);
+    await tester.pumpAndSettle();
+
+    expect(droppedPath, '/tmp/report.pdf');
+  });
+
+  testWidgets('PDF MIME without an extension hands over the path', (
+    tester,
+  ) async {
+    String? droppedPath;
+    String? droppedMime;
+    await _pumpHarness(
+      tester,
+      onImageDropped: (_, _, _) {},
+      onFileDropped: (filePath, {mimeType, appleBookmark}) {
+        droppedPath = filePath;
+        droppedMime = mimeType;
+      },
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state<ChatMediaDropTargetState>(
+      find.byType(ChatMediaDropTarget),
+    );
+    await state.handleDrop([
+      DropItemFile.fromData(
+        Uint8List.fromList([1, 2, 3]),
+        mimeType: 'application/pdf',
+        name: 'download',
+        path: '/tmp/download',
+      ),
+    ]);
+    await tester.pumpAndSettle();
+
+    expect(droppedPath, '/tmp/download');
+    expect(droppedMime, 'application/pdf');
+  });
+
+  testWidgets('an image still wins over the document handler', (tester) async {
+    String? droppedFilePath;
+    String? droppedImagePath;
+    await _pumpHarness(
+      tester,
+      onImageDropped: (_, _, filePath) => droppedImagePath = filePath,
+      onFileDropped: (filePath, {mimeType, appleBookmark}) =>
+          droppedFilePath = filePath,
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state<ChatMediaDropTargetState>(
+      find.byType(ChatMediaDropTarget),
+    );
+    await state.handleDrop([
+      DropItemFile.fromData(
+        Uint8List.fromList([1, 2, 3]),
+        name: 'photo.png',
+        path: '/tmp/photo.png',
+      ),
+    ]);
+    await tester.pumpAndSettle();
+
+    expect(droppedImagePath, '/tmp/photo.png');
+    expect(droppedFilePath, isNull);
+  });
+
+  testWidgets('a document type the picker refuses shows the snackbar', (
+    tester,
+  ) async {
+    var dropped = false;
+    await _pumpHarness(
+      tester,
+      onImageDropped: (_, _, _) {},
+      onFileDropped: (_, {mimeType, appleBookmark}) => dropped = true,
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state<ChatMediaDropTargetState>(
+      find.byType(ChatMediaDropTarget),
+    );
+    await state.handleDrop([
+      DropItemFile.fromData(
+        Uint8List.fromList([1, 2, 3]),
+        name: 'archive.zip',
+        path: '/tmp/archive.zip',
+      ),
+    ]);
+    await tester.pumpAndSettle();
+
+    expect(dropped, isFalse);
+    expect(find.text('Drop an image, a text file or a PDF'), findsOneWidget);
+  });
+
   testWidgets('unsupported drop shows snackbar without invoking callback', (
     tester,
   ) async {
@@ -77,15 +188,15 @@ void main() {
     await state.handleDrop([
       DropItemFile.fromData(
         Uint8List.fromList([1, 2, 3]),
-        mimeType: 'text/plain',
-        name: 'notes.txt',
-        path: '/tmp/notes.txt',
+        mimeType: 'application/zip',
+        name: 'archive.zip',
+        path: '/tmp/archive.zip',
       ),
     ]);
     await tester.pumpAndSettle();
 
     expect(dropped, isFalse);
-    expect(find.text('Drop an image file to attach it'), findsOneWidget);
+    expect(find.text('Drop an image, a text file or a PDF'), findsOneWidget);
   });
 
   testWidgets('video drop hands over the path, not the bytes', (tester) async {
@@ -142,7 +253,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(dropped, isFalse);
-    expect(find.text('Drop an image file to attach it'), findsOneWidget);
+    expect(find.text('Drop an image, a text file or a PDF'), findsOneWidget);
   });
 }
 
@@ -151,6 +262,8 @@ Future<void> _pumpHarness(
   required void Function(Uint8List bytes, String mimeType, String filePath)
   onImageDropped,
   void Function(String filePath, String mimeType)? onVideoDropped,
+  void Function(String filePath, {String? mimeType, Uint8List? appleBookmark})?
+  onFileDropped,
   bool videoEnabled = false,
 }) {
   return tester.pumpWidget(
@@ -173,6 +286,7 @@ Future<void> _pumpHarness(
                 enabled: true,
                 onImageDropped: onImageDropped,
                 onVideoDropped: onVideoDropped,
+                onFileDropped: onFileDropped,
                 videoEnabled: videoEnabled,
                 child: const SizedBox.expand(),
               ),

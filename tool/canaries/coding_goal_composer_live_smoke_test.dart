@@ -199,6 +199,8 @@ class _LiveSmokeChatNotifier extends ChatNotifier {
   @override
   Future<ChatTurnOwner?> sendMessage(
     String content, {
+    String? modelContent,
+    String? attachmentPath,
     String? imageBase64,
     String? imageMimeType,
     String? originalImagePath,

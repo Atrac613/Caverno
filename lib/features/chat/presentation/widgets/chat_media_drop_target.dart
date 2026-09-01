@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/utils/logger.dart';
+import 'composer_file_picker.dart';
 
 class ChatMediaDropTarget extends StatefulWidget {
   const ChatMediaDropTarget({
@@ -14,6 +15,7 @@ class ChatMediaDropTarget extends StatefulWidget {
     required this.child,
     required this.onImageDropped,
     this.onVideoDropped,
+    this.onFileDropped,
     this.videoEnabled = false,
     super.key,
   });
@@ -26,6 +28,16 @@ class ChatMediaDropTarget extends StatefulWidget {
   /// Handed the dropped file's path rather than its bytes: a clip is delivered
   /// by reference, so reading it here would buy nothing but a copy in memory.
   final void Function(String filePath, String mimeType)? onVideoDropped;
+
+  /// Handed a dropped document's path, for the extensions and MIME types
+  /// [ComposerFilePicker] takes — text formats and PDF. Like a video, it
+  /// travels by reference; the bookmark is forwarded so macOS can reopen it.
+  final void Function(
+    String filePath, {
+    String? mimeType,
+    Uint8List? appleBookmark,
+  })?
+  onFileDropped;
 
   /// Whether the endpoint in use accepts video. A drop is refused with the
   /// usual "not supported" notice when it does not.
@@ -115,7 +127,7 @@ class ChatMediaDropTargetState extends State<ChatMediaDropTarget> {
                           ),
                           const SizedBox(width: 10),
                           Text(
-                            'message.drop_image_overlay'.tr(),
+                            'message.drop_overlay'.tr(),
                             style: theme.textTheme.labelLarge?.copyWith(
                               color: theme.colorScheme.primary,
                               fontWeight: FontWeight.w700,
@@ -155,9 +167,31 @@ class ChatMediaDropTargetState extends State<ChatMediaDropTarget> {
 
     final imageItem = _firstDropItem(items, _isImageDropItem);
     if (imageItem == null) {
+      // Documents are tried last so an image never loses to a file handler
+      // that would also accept it.
+      if (widget.onFileDropped != null) {
+        final fileItem = _firstDropItem(items, _isFileDropItem);
+        final filePath = fileItem == null
+            ? null
+            : _dropItemPathForImageHandling(fileItem);
+        if (filePath != null && filePath.trim().isNotEmpty) {
+          widget.onFileDropped!(
+            filePath,
+            mimeType: fileItem!.mimeType,
+            appleBookmark: fileItem.extraAppleBookmark,
+          );
+          return;
+        }
+      }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('message.drop_image_unsupported'.tr())),
+        SnackBar(
+          content: Text(
+            widget.videoEnabled
+                ? 'message.drop_unsupported'.tr()
+                : 'message.drop_unsupported_no_video'.tr(),
+          ),
+        ),
       );
       return;
     }
@@ -217,6 +251,11 @@ class ChatMediaDropTargetState extends State<ChatMediaDropTarget> {
     if (path.endsWith('.mkv')) return 'video/x-matroska';
     if (path.endsWith('.avi')) return 'video/x-msvideo';
     return 'video/mp4';
+  }
+
+  bool _isFileDropItem(DropItem item) {
+    if (ComposerFilePicker.acceptsMime(item.mimeType)) return true;
+    return ComposerFilePicker.acceptsPath(_dropItemPathForImageHandling(item));
   }
 
   bool _isImageDropItem(DropItem item) {

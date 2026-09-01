@@ -348,4 +348,97 @@ void main() {
     expect(find.text('Tools'), findsNothing);
     expect(find.text('builtin_search'), findsNothing);
   });
+
+  testWidgets('puts the question above the attachment and offers no toggle', (
+    tester,
+  ) async {
+    final message = Message(
+      id: 'user-attachment',
+      content: 'これは何？\n\n[File: rules.pdf (PDF, 20 pages, 1.0 MB)]',
+      role: MessageRole.user,
+      timestamp: DateTime(2026, 9, 1, 7, 42),
+    );
+
+    await _pumpMessageBubble(tester, message: message);
+
+    final questionRect = tester.getRect(find.text('これは何？'));
+    final attachmentRect = tester.getRect(
+      find.text('rules.pdf (PDF, 20 pages, 1.0 MB)'),
+    );
+    expect(attachmentRect.top, greaterThan(questionRect.top));
+    // The header names the file; there is nothing behind it to open.
+    expect(find.byIcon(Icons.expand_more), findsNothing);
+    expect(find.byIcon(Icons.expand_less), findsNothing);
+  });
+
+  testWidgets('still shows a file inlined by an older message', (tester) async {
+    final message = Message(
+      id: 'legacy-attachment',
+      content: '[File: notes.txt]\nalpha\nbeta\n\nWhat is this?',
+      role: MessageRole.user,
+      timestamp: DateTime(2026, 9, 1, 7, 42),
+    );
+
+    await _pumpMessageBubble(tester, message: message);
+
+    expect(find.text('What is this?'), findsOneWidget);
+    expect(find.text('notes.txt'), findsOneWidget);
+    expect(find.text('alpha\nbeta'), findsOneWidget);
+    expect(find.byIcon(Icons.expand_more), findsNothing);
+  });
+
+  testWidgets('reads a header-first message as the question, not file text', (
+    tester,
+  ) async {
+    // The shape messages took between the visible/model split and the
+    // reorder: the header alone, then the person's words. Treating what
+    // followed as file content put their message inside the file box.
+    final message = Message(
+      id: 'header-first',
+      content: '[File: rules.pdf (PDF, 20 pages, 1.0 MB)]\n\nこれは何？',
+      role: MessageRole.user,
+      timestamp: DateTime(2026, 9, 1, 7, 42),
+    );
+
+    await _pumpMessageBubble(tester, message: message);
+
+    expect(find.text('これは何？'), findsOneWidget);
+    expect(find.text('rules.pdf (PDF, 20 pages, 1.0 MB)'), findsOneWidget);
+  });
+
+  testWidgets('opens the attachment summary only when a copy was kept', (
+    tester,
+  ) async {
+    final withCopy = Message(
+      id: 'with-copy',
+      content: 'これは何？\n\n[File: rules.pdf (PDF, 20 pages, 1.0 MB)]',
+      role: MessageRole.user,
+      timestamp: DateTime(2026, 9, 1, 7, 42),
+      attachmentPath: '/attachments/rules.pdf',
+    );
+
+    await _pumpMessageBubble(tester, message: withCopy);
+    expect(find.byType(Tooltip), findsWidgets);
+    expect(
+      find.ancestor(
+        of: find.text('rules.pdf (PDF, 20 pages, 1.0 MB)'),
+        matching: find.byType(GestureDetector),
+      ),
+      findsWidgets,
+    );
+
+    final withoutCopy = withCopy.copyWith(
+      id: 'without-copy',
+      attachmentPath: null,
+    );
+
+    await _pumpMessageBubble(tester, message: withoutCopy);
+    expect(
+      find.ancestor(
+        of: find.text('rules.pdf (PDF, 20 pages, 1.0 MB)'),
+        matching: find.byType(GestureDetector),
+      ),
+      findsNothing,
+    );
+  });
 }

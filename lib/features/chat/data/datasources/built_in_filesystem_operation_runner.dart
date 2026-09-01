@@ -41,6 +41,7 @@ Future<FirstPartyToolExecutionResult> runBuiltInFilesystemOperation({
     maxChars: arguments['max_chars'] as int,
     offset: arguments['offset'] as int,
     limit: arguments['limit'] as int?,
+    startPage: arguments['start_page'] as int? ?? 1,
   ),
   'inspect_file' => FirstPartyToolExecutionResult.payloadOnly(
     await FilesystemTools.inspectFile(

@@ -20,6 +20,7 @@ import '../../domain/entities/turn_diff.dart';
 import '../providers/coding_projects_notifier.dart';
 import 'file_workspace_viewer_sheet.dart';
 import 'message_image_io.dart';
+import 'message_attachment_io.dart';
 import 'message_image_viewer.dart';
 import 'message_video_poster.dart';
 import 'message_video_viewer.dart';
@@ -293,6 +294,7 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
                         ? '...'
                         : message.content,
                     textColor: theme.colorScheme.onPrimary,
+                    attachmentPath: message.attachmentPath,
                   )
                 : ParsedContentView(
                     content: message.content.isEmpty && message.isStreaming
@@ -1093,81 +1095,130 @@ class _ProjectAccessErrorCard extends StatelessWidget {
   }
 }
 
-/// Regex that matches a `[File: name]` header followed by its content block.
-final _fileBlockPattern = RegExp(r'^\[File: (.+?)\]\n([\s\S]*?)(?:\n\n|$)');
+/// The `[File: name]` header a composer attachment leaves in the transcript.
+///
+/// Current messages put the person's text first and append the header, and it
+/// carries no body — the file's text goes to the model, not into the bubble.
+final _trailingFileBlockPattern = RegExp(r'(?:\n\n|^)\[File: (.+?)\]\s*$');
 
-/// Renders user message content, collapsing embedded file blocks.
-class _UserMessageContent extends StatefulWidget {
-  const _UserMessageContent({required this.content, required this.textColor});
+/// The same header, at the front of the message.
+///
+/// Messages written before the visible/model split inlined the whole file
+/// under it; the ones written between that split and the reorder put it there
+/// with nothing under it at all. The body is captured separately so the second
+/// kind does not read the person's own question as file content — which is
+/// what put their message inside the file box.
+final _leadingFileBlockPattern = RegExp(r'^\[File: (.+?)\]\n');
+
+/// One attachment header pulled out of a user message.
+class _FileBlock {
+  const _FileBlock({
+    required this.label,
+    required this.userText,
+    required this.inlinedBody,
+  });
+
+  final String label;
+  final String userText;
+
+  /// The file's text, for a message old enough to have carried it inline.
+  final String inlinedBody;
+
+  static _FileBlock? parse(String content) {
+    final trailing = _trailingFileBlockPattern.firstMatch(content);
+    if (trailing != null) {
+      return _FileBlock(
+        label: trailing.group(1)!,
+        userText: content.substring(0, trailing.start).trim(),
+        inlinedBody: '',
+      );
+    }
+    final leading = _leadingFileBlockPattern.firstMatch(content);
+    if (leading == null) return null;
+    final rest = content.substring(leading.end);
+    // A blank line right after the header means the header stood alone and
+    // everything below it is the person's message.
+    final blankLine = rest.indexOf('\n\n');
+    if (rest.startsWith('\n')) {
+      return _FileBlock(
+        label: leading.group(1)!,
+        userText: rest.trim(),
+        inlinedBody: '',
+      );
+    }
+    return _FileBlock(
+      label: leading.group(1)!,
+      userText: blankLine < 0 ? '' : rest.substring(blankLine).trim(),
+      inlinedBody: (blankLine < 0 ? rest : rest.substring(0, blankLine)).trim(),
+    );
+  }
+}
+
+/// Renders user message content, naming any file the message carried.
+///
+/// The header is a label, not a control: there is nothing behind it to open on
+/// a current message, because the attachment's text is sent to the model
+/// rather than kept in the transcript. A message from before that split still
+/// holds its file inline, so that text is shown in a bounded scroll area
+/// instead of being hidden behind a disclosure nobody can see is there.
+class _UserMessageContent extends StatelessWidget {
+  const _UserMessageContent({
+    required this.content,
+    required this.textColor,
+    this.attachmentPath,
+  });
 
   final String content;
   final Color textColor;
 
-  @override
-  State<_UserMessageContent> createState() => _UserMessageContentState();
-}
+  /// The stored copy of the attachment, when the message kept one.
+  final String? attachmentPath;
 
-class _UserMessageContentState extends State<_UserMessageContent> {
-  bool _expanded = false;
+  Future<void> _openAttachment(BuildContext context) async {
+    final path = attachmentPath;
+    if (path == null) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final result = await openAttachmentWithPlatformViewer(path: path);
+    if (result == AttachmentOpenResult.opened) return;
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            result == AttachmentOpenResult.missing
+                ? 'message.attachment_missing'.tr()
+                : 'message.attachment_open_failed'.tr(),
+          ),
+        ),
+      );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final match = _fileBlockPattern.firstMatch(widget.content);
-    if (match == null) {
-      return SelectableText(
-        widget.content,
-        style: TextStyle(color: widget.textColor),
-      );
+    final block = _FileBlock.parse(content);
+    if (block == null) {
+      return SelectableText(content, style: TextStyle(color: textColor));
     }
-
-    final fileName = match.group(1)!;
-    final fileContent = match.group(2)!;
-    final userText = widget.content.substring(match.end).trim();
-    final lineCount = '\n'.allMatches(fileContent).length + 1;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Collapsible file block
-        GestureDetector(
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black12,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.description,
-                  size: 16,
-                  color: widget.textColor.withValues(alpha: 0.8),
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    '$fileName ($lineCount lines)',
-                    style: TextStyle(
-                      color: widget.textColor,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  _expanded ? Icons.expand_less : Icons.expand_more,
-                  size: 18,
-                  color: widget.textColor.withValues(alpha: 0.7),
-                ),
-              ],
+        if (block.userText.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: SelectableText(
+              block.userText,
+              style: TextStyle(color: textColor),
             ),
           ),
+        _AttachmentSummary(
+          label: block.label,
+          textColor: textColor,
+          onOpen: attachmentPath == null
+              ? null
+              : () => unawaited(_openAttachment(context)),
         ),
-        if (_expanded)
+        if (block.inlinedBody.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Container(
@@ -1179,9 +1230,9 @@ class _UserMessageContentState extends State<_UserMessageContent> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(8),
                 child: SelectableText(
-                  fileContent,
+                  block.inlinedBody,
                   style: TextStyle(
-                    color: widget.textColor.withValues(alpha: 0.9),
+                    color: textColor.withValues(alpha: 0.9),
                     fontSize: 12,
                     fontFamily: kMonoFontFamily,
                   ),
@@ -1189,20 +1240,68 @@ class _UserMessageContentState extends State<_UserMessageContent> {
               ),
             ),
           ),
-        // User's own message text
-        if (userText.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: SelectableText(
-              userText,
-              style: TextStyle(color: widget.textColor),
-            ),
-          ),
       ],
     );
   }
 }
 
+/// One line naming the file a message carried.
+///
+/// Tappable only when the message kept a copy on disk: the app cannot render
+/// the document itself, so opening it means handing the file to the platform
+/// viewer, and there is nothing to hand over for a message written before
+/// attachments were preserved.
+class _AttachmentSummary extends StatelessWidget {
+  const _AttachmentSummary({
+    required this.label,
+    required this.textColor,
+    this.onOpen,
+  });
+
+  final String label;
+  final Color textColor;
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.picture_as_pdf_outlined,
+            size: 16,
+            color: textColor.withValues(alpha: 0.8),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                decoration: onOpen == null ? null : TextDecoration.underline,
+                decorationColor: textColor.withValues(alpha: 0.5),
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (onOpen == null) return row;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onOpen,
+        behavior: HitTestBehavior.opaque,
+        child: Tooltip(message: 'message.attachment_open'.tr(), child: row),
+      ),
+    );
+  }
+}
 
 /// Names a video the message carried, without trying to play it.
 ///

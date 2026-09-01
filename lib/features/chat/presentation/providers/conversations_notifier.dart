@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/services/attachment_storage_service.dart';
@@ -20,6 +19,8 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/conversation_compaction_service.dart';
+import '../../domain/services/conversation_attachment_paths.dart';
+import '../../domain/services/conversation_default_title.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_goal_progress_inference.dart';
 import '../../domain/services/conversation_goal_status_transition.dart';
@@ -677,7 +678,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
     String title = conversation.title;
     if (title == defaultConversationTitle && messages.isNotEmpty) {
-      title = _deriveDefaultTitle(messages) ?? title;
+      title = ConversationDefaultTitle.deriveFrom(messages) ?? title;
     }
 
     final compactionArtifact = _buildCompactionArtifact(
@@ -751,7 +752,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final updatedConversation = conversation.copyWith(
       title:
           checkpoint?.title ??
-          _deriveDefaultTitle(retainedMessages) ??
+          ConversationDefaultTitle.deriveFrom(retainedMessages) ??
           defaultConversationTitle,
       messages: retainedMessages,
       executionMode:
@@ -850,10 +851,10 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final deletedIds = deleted.map((conversation) => conversation.id).toSet();
     final retainedPaths = state.conversations
         .where((conversation) => !deletedIds.contains(conversation.id))
-        .expand(_attachmentPathsForConversation)
+        .expand(ConversationAttachmentPaths.of)
         .toSet();
     final paths = deleted
-        .expand(_attachmentPathsForConversation)
+        .expand(ConversationAttachmentPaths.of)
         .where((path) => !retainedPaths.contains(path))
         .toSet();
     if (paths.isEmpty) return;
@@ -864,34 +865,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         '[ConversationsNotifier] Failed to delete conversation attachments: '
         '$error',
       );
-    }
-  }
-
-  static final RegExp _largeAttachmentReferencePattern = RegExp(
-    r'^\[Attached file: (.+) \([^)]+\)\]$',
-    multiLine: true,
-  );
-
-  Iterable<String> _attachmentPathsForConversation(
-    Conversation conversation,
-  ) sync* {
-    for (final message in conversation.messages) {
-      final originalImagePath = message.originalImagePath?.trim();
-      if (originalImagePath != null && originalImagePath.isNotEmpty) {
-        yield p.normalize(p.absolute(originalImagePath));
-      }
-      final videoPath = message.videoPath?.trim();
-      if (videoPath != null && videoPath.isNotEmpty) {
-        yield p.normalize(p.absolute(videoPath));
-      }
-      for (final match in _largeAttachmentReferencePattern.allMatches(
-        message.content,
-      )) {
-        final path = match.group(1)?.trim();
-        if (path != null && path.isNotEmpty) {
-          yield p.normalize(p.absolute(path));
-        }
-      }
     }
   }
 
@@ -929,19 +902,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   /// The semantic indexer, or null when semantic search is off or its provider
   /// chain is unavailable (e.g. unit tests without a settings override). Never
   /// throws — indexing is best-effort and must not break the chat loop.
-  String? _deriveDefaultTitle(List<Message> messages) {
-    for (final message in messages) {
-      if (message.role != MessageRole.user) continue;
-
-      final trimmed = message.content.trim();
-      if (trimmed.isEmpty) continue;
-
-      return trimmed.length > 30 ? '${trimmed.substring(0, 30)}...' : trimmed;
-    }
-
-    return null;
-  }
-
   Future<void> updateCurrentWorkflow({
     ConversationWorkflowStage? workflowStage,
     ConversationWorkflowSpec? workflowSpec,
