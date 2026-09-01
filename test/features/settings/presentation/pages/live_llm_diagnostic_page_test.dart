@@ -108,7 +108,7 @@ void main() {
     expect(find.text('Diagnostic History'), findsOneWidget);
   });
 
-  testWidgets('imports two v9 artifacts and announces saturation', (
+  testWidgets('imports two same-version artifacts and announces saturation', (
     tester,
   ) async {
     final initialSettings = AppSettings.defaults();
@@ -117,8 +117,8 @@ void main() {
     });
     final prefs = await SharedPreferences.getInstance();
     final artifacts = _QueuedBenchmarkArtifactFileService([
-      _v9BenchmarkArtifact('qwen3.6-27b-vision'),
-      _v9BenchmarkArtifact('qwen3.6-35b-a3b-vision'),
+      _currentSuiteBenchmarkArtifact('qwen3.6-27b-vision'),
+      _currentSuiteBenchmarkArtifact('qwen3.6-35b-a3b-vision'),
     ]);
     final container = ProviderContainer(
       overrides: [
@@ -824,14 +824,14 @@ Future<void> _pumpPageWithContainer(
   await tester.pumpAndSettle();
 }
 
-Map<String, dynamic> _v9BenchmarkArtifact(String model) {
+Map<String, dynamic> _currentSuiteBenchmarkArtifact(String model) {
   const baseUrl = 'http://127.0.0.1:11234/v1';
   const generatedAt = '2026-08-14T10:00:00Z';
   return {
     'schema': LiveLlmBenchmarkArtifactImporter.schema,
     'generatedAt': generatedAt,
     'suiteId': 'cavernobench',
-    'suiteVersion': 9,
+    'suiteVersion': LiveLlmDiagnosticSuite.version,
     'provider': LlmProvider.openAiCompatible.name,
     'baseUrl': baseUrl,
     'model': model,
@@ -842,7 +842,7 @@ Map<String, dynamic> _v9BenchmarkArtifact(String model) {
         'finishedAt': generatedAt,
         'benchmark': {
           'suiteId': 'cavernobench',
-          'suiteVersion': 9,
+          'suiteVersion': LiveLlmDiagnosticSuite.version,
           'earnedPoints': 965,
           'attemptedPoints': 965,
           'maxPoints': 1000,

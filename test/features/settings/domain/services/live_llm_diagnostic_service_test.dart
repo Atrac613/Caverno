@@ -9,6 +9,7 @@ import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
+import 'package:caverno/features/settings/domain/services/live_llm_chart_probe_image.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_service.dart';
 import 'package:caverno/features/settings/domain/services/model_capability_profile_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,7 +70,7 @@ void main() {
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.passed)
           .length,
-      14,
+      15,
     );
     expect(
       _result(report, 'edit_format_fidelity').metadata['editFormatPreference'],
@@ -102,6 +103,14 @@ void main() {
     expect(
       _result(report, 'vision_attachment').details,
       contains('No-image control: 1/4'),
+    );
+    expect(
+      _result(report, 'chart_reading').status,
+      LiveLlmDiagnosticStatus.passed,
+    );
+    expect(
+      _result(report, 'chart_reading').details,
+      contains('No-image control: 0/4'),
     );
     expect(
       _result(report, 'vision_tool_observation').status,
@@ -184,6 +193,122 @@ void main() {
     expect(width, height);
   });
 
+  test('the chart probe image stays large enough to be readable', () {
+    // Measured against a live endpoint (qwen3.8-27b-vision): 600, 1100 and
+    // 1700 pixels wide each answered all four questions correctly while the
+    // no-image control answered none. Below the smallest measured pass the
+    // probe would report the harness's limit as a model failure.
+    final bytes = base64Decode(LiveLlmChartProbeImage.base64);
+    expect(bytes.sublist(1, 4), utf8.encode('PNG'));
+    final header = ByteData.sublistView(bytes);
+    expect(header.getUint32(16), greaterThanOrEqualTo(600));
+    expect(header.getUint32(20), greaterThanOrEqualTo(400));
+  });
+
+  group('chart answer grading', () {
+    test('counts the readings a model got right', () {
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers('78, 41, Dune, Cobalt'),
+        4,
+      );
+    });
+
+    test('reads the answer out of a sentence around it', () {
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers(
+          'Here are the readings:\n78, 41, Dune, Cobalt',
+        ),
+        4,
+      );
+    });
+
+    test('grades the answer, not the reasoning that led to it', () {
+      // The narration names the gridlines on its way to the answer. Scoring
+      // the raw response scored that narration; this is the response a
+      // production consumer would display.
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers(
+          '<think>Gridlines are 0, 20, 40, 60, 80, 100. Aster is 41, Briar '
+          '78.</think>78, 41, Dune, Cobalt',
+        ),
+        4,
+      );
+    });
+
+    test('is positional, so a reordered answer answers nothing', () {
+      // The same four readings against the wrong four questions.
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers('41, 78, Cobalt, Dune'),
+        0,
+      );
+    });
+
+    test('one wrong reading does not swallow the rest', () {
+      // Measured against a live model, which read Aster as 40 where the bar is
+      // 41 and got the other three exactly right.
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers('78, 40, Dune, Cobalt'),
+        4,
+      );
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers('78, 12, Dune, Cobalt'),
+        3,
+      );
+    });
+
+    test('accepts a numeric reading only within the tolerance', () {
+      final justInside = 41 + LiveLlmDiagnosticService.chartValueTolerance;
+      final justOutside = justInside + 1;
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers(
+          '78, $justInside, Dune, Cobalt',
+        ),
+        4,
+      );
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers(
+          '78, $justOutside, Dune, Cobalt',
+        ),
+        3,
+      );
+    });
+
+    test('scores nothing for an empty or short answer', () {
+      expect(LiveLlmDiagnosticService.matchedChartAnswers(''), 0);
+      expect(LiveLlmDiagnosticService.matchedChartAnswers('78'), 1);
+    });
+  });
+
+  test('a chart answer the control arm matches is not counted as read', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: _FakeDiagnosticDataSource(blindChart: true),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: const {'chart_reading'});
+
+    final result = _result(report, 'chart_reading');
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.details, contains('model_guessed_without_reading'));
+  });
+
+  test('a chart answer that never arrived is not a failed reading', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: _FakeDiagnosticDataSource(silentChart: true),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: const {'chart_reading'});
+
+    final result = _result(report, 'chart_reading');
+    // Warning, not failed: a model that spent its budget reasoning was never
+    // measured, and scoring that as blindness reports the harness's limit.
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(result.details, contains('no_answer_within_budget'));
+  });
+
   test('skips tool probes when MCP tools are disabled', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
@@ -225,10 +350,9 @@ void main() {
     );
 
     // 31 pre-vision requests (including structured output, streaming, and
-    // three edit formats) plus
-    // the vision block: two
-    // attachment arms and one tool-observation request.
-    expect(dataSource.requestedModels, List.filled(34, 'test-model'));
+    // three edit formats) plus the vision block: two attachment arms, two
+    // chart-reading arms, and one tool-observation request.
+    expect(dataSource.requestedModels, List.filled(36, 'test-model'));
     expect(
       report.samplerCalibrationTrials
           .map((trial) => trial.requestClass)
@@ -1176,10 +1300,19 @@ class _FakeDiagnosticDataSource
     this.textToolCalls = false,
     this.structuredOutputSupport = ModelStructuredOutputSupport.jsonSchema,
     this.bracedReasoning = false,
+    this.blindChart = false,
+    this.silentChart = false,
   });
 
   final bool textToolCalls;
   final ModelStructuredOutputSupport structuredOutputSupport;
+
+  /// Answers the chart question the same with and without the image, which is
+  /// what a model that never looked at the picture does.
+  final bool blindChart;
+
+  /// Spends the whole budget inside a think block and never answers.
+  final bool silentChart;
 
   /// Prefixes structured answers with a `<think>` block that itself contains
   /// braces, the way a reasoning model's merged content arrives.
@@ -1325,6 +1458,22 @@ class _FakeDiagnosticDataSource
         content: messages.last.imageBase64 == null
             ? 'red, green, blue, yellow'
             : 'yellow, blue, red, green',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('bar chart with a labelled y axis')) {
+      // Stands in for a model that reads the chart: the control arm gets the
+      // shape of an answer right and the readings wrong.
+      if (silentChart) {
+        return ChatCompletionResult(
+          content: '<think>Gridlines are 0, 20, 40, 60, 80, 100. Aster sits',
+          finishReason: 'length',
+        );
+      }
+      return ChatCompletionResult(
+        content: messages.last.imageBase64 == null && !blindChart
+            ? '10, 4, Briar, Aster'
+            : '78, 41, Dune, Cobalt',
         finishReason: 'stop',
       );
     }
