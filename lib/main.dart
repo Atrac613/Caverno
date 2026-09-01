@@ -32,6 +32,7 @@ import 'features/settings/data/settings_repository.dart';
 import 'features/settings/domain/services/app_language_resolver.dart';
 import 'features/settings/presentation/providers/settings_notifier.dart';
 import 'features/chat/presentation/providers/approval_notification_actions.dart';
+import 'features/watch/presentation/watch_session_notifier.dart';
 import 'features/settings/presentation/widgets/settings_modal.dart';
 import 'features/remote_coding/presentation/remote_coding_server_notifier.dart';
 import 'features/terminal/application/caverno_cli_arguments.dart';
@@ -316,6 +317,13 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     // one. On iOS this is also what puts the buttons on a paired Apple Watch
     // when the companion app is not running.
     ref.watch(approvalNotificationActionsProvider);
+    if (Platform.isIOS) {
+      // Keeps the Apple Watch bridge alive for the app's lifetime. The notifier
+      // mirrors chat state to the watch and applies the commands that come
+      // back, so it has to be listening before the watch first asks — not only
+      // while some watch-related screen happens to be on top.
+      ref.watch(watchSessionProvider);
+    }
 
     final languagePreference = ref.watch(
       settingsNotifierProvider.select((settings) => settings.language),
