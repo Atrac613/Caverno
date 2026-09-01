@@ -58,6 +58,10 @@
 - **Remote Coding** — Drive a desktop coding session from a paired phone on the
   same LAN; keep it disabled in release builds until the authenticated-transport
   roadmap is complete
+- **Apple Watch Companion** — Answer a blocked turn's approval or question from
+  the wrist, glance at what is running, and dictate a new instruction. Approval
+  notifications carry Approve/Deny even when the watch app is closed. See
+  [`docs/apple_watch_companion.md`](docs/apple_watch_companion.md)
 - **AGENTS.md Support** — In coding and plan modes, the project root `AGENTS.md` (and the higher-priority `AGENTS.override.md`) is injected into the system prompt, following the [OpenAI Codex AGENTS.md spec](https://developers.openai.com/codex/guides/agents-md)
 
 ### Models and operations
@@ -690,10 +694,13 @@ lib/
 │   │   ├── data/      # Pairing registry, protocol, security, repository
 │   │   ├── domain/    # Remote coding models
 │   │   └── presentation/  # Remote coding pages, client/server notifiers
-│   └── settings/      # Settings feature (data → domain → presentation)
-│       ├── data/      # Repository, file service, QR service
-│       ├── domain/    # AppSettings entity (Freezed)
-│       └── presentation/  # Pages, providers, widgets (QR dialogs)
+│   ├── settings/      # Settings feature (data → domain → presentation)
+│   │   ├── data/      # Repository, file service, QR service
+│   │   ├── domain/    # AppSettings entity (Freezed)
+│   │   └── presentation/  # Pages, providers, widgets (QR dialogs)
+│   └── watch/         # Apple Watch companion bridge (no Flutter UI)
+│       ├── domain/    # WatchSnapshot / WatchCommand wire models, mapper
+│       └── presentation/  # WatchSessionNotifier (projection + commands)
 └── main.dart          # Entry point: storage, SharedPreferences, localization, Riverpod
 ```
 
