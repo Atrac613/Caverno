@@ -52,7 +52,18 @@ final class WatchSessionClient: NSObject, ObservableObject {
     let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return }
     streamedText = ""
-    send(.sendMessage, payload: ["content": trimmed, "isVoiceMode": isVoiceMode])
+    var payload: [String: Any] = [
+      "content": trimmed,
+      "isVoiceMode": isVoiceMode,
+    ]
+    // Stamp the thread this text was composed against. When the phone is
+    // unreachable the command falls back to transferUserInfo, which is
+    // delivered eventually rather than promptly, and an unstamped message
+    // would land in whichever thread is current by then.
+    if let conversationId = snapshot?.conversationId {
+      payload["conversationId"] = conversationId
+    }
+    send(.sendMessage, payload: payload)
   }
 
   func resolveApproval(id: String, approved: Bool) {

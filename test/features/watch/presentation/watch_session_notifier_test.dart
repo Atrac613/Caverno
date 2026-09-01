@@ -226,6 +226,70 @@ void main() {
     expect(bridge.results.single.code, 'empty_message');
   });
 
+  group('deferred command conversation binding', () {
+    test('a message stamped for another thread is refused', () async {
+      final instance = await notifier();
+      container
+          .read(conversationsNotifierProvider.notifier)
+          .createNewConversation();
+
+      await instance.handleCommandForTest(
+        WatchCommand(
+          type: WatchCommand.sendMessage,
+          id: 's-1',
+          payload: {
+            'content': 'continue that',
+            'conversationId': 'some-other-thread',
+          },
+        ),
+      );
+
+      final result = bridge.results.single;
+      expect(result.ok, isFalse);
+      expect(result.code, 'conversation_changed');
+    });
+
+    test('a message stamped for the open thread is accepted', () async {
+      final instance = await notifier();
+      container
+          .read(conversationsNotifierProvider.notifier)
+          .createNewConversation();
+      final current = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .id;
+
+      await instance.handleCommandForTest(
+        WatchCommand(
+          type: WatchCommand.sendMessage,
+          id: 's-1',
+          payload: {'content': 'hello', 'conversationId': current},
+        ),
+      );
+
+      expect(bridge.results.single.ok, isTrue);
+    });
+
+    test('an unstamped message is still accepted', () async {
+      // Older watch builds ship without the stamp; refusing them would break
+      // the companion on a watch that has not synced the new app yet.
+      final instance = await notifier();
+      container
+          .read(conversationsNotifierProvider.notifier)
+          .createNewConversation();
+
+      await instance.handleCommandForTest(
+        const WatchCommand(
+          type: WatchCommand.sendMessage,
+          id: 's-1',
+          payload: {'content': 'hello'},
+        ),
+      );
+
+      expect(bridge.results.single.ok, isTrue);
+    });
+  });
+
   test('resolving an approval that is gone reports approval_not_found', () async {
     final instance = await notifier();
 

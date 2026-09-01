@@ -298,6 +298,28 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       );
       return;
     }
+    // The watch stamps the conversation it was showing when the text was
+    // composed. `WatchSessionClient` falls back to `transferUserInfo` when the
+    // phone is unreachable, which guarantees delivery but not promptness: a
+    // message composed on one thread could otherwise land in whichever thread
+    // happened to be current minutes later. Approvals do not need this because
+    // their ids are unique and a stale one simply fails to resolve.
+    final composedFor = (command.payload['conversationId'] as String?)?.trim();
+    final current = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.id;
+    if (composedFor != null &&
+        composedFor.isNotEmpty &&
+        current != null &&
+        composedFor != current) {
+      await _fail(
+        command,
+        code: 'conversation_changed',
+        message: 'That thread is no longer open. Send it again.',
+      );
+      return;
+    }
     // Sent as a local interaction, not a remote one: the watch is a peripheral
     // of this device, so its turns must stay resolvable from the iPhone UI.
     unawaited(
