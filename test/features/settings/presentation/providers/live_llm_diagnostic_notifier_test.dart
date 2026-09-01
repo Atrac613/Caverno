@@ -311,6 +311,14 @@ class _TextOnlyDiagnosticDataSource
         finishReason: 'stop',
       );
     }
+    if (user.contains('bar chart with a labelled y axis')) {
+      return ChatCompletionResult(
+        content: messages.last.imageBase64 == null
+            ? '10, 4, Briar, Aster'
+            : '78, 41, Dune, Cobalt',
+        finishReason: 'stop',
+      );
+    }
     if (user.contains('routine sampler JSON object')) {
       return ChatCompletionResult(
         content:

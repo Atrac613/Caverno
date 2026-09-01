@@ -9,6 +9,7 @@ import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
+import 'package:caverno/features/settings/domain/services/live_llm_chart_probe_image.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_service.dart';
 import 'package:caverno/features/settings/domain/services/model_capability_profile_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,7 +70,7 @@ void main() {
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.passed)
           .length,
-      14,
+      15,
     );
     expect(
       _result(report, 'edit_format_fidelity').metadata['editFormatPreference'],
@@ -102,6 +103,14 @@ void main() {
     expect(
       _result(report, 'vision_attachment').details,
       contains('No-image control: 1/4'),
+    );
+    expect(
+      _result(report, 'chart_reading').status,
+      LiveLlmDiagnosticStatus.passed,
+    );
+    expect(
+      _result(report, 'chart_reading').details,
+      contains('No-image control: 0/4'),
     );
     expect(
       _result(report, 'vision_tool_observation').status,
@@ -184,6 +193,63 @@ void main() {
     expect(width, height);
   });
 
+  test('the chart probe image stays large enough to be readable', () {
+    // Measured against a live endpoint (qwen3.8-27b-vision): 600, 1100 and
+    // 1700 pixels wide each answered all four questions correctly while the
+    // no-image control answered none. Below the smallest measured pass the
+    // probe would report the harness's limit as a model failure.
+    final bytes = base64Decode(LiveLlmChartProbeImage.base64);
+    expect(bytes.sublist(1, 4), utf8.encode('PNG'));
+    final header = ByteData.sublistView(bytes);
+    expect(header.getUint32(16), greaterThanOrEqualTo(600));
+    expect(header.getUint32(20), greaterThanOrEqualTo(400));
+  });
+
+  group('chart answer grading', () {
+    test('counts the readings a model got right', () {
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers('78, 41, Dune, Cobalt'),
+        4,
+      );
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers(
+          'The values are 78 and 41; Dune is tallest and Cobalt shortest.',
+        ),
+        4,
+      );
+    });
+
+    test('is positional, so a reordered answer is not a reading', () {
+      // The same four tokens in the wrong order answer a different question.
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers('41, 78, Cobalt, Dune'),
+        1,
+      );
+    });
+
+    test('stops at the first reading the model missed', () {
+      expect(
+        LiveLlmDiagnosticService.matchedChartAnswers('78, 40, Dune, Cobalt'),
+        1,
+      );
+      expect(LiveLlmDiagnosticService.matchedChartAnswers(''), 0);
+    });
+  });
+
+  test('a chart answer the control arm matches is not counted as read', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: _FakeDiagnosticDataSource(blindChart: true),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: const {'chart_reading'});
+
+    final result = _result(report, 'chart_reading');
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.details, contains('model_guessed_without_reading'));
+  });
+
   test('skips tool probes when MCP tools are disabled', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
@@ -225,10 +291,9 @@ void main() {
     );
 
     // 31 pre-vision requests (including structured output, streaming, and
-    // three edit formats) plus
-    // the vision block: two
-    // attachment arms and one tool-observation request.
-    expect(dataSource.requestedModels, List.filled(34, 'test-model'));
+    // three edit formats) plus the vision block: two attachment arms, two
+    // chart-reading arms, and one tool-observation request.
+    expect(dataSource.requestedModels, List.filled(36, 'test-model'));
     expect(
       report.samplerCalibrationTrials
           .map((trial) => trial.requestClass)
@@ -1176,10 +1241,15 @@ class _FakeDiagnosticDataSource
     this.textToolCalls = false,
     this.structuredOutputSupport = ModelStructuredOutputSupport.jsonSchema,
     this.bracedReasoning = false,
+    this.blindChart = false,
   });
 
   final bool textToolCalls;
   final ModelStructuredOutputSupport structuredOutputSupport;
+
+  /// Answers the chart question the same with and without the image, which is
+  /// what a model that never looked at the picture does.
+  final bool blindChart;
 
   /// Prefixes structured answers with a `<think>` block that itself contains
   /// braces, the way a reasoning model's merged content arrives.
@@ -1325,6 +1395,16 @@ class _FakeDiagnosticDataSource
         content: messages.last.imageBase64 == null
             ? 'red, green, blue, yellow'
             : 'yellow, blue, red, green',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('bar chart with a labelled y axis')) {
+      // Stands in for a model that reads the chart: the control arm gets the
+      // shape of an answer right and the readings wrong.
+      return ChatCompletionResult(
+        content: messages.last.imageBase64 == null && !blindChart
+            ? '10, 4, Briar, Aster'
+            : '78, 41, Dune, Cobalt',
         finishReason: 'stop',
       );
     }

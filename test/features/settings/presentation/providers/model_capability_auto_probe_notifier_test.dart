@@ -54,7 +54,7 @@ void main() {
       // streaming) plus the two vision
       // attachment arms. The tool-observation probe goes through a different
       // datasource method, so it is not part of this count.
-      expect(dataSource.requestCount, 34);
+      expect(dataSource.requestCount, 36);
       expect(
         state.report?.results
             .singleWhere((result) => result.id == 'exact_preservation')

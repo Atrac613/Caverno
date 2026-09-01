@@ -22,6 +22,7 @@ import '../../../chat/domain/services/tool_definition_search_service.dart';
 import '../../../chat/domain/services/tool_result_prompt_builder.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
+import 'live_llm_chart_probe_image.dart';
 import 'llm_provider_capabilities.dart';
 import 'llm_sampler_preset_profile.dart';
 
@@ -102,6 +103,11 @@ class LiveLlmDiagnosticService {
       descriptionKey: 'settings.live_llm_diag_probe_video_input_desc',
     ),
     LiveLlmDiagnosticProbeDefinition(
+      id: _chartReadingProbeId,
+      titleKey: 'settings.live_llm_diag_probe_chart_reading_title',
+      descriptionKey: 'settings.live_llm_diag_probe_chart_reading_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
       id: _visionToolObservationProbeId,
       titleKey: 'settings.live_llm_diag_probe_vision_observation_title',
       descriptionKey: 'settings.live_llm_diag_probe_vision_observation_desc',
@@ -158,6 +164,7 @@ class LiveLlmDiagnosticService {
   static const _foundationModelsLanguageMatrixProbeId =
       'foundation_models_language_matrix';
   static const _visionAttachmentProbeId = 'vision_attachment';
+  static const _chartReadingProbeId = 'chart_reading';
   static const _videoInputModalityProbeId = 'video_input_modality';
   static const _visionToolObservationProbeId = 'vision_tool_observation';
   static const _narrowToolCallProbeId = 'narrow_tool_call';
@@ -188,6 +195,7 @@ class LiveLlmDiagnosticService {
     _embeddingsProbeId,
     _effectiveContextProbeId,
     _visionAttachmentProbeId,
+    _chartReadingProbeId,
     _visionToolObservationProbeId,
     _videoInputModalityProbeId,
     _narrowToolCallProbeId,
@@ -250,6 +258,23 @@ class LiveLlmDiagnosticService {
       'solid color. Reply with exactly the four color names in reading order '
       '(top-left, top-right, bottom-left, bottom-right), lowercase, separated '
       'by commas, and no other text.';
+
+  /// Asks for all four readings in one turn.
+  ///
+  /// One request per arm rather than one per question: the probe runs on every
+  /// diagnostic pass and a chart image is not cheap, and asking separately
+  /// measured nothing extra when it was tried against a live endpoint.
+  static const _chartProbePrompt =
+      'The attached image is a bar chart with a labelled y axis. Reply with '
+      'exactly four comma-separated items and no other text: the numeric '
+      'height of the bar labelled Briar, the numeric height of the bar '
+      'labelled Aster, the label of the tallest bar, the label of the '
+      'shortest bar.';
+
+  static const _chartClassificationRejected = 'endpoint_rejected';
+  static const _chartClassificationGuessed = 'model_guessed_without_reading';
+  static const _chartClassificationPartial = 'partially_read';
+  static const _chartClassificationRead = 'read_correctly';
 
   static const _marker = 'CAVERNO_LIVE_DIAGNOSTIC';
   static const structuredOutputSupportMetadataKey = 'structuredOutputSupport';
@@ -2001,6 +2026,7 @@ class LiveLlmDiagnosticService {
       var updated = report;
       for (final probeId in const [
         _visionAttachmentProbeId,
+        _chartReadingProbeId,
         _visionToolObservationProbeId,
       ]) {
         updated = _skipProbe(
@@ -2022,6 +2048,13 @@ class LiveLlmDiagnosticService {
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
       run: _runVisionAttachmentProbe,
+    );
+    updated = await _runSelectedProbe(
+      report: updated,
+      probeId: _chartReadingProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: _runChartReadingProbe,
     );
     updated = await _runSelectedProbe(
       report: updated,
@@ -2204,6 +2237,135 @@ class LiveLlmDiagnosticService {
         matchedColors: 0,
       );
     }
+  }
+
+  /// Reads quantitative detail off a chart, which is what a document with a
+  /// figure in it actually asks of a model.
+  ///
+  /// Separate from the quadrant probe on purpose: four solid colors say the
+  /// vision path is wired, not that the model can read a value off an axis.
+  /// Whether a chart is legible decides whether rendering PDF pages is worth
+  /// building at all, so it is measured rather than assumed.
+  Future<LiveLlmDiagnosticProbeResult> _runChartReadingProbe() async {
+    final withImage = await _runChartArm(attachImage: true);
+    final control = await _runChartArm(attachImage: false);
+
+    if (withImage.rejected) {
+      return LiveLlmDiagnosticProbeResult(
+        id: _chartReadingProbeId,
+        status: LiveLlmDiagnosticStatus.failed,
+        summary: 'The endpoint rejected a request carrying image content.',
+        details:
+            'Classification: $_chartClassificationRejected\n${withImage.error}',
+        modelContent: _preview(withImage.content, maxChars: 400),
+      );
+    }
+
+    final expected = LiveLlmChartProbeImage.expectedAnswers;
+    final matched = withImage.matchedColors;
+    final controlMatched = control.matchedColors;
+    // Same rule the quadrant probe follows: a model that scores as well with
+    // no chart in front of it did not read one. Chart questions are guessable
+    // enough that this outranks the score.
+    final guessed = controlMatched >= matched;
+    final passed = !guessed && matched == expected.length;
+    final status = passed
+        ? LiveLlmDiagnosticStatus.passed
+        : guessed
+        ? LiveLlmDiagnosticStatus.failed
+        : LiveLlmDiagnosticStatus.warning;
+
+    return LiveLlmDiagnosticProbeResult(
+      id: _chartReadingProbeId,
+      status: status,
+      summary: passed
+          ? 'The model read every value off the chart.'
+          : guessed
+          ? 'The no-image control arm scored the same, so the chart was not read.'
+          : 'The model read the chart only partially.',
+      details: [
+        'Classification: ${passed
+            ? _chartClassificationRead
+            : guessed
+            ? _chartClassificationGuessed
+            : _chartClassificationPartial}',
+        'Expected: ${expected.join(', ')}',
+        'With chart: $matched/${expected.length}',
+        'No-image control: $controlMatched/${expected.length}',
+      ].join('\n'),
+      modelContent: [
+        'with_chart: ${_preview(withImage.content, maxChars: 240)}',
+        'control: ${_preview(control.content, maxChars: 240)}',
+      ].join('\n'),
+      usage: _totalUsage([
+        if (withImage.result != null) withImage.result!,
+        if (control.result != null) control.result!,
+      ]),
+      passedChecks: matched,
+      totalChecks: expected.length,
+    );
+  }
+
+  Future<_VisionProbeArm> _runChartArm({required bool attachImage}) async {
+    final messages = _messages(user: _chartProbePrompt);
+    messages[messages.length - 1] = attachImage
+        ? messages.last.copyWith(
+            imageBase64: LiveLlmChartProbeImage.base64,
+            imageMimeType: LiveLlmChartProbeImage.mimeType,
+          )
+        : messages.last.copyWith(
+            content:
+                '$_chartProbePrompt\n'
+                '(No image is attached in this control request. Answer with '
+                'your best guess and no explanation.)',
+          );
+
+    try {
+      final result = await chatDataSource.createChatCompletion(
+        messages: messages,
+        model: _diagnosticModel,
+        temperature: _diagnosticTemperature,
+        maxTokens: _diagnosticMaxTokens,
+      );
+      return _VisionProbeArm(
+        result: result,
+        content: result.content.trim(),
+        matchedColors: matchedChartAnswers(result.content),
+      );
+    } catch (error) {
+      return _VisionProbeArm(
+        rejected: attachImage,
+        error: error.toString(),
+        content: '',
+        matchedColors: 0,
+      );
+    }
+  }
+
+  /// How many of the chart's readings appear, in the order they were asked for.
+  ///
+  /// Positional rather than a set intersection: "78, 41, Dune, Cobalt" and
+  /// "41, 78, Cobalt, Dune" contain the same four answers and only one of them
+  /// read the chart.
+  @visibleForTesting
+  static int matchedChartAnswers(String content) {
+    final normalized = content.toLowerCase().replaceAll(',', ' ');
+    final tokens = normalized
+        .split(RegExp(r'[\s]+'))
+        .where((token) => token.isNotEmpty)
+        .toList();
+    var matched = 0;
+    var cursor = 0;
+    for (final expected in LiveLlmChartProbeImage.expectedAnswers) {
+      final index = tokens.indexWhere(
+        (token) => token.replaceAll(RegExp(r'[^a-z0-9]'), '') == expected,
+        cursor,
+      );
+      if (index < 0) break;
+      matched += 1;
+      cursor = index + 1;
+    }
+    return matched;
   }
 
   /// Reads the image through the computer-use path: a tool result whose JSON
