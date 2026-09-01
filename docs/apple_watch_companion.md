@@ -76,6 +76,17 @@ are being read aloud.
 
 ## Approvals
 
+File, shell, and git approvals **cannot arise on iOS**. `mcp_tool_service.dart`
+gates all three behind `isDesktopPlatform`, because writing arbitrary paths on a
+sandboxed mobile OS is both risky and largely unusable. The watch's approval
+path therefore serves a desktop-driven turn, or the kinds mobile does have —
+BLE, SSH, browser, participant. `ask_user_question` is unconditional and is the
+interaction the companion answers most often on a phone-only setup.
+
+A dialog the watch resolves is not yet dismissed on the phone; see WATCH6 in
+`docs/roadmap.md`.
+
+
 `ChatState` keeps ten independent `Pending*` fields.
 `describePendingApproval` flattens them into one shape; its switch is exhaustive
 over the sealed `PendingToolApproval`, so a new kind is a compile error rather
@@ -134,7 +145,10 @@ build.
 ## Voice
 
 Input uses watchOS dictation through a SwiftUI `TextField`; output uses
-`AVSpeechSynthesizer` on the watch. Synthesis is local rather than piped from
+`AVSpeechSynthesizer` on the watch. Markdown is reduced to plain text on the
+watch at render and speech time, never in the phone's projection:
+`ParseResult.text` is a pure concatenation of the text segments and the stream
+deltas depend on that prefix stability, which stripping would break. Synthesis is local rather than piped from
 the phone because routing audio through Whisper or VOICEVOX adds a file transfer
 in each direction, and the latency lands exactly between speaking and being
 answered. Remote synthesis stays available as a later option.

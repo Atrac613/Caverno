@@ -157,10 +157,11 @@ handoffs can refer to the same unit of work over time.
 | Fork | FORK2 | later | Coding conversation fork: reproduce the worktree/git + LL2 file state as of the fork point into an isolated worktree/branch (never shared with the parent), with a non-git snapshot fallback. Gated on FORK1 + LL2 + LL13. | Seed a fresh worktree from the parent's turn commit or LL2 checkpoint; carry `projectId`; assign a new `worktreePath`/branch. |
 | Fork | FORK3 | later | Fork-tree navigation and compare: drawer fork tree, jump-to-parent, and parent-vs-fork diff. | Start after FORK1/FORK2 ship; reuse `TurnDiff` rendering for the compare view. |
 | Watch | WATCH1 | done | Apple Watch companion: approvals and questions from the wrist, a running-turn glance with cancel, dictated prompts spoken back, and Approve/Deny on the approval notification itself. | Shipped 2026-09-01 (`docs/apple_watch_companion.md`). Nothing has been run end to end yet; that is WATCH2. |
-| Watch | WATCH2 | current | Prove the companion actually works: the native/Dart bridge boundary is the one seam unit tests cannot reach. Transport and archive packaging verified 2026-09-01, surfacing four defects (build-phase cycle, leaked title sentinel, missing reachability handler, missing SUPPORTED_PLATFORMS), all fixed. | Restore simulator input (`sudo xcode-select -s`), then drive an approval turn and a dictated prompt; those two round trips are still unproven. |
+| Watch | WATCH2 | done | Prove the companion actually works: the native/Dart bridge boundary is the one seam unit tests cannot reach. Verified 2026-09-01/02 on paired simulators, including a live `ask_user_question` answered from the wrist. Ten defects surfaced, all fixed. | Closed. Approvals of the file/shell/git kinds cannot arise on iOS by design, so that path is verified through WATCH6's work or a Remote Coding turn, not here. |
 | Watch | WATCH3 | done | Bind a deferred watch command to the conversation it was composed against, so a queued `sendMessage` cannot land in whichever thread happens to be current when it is finally delivered. | Shipped 2026-09-01. The watch stamps the thread; the phone refuses a mismatch with its own code and still accepts unstamped commands from older watch builds. |
 | Watch | WATCH4 | done | Glanceable surfaces and thread choice: Smart Stack widget plus switching the mirrored conversation from the watch. | Shipped 2026-09-01. Thread switching is verified; the widget's App Group data path is not, because an unsigned simulator build applies no entitlements. Confirm it on a signed build. |
 | Watch | WATCH5 | blocked | Approve/Deny on a push-delivered notification, not only a locally raised one. | Blocked on a contract that does not exist: no push carries an approval, only a run-completion. Do not build the delegate plumbing until a push needs to carry one. |
+| Watch | WATCH6 | next | Dismiss an approval or question dialog on the phone when the watch resolves it. The phone opens the sheet but nothing closes it, so the user is left answering something already answered. | Give the approval dialog listeners a dismissal path keyed by pending id; today they only open. |
 
 Foundation F5 and the future platform vision milestones are
 detailed in `docs/local_llm_agent_roadmap.md`. The user-created Tools MVP is
@@ -1404,80 +1405,58 @@ Next action:
 
 ### WATCH2: End-To-End Device Verification
 
-Status: `current`
+Status: `done`
 
 Scope:
 - Run the companion. Every unit test crosses a fake bridge, so the
   `WatchBridgePlugin` <-> `WatchBridgeService` boundary — channel names, payload
-  framing, `WCSession` activation and reachability, and the embed phase — is
-  the one seam the suite cannot reach.
+  framing, `WCSession` activation and reachability, the embed phase, and
+  installability — is the one seam the suite cannot reach.
 
-Evidence (2026-09-01, iPhone 17 Pro Max / iOS 26.5 paired with Apple Watch
-Series 11 / watchOS 26.5):
-- The round trip works. Unified log on the phone shows
-  `reachable: YES, paired: YES, appInstalled: YES`, a 94-byte dictionary
-  message inbound from the watch (`requestSnapshot`), and the answer going out
-  as both `updateApplicationContext size: 231` and `sendMessageData size: 231`,
-  followed by a 67-byte command result. The watch renders its status view.
-- The embedded artifact is the one tested: `flutter build ios` reports "Watch
-  companion app found" and produces
-  `Runner.app/Watch/CavernoWatch Watch App.app`, which is what was installed.
-- Simulator pairing needs no GUI: `xcrun simctl pair` exists, pairs are already
-  configured, and `simctl boot <pair-udid>` brings both up.
+Evidence (2026-09-01/02, iPhone 17 Pro Max / iOS 26.5 paired with Apple Watch
+Series 11 / watchOS 26.5, against a LAN `qwen3.8-27b-vision`):
+- The round trip works in both directions. The phone log shows the watch's
+  `requestSnapshot` inbound and the answer going out as both
+  `updateApplicationContext` and `sendMessageData`.
+- A live turn renders on the watch: real conversation title, streaming status
+  with elapsed seconds, and the answer arriving as deltas.
+- **A pending `ask_user_question` was answered from the wrist.** The options
+  rendered on the watch, tapping one resolved it, and the phone's model
+  continued with "You chose Startup".
+- Packaging is validated. `flutter build ipa --no-codesign` produces an archive
+  whose only root product is `Runner.app`, with the companion at
+  `Runner.app/Watch/` as a watchOS binary, and both bundles install.
 
-Four defects only a real build or run could surface, all fixed:
-- `Cycle inside Runner`. `Embed Watch Content` was appended at the end of the
-  build phases, after the Flutter and CocoaPods script phases. Xcode's template
-  puts it immediately after Resources; `tool/add_watch_target.rb` now places it
-  there on every run. A `xcodebuild -target` build of the watch alone never
-  touches Runner, so this class of failure cannot appear before a full build.
-- The watch showed a literal `__new_conversation__`. That is
-  `defaultConversationTitle`, a marker every other surface substitutes; the
-  watch projection passed it through.
-- `delegate Runner.WatchBridgePlugin does not implement
-  sessionReachabilityDidChange:`, named by the OS log. The phone never re-pushed
-  when the watch became reachable, so the frame only arrived because the watch
-  asked.
-- `unable to resolve module dependency: 'WatchKit'` when archiving.
-  `SDKROOT = watchos` is not enough: `xcodebuild archive` with
-  `-destination generic/platform=iOS` resolves a dependency target's platform
-  from the destination, so the watch target was compiled against the iOS SDK.
-  `SUPPORTED_PLATFORMS = "watchsimulator watchos"` fixes it.
+Ten defects surfaced, none of which a green suite could catch:
+`Cycle inside Runner` from the embed phase order; a leaked
+`__new_conversation__` title sentinel; a missing `sessionReachabilityDidChange`
+handler; a missing `SUPPORTED_PLATFORMS` that built the watch against the iOS
+SDK; raw `<tool_use>` markup reaching the watch; a latched availability flag;
+commands dropped before Dart subscribed; a missing `NSExtension` dictionary; and
+absent `CFBundleVersion` on both watch targets. Raw markdown reaching the watch
+label and speaker was fixed in the same pass.
 
-Two environment blockers, both pre-existing and unrelated to the companion:
-- CocoaPods died with `Encoding::CompatibilityError` because `LANG` was not
-  UTF-8, while printing the misleading "specs repository is too out-of-date".
-  `pod repo update` does not fix it; `LANG=en_US.UTF-8` does.
-- `ios/Podfile.lock` still pinned Firebase 12.17.0 while the plugins resolve to
-  12.18.0, so no iOS build could run at all.
+Note on approvals: file, shell, and git approvals **cannot arise on iOS**.
+`mcp_tool_service.dart` gates all three behind `isDesktopPlatform` by design —
+"writing arbitrary paths on a sandboxed mobile OS is both risky and largely
+unusable". The watch's approval path therefore serves a desktop-driven turn, or
+the kinds mobile does have (BLE, SSH, browser, participant). That is a scoping
+fact worth carrying into any further watch work, not a defect.
 
-Packaging is validated. `flutter build ipa --no-codesign` produces an archive
-whose only root product is `Runner.app`, with the companion at
-`Runner.app/Watch/CavernoWatch Watch App.app` as a watchOS binary (arm64_32 +
-arm64, `DTPlatformName watchos`, `WKApplication true`,
-`WKCompanionAppBundleIdentifier com.noguwo.apps.caverno`) — which also confirms
-the `SKIP_INSTALL = YES` choice.
-
-Use the pinned SDK for this work. Bare `flutter` on this machine is 3.47.0 while
-`.fvmrc` pins 3.44.8; running the wrong one rewrites
-`.dart_tool/package_config.json` and makes a direct `xcodebuild archive` fail
-with `Type 'ui.HitTestResponse' not found`. `tool/flutter_test_quiet.sh` and
-`tool/safe-flutter` both go through fvm.
-
-Remaining:
-- The approval and voice round trips are unproven. The simulator now has an
-  endpoint configured (settings injected into the sandboxed preferences plist;
-  note the app is not reachable through `simctl spawn defaults`, and cfprefsd
-  caches the container until the device is rebooted), but starting a turn needs
-  UI input and the app exposes no URL scheme.
-- Three checks need real hardware: notification forwarding while the phone is
-  locked, the effective background window around a turn, and haptics.
+Environment notes that cost real time:
+- Bare `flutter` on this machine is 3.47.0 while `.fvmrc` pins 3.44.8; the wrong
+  one rewrites `.dart_tool/package_config.json` and makes a direct
+  `xcodebuild archive` fail with `Type 'ui.HitTestResponse' not found`.
+- CocoaPods dies on a non-UTF-8 `LANG` while reporting a stale spec repository.
+- Simulator pairing needs no GUI (`xcrun simctl pair`), but app preferences live
+  in the sandboxed container rather than where `simctl spawn defaults` writes,
+  and cfprefsd caches them until the device is rebooted.
+- A simulator configured for Japanese input turns typed ASCII into kana; set
+  `AppleKeyboards` to English or drive entry through `simctl pbcopy`.
 
 Next action:
-- Restore simulator input by running
-  `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`, then drive
-  a tool-approval turn and answer it from the watch, and dictate a prompt to
-  confirm the reply is spoken.
+- None. Remaining watch work is tracked as WATCH4's signed-build check and
+  WATCH6.
 
 ### WATCH3: Deferred Watch Command Conversation Binding
 
@@ -1571,6 +1550,41 @@ Next action:
 - None. Revisit only when a push genuinely needs to carry an approval — that
   is a Remote Coding decision, gated by `docs/remote_coding_fcm_release_gate.md`,
   not a watch one.
+
+### WATCH6: Dismiss A Resolved Interaction On The Phone
+
+Status: `next`
+
+Scope:
+- Close an approval or question dialog on the phone when it is resolved
+  somewhere else — today, the watch.
+
+Why (observed 2026-09-02):
+- Answering a question from the wrist leaves the phone's sheet open, showing a
+  question the model has already moved past. `chat_page_approval_listeners.dart`
+  opens a dialog when a pending appears and has no path that closes it when the
+  pending clears; on the phone the dialog closes itself because the phone is
+  what answered it.
+- Remote Coding never hit this because `shouldPresentDesktopQuestion` suppresses
+  remote-origin questions entirely. The watch sends with
+  `ChatInteractionOrigin.local` — deliberately, see the trust model — so the
+  phone does present the sheet, and nothing dismisses it.
+- The same applies to every approval dialog the watch can resolve.
+
+Not a data-integrity problem: `resolveAskUserQuestion` returns early on an id
+that is no longer pending, so the completer cannot be completed twice. It is a
+stale surface the user has to dismiss by hand.
+
+Acceptance criteria:
+- Resolving from the watch closes the corresponding phone dialog.
+- A dialog the phone itself answered still closes exactly once.
+- Focused tests cover the remote-resolution dismissal for a question and for one
+  approval kind.
+
+Next action:
+- Give the listeners a dismissal path keyed by pending id. The dialogs are
+  `showDialog` / `showModalBottomSheet` calls across roughly ten presenters, so
+  the mechanism belongs in `_showApprovalDialogOnce` rather than in each one.
 
 ## Foundation, Local LLM Agent, And Future Platform Vision Tracks
 
