@@ -158,9 +158,9 @@ handoffs can refer to the same unit of work over time.
 | Fork | FORK3 | later | Fork-tree navigation and compare: drawer fork tree, jump-to-parent, and parent-vs-fork diff. | Start after FORK1/FORK2 ship; reuse `TurnDiff` rendering for the compare view. |
 | Watch | WATCH1 | done | Apple Watch companion: approvals and questions from the wrist, a running-turn glance with cancel, dictated prompts spoken back, and Approve/Deny on the approval notification itself. | Shipped 2026-09-01 (`docs/apple_watch_companion.md`). Nothing has been run end to end yet; that is WATCH2. |
 | Watch | WATCH2 | current | Prove the companion actually works: the native/Dart bridge boundary is the one seam unit tests cannot reach. Transport and archive packaging verified 2026-09-01, surfacing four defects (build-phase cycle, leaked title sentinel, missing reachability handler, missing SUPPORTED_PLATFORMS), all fixed. | Restore simulator input (`sudo xcode-select -s`), then drive an approval turn and a dictated prompt; those two round trips are still unproven. |
-| Watch | WATCH3 | next | Bind a deferred watch command to the conversation it was composed against, so a queued `sendMessage` cannot land in whichever thread happens to be current when it is finally delivered. | Carry `conversationId` on the command, reject on mismatch in `_handleSendMessage`. |
-| Watch | WATCH4 | later | Glanceable surfaces and thread choice: Smart Stack widget or complication, plus switching the mirrored conversation from the watch. | Start after WATCH2 confirms the transport; `transferCurrentComplicationUserInfo` has a delivery budget, so keep the payload to a running-thread count. |
-| Watch | WATCH5 | later | Approve/Deny on a push-delivered notification, not only a locally raised one. | Needs a native `UNUserNotificationCenter` delegate: `firebase_messaging` does not surface `actionIdentifier` on iOS. |
+| Watch | WATCH3 | done | Bind a deferred watch command to the conversation it was composed against, so a queued `sendMessage` cannot land in whichever thread happens to be current when it is finally delivered. | Shipped 2026-09-01. The watch stamps the thread; the phone refuses a mismatch with its own code and still accepts unstamped commands from older watch builds. |
+| Watch | WATCH4 | done | Glanceable surfaces and thread choice: Smart Stack widget plus switching the mirrored conversation from the watch. | Shipped 2026-09-01. Thread switching is verified; the widget's App Group data path is not, because an unsigned simulator build applies no entitlements. Confirm it on a signed build. |
+| Watch | WATCH5 | blocked | Approve/Deny on a push-delivered notification, not only a locally raised one. | Blocked on a contract that does not exist: no push carries an approval, only a run-completion. Do not build the delegate plumbing until a push needs to carry one. |
 
 Foundation F5 and the future platform vision milestones are
 detailed in `docs/local_llm_agent_roadmap.md`. The user-created Tools MVP is
@@ -1481,7 +1481,7 @@ Next action:
 
 ### WATCH3: Deferred Watch Command Conversation Binding
 
-Status: `next`
+Status: `done`
 
 Scope:
 - Bind a watch command to the conversation it was composed against.
@@ -1499,54 +1499,78 @@ Acceptance criteria:
 - The watch reports the refusal instead of silently dropping the text.
 - A focused test covers the mismatch path.
 
-Next action:
-- Add the field to the command payload and the check in
-  `watch_session_notifier.dart`; roughly ten lines plus its test.
+Shipped 2026-09-01 (`1ed84dac`). The watch stamps the conversation it was
+showing, and `_handleSendMessage` refuses a mismatch with `conversation_changed`
+rather than sending into the wrong thread. An unstamped command is still
+accepted, so a watch that has not synced the new app keeps working.
 
 ### WATCH4: Glanceable Surfaces And Thread Choice
 
-Status: `later`
+Status: `done`
 
 Scope:
-- A Smart Stack widget or complication showing how many threads are running,
-  and switching which conversation the watch mirrors.
+- A Smart Stack widget showing whether anything is running or waiting, and
+  switching which conversation the watch mirrors.
 
-Acceptance criteria:
-- The glance updates without the watch app being opened.
-- Conversation switching reuses the existing snapshot projection rather than a
-  second one.
+Shipped 2026-09-01 (`d9079b3f`, `9cd06fd7`):
+- The snapshot carries the threads the watch may switch to, capped at the
+  source, with a flag saying when the list was cut so the watch points at the
+  iPhone instead of implying it is complete. `selectConversation` applies the
+  choice and refuses a vanished id with its own code.
+- `CavernoWatchWidgetExtension` is embedded in the watch app and reads a small
+  record through the App Group. The record is counts and a status word, never
+  conversation text: a widget renders without anyone opening anything.
+- The glance is written only when the value actually changes and the timeline
+  is reloaded only then; the timeline itself has no refresh policy. WidgetKit
+  budget is finite and re-rendering an identical glance spends it for nothing.
+  This is why `transferCurrentComplicationUserInfo` is not used at all — the
+  watch app already has the state, so nothing needs to cross from the phone.
 
-Dependencies:
-- WATCH2, so the transport is proven before more is layered on it.
-- `transferCurrentComplicationUserInfo` has a delivery budget, so the payload
-  stays a running-thread count rather than any content.
+Not verified:
+- The widget's data path. An unsigned simulator build applies no entitlements,
+  so the App Group container does not exist and `UserDefaults(suiteName:)`
+  returns nil. The store degrades to a no-op and the widget renders its idle
+  state, which is the safe failure but also indistinguishable from "no work
+  running". Confirming it needs a signed build.
 
 Next action:
-- Start after WATCH2 records a passing end-to-end run.
+- Check the glance on a signed build, then decide whether an inline
+  accessory family is worth adding.
 
 ### WATCH5: Push-Originated Notification Actions
 
-Status: `later`
+Status: `blocked`
 
 Scope:
 - Let Approve/Deny work on a notification delivered by push, not only one
-  raised locally. The relay (`services/notification_relay/`) can already add
-  the APNs `category`, but `firebase_messaging` does not surface
-  `actionIdentifier` on iOS, so the action has to be read by a native
-  `UNUserNotificationCenter` delegate and handed to Dart.
+  raised locally.
 
-Acceptance criteria:
-- An approval action chosen on a pushed notification resolves the right
-  request by id, under the same "known id and simple decision" gate as the
-  local path.
+Why it is blocked rather than merely later (assessed 2026-09-01):
+- **There is no approval to push.** The only notification the relay sends is
+  `remote_coding_run_terminal`, a run *completion*. Attaching an approval
+  category to it would put Approve/Deny on something that is not a decision.
+  Carrying a real approval would mean adding fields to
+  `RemoteCodingNotificationPayload`, which its own contract says is a
+  privacy-boundary change requiring explicit review.
+- The `firebase_messaging` limitation is real but secondary: it does not
+  surface `actionIdentifier` on iOS, so the action would have to be read by a
+  native `UNUserNotificationCenter` delegate. That plumbing is not worth
+  writing before there is something for it to carry.
+- Verifying any of this on a simulator is circular. A pushed notification is
+  only displayed once notification permission is granted, and the app defers
+  that request until it first raises a local notification — which happens when
+  a background thread blocks on an approval. `xcrun simctl push` with a
+  `caverno_approval` category was delivered and silently dropped for exactly
+  this reason.
 
-Dependencies:
-- The Remote Coding FCM release gate (`docs/remote_coding_fcm_release_gate.md`)
-  owns whether pushes ship at all.
+The local path already covers the case this milestone was meant to serve: an
+approval raised on the phone carries Approve/Deny, and iOS forwards the
+notification and its actions to a paired watch with no watchOS code involved.
 
 Next action:
-- Start only once a push path actually needs to carry an approval; the local
-  notification already covers the watch case.
+- None. Revisit only when a push genuinely needs to carry an approval — that
+  is a Remote Coding decision, gated by `docs/remote_coding_fcm_release_gate.md`,
+  not a watch one.
 
 ## Foundation, Local LLM Agent, And Future Platform Vision Tracks
 

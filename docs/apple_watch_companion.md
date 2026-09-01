@@ -102,10 +102,34 @@ Two rules keep it honest:
   decision. Without the id, a second approval queuing behind the first would
   make the decision land on the wrong request.
 
-FCM pushes (`services/notification_relay/`) could carry the same APNs
-`category`, but `firebase_messaging` does not surface `actionIdentifier` on
-iOS. A push-originated action would need a native `UNUserNotificationCenter`
-delegate; it is not wired today.
+The push path is not wired, and the blocker is not the one it looks like. The
+only notification the relay sends is a run *completion*, so there is no
+approval to attach a category to; carrying one would mean adding fields to
+`RemoteCodingNotificationPayload`, whose contract calls that a
+privacy-boundary change. The `firebase_messaging` limitation — it does not
+surface `actionIdentifier` on iOS, so a native `UNUserNotificationCenter`
+delegate would be needed — is real but secondary. See WATCH5 in
+`docs/roadmap.md`.
+
+## Thread switching and the glance
+
+The snapshot carries the threads the watch may switch to, capped at the source
+with a flag saying when the list was cut. `selectConversation` applies the
+choice; a vanished id is refused with its own code rather than silently doing
+nothing.
+
+`CavernoWatchWidgetExtension` is embedded in the watch app and reads a small
+record through the App Group — counts and a status word, never conversation
+text, because a widget renders without anyone opening anything. App Group
+containers are per-device, which is precisely what makes this work: the watch
+app and its widget run on the same watch. `transferCurrentComplicationUserInfo`
+is not used at all; the watch app already holds the state, so nothing needs to
+cross from the phone and no delivery budget is spent.
+
+An unsigned simulator build applies no entitlements, so the App Group container
+is absent and the store degrades to a no-op. That is the safe failure, but it
+renders identically to "nothing running" — confirm the glance on a signed
+build.
 
 ## Voice
 
@@ -135,6 +159,11 @@ tool/flutter_test_quiet.sh test/features/watch/
 xcodebuild build -project ios/Runner.xcodeproj -target "CavernoWatch Watch App" -sdk watchsimulator26.5 -configuration Debug CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 ```
 
-Pair an iPhone simulator with a Watch simulator in Xcode's Devices window for
-end-to-end checks. Three things need real hardware: notification forwarding
+Pair the simulators from the command line — `xcrun simctl pair` exists and
+`simctl boot <pair-udid>` brings both up; no GUI is needed. Two things about
+that environment cost real time, so they are worth knowing: the app's
+preferences live in its sandboxed container, not where `simctl spawn defaults`
+writes, and cfprefsd caches them until the device is rebooted; and a simulator
+configured for Japanese input turns typed ASCII into kana, so drive text entry
+through `simctl pbcopy` and paste, or set `AppleKeyboards` to English first. Three things need real hardware: notification forwarding
 while the phone is locked, the effective background window, and haptics.
