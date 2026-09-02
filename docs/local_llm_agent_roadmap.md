@@ -186,7 +186,8 @@ structurally unmotivated to build:
 | Local LLM | LL41 | later | M | LL34, LL35, LL37 | Deterministic goal verification contract: a `ConversationGoal` may carry a user-declared verification command and acceptance criteria whose exit code is ground truth for the goal auto-continue stop decision. Adds no judge and no inline panel — LL37's no-inline-stage decision stands; this is ground truth, not a verdict. Evidence-gated on an LL31 turn-exit triage of `awaitingConfirmation` and `noProgress` terminations. |
 | Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument. Its raw no-answer diagnostic remains frozen; RAG2 later replaced that promotion question with passage-role scoring rather than weakening the count. |
 | Retrieval | RAG2 | done | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects, complete caller-declared source roots, Git-backed acquisition, atomic generations, durable Drift/SQLite storage, and incremental AppDatabase-hosted FTS5 are Go. Identity-scoped MATCH and projection preserve the committed generation and provenance. The frozen v1 raw no-answer result remains No-Go. The unchanged lexical candidate passes the separately committed v2 passage-role holdout with 14/14 answer support, 4/4 Japanese support, 2/2 expected abstention, zero only-irrelevant unavailable cases, and 3,776/6,000 context tokens. Offline lexical retrieval is Go; runtime passage role stays unknown and production wiring remains owned by RAG3. |
-| Retrieval | RAG3 | blocked | M | RAG2, LL5, F6, LL39 | The frozen one-shot candidate is No-Go. The verbose two-bucket classifier is quality Go but inline latency No-Go at 6,464 ms p95, 5.39x the 1,200 ms ceiling. Prior deterministic score, intent, and cross-arm policies remain rejected. `rag3-compact-support-filter-v3` now freezes the same semantic decision as an ordered binary mask with at most 32 output tokens and the unchanged zero-error/1,200 ms gate; it has not run an instrument, validation, or promotion. Bounded vector persistence, `search_knowledge`, prompting, and runtime wiring remain blocked. |
+| Retrieval | RAG3 | blocked | M | RAG2, LL5, F6, LL39 | No measured candidate is eligible. The frozen hybrid candidate failed the unavailable-evidence gate; deterministic score, intent, and cross-arm policies lack a support signal; verbose semantic filtering misses the latency gate; compact v3 misses both quality and latency gates. Current candidate families are closed. Bounded vector persistence, `search_knowledge`, prompting, promotion, and runtime wiring remain blocked. Evidence: `docs/rag3_post_v3_entry_contract_2026-09-01.md`. |
+| Retrieval | RAG3R | next | S | RAG2, LL8, KC1 | Qualify a dedicated post-answer groundedness detector without reopening production RAG3. Verify immutable artifacts, licenses, local runtime fit, and one synthetic five-evidence latency/resource probe for Beyond Document Grounding, MiniCheck, and FactCG. Freeze a new 20-case non-promotion contract only if one candidate has a credible route to the unchanged p95 <= 1,200 ms gate. Reuse KC1's separate truth and grounding labels without making KC1 depend on RAG3. Research: `docs/rag_groundedness_detector_research_2026-09-01.md`. |
 | Retrieval | RAG4 | blocked | M | RAG1, RAG3, HOOK1, SEC1, SEC2, agent-kb provenance | Federate agent-kb memories and wiki pages without copying its raw archive or database into Caverno. Blocked upstream: `kb_search` exposes no timestamp, wiki hits carry no confidence or source agent, and archiving rejects any agent outside `{claude, codex}`. |
 | Retrieval | RAG5 | later | S-M | RAG3, RAG4, LL23 | Evaluate deterministic local/agent-kb routing in shadow before automatic retrieval changes prompts or turn cost. |
 | Retrieval | RAG6 | later | S-M | RAG5, COMPAT1, LL39 | Make evidence-backed Go/No-Go decisions for optional reranking and ANN vector search. |
@@ -1758,25 +1759,23 @@ Promotion gate:
 
 ### RAG3: Hybrid Retrieval And `search_knowledge`
 
-Status: `blocked` — one-shot offline promotion No-Go on 2026-08-31. The frozen
-candidate passed every gate except `unavailableIrrelevantOnly`: one of four
-unavailable cases selected only irrelevant evidence against the required zero.
-Hybrid Recall@10 was 0.9643, Hit@5 was 1.0000, and MRR@10 was 0.9286. The
-candidate, holdout, and aggregate report are frozen. Evidence:
-`docs/rag3_promotion_eval_2026-08-31.md`.
+Status: `blocked` — all current candidate families are closed. The frozen
+hybrid candidate failed the zero `unavailableIrrelevantOnly` gate despite
+Recall@10 0.9643, Hit@5 1.0000, and MRR@10 0.9286. Deterministic score, intent,
+and lexical/vector consensus policies did not provide a general support signal.
+The quality-qualified verbose semantic filter measured p95 6,464 ms, and the
+compact semantic filter produced three false positives, one false negative, and
+p95 1,614 ms against the unchanged 1,200 ms ceiling. The compact candidate is
+rejected rather than demoted to production or promotion. Evidence:
+`docs/rag3_post_v3_entry_contract_2026-09-01.md`.
 
-Entry contract: `docs/rag3_offline_hybrid_eval_task.md`. It freezes the
-storage-independent fixture and candidate-run inputs, vector fingerprint and degraded-reason
-requirements, weighted RRF `k=60` with L/V weights `1.0/1.0`, deterministic
-deduplication and tie-breaking, adjacent-chunk merging, source diversity, and a
-6,000-token hard context budget. Existing RAG1/RAG2 fixtures are instrument-only.
-The content-hashed 20-case holdout precedes the evaluator in Git history. The
-evaluator used synthetic cases for focused coverage before the one-shot
-promotion run. The inspected RAG1/RAG2 instrument run is complete. The valid
-promotion run was applied once from clean commit `1127597b` and returned No-Go.
-Production retrieval and `search_knowledge` remain No-Go.
+The original hybrid contract, holdout, reports, and all subsequent support
+filter fixtures are frozen. Existing RAG1/RAG2 fixtures are diagnostic controls,
+not tuning targets. Do not repeat, threshold-tune, or re-prompt a closed
+candidate; do not expose raw retrieval as a workaround. Production retrieval,
+vector persistence, prompt injection, and `search_knowledge` remain No-Go.
 
-Scope:
+Frozen original product scope:
 - Reuse `EmbeddingsClient` transport behind a Knowledge embedding port and
   store vectors with a model/endpoint/dimension fingerprint.
 - Add bounded brute-force cosine retrieval, lexical/vector parallel retrieval,
@@ -1792,7 +1791,7 @@ Scope:
 - Keep the default reranker as no-op and fall back to lexical retrieval when
   embeddings fail or the bounded vector corpus cannot be searched safely.
 
-Initial gates on the versioned fixture:
+Frozen original candidate gates:
 - Hybrid object Recall@10 >= 0.85, Hit@5 >= 0.85, and MRR@10 >= 0.65.
 - Hybrid loses to the better lexical/vector arm on at most one fixture case.
   Stated in cases because the 20-case seed cannot resolve a smaller difference.
@@ -1803,6 +1802,63 @@ Initial gates on the versioned fixture:
   two-thirds of all tool results.
 - A local-LLM canary completes tool call -> provenance-bearing evidence ->
   cited answer without making an embedding endpoint mandatory.
+
+These gates are retained as historical contract evidence. They are not an
+active implementation checklist after the promotion and support-filter No-Go
+decisions.
+
+### RAG3R: Dedicated Post-Answer Groundedness Detector Feasibility
+
+Status: `next` — research-only resume qualification. RAG3 remains `blocked`.
+
+Research:
+`docs/rag_groundedness_detector_research_2026-09-01.md`.
+
+The new boundary is generated claim plus cited evidence -> `supported`,
+`contradicted`, or `unsupported`. This is materially different from the closed
+query-to-passage filters. A fact that is true outside the supplied evidence
+remains `unsupported`; reuse KC1's independent truth and grounding dimensions
+without making KC1 depend on this milestone.
+
+Candidate order:
+
+1. Beyond Document Grounding's Qwen3.5-2B detector for code, tool output,
+   Markdown, tables, and repository metadata.
+2. MiniCheck as the generic document-claim baseline.
+3. FactCG for multi-evidence support.
+4. LettuceDetect as a natural-language control, not the primary code-agent
+   candidate.
+
+Slice A — artifact and runtime feasibility:
+
+- Resolve exact model/code artifacts, immutable revisions, licenses, context
+  limits, and output semantics for the first three candidates.
+- Determine whether the existing LAN hosts can serve each candidate and whether
+  a new Transformers, ONNX, or other inference service is required.
+- Measure one synthetic five-evidence claim per runnable candidate, including
+  cold/warm latency, VRAM, input/output size, and unavailable/invalid behavior.
+- Include model loading and transport in the accounting. Stop if no candidate
+  has a credible path to p95 at or below 1,200 ms.
+
+Slice B — non-promotion instrument, conditional on Slice A:
+
+- Freeze the model revision, input contract, strict output, fail-closed
+  behavior, privacy boundary, quality gate, and latency gate before reading a
+  new development fixture.
+- Use 20 cases with five evidence items each: four cases per domain for source
+  code, tool JSON/log output, Markdown/prose, table/structured data, and mixed
+  multi-hop evidence.
+- Record per-class and span/claim metrics, false refusal, unavailable/invalid
+  responses, warm/cold p50 and p95, usage, and VRAM.
+- Treat the 20 cases as smoke evidence only. A separately committed untouched
+  promotion fixture remains mandatory after the candidate and evaluator freeze.
+
+RAG3R may nominate a candidate for separately authorized promotion work only if
+its non-promotion contract passes the existing zero false-positive,
+false-negative, unavailable, and invalid gates plus p95 at or below 1,200 ms.
+Production RAG3 remains blocked until a later untouched promotion fixture also
+passes. RAG3R itself authorizes no production persistence, tools, prompts,
+routing, or promotion run.
 
 ### RAG4: Federated agent-kb Retrieval
 
