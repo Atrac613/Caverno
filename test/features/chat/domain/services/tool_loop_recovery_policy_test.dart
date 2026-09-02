@@ -202,6 +202,7 @@ void main() {
     expect(results.single.id, 'read-2');
     expect(jsonDecode(results.single.result), {
       'code': 'tool_call_not_executed',
+      'result_origin': 'harness',
       'error':
           'Tool call was requested after the bounded tool loop stopped and was not executed before the final answer.',
       'reason': 'bounded_tool_loop_exhausted',

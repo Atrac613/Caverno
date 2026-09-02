@@ -333,6 +333,7 @@ void main() {
       expect(_payload(recovered[0]), {
         'ok': true,
         'code': 'duplicate_tool_call_result_reused',
+        'result_origin': 'harness',
         'execution_reused': true,
         'prior_tool_call_id': 'prior-list',
         'current_tool_call_id': 'current-list',
@@ -341,6 +342,7 @@ void main() {
       expect(_payload(recovered[1]), {
         'ok': true,
         'code': 'duplicate_tool_call_result_reused',
+        'result_origin': 'harness',
         'execution_reused': true,
         'prior_tool_call_id': 'prior-malformed',
         'current_tool_call_id': 'current-malformed',

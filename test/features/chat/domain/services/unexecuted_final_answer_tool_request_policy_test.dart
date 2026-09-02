@@ -205,6 +205,7 @@ void main() {
       expect(_payload(result), {
         'ok': false,
         'code': 'tool_call_not_executed',
+        'result_origin': 'harness',
         'reason': 'final_answer_tool_request',
         'tool_name': 'read_file',
         'signature': signature,

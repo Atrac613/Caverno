@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/services/login_shell_environment.dart';
@@ -39,6 +38,7 @@ class LocalShellTools {
     return jsonEncode({
       'ok': false,
       'code': 'local_shell_git_write_blocked',
+      ...ToolResultOrigin.refusal.marker,
       'command': normalizedCommand,
       'working_directory': workingDirectory,
       'git_command': gitWriteCommand.gitCommand,

@@ -447,6 +447,7 @@ void main() {
       final expectedPayload = {
         'ok': false,
         'code': 'production_release_explicit_approval_required',
+        'result_origin': 'refusal',
         'error':
             'A production release command was blocked because the latest user '
             'message or ask_user_question answer did not explicitly approve '

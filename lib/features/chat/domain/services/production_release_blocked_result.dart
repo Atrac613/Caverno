@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/mcp_tool_entity.dart';
 
@@ -35,6 +36,7 @@ McpToolResult buildProductionReleaseBlockedResult({
     result: jsonEncode({
       'ok': false,
       'code': 'production_release_explicit_approval_required',
+      ...ToolResultOrigin.refusal.marker,
       'error':
           'A production release command was blocked because the latest user '
           'message or ask_user_question answer did not explicitly approve '

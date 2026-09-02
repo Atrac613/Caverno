@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../data/datasources/filesystem_path_resolver.dart';
 import '../entities/conversation_workflow.dart';
@@ -49,6 +50,7 @@ final class SavedTaskTargetScopeGuard {
       result: jsonEncode({
         'ok': false,
         'code': blockedCode,
+        ...ToolResultOrigin.refusal.marker,
         'error':
             'A file mutation was blocked because it targeted a file outside '
             'the active saved task target files.',

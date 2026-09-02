@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/services/dart_project_tooling.dart';
@@ -49,6 +50,7 @@ final class ProjectMutationPathAuthorization {
         result: jsonEncode({
           'ok': false,
           'code': denial.code,
+          ...ToolResultOrigin.refusal.marker,
           'error': message,
           if (canonicalRoot != null && canonicalRoot.isNotEmpty)
             'project_root': canonicalRoot,

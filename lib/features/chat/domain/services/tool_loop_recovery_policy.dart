@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
 
@@ -76,6 +77,7 @@ class ToolLoopRecoveryPolicy {
           arguments: toolCall.arguments,
           result: jsonEncode({
             'code': 'tool_call_not_executed',
+            ...ToolResultOrigin.harness.marker,
             'error':
                 'Tool call was requested after the bounded tool loop stopped and was not executed before the final answer.',
             'reason': 'bounded_tool_loop_exhausted',

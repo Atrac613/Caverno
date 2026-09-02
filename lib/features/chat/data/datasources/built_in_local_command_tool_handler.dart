@@ -1,3 +1,4 @@
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/services/local_command_tool_contract.dart';
@@ -83,9 +84,10 @@ class BuiltInLocalCommandToolHandler {
         owner == null) {
       return McpToolResultNormalizer.structuredFailure(
         toolName: name,
-        payload: const {
+        payload: {
           'ok': false,
           'code': 'chat_turn_owner_required',
+          ...ToolResultOrigin.refusal.marker,
           'error': 'An active chat turn owner is required',
         },
         errorMessage: 'An active chat turn owner is required',
@@ -159,10 +161,11 @@ class BuiltInLocalCommandToolHandler {
       case 'run_tests':
         return McpToolResultNormalizer.structuredFailure(
           toolName: name,
-          payload: const {
+          payload: {
             'error':
                 'run_tests must be executed through the chat command approval flow.',
             'code': 'approval_required',
+            ...ToolResultOrigin.refusal.marker,
           },
           errorMessage:
               'run_tests must be executed through the chat command approval flow',

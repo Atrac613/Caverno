@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
 
@@ -29,6 +30,7 @@ final class DuplicateToolResultReusePayload {
   }) {
     final markers = {
       'code': 'duplicate_tool_call_result_reused',
+      ...ToolResultOrigin.harness.marker,
       'execution_reused': true,
       'prior_tool_call_id': previousResult.id,
       'current_tool_call_id': currentToolCallId,
