@@ -27,8 +27,11 @@ class LiveLlmDiagnosticSuite {
   /// The context probe is physical measurement only, so it carries zero
   /// conformance points and does not distort the fixed denominator. v9 fixes
   /// the scored unified-diff prompt after live A/B evidence showed that its
-  /// ambiguous context-line wording induced an invalid hunk count.
-  static const version = 9;
+  /// ambiguous context-line wording induced an invalid hunk count. v10 adds
+  /// chart reading and pays for it out of the quadrant probe: four solid
+  /// colors show the vision path is wired, which is worth less than reading a
+  /// value off an axis, and the total has to stay at [probePointsTotal].
+  static const version = 10;
 
   /// Points per probe. Weighted by how much of Caverno's agent loop the probe
   /// actually stands for: the tool-result round trip and the first tool call
@@ -43,7 +46,12 @@ class LiveLlmDiagnosticSuite {
     'embeddings_capability': 55,
     'effective_context': 0,
     'foundation_models_language_matrix': 20,
-    'vision_attachment': 50,
+    'vision_attachment': 30,
+    // Reading a number off a chart is what a document with a figure in it
+    // actually asks for, and it is where the decision about rendering PDF
+    // pages is made. Scored rather than weightless because it measures the
+    // model, not what the endpoint will accept.
+    'chart_reading': 20,
     'vision_tool_observation': 35,
     // Zero for the same reason as effective_context: this reports what the
     // endpoint accepts, not what the model can do, so it must not move a
