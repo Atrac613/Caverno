@@ -1043,6 +1043,8 @@
     "live_llm_diag_probe_fm_language_matrix_title": "Foundation Models language matrix",
     "live_llm_diag_probe_fm_language_matrix_desc": "Foundation Models の英語、日本語、tool-bridge prompt が locale-safe か確認します。",
     "live_llm_diag_probe_vision_attachment_title": "Vision: 添付画像",
+    "live_llm_diag_probe_chart_reading_title": "Vision: グラフ読解",
+    "live_llm_diag_probe_chart_reading_desc": "棒グラフから数値とラベルを読み取れるかを、画像なしの対照群と併せて確認します。単色4分割はビジョン経路が通っていることしか示しませんが、この項目は文書中の図が実際に読めるかを示します。",
     "live_llm_diag_probe_vision_observation_title": "Vision: ツール観測",
     "live_llm_diag_probe_vision_attachment_desc": "既知のテスト画像をユーザー添付として送り読めるか確認します。画像なしの対照群を併走させ、読解と当て推量を切り分けます。",
     "live_llm_diag_probe_vision_observation_desc": "同じ画像を computer-use がスクリーンショットを返す形式で送ります。メッセージの形が異なるため別途確認が必要です。",

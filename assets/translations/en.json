@@ -1044,6 +1044,8 @@
     "live_llm_diag_probe_fm_language_matrix_desc": "Checks English, Japanese, and tool-bridge prompts for Foundation Models locale safety.",
     "live_llm_diag_probe_vision_attachment_title": "Vision: attached image",
     "live_llm_diag_probe_vision_attachment_desc": "Reads a known test image sent as a user attachment, with a no-image control arm that separates reading from guessing.",
+    "live_llm_diag_probe_chart_reading_title": "Vision: chart reading",
+    "live_llm_diag_probe_chart_reading_desc": "Asks the model to read values and labels off a bar chart, with a no-image control arm. Four solid colors prove the vision path is wired; this says whether a figure in a document is legible.",
     "live_llm_diag_probe_vision_observation_title": "Vision: tool observation",
     "live_llm_diag_probe_vision_observation_desc": "Reads the same image delivered the way computer-use returns a screenshot, which uses a different message shape.",
     "live_llm_diag_probe_video_input_title": "Video input",
