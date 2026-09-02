@@ -18,6 +18,7 @@ class PendingApprovalSummary {
     required this.detail,
     required this.isSimpleDecision,
     required this.conversationId,
+    this.origin = ChatInteractionOrigin.local,
     this.remoteDeviceId,
   });
 
@@ -37,12 +38,27 @@ class PendingApprovalSummary {
   final bool isSimpleDecision;
   final String conversationId;
 
-  /// Set when a paired Remote Coding device owns this interaction. SEC4.5g
-  /// scopes such an approval to that device, so surfaces on *this* device must
-  /// filter it out.
+  /// Where the turn that raised this interaction came from. Only four pending
+  /// types carry it; the rest have no remote producer and are structurally
+  /// local.
+  final ChatInteractionOrigin origin;
+
+  /// The paired Remote Coding device that owns this interaction, when one does.
   final String? remoteDeviceId;
 
+  /// Whether a surface on *this* device must leave this interaction alone.
+  ///
+  /// Mirrors the shape of `RemoteCodingServerNotifier._canResolveInteraction`,
+  /// which is the reference gate for SEC4.5g: it checks `origin` first and
+  /// treats a remote interaction with a missing owner as **not** resolvable.
+  /// Reading only `remoteDeviceId` would invert that — inferring "remote" from
+  /// the presence of an id means a remote-origin interaction that somehow lost
+  /// its owner becomes resolvable here. `ChatNotifier` nulls the id for
+  /// local-origin turns, so today the single remote producer always supplies
+  /// an authenticated one and the two tests agree; checking origin is what
+  /// keeps them agreeing after the next refactor.
   bool get isOwnedByRemoteDevice =>
+      origin == ChatInteractionOrigin.remote ||
       (remoteDeviceId?.trim() ?? '').isNotEmpty;
 }
 
@@ -80,6 +96,7 @@ PendingApprovalSummary describePendingApproval(
       detail: request.reason ?? request.preview,
       isSimpleDecision: true,
       conversationId: conversationId,
+      origin: request.origin,
       remoteDeviceId: request.remoteDeviceId,
     ),
     PendingLocalCommand() => PendingApprovalSummary(
@@ -92,6 +109,7 @@ PendingApprovalSummary describePendingApproval(
       detail: request.warningMessage ?? request.reason ?? '',
       isSimpleDecision: true,
       conversationId: conversationId,
+      origin: request.origin,
       remoteDeviceId: request.remoteDeviceId,
     ),
     PendingGitCommand() => PendingApprovalSummary(
@@ -102,6 +120,7 @@ PendingApprovalSummary describePendingApproval(
       detail: request.reason ?? '',
       isSimpleDecision: true,
       conversationId: conversationId,
+      origin: request.origin,
       remoteDeviceId: request.remoteDeviceId,
     ),
     PendingSshCommand() => PendingApprovalSummary(

@@ -77,7 +77,10 @@ class WatchApprovalMapper {
   /// approval describer.
   WatchQuestion? mapQuestion(ChatState state) {
     final pending = state.pendingAskUserQuestion;
+    // Same gate as [map]: origin first, a missing owner counted against
+    // resolving here rather than for it.
     if (pending == null ||
+        pending.origin == ChatInteractionOrigin.remote ||
         (pending.remoteDeviceId?.trim().isNotEmpty ?? false)) {
       return null;
     }

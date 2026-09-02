@@ -54,6 +54,12 @@ principal:
 Its authority comes from the iOS↔watch pairing itself: `WCSession` talks only to
 the watch paired with this phone.
 
+The exclusion is written the way the Remote Coding gate is written — `origin`
+first, a remote interaction with a missing owner counted against resolving here
+rather than for it. Reading only `remoteDeviceId` inverts that, and the two
+agreed in the shipped build only by coincidence. Recorded as SA-24 in
+`docs/security_followup_review_2026-08-24.md`.
+
 ## Payload budget
 
 `WatchSnapshot` is a separate, small projection — deliberately not

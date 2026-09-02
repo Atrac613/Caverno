@@ -186,6 +186,7 @@ Remote Coding product promotion remain gated by their SEC4 owner.
 | 3 | SEC4.3f | done | SA-21 | Apply bounded streaming and decompression limits to application-owned MCP and QR inputs. | Completed 2026-08-24: MCP HTTP/stdio and parse limits are bounded; settings QR import rejects oversized Base64/compressed input and caps chunked gzip output before decoding. |
 | 4 | SEC4.6k | done | SA-22 | Enforce owner-only sensitive log storage and structured diagnostic redaction. | Completed 2026-08-24: sensitive logs use owner-only modes; MCP diagnostics redact structured secrets and omit bodies; fresh installs default session logging off while stored choices remain unchanged. |
 | 5 | SEC4.5g / RC1 | done | SA-23 | Recheck pending-interaction origin and enforce device ownership at resolution. | Completed 2026-08-24: paired devices are separate principals; only the active initiating device can view or resolve its pending interactions, while same-device reconnects retain access. |
+| 6 | WATCH-SEC | done | SA-24 | Record the Apple Watch resolution channel and check pending origin, not just owner presence, before showing an interaction on the wrist. | Completed 2026-09-02: the watch filter now checks `origin` the way the Remote Coding gate does, so a remote interaction that lost its owner id stays off the watch. The channel itself is documented in `docs/security_followup_review_2026-08-24.md`. |
 
 Keep each row as a separate task and focused PR. Remaining SEC4.7/SA-16 work is
 still required, but follows the two High severity release blockers unless the

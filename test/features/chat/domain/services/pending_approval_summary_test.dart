@@ -51,6 +51,28 @@ void main() {
       expect(summary.isOwnedByRemoteDevice, isTrue);
     });
 
+    test('a remote origin is excluded even without an owner id', () {
+      // The reference gate (RemoteCodingServerNotifier._canResolveInteraction)
+      // checks origin first and treats a remote interaction with a missing
+      // owner as not resolvable. Reading only remoteDeviceId inverts that.
+      final summary = describePendingApproval(
+        PendingLocalCommand(
+          owner: owner(),
+          id: 'local-1',
+          command: 'rm -rf build',
+          workingDirectory: '/repo',
+          reason: null,
+          warningTitle: null,
+          warningMessage: null,
+          completer: Completer<LocalCommandApproval>(),
+          origin: ChatInteractionOrigin.remote,
+          remoteDeviceId: null,
+        ),
+      );
+
+      expect(summary.isOwnedByRemoteDevice, isTrue);
+    });
+
     test('an empty remoteDeviceId does not count as remote ownership', () {
       final summary = describePendingApproval(
         PendingGitCommand(
@@ -65,6 +87,7 @@ void main() {
       );
 
       expect(summary.isOwnedByRemoteDevice, isFalse);
+      expect(summary.origin, ChatInteractionOrigin.local);
     });
 
     test('kinds needing structured input are not simple decisions', () {

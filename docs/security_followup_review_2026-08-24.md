@@ -1,6 +1,7 @@
 # Caverno Security Follow-Up Review (2026-08-24)
 
 Status: High severity remediation complete; defense-in-depth queue open.
+SA-24 added 2026-09-02 for the Apple Watch resolution channel.
 
 Reviewed revision: `a3d35fc9e592`.
 
@@ -251,6 +252,56 @@ rechecks remote origin, exact device ownership, and an active pairing before
 resolution. Same-device reconnects retain access; desktop-origin, stale,
 cross-device, and revoked-device attempts receive the existing generic
 not-found or authentication error. SA-23 is closed.
+
+## SA-24: Apple Watch Interaction Resolution Channel
+
+Opened 2026-09-02, alongside the Apple Watch companion (WATCH1-WATCH6). This is
+a scope note and a hardening, not an exploited finding.
+
+Context:
+
+- The companion adds a **second channel that can resolve pending approvals and
+  questions**, reached over `WCSession` rather than the authenticated WSS
+  transport SA-23 was written about.
+- It deliberately does **not** pass through the SEC4.5g device gate. That gate
+  scopes an interaction to the paired device that started the turn; applying it
+  to the watch would hide every iPhone-initiated approval from the watch, which
+  is the companion's whole purpose. The watch is treated as a peripheral of this
+  device: it sends with `ChatInteractionOrigin.local` and sees local-origin
+  interactions.
+- Its authority comes from the pairing itself. `WCSession` reaches exactly the
+  one watch paired with this phone; there is no address, token, or listener a
+  third party could reach. Nothing about SA-23's transport surface changes.
+
+Weakness found and fixed on 2026-09-02:
+
+- `PendingApprovalSummary.isOwnedByRemoteDevice` excluded remote interactions by
+  testing `remoteDeviceId` for emptiness — inferring "remote" from the presence
+  of an owner id. The reference gate
+  (`RemoteCodingServerNotifier._canResolveInteraction`) checks `origin` first
+  and counts a remote interaction with a missing owner as **not** resolvable.
+  The watch filter inverted that: a remote-origin pending that lost its owner id
+  would have been shown on, and resolvable from, the wrist.
+- Not reachable in the shipped build. `ChatNotifier` nulls `remoteDeviceId` for
+  local-origin turns, and the single remote producer always supplies an
+  authenticated id, so the two tests agreed in practice. The guard now reads
+  `origin` as well, so they keep agreeing after a refactor rather than by
+  coincidence.
+- Covered by `test/features/chat/domain/services/pending_approval_summary_test.dart`
+  and `test/features/watch/domain/watch_approval_mapper_test.dart`, both of which
+  fail if the origin check is removed.
+
+Residual scope, deliberately not addressed here:
+
+- Kinds the watch can answer are limited by what mobile can raise at all: file,
+  shell, and git approvals are gated behind `isDesktopPlatform` in
+  `mcp_tool_service.dart` and cannot occur on iOS.
+- The watch presents an approval in less detail than the phone does. Kinds that
+  need structured input — SSH credentials, computer-use smoke arming — are shown
+  read-only and must be completed on the iPhone.
+- Actionable approval notifications carry Approve/Deny only when the approval id
+  is known and the kind is a plain yes/no, so a queued second approval cannot
+  receive a decision meant for the first.
 
 ## Roadmap Order
 

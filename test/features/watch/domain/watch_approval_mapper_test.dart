@@ -120,6 +120,55 @@ void main() {
       expect(approval, isNull);
     });
 
+    test('hides a remote-origin approval that lost its owner id', () {
+      final approval = mapper.map(
+        stateWith(
+          local: PendingLocalCommand(
+            owner: owner(),
+            id: 'local-1',
+            command: 'rm -rf build',
+            workingDirectory: '/repo',
+            reason: null,
+            warningTitle: null,
+            warningMessage: null,
+            completer: Completer<LocalCommandApproval>(),
+            origin: ChatInteractionOrigin.remote,
+            remoteDeviceId: null,
+          ),
+        ),
+      );
+
+      expect(
+        approval,
+        isNull,
+        reason:
+            'Inferring "remote" from the presence of an owner id would make a '
+            'remote interaction that lost one resolvable from the wrist.',
+      );
+    });
+
+    test('hides a remote-origin question that lost its owner id', () {
+      final question = mapper.mapQuestion(
+        stateWith(
+          question: PendingAskUserQuestion(
+            id: 'q-1',
+            conversationId: 'c-1',
+            question: 'Which approach?',
+            help: '',
+            options: const [],
+            allowMultiple: false,
+            allowOther: false,
+            otherPlaceholder: '',
+            completer: Completer<AskUserQuestionAnswer?>(),
+            origin: ChatInteractionOrigin.remote,
+            remoteDeviceId: null,
+          ),
+        ),
+      );
+
+      expect(question, isNull);
+    });
+
     test('hides a remote-owned question', () {
       final question = mapper.mapQuestion(
         stateWith(
