@@ -7,6 +7,8 @@ import 'package:caverno/features/chat/data/repositories/conversation_repository.
 import 'package:caverno/features/chat/data/repositories/conversation_repository_api.dart';
 import 'package:caverno/features/chat/data/repositories/key_value_store.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
@@ -483,6 +485,161 @@ void main() {
           'defaultConversationTitle is a marker, not a label; passing it '
           'through put a literal __new_conversation__ on the watch.',
     );
+  });
+
+  group('transcript projection', () {
+    Message message(
+      String id,
+      MessageRole role,
+      String content, {
+      bool isStreaming = false,
+      bool isSynthesizedPrompt = false,
+    }) => Message(
+      id: id,
+      content: content,
+      role: role,
+      isStreaming: isStreaming,
+      isSynthesizedPrompt: isSynthesizedPrompt,
+      timestamp: DateTime.utc(2026, 9, 1, 12),
+    );
+
+    test('carries both sides of the exchange in order', () async {
+      final instance = await notifier();
+
+      final snapshot = instance.buildSnapshot(
+        ChatState(
+          messages: [
+            message('u-1', MessageRole.user, 'Run the tests'),
+            message('a-1', MessageRole.assistant, 'All green.'),
+          ],
+          isLoading: false,
+        ),
+      );
+
+      expect(
+        snapshot.messages.map((m) => (m.role, m.text)),
+        [
+          (WatchMessageRole.user, 'Run the tests'),
+          (WatchMessageRole.assistant, 'All green.'),
+        ],
+      );
+      expect(snapshot.messagesTruncated, isFalse);
+    });
+
+    test('strips internal markup from an assistant bubble', () async {
+      final instance = await notifier();
+
+      final snapshot = instance.buildSnapshot(
+        ChatState(
+          messages: [
+            message(
+              'a-1',
+              MessageRole.assistant,
+              '<think>weighing it</think>The answer is four.'
+              '<tool_use>{"name":"memory-update"}</tool_use>',
+            ),
+          ],
+          isLoading: false,
+        ),
+      );
+
+      expect(snapshot.messages.single.text, 'The answer is four.');
+    });
+
+    test('a synthesized prompt never becomes a user bubble', () async {
+      // The tool-result envelope carries MessageRole.user because that is the
+      // only role a model acts on. Drawn as a bubble it would put a
+      // <tool_use> blob on the wrist in the person's own voice, and the
+      // speaker would read it aloud.
+      final instance = await notifier();
+
+      final snapshot = instance.buildSnapshot(
+        ChatState(
+          messages: [
+            message('u-1', MessageRole.user, 'Run the tests'),
+            message(
+              'tool-1',
+              MessageRole.user,
+              '<tool_result>{"ok":true}</tool_result>',
+              isSynthesizedPrompt: true,
+            ),
+          ],
+          isLoading: false,
+        ),
+      );
+
+      expect(snapshot.messages.map((m) => m.id), ['u-1']);
+    });
+
+    test('a system message is not part of the conversation', () async {
+      final instance = await notifier();
+
+      final snapshot = instance.buildSnapshot(
+        ChatState(
+          messages: [
+            message('s-1', MessageRole.system, 'You are Caverno.'),
+            message('u-1', MessageRole.user, 'Hello'),
+          ],
+          isLoading: false,
+        ),
+      );
+
+      expect(snapshot.messages.map((m) => m.id), ['u-1']);
+    });
+
+    test('an empty answer still in flight keeps its bubble', () async {
+      // That empty streaming bubble is what tells the watch to show the
+      // typing indicator instead of an empty transcript.
+      final instance = await notifier();
+
+      final snapshot = instance.buildSnapshot(
+        ChatState(
+          messages: [
+            message('u-1', MessageRole.user, 'Hello'),
+            message('a-1', MessageRole.assistant, '', isStreaming: true),
+          ],
+          isLoading: true,
+        ),
+      );
+
+      expect(snapshot.messages.last.id, 'a-1');
+      expect(snapshot.messages.last.isStreaming, isTrue);
+    });
+
+    test('an empty finished message is dropped', () async {
+      final instance = await notifier();
+
+      final snapshot = instance.buildSnapshot(
+        ChatState(
+          messages: [
+            message('u-1', MessageRole.user, 'Hello'),
+            message('a-1', MessageRole.assistant, '   '),
+          ],
+          isLoading: false,
+        ),
+      );
+
+      expect(snapshot.messages.map((m) => m.id), ['u-1']);
+    });
+
+    test('keeps the newest messages and says the thread was cut', () async {
+      final instance = await notifier();
+
+      final snapshot = instance.buildSnapshot(
+        ChatState(
+          messages: [
+            for (var i = 0; i < watchSnapshotMaxMessages + 4; i++)
+              message('m-$i', MessageRole.user, 'turn $i'),
+          ],
+          isLoading: false,
+        ),
+      );
+
+      expect(snapshot.messages, hasLength(watchSnapshotMaxMessages));
+      expect(snapshot.messages.first.id, 'm-4');
+      expect(snapshot.messages.last.id, 'm-11');
+      expect(snapshot.messagesTruncated, isTrue);
+    });
   });
 
   test('an idle snapshot reports no pending interaction', () async {

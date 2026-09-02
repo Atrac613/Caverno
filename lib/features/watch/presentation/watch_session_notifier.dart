@@ -176,6 +176,10 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       conversationTitle: _titleFor(current?.title),
       status: _statusFor(chatState, approval: approval, question: question),
       lastAssistantText: _lastAssistantText(chatState.messages),
+      messages: _transcript(chatState.messages),
+      messagesTruncated:
+          _visibleMessages(chatState.messages).length >
+          watchSnapshotMaxMessages,
       approval: approval,
       question: question,
       elapsedSeconds: startedAt == null
@@ -250,6 +254,60 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     }
     return '';
   }
+
+  /// The tail of the thread as bubbles, oldest first.
+  ///
+  /// Capped at the source rather than only in the wire model so the projection
+  /// never builds a list it is about to discard.
+  List<WatchMessage> _transcript(List<Message> messages) {
+    final visible = _visibleMessages(messages);
+    final kept = visible.length <= watchSnapshotMaxMessages
+        ? visible
+        : visible.sublist(visible.length - watchSnapshotMaxMessages);
+    return kept
+        .map(
+          (message) => WatchMessage(
+            id: message.id,
+            role: message.role == MessageRole.user
+                ? WatchMessageRole.user
+                : WatchMessageRole.assistant,
+            text: _bubbleText(message),
+            timestamp: message.timestamp,
+            isStreaming: message.isStreaming,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  /// The messages that belong in a transcript a person reads.
+  ///
+  /// Two exclusions, both guards rather than mirrors of the phone's list.
+  /// A system message is not part of the conversation. A synthesized prompt
+  /// carries `MessageRole.user` because that is the only role a model acts on,
+  /// but it is the tool-result envelope, not the person's turn — today those
+  /// are built for the request payload and never reach `ChatState.messages`,
+  /// and if one ever did, the watch would draw a `<tool_use>` blob in the
+  /// user's own voice and read it aloud.
+  ///
+  /// An empty message is dropped unless it is the answer being written, which
+  /// is what tells the watch to show a typing bubble.
+  List<Message> _visibleMessages(List<Message> messages) => messages
+      .where(
+        (message) =>
+            message.role != MessageRole.system &&
+            !message.isSynthesizedPrompt &&
+            (message.isStreaming || _bubbleText(message).isNotEmpty),
+      )
+      .toList(growable: false);
+
+  /// Parsed for the assistant, verbatim for the person.
+  ///
+  /// Assistant content still carries `<think>` and `<tool_use>` blocks; see
+  /// [_lastAssistantText] for why projecting the raw field is wrong. A user
+  /// message has no such envelope and is shown as typed.
+  String _bubbleText(Message message) => message.role == MessageRole.assistant
+      ? ContentParser.parse(message.content).text.trim()
+      : message.content.trim();
 
   Future<void> _pushSnapshot(ChatState chatState) async {
     if (!await _ensureAvailable()) return;

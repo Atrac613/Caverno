@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
-		178A02FCAF83989A94980C69 /* StatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB86A78F72E0C886741E2B1 /* StatusView.swift */; };
+		167F7DC02F62062B44D4E648 /* TranscriptTimestamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4DEF05942E8FE8C3852F625 /* TranscriptTimestamp.swift */; };
 		1C3FB44DBE1985C6F54430C9 /* CavernoWatchWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2883BE6A5E5350F7AF28CC3 /* CavernoWatchWidget.swift */; };
 		20081A93976A50D102AD557A /* PlainText.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFFAD4357295EEC26CA8B192 /* PlainText.swift */; };
 		2C0DBF10A7857ACB61BC61DD /* CavernoWatchWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F15897DA7D2BC93A8E1AEB6C /* CavernoWatchWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -22,7 +22,6 @@
 		84BA2C0FB352D78B596D1984 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 094B0ACA26BAF1E1985EB780 /* Assets.xcassets */; };
 		947E72F5C73537F3FC7115F8 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 675DDD5890FAE0E7A44F8FA2 /* Pods_Runner.framework */; };
 		95844863DF08E80FF337E8CB /* ThreadPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1FA6B793C380740FD70860E /* ThreadPickerView.swift */; };
-		9595137F1F5431082A6AC190 /* VoiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9DCD67A4FD77736FA6B88A5 /* VoiceView.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
@@ -33,10 +32,14 @@
 		A1BDA8B41FBB171753B6F893 /* WatchSessionClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C35E3A534B742462DCF1442 /* WatchSessionClient.swift */; };
 		A30295D22F6AC23E00141940 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A30295D32F6AC23E00141940 /* PrivacyInfo.xcprivacy */; };
 		A30295D72F6AC24000141944 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A30295D42F6AC24000141941 /* InfoPlist.strings */; };
+		A52083488A96F6EE4D3A0E9B /* MessageBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68460DEF204D41459365BC2D /* MessageBubbleView.swift */; };
 		A5B8F3EB6BD8BB5A1B26028C /* WatchGlanceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F292F4C353F66DF13A93E9B /* WatchGlanceStore.swift */; };
 		C4D65DA33AF15F284A886DDB /* WatchGlanceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F292F4C353F66DF13A93E9B /* WatchGlanceStore.swift */; };
 		C61AFAE1E1D343440201D290 /* QuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398CEB898F2775FC26300CEE /* QuestionView.swift */; };
+		CEC3D2699C7BC2D7C1DF145D /* TranscriptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AF298B1DA568BC6C0D0A7ED /* TranscriptView.swift */; };
+		E11453EA776F0BEB32A94D65 /* ComposeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB33072D9FCA2DE5170C7E3F /* ComposeBar.swift */; };
 		EFCF33E8449E6DBCEF40A473 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA0DDD702B0F3F2E050FEBFF /* Foundation.framework */; };
+		FE3742C64F18DD6BB4E5F2DA /* BubbleStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E42E2619C4777090B7276B6 /* BubbleStyle.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -100,6 +103,7 @@
 
 /* Begin PBXFileReference section */
 		094B0ACA26BAF1E1985EB780 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		0AF298B1DA568BC6C0D0A7ED /* TranscriptView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TranscriptView.swift; sourceTree = "<group>"; };
 		0C35E3A534B742462DCF1442 /* WatchSessionClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchSessionClient.swift; sourceTree = "<group>"; };
 		0C92E38007344963815A24DC /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F292F4C353F66DF13A93E9B /* WatchGlanceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchGlanceStore.swift; sourceTree = "<group>"; };
@@ -115,10 +119,12 @@
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		4DDF825744B8950426046932 /* WatchModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchModels.swift; sourceTree = "<group>"; };
 		675DDD5890FAE0E7A44F8FA2 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		68460DEF204D41459365BC2D /* MessageBubbleView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MessageBubbleView.swift; sourceTree = "<group>"; };
 		733EF5111DDC510471D4FEB9 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
+		8E42E2619C4777090B7276B6 /* BubbleStyle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BubbleStyle.swift; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
 		9740EEB31CF90195004384FC /* Generated.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Generated.xcconfig; path = Flutter/Generated.xcconfig; sourceTree = "<group>"; };
 		97C146EE1CF9000F007C117D /* Runner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -138,9 +144,9 @@
 		B9F86A80DA7D6C9B568378A8 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
 		BBC0CDA51A67479B2C2F6523 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		BD276E0877C7895ED7065FA7 /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		BEB86A78F72E0C886741E2B1 /* StatusView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StatusView.swift; sourceTree = "<group>"; };
-		C9DCD67A4FD77736FA6B88A5 /* VoiceView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VoiceView.swift; sourceTree = "<group>"; };
 		E2883BE6A5E5350F7AF28CC3 /* CavernoWatchWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CavernoWatchWidget.swift; sourceTree = "<group>"; };
+		E4DEF05942E8FE8C3852F625 /* TranscriptTimestamp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TranscriptTimestamp.swift; sourceTree = "<group>"; };
+		EB33072D9FCA2DE5170C7E3F /* ComposeBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComposeBar.swift; sourceTree = "<group>"; };
 		F15897DA7D2BC93A8E1AEB6C /* CavernoWatchWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CavernoWatchWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1FA6B793C380740FD70860E /* ThreadPickerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThreadPickerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -188,14 +194,17 @@
 				B970CD3D6ACBDEF32389D4DC /* CavernoWatchApp.swift */,
 				BD276E0877C7895ED7065FA7 /* ContentView.swift */,
 				398CEB898F2775FC26300CEE /* QuestionView.swift */,
-				BEB86A78F72E0C886741E2B1 /* StatusView.swift */,
-				C9DCD67A4FD77736FA6B88A5 /* VoiceView.swift */,
 				4DDF825744B8950426046932 /* WatchModels.swift */,
 				0C35E3A534B742462DCF1442 /* WatchSessionClient.swift */,
 				9C84CFDAEB4CFC40A6970453 /* WatchSpeaker.swift */,
 				094B0ACA26BAF1E1985EB780 /* Assets.xcassets */,
 				F1FA6B793C380740FD70860E /* ThreadPickerView.swift */,
 				AFFAD4357295EEC26CA8B192 /* PlainText.swift */,
+				8E42E2619C4777090B7276B6 /* BubbleStyle.swift */,
+				EB33072D9FCA2DE5170C7E3F /* ComposeBar.swift */,
+				68460DEF204D41459365BC2D /* MessageBubbleView.swift */,
+				E4DEF05942E8FE8C3852F625 /* TranscriptTimestamp.swift */,
+				0AF298B1DA568BC6C0D0A7ED /* TranscriptView.swift */,
 			);
 			name = "CavernoWatch Watch App";
 			path = "CavernoWatch Watch App";
@@ -629,14 +638,17 @@
 				402B467DBA2B3A266BAD3441 /* CavernoWatchApp.swift in Sources */,
 				4AB7B25484927945982E108D /* ContentView.swift in Sources */,
 				C61AFAE1E1D343440201D290 /* QuestionView.swift in Sources */,
-				178A02FCAF83989A94980C69 /* StatusView.swift in Sources */,
-				9595137F1F5431082A6AC190 /* VoiceView.swift in Sources */,
 				9B38DF968631B6F843B974A5 /* WatchModels.swift in Sources */,
 				A1BDA8B41FBB171753B6F893 /* WatchSessionClient.swift in Sources */,
 				5EFA02AC2E348E8C6257F5FA /* WatchSpeaker.swift in Sources */,
 				95844863DF08E80FF337E8CB /* ThreadPickerView.swift in Sources */,
 				C4D65DA33AF15F284A886DDB /* WatchGlanceStore.swift in Sources */,
 				20081A93976A50D102AD557A /* PlainText.swift in Sources */,
+				FE3742C64F18DD6BB4E5F2DA /* BubbleStyle.swift in Sources */,
+				E11453EA776F0BEB32A94D65 /* ComposeBar.swift in Sources */,
+				A52083488A96F6EE4D3A0E9B /* MessageBubbleView.swift in Sources */,
+				167F7DC02F62062B44D4E648 /* TranscriptTimestamp.swift in Sources */,
+				CEC3D2699C7BC2D7C1DF145D /* TranscriptView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

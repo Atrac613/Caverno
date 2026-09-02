@@ -60,6 +60,7 @@ struct ApprovalView: View {
       }
       .padding(.horizontal, 4)
     }
+    .navigationTitle("Approval")
   }
 
   private var kindLabel: String {

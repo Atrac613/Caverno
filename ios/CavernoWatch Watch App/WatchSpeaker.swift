@@ -12,7 +12,19 @@ import Foundation
 @MainActor
 final class WatchSpeaker: NSObject, ObservableObject {
   @Published private(set) var isSpeaking = false
-  @Published var isEnabled = true
+
+  /// Whether answers are read aloud. Persisted, and off until asked for.
+  ///
+  /// The speaker used to sit behind its own voice screen and only ran while
+  /// that screen was open. It now runs on the transcript, which is the screen
+  /// a raised wrist lands on, so defaulting to on would make every glance
+  /// start talking. Persisting the choice is what keeps the voice loop one
+  /// tap to enter and none to resume.
+  @Published var isEnabled: Bool {
+    didSet { UserDefaults.standard.set(isEnabled, forKey: Self.enabledKey) }
+  }
+
+  private static let enabledKey = "watch.readReplies"
 
   private let synthesizer = AVSpeechSynthesizer()
   /// Text already handed to the synthesizer, so re-renders of a growing stream
@@ -20,6 +32,7 @@ final class WatchSpeaker: NSObject, ObservableObject {
   private var spokenPrefix = ""
 
   override init() {
+    isEnabled = UserDefaults.standard.bool(forKey: Self.enabledKey)
     super.init()
     synthesizer.delegate = self
   }

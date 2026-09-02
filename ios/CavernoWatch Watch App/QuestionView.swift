@@ -52,6 +52,7 @@ struct QuestionView: View {
       }
       .padding(.horizontal, 4)
     }
+    .navigationTitle("Question")
   }
 
   private func choose(_ option: WatchQuestionOption) {

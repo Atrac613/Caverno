@@ -21,6 +21,23 @@ const int watchSnapshotDetailLimit = 300;
 const int watchSnapshotOptionLabelLimit = 60;
 const int watchSnapshotMaxQuestionOptions = 4;
 
+/// How many transcript messages the watch is given.
+///
+/// The watch renders a Messages-style transcript rather than a single last
+/// answer, so the frame has to carry history. The cap is a payload
+/// constraint first — see [watchSnapshotMaxEncodedBytes] — and a screen
+/// constraint second. The frame says when the list was cut so the watch can
+/// point at the iPhone instead of implying it holds the whole thread.
+const int watchSnapshotMaxMessages = 8;
+
+/// Per-bubble text budget, with a larger allowance for the newest message.
+///
+/// The last bubble is the one being read right now; clipping it to the same
+/// length as scrollback would truncate the answer the person came to the
+/// wrist for, while older bubbles only need to be recognisable.
+const int watchSnapshotMessageTextLimit = 180;
+const int watchSnapshotLastMessageTextLimit = 400;
+
 /// How many threads the watch is offered to switch between.
 ///
 /// A cap, not a preference: the snapshot has a payload budget and a watch
@@ -183,6 +200,63 @@ class WatchConversation {
   };
 }
 
+/// Who a transcript bubble belongs to.
+///
+/// Narrower than `MessageRole` on purpose: the watch draws two bubble styles
+/// and has nothing to do with a system message.
+enum WatchMessageRole { user, assistant }
+
+WatchMessageRole _watchMessageRoleFromName(String name) =>
+    name == 'user' ? WatchMessageRole.user : WatchMessageRole.assistant;
+
+/// One bubble in the watch's transcript.
+class WatchMessage {
+  const WatchMessage({
+    required this.id,
+    required this.role,
+    required this.text,
+    required this.timestamp,
+    this.isStreaming = false,
+  });
+
+  final String id;
+  final WatchMessageRole role;
+  final String text;
+
+  /// When the message was created, so the watch can group bubbles under a
+  /// relative day-and-time header the way Messages does. Sent as UTC and
+  /// rendered in the watch's own locale — the phone has no business
+  /// formatting a date for a device whose locale it does not know.
+  final DateTime timestamp;
+
+  /// True while the answer is still being written.
+  ///
+  /// The watch renders this bubble from its own stream deltas rather than
+  /// from [text]: snapshots coalesce, deltas do not, so the live bubble is
+  /// further ahead than any frame that carries it.
+  final bool isStreaming;
+
+  factory WatchMessage.fromJson(Map<String, dynamic> json) => WatchMessage(
+    id: (json['id'] as String?)?.trim() ?? '',
+    role: _watchMessageRoleFromName((json['role'] as String?) ?? ''),
+    text: (json['text'] as String?) ?? '',
+    timestamp:
+        DateTime.tryParse((json['timestamp'] as String?) ?? '')?.toUtc() ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    isStreaming: json['isStreaming'] == true,
+  );
+
+  Map<String, dynamic> toJson({
+    int limit = watchSnapshotMessageTextLimit,
+  }) => {
+    'id': id,
+    'role': role.name,
+    'text': truncateForWatch(text, limit),
+    'timestamp': timestamp.toUtc().toIso8601String(),
+    if (isStreaming) 'isStreaming': true,
+  };
+}
+
 /// One frame of iPhone chat state, projected for the watch.
 class WatchSnapshot {
   const WatchSnapshot({
@@ -192,6 +266,8 @@ class WatchSnapshot {
     this.conversationTitle = '',
     this.status = WatchTurnStatus.idle,
     this.lastAssistantText = '',
+    this.messages = const <WatchMessage>[],
+    this.messagesTruncated = false,
     this.approval,
     this.question,
     this.elapsedSeconds = 0,
@@ -210,7 +286,16 @@ class WatchSnapshot {
   final String? conversationId;
   final String conversationTitle;
   final WatchTurnStatus status;
+  /// The most recent assistant answer, kept for watch builds older than the
+  /// transcript. The two apps ship as one bundle but are not guaranteed to be
+  /// the same build at runtime, and a watch that has not synced yet would
+  /// otherwise show nothing at all.
   final String lastAssistantText;
+
+  /// The tail of the thread, oldest first, already capped.
+  final List<WatchMessage> messages;
+  final bool messagesTruncated;
+
   final WatchApproval? approval;
   final WatchQuestion? question;
   final int elapsedSeconds;
@@ -238,6 +323,11 @@ class WatchSnapshot {
       conversationTitle: (json['conversationTitle'] as String?)?.trim() ?? '',
       status: _watchTurnStatusFromName((json['status'] as String?) ?? ''),
       lastAssistantText: (json['lastAssistantText'] as String?) ?? '',
+      messages: (json['messages'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map(WatchMessage.fromJson)
+          .toList(growable: false),
+      messagesTruncated: json['messagesTruncated'] == true,
       approval: approval is Map<String, dynamic>
           ? WatchApproval.fromJson(approval)
           : null,
@@ -271,6 +361,9 @@ class WatchSnapshot {
       lastAssistantText,
       watchSnapshotAssistantTextLimit,
     ),
+    'messages': _encodedMessages(),
+    'messagesTruncated':
+        messagesTruncated || messages.length > watchSnapshotMaxMessages,
     if (approval != null) 'approval': approval!.toJson(),
     if (question != null) 'question': question!.toJson(),
     'elapsedSeconds': elapsedSeconds,
@@ -286,4 +379,20 @@ class WatchSnapshot {
     if (error != null && error!.isNotEmpty)
       'error': truncateForWatch(error!, watchSnapshotTitleLimit),
   };
+
+  /// Encodes the newest [watchSnapshotMaxMessages] bubbles, giving the last
+  /// one the larger text allowance.
+  List<Map<String, dynamic>> _encodedMessages() {
+    final kept = messages.length <= watchSnapshotMaxMessages
+        ? messages
+        : messages.sublist(messages.length - watchSnapshotMaxMessages);
+    return [
+      for (var i = 0; i < kept.length; i++)
+        kept[i].toJson(
+          limit: i == kept.length - 1
+              ? watchSnapshotLastMessageTextLimit
+              : watchSnapshotMessageTextLimit,
+        ),
+    ];
+  }
 }

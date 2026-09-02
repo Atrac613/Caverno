@@ -69,6 +69,19 @@ and dashboard statistics and does not fit a WatchConnectivity payload.
 is capped, and `watch_snapshot_test.dart` asserts a maximal snapshot stays
 inside `watchSnapshotMaxEncodedBytes`.
 
+The frame carries the tail of the thread, not just the last answer: the watch
+draws a message transcript, and a single trailing paragraph cannot say what was
+asked. Eight bubbles, 180 runes each with 400 for the newest — the one being
+read — plus a flag saying the thread was cut. `lastAssistantText` stays in the
+frame even though the transcript supersedes it, because the two apps ship as
+one bundle but are not guaranteed to be the same build at runtime, and a watch
+newer than its phone would otherwise render an empty thread.
+
+Budget headroom is measured in a multi-byte script, not in ASCII. Every cap
+counts runes, so an English-only measurement under-reports the real payload
+threefold and would let a frame that is legal in English be rejected at runtime
+in Japanese.
+
 Snapshots carry a monotonic sequence number. WatchConnectivity gives no ordering
 guarantee across transports — an application context can land after a newer
 `sendMessage` — and dropping lower sequences is what stops a stale frame from
@@ -150,9 +163,46 @@ is absent and the store degrades to a no-op. That is the safe failure, but it
 renders identically to "nothing running" — confirm the glance on a signed
 build.
 
+## The transcript
+
+The main screen is a message thread: bubbles with tails, outgoing on the right
+in the phone's accent and incoming on the left in its dark surface colour, a
+relative day-and-time header wherever the conversation paused for more than
+fifteen minutes, and a typing bubble while an answer is being written. Nothing
+else lives in the scroll area — the controls that used to sit between the
+answer and the bottom of the screen moved into a pinned compose bar and the
+navigation bar, because on a wrist every row of chrome is a row of
+conversation.
+
+Three things are drawn on the watch rather than sent ready-made. Markdown is
+reduced at render time, for the reason in the section below. Timestamps are
+formatted here because only this device knows the locale and the 12/24-hour
+setting the person reads; the frame carries UTC. And the streaming bubble
+prefers whichever is longer of the live delta text and the frame's copy — the
+deltas usually run ahead, but a watch that joined mid-turn has only what
+arrived since it connected, and the frame has the whole answer.
+
+A synthesized prompt never becomes a bubble. The tool-result envelope carries
+`MessageRole.user` because that is the only role a model acts on; drawn as a
+bubble it would put a `<tool_use>` blob on the wrist in the person's own voice,
+and the speaker would read it aloud.
+
+The app tint is scoped to the one button that wants it. A tint applied
+app-wide also repaints every `role: .destructive` button in the accent colour,
+which turned Deny on the approval screen into an ordinary-looking blue button —
+the one place on this watch where a destructive action must not look ordinary.
+
 ## Voice
 
-Input uses watchOS dictation through a SwiftUI `TextField`; output uses
+Input uses watchOS dictation through a `TextFieldLink` in the compose bar —
+the link, rather than a `TextField`, because only it lets the collapsed state
+be drawn as a placeholder capsule. `isVoiceMode` follows the "Read replies"
+switch rather than being sent unconditionally: it shortens the phone's answers
+for speech and holds back auto-continue, which is right for a spoken turn and
+wrong for a typed one. That switch is persisted and off until asked for — the
+speaker used to run only while a separate voice screen was open, and it now
+runs on the screen a raised wrist lands on, so an on-by-default speaker would
+make every glance start talking. Output uses
 `AVSpeechSynthesizer` on the watch. Markdown is reduced to plain text on the
 watch at render and speech time, never in the phone's projection:
 `ParseResult.text` is a pure concatenation of the text segments and the stream

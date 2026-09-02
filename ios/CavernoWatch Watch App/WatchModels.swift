@@ -65,6 +65,79 @@ struct WatchQuestion: Decodable, Equatable {
   }
 }
 
+/// Who a transcript bubble belongs to.
+enum WatchMessageRole: String, Decodable {
+  case user
+  case assistant
+
+  init(from decoder: Decoder) throws {
+    let raw = try decoder.singleValueContainer().decode(String.self)
+    self = WatchMessageRole(rawValue: raw) ?? .assistant
+  }
+}
+
+/// One bubble in the transcript.
+struct WatchMessage: Decodable, Equatable, Identifiable {
+  let id: String
+  let role: WatchMessageRole
+  let text: String
+  let timestamp: Date
+
+  /// True while the answer is still being written. The bubble is then drawn
+  /// from this watch's own stream deltas rather than from `text`: snapshots
+  /// coalesce and deltas do not, so the live text runs ahead of any frame.
+  let isStreaming: Bool
+
+  init(
+    id: String,
+    role: WatchMessageRole,
+    text: String,
+    timestamp: Date,
+    isStreaming: Bool = false
+  ) {
+    self.id = id
+    self.role = role
+    self.text = text
+    self.timestamp = timestamp
+    self.isStreaming = isStreaming
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id, role, text, timestamp, isStreaming
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    role =
+      try container.decodeIfPresent(WatchMessageRole.self, forKey: .role)
+      ?? .assistant
+    text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
+    timestamp = WatchMessage.parseTimestamp(
+      try container.decodeIfPresent(String.self, forKey: .timestamp))
+    isStreaming =
+      try container.decodeIfPresent(Bool.self, forKey: .isStreaming) ?? false
+  }
+
+  /// Dart's `toIso8601String()` always emits milliseconds, but a frame from a
+  /// build that stops doing so must not lose its whole timestamp — an
+  /// undated bubble would sort under the wrong day header.
+  private static func parseTimestamp(_ raw: String?) -> Date {
+    guard let raw else { return Date() }
+    return fractionalFormatter.date(from: raw)
+      ?? plainFormatter.date(from: raw)
+      ?? Date()
+  }
+
+  private static let fractionalFormatter: ISO8601DateFormatter = {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return formatter
+  }()
+
+  private static let plainFormatter = ISO8601DateFormatter()
+}
+
 struct WatchConversation: Decodable, Equatable, Identifiable {
   let id: String
   let title: String
@@ -76,7 +149,12 @@ struct WatchSnapshot: Decodable, Equatable {
   let conversationId: String?
   let conversationTitle: String
   let status: WatchTurnStatus
+  /// The most recent answer on its own, kept for the case where this watch is
+  /// newer than the iPhone build it is paired with and the frame carries no
+  /// transcript. See `TranscriptView.bubbles`.
   let lastAssistantText: String
+  let messages: [WatchMessage]
+  let messagesTruncated: Bool
   let approval: WatchApproval?
   let question: WatchQuestion?
   let elapsedSeconds: Int
@@ -92,7 +170,8 @@ struct WatchSnapshot: Decodable, Equatable {
 
   private enum CodingKeys: String, CodingKey {
     case sequence, generatedAt, conversationId, conversationTitle, status
-    case lastAssistantText, approval, question, elapsedSeconds, queuedCount
+    case lastAssistantText, messages, messagesTruncated, approval, question
+    case elapsedSeconds, queuedCount
     case busyThreadCount, conversations, conversationsTruncated, error
   }
 
@@ -112,6 +191,12 @@ struct WatchSnapshot: Decodable, Equatable {
     lastAssistantText =
       try container.decodeIfPresent(String.self, forKey: .lastAssistantText)
       ?? ""
+    messages =
+      try container.decodeIfPresent([WatchMessage].self, forKey: .messages)
+      ?? []
+    messagesTruncated =
+      try container.decodeIfPresent(Bool.self, forKey: .messagesTruncated)
+      ?? false
     approval = try container.decodeIfPresent(
       WatchApproval.self, forKey: .approval)
     question = try container.decodeIfPresent(

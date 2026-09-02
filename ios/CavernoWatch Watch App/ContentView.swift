@@ -2,7 +2,9 @@ import SwiftUI
 
 /// Root view. Routes on the snapshot's status rather than on a tab selection,
 /// because the reason to look at the watch is almost always "something is
-/// blocked" — putting that behind a tab would defeat the point.
+/// blocked" — putting that behind a tab would defeat the point. Everything
+/// else lands on the transcript, which is the screen a person expects when
+/// they raise their wrist mid-conversation.
 struct ContentView: View {
   @EnvironmentObject private var client: WatchSessionClient
 
@@ -15,7 +17,9 @@ struct ContentView: View {
           ConnectingView()
         }
       }
-      .navigationTitle("Caverno")
+      // Each screen titles itself: a title set here sits above them in the
+      // tree and would win the preference, pinning the bar to one word while
+      // the transcript wants to name the thread.
       .navigationBarTitleDisplayMode(.inline)
     }
   }
@@ -27,7 +31,7 @@ struct ContentView: View {
     } else if let question = snapshot.question {
       QuestionView(question: question)
     } else {
-      StatusView(snapshot: snapshot)
+      TranscriptView(snapshot: snapshot)
     }
   }
 }

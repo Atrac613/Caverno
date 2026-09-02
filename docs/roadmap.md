@@ -163,6 +163,7 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH4 | done | Glanceable surfaces and thread choice: Smart Stack widget plus switching the mirrored conversation from the watch. | Shipped 2026-09-01. Thread switching is verified; the widget's App Group data path is not, because an unsigned simulator build applies no entitlements. Confirm it on a signed build. |
 | Watch | WATCH5 | blocked | Approve/Deny on a push-delivered notification, not only a locally raised one. | Blocked on a contract that does not exist: no push carries an approval, only a run-completion. Do not build the delegate plumbing until a push needs to carry one. |
 | Watch | WATCH6 | done | Dismiss an approval or question dialog on the phone when the watch resolves it. | Shipped 2026-09-02 and verified on paired simulators: answering from the wrist closes the phone's sheet. Dismissal pops by route name, so it is a no-op when the dialog is not topmost. |
+| Watch | WATCH7 | done | Make the wrist screen a message thread rather than a status glance: bubbles with tails, relative timestamp headers, a typing indicator, and a pinned compose bar. | Shipped 2026-09-02. The frame now carries the tail of the thread; verified on the watch simulator, including the fallback for a watch newer than its phone. |
 
 Foundation F5 and the future platform vision milestones are
 detailed in `docs/local_llm_agent_roadmap.md`. The user-created Tools MVP is
@@ -1583,6 +1584,49 @@ The refactor paid for itself against the line ratchet — `chat_page.dart` fell
 
 Next action:
 - None.
+
+### WATCH7: A Message Thread On The Wrist
+
+Status: `done`
+
+Scope:
+- Replace the single-answer glance with the transcript a person expects when
+  they raise their wrist mid-conversation.
+
+Shipped 2026-09-02:
+- `WatchSnapshot` carries `messages` — eight bubbles, 180 runes each with 400
+  for the newest, plus a truncation flag. `lastAssistantText` stays for a watch
+  that is newer than the phone it is paired with; `TranscriptView` falls back
+  to it so that pairing shows one bubble rather than an empty thread. That
+  fallback is the path that was actually exercised on the simulator, because
+  the paired phone was running the previous build.
+- The budget test now measures in a multi-byte script as well as ASCII. Every
+  cap counts runes, so the ASCII-only measurement under-reported the payload
+  threefold — the transcript is what made that headroom matter.
+- A synthesized prompt never becomes a user bubble. Those envelopes are built
+  for the request payload and do not reach `ChatState.messages` today; the
+  guard is there because if one ever did, the watch would draw a `<tool_use>`
+  blob in the person's own voice and read it aloud.
+- `StatusView` and `VoiceView` are gone. Their controls live in the compose
+  bar's "+" sheet and the navigation bar, so the scroll area holds only the
+  exchange. Dictation moved to a `TextFieldLink`, which is what lets the
+  collapsed field be drawn as a placeholder capsule.
+- `isVoiceMode` follows the "Read replies" switch instead of being sent
+  unconditionally, since it shapes the phone's answer for speech. That switch
+  is now persisted and defaults off: the speaker moved from a screen you had to
+  open onto the screen a raised wrist lands on, and leaving it on by default
+  would have made every glance start talking.
+
+Two defects were caught by looking at it rather than by compiling it:
+- The transcript opened at the top of the thread. `onAppear` runs before the
+  scroll view lays its content out; `defaultScrollAnchor(.bottom)` is the fix.
+- An app-wide `.tint` — added to colour the toolbar button — repainted every
+  `role: .destructive` button in the accent colour, so Stop and Deny rendered
+  as ordinary blue buttons. The tint is now scoped to the one button.
+
+Next action:
+- None. The transcript has not been seen against a phone build that actually
+  sends `messages`; that needs a phone rebuild on the paired simulator.
 
 ## Foundation, Local LLM Agent, And Future Platform Vision Tracks
 
