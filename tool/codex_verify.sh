@@ -13,6 +13,10 @@ RUN_TESTS=true
 RUN_COVERAGE=false
 COVERAGE_THRESHOLD=60
 QUIET_TESTS=true
+FORCE_PUB_GET=false
+ALL_SUITES=false
+PACKAGE_CONFIG=".dart_tool/package_config.json"
+PUB_GET_STAMP=".dart_tool/codex_verify_pub_get.stamp"
 TEST_TARGETS=()
 PACKAGE_DIRS=()
 PACKAGE_COVERAGE_DIR=""
@@ -25,6 +29,11 @@ Usage:
 
 Options:
   --coverage                 Run tests with coverage and print a line summary.
+  --force-pub-get            Run `pub get` even when dependencies already look
+                             resolved. The default skips it in that case.
+  --all-suites               With --test, also run the workspace package suites
+                             and the notification relay checks. The default
+                             keeps a focused run focused.
   --raw-tests                Echo every Flutter test progress and log line.
                              The default summarizes the run through
                              tool/flutter_test_quiet.sh, which prints one line
@@ -42,6 +51,8 @@ Examples:
   tool/codex_verify.sh --test test/core/utils/content_parser_test.dart
   tool/codex_verify.sh --coverage --coverage-threshold 75
   tool/codex_verify.sh --raw-tests
+  tool/codex_verify.sh --force-pub-get
+  tool/codex_verify.sh --test test/widget_test.dart --all-suites
 EOF
 }
 
@@ -49,6 +60,14 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --coverage)
       RUN_COVERAGE=true
+      shift
+      ;;
+    --force-pub-get)
+      FORCE_PUB_GET=true
+      shift
+      ;;
+    --all-suites)
+      ALL_SUITES=true
       shift
       ;;
     --raw-tests)
@@ -253,10 +272,59 @@ while IFS= read -r package_pubspec; do
   PACKAGE_DIRS+=("${package_pubspec%/pubspec.yaml}")
 done < <(find packages -mindepth 2 -maxdepth 2 -name pubspec.yaml -print 2>/dev/null | sort)
 
-run_step "Install dependencies" "${FLUTTER_CMD[@]}" pub get
+# `pub get` dominates the runtime of an otherwise focused verification and is
+# usually a no-op: the resolved package config only goes stale when a pubspec
+# changes. Agent harnesses that time-slice a command pay for that no-op with an
+# empty result, so skip it when nothing has changed.
+# The stamp records when this script last saw `pub get` succeed. Pub's own
+# artifacts cannot serve as the anchor: a no-op `pub get` leaves
+# package_config.json untouched, and pubspec.lock is rewritten after it, so
+# either comparison reports "stale" forever once a pubspec is touched.
+dependencies_resolved() {
+  [[ -f "$PACKAGE_CONFIG" && -f "$PUB_GET_STAMP" ]] || return 1
+  [[ ! -f pubspec.yaml || "$PUB_GET_STAMP" -nt pubspec.yaml ]] || return 1
+  [[ ! -f pubspec.lock || "$PUB_GET_STAMP" -nt pubspec.lock ]] || return 1
+  local package_dir
+  for package_dir in ${PACKAGE_DIRS[@]+"${PACKAGE_DIRS[@]}"}; do
+    [[ "$PUB_GET_STAMP" -nt "$package_dir/pubspec.yaml" ]] || return 1
+  done
+  return 0
+}
+
+if $FORCE_PUB_GET || ! dependencies_resolved; then
+  # `pub get` writes into the Flutter SDK cache, which sandboxed agent sessions
+  # deny ("Operation not permitted"). That denial says nothing about the
+  # resolution itself, so keep going when a resolved package config is present
+  # rather than aborting the whole verification before a single test runs.
+  if run_step "Install dependencies" "${FLUTTER_CMD[@]}" pub get; then
+    mkdir -p "$(dirname "$PUB_GET_STAMP")"
+    : > "$PUB_GET_STAMP"
+  else
+    if [[ -f "$PACKAGE_CONFIG" ]]; then
+      printf '\nWarning: pub get failed; continuing with the existing %s.\n' \
+        "$PACKAGE_CONFIG"
+    else
+      echo "Error: pub get failed and no resolved package config exists." >&2
+      exit 1
+    fi
+  fi
+else
+  printf '\n== Install dependencies ==\n'
+  printf 'Skipped: no pubspec changed since the last successful pub get.'
+  printf ' Use --force-pub-get to run it anyway.\n'
+fi
+
 run_step "List workspace packages" "${DART_CMD[@]}" pub workspace list
 
-if [[ -f "$NOTIFICATION_RELAY_DIR/package-lock.json" ]]; then
+# A `--test` run asks for one target. Running every workspace package suite and
+# the relay checks alongside it triples the wall time, which pushes the run past
+# the window some agent harnesses give a command before they stop waiting.
+FOCUSED=false
+if [[ ${#TEST_TARGETS[@]} -gt 0 ]] && ! $ALL_SUITES && ! $RUN_COVERAGE; then
+  FOCUSED=true
+fi
+
+if [[ -f "$NOTIFICATION_RELAY_DIR/package-lock.json" ]] && ! $FOCUSED; then
   run_in_directory_step \
     "Install notification relay dependencies" \
     "$NOTIFICATION_RELAY_DIR" \
@@ -280,7 +348,7 @@ fi
 
 if $RUN_ANALYZE; then
   run_step "Analyze project" "${FLUTTER_CMD[@]}" analyze
-  for package_dir in "${PACKAGE_DIRS[@]}"; do
+  for package_dir in ${PACKAGE_DIRS[@]+"${PACKAGE_DIRS[@]}"}; do
     package_command "$package_dir"
     run_in_directory_step \
       "Analyze package: $package_dir" \
@@ -301,7 +369,13 @@ if $RUN_TESTS; then
     trap 'rm -rf "$PACKAGE_COVERAGE_DIR"' EXIT
   fi
 
-  for package_dir in "${PACKAGE_DIRS[@]}"; do
+  if $FOCUSED && [[ ${#PACKAGE_DIRS[@]} -gt 0 ]]; then
+    printf '\n== Test packages ==\n'
+    printf 'Skipped for a focused run. Use --all-suites to include them.\n'
+    PACKAGE_DIRS=()
+  fi
+
+  for package_dir in ${PACKAGE_DIRS[@]+"${PACKAGE_DIRS[@]}"}; do
     package_command "$package_dir"
     if $RUN_COVERAGE; then
       package_name="$(basename "$package_dir")"
@@ -349,7 +423,7 @@ if $RUN_TESTS; then
       "${TEST_CMD[@]}" ${COVERAGE_ARGS[@]+"${COVERAGE_ARGS[@]}"}
   fi
 
-  if [[ -f "$NOTIFICATION_RELAY_DIR/package.json" ]]; then
+  if [[ -f "$NOTIFICATION_RELAY_DIR/package.json" ]] && ! $FOCUSED; then
     run_in_directory_step \
       "Test notification relay" \
       "$NOTIFICATION_RELAY_DIR" \
