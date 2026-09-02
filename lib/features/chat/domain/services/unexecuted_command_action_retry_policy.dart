@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/chat_turn_owner.dart';
 import '../entities/tool_call_info.dart';
@@ -197,6 +198,7 @@ final class UnexecutedCommandActionRetryPolicy {
       result: jsonEncode({
         'ok': false,
         'code': 'unexecuted_command_action_retry_required',
+        ...ToolResultOrigin.harness.marker,
         'error':
             'No successful command-execution tool result exists for the run '
             'described above, so the description is not evidence that anything '

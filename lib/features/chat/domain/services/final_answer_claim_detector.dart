@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
 import 'file_mutation_evidence_policy.dart';
@@ -64,6 +65,7 @@ class FinalAnswerClaimDetector {
       result: jsonEncode({
         'ok': false,
         'code': 'unexecuted_browser_action',
+        ...ToolResultOrigin.harness.marker,
         'error':
             'The requested browser action was not executed. A recovered browser_snapshot ran, but no follow-up browser action tool call was issued.',
         'claimedResponse': clipForDiagnostic(candidateResponse),
@@ -96,6 +98,7 @@ class FinalAnswerClaimDetector {
       result: jsonEncode({
         'ok': false,
         'code': 'unexecuted_file_save',
+        ...ToolResultOrigin.harness.marker,
         'error':
             'The requested file save or file mutation was not executed. No successful browser_save_data, write_file, edit_file, rollback_last_file_change, or explicit file-operation tool result is available.',
         'missing_tool': missingToolName,
@@ -150,6 +153,7 @@ class FinalAnswerClaimDetector {
       result: jsonEncode({
         'ok': false,
         'code': 'unexecuted_command_action',
+        ...ToolResultOrigin.harness.marker,
         'error':
             'The requested command was not executed. No matching successful local_execute_command, process_start, process_status, process_wait, run_tests, git_execute_command, or ssh_execute_command tool result is available for the claimed action.',
         'claimedResponse': clipForDiagnostic(candidate),
@@ -187,6 +191,7 @@ class FinalAnswerClaimDetector {
       result: jsonEncode({
         'ok': false,
         'code': 'unverified_read_only_inspection_claim',
+        ...ToolResultOrigin.harness.marker,
         'error':
             'The local file or project state claim is unverified. No successful read_file, inspect_file, list_directory, find_files, search_files, or read-only local_execute_command result is available for the claimed inspection.',
         'claimedResponse': clipForDiagnostic(candidate),

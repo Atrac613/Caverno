@@ -45,6 +45,11 @@ import sys
 
 TOOL_SECTION = re.compile(r"\[Tool: ([a-z0-9_]+)\]")
 RESULT_MARKER = "\nResult:\n"
+# Mirrors ToolResultOrigin in packages/caverno_tool_contracts. Kept as
+# literals because this script is stdlib-only and never runs Dart; the
+# contract test asserts the same three strings on the producer side.
+ORIGIN_KEY = "result_origin"
+ORIGIN_VALUES = ("harness", "refusal")
 
 
 def log_dir() -> pathlib.Path:
@@ -116,6 +121,20 @@ def payload_facts(payload: str) -> dict:
     for key in ("exit_code", "changed", "created", "already_applied"):
         if key in decoded:
             facts[key] = decoded[key]
+    code = decoded.get("code")
+    if isinstance(code, str) and code.strip():
+        facts["code"] = code.strip()
+    # HEU3's instrument. A harness-authored nudge and a policy refusal are the
+    # same shape -- {"ok": false, "code": ..., "error": ...} with no stdout --
+    # so counting "the turn tried and was stopped" from the payload alone
+    # counted both. That measured 22 of 715 turns and collapsed to 3 once
+    # audited. ToolResultOrigin makes the producer say which; this reads the
+    # declaration and never infers one.
+    origin = decoded.get(ORIGIN_KEY)
+    if origin in ORIGIN_VALUES:
+        facts["result_origin"] = origin
+    if decoded.get("ok") is False:
+        facts["not_ok"] = True
     return facts
 
 
@@ -128,6 +147,8 @@ def collect(paths, since_days: int | None):
     sessions_with = collections.Counter()    # sessions containing each tool
     errors = collections.Counter()           # (tool, normalized error) pairs
     facts = collections.Counter()            # notable payload facts
+    origins = collections.Counter()          # declared result provenance
+    undeclared = collections.Counter()       # failing codes with no declaration
     per_session = []
     replay_slots = replay_distinct = 0
 
@@ -164,6 +185,14 @@ def collect(paths, since_days: int | None):
                     for name in ("changed", "exit_code", "already_applied"):
                         if name in found:
                             facts[f"{tool}.{name}={found[name]}"] += 1
+                    if "result_origin" in found:
+                        origins[found["result_origin"]] += 1
+                    elif found.get("not_ok") and "code" in found:
+                        # Mostly genuine tool errors, which have no producer to
+                        # declare an origin. A code that belongs to a guard or
+                        # a loop nudge showing up here is a producer that was
+                        # added or edited without its declaration.
+                        undeclared[found["code"]] += 1
 
         if not local:
             continue
@@ -173,7 +202,17 @@ def collect(paths, since_days: int | None):
             sessions_with[tool] += 1
         per_session.append((path.name[:8], sum(local.values()), local, local_errors))
 
-    return renders, sessions_with, errors, facts, per_session, replay_slots, replay_distinct
+    return (
+        renders,
+        sessions_with,
+        errors,
+        facts,
+        origins,
+        undeclared,
+        per_session,
+        replay_slots,
+        replay_distinct,
+    )
 
 
 def main() -> int:
@@ -193,9 +232,17 @@ def main() -> int:
         print(f"No session logs under {root}", file=sys.stderr)
         return 1
 
-    (renders, sessions_with, errors, facts, per_session, slots, distinct) = collect(
-        paths, args.since_days
-    )
+    (
+        renders,
+        sessions_with,
+        errors,
+        facts,
+        origins,
+        undeclared,
+        per_session,
+        slots,
+        distinct,
+    ) = collect(paths, args.since_days)
 
     total = sum(renders.values())
     # Only logs that actually contributed a message are a meaningful
@@ -236,6 +283,22 @@ def main() -> int:
             if args.tool and not name.startswith(args.tool + "."):
                 continue
             print(f"{count:5}  {name}")
+
+    if origins or undeclared:
+        print(f"\n== Results that never reached a tool (declared provenance) ==")
+        declared = sum(origins.values())
+        for origin in ORIGIN_VALUES:
+            count = origins[origin]
+            share = 100 * count / declared if declared else 0
+            print(f"{count:5}  {origin:10}{share:6.1f}% of declared")
+        print(
+            f"{sum(undeclared.values()):5}  undeclared  (no result_origin; "
+            f"mostly genuine tool errors, which have no producer to declare one)"
+        )
+        if undeclared:
+            print("       top undeclared failure codes:")
+            for code, count in undeclared.most_common(8):
+                print(f"       {count:5}  {code}")
 
     if args.sessions:
         print(f"\n== Per session ==")

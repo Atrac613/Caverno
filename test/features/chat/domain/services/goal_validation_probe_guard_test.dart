@@ -100,6 +100,7 @@ void main() {
       expect(_payload(result), {
         'ok': false,
         'code': GoalValidationProbeGuard.blockedCode,
+        'result_origin': 'harness',
         'error':
             'A validation-only continuation rejected a non-verification tool call.',
         'attempted_effect': entry.key.name,

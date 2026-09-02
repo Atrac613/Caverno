@@ -1604,7 +1604,8 @@ void main() {
         expect(runTests.isSuccess, isFalse);
         expect(
           runTests.result,
-          '{"error":"run_tests must be executed through the chat command approval flow.","code":"approval_required"}',
+          '{"error":"run_tests must be executed through the chat command approval flow.",'
+          '"code":"approval_required","result_origin":"refusal"}',
         );
         expect(
           runTests.errorMessage,

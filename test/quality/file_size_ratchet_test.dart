@@ -96,7 +96,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/production_release_approval_wording_predicates.dart':
       203,
   'lib/features/chat/domain/services/production_release_blocked_result.dart':
-      57,
+      59,
   'lib/features/chat/domain/services/production_release_prose_shadow.dart': 77,
   'lib/features/chat/domain/services/project_scoped_read_tool_handler.dart':
       102,
@@ -136,12 +136,12 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/coding_verification_mutation_signature.dart':
       64,
   'lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart':
-      281,
+      283,
   'lib/features/chat/domain/services/blocked_production_release_retry_policy.dart':
       261,
   'lib/features/chat/domain/services/fenced_tool_arguments_detector.dart': 74,
   'lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart':
-      223,
+      224,
   'lib/features/chat/domain/services/turn_tool_catalog_cache.dart': 44,
   'lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart':
       136,
@@ -176,10 +176,10 @@ const Map<String, int> _lineBudgets = {
       64,
   'lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart':
       191,
-  'lib/features/chat/domain/services/saved_validation_command_guard.dart': 178,
+  'lib/features/chat/domain/services/saved_validation_command_guard.dart': 180,
   // -24: the frozen input snapshot moved to saved_task_target_scope_input.dart
   // and is re-exported, so the guard file holds only the decision.
-  'lib/features/chat/domain/services/saved_task_target_scope_guard.dart': 111,
+  'lib/features/chat/domain/services/saved_task_target_scope_guard.dart': 113,
   'lib/features/chat/domain/services/timed_out_command_retry_guard.dart': 96,
   'lib/features/chat/domain/services/uninspected_commit_guard.dart': 144,
   'lib/features/chat/domain/services/git_write_confirmation_policy.dart': 93,
@@ -202,7 +202,7 @@ const Map<String, int> _lineBudgets = {
       104,
   'lib/features/chat/domain/services/git_working_tree_change_evidence.dart': 87,
   'lib/features/chat/domain/services/unexecuted_file_mutation_block_payload.dart':
-      36,
+      38,
   'lib/features/chat/domain/services/turn_tool_catalog_source.dart': 31,
   'lib/features/chat/data/datasources/execution_snapshot_log_runtime_adapter.dart':
       32,
@@ -289,7 +289,7 @@ const Map<String, int> _lineBudgets = {
   // what to echo back for it are separate jobs.
   'lib/features/chat/domain/services/duplicate_tool_result_recovery.dart': 176,
   'lib/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart':
-      78,
+      80,
   'lib/core/security/conversation_taint_state.dart': 82,
   // -10: credential-to-client construction (key loading, password handler)
   // moved to ssh_client_connector.dart. The service now owns session
@@ -527,8 +527,14 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/mcp_tool_service_owner_facade.dart': 59,
   'lib/features/chat/data/datasources/mcp_tool_service_ssh_facade.dart': 14,
   'lib/features/chat/data/datasources/mcp_tool_service_facades.dart': 1,
+  // +1-2 across the eight entries below: a ToolResultOrigin declaration and,
+  // where the file had no package import yet, the import it needs. The
+  // declaration is what makes a harness-authored nudge distinguishable from a
+  // policy refusal in the payload; it cannot be extracted anywhere, because
+  // being at the producer is the whole point. See HEU3 in
+  // docs/text_heuristic_inventory.md.
   'lib/features/chat/data/datasources/chat_turn_owner_required_tool_result.dart':
-      17,
+      19,
   // Carry-over (background_process_carry_over.dart) extracted alongside the
   // public recovery API, which moved next to the registry internals it settles.
   'lib/features/chat/data/datasources/background_process_tools.dart': 415,

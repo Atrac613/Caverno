@@ -1,6 +1,7 @@
 // ChatNotifier decomposition collaborator: unexecuted-file-mutation-block-payload
 
 import 'dart:convert';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 /// The tool result a blocked command reports back to the loop.
 ///
@@ -18,6 +19,7 @@ final class UnexecutedFileMutationBlockPayload {
     return jsonEncode(<String, Object?>{
       'ok': false,
       'code': 'unexecuted_file_save',
+      ...ToolResultOrigin.harness.marker,
       'error':
           'A command was blocked because the assistant claimed a local file '
           'would be changed, but no successful write_file, edit_file, or '

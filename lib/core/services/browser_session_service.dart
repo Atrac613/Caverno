@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../security/egress_destination_policy.dart';
 import '../utils/logger.dart';
@@ -506,7 +507,7 @@ class BrowserSessionService extends ChangeNotifier {
       return _openMediatedUrl(normalized);
     }
     if (!decision.allowed) {
-      return _error(decision.code, decision.message);
+      return _refusal(decision.code, decision.message);
     }
     return _guard('browser_open', () async {
       open();
@@ -748,7 +749,7 @@ class BrowserSessionService extends ChangeNotifier {
   Future<String> navigateHistory(String direction) async {
     final decision = navigationDecision(_currentUrl, allowInternalBlank: true);
     if (!decision.allowed && !decision.shouldMediate) {
-      return _error(decision.code, decision.message);
+      return _refusal(decision.code, decision.message);
     }
     return _guard('browser_navigate_history', () async {
       final controller = await _ensureReady(
@@ -927,6 +928,21 @@ class BrowserSessionService extends ChangeNotifier {
 
   String _error(String code, String message) =>
       jsonEncode({'ok': false, 'code': code, 'error': message});
+
+  /// A navigation the destination policy refused, as opposed to a browser that
+  /// failed.
+  ///
+  /// Both used to render through [_error], so `browser_error` (the WebView
+  /// threw) and `browser_peer_verification_unavailable` (the policy said no)
+  /// were the same shape to every reader downstream. Only the second is a
+  /// refusal, and only refusals belong in a "the turn tried and was stopped"
+  /// count. See ToolResultOrigin.
+  String _refusal(String code, String message) => jsonEncode({
+    'ok': false,
+    'code': code,
+    ...ToolResultOrigin.refusal.marker,
+    'error': message,
+  });
 
   /// Returns the decoded JSON when the JS payload already carries `ok`,
   /// otherwise wraps it as a success envelope.

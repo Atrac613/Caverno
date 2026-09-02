@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../domain/entities/mcp_tool_entity.dart';
 import 'project_read_path_fence.dart';
@@ -96,6 +97,7 @@ final class ProjectReadToolAuthorizer {
           result: jsonEncode({
             'ok': false,
             'code': denial.code,
+            ...ToolResultOrigin.refusal.marker,
             'error': message,
             if (authorization.canonicalRoot case final root?
                 when root.isNotEmpty)

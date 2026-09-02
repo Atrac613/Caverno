@@ -190,6 +190,7 @@ void main() {
       final expectedPayload = <String, Object?>{
         'ok': false,
         'code': 'unexecuted_file_save',
+        'result_origin': 'harness',
         'error':
             'A command was blocked because the assistant claimed a local file '
             'would be changed, but no successful write_file, edit_file, or '
@@ -229,6 +230,7 @@ void main() {
       jsonEncode({
         'ok': false,
         'code': 'unexecuted_file_save',
+        'result_origin': 'harness',
         'error':
             'A command was blocked because the assistant claimed a local file '
             'would be changed, but no successful write_file, edit_file, or '

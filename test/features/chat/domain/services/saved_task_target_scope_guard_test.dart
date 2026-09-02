@@ -447,6 +447,7 @@ void main() {
       expect(_payload(result.result), {
         'ok': false,
         'code': 'saved_task_target_scope_violation',
+        'result_origin': 'refusal',
         'error':
             'A file mutation was blocked because it targeted a file outside '
             'the active saved task target files.',
@@ -553,6 +554,7 @@ void main() {
       expect(_payload(ownerAResult.result), {
         'ok': false,
         'code': 'saved_task_target_scope_violation',
+        'result_origin': 'refusal',
         'error':
             'A file mutation was blocked because it targeted a file outside '
             'the active saved task target files.',

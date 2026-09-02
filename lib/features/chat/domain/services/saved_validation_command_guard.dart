@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../data/datasources/filesystem_tools.dart';
 import '../../data/datasources/git_tools.dart';
@@ -57,6 +58,7 @@ final class SavedValidationCommandGuard {
     final payload = jsonEncode({
       'ok': false,
       'code': 'saved_validation_command_modified',
+      ...ToolResultOrigin.refusal.marker,
       'error':
           'A saved validation command was blocked because it was modified '
           'before execution.',

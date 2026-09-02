@@ -1,6 +1,6 @@
 # Text Heuristic Inventory and Removal Plan
 
-**Status:** HEU1 and HEU2 landed. HEU3 is blocked on a corrected premise and HEU4 measured but held, so nothing in this track is currently actionable from recorded evidence (2026-08-27).
+**Status:** HEU1 and HEU2 landed. HEU3's prerequisite instrument landed 2026-09-02 (`ToolResultOrigin`); HEU3 itself stays blocked until that declaration has accumulated in real sessions. HEU4 is measured but held.
 
 Caverno decides a great deal by pattern-matching prose. Every such decision is
 bound to the languages whose vocabulary someone happened to enumerate — today
@@ -375,9 +375,43 @@ codes seen so far are `unexecuted_command_action_retry_required`,
 wrong by roughly 7x until that distinction is structural. Compare
 `caverno-triage-marker-transport-inflation`.
 
-**Next action.** None from this evidence. Unblocking needs either the
-synthetic/refusal distinction (so refusal rates can be trusted) or a decision
-to design structured self-report on its merits rather than on a firing rate.
+**Prerequisite instrument landed 2026-09-02.** `ToolResultOrigin`
+(`packages/caverno_tool_contracts/lib/src/tool_result_origin.dart`) makes the
+producer declare whether a never-reached-a-tool payload is harness-authored
+feedback or a policy refusal, under a `result_origin` key.
+`tool/analyze_tool_results.py` reports the split and lists the failure codes
+that carry no declaration, so the next unmarked producer is visible rather than
+silently miscounted. Seventeen producers declare today.
+
+Two things surfaced while building it, neither of which was visible from
+reading the roadmap:
+
+- **Three production call sites already keep their own "synthetic" code list,
+  and the three disagree.** `ConversationPlanExecutionGuardrails.
+  hasOnlySyntheticNonExecutionResults` names five codes plus a `reason`,
+  `ToolResultPromptBuilder.completionEvidence` names four, and
+  `MemoryExtractionDraftService` names two — and none of the three contains the
+  four codes this milestone measured. The lists are deliberately left alone
+  here: this is the instrument, not the mechanism. But they can now be
+  reconciled against a producer's own declaration instead of a reader's memory.
+- **The instrument immediately found producers the code reading missed.**
+  `saved_task_target_scope_violation` is the most frequent
+  never-reached-a-tool code in the measured corpus (13 of 29) and appears in
+  none of the three lists; `project_read_path_unavailable` and the browser
+  navigation denial were also undeclared. The browser case needed a real split:
+  `BrowserSessionService._error` served both a refused navigation and a WebView
+  that simply threw, so `browser_error` and
+  `browser_peer_verification_unavailable` were the same shape to every reader
+  downstream. Only the second is a refusal.
+
+**Next action.** Let the declaration accumulate, then re-measure. Per the
+removal method above, the corpus that decided the 22-to-3 collapse predates
+this change, so today's logs carry no `result_origin` at all — check
+`build.commit` before reading any refusal rate as post-change evidence
+(`caverno-session-log-build-provenance`). Once refusal rates can be trusted,
+HEU3 still needs the design decision it always needed: structured self-report
+or an unconditional `BlockedMutationNotice`-shaped fact. The instrument does
+not choose that; it only stops the choice being made on a 7x-wrong number.
 
 ### HEU4: Structured git write confirmation — `later`
 

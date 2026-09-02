@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/mcp_tool_entity.dart';
@@ -93,6 +92,7 @@ final class CommandDiagnosticVerifierReplayGuard {
         result: jsonEncode({
           'ok': false,
           'code': blockedCode,
+          ...ToolResultOrigin.harness.marker,
           'error':
               'The same verifier was not rerun because its path-backed diagnostic '
               'has not been addressed by a mutation.',

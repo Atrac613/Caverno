@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
 import 'final_answer_claim_detector.dart';
@@ -177,6 +178,7 @@ final class UnexecutedFinalAnswerToolRequestPolicy {
         result: jsonEncode({
           'ok': false,
           'code': 'tool_call_not_executed',
+          ...ToolResultOrigin.harness.marker,
           'reason': 'final_answer_tool_request',
           'tool_name': toolCall.name,
           'signature': signature,

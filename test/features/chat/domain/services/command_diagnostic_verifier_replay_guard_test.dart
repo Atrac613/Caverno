@@ -200,6 +200,7 @@ void main() {
     expect(_payload(result), {
       'ok': false,
       'code': CommandDiagnosticVerifierReplayGuard.blockedCode,
+      'result_origin': 'harness',
       'error':
           'The same verifier was not rerun because its path-backed diagnostic '
           'has not been addressed by a mutation.',

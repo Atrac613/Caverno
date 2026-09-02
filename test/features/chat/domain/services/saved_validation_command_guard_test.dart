@@ -124,6 +124,7 @@ void main() {
       expect(jsonDecode(result.result), {
         'ok': false,
         'code': 'saved_validation_command_modified',
+        'result_origin': 'refusal',
         'error':
             'A saved validation command was blocked because it was modified '
             'before execution.',
