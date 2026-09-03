@@ -117,6 +117,8 @@ Runner target is configured for manual signing. The Caverno App Store
 provisioning profile is the default. Override it with
 `--ios-provisioning-profile` or `CAVERNO_IOS_PROVISIONING_PROFILE` only when the
 installed App Store profile name differs; do not use a development profile.
+The generated manual export options also map the App Store profiles for the
+embedded Watch App and Watch Widget targets.
 
 Automatic export is still available when the archive and account support it:
 

@@ -206,7 +206,6 @@
 				E4DEF05942E8FE8C3852F625 /* TranscriptTimestamp.swift */,
 				0AF298B1DA568BC6C0D0A7ED /* TranscriptView.swift */,
 			);
-			name = "CavernoWatch Watch App";
 			path = "CavernoWatch Watch App";
 			sourceTree = SOURCE_ROOT;
 		};
@@ -299,7 +298,6 @@
 				E2883BE6A5E5350F7AF28CC3 /* CavernoWatchWidget.swift */,
 				0F292F4C353F66DF13A93E9B /* WatchGlanceStore.swift */,
 			);
-			name = CavernoWatchWidget;
 			path = CavernoWatchWidget;
 			sourceTree = SOURCE_ROOT;
 		};
@@ -800,10 +798,11 @@
 			baseConfigurationReference = 9740EEB31CF90195004384FC /* Generated.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = CavernoWatchWidget/CavernoWatchWidget.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
-				"DEVELOPMENT_TEAM[sdk=watchsimulator*]" = 89UG59TBNX;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CavernoWatchWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Caverno;
@@ -811,6 +810,8 @@
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.noguwo.apps.caverno.watchkitapp.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]" = "Caverno WatchApp Widget App Store Profile";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "watchsimulator watchos";
@@ -908,10 +909,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "CavernoWatch Watch App/CavernoWatch.entitlements";
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
-				"DEVELOPMENT_TEAM[sdk=watchsimulator*]" = 89UG59TBNX;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Caverno;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -920,6 +922,8 @@
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.noguwo.apps.caverno.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]" = "Caverno WatchApp App Store Profile";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "watchsimulator watchos";
@@ -1137,10 +1141,11 @@
 			baseConfigurationReference = 9740EEB31CF90195004384FC /* Generated.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = CavernoWatchWidget/CavernoWatchWidget.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
-				"DEVELOPMENT_TEAM[sdk=watchsimulator*]" = 89UG59TBNX;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CavernoWatchWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Caverno;
@@ -1148,6 +1153,8 @@
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.noguwo.apps.caverno.watchkitapp.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]" = "Caverno WatchApp Widget Development Profile";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "watchsimulator watchos";
@@ -1164,10 +1171,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "CavernoWatch Watch App/CavernoWatch.entitlements";
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
-				"DEVELOPMENT_TEAM[sdk=watchsimulator*]" = 89UG59TBNX;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Caverno;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -1176,6 +1184,8 @@
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.noguwo.apps.caverno.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]" = "Caverno WatchApp Development Profile";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "watchsimulator watchos";

@@ -26,6 +26,14 @@ void main() {
       result.stdout,
       contains('<string>Caverno AppStore Provisioning Profile</string>'),
     );
+    expect(
+      result.stdout,
+      contains('<string>Caverno WatchApp App Store Profile</string>'),
+    );
+    expect(
+      result.stdout,
+      contains('<string>Caverno WatchApp Widget App Store Profile</string>'),
+    );
   });
 
   test(

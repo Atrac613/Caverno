@@ -17,7 +17,13 @@ echo "  External signing: provide DEVELOPMENT_TEAM and identity through Signing.
 echo "  Notarization: user-operated release pipeline evidence required before distribution"
 
 cd "${ROOT_DIR}"
-dart run tool/macos_computer_use_release_packaging.dart \
+if command -v fvm >/dev/null 2>&1 && { [[ -f "${ROOT_DIR}/.fvmrc" ]] || [[ -d "${ROOT_DIR}/.fvm" ]]; }; then
+  DART_CMD=(fvm dart)
+else
+  DART_CMD=(dart)
+fi
+
+"${DART_CMD[@]}" run tool/macos_computer_use_release_packaging.dart \
   --project-root "${ROOT_DIR}" \
   --root "${REPORT_ROOT}" \
   --output-json "${OUTPUT_JSON}" \

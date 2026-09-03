@@ -16,7 +16,13 @@ echo "  Boundary: report-only signing setup check"
 echo "  It does not sign, notarize, staple, grant TCC, or operate desktop apps."
 
 cd "${ROOT_DIR}"
-dart run tool/macos_computer_use_release_signing_preflight.dart \
+if command -v fvm >/dev/null 2>&1 && { [[ -f "${ROOT_DIR}/.fvmrc" ]] || [[ -d "${ROOT_DIR}/.fvm" ]]; }; then
+  DART_CMD=(fvm dart)
+else
+  DART_CMD=(dart)
+fi
+
+"${DART_CMD[@]}" run tool/macos_computer_use_release_signing_preflight.dart \
   --project-root "${ROOT_DIR}" \
   --root "${REPORT_ROOT}" \
   --output-json "${OUTPUT_JSON}" \
