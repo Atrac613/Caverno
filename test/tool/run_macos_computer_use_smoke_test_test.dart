@@ -1304,9 +1304,13 @@ void main() {
   });
 
   test('M44 approval UX shows element-aware target context', () {
-    final chatStateSource = File(
+    // PendingComputerUseAction moved out of chat_state.dart into
+    // pending_tool_approvals.dart; both are read so this assertion tracks the
+    // approval request's fields rather than the file that happens to hold it.
+    final chatStateSource = [
       'lib/features/chat/presentation/providers/chat_state.dart',
-    ).readAsStringSync();
+      'lib/features/chat/presentation/providers/pending_tool_approvals.dart',
+    ].map((path) => File(path).readAsStringSync()).join('\n');
     final chatNotifierSource =
         Directory('lib/features/chat/presentation/providers')
             .listSync()

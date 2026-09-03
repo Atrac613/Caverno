@@ -1,5 +1,6 @@
 import '../entities/conversation_workflow.dart';
 import '../entities/conversation_plan_artifact.dart';
+import 'conversation_contract_provenance_service.dart';
 import 'conversation_plan_projection_service.dart';
 
 class ConversationPlanDocumentBuilder {
@@ -88,16 +89,22 @@ class ConversationPlanDocumentBuilder {
       buffer,
       heading: 'Constraints',
       items: workflowSpec.constraints,
+      spec: workflowSpec,
+      kind: ConversationContractItemKind.constraint,
     );
     _writeListSection(
       buffer,
       heading: 'Acceptance Criteria',
       items: workflowSpec.acceptanceCriteria,
+      spec: workflowSpec,
+      kind: ConversationContractItemKind.acceptanceCriterion,
     );
     _writeListSection(
       buffer,
       heading: 'Open Questions',
       items: workflowSpec.openQuestions,
+      spec: workflowSpec,
+      kind: ConversationContractItemKind.openQuestion,
     );
 
     final normalizedTasks = effectiveTasks
@@ -143,6 +150,8 @@ class ConversationPlanDocumentBuilder {
     StringBuffer buffer, {
     required String heading,
     required List<String> items,
+    required ConversationWorkflowSpec spec,
+    required ConversationContractItemKind kind,
   }) {
     final normalizedItems = items
         .map((item) => item.trim())
@@ -156,7 +165,35 @@ class ConversationPlanDocumentBuilder {
       ..writeln()
       ..writeln('## $heading');
     for (final item in normalizedItems) {
-      buffer.writeln('- $item');
+      buffer.writeln('- $item${markerFor(spec, kind: kind, value: item)}');
     }
+  }
+
+  /// The epistemic marker for one item, or an empty string when it is plain.
+  ///
+  /// Anabasis ANA0. Written from the spec's own provenance so the document
+  /// stays the authoritative middle: what the projection reads back is exactly
+  /// what the contract held.
+  ///
+  /// Public because the planning prompt echoes the saved contract back to the
+  /// model and has to echo the marks with it. An echo that drops them asks for
+  /// a revision of a contract the model is shown as fully confirmed, and every
+  /// assumption decays on the next pass — a loss that would then be measured
+  /// as the model declining to mark.
+  static String markerFor(
+    ConversationWorkflowSpec spec, {
+    required ConversationContractItemKind kind,
+    required String value,
+  }) {
+    const provenanceService = ConversationContractProvenanceService();
+    final id = provenanceService.itemId(kind: kind, value: value);
+    for (final item in spec.provenance) {
+      if (item.itemId != id) continue;
+      return ContractItemMarks(
+        assumption: item.assumption,
+        material: item.material,
+      ).bulletSuffix;
+    }
+    return '';
   }
 }

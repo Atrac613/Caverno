@@ -79,11 +79,22 @@ class ConversationPlanProjectionService {
     }
     final stage = _parseWorkflowStage(sections['Stage']);
     final goal = _joinFreeformSection(sections['Goal']);
-    final constraints = _parseBulletSection(sections['Constraints']);
+    final marks = <String, ContractItemMarks>{};
+    final constraints = _parseBulletSection(
+      sections['Constraints'],
+      kind: ConversationContractItemKind.constraint,
+      marks: marks,
+    );
     final acceptanceCriteria = _parseBulletSection(
       sections['Acceptance Criteria'],
+      kind: ConversationContractItemKind.acceptanceCriterion,
+      marks: marks,
     );
-    final openQuestions = _parseBulletSection(sections['Open Questions']);
+    final openQuestions = _parseBulletSection(
+      sections['Open Questions'],
+      kind: ConversationContractItemKind.openQuestion,
+      marks: marks,
+    );
     final taskParseResult = _parseTasks(
       sections['Tasks'],
       requireTasks: requireTasks,
@@ -105,6 +116,7 @@ class ConversationPlanProjectionService {
             tasks: tasks,
           ),
           sourceHash: sourceHash,
+          marks: marks,
         );
 
     final recognized =
@@ -310,17 +322,33 @@ class ConversationPlanProjectionService {
         .join('\n');
   }
 
-  static List<String> _parseBulletSection(List<String>? lines) {
+  /// Parses a bullet section, collecting any epistemic markers into [marks].
+  ///
+  /// Anabasis ANA0. The marker is stripped from the returned text, so an item
+  /// keeps the same identity whether or not it is marked; [marks] is keyed by
+  /// that identity for
+  /// [ConversationContractProvenanceService.attachApprovedPlanSource].
+  static List<String> _parseBulletSection(
+    List<String>? lines, {
+    ConversationContractItemKind? kind,
+    Map<String, ContractItemMarks>? marks,
+  }) {
     if (lines == null) {
       return const [];
     }
 
-    return lines
-        .map((line) => line.trim())
-        .where((line) => line.startsWith('- '))
-        .map((line) => line.substring(2).trim())
-        .where((line) => line.isNotEmpty)
-        .toList(growable: false);
+    const provenanceService = ConversationContractProvenanceService();
+    final items = <String>[];
+    for (final line in lines.map((line) => line.trim())) {
+      if (!line.startsWith('- ')) continue;
+      final parsed = ContractItemMarks.parseBullet(line.substring(2));
+      if (parsed.text.isEmpty) continue;
+      items.add(parsed.text);
+      if (kind == null || marks == null || parsed.marks.isEmpty) continue;
+      marks[provenanceService.itemId(kind: kind, value: parsed.text)] =
+          parsed.marks;
+    }
+    return List.unmodifiable(items);
   }
 
   static _TaskParseResult _parseTasks(

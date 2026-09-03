@@ -124,6 +124,7 @@ import '../../domain/services/chat_command_guardrail_collaborators.dart';
 import '../../domain/services/context_surgery_protected_path_policy.dart';
 import '../../domain/services/goal_validation_probe_guard.dart';
 import '../../domain/services/git_write_confirmation_policy.dart';
+import '../../domain/services/material_contract_assumption_arming.dart';
 import '../../domain/services/material_contract_assumption_guard.dart';
 import '../../domain/services/model_switch_handoff_registry.dart';
 import '../../domain/services/model_switch_settings_policy.dart';

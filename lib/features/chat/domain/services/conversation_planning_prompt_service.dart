@@ -5,9 +5,27 @@ import '../entities/conversation.dart';
 import '../entities/conversation_workflow.dart';
 import '../entities/message.dart';
 import 'conversation_execution_summary_service.dart';
+import 'conversation_plan_document_builder.dart';
 import 'planning_executor_profile.dart';
 
 class ConversationPlanningPromptService {
+
+  /// The saved items rendered with the epistemic markers the contract holds.
+  ///
+  /// Anabasis ANA0. The saved plan document below already carries the markers,
+  /// but this echo is what a revision reads first; dropping them here shows the
+  /// model a contract with no assumptions in it and invites a rewrite that
+  /// silently promotes every assumption to a fact.
+  static String _markedList(
+    ConversationWorkflowSpec spec, {
+    required List<String> values,
+    required ConversationContractItemKind kind,
+  }) => values
+      .map(
+        (value) =>
+            '$value${ConversationPlanDocumentBuilder.markerFor(spec, kind: kind, value: value)}',
+      )
+      .join(' | ');
   ConversationPlanningPromptService._();
 
   static final RegExp _trailingWhitespaceBeforeNewlinePattern = RegExp(
@@ -92,6 +110,11 @@ class ConversationPlanningPromptService {
         '- Do not put yes/no, direct preference choices, or direct user-input prompts into openQuestions when they should be decisions instead.',
       )
       ..writeln(
+        compact
+            ? '- End an item you are assuming with "(assumed)", or "(assumed, material)" when being wrong about it would change the plan. Keep that marker in English.'
+            : '- End an item you are assuming rather than something you confirmed with "(assumed)", or with "(assumed, material)" when the plan would change materially if the assumption turned out to be wrong. Write the marker in English exactly as shown even when the field itself is in another language, and leave items you actually confirmed from the transcript, the saved plan, research context, or a tool result unmarked.',
+      )
+      ..writeln(
         '- Preserve exact literal values from user messages, saved plans, research context, and tool results in every JSON text field. Do not abbreviate, translate, normalize, naturalize, infer, or replace URLs, file paths, file names, IDs, tokens, dates, times, money values, unit values, JSON keys, or scalar values unless the user explicitly requests conversion.',
       )
       ..writeln(
@@ -113,11 +136,15 @@ class ConversationPlanningPromptService {
         ..writeln('Current saved workflow:')
         ..writeln('- stage: ${currentConversation.workflowStage.name}')
         ..writeln('- goal: ${savedSpec.goal}')
-        ..writeln('- constraints: ${savedSpec.constraints.join(' | ')}')
         ..writeln(
-          '- acceptanceCriteria: ${savedSpec.acceptanceCriteria.join(' | ')}',
+          '- constraints: ${_markedList(savedSpec, values: savedSpec.constraints, kind: ConversationContractItemKind.constraint)}',
         )
-        ..writeln('- openQuestions: ${savedSpec.openQuestions.join(' | ')}');
+        ..writeln(
+          '- acceptanceCriteria: ${_markedList(savedSpec, values: savedSpec.acceptanceCriteria, kind: ConversationContractItemKind.acceptanceCriterion)}',
+        )
+        ..writeln(
+          '- openQuestions: ${_markedList(savedSpec, values: savedSpec.openQuestions, kind: ConversationContractItemKind.openQuestion)}',
+        );
     }
     if (savedPlanMarkdown != null) {
       buffer

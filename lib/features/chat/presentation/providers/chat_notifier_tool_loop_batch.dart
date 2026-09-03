@@ -60,10 +60,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       );
     }
     final ownerWorkspaceMode = ownerConversation.workspaceMode;
-    final ownerBlockingAssumptions =
-        List<ConversationContractItemProvenance>.unmodifiable(
-          ownerConversation.effectiveWorkflowSpec.blockingAssumptions,
-        );
+    final ownerBlockingAssumptions = MaterialContractAssumptionArming.armed(
+      ownerConversation.effectiveWorkflowSpec,
+    );
     int ownerMutationGeneration() {
       return _conversationForId(owner.conversationId)?.mutationGeneration ?? 0;
     }

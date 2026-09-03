@@ -35,6 +35,10 @@ handoffs can refer to the same unit of work over time.
 - Use `WATCH<number>` for the Apple Watch companion milestones documented in
   this file under "Apple Watch Companion Track", with the shipped design in
   `docs/apple_watch_companion.md`.
+- Use `ANA<number>` for Anabasis orchestrator milestones — epistemic grounding,
+  task decomposition, delegation, and acceptance — documented in this file
+  under "Anabasis Orchestrator Track", with the design in
+  `docs/ANABASIS_ORCHESTRATOR_ARCHITECTURE.md`.
 - Use one of these statuses: `done`, `current`, `next`, `blocked`, `later`.
 - Every active milestone should record scope, acceptance criteria, verification
   evidence, and the next action.
@@ -165,11 +169,18 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH6 | done | Dismiss an approval or question dialog on the phone when the watch resolves it. | Shipped 2026-09-02 and verified on paired simulators: answering from the wrist closes the phone's sheet. Dismissal pops by route name, so it is a no-op when the dialog is not topmost. |
 | Watch | WATCH7 | done | Make the wrist screen a message thread rather than a status glance: bubbles with tails, relative timestamp headers, a typing indicator, and a pinned compose bar. | Shipped 2026-09-02. The frame now carries the tail of the thread; verified on the watch simulator, including the fallback for a watch newer than its phone. |
 
+| Anabasis | ANA0 | current | Complete the epistemic grounding: produce `assumption`/`material` on contract items, implement the `userConfirmedAssumption` confirmation path, enforce the parent's read-only tool authority, and project the result. | PRs 1, 2, 3a, 3a2, 3b and 3c are done. 36 live requests sized PR 4's surface as a per-assumption approval, then showed the model marks open questions: four of five material marks land there, and `blocksExecution` ignores `kind`. PR 3d restricts the marker by kind and re-measures before PR 4 arms anything. |
+| Anabasis | ANA1 | next | Decompose work into tasks with preconditions (task accepted / assumption confirmed / question resolved) and a derived `ready`. | Do not start before ANA0's canary is green. First substantially new implementation in the track. |
+| Anabasis | ANA2 | later | Delegate ready tasks onto the existing `spawn_subagent` and `WorktreeAgentTask` infrastructure. | Mapping and scheduling policy only; no new execution machinery. |
+| Anabasis | ANA3 | later | Separate `produced` / `verified` / `accepted` with one writer each, add parent semantic judgment, escalate user-only decisions. | Blocked on ANA1/ANA2. Requires the ownership table in the design doc §10 to be honoured. |
+| Anabasis | ANA4 | later | Dedicated Anabasis workspace (`WorkspaceMode`), state panel beside the conversation. | Surface work; deliberately last so the boundary is proven before it gets a UI. |
+
 Foundation F5 and the future platform vision milestones are
 detailed in `docs/local_llm_agent_roadmap.md`. The user-created Tools MVP is
 detailed in `docs/tools_mvp_roadmap.md`. Conversation fork milestones are
-detailed below under "Conversation Fork Track", and Apple Watch companion
-milestones under "Apple Watch Companion Track".
+detailed below under "Conversation Fork Track", Apple Watch companion
+milestones under "Apple Watch Companion Track", and Anabasis orchestrator
+milestones under "Anabasis Orchestrator Track".
 
 The canonical security finding record is
 `docs/security_audit_2026-08-14.md`, with the current evidence and patch plan in
@@ -1627,6 +1638,326 @@ Two defects were caught by looking at it rather than by compiling it:
 Next action:
 - None. The transcript has not been seen against a phone build that actually
   sends `messages`; that needs a phone rebuild on the paired simulator.
+
+## Anabasis Orchestrator Track
+
+Anabasis is a parent orchestrator over Caverno's existing Goal, Plan,
+provenance, subagent, and verification machinery — not a second coding agent
+and not a fourth authoritative conversation state. The full design, including
+the Existing Caverno Mapping that decides what may be built, is in
+`docs/ANABASIS_ORCHESTRATOR_ARCHITECTURE.md`. The concept and naming reference
+is `docs/anabasis_brand_story.md`; the superseded first plan, kept as the
+record of why it was superseded, is `docs/anabasis_mvp_plan_superseded.md`.
+
+These milestones use `ANA<number>` and live here rather than in the Local LLM
+roadmap because this is orchestration policy and a user-facing surface, not
+local-LLM execution work.
+
+**Track rule, and the reason this track exists as a written design at all:**
+
+> Anabasis reuses existing Caverno state whenever that state already expresses
+> the required concept. New authoritative state is introduced only when an
+> existing representation is demonstrably insufficient.
+
+Three separate design passes each re-derived something Caverno already had
+(`AnabasisState` ≈ `ConversationWorkflowSpec`; `AnabasisProjection` ≈
+`ExecutionSnapshot`; "generate acceptance criteria" ≈ `acceptanceCriteria`,
+already emitted). Check §3 of the design document before adding any type.
+
+### ANA0: Epistemic Grounding
+
+Status: `current`
+
+Scope:
+- Confirmation path: record a user's confirmation as a
+  `ConversationContractSourceKind.userConfirmedAssumption` source, link it into
+  the item's `sourceIds`, then set `confirmed = true`.
+- Assumption producer: emit `assumption` / `material` per contract item from
+  the planning JSON schema and proposal parsers.
+- Parent execution identity and tool authority: `ModelUsageRole.anabasisParent`
+  for accounting, an explicit executing-role parameter for authority, and a
+  guard restricting the parent to `inspection | verification | delegation`.
+- Projection: extend `ExecutionSnapshot` to carry assumption *items* alongside
+  `blockingAssumptionCount`. Do not add a new projection class.
+
+Ordering constraint (not negotiable), restated 2026-09-02:
+- **A way to unblock lands before the guard is armed.**
+  `MaterialContractAssumptionGuard` is already wired into the tool-loop guard
+  chain and already refuses mutations while
+  `assumption && material && !confirmed`. Arming it without a confirmation
+  path refuses every mutation in the conversation permanently while the loop
+  burns on verbatim retries.
+- The earlier wording said the confirmation path must precede the *producer*.
+  That is stricter than the hazard requires and it forced the confirm surface
+  to be designed before anyone knew how many material assumptions a real plan
+  produces — a number that decides whether the surface is a per-assumption
+  approval or a batch review. The producer therefore ships in **shadow**: it
+  writes the marks, and the guard is fed an empty blocking list until the
+  surface is built to fit the measurement.
+- The shadow is now implemented rather than assumed. It was neither, until
+  2026-09-03: the feed site in `chat_notifier_tool_loop_batch.dart` read the
+  spec's own `blockingAssumptions`, and the guard was unarmed only because no
+  producer wrote `assumption: true`. PR 3a ended that without anyone noticing —
+  `ContractItemMarks.parseBullet` makes a user typing `(assumed, material)`
+  onto a plan-document bullet a producer, so the hazard was already reachable
+  one hand-typed bullet away, before PR 3b. Arming now lives in
+  `MaterialContractAssumptionArming.armed`, the single place PR 4 changes.
+
+PR split:
+
+| PR | Content | Status |
+|---|---|---|
+| 1 | Failing canary: confirming a material assumption unblocks mutation | done |
+| 2 | Confirmation provenance — the transformation, no caller yet | done |
+| 3a | Epistemic marks round-trip through the plan document | done |
+| 3a2 | Guard arming stated at one site, so the shadow is implemented rather than accidental | done |
+| 3b | Planning prompt emits marks; producer runs in shadow | done |
+| 3c | Measure: material assumptions per plan, and how often the model over-asserts | done |
+| 3d | Marks are for what the plan asserts: restrict the marker by item kind, enforce it in the projection, report marks by kind, re-measure | next |
+| 4 | Confirm surface sized to 3c (**per-assumption approval**, not batch review), guard armed in `MaterialContractAssumptionArming.armed`, parent authority policy, and **unskip the canary's reachability assertion** | blocked on 3d |
+| 5 | `ExecutionSnapshot` extension and the Understanding panel | |
+
+Supporting decision: the confirm surface is the **approval flow** — the guard
+refuses at the moment a mutation is attempted, so a pending interaction raised
+there is the only surface with no dead end. A plan-review-only affordance
+would leave a blocked run with nowhere to answer. The open question 3c settles
+is not *where* but *how many at once*.
+
+Acceptance criteria:
+- Confirming a material assumption unblocks mutation end to end.
+- A material assumption is detected, marked, and never presented as a fact.
+- The parent cannot call a workspace-mutating tool; delegation still works.
+- Baseline for every canary is current Caverno, not a plain chat session.
+
+Verification evidence:
+- PR 1: `anabasis_assumption_confirmation_canary_test.dart` — 4 passing (the
+  guard's existing block/unblock semantics and the confirmation's provenance
+  shape) and 1 failing by design. The first version of that canary asserted
+  only that some production file *mentions* `userConfirmedAssumption`, and it
+  went green the moment the domain transformation existed with no caller
+  anywhere — moving the value from "declared and never written" to "written
+  and never called". It now asserts a caller as well, which is the weakest
+  honest proxy for reachability a source scan can express.
+- PR 2: `conversation_contract_provenance_confirmation_test.dart` — the three
+  steps, guard unblocking end to end, idempotence, and a recorded limitation:
+  `attachApprovedPlanSource` rebuilds provenance wholesale, so a re-approved
+  plan starts from unconfirmed.
+- Extraction: `chat_state.dart` sat at its ratchet ceiling with no margin, so
+  the eleventh pending type could not be added without raising a budget the
+  ratchet forbids raising. `PendingToolApproval` and its hierarchy moved to
+  `pending_tool_approvals.dart` (684 lines to 162, re-exported, no importer
+  changed), with a declared budget on the destination.
+- PR 3a: `contract_item_marks_round_trip_test.dart` — marks survive build and
+  projection, unmarked documents project exactly as before, a hand-typed
+  marker is honoured, and marking never changes an item's `itemId`.
+- PR 3a2: `anabasis_assumption_confirmation_canary_test.dart` gains a shadow
+  group — a spec whose item does block is still handed an empty armed list,
+  and the feed site no longer names `blockingAssumptions` at all. The second
+  assertion is a source scan because the failure it guards is a one-line
+  reversion at a single call site, and a behavioural test of the tool loop
+  would not fail on it while the list stays empty for want of a producer.
+- PR 3b: `anabasis_planning_prompt_marks_test.dart` — the proposal prompt, in
+  both its full and compact forms, teaches a marker that
+  `ContractItemMarks.parseBullet` actually accepts. The test reads the quoted
+  marker forms back out of the generated prompt instead of restating them,
+  because the two halves are string literals in different files and nothing
+  else relates them. It also pins the marker to English while the fields around
+  it are translated: `parseBullet` matches `assumed`/`material` and nothing
+  else, so a translated marker is silently dropped.
+- PR 3b, second defect found while building it: the planning prompt echoes the
+  saved contract back before a revision, and that echo listed constraints,
+  acceptance criteria, and open questions without their marks. A revision was
+  therefore shown a contract in which nothing had ever been assumed, and would
+  have laundered every assumption into a fact on the next pass — measured in
+  PR 3c as the model declining to mark. The echo now renders marks through
+  `ConversationPlanDocumentBuilder.markerFor`.
+- PR 3b keeps the proposal JSON schema unchanged: the marker rides inside the
+  item string and becomes a mark only in the plan document, which is the
+  authoritative middle. Weak local models lose structured-output fidelity when
+  a schema grows, and the round trip already existed.
+- PR 3c instrument: `tool/ana0_assumption_marking_measurement.dart` plus
+  `test/tool/ana0_assumption_marking_measurement_test.dart`. Six scenarios run
+  in paired arms — `ungrounded` omits one load-bearing fact, `grounded` adds one
+  message stating it, and nothing else differs. A constraint restating that fact
+  is an assumption in the first arm and a fact in the second *by construction*,
+  so an unmarked ungrounded plan is an over-assertion and a marked grounded plan
+  is an over-mark, with no heuristic reading the model's prose to decide which.
+  Scoring runs the production path: real prompt, real proposal parser, real plan
+  document, real projection, marks counted off provenance.
+- PR 3c instrument, verified before it is believed: 13 scripted-response tests
+  fix the verdict for each case in advance, including the two that decide
+  whether a number is honest — a response that is not a proposal is recorded
+  `unparsed` rather than scored as a plan that marked nothing, and a transport
+  failure is likewise never read as a model that declined to mark. A run that
+  reached nothing must not look like a measurement.
+- PR 3c result, `qwen3.8-27b-vision`, 36 requests, 18 per arm, 0 unparsed:
+
+  | | ungrounded | grounded |
+  |---|---|---|
+  | material assumptions / plan | 0.28 | 0.06 |
+  | assumption marks / plan | 0.78 | 0.22 |
+  | open questions / plan | 2.17 | 2.50 |
+
+  Over-assertion — a plan that neither marked anything nor asked anything — is
+  1 in 18. Over-marking is 1 in 18. The +0.22 aggregate discrimination these
+  averages show does not survive the by-kind breakdown recorded below; read
+  that before using this table.
+- **PR 4's surface question is answered: a per-assumption approval, not a batch
+  review.** The per-plan distribution of material assumptions is 0 in 14 plans,
+  1 in 3, and 2 in 1; grounded is 0 in 17 and 1 in 1. No plan produced more
+  than two. A batch review is a surface for a list, and the measured list is
+  zero, one or two items.
+- **Correction, same day, from breaking the marks down by item kind — PR 4 is
+  not ready to arm the guard.** Of the 14 marks the ungrounded arm produced,
+  seven land on `openQuestions`, and four of the five *material* ones do. "An
+  open question I am assuming" is not a coherent claim, and
+  `ConversationContractItemProvenance.blocksExecution` does not look at `kind`,
+  so arming the guard today would refuse mutations because of marked
+  *questions*. On constraints — the only kind where the mark means what ANA0
+  means by it — the arms are identical at 3 of 18 each, with one material mark
+  on either side. The headline +0.22 discrimination was carried almost entirely
+  by marked open questions; on constraints it is zero.
+
+  | ungrounded marks | total | material |
+  |---|---|---|
+  | constraints | 5 | 1 |
+  | acceptanceCriteria | 2 | 0 |
+  | openQuestions | 7 | 4 |
+
+  This was invisible in the summary because the instrument counts marks without
+  their kind. It is the same failure as the two metric defects above, one level
+  down: an aggregate that cannot express the distinction it is being asked
+  about.
+- The reason the model marks so little is visible in the responses and is not a
+  capability limit: it routes unknowns into `openQuestions`, at roughly 2.2–2.5
+  per plan, because the same prompt tells it to. The marker and that rule
+  compete for the same content. This is a prompt-design question for PR 4, not
+  a defect: an open question does not block execution and a material mark does,
+  so which one the model reaches for decides whether the guard ever fires.
+- Three transport and metric defects were found by running it, each by reading
+  evidence rather than by reasoning about it:
+  1. llama.cpp (b10523) answers a *chunked* request body with HTTP 500
+     "attempting to parse an empty input". Dart's `HttpClient` chunks any body
+     written without an explicit `contentLength`. Confirmed by an A/B with curl
+     on the same body. Five other `tool/` measurement scripts still send
+     chunked bodies and would fail the same way.
+  2. The first over-assertion metric counted every unmarked ungrounded plan and
+     scored 6 of 6. Reading the raw responses showed it was measuring the
+     prompt's own "if important information is missing, use openQuestions"
+     rule. A plan that asks about a fact has not asserted it.
+  3. The corrected metric still required a *material* mark, and then flagged a
+     plan that had marked three items as assumptions without calling any
+     material. Marking non-materially is a claim about consequence, not about
+     knowledge. With any mark counted as disposal, over-assertion is 1/18
+     rather than 2/18.
+- Evidence: `build/ana0/marking_r3.json` plus the raw responses under
+  `build/ana0/raw3/`. Re-run with
+  `fvm dart run tool/ana0_assumption_marking_measurement.dart --endpoint
+  http://<host>:1234/v1/chat/completions --model <id> --repeats 3
+  --out build/ana0/marking.json --dump-dir build/ana0/raw`.
+- Full suite green (the PR 4 canary assertion the only skip); `flutter analyze`
+  clean.
+- Full suite green apart from the canary; `flutter analyze` clean.
+
+Next action:
+- **PR 3d before PR 4.** Three things, all cheap, all measurable with the
+  instrument that already exists:
+  1. Tell the prompt which kinds may carry a marker. An open question is
+     already unasserted, so marking one says nothing; constraints and
+     acceptance criteria are what the plan asserts.
+  2. Refuse a marker on an open question in the projection, structurally rather
+     than by wording, so the prompt is not the only thing standing between a
+     marked question and a blocked conversation.
+  3. Report marks by kind in `tool/ana0_assumption_marking_measurement.dart`.
+     The aggregate hid this defect for a full run; a summary that cannot
+     express `kind` cannot answer the question ANA0 is asking.
+  Then re-run the same 36 requests. Only a non-zero constraint-level
+  discrimination justifies arming anything.
+- PR 4 afterwards, built as a **per-assumption approval** on the measured
+  distribution: never more than two material assumptions in a plan, usually
+  none. Arm the guard in `MaterialContractAssumptionArming.armed` and unskip
+  the canary's reachability assertion in the same change, so the two places
+  recording that condition are cleared together.
+- Still open for PR 4 as a product decision, not an inheritance: how the marker
+  and `openQuestions` divide the same content. A question never blocks and a
+  material mark does, so which one the model reaches for decides whether the
+  guard ever fires.
+
+### ANA1: Decompose
+
+Status: `next`
+
+Scope:
+- Precondition edges on `ConversationWorkflowTask`, covering all three blocking
+  shapes: task accepted, assumption confirmed, question resolved.
+- A derived `ready` predicate. Never stored — the graph determines it, and
+  storing it would add a second writer.
+- Decomposition rendered but not executed.
+
+This is the first substantially new implementation in the track: no dependency
+or precondition field exists on `ConversationWorkflowTask`,
+`WorktreeAgentTask`, or `SubagentTask` today.
+
+Next action:
+- Blocked on ANA0. Open question to answer first: how a child inherits the
+  parent's confirmed assumptions as premises without re-sending the contract.
+
+### ANA2: Delegate
+
+Status: `later`
+
+Scope:
+- Map ready tasks onto `spawn_subagent` (in-conversation children, depth fixed
+  at 1) and `WorktreeAgentTask` (isolated branch work with verification and
+  changed-file evidence). New code is the mapping and scheduling policy, not a
+  runner.
+
+Next action:
+- Blocked on ANA1. Open question to answer first: what happens to a running
+  child when an assumption it depended on is contradicted mid-flight —
+  continue, cancel, invalidate, or restart, as a policy rather than a
+  case-by-case call.
+
+### ANA3: Accept
+
+Status: `later`
+
+Scope:
+- `produced` / `verified` / `accepted` as distinct states. Both existing status
+  enums collapse all three into `completed`.
+- The four-level acceptance model: mechanical (`verificationCommand`), evidence
+  (`changedFileEvidence`), semantic (the parent's own judgment), user
+  (`awaitingConfirmation`).
+- One writer per state, per §10 of the design document.
+
+Standing principle to adopt before there is a second child agent:
+
+> A child saying "done" means `produced`. It never means `accepted`. Only
+> Anabasis writes `accepted`, and only on evidence.
+
+Precedent for taking the ownership table seriously:
+`ConversationExecutionValidationStatus` already has three writers, one of which
+judges prose; a fourth exit-code writer was added and reverted after the
+investigation found stderr outranking a clean exit 0.
+
+Next action:
+- Blocked on ANA1 and ANA2.
+
+### ANA4: Anabasis Workspace
+
+Status: `later`
+
+Scope:
+- A fourth `WorkspaceMode`, with project state beside the conversation rather
+  than only in it.
+- Widening `MaterialContractAssumptionGuard` beyond `WorkspaceMode.coding`,
+  which today is where epistemic execution control is scoped by construction.
+
+Deliberately last: the parent boundary and the acceptance model should be
+proven before they get a surface.
+
+Next action:
+- Blocked on ANA0 through ANA3.
 
 ## Foundation, Local LLM Agent, And Future Platform Vision Tracks
 

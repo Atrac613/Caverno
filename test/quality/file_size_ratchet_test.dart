@@ -172,6 +172,8 @@ const Map<String, int> _lineBudgets = {
       3,
   'lib/features/chat/domain/services/git_tag_format_inspection_guard.dart': 151,
   'lib/features/chat/domain/services/goal_validation_probe_guard.dart': 53,
+  'lib/features/chat/domain/services/material_contract_assumption_arming.dart':
+      31,
   'lib/features/chat/domain/services/material_contract_assumption_guard.dart':
       64,
   'lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart':
@@ -318,7 +320,15 @@ const Map<String, int> _lineBudgets = {
   // -70: QueuedChatMessage is a hand-written value class with its own
   // equality, not part of the ChatState freezed graph, and it grows a field
   // every time the composer learns to carry something new.
-  'lib/features/chat/presentation/providers/chat_state.dart': 684,
+  // -522: the PendingToolApproval sealed hierarchy, its payload classes, and
+  // the registry move to pending_tool_approvals.dart, re-exported so no
+  // importer changes. ChatState was at its ceiling with no margin, and the
+  // eleventh pending type (ANA0 assumption confirmation) could not be added
+  // without either raising this budget or extracting. The destination carries
+  // its own budget below, because a move that only improves the source is the
+  // gaming this ratchet exists to catch.
+  'lib/features/chat/presentation/providers/chat_state.dart': 162,
+  'lib/features/chat/presentation/providers/pending_tool_approvals.dart': 527,
   'lib/features/chat/presentation/providers/queued_chat_message.dart': 87,
   'lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart':
       361,

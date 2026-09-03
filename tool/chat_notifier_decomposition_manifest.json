@@ -176,6 +176,11 @@
           "sizeBudgetKey": "lib/features/chat/domain/services/goal_validation_probe_guard.dart"
         },
         {
+          "id": "material-contract-assumption-arming",
+          "path": "lib/features/chat/domain/services/material_contract_assumption_arming.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/material_contract_assumption_arming.dart"
+        },
+        {
           "id": "material-contract-assumption-guard",
           "path": "lib/features/chat/domain/services/material_contract_assumption_guard.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/material_contract_assumption_guard.dart"
