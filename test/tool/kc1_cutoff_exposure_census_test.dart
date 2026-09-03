@@ -216,6 +216,103 @@ void main() {
     });
   });
 
+  group('the delta arm', () {
+    test('the digest is assembled from disk, not written down', () {
+      final digest = deltaBlock(_oracle());
+
+      expect(digest, contains('withValues'));
+      expect(
+        digest,
+        contains('StateNotifierProvider'),
+        reason:
+            'riverpod declares it as `final class`, and a regex that only knew '
+            '`abstract class` returned one legacy symbol out of five -- a '
+            'digest missing the idiom its own fixture is about.',
+      );
+      expect(digest, contains('abstract'));
+    });
+
+    test('the digest does not name a replacement per fixture', () {
+      // If it did, the arm would measure instruction-following: the model would
+      // be reading back an answer it had just been handed.
+      final oracle = _oracle();
+
+      expect(
+        digestCovers(_caseNamed('flutter-pop-scope'), oracle),
+        isFalse,
+        reason:
+            'WillPopScope was deprecated at v3.12, far outside the recency '
+            'window, so this case is the control for what the digest does not '
+            'reach. If it ever becomes covered, the window changed and the '
+            'control has to move with it.',
+      );
+      expect(digestCovers(_caseNamed('color-with-values'), oracle), isTrue);
+    });
+
+    test('deprecations are deduplicated on the advice, not the site', () {
+      final entries = _oracle().recentFlutterDeprecations(limit: 40);
+      final keys = entries
+          .map((entry) => '${entry.symbol}|${entry.advice}')
+          .toList(growable: false);
+
+      expect(
+        keys.toSet(),
+        hasLength(keys.length),
+        reason:
+            'One deprecated parameter reappears on every widget that takes it. '
+            'Undeduplicated, the digest spent eight of its first entries on '
+            'cacheExtent.',
+      );
+    });
+
+    test('the delta arm carries the version block as well', () async {
+      final seen = <String>[];
+      final options = CensusOptions.parse(const [
+        '--endpoint',
+        'http://scripted/v1/chat/completions',
+        '--model',
+        'scripted',
+        '--repeats',
+        '1',
+        '--case',
+        'color-with-values',
+      ], const {});
+
+      await runCutoffCensus(
+        options: options!,
+        oracle: _oracle(),
+        send: (system, user) async {
+          seen.add(
+            user.contains('Recent changes')
+                ? 'delta'
+                : user.contains('Installed toolchain')
+                ? 'grounded'
+                : 'bare',
+          );
+          return '.withValues(alpha: 0.5)';
+        },
+      );
+
+      expect(seen, ['bare', 'grounded', 'delta']);
+    });
+
+    test('every grounded arm is attributed to the prompt', () {
+      for (final arm in const [CensusArm.grounded, CensusArm.deltaGrounded]) {
+        final claim = _score(
+          'color-with-values',
+          'base.withValues(alpha: 0.5)',
+          arm: arm,
+        );
+        expect(claim.grounding, GroundingVerdict.supported);
+        expect(claim.provenance, GroundingProvenance.promptContext);
+      }
+      expect(
+        _score('color-with-values', 'base.withValues(alpha: 0.5)').grounding,
+        GroundingVerdict.absent,
+      );
+    });
+  });
+
   group('the negative control', () {
     test('a fixture the toolchain contradicts fails the run', () {
       // The acceptance criterion: an arm fed deliberately stale fixtures must
@@ -254,7 +351,7 @@ void main() {
         send: (system, user) async => throw StateError('endpoint down'),
       );
 
-      expect(summary.failures(), 2);
+      expect(summary.failures(), CensusArm.values.length);
       expect(summary.staleRate(CensusArm.bare), 0);
       expect(summary.claims.first.failure, contains('endpoint down'));
     });
@@ -291,7 +388,7 @@ void main() {
       );
     });
 
-    test('both arms run, and the grounded one carries the versions', () async {
+    test('every arm runs, and each carries what it is meant to', () async {
       final seen = <String>[];
       final options = CensusOptions.parse(const [
         '--endpoint',
@@ -307,12 +404,18 @@ void main() {
         oracle: _oracle(),
         cases: [_caseNamed('riverpod-notifier')],
         send: (system, user) async {
-          seen.add(user.contains('riverpod: 3.4.2') ? 'grounded' : 'bare');
+          seen.add(
+            user.contains('Recent changes')
+                ? 'delta'
+                : user.contains('riverpod: 3.4.2')
+                ? 'grounded'
+                : 'bare',
+          );
           return 'final p = NotifierProvider(...);';
         },
       );
 
-      expect(seen, ['bare', 'grounded']);
+      expect(seen, ['bare', 'grounded', 'delta']);
       expect(summary.runIdentity['flutter'], '3.44.8');
       expect(summary.runIdentity['toolCatalog'], 'none');
       expect(

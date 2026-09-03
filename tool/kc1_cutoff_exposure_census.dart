@@ -131,6 +131,7 @@ class CutoffCase {
     required this.current,
     required this.confirmStale,
     required this.description,
+    this.coverageSymbols = const [],
   });
 
   final String id;
@@ -148,11 +149,20 @@ class CutoffCase {
   final String? Function(CutoffOracle oracle) confirmStale;
 
   final String description;
+
+  /// Plain names whose presence in the delta block counts as coverage.
+  ///
+  /// Separate from [stale], which is a pattern for *code* — `\.withOpacity\(`
+  /// never appears in a prose digest that renders the symbol as `withOpacity`.
+  /// Matching the code pattern against the digest reported every case as
+  /// uncovered, which would have read as a digest that reaches nothing.
+  final List<String> coverageSymbols;
 }
 
 final cutoffCases = <CutoffCase>[
   CutoffCase(
     id: 'flutter-pop-scope',
+    coverageSymbols: const ['WillPopScope'],
     cutoffClass: CutoffClass.apiDrift,
     description: 'WillPopScope superseded by PopScope',
     task:
@@ -168,6 +178,7 @@ final cutoffCases = <CutoffCase>[
   ),
   CutoffCase(
     id: 'color-with-values',
+    coverageSymbols: const ['withOpacity'],
     cutoffClass: CutoffClass.apiDrift,
     description: 'Color.withOpacity superseded by Color.withValues',
     // Names an existing colour and asks for it transformed. The first wording
@@ -186,6 +197,7 @@ final cutoffCases = <CutoffCase>[
   ),
   CutoffCase(
     id: 'riverpod-notifier',
+    coverageSymbols: const ['StateNotifierProvider', 'StateProvider'],
     cutoffClass: CutoffClass.apiDrift,
     description: 'StateNotifierProvider moved to riverpod legacy',
     task:
@@ -202,6 +214,7 @@ final cutoffCases = <CutoffCase>[
   ),
   CutoffCase(
     id: 'freezed-abstract',
+    coverageSymbols: const ['Freezed classes'],
     cutoffClass: CutoffClass.apiDrift,
     description: 'Freezed 3 requires abstract or sealed on the class',
     task:
@@ -284,8 +297,56 @@ enum CensusArm {
   /// The task alone: nothing in the prompt says what is installed.
   bare,
 
-  /// The task plus the measured ground-truth block.
+  /// The task plus the measured version block — KC2 as designed.
   grounded,
+
+  /// The version block plus a measured record of what those versions changed.
+  ///
+  /// The first run said a version number only helps where the model already
+  /// knows what that version changed, which is the belief the block was meant
+  /// to correct. This arm tests the obvious next move before KC2 is built
+  /// around it, and it is an increment over [grounded] so the delta's own
+  /// contribution is what is measured.
+  deltaGrounded,
+}
+
+/// What the installed toolchain changed, as a prompt block.
+///
+/// Assembled from the oracle, never written down here. A hand-written list of
+/// what expired is a belief with an expiry date, and this instrument exists
+/// because those are the problem.
+///
+/// Deliberately general rather than per-question. A block naming the exact
+/// replacement for each fixture's symbol would measure instruction-following:
+/// the model would be reading back an answer it was handed. So it is the
+/// toolchain's own recent deprecations, capped by recency, which leaves
+/// `WillPopScope` (deprecated at v3.12, far outside the window) uncovered — and
+/// that case becomes the control for what the digest does *not* reach.
+String deltaBlock(CutoffOracle oracle) {
+  final buffer = StringBuffer('Recent changes in this project\'s toolchain:');
+  for (final entry in oracle.recentFlutterDeprecations()) {
+    buffer.write('\n- Flutter ${entry.symbol}: ${entry.advice}');
+  }
+  final legacy = oracle.packageLegacySymbols('riverpod');
+  if (legacy.isNotEmpty) {
+    buffer.write(
+      '\n- riverpod moved these to legacy: ${legacy.join(', ')}',
+    );
+  }
+  for (final line in oracle.packageBreakingChanges('freezed')) {
+    buffer.write('\n- freezed: ${line.replaceFirst(RegExp(r'^-\s*'), '')}');
+  }
+  return buffer.toString();
+}
+
+/// Whether the digest names the idiom [testCase] is about.
+///
+/// Reported per case, because "the digest helped" and "the digest covered it"
+/// are different claims and the second one bounds the first.
+bool digestCovers(CutoffCase testCase, CutoffOracle oracle) {
+  if (testCase.coverageSymbols.isEmpty) return false;
+  final digest = deltaBlock(oracle);
+  return testCase.coverageSymbols.any(digest.contains);
 }
 
 class ClaimRecord {
@@ -343,10 +404,18 @@ class CensusSummary {
   const CensusSummary({
     required this.claims,
     required this.runIdentity,
+    this.digestCoverage = const {},
   });
 
   final List<ClaimRecord> claims;
   final Map<String, dynamic> runIdentity;
+
+  /// Per case, whether the delta block names the idiom it is about.
+  ///
+  /// "The digest helped" and "the digest covered it" are different claims, and
+  /// the second bounds the first. A case the digest never mentioned is a
+  /// control, not a failure of the idea.
+  final Map<String, bool> digestCoverage;
 
   Iterable<ClaimRecord> _scored(CensusArm arm) =>
       claims.where((c) => c.arm == arm && c.failure == null);
@@ -402,14 +471,14 @@ class CensusSummary {
           'grounded': staleRateFor(cutoffClass, CensusArm.grounded),
         },
     },
-    'bare': {
-      'staleRate': staleRate(CensusArm.bare),
-      'unscorable': unscorable(CensusArm.bare),
+    'arms': {
+      for (final arm in CensusArm.values)
+        arm.name: {
+          'staleRate': staleRate(arm),
+          'unscorable': unscorable(arm),
+        },
     },
-    'grounded': {
-      'staleRate': staleRate(CensusArm.grounded),
-      'unscorable': unscorable(CensusArm.grounded),
-    },
+    'digestCoverage': digestCoverage,
     'records': claims.map((c) => c.toJson()).toList(growable: false),
   };
 
@@ -420,19 +489,17 @@ class CensusSummary {
       ..writeln('build: ${runIdentity['buildCommit']}${runIdentity['buildDirty'] == true ? ' (dirty)' : ''}')
       ..writeln('claims: ${claims.length}  failures: ${failures()}')
       ..writeln()
-      ..writeln('stale-claim rate')
-      ..writeln(
-        '  bare (grounding absent):        '
-        '${(staleRate(CensusArm.bare) * 100).toStringAsFixed(0)}%  '
-        '(${unscorable(CensusArm.bare)} unscorable)',
-      )
-      ..writeln(
-        '  grounded (prompt_context):      '
-        '${(staleRate(CensusArm.grounded) * 100).toStringAsFixed(0)}%  '
-        '(${unscorable(CensusArm.grounded)} unscorable)',
-      )
+      ..writeln('stale-claim rate');
+    for (final arm in CensusArm.values) {
+      buffer.writeln(
+        '  ${arm.name.padRight(16)} '
+        '${(staleRate(arm) * 100).toStringAsFixed(0).padLeft(3)}%  '
+        '(${unscorable(arm)} unscorable)',
+      );
+    }
+    buffer
       ..writeln()
-      ..writeln('per class (bare / grounded stale rate)');
+      ..writeln('per class (bare / grounded / delta stale rate)');
     for (final cutoffClass in classes) {
       String rate(CensusArm arm) {
         final value = staleRateFor(cutoffClass, arm);
@@ -440,13 +507,15 @@ class CensusSummary {
       }
 
       buffer.writeln(
-        '  ${cutoffClass.name.padRight(22)} ${rate(CensusArm.bare).padLeft(5)} / '
-        '${rate(CensusArm.grounded)}',
+        '  ${cutoffClass.name.padRight(22)} '
+        '${rate(CensusArm.bare).padLeft(5)} / '
+        '${rate(CensusArm.grounded).padLeft(5)} / '
+        '${rate(CensusArm.deltaGrounded).padLeft(5)}',
       );
     }
     buffer
       ..writeln()
-      ..writeln('per case (bare / grounded stale)');
+      ..writeln('per case (bare / grounded / delta stale, digest coverage)');
     for (final caseId in claims.map((c) => c.caseId).toSet()) {
       String rate(CensusArm arm) {
         final scored = claims
@@ -465,7 +534,9 @@ class CensusSummary {
 
       buffer.writeln(
         '  ${caseId.padRight(22)} ${rate(CensusArm.bare).padLeft(5)} / '
-        '${rate(CensusArm.grounded)}',
+        '${rate(CensusArm.grounded).padLeft(5)} / '
+        '${rate(CensusArm.deltaGrounded).padLeft(5)}   '
+        '${digestCoverage[caseId] == true ? 'in digest' : 'not in digest'}',
       );
     }
     return buffer.toString();
@@ -497,12 +568,12 @@ ClaimRecord scoreCutoffResponse({
     // No tools are attached, so the only grounding a claim can have is what the
     // prompt carried. Recorded rather than inferred: the criteria ask that KC2
     // evidence not be reported as an absent same-turn tool result.
-    grounding: arm == CensusArm.grounded
-        ? GroundingVerdict.supported
-        : GroundingVerdict.absent,
-    provenance: arm == CensusArm.grounded
-        ? GroundingProvenance.promptContext
-        : GroundingProvenance.none,
+    grounding: arm == CensusArm.bare
+        ? GroundingVerdict.absent
+        : GroundingVerdict.supported,
+    provenance: arm == CensusArm.bare
+        ? GroundingProvenance.none
+        : GroundingProvenance.promptContext,
     assertedValue: usedStale && usedCurrent
         ? 'both'
         : usedStale
@@ -529,6 +600,7 @@ Future<CensusSummary> runCutoffCensus({
             .where((testCase) => options.caseFilter.contains(testCase.id))
             .toList(growable: false);
   final ground = groundTruthBlock(oracle);
+  final delta = deltaBlock(oracle);
   final claims = <ClaimRecord>[];
   for (final testCase in selected) {
     final truthSource =
@@ -536,9 +608,11 @@ Future<CensusSummary> runCutoffCensus({
     for (var repeat = 1; repeat <= options.repeats; repeat++) {
       for (final arm in CensusArm.values) {
         onProgress?.call('${testCase.id} ${arm.name} #$repeat');
-        final prompt = arm == CensusArm.grounded
-            ? '$ground\n\n${testCase.task}'
-            : testCase.task;
+        final prompt = switch (arm) {
+          CensusArm.bare => testCase.task,
+          CensusArm.grounded => '$ground\n\n${testCase.task}',
+          CensusArm.deltaGrounded => '$ground\n\n$delta\n\n${testCase.task}',
+        };
         try {
           final response = await send(_systemPrompt, prompt);
           if (options.dumpDir case final dumpDir?) {
@@ -581,6 +655,10 @@ Future<CensusSummary> runCutoffCensus({
   return CensusSummary(
     claims: claims,
     runIdentity: _runIdentity(options: options, oracle: oracle),
+    digestCoverage: {
+      for (final testCase in selected)
+        testCase.id: digestCovers(testCase, oracle),
+    },
   );
 }
 

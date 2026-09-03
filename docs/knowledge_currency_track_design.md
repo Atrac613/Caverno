@@ -204,6 +204,49 @@ and that needs a different verdict shape. So the §4 promotion gate, which asks
 whether class 2 *dominates*, is not yet answered; what this measures is class 2
 against class 4.
 
+#### Second measurement (2026-09-03): what KC2 should carry
+
+The first measurement said a version number only helps where the model already
+knows what that version changed. A third arm tests the obvious next move before
+KC2 is built around it: the version block **plus** a record of what those
+versions changed, assembled by the oracle from the installed SDK's `@Deprecated`
+annotations, riverpod's `legacy/` directory, and freezed's changelog.
+
+Deliberately general rather than per-question — a block naming the exact
+replacement for each fixture would measure instruction-following. It is capped
+by release recency, which leaves `WillPopScope` (deprecated at v3.12) outside
+the window and turns that case into the control.
+
+75 claims, `qwen3.8-27b-vision`, five repeats, build `916b333b`.
+
+| case | in digest | bare | +versions | +deltas |
+|---|---|---|---|---|
+| flutter-pop-scope | **no** | 5/5 | 4/5 | **4/5** |
+| color-with-values | yes | 3/5 | 3/5 | **0/5** |
+| riverpod-notifier | yes | 2/5 | 3/5 | **1/5** |
+| freezed-abstract | yes | 4/5 | 5/5 | **2/5** |
+| repo-state-management (class 4) | no | 5/5 | 1/2 | **0/5** |
+| **all claims** | | **76%** | **73%** | **28%** |
+
+**The delta block fixes the cases it covers and does nothing for the one it
+does not.** Covered class 2 cases went from 9 of 15 stale to 3 of 15; the
+uncovered one went 5/5 to 4/5. The control is what makes this a finding rather
+than an observation that more text helps.
+
+So KC2's content is settled by measurement rather than by argument:
+
+1. **Carry what changed, not only which version.** On covered APIs this is the
+   difference between 60% and 20% stale.
+2. **Coverage is the design problem, not the mechanism.** A recency window
+   decides which APIs are reached, and everything outside it stays exactly as
+   stale as with no block at all. How the window is chosen — recency, the
+   project's own imports, the symbols a draft actually used — is now the
+   substantive KC2 question.
+3. **Keep the version list anyway.** It is what fixes class 4: naming the
+   dependency tells the model which library this project holds state in, and
+   that case reached 0 of 5 with deltas and was already improving with versions
+   alone.
+
 ### KC2: Environment And Dependency Ground Truth Block
 
 Status: `next`. **Deliberately not gated on KC1**: it is deterministic, offline,
@@ -260,6 +303,60 @@ Resolving an installed root is not sufficient because the current LL10 result
 still reports the lockfile version. Mitigation requires comparing version-bearing
 installed metadata (`pubspec.yaml`, `package.json`, or `dist-info` `METADATA`)
 with the lock record and naming both sources in the inventory result.
+
+#### Third measurement (2026-09-03): the post-generation check, replayed offline
+
+The second census left coverage as KC2's open problem: a prompt block has to
+guess which APIs will matter before the model writes anything. KC4 does not have
+that problem by construction — it reads the answer. `tool/kc1_post_generation_check.dart`
+replays the 75 dumped responses against an **uncapped** stale-symbol index built
+from the same oracle, with no model, no endpoint and no new requests.
+
+| | KC2 digest | post-generation index |
+|---|---|---|
+| symbols | 40 (recency-capped) | **157** |
+| which APIs it must choose | before generation | none — it reads what was written |
+| `WillPopScope` (v3.12) | outside the window | **in the index** |
+
+Result over 75 responses, 42 labelled stale:
+
+- **Recall on deprecation-class staleness is 25 of 25.** Every stale usage of
+  `WillPopScope`, `.withOpacity` and `StateNotifierProvider` was caught,
+  including the case the delta block could not reach. It also flags the
+  deprecated *parameter* beside the widget — `onWillPop` as well as
+  `WillPopScope` — which a prompt block has to spend a separate line on.
+- **Recall overall is 27 of 42 (64%), and every miss is outside what a symbol
+  index can see**: 11 on `freezed-abstract`, whose staleness is a codegen
+  contract rather than a name, and 4 on `repo-state-management`, where
+  `ChangeNotifier` is not deprecated by anyone — it is simply not what this
+  repository does. Those need a changelog reader and a repo-convention oracle
+  respectively, not a bigger symbol list.
+
+**And the run supplies empirical support for the clause in KC4 that reads like
+boilerplate.** The design says the verdict comes only from ground truth and that
+a pattern "may trigger verification but never decide correctness". Bare-name
+matching flagged 14 of 30 *correct* answers, and almost every flag was a
+collision on a common word — `alpha`, `value`, `builder`, `of`, `blue` — because
+those are deprecated field names somewhere in the SDK and a bare name has no
+receiver type. `.withValues(alpha: 0.5)`, the current idiom, trips `alpha`.
+
+As a **nominator** that is fine: nineteen nominations over thirty answers is
+cheap to verify. As a **verdict** it would fail KC4's own precision gate on its
+first run. So KC4's verdict must come from LL11 `deprecated_member_use`, which
+knows the receiver's type, and the name index is only what decides where to
+look. That is what the design already said; this is the measurement that shows
+what it costs to ignore it.
+
+Implications for the track order:
+
+1. KC4's nomination stage is measured and has a 100% recall ceiling on
+   deprecation-class staleness — the class KC2 can only partly reach.
+2. KC2 remains worth building for what happens *before* generation and for
+   class 4, where naming the dependency is what fixes the answer.
+3. `CutoffOracle` is already a working prototype of KC3's resolver: it answers
+   "the symbol exists in both versions but the installed one deprecates it",
+   which is KC3's stated acceptance criterion and the case LL10 answers wrongly.
+   What it lacks is the LL10 response envelope and containment, not the lookup.
 
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 
