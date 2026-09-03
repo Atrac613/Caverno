@@ -109,6 +109,28 @@ void main() {
       );
     });
 
+    test('a marker the model put on a question is counted, then dropped', () {
+      // Both halves matter. PR 3d stops the mark from blocking anything, so it
+      // never reaches provenance -- and if the instrument read only provenance
+      // the behaviour would vanish from the measurement at the same moment it
+      // was fixed, which is how a summary starts agreeing with its own patch.
+      final observation = _score(
+        _proposal(
+          [_unmarked],
+          openQuestions: ['$_question (assumed, material)'],
+        ),
+        arm: ScenarioArm.ungrounded,
+      );
+
+      expect(observation.markedOpenQuestionCount, 1);
+      expect(
+        observation.materialCount,
+        0,
+        reason: 'A marked question must not read as a blocking assumption.',
+      );
+      expect(observation.openQuestionCount, 1);
+    });
+
     test('a fenced JSON block is read the way production reads it', () {
       final observation = _score(
         '```json\n${_proposal([_marked])}\n```',

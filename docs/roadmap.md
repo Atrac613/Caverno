@@ -169,7 +169,7 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH6 | done | Dismiss an approval or question dialog on the phone when the watch resolves it. | Shipped 2026-09-02 and verified on paired simulators: answering from the wrist closes the phone's sheet. Dismissal pops by route name, so it is a no-op when the dialog is not topmost. |
 | Watch | WATCH7 | done | Make the wrist screen a message thread rather than a status glance: bubbles with tails, relative timestamp headers, a typing indicator, and a pinned compose bar. | Shipped 2026-09-02. The frame now carries the tail of the thread; verified on the watch simulator, including the fallback for a watch newer than its phone. |
 
-| Anabasis | ANA0 | current | Complete the epistemic grounding: produce `assumption`/`material` on contract items, implement the `userConfirmedAssumption` confirmation path, enforce the parent's read-only tool authority, and project the result. | PRs 1, 2, 3a, 3a2, 3b and 3c are done. 36 live requests sized PR 4's surface as a per-assumption approval, then showed the model marks open questions: four of five material marks land there, and `blocksExecution` ignores `kind`. PR 3d restricts the marker by kind and re-measures before PR 4 arms anything. |
+| Anabasis | ANA0 | current | Complete the epistemic grounding: produce `assumption`/`material` on contract items, implement the `userConfirmedAssumption` confirmation path, enforce the parent's read-only tool authority, and project the result. | PRs 1 through 3d are done. Restricting the marker to what a plan asserts took marks on open questions to zero and separated the arms 67% against 17%. PR 3e then defined materiality by consequence and took its discrimination from +0.06 to +0.44, so PR 4 blocks on `material` and builds a per-assumption approval. |
 | Anabasis | ANA1 | next | Decompose work into tasks with preconditions (task accepted / assumption confirmed / question resolved) and a derived `ready`. | Do not start before ANA0's canary is green. First substantially new implementation in the track. |
 | Anabasis | ANA2 | later | Delegate ready tasks onto the existing `spawn_subagent` and `WorktreeAgentTask` infrastructure. | Mapping and scheduling policy only; no new execution machinery. |
 | Anabasis | ANA3 | later | Separate `produced` / `verified` / `accepted` with one writer each, add parent semantic judgment, escalate user-only decisions. | Blocked on ANA1/ANA2. Requires the ownership table in the design doc §10 to be honoured. |
@@ -1713,8 +1713,9 @@ PR split:
 | 3a2 | Guard arming stated at one site, so the shadow is implemented rather than accidental | done |
 | 3b | Planning prompt emits marks; producer runs in shadow | done |
 | 3c | Measure: material assumptions per plan, and how often the model over-asserts | done |
-| 3d | Marks are for what the plan asserts: restrict the marker by item kind, enforce it in the projection, report marks by kind, re-measure | next |
-| 4 | Confirm surface sized to 3c (**per-assumption approval**, not batch review), guard armed in `MaterialContractAssumptionArming.armed`, parent authority policy, and **unskip the canary's reachability assertion** | blocked on 3d |
+| 3d | Marks are for what the plan asserts: restrict the marker by item kind, enforce it centrally, report marks by kind, re-measure | done |
+| 3e | Define materiality by consequence rather than by restating the word, and re-measure | done |
+| 4 | Confirm surface sized to 3c (**per-assumption approval**, not batch review), guard armed in `MaterialContractAssumptionArming.armed`, parent authority policy, and **unskip the canary's reachability assertion** | next |
 | 5 | `ExecutionSnapshot` extension and the Understanding panel | |
 
 Supporting decision: the confirm surface is the **approval flow** — the guard
@@ -1850,7 +1851,64 @@ Verification evidence:
      material. Marking non-materially is a claim about consequence, not about
      knowledge. With any mark counted as disposal, over-assertion is 1/18
      rather than 2/18.
-- Evidence: `build/ana0/marking_r3.json` plus the raw responses under
+- PR 3d result, same 36 requests, same model, 0 unparsed. Restricting the
+  marker to what the plan asserts did not merely stop the miscounting — it
+  moved the model:
+
+  | | 3c | 3d |
+  |---|---|---|
+  | marks on open questions (both arms) | 8 | **0** |
+  | marks on constraints, ungrounded | 5 | **24** |
+  | marks on constraints, grounded | 3 | 7 |
+  | ungrounded plans with any assumption mark | 3/18 | **12/18** |
+  | grounded plans with any assumption mark | 3/18 | 3/18 |
+
+  Plan-level discrimination is now 67% against 17%, where 3c had 3 of 18 on
+  both sides. Telling the model where a mark *means* something did not
+  redistribute a fixed budget of marks; it produced five times as many in the
+  arm that should have them and left the other arm alone.
+- **The weak link has moved to materiality, and that is what gates blocking.**
+  Only `assumption && material && !confirmed` blocks, and material marks run
+  28% ungrounded against 11% grounded — 2.5x, against 4x for marks overall. One
+  grounded plan produced three material marks. So a guard armed on materiality
+  today fires on a signal noticeably noisier than the one the model actually
+  produces well. PR 4 has to decide deliberately whether it blocks on
+  `material` or on `assumption`, and the answer is not free either way: the
+  first under-fires and mis-fires, the second blocks roughly two thirds of
+  ungrounded plans.
+- Surface sizing is unchanged by 3d: at most three material assumptions in a
+  plan, zero in 13 of 18 ungrounded plans. Still a per-assumption approval.
+- PR 3e answers the question 3d opened, and reverses its worry. The old rule
+  said to write `(assumed, material)` "when the plan would change materially" —
+  a definition that restates the term. It now names the consequence: material
+  when being wrong would make work done under the plan have to be **thrown away
+  rather than adjusted** — a different architecture, data model, dependency or
+  task set — and plain `(assumed)` when only a value, a detail or an ordering
+  would change.
+
+  | | 3d | 3e |
+  |---|---|---|
+  | material marks per plan, ungrounded | 0.33 | **0.56** |
+  | material marks per plan, grounded | 0.28 | **0.11** |
+  | material discrimination | +0.06 | **+0.44** |
+  | plans with a material mark, ungrounded / grounded | 28% / 11% | **33% / 6%** |
+  | over-mark | 2/18 | 1/18 |
+  | over-assertion | 1/18 | **0/18** |
+
+  **Materiality is no longer the weak link; it is now the strongest signal.**
+  It separates the arms six to one, where marks overall separate under two to
+  one — the grounded arm's plain-`(assumed)` rate rose to 44% once the two
+  forms were distinguished, which costs nothing because a plain mark does not
+  block. So the guard should block on `material`, and the decision PR 4 was
+  going to have to make on judgement is settled by measurement instead.
+- Both 3d and 3e reproduce the same lesson at the prompt level: the model was
+  not failing at epistemics, it was being asked in terms it could not check.
+  Naming where a mark belongs multiplied marks fivefold; naming what
+  materiality costs multiplied its discrimination sevenfold. Neither change
+  touched the model, the schema, or the parser.
+- Evidence: `build/ana0/marking_3e.json` and `build/ana0/raw3e/`.
+- Evidence: `build/ana0/marking_3d.json` and `build/ana0/raw3d/`, against
+  `build/ana0/marking_r3.json` plus the raw responses under
   `build/ana0/raw3/`. Re-run with
   `fvm dart run tool/ana0_assumption_marking_measurement.dart --endpoint
   http://<host>:1234/v1/chat/completions --model <id> --repeats 3
@@ -1860,28 +1918,40 @@ Verification evidence:
 - Full suite green apart from the canary; `flutter analyze` clean.
 
 Next action:
-- **PR 3d before PR 4.** Three things, all cheap, all measurable with the
-  instrument that already exists:
-  1. Tell the prompt which kinds may carry a marker. An open question is
-     already unasserted, so marking one says nothing; constraints and
-     acceptance criteria are what the plan asserts.
-  2. Refuse a marker on an open question in the projection, structurally rather
-     than by wording, so the prompt is not the only thing standing between a
-     marked question and a blocked conversation.
-  3. Report marks by kind in `tool/ana0_assumption_marking_measurement.dart`.
-     The aggregate hid this defect for a full run; a summary that cannot
-     express `kind` cannot answer the question ANA0 is asking.
-  Then re-run the same 36 requests. Only a non-zero constraint-level
-  discrimination justifies arming anything.
-- PR 4 afterwards, built as a **per-assumption approval** on the measured
-  distribution: never more than two material assumptions in a plan, usually
-  none. Arm the guard in `MaterialContractAssumptionArming.armed` and unskip
-  the canary's reachability assertion in the same change, so the two places
-  recording that condition are cleared together.
-- Still open for PR 4 as a product decision, not an inheritance: how the marker
-  and `openQuestions` divide the same content. A question never blocks and a
-  material mark does, so which one the model reaches for decides whether the
-  guard ever fires.
+- PR 4, with its one open decision already settled by 3e: **block on
+  `material`**, which `blocksExecution` already does. It separates the arms six
+  to one and mis-fires once in eighteen grounded plans.
+- Build the confirm surface as a **per-assumption approval** on the existing
+  `PendingToolApproval` hierarchy — a `PendingAssumptionConfirmation` raised
+  from the guard's refusal site in `chat_notifier_tool_loop_batch.dart`,
+  resolving into `confirmMaterialAssumption`. The approval flow is the only
+  surface with no dead end, and the registry answers by id from outside the
+  thread, so a blocked background turn is not stranded. Sizing: at most three
+  material assumptions in a plan, none in 12 of 18.
+
+  Scoped 2026-09-03, with the obstacles named so PR 4 is not mistaken for a
+  small change:
+  - `pending_tool_approvals.dart` (527) and `thread_scoped_chat_state.dart`
+    (238) are both **exactly at their ratchet ceilings**, which the ratchet
+    forbids raising. The twelfth pending type needs the same extraction PR 2
+    had to do for the eleventh.
+  - The guard's blocking list is captured **once per batch**
+    (`ownerBlockingAssumptions`). A confirmation mid-batch does not clear it,
+    so it has to become a per-call read of current conversation state, and the
+    ask-then-re-evaluate loop needs an itemId seen-set so a confirmation that
+    fails to clear an item cannot spin.
+  - The write-back is `ConversationsNotifier.updateCurrentWorkflow`, which
+    resets `workflowSourceHash` and `workflowDerivedAt` unless
+    `preserveWorkflowProjection` is set. A confirmation must preserve both; it
+    changes provenance, not the plan.
+  - The `execute:` closure the guard runs inside is already `async`, so the ask
+    can be awaited there — but every await needs the
+    `_isCurrentInteractionGeneration` check the surrounding loop uses.
+- Arm `MaterialContractAssumptionArming.armed` and unskip the canary's
+  reachability assertion **only once a human can answer the approval in the
+  app**. A domain-only PR 4 that arms the guard reproduces the ordering hazard
+  ANA0 has already recorded twice: the mutation is refused and the only way to
+  clear it exists in tests. If PR 4 is split, the UI half carries the arming.
 
 ### ANA1: Decompose
 

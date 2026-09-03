@@ -185,6 +185,23 @@ class ConversationContractProvenanceService {
     return '${kind.name}:${computeConversationPlanHash(normalized)}';
   }
 
+  /// Whether an epistemic mark means anything on an item of [kind].
+  ///
+  /// Anabasis ANA0 PR 3d. An open question is already unasserted: asking about
+  /// something says you do not know it, so marking it as an assumption claims
+  /// nothing the item did not already say. Marks belong on what the plan
+  /// *asserts*.
+  ///
+  /// This is enforced here rather than only in the prompt because it is not a
+  /// style preference. `ConversationContractItemProvenance.blocksExecution`
+  /// does not look at `kind`, so a marked open question blocks workspace
+  /// mutation exactly as a marked constraint would — and a plan is normally
+  /// blocked *by* an open question, not until one is confirmed. The 36-request
+  /// ANA0 PR 3c run measured the model doing this on four of its five material
+  /// marks, so the wording alone is not enough.
+  static bool marksApplyTo(ConversationContractItemKind kind) =>
+      kind != ConversationContractItemKind.openQuestion;
+
   List<ConversationContractItemProvenance> _items(
     ConversationWorkflowSpec spec, {
     required String sourceId,
@@ -195,7 +212,9 @@ class ConversationContractProvenanceService {
       required String id,
       required ConversationContractItemKind kind,
     }) {
-      final itemMarks = marks[id] ?? ContractItemMarks.none;
+      final itemMarks = marksApplyTo(kind)
+          ? (marks[id] ?? ContractItemMarks.none)
+          : ContractItemMarks.none;
       return ConversationContractItemProvenance(
         itemId: id,
         kind: kind,

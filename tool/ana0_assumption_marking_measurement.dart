@@ -5,6 +5,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/workflow_proposal_draft.dart';
+import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_planning_prompt_service.dart';
@@ -185,6 +186,7 @@ class ArmObservation {
     required this.assumedCount,
     required this.materialCount,
     required this.openQuestionCount,
+    required this.markedOpenQuestionCount,
     this.failure,
   });
 
@@ -207,6 +209,18 @@ class ArmObservation {
   /// raises the unknown as a question has not asserted it, so counting that
   /// plan as an over-assertion would measure the prompt's own instruction.
   final int openQuestionCount;
+
+  /// Open questions the model tried to mark.
+  ///
+  /// Reported because the aggregate hid it for a whole run: PR 3c's summary
+  /// counted marks without their kind, and four of its five material marks
+  /// turned out to be on questions rather than on anything the plan asserted.
+  /// A number that cannot express the distinction it is asked about will be
+  /// read as though it had.
+  ///
+  /// After PR 3d these are dropped in `ConversationContractProvenanceService`,
+  /// so this counts what the model attempted, not what survived.
+  final int markedOpenQuestionCount;
   final String? failure;
 
   Map<String, dynamic> toJson() => {
@@ -218,6 +232,7 @@ class ArmObservation {
     'assumed': assumedCount,
     'material': materialCount,
     'openQuestions': openQuestionCount,
+    'markedOpenQuestions': markedOpenQuestionCount,
     if (failure != null) 'failure': failure,
   };
 }
@@ -290,6 +305,13 @@ class MeasurementSummary {
 
   int unparsed() => observations.where((o) => !o.parsed).length;
 
+  /// Plans that tried to mark an open question, in either arm.
+  ///
+  /// Not a rate on its own: it says how much of the model's marking effort goes
+  /// somewhere the mark cannot mean anything.
+  int plansMarkingOpenQuestions() =>
+      observations.where((o) => o.parsed && o.markedOpenQuestionCount > 0).length;
+
   Map<String, dynamic> toJson() => {
     'schema': 'caverno_ana0_assumption_marking',
     'schemaVersion': 1,
@@ -303,6 +325,9 @@ class MeasurementSummary {
       'materialPerPlan': materialPerPlan(ScenarioArm.grounded),
       'openQuestionsPerPlan': openQuestionsPerPlan(ScenarioArm.grounded),
       'overMarks': overMarks(),
+      'markedOpenQuestions': _scored(
+        ScenarioArm.grounded,
+      ).fold<int>(0, (sum, o) => sum + o.markedOpenQuestionCount),
     },
     'ungrounded': {
       'scored': parsedCount(ScenarioArm.ungrounded),
@@ -310,6 +335,9 @@ class MeasurementSummary {
       'openQuestionsPerPlan': openQuestionsPerPlan(ScenarioArm.ungrounded),
       'overAssertions': overAssertions(),
       'markedRatherThanAsked': markedRatherThanAsked(),
+      'markedOpenQuestions': _scored(
+        ScenarioArm.ungrounded,
+      ).fold<int>(0, (sum, o) => sum + o.markedOpenQuestionCount),
     },
     'discrimination':
         materialPerPlan(ScenarioArm.ungrounded) -
@@ -321,7 +349,7 @@ class MeasurementSummary {
     final ungroundedScored = parsedCount(ScenarioArm.ungrounded);
     final groundedScored = parsedCount(ScenarioArm.grounded);
     final buffer = StringBuffer()
-      ..writeln('ANA0 PR 3c — assumption marking')
+      ..writeln('ANA0 — assumption marking')
       ..writeln('model: $model  endpoint: $endpoint  compact: $compact')
       ..writeln('requests: ${observations.length}  unparsed: ${unparsed()}')
       ..writeln()
@@ -358,6 +386,11 @@ class MeasurementSummary {
       ..writeln(
         'over-mark:      ${overMarks()}/$groundedScored '
         'grounded plans marked something material',
+      )
+      ..writeln(
+        'marked a question: ${plansMarkingOpenQuestions()}/'
+        '${ungroundedScored + groundedScored} plans put a marker on an open '
+        'question, where it cannot mean anything (dropped since PR 3d)',
       );
     return buffer.toString();
   }
@@ -421,6 +454,7 @@ Future<ArmObservation> _observe({
       assumedCount: 0,
       materialCount: 0,
       openQuestionCount: 0,
+      markedOpenQuestionCount: 0,
       failure: 'request failed: $error',
     );
   }
@@ -491,6 +525,7 @@ ArmObservation scoreResponse({
     assumedCount: 0,
     materialCount: 0,
     openQuestionCount: 0,
+    markedOpenQuestionCount: 0,
     failure: failure,
   );
 
@@ -518,6 +553,13 @@ ArmObservation scoreResponse({
     return unscored('projection rejected the document: ${error.message}');
   }
 
+  // Counted off the draft, not the projection: PR 3d drops a mark on an open
+  // question, so by the time provenance exists the attempt is gone. What the
+  // model tried to do is the number this instrument exists to expose.
+  final markedOpenQuestions = draft.workflowSpec.openQuestions
+      .where((value) => ContractItemMarks.parseBullet(value).marks.assumption)
+      .length;
+
   final itemCount =
       spec.constraints.length +
       spec.acceptanceCriteria.length +
@@ -532,6 +574,7 @@ ArmObservation scoreResponse({
     assumedCount: assumed.length,
     materialCount: assumed.where((item) => item.material).length,
     openQuestionCount: spec.openQuestions.length,
+    markedOpenQuestionCount: markedOpenQuestions,
   );
 }
 

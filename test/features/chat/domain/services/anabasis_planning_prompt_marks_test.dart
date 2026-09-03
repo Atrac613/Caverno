@@ -172,6 +172,124 @@ void main() {
     });
   });
 
+  group('marks are for what the plan asserts', () {
+    test('a marked open question projects to no assumption', () {
+      // Measured: on 36 live requests the model put "(assumed, material)" on
+      // four open questions and on one constraint. blocksExecution does not
+      // look at kind, so before PR 3d each of those four would have refused
+      // every workspace mutation -- for asking a question.
+      final markdown = ConversationPlanDocumentBuilder.build(
+        workflowStage: ConversationWorkflowStage.plan,
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Add iCloud synchronization',
+          constraints: [_plainConstraint],
+          openQuestions: ['Which persistence layer is in use? (assumed, material)'],
+        ),
+      );
+
+      final projected =
+          ConversationPlanProjectionService.deriveExecutionProjection(
+            approvedMarkdown: markdown,
+            requireTasks: false,
+          );
+
+      expect(projected.workflowSpec.openQuestions, [
+        'Which persistence layer is in use?',
+      ], reason: 'The marker is still stripped, so the question reads cleanly.');
+      expect(
+        projected.workflowSpec.blockingAssumptions,
+        isEmpty,
+        reason:
+            'A question already says the answer is unknown. Marking it as an '
+            'assumption claims nothing further, and must not block.',
+      );
+      expect(
+        projected.workflowSpec.provenance
+            .singleWhere(
+              (item) => item.kind == ConversationContractItemKind.openQuestion,
+            )
+            .assumption,
+        isFalse,
+      );
+    });
+
+    test('a marked constraint in the same document still carries its mark', () {
+      final markdown = ConversationPlanDocumentBuilder.build(
+        workflowStage: ConversationWorkflowStage.plan,
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Add iCloud synchronization',
+          constraints: ['$_assumedConstraint (assumed, material)'],
+          openQuestions: ['Which persistence layer is in use? (assumed)'],
+        ),
+      );
+
+      final projected =
+          ConversationPlanProjectionService.deriveExecutionProjection(
+            approvedMarkdown: markdown,
+            requireTasks: false,
+          );
+
+      expect(
+        projected.workflowSpec.blockingAssumptions,
+        hasLength(1),
+        reason: 'Dropping question marks must not disarm the constraint case.',
+      );
+      expect(
+        projected.workflowSpec.blockingAssumptions.single.kind,
+        ConversationContractItemKind.constraint,
+      );
+    });
+
+    test('the rule is enforced centrally, not only in the projection', () {
+      expect(
+        ConversationContractProvenanceService.marksApplyTo(
+          ConversationContractItemKind.openQuestion,
+        ),
+        isFalse,
+      );
+      for (final kind in const [
+        ConversationContractItemKind.constraint,
+        ConversationContractItemKind.acceptanceCriterion,
+      ]) {
+        expect(
+          ConversationContractProvenanceService.marksApplyTo(kind),
+          isTrue,
+          reason: '$kind is something the plan asserts.',
+        );
+      }
+    });
+
+    test('materiality is defined by consequence, not left to taste', () {
+      // ANA0 PR 3e. Materiality is the only thing that blocks, and 3d measured
+      // it as the model's weakest judgement: marks overall separated the arms
+      // 67% to 17%, material marks only 28% to 11%. "Would change the plan
+      // materially" restates the word. This asks for a consequence the model
+      // can actually check against its own task list.
+      for (final compact in const [false, true]) {
+        expect(
+          _proposalPrompt(compact: compact),
+          contains('thrown away rather than adjusted'),
+          reason:
+              'A definition that names what goes wrong is checkable; one that '
+              'repeats the term is not.',
+        );
+      }
+    });
+
+    test('the prompt says so too, so the model is not left to guess', () {
+      for (final compact in const [false, true]) {
+        expect(
+          _proposalPrompt(compact: compact),
+          contains('Never mark an openQuestions item'),
+          reason:
+              'The projection drops these silently. Without the rule the model '
+              'keeps spending marks where they cannot mean anything, and the '
+              'measured marking rate reads as a capability limit.',
+        );
+      }
+    });
+  });
+
   group('the producer runs in shadow', () {
     test('a marked proposal item projects to a blocking assumption', () {
       // What the model returns: the marker rides inside the JSON string, so it

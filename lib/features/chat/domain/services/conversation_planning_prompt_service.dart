@@ -111,8 +111,10 @@ class ConversationPlanningPromptService {
       )
       ..writeln(
         compact
-            ? '- End an item you are assuming with "(assumed)", or "(assumed, material)" when being wrong about it would change the plan. Keep that marker in English.'
-            : '- End an item you are assuming rather than something you confirmed with "(assumed)", or with "(assumed, material)" when the plan would change materially if the assumption turned out to be wrong. Write the marker in English exactly as shown even when the field itself is in another language, and leave items you actually confirmed from the transcript, the saved plan, research context, or a tool result unmarked.',
+            ? '- End a constraint or acceptanceCriteria item you are assuming with "(assumed)", or "(assumed, material)" when being wrong would make work done under the plan have to be thrown away rather than adjusted. Never mark an openQuestions item. Keep that marker in English.'
+            : '- End a constraints or acceptanceCriteria item you are assuming rather than something you confirmed with "(assumed)". Write the marker in English exactly as shown even when the field itself is in another language, and leave items you actually confirmed from the transcript, the saved plan, research context, or a tool result unmarked.'
+              '\n- Write "(assumed, material)" instead when being wrong about it would make work done under this plan have to be thrown away rather than adjusted: a different architecture, data model, dependency, or set of tasks. If being wrong would change a value, a detail, or the order of steps, use plain "(assumed)".'
+              '\n- Never mark an openQuestions item. Asking about something already says you do not know it, so put an unknown in openQuestions or mark it as an assumption, not both.',
       )
       ..writeln(
         '- Preserve exact literal values from user messages, saved plans, research context, and tool results in every JSON text field. Do not abbreviate, translate, normalize, naturalize, infer, or replace URLs, file paths, file names, IDs, tokens, dates, times, money values, unit values, JSON keys, or scalar values unless the user explicitly requests conversion.',
