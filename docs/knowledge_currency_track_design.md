@@ -135,6 +135,75 @@ Promotion gate:
   If class 2 does not dominate the measured stale claims, KC3 is re-scoped or
   dropped rather than built on assertion frequency or the argument in §3.1.
 
+#### First measurement (2026-09-03)
+
+Instrument: `tool/kc1_cutoff_exposure_census.dart` with `tool/kc1_cutoff_oracle.dart`.
+Model `qwen3.8-27b-vision`, temperature 0.7, no tools attached, build `4cdd095e`.
+Five fixtures, two arms, five repeats: 50 claims, plus a 10-claim re-run of one
+fixture after its wording was corrected.
+
+| case | class | bare | grounded |
+|---|---|---|---|
+| flutter-pop-scope (`WillPopScope` → `PopScope`) | 2 | 4/5 stale | 5/5 stale |
+| color-with-values (`.withOpacity` → `.withValues`) | 2 | 2/5 stale | 2/5 stale |
+| riverpod-notifier (`StateNotifierProvider` → `NotifierProvider`) | 2 | 1/4 stale | 1/5 stale |
+| freezed-abstract (`class X with _$X` → `abstract class`) | 2 | 4/5 stale | 5/5 stale |
+| repo-state-management (`ChangeNotifier` → `NotifierProvider`) | 4 | **5/5 stale** | **0/4 stale** |
+| **class 2** | | **58%** | **65%** |
+| **class 4** | | **100%** | **0%** |
+
+**The asymmetry is the finding, and it is not the one KC2 was designed around.**
+
+Naming the *dependency* fixes "what does this project use". The class 4 arm went
+from every plan reaching for `ChangeNotifier` to none of them, because the block
+listing `riverpod: 3.4.2` told the model which library the project holds state
+in. A lockfile is repository evidence, not only version evidence.
+
+Naming the *version* does not fix "what changed in that version". Class 2 did
+not improve — 58% against 65%, inside the run-to-run noise. The block named
+`freezed: 3.2.5` and the model still wrote the v2 declaration in five of five
+grounded runs. A version number is actionable only where the model already
+knows what that version changed, which is the same expired belief the block was
+meant to correct.
+
+So KC2 should carry **what changed**, not only which version — or the check has
+to move to the symbol level after generation, where the oracle already holds the
+answer. It should also expect its largest measured win to be class 4 rather than
+class 2.
+
+**Variance.** Three runs of this instrument disagree substantially on class 2's
+grounded rate: 83%, 40%, 65%, at n ≤ 5 per cell and temperature 0.7. They are
+recorded as separate observations rather than averaged. What is stable across
+all three is that the bare class 2 rate is high and that grounding does not
+reliably move it.
+
+**Four instrument defects, each found by reading raw responses rather than by
+reasoning about the numbers.** They are recorded because the pattern is the
+point: every one of them would have been published as a fact about the model.
+
+1. A substring match in the oracle reported `NotifierProvider` as legacy,
+   because `StateNotifierProvider` contains it — which inverts the fixture it
+   was meant to validate.
+2. The deprecation-message extractor picked up apostrophes from prose above the
+   annotation.
+3. The class 4 pattern matched only `ChangeNotifierProvider`, and `\b` does not
+   match inside the longer name. The model answered bare `ChangeNotifier` every
+   time, so the arm scored *unscorable* and read as a model that had asserted
+   nothing, when it had asserted the wrong thing five times out of five.
+4. `color-with-values` first asked for "the expression for a Color at 50%
+   opacity", which invites constructing a colour rather than transforming one.
+   The model answered `const Color(0x80FF0000)` in eight of ten runs — neither
+   idiom. Reworded to name an existing colour, the fixture scores 10 of 10.
+
+**Scope, stated rather than implied.** Classes 1 and 3 are absent, and neither
+is an oversight. Class 1 has no offline oracle by definition; sizing it needs a
+networked run. Class 3 does not decompose into a two-idiom pair, because its
+failure is an *unnecessary* line rather than a wrong one — a model setting
+`useMaterial3: true` on an SDK where it is both the default and deprecated —
+and that needs a different verdict shape. So the §4 promotion gate, which asks
+whether class 2 *dominates*, is not yet answered; what this measures is class 2
+against class 4.
+
 ### KC2: Environment And Dependency Ground Truth Block
 
 Status: `next`. **Deliberately not gated on KC1**: it is deterministic, offline,
