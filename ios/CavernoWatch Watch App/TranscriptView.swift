@@ -19,48 +19,47 @@ struct TranscriptView: View {
   private static let bottomAnchor = "transcript-bottom"
 
   var body: some View {
-    ScrollViewReader { proxy in
-      ScrollView {
-        LazyVStack(alignment: .leading, spacing: 3) {
-          if snapshot.messagesTruncated {
-            caption("Earlier on iPhone")
-          }
-
-          ForEach(rows) { row in
-            switch row.kind {
-            case .timestamp(let label):
-              caption(label).padding(.vertical, 3)
-            case .message(let message):
-              MessageBubbleView(message: message, liveText: client.streamedText)
+    VStack(spacing: 0) {
+      ScrollViewReader { proxy in
+        ScrollView {
+          LazyVStack(alignment: .leading, spacing: 3) {
+            if snapshot.messagesTruncated {
+              caption("Earlier on iPhone")
             }
+
+            ForEach(rows) { row in
+              switch row.kind {
+              case .timestamp(let label):
+                caption(label).padding(.vertical, 3)
+              case .message(let message):
+                MessageBubbleView(message: message, liveText: client.streamedText)
+              }
+            }
+
+            footer
+
+            Color.clear
+              .frame(height: 1)
+              .id(Self.bottomAnchor)
           }
-
-          footer
-
-          Color.clear
-            .frame(height: 1)
-            .id(Self.bottomAnchor)
+          .padding(.horizontal, 2)
         }
-        .padding(.horizontal, 2)
+        // Opens on the newest bubble. `onAppear` alone is not enough: it runs
+        // before the scroll view has laid its content out, so the first frame
+        // stayed pinned to the top of the thread.
+        .defaultScrollAnchor(.bottom)
+        .onChange(of: snapshot.sequence) { _, _ in scrollToBottom(proxy) }
+        .onChange(of: client.streamedText) { _, text in
+          speaker.speakIncremental(text)
+          scrollToBottom(proxy)
+        }
       }
-      // Opens on the newest bubble. `onAppear` alone is not enough: it runs
-      // before the scroll view has laid its content out, so the first frame
-      // stayed pinned to the top of the thread.
-      .defaultScrollAnchor(.bottom)
-      .onChange(of: snapshot.sequence) { _, _ in scrollToBottom(proxy) }
-      .onChange(of: client.streamedText) { _, text in
-        speaker.speakIncremental(text)
-        scrollToBottom(proxy)
-      }
-    }
-    .safeAreaInset(edge: .bottom) {
+
       ComposeBar(
         placeholder: "Message",
         onSend: send,
         onOpenActions: { showsActions = true }
       )
-      // Opaque, not a material: the bar is pinned over the transcript, and a
-      // translucent one let a bubble show through it as a coloured smear.
       .background(Color.black)
     }
     .sheet(isPresented: $showsActions) {

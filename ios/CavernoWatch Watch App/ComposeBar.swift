@@ -1,47 +1,51 @@
 import SwiftUI
 
-/// The pinned input row: a "+" for everything that is not typing, and the
-/// field itself.
+/// The pinned input row: additional actions and the system message input.
 ///
-/// The field is a `TextFieldLink` rather than a `TextField`. Both open watchOS
-/// dictation, but only the link lets the collapsed state be drawn — a capsule
-/// with a placeholder, which is the part that makes the screen read as a
-/// message thread instead of a form.
+/// `TextFieldLink` is the public watchOS control for presenting the system
+/// input experience. On watchOS 11 and later it resumes the last input method,
+/// including Dictation, so the mic follows the same system-owned path as other
+/// Watch apps without embedding a keyboard in the app.
 struct ComposeBar: View {
   let placeholder: String
   let onSend: (String) -> Void
   let onOpenActions: () -> Void
 
   var body: some View {
-    HStack(spacing: 6) {
+    HStack(spacing: 10) {
       Button(action: onOpenActions) {
         Image(systemName: "plus")
           .font(.system(size: 15, weight: .semibold))
           .foregroundStyle(.primary)
-          .frame(width: 30, height: 30)
+          .frame(width: Self.actionsSize, height: Self.actionsSize)
           .background(Circle().fill(Color.gray.opacity(0.3)))
       }
       .buttonStyle(.plain)
+      .accessibilityLabel("More")
+
+      Spacer(minLength: 0)
 
       TextFieldLink(prompt: Text(placeholder)) {
-        HStack(spacing: 0) {
-          Text(placeholder)
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-          Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 11)
-        .padding(.vertical, 7)
-        .frame(maxWidth: .infinity)
-        .background(Capsule().fill(Color.gray.opacity(0.25)))
+        Image(systemName: "mic.fill")
+          .font(.system(size: 18, weight: .semibold))
+          .foregroundStyle(.black)
+          .frame(width: Self.micSize, height: Self.micSize)
+          .background(Circle().fill(Color.white))
+          .contentShape(Circle())
       } onSubmit: { text in
-        onSend(text)
+        let message = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else { return }
+        onSend(message)
       }
       .buttonStyle(.plain)
+      .accessibilityLabel("Dictate message")
     }
-    .padding(.horizontal, 4)
+    .padding(.horizontal, 8)
     .padding(.bottom, 2)
   }
+
+  private static let actionsSize: CGFloat = 32
+  private static let micSize: CGFloat = 40
 }
 
 /// What the "+" opens: the controls that used to sit in the middle of the

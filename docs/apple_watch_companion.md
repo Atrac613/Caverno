@@ -194,9 +194,14 @@ the one place on this watch where a destructive action must not look ordinary.
 
 ## Voice
 
-Input uses watchOS dictation through a `TextFieldLink` in the compose bar —
-the link, rather than a `TextField`, because only it lets the collapsed state
-be drawn as a placeholder capsule. `isVoiceMode` follows the "Read replies"
+The compose-bar mic is a SwiftUI `TextFieldLink`, the public watchOS entry
+point for the system text-input experience. On watchOS 11 and later the system
+opens the last-used input method, including Dictation. Caverno does not try to
+replace this UI with its own recorder or keyboard, and it does not label
+`WKTextInputMode.plain` as a dictation-only mode: that value only excludes
+emoji. Dictation needs to be selected once from the system input chooser if
+the keyboard was the last method used.
+`isVoiceMode` follows the "Read replies"
 switch rather than being sent unconditionally: it shortens the phone's answers
 for speech and holds back auto-continue, which is right for a spoken turn and
 wrong for a typed one. That switch is persisted and off until asked for — the
