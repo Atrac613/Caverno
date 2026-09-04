@@ -176,6 +176,10 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH6 | done | Dismiss an approval or question dialog on the phone when the watch resolves it. | Shipped 2026-09-02 and verified on paired simulators: answering from the wrist closes the phone's sheet. Dismissal pops by route name, so it is a no-op when the dialog is not topmost. |
 | Watch | WATCH7 | done | Make the wrist screen a message thread rather than a status glance: bubbles with tails, relative timestamp headers, a typing indicator, and a pinned compose bar. | Shipped 2026-09-02. The frame now carries the tail of the thread; verified on the watch simulator, including the fallback for a watch newer than its phone. |
 | Watch | WATCH8 | done | Keep Watch snapshots ordered across iPhone process restarts without allowing a delayed old frame to resurrect resolved state. | Completed 2026-09-04. Frames now carry a source identity and start time in addition to their per-source sequence; verified with the Watch process kept alive across an iPhone restart. |
+| Watch | WATCH9 | next | Put coding-thread state on the wrist: workspace mode and the conversation goal, with `awaitingConfirmation` surfaced as an interaction to answer rather than as idle. | Re-measure maximal snapshot headroom in a multi-byte script before adding fields; the transcript already spends most of the 16 KB budget. |
+| Watch | WATCH10 | next | Raise the actionable approval notification for a Remote Coding turn, so a blocked desktop agent reaches the wrist at all. Today it reaches it through no path whatsoever. | Not WATCH5: the client holds a live WebSocket, so this needs no push contract. Route the action to `RemoteCodingClientNotifier`, which `approvalNotificationActionsProvider` does not reach today. |
+| Watch | WATCH11 | later | Show and resolve Remote Coding approvals and questions in the companion itself, labelled with the host that owns them. | Gate on WATCH10. Record the SEC4.5g reading — the watch is the client phone's peripheral, so the principal set does not widen — before shipping. |
+| Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
 
 | Anabasis | ANA0 | current | Complete the epistemic grounding: produce `assumption`/`material` on contract items, implement the `userConfirmedAssumption` confirmation path, enforce the parent's read-only tool authority, and project the result. | PRs 1 through 3d are done. Restricting the marker to what a plan asserts took marks on open questions to zero and separated the arms 67% against 17%. PR 3e then defined materiality by consequence and took its discrimination from +0.06 to +0.44, so PR 4 blocks on `material` and builds a per-assumption approval. |
 | Anabasis | ANA1 | next | Decompose work into tasks with preconditions (task accepted / assumption confirmed / question resolved) and a derived `ready`. | Do not start before ANA0's canary is green. First substantially new implementation in the track. |
@@ -1767,6 +1771,183 @@ Verification evidence:
 Next action:
 - None. WATCH4's signed-build App Group check remains the only open Watch
   verification item; WATCH5 remains blocked on a push approval contract.
+
+### WATCH9: Goal State On The Wrist
+
+Status: `next`
+
+The companion mirrors `ChatState` and the conversation list, and nothing else.
+A coding thread therefore reaches the wrist as bubbles with none of the state
+that makes it a coding thread. The gap that matters is
+`ConversationGoalStatus.awaitingConfirmation`: the harness has stopped
+scheduling and is asking whether the objective was met, and `_statusFor`
+renders that as `WatchTurnStatus.idle` — indistinguishable from finished. It is
+a wrist-shaped decision the wrist cannot see. The measured behaviour behind it
+is that the model does not volunteer `update_goal` but answers when asked, so
+the ask is the whole mechanism.
+
+Scope:
+- Carry `workspaceMode` and a projected goal (`objective`, `status`,
+  `completionSummary`, `blockedReason`) in `WatchSnapshot`, capped like the
+  existing title and detail fields and counted in runes.
+- Treat `awaitingConfirmation` as an attention state: its own
+  `WatchTurnStatus`, included in `needsAttention` so the transcript's attention
+  button, the glance, and the widget agree.
+- Add `resolveGoal` (complete / keep going) to `WatchCommand.allowed`, routed
+  through the same path the phone's goal menu uses rather than a second writer
+  — `validationStatus` already has three writers and does not need a fourth
+  shape of the problem.
+- Label the thread picker with each thread's workspace mode.
+  `ConversationsState.conversations` is unfiltered, so chat, coding, and
+  routine threads are presented today as if they were the same kind of thing.
+
+Acceptance criteria:
+- A goal awaiting confirmation raises the same attention affordance an approval
+  does, and answering it from the wrist moves the goal exactly as the phone's
+  menu would.
+- A blocked goal names its blocker instead of reading as idle.
+- A maximal snapshot carrying a goal stays inside
+  `watchSnapshotMaxEncodedBytes`, measured in a multi-byte script. The
+  transcript already spends most of that budget, so this is the gate, not a
+  formality.
+- An older watch build ignores the new fields; an older phone leaves the goal
+  affordance absent rather than empty, the way `lastAssistantText` already
+  covers the reverse skew.
+
+Dependencies:
+- None beyond the shipped companion.
+
+Next action:
+- Re-measure maximal snapshot headroom first, then project the goal and add
+  `resolveGoal`.
+
+### WATCH10: Remote Coding Approvals As Notifications
+
+Status: `next`
+
+The Remote Coding server is desktop-only
+(`Platform.isMacOS || isLinux || isWindows`); mobile is client-only. A blocked
+desktop turn therefore lives in `RemoteCodingClientState` on the phone, and
+nothing outside `features/remote_coding/` reads that provider —
+`remoteCodingClientProvider` has three call sites, none of them the watch and
+none of them `ChatNotifier`. `showPendingApprovalNotification` is called only
+from `ChatNotifier`. The result is that a Mac waiting on `dart analyze` reaches
+the wrist through no path at all: not the companion, and not a notification
+either.
+
+That contradicts `docs/apple_watch_companion.md`, which reasons that since
+file, shell, and git approvals cannot arise on iOS, "the watch's approval path
+therefore serves a desktop-driven turn". The intent is written down; the wiring
+is not there. Fix the wiring, then fix the sentence.
+
+This is not WATCH5. WATCH5 is blocked because no *push* carries an approval.
+This path needs no push: the client holds a live WebSocket while connected and
+the approval arrives on it. The notification is raised locally, and iOS
+forwards it and its actions to the paired watch with no watchOS code involved
+— the same mechanism WATCH1 already relies on.
+
+Scope:
+- Raise the actionable approval notification from the Remote Coding client when
+  a pending approval arrives, reusing `showPendingApprovalNotification` and the
+  `RemoteCodingNotificationReceiptStore` dedup that terminal notifications
+  already use.
+- Route Approve/Deny back through `RemoteCodingClientNotifier.resolveApproval`.
+  `approvalNotificationActionsProvider` resolves only against
+  `chatNotifierProvider`, so an action carrying a remote approval id resolves
+  nothing at all today, silently.
+- Name the host in the body. `RemoteCodingHost` carries the server name, and
+  "wants to run: dart analyze" without saying which machine will run it is
+  exactly the failure this must not ship.
+- Suppress the notification while the Remote Coding page is foregrounded,
+  matching the existing terminal-notification behaviour.
+
+Acceptance criteria:
+- All three remote approval kinds — `file`, `localCommand`, `gitCommand` — are
+  bare yes/no decisions, so Approve/Deny is a truthful answer for each and the
+  notification carries the actions for all three.
+- The action resolves by approval id against the owning notifier. A stale id
+  fails visibly rather than resolving whatever else is pending.
+- Resolving on the desktop leaves no orphan notification on the phone.
+
+Dependencies:
+- None. Independent of WATCH9 and a prerequisite for WATCH11.
+
+Next action:
+- Add the client-side raise and the action route, then verify with a Mac
+  server, an iPhone client, and a paired watch. Paired simulators are not
+  sufficient here: the whole point is a three-device path.
+
+### WATCH11: Remote Coding Interactions In The Companion
+
+Status: `later`
+
+Scope:
+- Give `WatchSessionNotifier` a second input source alongside
+  `chatNotifierProvider`: `remoteCodingClientProvider`.
+- Decide precedence when a local interaction and a remote one block at the same
+  time. One screen, one decision; `WatchApprovalMapper._byPriority` already
+  ranks by consequence and the same principle has to extend across sources.
+- Add a source label to `WatchApproval` carrying the server name, and render
+  it. Approving a shell command without knowing which machine runs it is the
+  failure mode this milestone exists to avoid, so the label is load-bearing
+  rather than decoration.
+- Route `resolveApproval` and `resolveQuestion` to the owning notifier, keeping
+  the existing correlated-result wait so a failure stays on the screen where it
+  happened.
+- Keep the transcript local-only in this slice. Two transcripts on one wrist
+  screen is a separate design problem, and the payload budget cannot carry both.
+
+Trust model — a new judgement, not a restatement:
+- SEC4.5g scopes a Remote Coding interaction to the paired device that started
+  the turn. That device is the iPhone, and WATCH1 established the watch as a
+  peripheral of this device rather than a principal of its own. Surfacing the
+  phone's own remote-coding approval on the phone's own watch therefore does
+  not widen the principal set.
+- It is not a relaxation of `WatchApprovalMapper`'s `isOwnedByRemoteDevice`
+  exclusion. That guard covers the desktop-as-server case and cannot fire on
+  iOS, where `ChatState` never holds a remote-origin approval. Reaching remote
+  coding means adding a second source, not widening the existing gate — and
+  conflating the two would quietly undo SEC4.5g on desktop.
+- Write the reading into `docs/apple_watch_companion.md` and record it beside
+  SA-24 in `docs/security_followup_review_2026-08-24.md` before shipping.
+
+Acceptance criteria:
+- A pending approval on the connected desktop renders on the wrist naming its
+  host, and answering it resolves that request over the WebSocket.
+- A local interaction and a remote one pending together produce one screen with
+  a decided, tested precedence.
+- The snapshot carrying remote fields stays inside the payload budget in a
+  multi-byte script.
+- A remote interaction owned by a *different* paired device is still excluded.
+
+Dependencies:
+- WATCH10, which proves the client-side wiring and the host naming with far
+  less machinery.
+
+Next action:
+- Gate on WATCH10 shipping, then settle cross-source precedence before writing
+  any wire fields.
+
+### WATCH12: Running Tool And Verification Readout
+
+Status: `later`
+
+Scope:
+- Say what a turn is doing rather than only that it is streaming: the tool or
+  command in flight, and whether the thread's `verificationGeneration` is
+  behind its `mutationGeneration`.
+
+Why this is `later` and not `next`:
+- There is no general active-tool field to project. `activeToolName` lives on
+  `ParticipantTurnRuntime` and is set only for participant turns, so this needs
+  a new `ChatState` field, not a projection of an existing one.
+- Nothing has shown that a wrist wants it. The evidence rule applies: build
+  what a real session proves is missing, not what a status screen could
+  plausibly hold.
+
+Next action:
+- None. Revisit if WATCH9 or WATCH11 usage shows the glance is
+  under-informative.
 
 ## Anabasis Orchestrator Track
 

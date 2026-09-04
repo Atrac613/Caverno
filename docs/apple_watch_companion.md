@@ -106,10 +106,19 @@ are being read aloud.
 
 File, shell, and git approvals **cannot arise on iOS**. `mcp_tool_service.dart`
 gates all three behind `isDesktopPlatform`, because writing arbitrary paths on a
-sandboxed mobile OS is both risky and largely unusable. The watch's approval
-path therefore serves a desktop-driven turn, or the kinds mobile does have —
-BLE, SSH, browser, participant. `ask_user_question` is unconditional and is the
+sandboxed mobile OS is both risky and largely unusable. What the watch's
+approval path actually serves is therefore the kinds mobile does have — BLE,
+SSH, browser, participant. `ask_user_question` is unconditional and is the
 interaction the companion answers most often on a phone-only setup.
+
+A desktop-driven turn does **not** reach the wrist today, and this document
+previously claimed it did. The Remote Coding server is desktop-only and mobile
+is client-only, so a blocked desktop turn lives in `RemoteCodingClientState` on
+the phone — a provider neither `WatchSessionNotifier` nor `ChatNotifier` reads.
+`showPendingApprovalNotification` is raised only from `ChatNotifier`, so the
+notification fallback below does not cover it either. Closing that gap is
+WATCH10 (the notification, which needs no push contract) and WATCH11 (the
+companion itself) in `docs/roadmap.md`.
 
 A dialog the watch resolves is dismissed on the phone by `ApprovalDialogPresenter`,
 which pops by route name. That is deliberately a no-op when the dialog is not
