@@ -37,6 +37,12 @@ tool/flutter_test_quiet.sh --verbose             # also stream the raw reporter
 fvm flutter test
 fvm flutter test test/widget_test.dart
 
+# Bounded repository discovery for agent runs. The complete JSON result is
+# retained under build/codex_reports/. Use raw rg for exact follow-up review.
+tool/codex_rg.sh -- PATTERN [PATH ...]
+tool/codex_rg.sh --max-hits 80 -- PATTERN [PATH ...]
+rg PATTERN [PATH ...]
+
 # Run app
 fvm flutter run
 ```
@@ -54,6 +60,20 @@ fvm flutter run
 - After fixing a bug, search for adjacent patterns that could contain the same
   issue. Record the search terms or inspected files in the PR or final handoff
   when the pattern is important.
+- Use `tool/codex_rg.sh` for broad repository discovery. It prints bounded,
+  path-sorted hits and retains the complete JSON result. Use raw, targeted `rg`
+  for exact confirmation and security-sensitive review; the summary is not a
+  substitute for inspecting material matches. Use `--raw` for file-list,
+  count, quiet-check, or other non-match output modes.
+- Locate files and symbols before reading source. Prefer relevant 200-300-line
+  regions over whole large files. For Git review, start with stats and changed
+  paths, then inspect every material diff directly before concluding.
+- Pass `--quiet-output` when an agent runs `tool/release_ios_macos.sh`,
+  `tool/publish_macos_sparkle_release.sh`,
+  `tool/run_turn_steering_live_canary.sh`, or
+  `tool/run_pro_reasoning_live_canary.sh`. The scripts retain complete logs,
+  emit bounded heartbeats, and show a diagnostic tail on command failure. Their
+  default raw mode remains available for human-operated streaming.
 - Use `tool/codex_verify.sh` as the default local verification entrypoint. Add
   `--coverage` when test coverage or missing edge cases are part of the task.
   Test output is summarized by default (`--raw-tests` restores the full

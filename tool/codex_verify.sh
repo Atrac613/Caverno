@@ -355,7 +355,7 @@ if $RUN_ANALYZE; then
       "$package_dir" \
       "${PACKAGE_CMD[@]}" analyze
   done
-  if [[ -f "$NOTIFICATION_RELAY_DIR/package.json" ]]; then
+  if [[ -f "$NOTIFICATION_RELAY_DIR/package.json" ]] && ! $FOCUSED; then
     run_in_directory_step \
       "Check notification relay" \
       "$NOTIFICATION_RELAY_DIR" \

@@ -17,6 +17,50 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "${ROOT_DIR}/tool/agent_output.sh"
+OUTPUT_MODE="${CAVERNO_AGENT_OUTPUT_MODE:-raw}"
+
+usage() {
+  cat <<'USAGE'
+Usage: tool/run_turn_steering_live_canary.sh [options]
+
+Options:
+  --quiet-output  Save full Flutter output and print bounded status heartbeats.
+  --raw-output    Stream full Flutter output (default).
+  -h, --help      Show this help.
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --quiet-output)
+      OUTPUT_MODE="quiet"
+      shift
+      ;;
+    --raw-output)
+      OUTPUT_MODE="raw"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 64
+      ;;
+  esac
+done
+
+case "${OUTPUT_MODE}" in
+  quiet|raw)
+    ;;
+  *)
+    echo "CAVERNO_AGENT_OUTPUT_MODE must be quiet or raw." >&2
+    exit 64
+    ;;
+esac
 
 : "${CAVERNO_LLM_BASE_URL:?Set CAVERNO_LLM_BASE_URL before running the turn steering canary.}"
 : "${CAVERNO_LLM_API_KEY:?Set CAVERNO_LLM_API_KEY before running the turn steering canary.}"
@@ -38,6 +82,7 @@ echo "  Base URL: ${CAVERNO_LLM_BASE_URL}"
 echo "  Model: ${CAVERNO_LLM_MODEL}"
 echo "  Repeat count: ${REPEAT_COUNT}"
 echo "  Report directory: ${RUN_DIR}"
+echo "  Flutter output: ${OUTPUT_MODE}"
 
 cd "${ROOT_DIR}"
 mkdir -p "${RUN_DIR}"
@@ -49,14 +94,17 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   run_log_path="${RUN_DIR}/${run_label}_flutter_test.log"
   echo "Running ${run_label}/${REPEAT_COUNT}"
 
-  set +e
-  CAVERNO_TURN_STEERING_LIVE_CANARY=1 \
-  CAVERNO_TURN_STEERING_RUN_LABEL="${run_label}" \
-  CAVERNO_TURN_STEERING_WORK_ROOT="${WORK_ROOT}/${run_label}" \
-  flutter test tool/canaries/turn_steering_live_canary_test.dart \
-    --reporter expanded 2>&1 | tee "${run_log_path}"
-  run_status="${PIPESTATUS[0]}"
-  set -e
+  run_status=0
+  agent_output_run \
+    "${run_log_path}" \
+    "turn steering ${run_label}/${REPEAT_COUNT}" \
+    "${OUTPUT_MODE}" \
+    env \
+    CAVERNO_TURN_STEERING_LIVE_CANARY=1 \
+    CAVERNO_TURN_STEERING_RUN_LABEL="${run_label}" \
+    CAVERNO_TURN_STEERING_WORK_ROOT="${WORK_ROOT}/${run_label}" \
+    flutter test tool/canaries/turn_steering_live_canary_test.dart \
+    --reporter expanded || run_status=$?
 
   grep -h 'TURN_STEERING_CANARY_SNAPSHOT ' "${run_log_path}" \
     | sed 's/.*TURN_STEERING_CANARY_SNAPSHOT //' >> "${SNAPSHOT_PATH}" || true

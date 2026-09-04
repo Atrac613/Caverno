@@ -3,12 +3,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "${ROOT_DIR}/tool/agent_output.sh"
 BUILD_NAME="${CAVERNO_RELEASE_BUILD_NAME:-}"
 BUILD_NUMBER="${CAVERNO_RELEASE_BUILD_NUMBER:-}"
 RUN_IOS="yes"
 RUN_MACOS="yes"
 DRY_RUN="no"
 RUN_PUB_GET="yes"
+OUTPUT_MODE="${CAVERNO_AGENT_OUTPUT_MODE:-raw}"
 
 IOS_SCHEME="${CAVERNO_IOS_SCHEME:-Runner}"
 IOS_BUNDLE_ID="${CAVERNO_IOS_BUNDLE_ID:-com.noguwo.apps.caverno}"
@@ -59,6 +61,8 @@ Options:
   --macos-s3-uri URI            Sparkle S3 destination.
   --macos-release-notes PATH    Release notes for Sparkle appcast.
   --release-log-dir PATH        Directory for per-lane release logs.
+  --quiet-output                Save full lane output and print bounded status.
+  --raw-output                  Stream full lane output (default).
   --no-pub-get                  Skip flutter pub get.
   --dry-run                     Print commands without executing them.
   --help                        Show this help.
@@ -175,6 +179,14 @@ while [[ $# -gt 0 ]]; do
       RELEASE_LOG_DIR="$2"
       shift 2
       ;;
+    --quiet-output)
+      OUTPUT_MODE="quiet"
+      shift 1
+      ;;
+    --raw-output)
+      OUTPUT_MODE="raw"
+      shift 1
+      ;;
     --no-pub-get)
       RUN_PUB_GET="no"
       shift 1
@@ -218,6 +230,15 @@ case "${MACOS_PACKAGE}" in
     ;;
   *)
     echo "--macos-package must be zip or dmg." >&2
+    exit 64
+    ;;
+esac
+
+case "${OUTPUT_MODE}" in
+  quiet|raw)
+    ;;
+  *)
+    echo "CAVERNO_AGENT_OUTPUT_MODE must be quiet or raw." >&2
     exit 64
     ;;
 esac
@@ -399,14 +420,14 @@ run_release_lane() {
       ;;
   esac
 
-  echo "Release lane log (${lane}): ${log_path}"
-  set +e
-  "$@" 2>&1 | tee "${log_path}"
-  local command_status="${PIPESTATUS[0]}"
-  set -e
+  local command_status=0
+  agent_output_run "${log_path}" "${lane} release lane" "${OUTPUT_MODE}" "$@" ||
+    command_status=$?
 
   if [[ -n "${failure_pattern}" ]] && grep -Eiq "${failure_pattern}" "${log_path}"; then
     echo "Detected ${lane} release failure marker in ${log_path}." >&2
+    echo "Failure markers:"
+    grep -Ei "${failure_pattern}" "${log_path}" | tail -20
     return 1
   fi
   # `flutter build ipa` with ExportOptions destination=upload uploads the build
@@ -509,6 +530,7 @@ echo "  Version: ${BUILD_NAME}+${BUILD_NUMBER}"
 echo "  iOS: ${RUN_IOS}"
 echo "  macOS: ${RUN_MACOS}"
 echo "  Dry run: ${DRY_RUN}"
+echo "  Command output: ${OUTPUT_MODE}"
 
 run_pub_get
 

@@ -73,12 +73,21 @@ else
 fi
 
 set +e
-"${FLUTTER_CMD[@]}" test \
-  "${REPORTER[@]}" \
-  --file-reporter "json:$JSON_LOG" \
-  ${TEST_ARGS[@]+"${TEST_ARGS[@]}"} \
-  >"$RAW_LOG" 2>&1
-RUN_STATUS=$?
+if $VERBOSE; then
+  "${FLUTTER_CMD[@]}" test \
+    "${REPORTER[@]}" \
+    --file-reporter "json:$JSON_LOG" \
+    ${TEST_ARGS[@]+"${TEST_ARGS[@]}"} \
+    2>&1 | tee "$RAW_LOG"
+  RUN_STATUS=${PIPESTATUS[0]}
+else
+  "${FLUTTER_CMD[@]}" test \
+    "${REPORTER[@]}" \
+    --file-reporter "json:$JSON_LOG" \
+    ${TEST_ARGS[@]+"${TEST_ARGS[@]}"} \
+    >"$RAW_LOG" 2>&1
+  RUN_STATUS=$?
+fi
 set -e
 
 if [[ ! -s "$JSON_LOG" ]]; then

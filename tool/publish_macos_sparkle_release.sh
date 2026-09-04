@@ -3,6 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "${ROOT_DIR}/tool/agent_output.sh"
 ARTIFACT_PATH=""
 RELEASE_NOTES_PATH=""
 UPDATES_DIR="${CAVERNO_SPARKLE_UPDATES_DIR:-${ROOT_DIR}/build/macos_sparkle_updates}"
@@ -20,6 +21,7 @@ AWS_BIN="${AWS_BIN:-aws}"
 DRY_RUN="no"
 SKIP_UPLOAD="no"
 SKIP_PUBLIC_VERIFY="no"
+OUTPUT_MODE="${CAVERNO_AGENT_OUTPUT_MODE:-raw}"
 
 usage() {
   cat <<'USAGE'
@@ -41,6 +43,8 @@ Options:
   --maximum-deltas COUNT          Delta update count passed to generate_appcast, default 0.
   --skip-upload                   Generate appcast locally without uploading to S3.
   --skip-public-verify            Do not verify public appcast after S3 upload.
+  --quiet-output                  Save full appcast output and print bounded status.
+  --raw-output                    Stream full appcast output (default).
   --dry-run                       Print commands without copying, generating, or uploading.
   --help                          Show this help.
 
@@ -133,6 +137,14 @@ while [[ $# -gt 0 ]]; do
       SKIP_PUBLIC_VERIFY="yes"
       shift 1
       ;;
+    --quiet-output)
+      OUTPUT_MODE="quiet"
+      shift 1
+      ;;
+    --raw-output)
+      OUTPUT_MODE="raw"
+      shift 1
+      ;;
     --dry-run)
       DRY_RUN="yes"
       shift 1
@@ -148,6 +160,15 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+case "${OUTPUT_MODE}" in
+  quiet|raw)
+    ;;
+  *)
+    echo "CAVERNO_AGENT_OUTPUT_MODE must be quiet or raw." >&2
+    exit 64
+    ;;
+esac
 
 if [[ -z "${ARTIFACT_PATH}" ]]; then
   echo "--artifact is required." >&2
@@ -264,19 +285,21 @@ run_generate_appcast() {
     return 0
   fi
 
-  local log_file
-  log_file="$(mktemp "${TMPDIR:-/tmp}/caverno-generate-appcast.XXXXXX")"
-  if ! "$@" 2>&1 | tee "${log_file}"; then
-    rm -f "${log_file}"
-    exit 1
+  local log_dir="${CAVERNO_SPARKLE_COMMAND_LOG_DIR:-${UPDATES_DIR}/logs}"
+  local log_file="${log_dir}/generate_appcast-$(date +%Y%m%d%H%M%S)-$$.log"
+  local command_status=0
+  agent_output_run "${log_file}" "Sparkle appcast generation" "${OUTPUT_MODE}" "$@" ||
+    command_status=$?
+  if [[ "${command_status}" -ne 0 ]]; then
+    exit "${command_status}"
   fi
   if grep -E 'SUPublicEDKey.*does not match|lack of private EdDSA key|Private key.*not found' "${log_file}" >/dev/null; then
     echo "Sparkle appcast generation reported signing key problems." >&2
     echo "Verify SUPublicEDKey in the app and the private EdDSA key in the Keychain." >&2
-    rm -f "${log_file}"
+    echo "Failure markers:"
+    grep -E 'SUPublicEDKey.*does not match|lack of private EdDSA key|Private key.*not found' "${log_file}" | tail -20
     exit 65
   fi
-  rm -f "${log_file}"
 }
 
 STAGED_ARTIFACT="${UPDATES_DIR}/${ARTIFACT_NAME}"
@@ -292,6 +315,7 @@ echo "  Appcast: ${APPCAST_PATH}"
 echo "  Public verification: $([[ "${SKIP_PUBLIC_VERIFY}" == "yes" ]] && echo skipped || echo enabled)"
 echo "  S3 URI: ${S3_URI:-<skipped>}"
 echo "  Dry run: ${DRY_RUN}"
+echo "  Appcast output: ${OUTPUT_MODE}"
 
 run mkdir -p "${UPDATES_DIR}"
 run cp "${ARTIFACT_PATH}" "${STAGED_ARTIFACT}"

@@ -39,6 +39,9 @@ handoffs can refer to the same unit of work over time.
   task decomposition, delegation, and acceptance — documented in this file
   under "Anabasis Orchestrator Track", with the design in
   `docs/ANABASIS_ORCHESTRATOR_ARCHITECTURE.md`.
+- Use `DX<number>` for repository developer-efficiency milestones — reducing
+  model-visible command output while preserving complete diagnostics —
+  documented in this file under "Codex Developer Efficiency Track".
 - Use one of these statuses: `done`, `current`, `next`, `blocked`, `later`.
 - Every active milestone should record scope, acceptance criteria, verification
   evidence, and the next action.
@@ -78,6 +81,10 @@ handoffs can refer to the same unit of work over time.
 | Caverno CLI | CLI1 | done | Extract a shared application execution runtime without changing GUI behavior. | Use the shared typed runtime and CLI1 parity evidence as the terminal frontend boundary. |
 | Caverno CLI | CLI2 | done | Ship the interactive terminal MVP on the shared execution runtime. | Preserve the passing terminal and three-headless-plus-one-macOS parity gates as the CLI2 baseline; keep persistence, resume, and concurrent ownership in CLI3. |
 | Caverno CLI | CLI3 | done | Reuse production persistence and enforce cross-process ownership before conversation resume. | Preserve the persistence, resume, migration-retry, and direct-lock contention gates as the CLI3 baseline. |
+| Developer Experience | DX1 | done | Bound Flutter-test output for coding agents while preserving complete reports and actionable failure diagnostics. | Keep the quiet wrapper as the default test path and retain tested streaming-plus-capture behavior for `--verbose`. |
+| Developer Experience | DX2 | done | Make repository discovery summary-first without weakening exact follow-up searches or `rg` exit semantics. | Keep `tool/codex_rg.sh` for broad discovery and raw `rg` for exact or security-sensitive follow-up. |
+| Developer Experience | DX3 | done | Make selected long-running release, build, and live-canary entrypoints log-first for agent runs. | Agents use `--quiet-output`; human-operated commands retain raw streaming by default. |
+| Developer Experience | DX4 | done | Reduce broad source and Git reads through progressive inspection rather than lossy evidence summarization. | Maintain the locate-then-read and stat-then-diff guidance; add tooling only if future evidence shows repeated over-reading. |
 | Heuristic Removal | HEU1 | done | Make production release approval decidable only from a structured answer, never from prose. | Landed in `ef6af66d`: approval is decided by a per-release token, prose predicates run in shadow, and a six-language table asserts the coordinator verdict. Watch `[ProductionRelease] Shadow divergence` before deleting the predicates. |
 | Heuristic Removal | HEU2 | done | Stop discarding structured tool evidence at the claim-notice boundary. | Landed in `9cc6b68c`: `outcome` survives the freeze, reviving the typed mutation path, the no-op-mutation check, and the structured test-count path. HEU3 is unblocked. |
 | Heuristic Removal | HEU3 | blocked | Completion claims. Premise corrected 2026-08-27: ground truth verifies a claim but cannot detect one, so this needs structured self-report or unconditional fact-stating, not a conversion. | Baseline taken: file-claim guards fire 2-3 times in 715 turns and the narrated-transcript guard never has; the measured substitute collapsed from 22 to 3 turns once harness-injected results were separated from refusals. Prerequisite instrument landed 2026-09-02: `ToolResultOrigin` makes 17 producers declare harness-feedback vs policy-refusal, and `tool/analyze_tool_results.py` reports the split plus the undeclared codes. Building it found three producers no hand-maintained list contained, one of them the corpus's most frequent. Still blocked: the declaration has to accumulate in post-change sessions before a refusal rate is readable, and the self-report design remains unmade. |
@@ -180,7 +187,9 @@ detailed in `docs/local_llm_agent_roadmap.md`. The user-created Tools MVP is
 detailed in `docs/tools_mvp_roadmap.md`. Conversation fork milestones are
 detailed below under "Conversation Fork Track", Apple Watch companion
 milestones under "Apple Watch Companion Track", and Anabasis orchestrator
-milestones under "Anabasis Orchestrator Track".
+milestones under "Anabasis Orchestrator Track". Repository-side Codex output
+efficiency is detailed below under "Codex Developer Efficiency Track" and is
+kept separate from the in-app Local LLM milestones.
 
 The canonical security finding record is
 `docs/security_audit_2026-08-14.md`, with the current evidence and patch plan in
@@ -205,6 +214,87 @@ Keep each row as a separate task and focused PR. Remaining SEC4.7/SA-16 work is
 still required, but follows the two High severity release blockers unless the
 affected local-command and HTML Preview capabilities are absent from the release
 artifact under the audit risk-acceptance policy.
+
+## Codex Developer Efficiency Track
+
+This track controls output produced by repository development commands and
+consumed by external coding agents. It does not change Caverno's product prompt
+or tool-result behavior; LL34 continues to own the in-app summary-first policy.
+The measurement baseline and prioritization are recorded in
+`docs/codex_output_efficiency_investigation_2026-09-04.md`.
+
+### DX1: Flutter Test Output Summarization
+
+Status: **done**.
+
+- Scope: route Flutter tests through the JSON reporter, keep complete JSON and
+  stdout logs, and print only a success verdict or bounded failure evidence.
+- Acceptance: preserve the test exit status, surface load/compile failures and
+  incomplete runs, retain a raw escape hatch, and make the quiet path the
+  `tool/codex_verify.sh` default.
+- Evidence: PR #188 is present in current history; the 2026-09-04 focused run
+  passed 334 tests and reduced default model-visible test output from 844,725
+  to 137 bytes. Five summarizer regression tests passed.
+- Follow-up completed: `--verbose` now streams the expanded reporter while
+  retaining the complete stdout artifact. Its streaming and default-capture
+  contracts are covered by repository-side regression tests.
+
+### DX2: Summary-First Repository Discovery
+
+Status: **done**.
+
+- Scope: add `tool/codex_rg.sh` for discovery searches only. Report match and
+  file counts, a deterministic bounded hit set, explicit truncation, and the
+  complete artifact path; retain `--raw` for exact output.
+- Acceptance: preserve `rg` exit codes for matches, no matches, and errors;
+  cover invalid patterns, path and binary handling, result limits, and complete
+  artifact retention; measure output characters and raw follow-up frequency.
+- Promotion gate: diagnosis completeness must remain intact. The wrapper must
+  not replace targeted raw searches used for exact or security-sensitive review.
+- Evidence: 19 repository-side tests cover the wrapper, shared output helper,
+  selected scripts, and the focused verification contract.
+  A 3,241-line repository search produced 1,886 visible bytes
+  instead of 367,396 raw bytes, a 99.49% reduction, while retaining a
+  1,341,927-byte complete JSON artifact. The `--raw` path is tested; future
+  agent sessions should be sampled for raw follow-up frequency before changing
+  the default limits. Non-match output modes fail closed with a `--raw`
+  diagnostic, unexpected non-JSON output fails closed, and saved evidence uses
+  owner-only permissions.
+
+### DX3: Log-First Long-Running Commands
+
+Status: **done**.
+
+- Scope: add an agent-oriented quiet path to selected release, build, and live
+  canary entrypoints that currently stream complete output.
+- Acceptance: preserve the full log and exact exit status, emit bounded stage
+  heartbeats, and show failure markers plus a diagnostic tail on failure. Keep
+  human-operated raw output available.
+- Implemented entrypoints: `tool/release_ios_macos.sh`,
+  `tool/publish_macos_sparkle_release.sh`,
+  `tool/run_turn_steering_live_canary.sh`, and
+  `tool/run_pro_reasoning_live_canary.sh`.
+- Boundary: do not begin with a generic arbitrary-command wrapper; preserve the
+  release scripts' existing success/failure interpretation first.
+- Evidence: the repository-side integration suite covers quiet success,
+  failure status and diagnostic tails, heartbeats, raw streaming, release and
+  appcast logs, and both live-canary log/snapshot paths. Existing Dart script
+  contracts pass eight focused tests. Quiet execution handles SIGINT/SIGTERM,
+  reaps its command and heartbeat processes, and creates logs with owner-only
+  permissions.
+
+### DX4: Progressive Source And Git Inspection
+
+Status: **done**.
+
+- Scope: locate files and symbols before bounded source reads, then begin Git
+  review with stats and paths before inspecting material diffs directly.
+- Acceptance: reduce broad reads without hiding source or diff evidence needed
+  for correctness and security review.
+- Evidence: the 10-session baseline found search, polling, and source reads at
+  76.67% of recorded output. `AGENTS.md` and `CLAUDE.md` now require bounded
+  discovery, 200-300-line source regions, stat/path-first Git review, and direct
+  inspection of every material diff. No lossy source or diff wrapper was added.
 
 ## Plan Mode Track
 

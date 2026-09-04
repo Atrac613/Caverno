@@ -60,6 +60,12 @@ tool/flutter_test_quiet.sh --verbose             # also stream the raw reporter
 flutter test
 flutter test test/widget_test.dart
 
+# Bounded repository discovery for agent runs. The complete JSON result is
+# retained under build/codex_reports/. Use raw rg for exact follow-up review.
+tool/codex_rg.sh -- PATTERN [PATH ...]
+tool/codex_rg.sh --max-hits 80 -- PATTERN [PATH ...]
+rg PATTERN [PATH ...]
+
 # Run the embedded-Python integration test on a device/simulator (real
 # serious_python interpreter; proves the run_python_script native path):
 flutter test integration_test/python_runtime_test.dart -d <device-id>
@@ -91,6 +97,22 @@ python3 tool/triage_session_logs.py --top 10 [--since-days N]
 # SIGNATURES when a change ships.
 python3 tool/check_fix_firings.py [--dir LOG_DIR] [--repo REPO]
 ```
+
+## Agent Output Policy
+
+- Use `tool/codex_rg.sh` for broad repository discovery. It prints bounded,
+  path-sorted hits and retains the complete JSON result. Use raw, targeted `rg`
+  for exact confirmation and security-sensitive review. Use `--raw` for
+  file-list, count, quiet-check, or other non-match output modes.
+- Locate files and symbols before reading source. Prefer relevant 200-300-line
+  regions over whole large files. For Git review, start with stats and changed
+  paths, then inspect every material diff directly before concluding.
+- Pass `--quiet-output` when an agent runs `tool/release_ios_macos.sh`,
+  `tool/publish_macos_sparkle_release.sh`,
+  `tool/run_turn_steering_live_canary.sh`, or
+  `tool/run_pro_reasoning_live_canary.sh`. The scripts retain complete logs,
+  emit bounded heartbeats, and show a diagnostic tail on command failure. Their
+  default raw mode remains available for human-operated streaming.
 
 ## Live LLM Canary Workflow
 
