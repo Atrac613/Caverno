@@ -2845,12 +2845,22 @@ parent prompt, `anabasis_parent_authority_refused` zero times.
   `workflowStage: idle`, `totalTaskCount: 0`. With no contract tasks there are
   no candidates, so **ANA2's queue is still unobserved rather than broken**.
   Seeing it needs a coding thread that has a plan, then `@anabasis` on it.
-- **The log cannot say which `ModelUsageRole` a request ran under** — the
+- **The log could not say which `ModelUsageRole` a request ran under** — the
   session-log `context` carries `workspaceMode`, `phase`, ids, and no role. The
   zone defect above was found by grepping the system prompt for its text, and
-  after the fix that is still the only available signal. Recording the role in
-  the log context would make the thing ANA0 got wrong directly observable
-  instead of inferable.
+  after the fix that was still the only available signal. **Closed by schema
+  v4's `request.usageRole`**, captured by the caller at issue time and written
+  even when `unknown`, so an entry point that claimed no role reads as a gap
+  rather than as an unrecorded field.
+- Writing it turned up a latent defect on the way: `streamWithToolResult` is
+  the one logged operation whose body is an `async*` generator, so it resolved
+  the session-log context *and* the role only on first listen. A stream
+  listened to outside the caller's zone got no context at all — the test that
+  now guards it fails by finding no log file written, not by reading the wrong
+  role. Nothing calls that operation today (zero occurrences across the
+  corpus), so this is insurance rather than a recovered record, but it is the
+  same mistake [[caverno-zone-attribution-lazy-stream]] names and the only
+  generator-bodied site on the class.
 
 ### ANA3: Accept
 

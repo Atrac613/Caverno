@@ -56,6 +56,18 @@ Each line is one JSON object with schema name
   a tool catalogue that changes shape mid-loop diagnosable: compare the tool
   list of two adjacent requests and read which producer built the odd one out.
   The field is absent when no producer set a label.
+- `request.usageRole` (schema v4), naming which part of the app the request was
+  booked to — `chat`, `memoryExtraction`, `planning`, `subagent`,
+  `anabasisParent`, `routine`, and so on. Always written, including as
+  `unknown`: an entry point that claimed no role is a gap worth seeing, and a
+  missing field would read as "not recorded yet" instead. Before this field the
+  only way to tell which role a request ran under was to grep the logged system
+  prompt for text unique to it, which is how the Anabasis parent was found
+  running under the wrong role while every test passed.
+  Captured by the caller at issue time, never by the writer: the record is
+  written once the response lands, and a streaming body is listened to outside
+  the caller's zone, so the writer's view of the ambient role is not the
+  caller's.
 - Response content, finish reason, tool calls, token usage, or error details
 - Turn-level markers such as `turn_exit`, `goal_auto_continue`,
   `primary_model_route`, `goal_completion_shadow`, `execution_shadow`, and

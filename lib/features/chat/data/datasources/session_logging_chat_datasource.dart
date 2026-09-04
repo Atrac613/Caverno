@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/video_delivery.dart';
 import 'chat_datasource.dart';
 import 'chat_remote_datasource.dart';
@@ -135,6 +136,7 @@ class SessionLoggingChatDataSource
     final response = StringBuffer();
     final request = LlmSessionLogRequest(
       label: context?.requestLabel,
+      usageRole: ModelUsageRole.current,
       videoDeliveryLookup: _videoDeliveryFor,
       operation: 'streamChatCompletion',
       messages: messages,
@@ -205,6 +207,7 @@ class SessionLoggingChatDataSource
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       label: context?.requestLabel,
+      usageRole: ModelUsageRole.current,
       videoDeliveryLookup: _videoDeliveryFor,
       operation: 'createChatCompletion',
       messages: messages,
@@ -258,6 +261,7 @@ class SessionLoggingChatDataSource
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       label: context?.requestLabel,
+      usageRole: ModelUsageRole.current,
       videoDeliveryLookup: _videoDeliveryFor,
       operation: 'streamChatCompletionWithTools',
       messages: messages,
@@ -335,30 +339,65 @@ class SessionLoggingChatDataSource
     String? model,
     double? temperature,
     int? maxTokens,
-  }) async* {
+  }) {
+    // Resolved out here rather than in the generator: an `async*` body does not
+    // start until the stream is first listened to, and that listen happens
+    // outside the caller's zone -- so the session-log context, the producer
+    // label and the usage role would all be read from whatever zone consumed
+    // the stream. This is the only operation on this class whose body is a
+    // generator, which is why it is the only one that needs the split.
     final context = _resolveContext();
-    final startedAt = DateTime.now();
-    final request = LlmSessionLogRequest(
-      label: context?.requestLabel,
-      videoDeliveryLookup: _videoDeliveryFor,
-      operation: 'streamWithToolResult',
+    return _streamWithToolResultAndLog(
+      context: context,
+      startedAt: DateTime.now(),
+      request: LlmSessionLogRequest(
+        label: context?.requestLabel,
+        usageRole: ModelUsageRole.current,
+        videoDeliveryLookup: _videoDeliveryFor,
+        operation: 'streamWithToolResult',
+        messages: messages,
+        toolCallId: toolCallId,
+        toolName: toolName,
+        toolArguments: toolArguments,
+        toolResult: toolResult,
+        assistantContent: assistantContent,
+        model: model ?? ApiConstants.defaultModel,
+        temperature: temperature ?? ApiConstants.defaultTemperature,
+        maxTokens: _effectiveMaxTokens(
+          model ?? ApiConstants.defaultModel,
+          maxTokens,
+        ),
+        chatTemplateKwargs: _chatTemplateKwargs(
+          model ?? ApiConstants.defaultModel,
+          maxTokens,
+        ),
+      ),
       messages: messages,
       toolCallId: toolCallId,
       toolName: toolName,
       toolArguments: toolArguments,
       toolResult: toolResult,
       assistantContent: assistantContent,
-      model: model ?? ApiConstants.defaultModel,
-      temperature: temperature ?? ApiConstants.defaultTemperature,
-      maxTokens: _effectiveMaxTokens(
-        model ?? ApiConstants.defaultModel,
-        maxTokens,
-      ),
-      chatTemplateKwargs: _chatTemplateKwargs(
-        model ?? ApiConstants.defaultModel,
-        maxTokens,
-      ),
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
     );
+  }
+
+  Stream<String> _streamWithToolResultAndLog({
+    required LlmSessionLogContext? context,
+    required DateTime startedAt,
+    required LlmSessionLogRequest request,
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async* {
     final response = StringBuffer();
     try {
       final stream = _delegate.streamWithToolResult(
@@ -414,6 +453,7 @@ class SessionLoggingChatDataSource
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       label: context?.requestLabel,
+      usageRole: ModelUsageRole.current,
       videoDeliveryLookup: _videoDeliveryFor,
       operation: 'createChatCompletionWithToolResult',
       messages: messages,
@@ -479,6 +519,7 @@ class SessionLoggingChatDataSource
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       label: context?.requestLabel,
+      usageRole: ModelUsageRole.current,
       videoDeliveryLookup: _videoDeliveryFor,
       operation: 'createChatCompletionWithToolResults',
       messages: messages,
@@ -538,6 +579,7 @@ class SessionLoggingChatDataSource
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       label: context?.requestLabel,
+      usageRole: ModelUsageRole.current,
       videoDeliveryLookup: _videoDeliveryFor,
       operation: 'streamChatCompletionWithToolResults',
       messages: messages,

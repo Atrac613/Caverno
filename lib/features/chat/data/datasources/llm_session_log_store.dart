@@ -8,6 +8,7 @@ import '../../../../core/security/sensitive_file_permissions.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/video_delivery.dart';
 import 'chat_remote_datasource.dart';
 
@@ -162,6 +163,7 @@ class LlmSessionLogRequest {
     this.maxTokens,
     this.chatTemplateKwargs,
     this.label,
+    this.usageRole = ModelUsageRole.unknown,
     this.videoDeliveryLookup,
   });
 
@@ -192,6 +194,22 @@ class LlmSessionLogRequest {
   /// The producer that issued this request, taken from the ambient
   /// [LlmSessionLogContext.requestLabel].
   final String? label;
+
+  /// Which part of the app the request was booked to, captured by the caller
+  /// at issue time.
+  ///
+  /// Deliberately not read here. This object is built at issue time but the
+  /// record is written once the response lands, and a streaming body is
+  /// listened to outside the caller's zone — so reading
+  /// [ModelUsageRole.current] from the writer would report the role of
+  /// whatever happened to be in scope then, which is the mistake
+  /// [ModelUsageAttribution] exists to avoid.
+  ///
+  /// Recorded even when it is [ModelUsageRole.unknown]: an entry point that
+  /// claimed no role is the gap worth seeing, and until this field existed a
+  /// role could only be inferred by grepping the logged system prompt for text
+  /// unique to it.
+  final ModelUsageRole usageRole;
 }
 
 class LlmSessionLogResponse {
@@ -291,7 +309,7 @@ class LlmSessionLogStore {
   static const schemaName = 'caverno_llm_session_log_entry';
   // v2 adds the `build` field (git commit/dirty/builtAt provenance).
   // v3 adds `request.label`, naming the producer that issued the request.
-  static const schemaVersion = 3;
+  static const schemaVersion = 4;
   static const enabledEnvironmentKey = 'CAVERNO_SESSION_LOG_ENABLED';
   static const directoryEnvironmentKey = 'CAVERNO_SESSION_LOG_DIR';
   static const _fallbackSessionId = 'unscoped';
@@ -704,6 +722,7 @@ class LlmSessionLogStore {
         'chat_template_kwargs': request.chatTemplateKwargs,
       if (request.label != null && request.label!.trim().isNotEmpty)
         'label': request.label!.trim(),
+      'usageRole': request.usageRole.name,
       'messages': request.messages
           .map(
             (message) => _messageToJson(message, request.videoDeliveryLookup),

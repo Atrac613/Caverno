@@ -9,6 +9,7 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -853,7 +854,124 @@ void main() {
       )).readAsLines()).single;
       final decoded = jsonDecode(line) as Map<String, dynamic>;
       expect(decoded['request']['label'], 'narrated transcript feedback');
-      expect(decoded['schemaVersion'], 3);
+      expect(decoded['schemaVersion'], 4);
+    });
+
+    test('records the ambient usage role on the request', () async {
+      // Until this field existed, the only way to tell which role a request
+      // ran under was to grep the logged system prompt for text unique to it.
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'role-1',
+        conversationId: 'role-1',
+      );
+      final dataSource = SessionLoggingChatDataSource(
+        delegate: _FakeChatDataSource(
+          completionResult: ChatCompletionResult(
+            content: 'ok',
+            finishReason: 'stop',
+          ),
+        ),
+        logStore: store,
+      );
+
+      await LlmSessionLogContext.run(context, () {
+        return ModelUsageRole.anabasisParent.runWith(() {
+          return dataSource.createChatCompletionWithToolResults(
+            messages: [_message('user-1', MessageRole.user, 'Hi')],
+            toolResults: const [],
+            tools: const [],
+            model: 'model-a',
+          );
+        });
+      });
+
+      final line = (await (await store.fileForContext(
+        context,
+      )).readAsLines()).single;
+      final decoded = jsonDecode(line) as Map<String, dynamic>;
+      expect(decoded['request']['usageRole'], 'anabasisParent');
+    });
+
+    test(
+      'records an unclaimed request as unknown rather than omitting it',
+      () async {
+        // A missing field reads as "not recorded yet"; `unknown` reads as "no
+        // call site claimed this", which is the gap worth seeing.
+        const context = LlmSessionLogContext(
+          workspaceMode: WorkspaceMode.coding,
+          sessionId: 'role-2',
+          conversationId: 'role-2',
+        );
+        final dataSource = SessionLoggingChatDataSource(
+          delegate: _FakeChatDataSource(
+            completionResult: ChatCompletionResult(
+              content: 'ok',
+              finishReason: 'stop',
+            ),
+          ),
+          logStore: store,
+        );
+
+        await LlmSessionLogContext.run(context, () {
+          return dataSource.createChatCompletionWithToolResults(
+            messages: [_message('user-1', MessageRole.user, 'Hi')],
+            toolResults: const [],
+            tools: const [],
+            model: 'model-a',
+          );
+        });
+
+        final line = (await (await store.fileForContext(
+          context,
+        )).readAsLines()).single;
+        final decoded = jsonDecode(line) as Map<String, dynamic>;
+        expect(decoded['request']['usageRole'], 'unknown');
+      },
+    );
+
+    test('captures the usage role where the request is issued, not where the '
+        'stream is listened to', () async {
+      // streamWithToolResult is the one operation here whose body is an
+      // `async*` generator, so it does not run until first listen. Listening
+      // outside the caller's zone is what a tool loop actually does, and
+      // reading the role there reports whatever zone consumed the stream --
+      // the mistake that made the Anabasis parent invisible in its own logs.
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'role-3',
+        conversationId: 'role-3',
+      );
+      final dataSource = SessionLoggingChatDataSource(
+        delegate: _FakeChatDataSource(streamChunks: const ['ok']),
+        logStore: store,
+      );
+
+      final stream = LlmSessionLogContext.run(context, () {
+        return ModelUsageRole.anabasisParent.runWith(() {
+          return dataSource.streamWithToolResult(
+            messages: [_message('user-1', MessageRole.user, 'Hi')],
+            toolCallId: 'call-1',
+            toolName: 'read_file',
+            toolArguments: '{}',
+            toolResult: 'contents',
+            model: 'model-a',
+          );
+        });
+      });
+
+      // Deliberately outside both zones.
+      await stream.drain<void>();
+
+      final line = (await (await store.fileForContext(
+        context,
+      )).readAsLines()).single;
+      final decoded = jsonDecode(line) as Map<String, dynamic>;
+      expect(decoded['request']['usageRole'], 'anabasisParent');
+      expect(
+        decoded['request']['operation'] ?? decoded['operation'],
+        'streamWithToolResult',
+      );
     });
 
     test('drops a blank producer label instead of recording it', () async {
