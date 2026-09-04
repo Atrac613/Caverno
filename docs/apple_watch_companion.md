@@ -82,10 +82,19 @@ counts runes, so an English-only measurement under-reports the real payload
 threefold and would let a frame that is legal in English be rejected at runtime
 in Japanese.
 
-Snapshots carry a monotonic sequence number. WatchConnectivity gives no ordering
+Snapshots carry a source identity, the time that source started, and a
+monotonic per-source sequence number. WatchConnectivity gives no ordering
 guarantee across transports — an application context can land after a newer
 `sendMessage` — and dropping lower sequences is what stops a stale frame from
-resurrecting an approval the user already answered.
+resurrecting an approval the user already answered. The source identity matters
+when the iPhone app restarts: its sequence begins at one again while the watch
+process may still remember a much larger number. A newer source start replaces
+that cursor; a delayed frame from the retired source remains rejected.
+
+Source-less snapshots from an older iPhone build retain the original sequence
+behavior until the watch sees a source-aware frame. After that transition they
+are rejected, because accepting an unversioned delayed application context
+could restore an already-resolved interaction.
 
 State goes out twice: `updateApplicationContext` (coalescing, so a watch that
 wakes later still sees the current frame) plus `sendMessage` when the watch app
@@ -255,11 +264,20 @@ tool/flutter_test_quiet.sh test/features/watch/
 xcodebuild build -project ios/Runner.xcodeproj -target "CavernoWatch Watch App" -sdk watchsimulator26.5 -configuration Debug CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 ```
 
+```bash
+swiftc "ios/CavernoWatch Watch App/WatchModels.swift" tool/watch_snapshot_cursor_smoke.swift -o /tmp/watch_snapshot_cursor_smoke
+/tmp/watch_snapshot_cursor_smoke
+```
+
 Pair the simulators from the command line — `xcrun simctl pair` exists and
 `simctl boot <pair-udid>` brings both up; no GUI is needed. Two things about
 that environment cost real time, so they are worth knowing: the app's
 preferences live in its sandboxed container, not where `simctl spawn defaults`
 writes, and cfprefsd caches them until the device is rebooted; and a simulator
 configured for Japanese input turns typed ASCII into kana, so drive text entry
-through `simctl pbcopy` and paste, or set `AppleKeyboards` to English first. Three things need real hardware: notification forwarding
+through `simctl pbcopy` and paste, or set `AppleKeyboards` to English first.
+Keep the watch app running while restarting only the iPhone app at least once.
+The first snapshot from the restarted projection has a reset sequence, so this
+is the boundary test that proves source-aware ordering rather than only ordinary
+in-process delivery. Three things need real hardware: notification forwarding
 while the phone is locked, the effective background window, and haptics.

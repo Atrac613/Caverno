@@ -28,6 +28,8 @@ void main() {
     WatchSnapshot maximal({String fill = 'A'}) => WatchSnapshot(
       sequence: 4242,
       generatedAt: DateTime.utc(2026, 9, 1, 12),
+      sourceInstanceId: 'source-1',
+      sourceStartedAtMicros: 1788264000000000,
       conversationId: 'conversation-1',
       conversationTitle: fill * 4000,
       status: WatchTurnStatus.waitingApproval,
@@ -54,7 +56,9 @@ void main() {
         40,
         (index) => WatchMessage(
           id: 'm\$index',
-          role: index.isEven ? WatchMessageRole.user : WatchMessageRole.assistant,
+          role: index.isEven
+              ? WatchMessageRole.user
+              : WatchMessageRole.assistant,
           text: fill * 4000,
           timestamp: DateTime.utc(2026, 9, 1, 11, index),
         ),
@@ -126,8 +130,7 @@ void main() {
     test('the newest bubble gets the larger text allowance', () {
       // The last bubble is the one being read; clipping it to scrollback
       // length would truncate the answer the person came to the wrist for.
-      final messages =
-          maximal().toJson()['messages']! as List<dynamic>;
+      final messages = maximal().toJson()['messages']! as List<dynamic>;
       final scrollback = messages.first as Map<String, dynamic>;
       final newest = messages.last as Map<String, dynamic>;
 
@@ -186,6 +189,8 @@ void main() {
       final original = WatchSnapshot(
         sequence: 7,
         generatedAt: DateTime.utc(2026, 9, 1, 12),
+        sourceInstanceId: 'source-1',
+        sourceStartedAtMicros: 1788264000000000,
         conversationId: 'conversation-1',
         conversationTitle: 'Fix the parser',
         status: WatchTurnStatus.waitingQuestion,
@@ -221,13 +226,18 @@ void main() {
 
       expect(decoded.sequence, 7);
       expect(decoded.generatedAt, original.generatedAt);
+      expect(decoded.sourceInstanceId, 'source-1');
+      expect(decoded.sourceStartedAtMicros, 1788264000000000);
       expect(decoded.conversationId, 'conversation-1');
       expect(decoded.status, WatchTurnStatus.waitingQuestion);
       expect(decoded.question!.options.single.label, 'Rewrite');
       expect(decoded.approval, isNull);
       expect(decoded.needsAttention, isTrue);
       expect(decoded.messages.first.role, WatchMessageRole.user);
-      expect(decoded.messages.first.timestamp, DateTime.utc(2026, 9, 1, 11, 59));
+      expect(
+        decoded.messages.first.timestamp,
+        DateTime.utc(2026, 9, 1, 11, 59),
+      );
       expect(decoded.messages.last.isStreaming, isTrue);
     });
 
@@ -240,6 +250,16 @@ void main() {
 
       expect(decoded.status, WatchTurnStatus.idle);
       expect(decoded.needsAttention, isFalse);
+    });
+
+    test('source identity is optional for an older phone build', () {
+      final decoded = WatchSnapshot.fromJson({
+        'sequence': 1,
+        'generatedAt': DateTime.utc(2026, 9, 1).toIso8601String(),
+      });
+
+      expect(decoded.sourceInstanceId, isEmpty);
+      expect(decoded.sourceStartedAtMicros, 0);
     });
 
     test('an unknown message role decodes as assistant', () {

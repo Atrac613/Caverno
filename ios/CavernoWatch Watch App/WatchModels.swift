@@ -146,6 +146,8 @@ struct WatchConversation: Decodable, Equatable, Identifiable {
 struct WatchSnapshot: Decodable, Equatable {
   let sequence: Int
   let generatedAt: String
+  let sourceInstanceId: String
+  let sourceStartedAtMicros: Int64
   let conversationId: String?
   let conversationTitle: String
   let status: WatchTurnStatus
@@ -169,7 +171,8 @@ struct WatchSnapshot: Decodable, Equatable {
   }
 
   private enum CodingKeys: String, CodingKey {
-    case sequence, generatedAt, conversationId, conversationTitle, status
+    case sequence, generatedAt, sourceInstanceId, sourceStartedAtMicros
+    case conversationId, conversationTitle, status
     case lastAssistantText, messages, messagesTruncated, approval, question
     case elapsedSeconds, queuedCount
     case busyThreadCount, conversations, conversationsTruncated, error
@@ -180,6 +183,12 @@ struct WatchSnapshot: Decodable, Equatable {
     sequence = try container.decodeIfPresent(Int.self, forKey: .sequence) ?? 0
     generatedAt =
       try container.decodeIfPresent(String.self, forKey: .generatedAt) ?? ""
+    sourceInstanceId =
+      try container.decodeIfPresent(String.self, forKey: .sourceInstanceId)
+      ?? ""
+    sourceStartedAtMicros =
+      try container.decodeIfPresent(Int64.self, forKey: .sourceStartedAtMicros)
+      ?? 0
     conversationId = try container.decodeIfPresent(
       String.self, forKey: .conversationId)
     conversationTitle =
@@ -214,6 +223,54 @@ struct WatchSnapshot: Decodable, Equatable {
       try container.decodeIfPresent(
         Bool.self, forKey: .conversationsTruncated) ?? false
     error = try container.decodeIfPresent(String.self, forKey: .error)
+  }
+}
+
+/// Orders coalesced and immediate snapshots across iPhone process restarts.
+///
+/// A sequence is monotonic only for one `WatchSessionNotifier` lifetime. The
+/// source start time selects the newest lifetime, then the sequence orders its
+/// frames. Source-less snapshots keep the legacy behavior until a source-aware
+/// iPhone build has been observed.
+struct WatchSnapshotCursor {
+  private(set) var sourceInstanceId = ""
+  private(set) var sourceStartedAtMicros: Int64 = 0
+  private(set) var sequence = 0
+
+  mutating func accepts(_ next: WatchSnapshot) -> Bool {
+    let nextSourceId = next.sourceInstanceId.trimmingCharacters(
+      in: .whitespacesAndNewlines)
+    let hasSource = !nextSourceId.isEmpty && next.sourceStartedAtMicros > 0
+
+    guard hasSource else {
+      // Once a source-aware process is active, an unversioned frame can only
+      // be an older application context. Accepting it could resurrect a
+      // resolved approval. A legacy phone remains supported after the watch
+      // app itself restarts, when this cursor is empty again.
+      guard sourceStartedAtMicros == 0, next.sequence > sequence else {
+        return false
+      }
+      sequence = next.sequence
+      return true
+    }
+
+    if sourceStartedAtMicros > 0 {
+      guard next.sourceStartedAtMicros >= sourceStartedAtMicros else {
+        return false
+      }
+      if next.sourceStartedAtMicros == sourceStartedAtMicros {
+        guard nextSourceId == sourceInstanceId, next.sequence > sequence else {
+          return false
+        }
+        sequence = next.sequence
+        return true
+      }
+    }
+
+    sourceInstanceId = nextSourceId
+    sourceStartedAtMicros = next.sourceStartedAtMicros
+    sequence = next.sequence
+    return true
   }
 }
 

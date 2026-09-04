@@ -246,9 +246,7 @@ class WatchMessage {
     isStreaming: json['isStreaming'] == true,
   );
 
-  Map<String, dynamic> toJson({
-    int limit = watchSnapshotMessageTextLimit,
-  }) => {
+  Map<String, dynamic> toJson({int limit = watchSnapshotMessageTextLimit}) => {
     'id': id,
     'role': role.name,
     'text': truncateForWatch(text, limit),
@@ -262,6 +260,8 @@ class WatchSnapshot {
   const WatchSnapshot({
     required this.sequence,
     required this.generatedAt,
+    this.sourceInstanceId = '',
+    this.sourceStartedAtMicros = 0,
     this.conversationId,
     this.conversationTitle = '',
     this.status = WatchTurnStatus.idle,
@@ -278,14 +278,23 @@ class WatchSnapshot {
     this.error,
   });
 
-  /// Monotonic per-session counter. The watch drops any frame whose sequence
-  /// is not greater than the last one it rendered, because WatchConnectivity
-  /// does not guarantee delivery order across transports.
+  /// Monotonic per-source counter. The watch drops any frame whose sequence is
+  /// not greater than the last one it rendered from the same source, because
+  /// WatchConnectivity does not guarantee delivery order across transports.
   final int sequence;
   final DateTime generatedAt;
+
+  /// Identifies one lifetime of the iPhone-side watch projection.
+  ///
+  /// [sequence] restarts when the Flutter process restarts. These fields let
+  /// the watch accept the new source's first frame without later accepting a
+  /// delayed frame from the retired process.
+  final String sourceInstanceId;
+  final int sourceStartedAtMicros;
   final String? conversationId;
   final String conversationTitle;
   final WatchTurnStatus status;
+
   /// The most recent assistant answer, kept for watch builds older than the
   /// transcript. The two apps ship as one bundle but are not guaranteed to be
   /// the same build at runtime, and a watch that has not synced yet would
@@ -319,6 +328,9 @@ class WatchSnapshot {
       generatedAt:
           DateTime.tryParse((json['generatedAt'] as String?) ?? '')?.toUtc() ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      sourceInstanceId: (json['sourceInstanceId'] as String?)?.trim() ?? '',
+      sourceStartedAtMicros:
+          (json['sourceStartedAtMicros'] as num?)?.toInt() ?? 0,
       conversationId: (json['conversationId'] as String?)?.trim(),
       conversationTitle: (json['conversationTitle'] as String?)?.trim() ?? '',
       status: _watchTurnStatusFromName((json['status'] as String?) ?? ''),
@@ -350,6 +362,9 @@ class WatchSnapshot {
   Map<String, dynamic> toJson() => {
     'sequence': sequence,
     'generatedAt': generatedAt.toUtc().toIso8601String(),
+    if (sourceInstanceId.isNotEmpty) 'sourceInstanceId': sourceInstanceId,
+    if (sourceStartedAtMicros > 0)
+      'sourceStartedAtMicros': sourceStartedAtMicros,
     if (conversationId != null && conversationId!.isNotEmpty)
       'conversationId': conversationId,
     'conversationTitle': truncateForWatch(

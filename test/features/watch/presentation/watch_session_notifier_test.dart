@@ -198,6 +198,17 @@ void main() {
           .toList();
       expect(sequences, [lessThan(sequences[1]), greaterThan(sequences[0])]);
       expect(container.read(watchSessionProvider).lastSequence, sequences.last);
+      expect(bridge.pushedSnapshots.first.sourceInstanceId, isNotEmpty);
+      expect(
+        bridge.pushedSnapshots.map((snapshot) => snapshot.sourceInstanceId),
+        everyElement(bridge.pushedSnapshots.first.sourceInstanceId),
+      );
+      expect(
+        bridge.pushedSnapshots.map(
+          (snapshot) => snapshot.sourceStartedAtMicros,
+        ),
+        everyElement(greaterThan(0)),
+      );
     },
   );
 

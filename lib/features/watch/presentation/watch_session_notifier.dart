@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/services/watch_bridge_service.dart';
 import '../../chat/domain/entities/message.dart';
@@ -70,6 +71,10 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
   StreamSubscription<WatchCommand>? _commandSubscription;
   bool _available = false;
   int _sequence = 0;
+  final String _sourceInstanceId = const Uuid().v4();
+  final int _sourceStartedAtMicros = DateTime.now()
+      .toUtc()
+      .microsecondsSinceEpoch;
   DateTime? _turnStartedAt;
   String _turnId = '';
   String _streamedPrefix = '';
@@ -201,6 +206,8 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     return WatchSnapshot(
       sequence: _sequence,
       generatedAt: DateTime.now().toUtc(),
+      sourceInstanceId: _sourceInstanceId,
+      sourceStartedAtMicros: _sourceStartedAtMicros,
       conversationId: current?.id,
       conversationTitle: _titleFor(current?.title),
       status: _statusFor(chatState, approval: approval, question: question),

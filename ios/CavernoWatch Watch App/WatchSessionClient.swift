@@ -26,13 +26,13 @@ final class WatchSessionClient: NSObject, ObservableObject {
   /// Advances even when a final stream marker carries no new text.
   @Published private(set) var streamCompletionSequence = 0
 
-  /// Highest snapshot sequence rendered so far.
+  /// Snapshot ordering state for the current iPhone projection lifetime.
   ///
   /// WatchConnectivity makes no ordering guarantee across its transports: an
   /// application context can land after a newer `sendMessage`. Dropping lower
   /// sequences is what stops an old frame from resurrecting a resolved
   /// approval on screen.
-  private var lastSequence = 0
+  private var snapshotCursor = WatchSnapshotCursor()
   private var streamingTurnId: String?
 
   private let session: WCSession? = WCSession.isSupported()
@@ -209,9 +209,8 @@ final class WatchSessionClient: NSObject, ObservableObject {
   }
 
   private func apply(_ next: WatchSnapshot) {
-    guard next.sequence > lastSequence else { return }
+    guard snapshotCursor.accepts(next) else { return }
     let wasWaiting = snapshot?.needsAttention ?? false
-    lastSequence = next.sequence
     snapshot = next
     if next.status != .streaming {
       streamingTurnId = nil

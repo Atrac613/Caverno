@@ -175,6 +175,7 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH5 | blocked | Approve/Deny on a push-delivered notification, not only a locally raised one. | Blocked on a contract that does not exist: no push carries an approval, only a run-completion. Do not build the delegate plumbing until a push needs to carry one. |
 | Watch | WATCH6 | done | Dismiss an approval or question dialog on the phone when the watch resolves it. | Shipped 2026-09-02 and verified on paired simulators: answering from the wrist closes the phone's sheet. Dismissal pops by route name, so it is a no-op when the dialog is not topmost. |
 | Watch | WATCH7 | done | Make the wrist screen a message thread rather than a status glance: bubbles with tails, relative timestamp headers, a typing indicator, and a pinned compose bar. | Shipped 2026-09-02. The frame now carries the tail of the thread; verified on the watch simulator, including the fallback for a watch newer than its phone. |
+| Watch | WATCH8 | done | Keep Watch snapshots ordered across iPhone process restarts without allowing a delayed old frame to resurrect resolved state. | Completed 2026-09-04. Frames now carry a source identity and start time in addition to their per-source sequence; verified with the Watch process kept alive across an iPhone restart. |
 
 | Anabasis | ANA0 | current | Complete the epistemic grounding: produce `assumption`/`material` on contract items, implement the `userConfirmedAssumption` confirmation path, enforce the parent's read-only tool authority, and project the result. | PRs 1 through 3d are done. Restricting the marker to what a plan asserts took marks on open questions to zero and separated the arms 67% against 17%. PR 3e then defined materiality by consequence and took its discrimination from +0.06 to +0.44, so PR 4 blocks on `material` and builds a per-assumption approval. |
 | Anabasis | ANA1 | next | Decompose work into tasks with preconditions (task accepted / assumption confirmed / question resolved) and a derived `ready`. | Do not start before ANA0's canary is green. First substantially new implementation in the track. |
@@ -1617,8 +1618,9 @@ Not verified:
   running". Confirming it needs a signed build.
 
 Next action:
-- Check the glance on a signed build, then decide whether an inline
-  accessory family is worth adding.
+- Check the glance on a signed build. Circular, rectangular, and inline
+  accessory families are already supported; this check is for the App Group
+  data path, not another family implementation.
 
 ### WATCH5: Push-Originated Notification Actions
 
@@ -1726,8 +1728,45 @@ Two defects were caught by looking at it rather than by compiling it:
   as ordinary blue buttons. The tint is now scoped to the one button.
 
 Next action:
-- None. The transcript has not been seen against a phone build that actually
-  sends `messages`; that needs a phone rebuild on the paired simulator.
+- None. Verified 2026-09-04 against a rebuilt iPhone app that sent the actual
+  `messages` array to the paired watch rather than exercising the compatibility
+  fallback.
+
+### WATCH8: Restart-Safe Snapshot Ordering
+
+Status: `done`
+
+Scope:
+- Preserve stale-frame rejection when `updateApplicationContext` and
+  `sendMessage` arrive out of order, while accepting the first frame after the
+  iPhone process restarts and its per-process sequence returns to one.
+
+Completed 2026-09-04:
+- `WatchSnapshot` now carries a random source instance id and the source start
+  time. Sequence numbers remain small and monotonic within that source.
+- `WatchSnapshotCursor` selects a newer source by start time, orders frames from
+  that source by sequence, and rejects frames from retired sources. A legacy
+  source-less phone remains compatible until a source-aware frame is accepted;
+  source-less frames are rejected after that point so they cannot resurrect a
+  resolved approval.
+- The paired-simulator check used matching current iPhone and watch builds. An
+  actual user message and streaming state arrived through the native/Dart
+  bridge. The Watch process then stayed alive while only the iPhone app
+  restarted; the reset-sequence frame replaced the old 38-second streaming
+  state with the restarted app's current idle conversation.
+
+Verification evidence:
+- `tool/codex_verify.sh --no-codegen --test test/features/watch/` passed 61
+  tests and all analyzers.
+- `tool/watch_snapshot_cursor_smoke.swift` accepted old-source sequence 8, rejected 7,
+  accepted new-source sequence 1, rejected delayed old-source sequence 9, and
+  accepted new-source sequence 2.
+- The Watch simulator target and the full iPhone simulator app with the embedded
+  companion both built successfully.
+
+Next action:
+- None. WATCH4's signed-build App Group check remains the only open Watch
+  verification item; WATCH5 remains blocked on a push approval contract.
 
 ## Anabasis Orchestrator Track
 
