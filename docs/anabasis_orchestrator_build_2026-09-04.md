@@ -158,3 +158,24 @@ Grouped by what they were for. The branch was
 - **Fixes and records** — `ed6a202da` policy refusals read by code,
   `da6ccb9d6` the boundary firing in a real session, `0fa489da0` the two
   surfaces confirmed on screen, `0fd250991` what PR 2b has to clear
+
+## Postscript: the merged build, in the wild
+
+Session `7a18cc33` ran on `6218b6440` — the squash itself — and is the first
+turn where the parent delegated without being refused first. Eight of its
+nineteen records carry the parent prompt and none carries a refusal.
+
+The task was research that ended in a write. The parent gathered the research
+itself with `http_get`, called `spawn_subagent` as the first tool call of the
+next turn, and read the child's file back before answering. Nobody arranged
+that: it is the authority boundary landing where `ToolCommandEffect` draws it,
+with the prompt doing the steering and the guard never needing to fire. The
+earlier session `459bd75f` arrived at the same place the other way, by trying
+an edit and being refused mid-request, so both routes to delegation are now
+observed on one model and one prompt.
+
+Two things the session says about what is left. The delegation queue was empty
+because the conversation had no plan — `totalTaskCount: 0` — so ANA2's queue is
+unobserved, not broken. And the parent read a child's artifact, judged it, and
+answered, which is `mayParentAccept`'s two halves in one real turn with nowhere
+to record the outcome. That is the whole case for ANA3 PR 2b.

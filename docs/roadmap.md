@@ -2821,6 +2821,37 @@ as the remainder for refusals that predate a code rather than replaced.
   `verified` / `accepted` is the change ANA2's invalidate policy already
   depends on conceptually.
 
+#### Delegation observed with no refusal (2026-09-04, session `7a18cc33`)
+
+The first `@anabasis` turn on the merged build (`6218b6440`) that delegated
+without being refused first. Nineteen records, eight of them carrying the
+parent prompt, `anabasis_parent_authority_refused` zero times.
+
+- Turn 1 the parent researched with `http_get` twice and answered. Turn 2 it
+  called `spawn_subagent` as the **first tool call of the turn**, the child
+  wrote the file, and the parent then read that file back before answering.
+- So the prompt alone was sufficient here. Session `459bd75f` reached
+  delegation the other way, by attempting an edit, being refused, and switching
+  within the same request. Both live paths to delegation are now observed, on
+  the same model and prompt — which is the 4/9-edited, 5/9-delegated split of
+  the PR 2b measurement showing up in real turns rather than in a probe.
+- The task was research (tomorrow's weather in Kyoto) that ended in a write.
+  The parent did the read-only half itself and delegated only the write, which
+  is the authority boundary landing exactly where `ToolCommandEffect` draws it,
+  with no refusal needed to steer it there.
+- The child's four requests carry no parent prompt. A delegate is not itself
+  bound as a parent, which is what lets it do the work the parent may not.
+- `Ready to delegate` was empty, and correctly so: the execution shadow reads
+  `workflowStage: idle`, `totalTaskCount: 0`. With no contract tasks there are
+  no candidates, so **ANA2's queue is still unobserved rather than broken**.
+  Seeing it needs a coding thread that has a plan, then `@anabasis` on it.
+- **The log cannot say which `ModelUsageRole` a request ran under** — the
+  session-log `context` carries `workspaceMode`, `phase`, ids, and no role. The
+  zone defect above was found by grepping the system prompt for its text, and
+  after the fix that is still the only available signal. Recording the role in
+  the log context would make the thing ANA0 got wrong directly observable
+  instead of inferable.
+
 ### ANA3: Accept
 
 Status: `current`
@@ -2899,6 +2930,13 @@ Next action:
   happens — the observed session had the parent read a child's result and write
   the final answer from it — so what is missing is recording it where the next
   turn can see it.
+- Session `7a18cc33` grounds that in a turn nobody set up for it: the parent
+  called `read_file` on what the child had written, judged it, and answered.
+  That is level 2 evidence gathered by the parent through a tool its authority
+  allows, and level 3 supplied by the judgement — `mayParentAccept`'s two
+  halves both present in one real turn, with nowhere to write the result down.
+  PR 2a built the verdict; the gap PR 2b closes is that the next turn starts
+  over from the same files.
 - **PR 2b needs three extractions before it can write a line**, measured
   2026-09-04: `conversations_notifier.dart` is at 1,791 of 1,791,
   `chat_notifier.dart` at 8,778 of 8,778, and the notifier library at 19,731 of
