@@ -107,6 +107,11 @@ which pops by route name. That is deliberately a no-op when the dialog is not
 topmost: popping whatever is on top would let a mistimed resolution close the
 screen the user is actually looking at.
 
+The watch also waits for the correlated command result before leaving an
+approval, question, or thread picker. A failure stays on the current screen and
+can be retried; a command queued while the phone is unreachable says so and
+leaves only after a later snapshot confirms the state change. Transport errors
+from message and control actions are also shown on the transcript.
 
 `ChatState` keeps ten independent `Pending*` fields.
 `describePendingApproval` flattens them into one shape; its switch is exhaustive
@@ -165,14 +170,25 @@ build.
 
 ## The transcript
 
-The main screen is a message thread: bubbles with tails, outgoing on the right
-in the phone's accent and incoming on the left in its dark surface colour, a
-relative day-and-time header wherever the conversation paused for more than
-fifteen minutes, and a typing bubble while an answer is being written. Nothing
-else lives in the scroll area — the controls that used to sit between the
-answer and the bottom of the screen moved into a pinned compose bar and the
-navigation bar, because on a wrist every row of chrome is a row of
-conversation.
+The first screen after loading is always the message thread: bubbles with tails,
+outgoing on the right in the phone's accent and incoming on the left in its dark
+surface colour, a relative day-and-time header wherever the conversation paused
+for more than fifteen minutes, and a typing bubble while an answer is being
+written. A pending approval or question no longer replaces the thread; an
+orange toolbar button opens it, then returns to the thread after the person
+answers. Thread switching remains available beside the attention button while
+something is waiting.
+Once messages exist, the scroll area holds only the exchange and its status —
+the controls that used to sit between the answer and the bottom of the screen
+moved into a pinned compose bar and the navigation bar, because on a wrist every
+row of chrome is a row of conversation.
+
+The transcript follows new text only while the reader is already near the
+bottom. Scrolling up opts out of live following until the reader returns, so a
+streaming answer cannot pull older messages out from under them. An empty thread
+has an explicit starting state rather than a blank surface. VoiceOver announces
+each bubble with its speaker and announces the typing indicator as activity,
+rather than relying on alignment and colour to carry meaning.
 
 Three things are drawn on the watch rather than sent ready-made. Markdown is
 reduced at render time, for the reason in the section below. Timestamps are
@@ -201,20 +217,23 @@ replace this UI with its own recorder or keyboard, and it does not label
 `WKTextInputMode.plain` as a dictation-only mode: that value only excludes
 emoji. Dictation needs to be selected once from the system input chooser if
 the keyboard was the last method used.
-`isVoiceMode` follows the "Read replies"
-switch rather than being sent unconditionally: it shortens the phone's answers
-for speech and holds back auto-continue, which is right for a spoken turn and
-wrong for a typed one. That switch is persisted and off until asked for — the
-speaker used to run only while a separate voice screen was open, and it now
-runs on the screen a raised wrist lands on, so an on-by-default speaker would
-make every glance start talking. Output uses
+The compose control shows both “Message” and a microphone so the system text
+input is discoverable as more than dictation. `isVoiceMode` follows the "Read
+replies" switch rather than being sent unconditionally: it shortens the phone's
+answers for speech and holds back auto-continue, which is right for a spoken
+turn and wrong for a typed one. That switch is persisted and off until asked
+for — the speaker used to run only while a separate voice screen was open, and
+it now runs on the screen a raised wrist lands on, so an on-by-default speaker
+would make every glance start talking. Output uses
 `AVSpeechSynthesizer` on the watch. Markdown is reduced to plain text on the
 watch at render and speech time, never in the phone's projection:
 `ParseResult.text` is a pure concatenation of the text segments and the stream
 deltas depend on that prefix stability, which stripping would break. Synthesis is local rather than piped from
 the phone because routing audio through Whisper or VOICEVOX adds a file transfer
 in each direction, and the latency lands exactly between speaking and being
-answered. Remote synthesis stays available as a later option.
+answered. A final stream marker is sent even when it carries no new text, so
+the watch can read the last fragment of an answer that does not end in
+punctuation. Remote synthesis stays available as a later option.
 
 `VoiceModeNotifier` is not reused: it is built around the phone's own mic and
 speaker and a barge-in loop.

@@ -23,29 +23,34 @@ struct ComposeBar: View {
       .buttonStyle(.plain)
       .accessibilityLabel("More")
 
-      Spacer(minLength: 0)
-
       TextFieldLink(prompt: Text(placeholder)) {
-        Image(systemName: "mic.fill")
-          .font(.system(size: 18, weight: .semibold))
-          .foregroundStyle(.black)
-          .frame(width: Self.micSize, height: Self.micSize)
-          .background(Circle().fill(Color.white))
-          .contentShape(Circle())
+        HStack(spacing: 5) {
+          Text(placeholder)
+            .font(.footnote)
+            .foregroundStyle(Color.black.opacity(0.65))
+          Spacer(minLength: 0)
+          Image(systemName: "mic.fill")
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(.black)
+        }
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, minHeight: Self.inputHeight)
+        .background(Capsule().fill(Color.white))
+        .contentShape(Capsule())
       } onSubmit: { text in
         let message = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty else { return }
         onSend(message)
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("Dictate message")
+      .accessibilityLabel("Compose message")
     }
     .padding(.horizontal, 8)
-    .padding(.bottom, 2)
+    .padding(.bottom, 10)
   }
 
   private static let actionsSize: CGFloat = 32
-  private static let micSize: CGFloat = 40
+  private static let inputHeight: CGFloat = 40
 }
 
 /// What the "+" opens: the controls that used to sit in the middle of the

@@ -4,7 +4,10 @@ import SwiftUI
 /// out.
 struct ApprovalView: View {
   @EnvironmentObject private var client: WatchSessionClient
+  @Environment(\.dismiss) private var dismiss
   let approval: WatchApproval
+
+  @State private var commandId: String?
 
   var body: some View {
     ScrollView {
@@ -29,19 +32,27 @@ struct ApprovalView: View {
 
         if approval.canResolveOnWatch {
           Button {
-            client.resolveApproval(id: approval.id, approved: true)
+            commandId = client.resolveApproval(
+              id: approval.id,
+              approved: true
+            )
           } label: {
             Label("Approve", systemImage: "checkmark")
               .frame(maxWidth: .infinity)
           }
           .tint(.green)
+          .disabled(isSubmitting)
 
           Button(role: .destructive) {
-            client.resolveApproval(id: approval.id, approved: false)
+            commandId = client.resolveApproval(
+              id: approval.id,
+              approved: false
+            )
           } label: {
             Label("Deny", systemImage: "xmark")
               .frame(maxWidth: .infinity)
           }
+          .disabled(isSubmitting)
         } else {
           // Kinds that need input the watch cannot collect (SSH credentials,
           // computer-use arming) or that this build does not recognise.
@@ -52,15 +63,44 @@ struct ApprovalView: View {
             .padding(.vertical, 6)
         }
 
-        if let error = client.lastCommandError {
+        if let error = feedbackError {
           Text(error)
             .font(.caption2)
             .foregroundStyle(.red)
+        }
+
+        if isSubmitting {
+          HStack {
+            ProgressView()
+            Text(client.lastCommandNotice ?? "Sending…")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
+          .frame(maxWidth: .infinity, alignment: .center)
         }
       }
       .padding(.horizontal, 4)
     }
     .navigationTitle("Approval")
+    .onChange(of: client.lastCommandResult?.id) { _, resultId in
+      guard resultId == commandId else { return }
+      if client.lastCommandResult?.ok == true {
+        dismiss()
+      }
+    }
+    .onChange(of: client.snapshot?.approval?.id) { _, pendingId in
+      if pendingId != approval.id { dismiss() }
+    }
+  }
+
+  private var isSubmitting: Bool {
+    guard let commandId else { return false }
+    return client.lastCommandResult?.id != commandId
+  }
+
+  private var feedbackError: String? {
+    guard client.lastCommandResult?.id == commandId else { return nil }
+    return client.lastCommandError
   }
 
   private var kindLabel: String {

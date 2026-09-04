@@ -4,9 +4,11 @@ import SwiftUI
 /// immediately on tap; multi-select accumulates and sends on confirm.
 struct QuestionView: View {
   @EnvironmentObject private var client: WatchSessionClient
+  @Environment(\.dismiss) private var dismiss
   let question: WatchQuestion
 
   @State private var selected: Set<String> = []
+  @State private var commandId: String?
 
   var body: some View {
     ScrollView {
@@ -27,11 +29,12 @@ struct QuestionView: View {
               }
             }
           }
+          .disabled(isSubmitting)
         }
 
         if question.allowMultiple {
           Button {
-            client.resolveQuestion(
+            commandId = client.resolveQuestion(
               id: question.id,
               selectedOptionIds: Array(selected)
             )
@@ -39,7 +42,7 @@ struct QuestionView: View {
             Label("Send", systemImage: "paperplane.fill")
               .frame(maxWidth: .infinity)
           }
-          .disabled(selected.isEmpty)
+          .disabled(selected.isEmpty || isSubmitting)
         }
 
         if question.optionsTruncated || question.allowOther {
@@ -49,10 +52,45 @@ struct QuestionView: View {
             .font(.caption2)
             .foregroundStyle(.secondary)
         }
+
+        if let error = feedbackError {
+          Text(error)
+            .font(.caption2)
+            .foregroundStyle(.red)
+        }
+
+        if isSubmitting {
+          HStack {
+            ProgressView()
+            Text(client.lastCommandNotice ?? "Sending…")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
+          .frame(maxWidth: .infinity, alignment: .center)
+        }
       }
       .padding(.horizontal, 4)
     }
     .navigationTitle("Question")
+    .onChange(of: client.lastCommandResult?.id) { _, resultId in
+      guard resultId == commandId else { return }
+      if client.lastCommandResult?.ok == true {
+        dismiss()
+      }
+    }
+    .onChange(of: client.snapshot?.question?.id) { _, pendingId in
+      if pendingId != question.id { dismiss() }
+    }
+  }
+
+  private var isSubmitting: Bool {
+    guard let commandId else { return false }
+    return client.lastCommandResult?.id != commandId
+  }
+
+  private var feedbackError: String? {
+    guard client.lastCommandResult?.id == commandId else { return nil }
+    return client.lastCommandError
   }
 
   private func choose(_ option: WatchQuestionOption) {
@@ -63,7 +101,10 @@ struct QuestionView: View {
         selected.insert(option.id)
       }
     } else {
-      client.resolveQuestion(id: question.id, selectedOptionIds: [option.id])
+      commandId = client.resolveQuestion(
+        id: question.id,
+        selectedOptionIds: [option.id]
+      )
     }
   }
 }

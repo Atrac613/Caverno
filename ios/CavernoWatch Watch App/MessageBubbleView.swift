@@ -19,7 +19,7 @@ struct MessageBubbleView: View {
           Text(displayText)
             .font(.footnote)
             .multilineTextAlignment(.leading)
-            .foregroundStyle(isOutgoing ? Color.white : Color.primary)
+            .foregroundStyle(isOutgoing ? Color.black : Color.primary)
         }
       }
       .padding(.vertical, 6)
@@ -32,9 +32,17 @@ struct MessageBubbleView: View {
 
       if !isOutgoing { Spacer(minLength: 20) }
     }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(accessibilityLabel)
   }
 
   private var isOutgoing: Bool { message.role == .user }
+
+  private var accessibilityLabel: String {
+    let speaker = isOutgoing ? "You" : "Caverno"
+    let text = displayText.isEmpty ? "is typing" : displayText
+    return "\(speaker): \(text)"
+  }
 
   /// While a turn is in flight the live text is usually ahead of the frame,
   /// but not always: a watch that joined mid-turn has only the deltas sent

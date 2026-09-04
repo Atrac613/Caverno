@@ -9,7 +9,9 @@ import '../../chat/domain/entities/message.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/chat_state.dart';
 import '../../chat/presentation/providers/conversations_notifier.dart'
-    show ConversationsState, conversationsNotifierProvider,
+    show
+        ConversationsState,
+        conversationsNotifierProvider,
         defaultConversationTitle;
 import '../../chat/presentation/providers/pending_approval_resolution.dart';
 import '../domain/watch_approval_mapper.dart';
@@ -71,6 +73,8 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
   DateTime? _turnStartedAt;
   String _turnId = '';
   String _streamedPrefix = '';
+  bool _streamFinalSent = false;
+  Set<String> _assistantIdsBeforeTurn = const {};
 
   @override
   WatchSessionState build() {
@@ -125,6 +129,11 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       // ever hear the tail of the second answer that differs from the first.
       _turnId = DateTime.now().microsecondsSinceEpoch.toString();
       _streamedPrefix = '';
+      _streamFinalSent = false;
+      _assistantIdsBeforeTurn = {
+        for (final message in previous?.messages ?? const <Message>[])
+          if (message.role == MessageRole.assistant) message.id,
+      };
     } else if (wasLoading && !next.isLoading) {
       _turnStartedAt = null;
     }
@@ -138,7 +147,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
   /// coalesce.
   Future<void> _pushStreamDelta(ChatState chatState) async {
     if (!await _ensureAvailable()) return;
-    final text = _lastAssistantText(chatState.messages);
+    final text = _activeTurnAssistantText(chatState.messages);
     if (text.isEmpty || !text.startsWith(_streamedPrefix)) {
       // The visible answer was replaced rather than extended (a guard rewrote
       // it, or the thread switched). Resend from the start.
@@ -146,13 +155,33 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       if (text.isEmpty) return;
     }
     final delta = text.substring(_streamedPrefix.length);
-    if (delta.isEmpty) return;
+    final isFinal = !chatState.isLoading;
+    if (delta.isEmpty && (!isFinal || _streamFinalSent)) return;
     _streamedPrefix = text;
     await _bridge.pushStreamChunk(
       turnId: _turnId,
       text: delta,
-      isFinal: !chatState.isLoading,
+      isFinal: isFinal,
     );
+    if (isFinal) _streamFinalSent = true;
+  }
+
+  /// The newest answer created during the current turn.
+  ///
+  /// `ChatNotifier` marks the state as loading immediately after appending the
+  /// new user message, before it appends the empty streaming assistant message.
+  /// Reading the last assistant at that boundary would therefore resend the
+  /// previous turn's answer as the first stream chunk.
+  String _activeTurnAssistantText(List<Message> messages) {
+    for (final message in messages.reversed) {
+      if (message.role != MessageRole.assistant ||
+          _assistantIdsBeforeTurn.contains(message.id)) {
+        continue;
+      }
+      final content = ContentParser.parse(message.content).text.trim();
+      if (content.isNotEmpty) return content;
+    }
+    return '';
   }
 
   /// Builds the frame the watch renders.
@@ -325,7 +354,10 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       _handleCommand(command);
 
   @visibleForTesting
-  Future<void> pushStreamDeltaForTest(String assistantText) => _pushStreamDelta(
+  Future<void> pushStreamDeltaForTest(
+    String assistantText, {
+    bool isFinal = false,
+  }) => _pushStreamDelta(
     ChatState(
       messages: [
         Message(
@@ -335,9 +367,18 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
           timestamp: DateTime.utc(2026, 9, 1),
         ),
       ],
-      isLoading: true,
+      isLoading: !isFinal,
     ),
   );
+
+  @visibleForTesting
+  Future<void> pushStreamStateChangeForTest(
+    ChatState? previous,
+    ChatState next,
+  ) {
+    _trackTurnBoundary(previous, next);
+    return _pushStreamDelta(next);
+  }
 
   Future<void> _handleCommand(WatchCommand command) async {
     if (!WatchCommand.allowed.contains(command.type)) {
@@ -406,8 +447,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
           .read(chatNotifierProvider.notifier)
           .sendMessage(
             content,
-            languageCode:
-                (command.payload['languageCode'] as String?) ?? 'en',
+            languageCode: (command.payload['languageCode'] as String?) ?? 'en',
             isVoiceMode: command.payload['isVoiceMode'] == true,
             origin: ChatInteractionOrigin.local,
           ),
@@ -508,8 +548,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
                   ),
                 )
                 .toList(growable: false),
-            otherText:
-                (command.payload['otherText'] as String?)?.trim() ?? '',
+            otherText: (command.payload['otherText'] as String?)?.trim() ?? '',
           );
 
     ref
@@ -528,11 +567,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     required String message,
   }) async {
     await _bridge.sendCommandResult(
-      WatchCommandResult.failure(
-        id: command.id,
-        code: code,
-        message: message,
-      ),
+      WatchCommandResult.failure(id: command.id, code: code, message: message),
     );
     if (!ref.mounted) return;
     state = state.copyWith(lastError: message);

@@ -69,6 +69,18 @@ final class WatchSpeaker: NSObject, ObservableObject {
     enqueue(PlainText.from(trimmed))
   }
 
+  /// Flushes the final fragment after the phone marks a stream complete.
+  /// Incremental speech waits for punctuation, but a valid answer does not
+  /// have to end with it.
+  func finishIncremental(_ text: String) {
+    guard isEnabled, text.hasPrefix(spokenPrefix) else { return }
+    let tail = String(text.dropFirst(spokenPrefix.count))
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    spokenPrefix = text
+    guard !tail.isEmpty else { return }
+    enqueue(PlainText.from(tail))
+  }
+
   func stop() {
     synthesizer.stopSpeaking(at: .immediate)
     isSpeaking = false

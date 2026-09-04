@@ -1,10 +1,8 @@
 import SwiftUI
 
-/// Root view. Routes on the snapshot's status rather than on a tab selection,
-/// because the reason to look at the watch is almost always "something is
-/// blocked" — putting that behind a tab would defeat the point. Everything
-/// else lands on the transcript, which is the screen a person expects when
-/// they raise their wrist mid-conversation.
+/// Root view. Once a snapshot arrives, the watch always opens on the message
+/// transcript. Pending interactions stay reachable from the transcript's
+/// toolbar instead of replacing the conversation the person came to read.
 struct ContentView: View {
   @EnvironmentObject private var client: WatchSessionClient
 
@@ -26,13 +24,7 @@ struct ContentView: View {
 
   @ViewBuilder
   private func content(for snapshot: WatchSnapshot) -> some View {
-    if let approval = snapshot.approval {
-      ApprovalView(approval: approval)
-    } else if let question = snapshot.question {
-      QuestionView(question: question)
-    } else {
-      TranscriptView(snapshot: snapshot)
-    }
+    TranscriptView(snapshot: snapshot)
   }
 }
 
@@ -42,11 +34,16 @@ private struct ConnectingView: View {
   var body: some View {
     VStack(spacing: 8) {
       ProgressView()
-      Text(client.isReachable ? "Loading…" : "iPhone not reachable")
+      Text(connectionLabel)
         .font(.footnote)
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
     }
     .onAppear { client.requestSnapshot() }
+  }
+
+  private var connectionLabel: String {
+    if !client.hasActivated || client.isReachable { return "Loading…" }
+    return "iPhone not reachable"
   }
 }

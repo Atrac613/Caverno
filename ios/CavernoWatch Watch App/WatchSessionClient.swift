@@ -17,9 +17,14 @@ final class WatchSessionClient: NSObject, ObservableObject {
 
   @Published private(set) var snapshot: WatchSnapshot?
   @Published private(set) var isReachable = false
+  @Published private(set) var hasActivated = false
   @Published private(set) var lastCommandError: String?
+  @Published private(set) var lastCommandNotice: String?
+  @Published private(set) var lastCommandResult: WatchCommandResult?
   /// Text accumulated from stream chunks for the turn currently in flight.
   @Published private(set) var streamedText = ""
+  /// Advances even when a final stream marker carries no new text.
+  @Published private(set) var streamCompletionSequence = 0
 
   /// Highest snapshot sequence rendered so far.
   ///
@@ -34,28 +39,36 @@ final class WatchSessionClient: NSObject, ObservableObject {
     ? WCSession.default : nil
 
   func activate() {
-    guard let session else { return }
+    guard let session else {
+      hasActivated = true
+      lastCommandError = "Watch connectivity is unavailable."
+      return
+    }
     session.delegate = self
     session.activate()
   }
 
   // MARK: - Commands
 
-  func requestSnapshot() {
+  @discardableResult
+  func requestSnapshot() -> String? {
     send(.requestSnapshot)
   }
 
-  func cancelStreaming() {
+  @discardableResult
+  func cancelStreaming() -> String? {
     send(.cancelStreaming)
   }
 
-  func selectConversation(id: String) {
+  @discardableResult
+  func selectConversation(id: String) -> String? {
     send(.selectConversation, payload: ["conversationId": id])
   }
 
-  func sendMessage(_ content: String, isVoiceMode: Bool) {
+  @discardableResult
+  func sendMessage(_ content: String, isVoiceMode: Bool) -> String? {
     let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return }
+    guard !trimmed.isEmpty else { return nil }
     streamedText = ""
     var payload: [String: Any] = [
       "content": trimmed,
@@ -68,40 +81,71 @@ final class WatchSessionClient: NSObject, ObservableObject {
     if let conversationId = snapshot?.conversationId {
       payload["conversationId"] = conversationId
     }
-    send(.sendMessage, payload: payload)
+    return send(.sendMessage, payload: payload)
   }
 
-  func resolveApproval(id: String, approved: Bool) {
-    send(.resolveApproval, payload: ["approvalId": id, "approved": approved])
-    WKInterfaceDevice.current().play(approved ? .success : .click)
+  @discardableResult
+  func resolveApproval(id: String, approved: Bool) -> String? {
+    send(
+      .resolveApproval,
+      payload: ["approvalId": id, "approved": approved]
+    )
   }
 
-  func resolveQuestion(id: String, selectedOptionIds: [String]) {
+  @discardableResult
+  func resolveQuestion(id: String, selectedOptionIds: [String]) -> String? {
     send(
       .resolveQuestion,
       payload: ["questionId": id, "selectedOptionIds": selectedOptionIds]
     )
-    WKInterfaceDevice.current().play(.success)
   }
 
-  func cancelQuestion(id: String) {
+  @discardableResult
+  func cancelQuestion(id: String) -> String? {
     send(.resolveQuestion, payload: ["questionId": id, "cancelled": true])
   }
 
+  @discardableResult
   private func send(
     _ type: WatchCommandType,
     payload: [String: Any] = [:]
-  ) {
-    guard let session, session.activationState == .activated else { return }
+  ) -> String? {
+    lastCommandError = nil
+    lastCommandNotice = nil
+    lastCommandResult = nil
+    let commandId = UUID().uuidString
+    guard let session else {
+      failLocally(
+        id: commandId,
+        code: "connectivity_unavailable",
+        message: "Watch connectivity is unavailable."
+      )
+      return commandId
+    }
+    guard session.activationState == .activated else {
+      failLocally(
+        id: commandId,
+        code: "connection_starting",
+        message: "The iPhone connection is still starting. Try again."
+      )
+      return commandId
+    }
     let body: [String: Any] = [
       "type": type.rawValue,
-      "id": UUID().uuidString,
+      "id": commandId,
       "payload": payload,
     ]
     guard
       let data = try? JSONSerialization.data(withJSONObject: body),
       let json = String(data: data, encoding: .utf8)
-    else { return }
+    else {
+      failLocally(
+        id: commandId,
+        code: "encoding_failed",
+        message: "The command could not be encoded."
+      )
+      return commandId
+    }
 
     if session.isReachable {
       session.sendMessage(
@@ -109,6 +153,13 @@ final class WatchSessionClient: NSObject, ObservableObject {
         replyHandler: nil,
         errorHandler: { [weak self] error in
           Task { @MainActor in
+            let result = WatchCommandResult(
+              ok: false,
+              id: commandId,
+              code: "transport_error",
+              message: error.localizedDescription
+            )
+            self?.lastCommandResult = result
             self?.lastCommandError = error.localizedDescription
           }
         }
@@ -118,7 +169,19 @@ final class WatchSessionClient: NSObject, ObservableObject {
       // Slower than sendMessage, but it is the difference between a command
       // that lands and one that is silently dropped when the phone is asleep.
       session.transferUserInfo([Self.payloadKey: json])
+      lastCommandNotice = "Queued until the iPhone reconnects."
     }
+    return commandId
+  }
+
+  private func failLocally(id: String, code: String, message: String) {
+    lastCommandResult = WatchCommandResult(
+      ok: false,
+      id: id,
+      code: code,
+      message: message
+    )
+    lastCommandError = message
   }
 
   // MARK: - Inbound
@@ -138,6 +201,8 @@ final class WatchSessionClient: NSObject, ObservableObject {
       return
     }
     if let result = try? decoder.decode(WatchCommandResult.self, from: data) {
+      lastCommandResult = result
+      lastCommandNotice = nil
       lastCommandError = result.ok ? nil : result.message
       return
     }
@@ -186,6 +251,7 @@ final class WatchSessionClient: NSObject, ObservableObject {
     streamedText += chunk.text
     if chunk.isFinal {
       streamingTurnId = nil
+      streamCompletionSequence += 1
     }
   }
 }
@@ -198,8 +264,14 @@ extension WatchSessionClient: WCSessionDelegate {
   ) {
     let reachable = session.isReachable
     Task { @MainActor [weak self] in
-      self?.isReachable = reachable
-      self?.requestSnapshot()
+      guard let self else { return }
+      self.hasActivated = true
+      self.isReachable = activationState == .activated && reachable
+      if activationState == .activated {
+        self.requestSnapshot()
+      } else if let error {
+        self.lastCommandError = error.localizedDescription
+      }
     }
   }
 

@@ -1,5 +1,13 @@
 import SwiftUI
 
+private struct TranscriptBottomOffsetKey: PreferenceKey {
+  static var defaultValue = CGFloat.greatestFiniteMagnitude
+
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+    value = nextValue()
+  }
+}
+
 /// The thread, drawn as a message transcript.
 ///
 /// This replaces the single-answer glance the companion shipped with. The
@@ -14,44 +22,75 @@ struct TranscriptView: View {
   let snapshot: WatchSnapshot
 
   @State private var showsActions = false
+  @State private var isNearBottom = true
 
   /// Identifies the end of the list so a new bubble can be scrolled to.
   private static let bottomAnchor = "transcript-bottom"
+  private static let scrollSpace = "transcript-scroll"
 
   var body: some View {
     VStack(spacing: 0) {
       ScrollViewReader { proxy in
-        ScrollView {
-          LazyVStack(alignment: .leading, spacing: 3) {
-            if snapshot.messagesTruncated {
-              caption("Earlier on iPhone")
-            }
-
-            ForEach(rows) { row in
-              switch row.kind {
-              case .timestamp(let label):
-                caption(label).padding(.vertical, 3)
-              case .message(let message):
-                MessageBubbleView(message: message, liveText: client.streamedText)
+        GeometryReader { viewport in
+          ScrollView {
+            LazyVStack(alignment: .leading, spacing: 3) {
+              if snapshot.messagesTruncated {
+                caption("Earlier on iPhone")
               }
+
+              if rows.isEmpty {
+                emptyState
+              } else {
+                ForEach(rows) { row in
+                  switch row.kind {
+                  case .timestamp(let label):
+                    caption(label).padding(.vertical, 3)
+                  case .message(let message):
+                    MessageBubbleView(
+                      message: message,
+                      liveText: client.streamedText
+                    )
+                  }
+                }
+              }
+
+              footer
+
+              Color.clear
+                .frame(height: 1)
+                .id(Self.bottomAnchor)
+                .background {
+                  GeometryReader { marker in
+                    Color.clear.preference(
+                      key: TranscriptBottomOffsetKey.self,
+                      value: marker.frame(in: .named(Self.scrollSpace)).maxY
+                    )
+                  }
+                }
             }
-
-            footer
-
-            Color.clear
-              .frame(height: 1)
-              .id(Self.bottomAnchor)
+            .padding(.horizontal, 2)
           }
-          .padding(.horizontal, 2)
-        }
-        // Opens on the newest bubble. `onAppear` alone is not enough: it runs
-        // before the scroll view has laid its content out, so the first frame
-        // stayed pinned to the top of the thread.
-        .defaultScrollAnchor(.bottom)
-        .onChange(of: snapshot.sequence) { _, _ in scrollToBottom(proxy) }
-        .onChange(of: client.streamedText) { _, text in
-          speaker.speakIncremental(text)
-          scrollToBottom(proxy)
+          .coordinateSpace(name: Self.scrollSpace)
+          // Opens on the newest bubble. `onAppear` alone is not enough: it runs
+          // before the scroll view has laid its content out, so the first frame
+          // stayed pinned to the top of the thread.
+          .defaultScrollAnchor(.bottom)
+          .onPreferenceChange(TranscriptBottomOffsetKey.self) { bottom in
+            isNearBottom = bottom <= viewport.size.height + 24
+          }
+          .onChange(of: snapshot.sequence) { _, _ in
+            scrollToBottomIfFollowing(proxy)
+          }
+          .onChange(of: snapshot.conversationId) { _, _ in
+            scrollToBottom(proxy)
+          }
+          .onChange(of: client.streamedText) { _, text in
+            speaker.speakIncremental(text)
+            scrollToBottomIfFollowing(proxy)
+          }
+          .onChange(of: client.streamCompletionSequence) { _, _ in
+            speaker.finishIncremental(client.streamedText)
+          }
         }
       }
 
@@ -62,6 +101,7 @@ struct TranscriptView: View {
       )
       .background(Color.black)
     }
+    .ignoresSafeArea(edges: .bottom)
     .sheet(isPresented: $showsActions) {
       ComposeActionsView(isStreaming: snapshot.status == .streaming)
     }
@@ -70,6 +110,27 @@ struct TranscriptView: View {
     // the system's own colour. The thread name is worth more than its hue.
     .navigationTitle(title)
     .toolbar {
+      if let approval = snapshot.approval {
+        ToolbarItem(placement: .topBarTrailing) {
+          NavigationLink {
+            ApprovalView(approval: approval)
+          } label: {
+            Image(systemName: "exclamationmark.triangle.fill")
+              .foregroundStyle(.orange)
+          }
+          .accessibilityLabel("Approval required")
+        }
+      } else if let question = snapshot.question {
+        ToolbarItem(placement: .topBarTrailing) {
+          NavigationLink {
+            QuestionView(question: question)
+          } label: {
+            Image(systemName: "questionmark.bubble.fill")
+              .foregroundStyle(.orange)
+          }
+          .accessibilityLabel("Question waiting")
+        }
+      }
       if snapshot.conversations.count > 1 {
         ToolbarItem(placement: .topBarTrailing) {
           NavigationLink {
@@ -177,6 +238,36 @@ struct TranscriptView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 3)
     }
+
+    if let error = client.lastCommandError, !error.isEmpty {
+      Text(error)
+        .font(.caption2)
+        .foregroundStyle(.red)
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 3)
+    } else if let notice = client.lastCommandNotice, !notice.isEmpty {
+      caption(notice)
+        .multilineTextAlignment(.center)
+        .padding(.top, 3)
+    }
+  }
+
+  private var emptyState: some View {
+    VStack(spacing: 6) {
+      Image(systemName: "bubble.left.and.bubble.right")
+        .font(.title3)
+        .foregroundStyle(.secondary)
+      Text("No messages yet")
+        .font(.headline)
+      Text("Tap Message to start")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, 20)
+    .multilineTextAlignment(.center)
+    .accessibilityElement(children: .combine)
   }
 
   private var statusParts: [String] {
@@ -219,5 +310,10 @@ struct TranscriptView: View {
     withAnimation(.easeOut(duration: 0.2)) {
       proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
     }
+  }
+
+  private func scrollToBottomIfFollowing(_ proxy: ScrollViewProxy) {
+    guard isNearBottom else { return }
+    scrollToBottom(proxy)
   }
 }

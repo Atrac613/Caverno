@@ -226,7 +226,7 @@ struct WatchStreamChunk: Decodable {
 }
 
 /// Reply to a command this watch sent.
-struct WatchCommandResult: Decodable {
+struct WatchCommandResult: Decodable, Equatable {
   let ok: Bool
   let id: String?
   let code: String?

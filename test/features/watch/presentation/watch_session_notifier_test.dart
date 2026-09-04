@@ -181,25 +181,25 @@ void main() {
     expect(bridge.results.single.id, 'r-1');
   });
 
-  test('snapshot sequence increases so the watch can drop stale frames', () async {
-    final instance = await notifier();
+  test(
+    'snapshot sequence increases so the watch can drop stale frames',
+    () async {
+      final instance = await notifier();
 
-    await instance.handleCommandForTest(
-      const WatchCommand(type: WatchCommand.requestSnapshot),
-    );
-    await instance.handleCommandForTest(
-      const WatchCommand(type: WatchCommand.requestSnapshot),
-    );
+      await instance.handleCommandForTest(
+        const WatchCommand(type: WatchCommand.requestSnapshot),
+      );
+      await instance.handleCommandForTest(
+        const WatchCommand(type: WatchCommand.requestSnapshot),
+      );
 
-    final sequences = bridge.pushedSnapshots
-        .map((snapshot) => snapshot.sequence)
-        .toList();
-    expect(sequences, [lessThan(sequences[1]), greaterThan(sequences[0])]);
-    expect(
-      container.read(watchSessionProvider).lastSequence,
-      sequences.last,
-    );
-  });
+      final sequences = bridge.pushedSnapshots
+          .map((snapshot) => snapshot.sequence)
+          .toList();
+      expect(sequences, [lessThan(sequences[1]), greaterThan(sequences[0])]);
+      expect(container.read(watchSessionProvider).lastSequence, sequences.last);
+    },
+  );
 
   test('an unknown command is refused rather than ignored', () async {
     final instance = await notifier();
@@ -360,36 +360,42 @@ void main() {
     });
   });
 
-  test('resolving an approval that is gone reports approval_not_found', () async {
-    final instance = await notifier();
+  test(
+    'resolving an approval that is gone reports approval_not_found',
+    () async {
+      final instance = await notifier();
 
-    await instance.handleCommandForTest(
-      const WatchCommand(
-        type: WatchCommand.resolveApproval,
-        id: 'a-1',
-        payload: {'approvalId': 'stale', 'approved': true},
-      ),
-    );
+      await instance.handleCommandForTest(
+        const WatchCommand(
+          type: WatchCommand.resolveApproval,
+          id: 'a-1',
+          payload: {'approvalId': 'stale', 'approved': true},
+        ),
+      );
 
-    final result = bridge.results.single;
-    expect(result.ok, isFalse);
-    expect(result.code, 'approval_not_found');
-    expect(container.read(watchSessionProvider).lastError, isNotEmpty);
-  });
+      final result = bridge.results.single;
+      expect(result.ok, isFalse);
+      expect(result.code, 'approval_not_found');
+      expect(container.read(watchSessionProvider).lastError, isNotEmpty);
+    },
+  );
 
-  test('resolving a question that is gone reports question_not_found', () async {
-    final instance = await notifier();
+  test(
+    'resolving a question that is gone reports question_not_found',
+    () async {
+      final instance = await notifier();
 
-    await instance.handleCommandForTest(
-      const WatchCommand(
-        type: WatchCommand.resolveQuestion,
-        id: 'q-1',
-        payload: {'questionId': 'stale'},
-      ),
-    );
+      await instance.handleCommandForTest(
+        const WatchCommand(
+          type: WatchCommand.resolveQuestion,
+          id: 'q-1',
+          payload: {'questionId': 'stale'},
+        ),
+      );
 
-    expect(bridge.results.single.code, 'question_not_found');
-  });
+      expect(bridge.results.single.code, 'question_not_found');
+    },
+  );
 
   test('cancelStreaming reaches the chat notifier and acknowledges', () async {
     final instance = await notifier();
@@ -421,6 +427,86 @@ void main() {
       bridge.streamChunks.map((chunk) => chunk['text']! as String).join(),
       'Reading the failing test.',
     );
+  });
+
+  test(
+    'a final marker is sent when the answer has no new final text',
+    () async {
+      final instance = await notifier();
+
+      await instance.pushStreamDeltaForTest('Answer without punctuation');
+      await instance.pushStreamDeltaForTest(
+        'Answer without punctuation',
+        isFinal: true,
+      );
+      await instance.pushStreamDeltaForTest(
+        'Answer without punctuation',
+        isFinal: true,
+      );
+
+      expect(bridge.streamChunks, hasLength(2));
+      expect(
+        bridge.streamChunks.last['turnId'],
+        bridge.streamChunks.first['turnId'],
+      );
+      expect(bridge.streamChunks.last['text'], isEmpty);
+      expect(bridge.streamChunks.last['isFinal'], isTrue);
+    },
+  );
+
+  test('a new turn does not stream the previous assistant answer', () async {
+    final instance = await notifier();
+    final previous = ChatState(
+      messages: [
+        Message(
+          id: 'old-user',
+          content: 'Hello',
+          role: MessageRole.user,
+          timestamp: DateTime.utc(2026, 9, 4, 10),
+        ),
+        Message(
+          id: 'old-assistant',
+          content: 'How can I help?',
+          role: MessageRole.assistant,
+          timestamp: DateTime.utc(2026, 9, 4, 10, 0, 1),
+        ),
+      ],
+      isLoading: false,
+    );
+    final started = previous.copyWith(
+      messages: [
+        ...previous.messages,
+        Message(
+          id: 'new-user',
+          content: 'What is the weather tomorrow?',
+          role: MessageRole.user,
+          timestamp: DateTime.utc(2026, 9, 4, 10, 1),
+        ),
+      ],
+      isLoading: true,
+    );
+
+    await instance.pushStreamStateChangeForTest(previous, started);
+
+    expect(bridge.streamChunks, isEmpty);
+
+    final streaming = started.copyWith(
+      messages: [
+        ...started.messages,
+        Message(
+          id: 'new-assistant',
+          content: 'Tomorrow will be sunny.',
+          role: MessageRole.assistant,
+          isStreaming: true,
+          timestamp: DateTime.utc(2026, 9, 4, 10, 1, 1),
+        ),
+      ],
+    );
+    await instance.pushStreamStateChangeForTest(started, streaming);
+
+    expect(bridge.streamChunks.map((chunk) => chunk['text']), [
+      'Tomorrow will be sunny.',
+    ]);
   });
 
   test('internal markup never reaches the watch', () async {
@@ -460,10 +546,10 @@ void main() {
     // A claim guard can rewrite the visible message rather than extend it.
     await instance.pushStreamDeltaForTest('Corrected answer.');
 
-    expect(
-      bridge.streamChunks.map((chunk) => chunk['text']),
-      ['Original answer.', 'Corrected answer.'],
-    );
+    expect(bridge.streamChunks.map((chunk) => chunk['text']), [
+      'Original answer.',
+      'Corrected answer.',
+    ]);
   });
 
   test('an untitled conversation does not leak its sentinel title', () async {
@@ -516,13 +602,10 @@ void main() {
         ),
       );
 
-      expect(
-        snapshot.messages.map((m) => (m.role, m.text)),
-        [
-          (WatchMessageRole.user, 'Run the tests'),
-          (WatchMessageRole.assistant, 'All green.'),
-        ],
-      );
+      expect(snapshot.messages.map((m) => (m.role, m.text)), [
+        (WatchMessageRole.user, 'Run the tests'),
+        (WatchMessageRole.assistant, 'All green.'),
+      ]);
       expect(snapshot.messagesTruncated, isFalse);
     });
 
@@ -536,7 +619,7 @@ void main() {
               'a-1',
               MessageRole.assistant,
               '<think>weighing it</think>The answer is four.'
-              '<tool_use>{"name":"memory-update"}</tool_use>',
+                  '<tool_use>{"name":"memory-update"}</tool_use>',
             ),
           ],
           isLoading: false,
