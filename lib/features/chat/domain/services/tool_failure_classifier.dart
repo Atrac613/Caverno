@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
+import 'anabasis_parent_authority_guard.dart';
+import 'material_contract_assumption_guard.dart';
 import 'tool_call_execution_policy.dart';
 import 'tool_outcome_shadow_comparison.dart';
 
@@ -64,13 +66,52 @@ class ToolFailureClassifier {
     );
   }
 
+  /// Refusals that a policy issued, where re-issuing the identical call gets
+  /// the identical answer.
+  ///
+  /// Each of these already returns a machine-readable `code`; reading it is
+  /// what stops a policy refusal being counted as a broken tool.
+  static const policyRefusalCodes = <String>{
+    AnabasisParentAuthorityGuard.refusedCode,
+    MaterialContractAssumptionGuard.blockedCode,
+  };
+
+  /// Whether [result] is a refusal rather than a failure.
+  ///
+  /// **The structured code is read first, and the prose match is what is left
+  /// over.** Both guards ANA0 added carry a `code` and neither says "denied",
+  /// so the substring test classified them as execution failures — which meant
+  /// the abort notice told the user to check their server configuration for a
+  /// policy working exactly as designed, and the lifecycle status recorded
+  /// `tool_failure` for a decision. The prose branch stays because refusals
+  /// that predate a code still rely on it; it is the remainder, not the rule.
+  ///
+  /// The name says approval because that is what most of these are. A policy
+  /// refusal is treated the same way for the same reason: the user or the
+  /// policy has answered, and asking again cannot change it.
   bool isApprovalDenial(McpToolResult result) {
     if (result.isSuccess) {
       return false;
     }
+    if (_carriesPolicyRefusalCode(result)) {
+      return true;
+    }
     final haystack = '${result.errorMessage ?? ''}\n${result.result}'
         .toLowerCase();
     return haystack.contains('denied') || haystack.contains('auto-review');
+  }
+
+  bool _carriesPolicyRefusalCode(McpToolResult result) {
+    final payload = result.result.trim();
+    if (!payload.startsWith('{')) return false;
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map<String, dynamic>) return false;
+      final code = decoded['code'];
+      return code is String && policyRefusalCodes.contains(code);
+    } on FormatException {
+      return false;
+    }
   }
 
   String lifecycleResultStatus(ToolCallInfo toolCall, McpToolResult result) {

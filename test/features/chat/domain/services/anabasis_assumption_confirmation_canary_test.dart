@@ -147,23 +147,27 @@ bool _productionCallsConfirmation() {
   return _productionSources()
       .where((file) => file.path != definitionPath)
       .any(
-        (file) =>
-            file.readAsStringSync().contains('confirmMaterialAssumption'),
+        (file) => file.readAsStringSync().contains('confirmMaterialAssumption'),
       );
 }
 
-
-/// Whether the tool-loop feed site still reads the raw blocking list.
+/// Whether the tool loop can refuse a mutation without offering a way to
+/// answer.
 ///
-/// The guard is only as unarmed as the list it is handed, and that list is
-/// assembled in exactly one place. A direct read there re-arms the guard
-/// silently, which is how the shadow was lost the first time: it was never
-/// implemented, only true by accident while no producer existed.
-bool _feedSiteReadsRawBlockingAssumptions() {
+/// While ANA0 ran in shadow this asked the opposite question — that the feed
+/// site went through the arming policy rather than reading the spec's blocking
+/// list, because arming with no confirm surface refuses every mutation
+/// permanently. The surface exists now, so the successor invariant is that the
+/// refusal and the question are not separable: the loop must evaluate through
+/// [MaterialAssumptionConfirmationGate], which asks and re-evaluates, and never
+/// call the guard directly, which can only say no.
+bool _feedSiteRefusesWithoutAsking() {
   const feedSitePath =
       'lib/features/chat/presentation/providers/'
       'chat_notifier_tool_loop_batch.dart';
-  return File(feedSitePath).readAsStringSync().contains('.blockingAssumptions');
+  final source = File(feedSitePath).readAsStringSync();
+  return !source.contains('MaterialAssumptionConfirmationGate(') ||
+      source.contains('MaterialContractAssumptionGuard().evaluate(');
 }
 
 void main() {
@@ -180,7 +184,10 @@ void main() {
 
       expect(result, isNotNull);
       expect(result!.isSuccess, isFalse);
-      expect(result.result, contains(MaterialContractAssumptionGuard.blockedCode));
+      expect(
+        result.result,
+        contains(MaterialContractAssumptionGuard.blockedCode),
+      );
       expect(result.result, contains(_clarification));
     });
 
@@ -223,7 +230,8 @@ void main() {
 
       final confirmationSources = confirmed.sources.where(
         (source) =>
-            source.kind == ConversationContractSourceKind.userConfirmedAssumption,
+            source.kind ==
+            ConversationContractSourceKind.userConfirmedAssumption,
       );
       expect(confirmationSources, hasLength(1));
 
@@ -240,8 +248,8 @@ void main() {
     });
   });
 
-  group('the shadow — marks may be written, the guard may not act on them', () {
-    test('a spec that blocks is still handed nothing to block on', () {
+  group('armed, now that the way out exists', () {
+    test('a spec that blocks is handed exactly what blocks it', () {
       final blocked = _blockedSpec();
       expect(
         blocked.blockingAssumptions,
@@ -251,26 +259,24 @@ void main() {
 
       expect(
         MaterialContractAssumptionArming.armed(blocked),
-        isEmpty,
+        blocked.blockingAssumptions,
         reason:
-            'ANA0 PR 4 arms the guard, once a user can confirm. Until then a '
-            'marked item must reach projection without refusing anything: '
-            'ContractItemMarks.parseBullet already lets a hand-typed '
-            '"(assumed, material)" bullet produce one, and there is no '
-            'confirm surface to clear it with.',
+            'PR 4b-2 armed the guard once a user could answer. This policy '
+            'stays the one place that decides, so a future restriction of '
+            'scope has somewhere to live.',
       );
     });
 
-    test('the feed site goes through the arming policy', () {
+    test('the feed site cannot refuse without asking', () {
       expect(
-        _feedSiteReadsRawBlockingAssumptions(),
+        _feedSiteRefusesWithoutAsking(),
         isFalse,
         reason:
-            'chat_notifier_tool_loop_batch.dart must hand the guard '
-            'MaterialContractAssumptionArming.armed(...), not the spec\'s own '
-            'blockingAssumptions. Reading the raw list there arms the guard '
-            'with no way to disarm it, which the ANA0 ordering constraint '
-            'calls non-negotiable.',
+            'chat_notifier_tool_loop_batch.dart must evaluate through '
+            'MaterialAssumptionConfirmationGate, which raises the '
+            'confirmation and re-evaluates. Calling the guard directly there '
+            'restores the state ANA0 spent two PRs avoiding: a refusal whose '
+            'only exit is a question the model may never ask.',
       );
     });
   });
@@ -290,35 +296,17 @@ void main() {
       );
     });
 
-    test(
-      'something calls the confirmation transformation',
-      () {
-        expect(
-          _productionCallsConfirmation(),
-          isTrue,
-          reason:
-              'ConversationContractProvenanceService.confirmMaterialAssumption '
-              'exists but nothing calls it, so no user can actually confirm '
-              'anything and the guard still cannot be unblocked in a real '
-              'conversation. This assertion exists because the first version '
-              'of this canary passed without it.',
-        );
-      },
-      // Unskip in ANA0 PR 4, together with arming the guard.
-      //
-      // Skipped rather than left red because this lives on a shared main: a
-      // standing failure stops being read after a few days, and the next real
-      // one is then missed. The gap it records is not hidden — the roadmap's
-      // ANA0 entry carries the same condition, and the assertion above still
-      // runs and still passes only while the transformation exists at all.
-      //
-      // The guard is unarmed until then (the producer runs in shadow), so
-      // nothing can deadlock on the missing confirm surface in the meantime.
-      skip:
-          'ANA0 PR 4: unskip when the approval-flow confirm surface lands and '
-          'MaterialContractAssumptionGuard is armed. See '
-          'docs/ANABASIS_ORCHESTRATOR_ARCHITECTURE.md §7 and the ANA0 entry '
-          'in docs/roadmap.md.',
-    );
+    test('something calls the confirmation transformation', () {
+      expect(
+        _productionCallsConfirmation(),
+        isTrue,
+        reason:
+            'ConversationContractProvenanceService.confirmMaterialAssumption '
+            'exists but nothing calls it, so no user can actually confirm '
+            'anything and the guard still cannot be unblocked in a real '
+            'conversation. This assertion exists because the first version '
+            'of this canary passed without it.',
+      );
+    });
   });
 }

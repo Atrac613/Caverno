@@ -4,6 +4,8 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
+import 'package:caverno/features/chat/domain/services/execution_snapshot_projector.dart';
 import 'package:caverno/features/chat/domain/services/system_prompt_builder.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
@@ -937,5 +939,77 @@ Dart symbols:
 
     expect(withoutConfig, isNot(contains('MODEL HARNESS GUIDANCE')));
     expect(overrideFree, isNot(contains('MODEL HARNESS GUIDANCE')));
+  });
+
+  group('the Anabasis parent', () {
+    const snapshot = ExecutionSnapshot(
+      contractHash: 'abc123',
+      workflowStage: ConversationWorkflowStage.implement,
+      action: ExecutionSnapshotAction.execute,
+      activeTaskId: null,
+      activeTaskStatus: null,
+      validationStatus: ConversationExecutionValidationStatus.unknown,
+      completedTaskCount: 0,
+      remainingTaskCount: 2,
+      unresolvedQuestionCount: 0,
+      requiresValidation: false,
+      latestDiagnostic: null,
+      delegatableTasks: [
+        'Choose the index format (subagent)',
+        'Build the query UI (worktree) — premises: The archive fits in memory',
+      ],
+    );
+
+    String promptFor(ModelUsageRole role) {
+      return role.runWith(
+        () => SystemPromptBuilder.build(
+          now: DateTime.utc(2026, 9, 4, 1),
+          assistantMode: AssistantMode.coding,
+          executionSnapshot: snapshot,
+        ),
+      );
+    }
+
+    test('is told what it may do, and that it may not edit', () {
+      final prompt = promptFor(ModelUsageRole.anabasisParent);
+
+      expect(prompt, contains('You are Anabasis'));
+      expect(prompt, contains('spawn_subagent'));
+      expect(
+        prompt,
+        contains('A refusal is final'),
+        reason:
+            'Without this the model reads a structured refusal as a transient '
+            'failure and retries, which is the loop the guard would otherwise '
+            'create.',
+      );
+    });
+
+    test('is handed the delegation queue with premises and runner', () {
+      final prompt = promptFor(ModelUsageRole.anabasisParent);
+
+      expect(prompt, contains('Ready to delegate'));
+      expect(prompt, contains('Choose the index format (subagent)'));
+      expect(
+        prompt,
+        contains('premises: The archive fits in memory'),
+        reason:
+            'A child cannot see this conversation, so the premise has to reach '
+            'the parent before it can reach the child.',
+      );
+    });
+
+    test('an ordinary turn gets neither', () {
+      final prompt = promptFor(ModelUsageRole.chat);
+
+      expect(prompt, isNot(contains('You are Anabasis')));
+      expect(
+        prompt,
+        isNot(contains('Ready to delegate')),
+        reason:
+            'A delegation queue in an ordinary turn reads as a suggestion to '
+            'spawn children.',
+      );
+    });
   });
 }

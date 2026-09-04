@@ -754,7 +754,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     ToolCallInfo toolCall,
     OwnerToolApprovalCache approvalCache,
   ) async {
-    final projectRoot = _normalizeRunTestsAbsolutePath(
+    final projectRoot = RunTestsCommandBuilder.normalizeAbsolutePath(
       _getActiveProjectRootPath()?.trim() ?? '',
     );
     if (projectRoot.isEmpty) {
@@ -773,7 +773,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         (toolCall.arguments['cwd'] as String?)?.trim() ??
         '';
     final hasExplicitWorkingDirectory = rawWorkingDirectory.isNotEmpty;
-    var workingDirectory = _normalizeRunTestsAbsolutePath(
+    var workingDirectory = RunTestsCommandBuilder.normalizeAbsolutePath(
       FilesystemTools.resolvePath(
             rawWorkingDirectory,
             defaultRoot: projectRoot,
@@ -800,7 +800,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
           );
       if (inferredWorkingDirectory != null &&
           DartProjectPath.isInsideRoot(inferredWorkingDirectory, projectRoot)) {
-        workingDirectory = _normalizeRunTestsAbsolutePath(
+        workingDirectory = RunTestsCommandBuilder.normalizeAbsolutePath(
           inferredWorkingDirectory,
         );
       }
@@ -808,12 +808,13 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
 
     String? commandTestPath;
     if (rawTestPath != null) {
-      final normalizedRawTestPath = _normalizeRunTestsPathForWorkingDirectory(
-        rawTestPath,
-        projectRoot: projectRoot,
-        workingDirectory: workingDirectory,
-      );
-      final resolvedTestPath = _normalizeRunTestsAbsolutePath(
+      final normalizedRawTestPath =
+          RunTestsCommandBuilder.normalizePathForWorkingDirectory(
+            rawTestPath,
+            projectRoot: projectRoot,
+            workingDirectory: workingDirectory,
+          );
+      final resolvedTestPath = RunTestsCommandBuilder.normalizeAbsolutePath(
         FilesystemTools.resolvePath(
               normalizedRawTestPath,
               defaultRoot: workingDirectory,
@@ -834,7 +835,9 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
           : resolvedTestPath;
     }
 
-    final runner = _normalizeRunTestsRunner(toolCall.arguments['runner']);
+    final runner = RunTestsCommandBuilder.normalizeRunner(
+      toolCall.arguments['runner'],
+    );
     if (runner == null) {
       return _buildRunTestsError(
         toolCall,
@@ -843,7 +846,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       );
     }
 
-    final command = _buildRunTestsCommand(
+    final command = RunTestsCommandBuilder.buildCommand(
       runner: runner,
       projectRoot: projectRoot,
       workingDirectory: workingDirectory,
@@ -882,106 +885,6 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       isSuccess: false,
       errorMessage: message,
     );
-  }
-
-  String? _normalizeRunTestsRunner(Object? rawRunner) {
-    final runner = rawRunner?.toString().trim().toLowerCase();
-    if (runner == null || runner.isEmpty || runner == 'auto') {
-      return 'auto';
-    }
-    if (runner == 'flutter' || runner == 'dart') {
-      return runner;
-    }
-    return null;
-  }
-
-  String _buildRunTestsCommand({
-    required String runner,
-    required String projectRoot,
-    required String workingDirectory,
-    String? testPath,
-  }) {
-    final effectiveRunner = runner == 'auto'
-        ? _inferRunTestsRunner(
-            projectRoot: projectRoot,
-            workingDirectory: workingDirectory,
-          )
-        : runner;
-    final hasFvmMetadata = DartProjectTooling.hasFvmMetadata(
-      packageRoot: workingDirectory,
-      projectRoot: projectRoot,
-    );
-    final executable = switch (effectiveRunner) {
-      'dart' => hasFvmMetadata ? 'fvm dart' : 'dart',
-      _ => hasFvmMetadata ? 'fvm flutter' : 'flutter',
-    };
-    final parts = <String>[executable, 'test'];
-    if (testPath != null && testPath.trim().isNotEmpty) {
-      parts.add(_shellQuoteRunTestsArgument(testPath.trim()));
-    }
-    return parts.join(' ');
-  }
-
-  String _inferRunTestsRunner({
-    required String projectRoot,
-    required String workingDirectory,
-  }) {
-    return DartProjectTooling.isFlutterPackage(workingDirectory) ||
-            DartProjectTooling.isFlutterPackage(projectRoot)
-        ? 'flutter'
-        : 'dart';
-  }
-
-  String _normalizeRunTestsPathForWorkingDirectory(
-    String rawTestPath, {
-    required String projectRoot,
-    required String workingDirectory,
-  }) {
-    final trimmed = rawTestPath.trim();
-    if (trimmed.isEmpty ||
-        trimmed.startsWith('/') ||
-        RegExp(r'^[A-Za-z]:[\\/]').hasMatch(trimmed)) {
-      return trimmed;
-    }
-
-    final workingDirectoryFromProject = DartProjectPath.relativePath(
-      workingDirectory,
-      projectRoot,
-    ).replaceAll('\\', '/');
-    if (workingDirectoryFromProject.isEmpty ||
-        workingDirectoryFromProject == '.') {
-      return trimmed;
-    }
-
-    final normalizedTestPath = trimmed.replaceAll('\\', '/');
-    if (normalizedTestPath == workingDirectoryFromProject) {
-      return '.';
-    }
-    final workingDirectoryPrefix = '$workingDirectoryFromProject/';
-    if (normalizedTestPath.startsWith(workingDirectoryPrefix)) {
-      final stripped = normalizedTestPath.substring(
-        workingDirectoryPrefix.length,
-      );
-      return stripped.isEmpty ? '.' : stripped;
-    }
-    return trimmed;
-  }
-
-  String _shellQuoteRunTestsArgument(String value) {
-    if (value.isEmpty) return "''";
-    return "'${value.replaceAll("'", "'\"'\"'")}'";
-  }
-
-  String _normalizeRunTestsAbsolutePath(String path) {
-    final trimmed = path.trim();
-    if (trimmed.isEmpty) {
-      return '';
-    }
-    try {
-      return Uri.file(trimmed).normalizePath().toFilePath();
-    } catch (_) {
-      return trimmed;
-    }
   }
 
   Future<LocalCommandApproval> requestLocalCommand({

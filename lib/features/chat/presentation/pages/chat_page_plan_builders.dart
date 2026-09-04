@@ -91,18 +91,19 @@ extension _ChatPagePlanBuilders on _ChatPageState {
                 value: workflowSpec.goal.trim(),
               ),
             ],
-            _buildWorkflowListSection(
-              context,
+            ContractItemListSection(
               label: 'chat.workflow_constraints'.tr(),
               items: workflowSpec.constraints,
+              spec: workflowSpec,
+              kind: ConversationContractItemKind.constraint,
             ),
-            _buildWorkflowListSection(
-              context,
+            ContractItemListSection(
               label: 'chat.workflow_acceptance'.tr(),
               items: workflowSpec.acceptanceCriteria,
+              spec: workflowSpec,
+              kind: ConversationContractItemKind.acceptanceCriterion,
             ),
-            _buildWorkflowListSection(
-              context,
+            ContractItemListSection(
               label: 'chat.workflow_open_questions'.tr(),
               items: workflowSpec.openQuestions,
             ),

@@ -43,7 +43,7 @@ final class MaterialContractAssumptionGuard {
             'State mutation is blocked until the user confirms a material contract assumption.',
         'clarification_question': question,
         'required_action':
-            'Ask the user this one focused clarification question and wait for confirmation before mutating state.',
+            'The user did not confirm this. Do not mutate state; investigate what would settle the assumption, or say what you need from them.',
       }),
       isSuccess: false,
       errorMessage: 'Confirm the material contract assumption first.',

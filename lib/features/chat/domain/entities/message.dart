@@ -54,6 +54,20 @@ abstract class Message with _$Message {
     /// screenshot from the final answer because the envelope had become the
     /// latest user message and carried no image.
     @Default(false) bool isSynthesizedPrompt,
+
+    /// True when the Anabasis parent answered this turn.
+    ///
+    /// The transcript is the only place a reader can tell an orchestrator's
+    /// reply from an ordinary one, and the two mean different things: the
+    /// parent inspects, verifies and delegates but never edits, so "it did not
+    /// change anything" is expected of it and would be a failure from anyone
+    /// else. Stored rather than derived so reopening a conversation keeps the
+    /// distinction.
+    ///
+    /// A separate field rather than the participant columns: ANA0's design
+    /// keeps the parent's authority off surface identity, and rendering it as a
+    /// participant would mix the two.
+    @Default(false) bool isAnabasisParent,
     String? originalImagePath,
     String? originalImageMimeType,
 

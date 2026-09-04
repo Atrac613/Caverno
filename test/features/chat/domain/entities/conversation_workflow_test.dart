@@ -132,4 +132,42 @@ void main() {
       ),
     ]);
   });
+
+  test('a task saved before preconditions existed still loads', () {
+    // Every conversation on disk predates ANA1, and its tasks carry no
+    // `preconditions` key at all. A required field here would have made every
+    // saved plan unreadable; the default is what keeps the migration to none.
+    final task = ConversationWorkflowTask.fromJson(const {
+      'id': 'task-1',
+      'title': 'Implement the store',
+      'status': 'pending',
+    });
+
+    expect(task.preconditions, isEmpty);
+    expect(
+      ConversationWorkflowTask.fromJson(task.toJson()).preconditions,
+      isEmpty,
+    );
+  });
+
+  test(
+    'a precondition survives the round trip it will be persisted through',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'build-sync',
+        title: 'Build the sync engine',
+        preconditions: [
+          ConversationTaskPrecondition(
+            kind: ConversationTaskPreconditionKind.assumption,
+            ref: 'constraint:stable-entity-ids',
+          ),
+        ],
+      );
+
+      expect(
+        ConversationWorkflowTask.fromJson(task.toJson()).preconditions,
+        task.preconditions,
+      );
+    },
+  );
 }

@@ -288,9 +288,579 @@ as DateTime?,
 
 
 /// @nodoc
+mixin _$ConversationTaskAcceptance {
+
+ String get taskId; DateTime get acceptedAt;/// Why the parent judged this to satisfy the goal, in its own words.
+ String get rationale;/// What the mechanical and evidence levels rested on: the verification
+/// command that passed, the files the child changed.
+ List<String> get evidence;/// The confirmed assumptions in force when this was accepted.
+ List<String> get premises;
+/// Create a copy of ConversationTaskAcceptance
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConversationTaskAcceptanceCopyWith<ConversationTaskAcceptance> get copyWith => _$ConversationTaskAcceptanceCopyWithImpl<ConversationTaskAcceptance>(this as ConversationTaskAcceptance, _$identity);
+
+  /// Serializes this ConversationTaskAcceptance to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationTaskAcceptance&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.rationale, rationale) || other.rationale == rationale)&&const DeepCollectionEquality().equals(other.evidence, evidence)&&const DeepCollectionEquality().equals(other.premises, premises));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,taskId,acceptedAt,rationale,const DeepCollectionEquality().hash(evidence),const DeepCollectionEquality().hash(premises));
+
+@override
+String toString() {
+  return 'ConversationTaskAcceptance(taskId: $taskId, acceptedAt: $acceptedAt, rationale: $rationale, evidence: $evidence, premises: $premises)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConversationTaskAcceptanceCopyWith<$Res>  {
+  factory $ConversationTaskAcceptanceCopyWith(ConversationTaskAcceptance value, $Res Function(ConversationTaskAcceptance) _then) = _$ConversationTaskAcceptanceCopyWithImpl;
+@useResult
+$Res call({
+ String taskId, DateTime acceptedAt, String rationale, List<String> evidence, List<String> premises
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConversationTaskAcceptanceCopyWithImpl<$Res>
+    implements $ConversationTaskAcceptanceCopyWith<$Res> {
+  _$ConversationTaskAcceptanceCopyWithImpl(this._self, this._then);
+
+  final ConversationTaskAcceptance _self;
+  final $Res Function(ConversationTaskAcceptance) _then;
+
+/// Create a copy of ConversationTaskAcceptance
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? taskId = null,Object? acceptedAt = null,Object? rationale = null,Object? evidence = null,Object? premises = null,}) {
+  return _then(_self.copyWith(
+taskId: null == taskId ? _self.taskId : taskId // ignore: cast_nullable_to_non_nullable
+as String,acceptedAt: null == acceptedAt ? _self.acceptedAt : acceptedAt // ignore: cast_nullable_to_non_nullable
+as DateTime,rationale: null == rationale ? _self.rationale : rationale // ignore: cast_nullable_to_non_nullable
+as String,evidence: null == evidence ? _self.evidence : evidence // ignore: cast_nullable_to_non_nullable
+as List<String>,premises: null == premises ? _self.premises : premises // ignore: cast_nullable_to_non_nullable
+as List<String>,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [ConversationTaskAcceptance].
+extension ConversationTaskAcceptancePatterns on ConversationTaskAcceptance {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ConversationTaskAcceptance value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _ConversationTaskAcceptance() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ConversationTaskAcceptance value)  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationTaskAcceptance():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ConversationTaskAcceptance value)?  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationTaskAcceptance() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String taskId,  DateTime acceptedAt,  String rationale,  List<String> evidence,  List<String> premises)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _ConversationTaskAcceptance() when $default != null:
+return $default(_that.taskId,_that.acceptedAt,_that.rationale,_that.evidence,_that.premises);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String taskId,  DateTime acceptedAt,  String rationale,  List<String> evidence,  List<String> premises)  $default,) {final _that = this;
+switch (_that) {
+case _ConversationTaskAcceptance():
+return $default(_that.taskId,_that.acceptedAt,_that.rationale,_that.evidence,_that.premises);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String taskId,  DateTime acceptedAt,  String rationale,  List<String> evidence,  List<String> premises)?  $default,) {final _that = this;
+switch (_that) {
+case _ConversationTaskAcceptance() when $default != null:
+return $default(_that.taskId,_that.acceptedAt,_that.rationale,_that.evidence,_that.premises);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _ConversationTaskAcceptance extends ConversationTaskAcceptance {
+  const _ConversationTaskAcceptance({required this.taskId, required this.acceptedAt, this.rationale = '', final  List<String> evidence = const <String>[], final  List<String> premises = const <String>[]}): _evidence = evidence,_premises = premises,super._();
+  factory _ConversationTaskAcceptance.fromJson(Map<String, dynamic> json) => _$ConversationTaskAcceptanceFromJson(json);
+
+@override final  String taskId;
+@override final  DateTime acceptedAt;
+/// Why the parent judged this to satisfy the goal, in its own words.
+@override@JsonKey() final  String rationale;
+/// What the mechanical and evidence levels rested on: the verification
+/// command that passed, the files the child changed.
+ final  List<String> _evidence;
+/// What the mechanical and evidence levels rested on: the verification
+/// command that passed, the files the child changed.
+@override@JsonKey() List<String> get evidence {
+  if (_evidence is EqualUnmodifiableListView) return _evidence;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_evidence);
+}
+
+/// The confirmed assumptions in force when this was accepted.
+ final  List<String> _premises;
+/// The confirmed assumptions in force when this was accepted.
+@override@JsonKey() List<String> get premises {
+  if (_premises is EqualUnmodifiableListView) return _premises;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_premises);
+}
+
+
+/// Create a copy of ConversationTaskAcceptance
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ConversationTaskAcceptanceCopyWith<_ConversationTaskAcceptance> get copyWith => __$ConversationTaskAcceptanceCopyWithImpl<_ConversationTaskAcceptance>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$ConversationTaskAcceptanceToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationTaskAcceptance&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.rationale, rationale) || other.rationale == rationale)&&const DeepCollectionEquality().equals(other._evidence, _evidence)&&const DeepCollectionEquality().equals(other._premises, _premises));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,taskId,acceptedAt,rationale,const DeepCollectionEquality().hash(_evidence),const DeepCollectionEquality().hash(_premises));
+
+@override
+String toString() {
+  return 'ConversationTaskAcceptance(taskId: $taskId, acceptedAt: $acceptedAt, rationale: $rationale, evidence: $evidence, premises: $premises)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ConversationTaskAcceptanceCopyWith<$Res> implements $ConversationTaskAcceptanceCopyWith<$Res> {
+  factory _$ConversationTaskAcceptanceCopyWith(_ConversationTaskAcceptance value, $Res Function(_ConversationTaskAcceptance) _then) = __$ConversationTaskAcceptanceCopyWithImpl;
+@override @useResult
+$Res call({
+ String taskId, DateTime acceptedAt, String rationale, List<String> evidence, List<String> premises
+});
+
+
+
+
+}
+/// @nodoc
+class __$ConversationTaskAcceptanceCopyWithImpl<$Res>
+    implements _$ConversationTaskAcceptanceCopyWith<$Res> {
+  __$ConversationTaskAcceptanceCopyWithImpl(this._self, this._then);
+
+  final _ConversationTaskAcceptance _self;
+  final $Res Function(_ConversationTaskAcceptance) _then;
+
+/// Create a copy of ConversationTaskAcceptance
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? taskId = null,Object? acceptedAt = null,Object? rationale = null,Object? evidence = null,Object? premises = null,}) {
+  return _then(_ConversationTaskAcceptance(
+taskId: null == taskId ? _self.taskId : taskId // ignore: cast_nullable_to_non_nullable
+as String,acceptedAt: null == acceptedAt ? _self.acceptedAt : acceptedAt // ignore: cast_nullable_to_non_nullable
+as DateTime,rationale: null == rationale ? _self.rationale : rationale // ignore: cast_nullable_to_non_nullable
+as String,evidence: null == evidence ? _self._evidence : evidence // ignore: cast_nullable_to_non_nullable
+as List<String>,premises: null == premises ? _self._premises : premises // ignore: cast_nullable_to_non_nullable
+as List<String>,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$ConversationTaskPrecondition {
+
+ ConversationTaskPreconditionKind get kind; String get ref;
+/// Create a copy of ConversationTaskPrecondition
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConversationTaskPreconditionCopyWith<ConversationTaskPrecondition> get copyWith => _$ConversationTaskPreconditionCopyWithImpl<ConversationTaskPrecondition>(this as ConversationTaskPrecondition, _$identity);
+
+  /// Serializes this ConversationTaskPrecondition to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationTaskPrecondition&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.ref, ref) || other.ref == ref));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,kind,ref);
+
+@override
+String toString() {
+  return 'ConversationTaskPrecondition(kind: $kind, ref: $ref)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConversationTaskPreconditionCopyWith<$Res>  {
+  factory $ConversationTaskPreconditionCopyWith(ConversationTaskPrecondition value, $Res Function(ConversationTaskPrecondition) _then) = _$ConversationTaskPreconditionCopyWithImpl;
+@useResult
+$Res call({
+ ConversationTaskPreconditionKind kind, String ref
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConversationTaskPreconditionCopyWithImpl<$Res>
+    implements $ConversationTaskPreconditionCopyWith<$Res> {
+  _$ConversationTaskPreconditionCopyWithImpl(this._self, this._then);
+
+  final ConversationTaskPrecondition _self;
+  final $Res Function(ConversationTaskPrecondition) _then;
+
+/// Create a copy of ConversationTaskPrecondition
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? kind = null,Object? ref = null,}) {
+  return _then(_self.copyWith(
+kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as ConversationTaskPreconditionKind,ref: null == ref ? _self.ref : ref // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [ConversationTaskPrecondition].
+extension ConversationTaskPreconditionPatterns on ConversationTaskPrecondition {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ConversationTaskPrecondition value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _ConversationTaskPrecondition() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ConversationTaskPrecondition value)  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationTaskPrecondition():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ConversationTaskPrecondition value)?  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationTaskPrecondition() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( ConversationTaskPreconditionKind kind,  String ref)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _ConversationTaskPrecondition() when $default != null:
+return $default(_that.kind,_that.ref);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( ConversationTaskPreconditionKind kind,  String ref)  $default,) {final _that = this;
+switch (_that) {
+case _ConversationTaskPrecondition():
+return $default(_that.kind,_that.ref);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( ConversationTaskPreconditionKind kind,  String ref)?  $default,) {final _that = this;
+switch (_that) {
+case _ConversationTaskPrecondition() when $default != null:
+return $default(_that.kind,_that.ref);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _ConversationTaskPrecondition extends ConversationTaskPrecondition {
+  const _ConversationTaskPrecondition({required this.kind, required this.ref}): super._();
+  factory _ConversationTaskPrecondition.fromJson(Map<String, dynamic> json) => _$ConversationTaskPreconditionFromJson(json);
+
+@override final  ConversationTaskPreconditionKind kind;
+@override final  String ref;
+
+/// Create a copy of ConversationTaskPrecondition
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ConversationTaskPreconditionCopyWith<_ConversationTaskPrecondition> get copyWith => __$ConversationTaskPreconditionCopyWithImpl<_ConversationTaskPrecondition>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$ConversationTaskPreconditionToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationTaskPrecondition&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.ref, ref) || other.ref == ref));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,kind,ref);
+
+@override
+String toString() {
+  return 'ConversationTaskPrecondition(kind: $kind, ref: $ref)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ConversationTaskPreconditionCopyWith<$Res> implements $ConversationTaskPreconditionCopyWith<$Res> {
+  factory _$ConversationTaskPreconditionCopyWith(_ConversationTaskPrecondition value, $Res Function(_ConversationTaskPrecondition) _then) = __$ConversationTaskPreconditionCopyWithImpl;
+@override @useResult
+$Res call({
+ ConversationTaskPreconditionKind kind, String ref
+});
+
+
+
+
+}
+/// @nodoc
+class __$ConversationTaskPreconditionCopyWithImpl<$Res>
+    implements _$ConversationTaskPreconditionCopyWith<$Res> {
+  __$ConversationTaskPreconditionCopyWithImpl(this._self, this._then);
+
+  final _ConversationTaskPrecondition _self;
+  final $Res Function(_ConversationTaskPrecondition) _then;
+
+/// Create a copy of ConversationTaskPrecondition
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? kind = null,Object? ref = null,}) {
+  return _then(_ConversationTaskPrecondition(
+kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as ConversationTaskPreconditionKind,ref: null == ref ? _self.ref : ref // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$ConversationWorkflowTask {
 
- String get id; String get title; ConversationWorkflowTaskStatus get status; List<String> get targetFiles; String get validationCommand; String get notes;
+ String get id; String get title; ConversationWorkflowTaskStatus get status; List<String> get targetFiles; String get validationCommand; String get notes;/// What has to hold before this task can start (ANA1).
+///
+/// A plain dependency list would only cover one of the three shapes real
+/// blocking takes here. Each kind points at state that already exists, so
+/// the new structure is the edge and the predicate, never new state on
+/// either end.
+@JsonKey(fromJson: _taskPreconditionsFromJson, toJson: _taskPreconditionsToJson) List<ConversationTaskPrecondition> get preconditions;
 /// Create a copy of ConversationWorkflowTask
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -303,16 +873,16 @@ $ConversationWorkflowTaskCopyWith<ConversationWorkflowTask> get copyWith => _$Co
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationWorkflowTask&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other.targetFiles, targetFiles)&&(identical(other.validationCommand, validationCommand) || other.validationCommand == validationCommand)&&(identical(other.notes, notes) || other.notes == notes));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationWorkflowTask&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other.targetFiles, targetFiles)&&(identical(other.validationCommand, validationCommand) || other.validationCommand == validationCommand)&&(identical(other.notes, notes) || other.notes == notes)&&const DeepCollectionEquality().equals(other.preconditions, preconditions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,status,const DeepCollectionEquality().hash(targetFiles),validationCommand,notes);
+int get hashCode => Object.hash(runtimeType,id,title,status,const DeepCollectionEquality().hash(targetFiles),validationCommand,notes,const DeepCollectionEquality().hash(preconditions));
 
 @override
 String toString() {
-  return 'ConversationWorkflowTask(id: $id, title: $title, status: $status, targetFiles: $targetFiles, validationCommand: $validationCommand, notes: $notes)';
+  return 'ConversationWorkflowTask(id: $id, title: $title, status: $status, targetFiles: $targetFiles, validationCommand: $validationCommand, notes: $notes, preconditions: $preconditions)';
 }
 
 
@@ -323,7 +893,7 @@ abstract mixin class $ConversationWorkflowTaskCopyWith<$Res>  {
   factory $ConversationWorkflowTaskCopyWith(ConversationWorkflowTask value, $Res Function(ConversationWorkflowTask) _then) = _$ConversationWorkflowTaskCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, ConversationWorkflowTaskStatus status, List<String> targetFiles, String validationCommand, String notes
+ String id, String title, ConversationWorkflowTaskStatus status, List<String> targetFiles, String validationCommand, String notes,@JsonKey(fromJson: _taskPreconditionsFromJson, toJson: _taskPreconditionsToJson) List<ConversationTaskPrecondition> preconditions
 });
 
 
@@ -340,7 +910,7 @@ class _$ConversationWorkflowTaskCopyWithImpl<$Res>
 
 /// Create a copy of ConversationWorkflowTask
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? status = null,Object? targetFiles = null,Object? validationCommand = null,Object? notes = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? status = null,Object? targetFiles = null,Object? validationCommand = null,Object? notes = null,Object? preconditions = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -348,7 +918,8 @@ as String,status: null == status ? _self.status : status // ignore: cast_nullabl
 as ConversationWorkflowTaskStatus,targetFiles: null == targetFiles ? _self.targetFiles : targetFiles // ignore: cast_nullable_to_non_nullable
 as List<String>,validationCommand: null == validationCommand ? _self.validationCommand : validationCommand // ignore: cast_nullable_to_non_nullable
 as String,notes: null == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
-as String,
+as String,preconditions: null == preconditions ? _self.preconditions : preconditions // ignore: cast_nullable_to_non_nullable
+as List<ConversationTaskPrecondition>,
   ));
 }
 
@@ -433,10 +1004,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  ConversationWorkflowTaskStatus status,  List<String> targetFiles,  String validationCommand,  String notes)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  ConversationWorkflowTaskStatus status,  List<String> targetFiles,  String validationCommand,  String notes, @JsonKey(fromJson: _taskPreconditionsFromJson, toJson: _taskPreconditionsToJson)  List<ConversationTaskPrecondition> preconditions)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ConversationWorkflowTask() when $default != null:
-return $default(_that.id,_that.title,_that.status,_that.targetFiles,_that.validationCommand,_that.notes);case _:
+return $default(_that.id,_that.title,_that.status,_that.targetFiles,_that.validationCommand,_that.notes,_that.preconditions);case _:
   return orElse();
 
 }
@@ -454,10 +1025,10 @@ return $default(_that.id,_that.title,_that.status,_that.targetFiles,_that.valida
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  ConversationWorkflowTaskStatus status,  List<String> targetFiles,  String validationCommand,  String notes)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  ConversationWorkflowTaskStatus status,  List<String> targetFiles,  String validationCommand,  String notes, @JsonKey(fromJson: _taskPreconditionsFromJson, toJson: _taskPreconditionsToJson)  List<ConversationTaskPrecondition> preconditions)  $default,) {final _that = this;
 switch (_that) {
 case _ConversationWorkflowTask():
-return $default(_that.id,_that.title,_that.status,_that.targetFiles,_that.validationCommand,_that.notes);case _:
+return $default(_that.id,_that.title,_that.status,_that.targetFiles,_that.validationCommand,_that.notes,_that.preconditions);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -474,10 +1045,10 @@ return $default(_that.id,_that.title,_that.status,_that.targetFiles,_that.valida
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  ConversationWorkflowTaskStatus status,  List<String> targetFiles,  String validationCommand,  String notes)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  ConversationWorkflowTaskStatus status,  List<String> targetFiles,  String validationCommand,  String notes, @JsonKey(fromJson: _taskPreconditionsFromJson, toJson: _taskPreconditionsToJson)  List<ConversationTaskPrecondition> preconditions)?  $default,) {final _that = this;
 switch (_that) {
 case _ConversationWorkflowTask() when $default != null:
-return $default(_that.id,_that.title,_that.status,_that.targetFiles,_that.validationCommand,_that.notes);case _:
+return $default(_that.id,_that.title,_that.status,_that.targetFiles,_that.validationCommand,_that.notes,_that.preconditions);case _:
   return null;
 
 }
@@ -489,7 +1060,7 @@ return $default(_that.id,_that.title,_that.status,_that.targetFiles,_that.valida
 @JsonSerializable()
 
 class _ConversationWorkflowTask extends ConversationWorkflowTask {
-  const _ConversationWorkflowTask({required this.id, required this.title, this.status = ConversationWorkflowTaskStatus.pending, final  List<String> targetFiles = const <String>[], this.validationCommand = '', this.notes = ''}): _targetFiles = targetFiles,super._();
+  const _ConversationWorkflowTask({required this.id, required this.title, this.status = ConversationWorkflowTaskStatus.pending, final  List<String> targetFiles = const <String>[], this.validationCommand = '', this.notes = '', @JsonKey(fromJson: _taskPreconditionsFromJson, toJson: _taskPreconditionsToJson) final  List<ConversationTaskPrecondition> preconditions = const <ConversationTaskPrecondition>[]}): _targetFiles = targetFiles,_preconditions = preconditions,super._();
   factory _ConversationWorkflowTask.fromJson(Map<String, dynamic> json) => _$ConversationWorkflowTaskFromJson(json);
 
 @override final  String id;
@@ -504,6 +1075,25 @@ class _ConversationWorkflowTask extends ConversationWorkflowTask {
 
 @override@JsonKey() final  String validationCommand;
 @override@JsonKey() final  String notes;
+/// What has to hold before this task can start (ANA1).
+///
+/// A plain dependency list would only cover one of the three shapes real
+/// blocking takes here. Each kind points at state that already exists, so
+/// the new structure is the edge and the predicate, never new state on
+/// either end.
+ final  List<ConversationTaskPrecondition> _preconditions;
+/// What has to hold before this task can start (ANA1).
+///
+/// A plain dependency list would only cover one of the three shapes real
+/// blocking takes here. Each kind points at state that already exists, so
+/// the new structure is the edge and the predicate, never new state on
+/// either end.
+@override@JsonKey(fromJson: _taskPreconditionsFromJson, toJson: _taskPreconditionsToJson) List<ConversationTaskPrecondition> get preconditions {
+  if (_preconditions is EqualUnmodifiableListView) return _preconditions;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_preconditions);
+}
+
 
 /// Create a copy of ConversationWorkflowTask
 /// with the given fields replaced by the non-null parameter values.
@@ -518,16 +1108,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationWorkflowTask&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other._targetFiles, _targetFiles)&&(identical(other.validationCommand, validationCommand) || other.validationCommand == validationCommand)&&(identical(other.notes, notes) || other.notes == notes));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationWorkflowTask&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other._targetFiles, _targetFiles)&&(identical(other.validationCommand, validationCommand) || other.validationCommand == validationCommand)&&(identical(other.notes, notes) || other.notes == notes)&&const DeepCollectionEquality().equals(other._preconditions, _preconditions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,status,const DeepCollectionEquality().hash(_targetFiles),validationCommand,notes);
+int get hashCode => Object.hash(runtimeType,id,title,status,const DeepCollectionEquality().hash(_targetFiles),validationCommand,notes,const DeepCollectionEquality().hash(_preconditions));
 
 @override
 String toString() {
-  return 'ConversationWorkflowTask(id: $id, title: $title, status: $status, targetFiles: $targetFiles, validationCommand: $validationCommand, notes: $notes)';
+  return 'ConversationWorkflowTask(id: $id, title: $title, status: $status, targetFiles: $targetFiles, validationCommand: $validationCommand, notes: $notes, preconditions: $preconditions)';
 }
 
 
@@ -538,7 +1128,7 @@ abstract mixin class _$ConversationWorkflowTaskCopyWith<$Res> implements $Conver
   factory _$ConversationWorkflowTaskCopyWith(_ConversationWorkflowTask value, $Res Function(_ConversationWorkflowTask) _then) = __$ConversationWorkflowTaskCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, ConversationWorkflowTaskStatus status, List<String> targetFiles, String validationCommand, String notes
+ String id, String title, ConversationWorkflowTaskStatus status, List<String> targetFiles, String validationCommand, String notes,@JsonKey(fromJson: _taskPreconditionsFromJson, toJson: _taskPreconditionsToJson) List<ConversationTaskPrecondition> preconditions
 });
 
 
@@ -555,7 +1145,7 @@ class __$ConversationWorkflowTaskCopyWithImpl<$Res>
 
 /// Create a copy of ConversationWorkflowTask
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? status = null,Object? targetFiles = null,Object? validationCommand = null,Object? notes = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? status = null,Object? targetFiles = null,Object? validationCommand = null,Object? notes = null,Object? preconditions = null,}) {
   return _then(_ConversationWorkflowTask(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -563,7 +1153,8 @@ as String,status: null == status ? _self.status : status // ignore: cast_nullabl
 as ConversationWorkflowTaskStatus,targetFiles: null == targetFiles ? _self._targetFiles : targetFiles // ignore: cast_nullable_to_non_nullable
 as List<String>,validationCommand: null == validationCommand ? _self.validationCommand : validationCommand // ignore: cast_nullable_to_non_nullable
 as String,notes: null == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
-as String,
+as String,preconditions: null == preconditions ? _self._preconditions : preconditions // ignore: cast_nullable_to_non_nullable
+as List<ConversationTaskPrecondition>,
   ));
 }
 

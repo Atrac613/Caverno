@@ -174,7 +174,8 @@ class ConversationContractProvenanceService {
   ///
   /// Stable so confirming twice is a no-op, and so a confirmation survives any
   /// path that re-derives provenance while keeping item ids.
-  String confirmationSourceId(String itemId) => 'user-confirmed:${itemId.trim()}';
+  String confirmationSourceId(String itemId) =>
+      'user-confirmed:${itemId.trim()}';
 
   String itemId({
     required ConversationContractItemKind kind,
@@ -183,6 +184,53 @@ class ConversationContractProvenanceService {
     if (kind == ConversationContractItemKind.goal) return 'goal';
     final normalized = value.trim().toLowerCase();
     return '${kind.name}:${computeConversationPlanHash(normalized)}';
+  }
+
+  /// The text of the item [itemId] names, or `null` when the spec no longer
+  /// holds it.
+  ///
+  /// The provenance record carries an id, and [itemId] hashes the item's text,
+  /// so a surface that has to *show* the user what they are confirming cannot
+  /// read it off the provenance entry. This re-derives the ids the same way
+  /// [_items] does and returns the value behind the match, which keeps one
+  /// definition of what an id means.
+  ///
+  /// Goals and tasks answer with their own text, so the lookup covers every
+  /// kind a mark can land on rather than only the constraints ANA0 measures.
+  String? itemValueFor(ConversationWorkflowSpec spec, String itemId) {
+    final target = itemId.trim();
+    if (target.isEmpty) return null;
+    if (target == 'goal') {
+      final goal = spec.goal.trim();
+      return goal.isEmpty ? null : goal;
+    }
+    for (final task in spec.tasks) {
+      final taskId = task.id.trim();
+      final id = taskId.isEmpty
+          ? this.itemId(
+              kind: ConversationContractItemKind.task,
+              value: task.title,
+            )
+          : 'task:$taskId';
+      if (id == target) {
+        final title = task.title.trim();
+        return title.isEmpty ? null : title;
+      }
+    }
+    final lists = <ConversationContractItemKind, List<String>>{
+      ConversationContractItemKind.constraint: spec.constraints,
+      ConversationContractItemKind.acceptanceCriterion: spec.acceptanceCriteria,
+      ConversationContractItemKind.openQuestion: spec.openQuestions,
+    };
+    for (final entry in lists.entries) {
+      for (final value in entry.value) {
+        if (value.trim().isEmpty) continue;
+        if (this.itemId(kind: entry.key, value: value) == target) {
+          return value.trim();
+        }
+      }
+    }
+    return null;
   }
 
   /// Whether an epistemic mark means anything on an item of [kind].
@@ -230,7 +278,12 @@ class ConversationContractProvenanceService {
     void addItems(Iterable<String> values, ConversationContractItemKind kind) {
       for (final value in values) {
         if (value.trim().isEmpty) continue;
-        items.add(entry(id: itemId(kind: kind, value: value), kind: kind));
+        items.add(
+          entry(
+            id: itemId(kind: kind, value: value),
+            kind: kind,
+          ),
+        );
       }
     }
 

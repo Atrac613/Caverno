@@ -290,7 +290,7 @@ void main() {
     });
   });
 
-  group('the producer runs in shadow', () {
+  group('the producer reaches the guard', () {
     test('a marked proposal item projects to a blocking assumption', () {
       // What the model returns: the marker rides inside the JSON string, so it
       // reaches the plan document as text and becomes a mark only there. The
@@ -314,11 +314,11 @@ void main() {
 
       expect(
         MaterialContractAssumptionArming.armed(projected.workflowSpec),
-        isEmpty,
+        projected.workflowSpec.blockingAssumptions,
         reason:
-            'Shadow: PR 3b writes the marks and PR 4 acts on them. Arming here '
-            'would refuse every mutation in the conversation with nothing able '
-            'to call confirmMaterialAssumption.',
+            'PR 3b writes the marks, PR 4b-2 acts on them: a marker typed into '
+            'a plan document has to survive the round trip all the way to the '
+            'list the guard refuses on, or the epistemic marks are decoration.',
       );
     });
 

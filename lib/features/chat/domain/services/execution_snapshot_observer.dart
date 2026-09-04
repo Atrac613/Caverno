@@ -24,6 +24,9 @@ final class ExecutionSnapshotObservation<LogOwner extends Object> {
   final DateTime timestamp;
 }
 
+/// The same defensive copy, named once instead of seven times.
+List<String> _frozen(List<String> values) => List<String>.unmodifiable(values);
+
 ExecutionSnapshot _freezeExecutionSnapshot(ExecutionSnapshot source) {
   return ExecutionSnapshot(
     contractHash: source.contractHash,
@@ -38,18 +41,16 @@ ExecutionSnapshot _freezeExecutionSnapshot(ExecutionSnapshot source) {
     requiresValidation: source.requiresValidation,
     latestDiagnostic: source.latestDiagnostic,
     objective: source.objective,
-    constraints: List<String>.unmodifiable(source.constraints),
-    acceptanceCriteria: List<String>.unmodifiable(source.acceptanceCriteria),
+    constraints: _frozen(source.constraints),
+    acceptanceCriteria: _frozen(source.acceptanceCriteria),
     activeTaskTitle: source.activeTaskTitle,
-    activeTaskTargetFiles: List<String>.unmodifiable(
-      source.activeTaskTargetFiles,
-    ),
+    activeTaskTargetFiles: _frozen(source.activeTaskTargetFiles),
     activeTaskValidationCommand: source.activeTaskValidationCommand,
-    remainingTaskIds: List<String>.unmodifiable(source.remainingTaskIds),
-    clarificationQuestions: List<String>.unmodifiable(
-      source.clarificationQuestions,
-    ),
-    blockingAssumptionCount: source.blockingAssumptionCount,
+    remainingTaskIds: _frozen(source.remainingTaskIds),
+    clarificationQuestions: _frozen(source.clarificationQuestions),
+    blockingAssumptions: _frozen(source.blockingAssumptions),
+    waitingTasks: _frozen(source.waitingTasks),
+    delegatableTasks: _frozen(source.delegatableTasks),
     sourceCount: source.sourceCount,
     sourcedItemCount: source.sourcedItemCount,
     mutationGeneration: source.mutationGeneration,

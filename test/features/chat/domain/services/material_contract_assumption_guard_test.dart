@@ -177,8 +177,14 @@ void main() {
       'error':
           'State mutation is blocked until the user confirms a material contract assumption.',
       'clarification_question': 'Which runtime must be supported?',
+      // Since ANA0 PR 4b-2 Caverno raises the confirmation itself, so this
+      // payload only reaches the model *after* the user was asked and did not
+      // confirm. It used to say "ask the user this one focused clarification
+      // question and wait", which sent the model back to re-put the question
+      // the user had just declined. The rationale lives here because the
+      // guard's own file is at its ratchet ceiling.
       'required_action':
-          'Ask the user this one focused clarification question and wait for confirmation before mutating state.',
+          'The user did not confirm this. Do not mutate state; investigate what would settle the assumption, or say what you need from them.',
     });
   });
 

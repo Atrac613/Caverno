@@ -1,4 +1,6 @@
 import '../../../../core/constants/system_prompt_constants.dart';
+import '../entities/model_usage_role.dart';
+import 'anabasis_parent_prompt_block.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../entities/conversation_goal.dart';
@@ -114,7 +116,21 @@ class SystemPromptBuilder {
     // Turn-specific temporal and memory context is appended near the tail so
     // LL6/LL22 can reuse this substantial leading prefix across idle warm-up
     // and the first interactive request.
-    final buffer = StringBuffer()
+    final buffer = StringBuffer();
+    // Ambient here on purpose, and only for prose: authority is decided by the
+    // explicit role passed to AnabasisParentAuthorityGuard. A missed zone costs
+    // the parent its instructions, which reads as a confused turn; it can never
+    // cost it its restrictions.
+    if (ModelUsageRole.current == ModelUsageRole.anabasisParent) {
+      buffer.writeln(AnabasisParentPromptBlock.instruction);
+      // Only the parent gets the delegation queue. An ordinary turn would read
+      // it as a suggestion to spawn children.
+      final delegatable = executionSnapshot?.delegatableTasks ?? const [];
+      if (delegatable.isNotEmpty) {
+        buffer.writeln(AnabasisParentPromptBlock.delegatableTasks(delegatable));
+      }
+    }
+    buffer
       ..writeln(SystemPromptConstants.knowledgeCutoffHumilityInstruction)
       ..writeln(SystemPromptConstants.researchHonestyInstruction)
       ..writeln(SystemPromptConstants.coreAssistantPrompt)

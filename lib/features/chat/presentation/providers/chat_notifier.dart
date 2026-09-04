@@ -124,7 +124,10 @@ import '../../domain/services/chat_command_guardrail_collaborators.dart';
 import '../../domain/services/context_surgery_protected_path_policy.dart';
 import '../../domain/services/goal_validation_probe_guard.dart';
 import '../../domain/services/git_write_confirmation_policy.dart';
-import '../../domain/services/material_contract_assumption_arming.dart';
+import '../../domain/services/computer_use_action_presentation.dart';
+import '../../domain/services/material_assumption_confirmation_gate.dart';
+import '../../domain/services/anabasis_turn_roles.dart';
+import '../../domain/services/turn_tool_policy_chain.dart';
 import '../../domain/services/material_contract_assumption_guard.dart';
 import '../../domain/services/model_switch_handoff_registry.dart';
 import '../../domain/services/model_switch_settings_policy.dart';
@@ -146,6 +149,7 @@ import '../../domain/services/execution_budget_policy.dart';
 import '../../domain/services/referenced_specification_loader.dart';
 import '../../domain/services/short_prompt_contract_builder.dart';
 import '../../domain/services/dart_project_tooling.dart';
+import '../../domain/services/run_tests_command_builder.dart';
 import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/final_answer_claim_detector.dart';
 import '../../domain/services/final_answer_claim_notice_applicator.dart';
@@ -672,14 +676,16 @@ class ChatNotifier extends Notifier<ChatState> {
     T Function() body, {
     String? requestLabel,
     ModelUsageRole usageRole = ModelUsageRole.chat,
-  }) => usageRole.runWith(
-    () => LlmSessionLogContext.run(
-      _llmSessionLogContextForGeneration(
-        generation,
-      ).withRequestLabel(requestLabel),
-      body,
-    ),
-  );
+  }) => _anabasisRoles
+      .resolve(usageRole, generation)
+      .runWith(
+        () => LlmSessionLogContext.run(
+          _llmSessionLogContextForGeneration(
+            generation,
+          ).withRequestLabel(requestLabel),
+          body,
+        ),
+      );
 
   ChatDataSource _withChatSessionLogging(
     ChatDataSource dataSource,
@@ -2026,6 +2032,9 @@ class ChatNotifier extends Notifier<ChatState> {
   final _successfulReadResultReplayCache = SuccessfulReadResultReplayCache();
   static const int _maxContentToolContinuations = 5;
   final Set<int> _turnFinalizationRecoveryGenerations = {};
+
+  /// Which turns run as the Anabasis parent. Not a zone; see the class.
+  final _anabasisRoles = AnabasisTurnRoles();
   // Generations with a classified exit; the terminal funnel fills any gap.
   final Set<int> _classifiedTurnExitGenerations = <int>{};
   // Tool calls whose arguments were truncated; report the specific cause so
@@ -2181,6 +2190,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _explicitTerminalSuccessSummariesByGeneration.remove(generation);
     _productionReleaseApprovals.clearGeneration(generation);
     _turnFinalizationRecoveryGenerations.remove(generation);
+    _anabasisRoles.release(generation);
     _syncBusyConversationIds();
   }
 
@@ -2201,6 +2211,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _blockedReleaseRetrySignatures.clear();
     _unexecutedCommandRetryOwners.clear();
     _turnFinalizationRecoveryGenerations.clear();
+    _anabasisRoles.clear();
     _modelSwitchHandoffs.clearPromptCompactions();
     _contextSurgeryObservations.clear();
     _modelEditTelemetry?.clear();
@@ -2265,13 +2276,7 @@ class ChatNotifier extends Notifier<ChatState> {
               timestamp: DateTime.now(),
             );
       _hiddenPrompt = hiddenPrompt;
-      final assistantMessage = Message(
-        id: _uuid.v4(),
-        content: '',
-        role: MessageRole.assistant,
-        timestamp: DateTime.now(),
-        isStreaming: true,
-      );
+      final assistantMessage = _newAssistantMessage(interactionGeneration);
       final ownerMessages = ownerConversationId == conversationId
           ? state.messages
           : _conversationForId(ownerConversationId)?.messages ??
@@ -2356,6 +2361,7 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
   }
+
   Future<ChatTurnOwner?> sendMessage(
     String content, {
     String? modelContent,
@@ -2443,6 +2449,24 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     return _sendMessageNow(queuedMessage);
   }
+
+  /// A fresh streaming assistant message for [generation].
+  ///
+  /// Every assistant message the main loop creates goes through here. It used
+  /// to be three separate literals, and marking one of them as the parent's
+  /// reply marked only the hidden-prompt path — the ordinary send and the
+  /// post-tool continuation kept the plain shape, so `@anabasis` answered with
+  /// no header on the reply a user actually reads. A contract test now pins
+  /// the single constructor.
+  Message _newAssistantMessage(int generation) => Message(
+    id: _uuid.v4(),
+    content: '',
+    role: MessageRole.assistant,
+    timestamp: DateTime.now(),
+    isStreaming: true,
+    isAnabasisParent: _anabasisRoles.isParentTurn(generation),
+  );
+
   Future<ChatTurnOwner?> _sendMessageNow(
     QueuedChatMessage queuedMessage, {
     bool fromQueue = false,
@@ -2497,6 +2521,10 @@ class ChatNotifier extends Notifier<ChatState> {
       _activeInteractionOrigin = queuedMessage.origin;
       _activeRemoteDeviceId = queuedMessage.remoteDeviceId;
       final interactionGeneration = _beginInteractionGeneration();
+      _anabasisRoles.markAddressed(
+        generation: interactionGeneration,
+        content: queuedMessage.content,
+      );
       turnOwner = ChatTurnOwner(
         conversationId: effectiveOwner,
         interactionGeneration: interactionGeneration,
@@ -2576,7 +2604,7 @@ class ChatNotifier extends Notifier<ChatState> {
       final ownerMessagesBeforeTurn = effectiveOwner == conversationId
           ? state.messages
           : currentConversation?.messages ?? const <Message>[];
-    final isFirstTurn = state.messages.isEmpty;
+      final isFirstTurn = state.messages.isEmpty;
       if (isFirstTurn) {
         _sessionMemoryContext = _memoryService.buildPromptContext(
           currentUserInput: content.trim(),
@@ -2722,13 +2750,7 @@ class ChatNotifier extends Notifier<ChatState> {
         return turnOwner;
       }
 
-      final assistantMessage = Message(
-        id: _uuid.v4(),
-        content: '',
-        role: MessageRole.assistant,
-        timestamp: DateTime.now(),
-        isStreaming: true,
-      );
+      final assistantMessage = _newAssistantMessage(interactionGeneration);
 
       if (!ref.mounted) return turnOwner;
       if (_isActiveResponseDetachedForGeneration(interactionGeneration)) {
@@ -8466,13 +8488,7 @@ class ChatNotifier extends Notifier<ChatState> {
       isStreaming: false,
     );
 
-    final continuationMessage = Message(
-      id: _uuid.v4(),
-      content: '',
-      role: MessageRole.assistant,
-      timestamp: DateTime.now(),
-      isStreaming: true,
-    );
+    final continuationMessage = _newAssistantMessage(interactionGeneration);
 
     final continuationMessages = [...finalizedMessages, continuationMessage];
     _activeResponseRegistry.cacheMessagesForOwner(

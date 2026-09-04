@@ -124,6 +124,7 @@ extension ChatNotifierSteering on ChatNotifier {
     if (_participantTurnControls.contains(owner)) return null;
     return owner;
   }
+
   bool _isSteerableMessage(QueuedChatMessage message) =>
       message.modelContent == null &&
       TurnSteeringPolicy.canSteer(

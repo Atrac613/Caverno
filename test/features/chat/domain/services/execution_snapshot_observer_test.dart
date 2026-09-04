@@ -162,6 +162,12 @@ void main() {
       },
     );
 
+    // The field list is asserted whole rather than by substring: this line is
+    // read by triage tooling, so a field appearing, vanishing or changing
+    // order is a change to an interface, not an implementation detail.
+    // `assumptions=` joined it in ANA0 PR 5a, when blocking assumptions
+    // stopped being counted as open questions and the two became tellable
+    // apart in a log.
     test('keeps the existing redacted diagnostic summary format', () async {
       final fixture = _fixture();
       final snapshot = _snapshot(
@@ -178,7 +184,7 @@ void main() {
         fixture.diagnostics.single,
         '[ExecutionShadow] contract=contract-hash stage=implement '
         'action=repair activeTaskRef=none taskStatus=none '
-        'validation=failed tasks=1/3 questions=2 '
+        'validation=failed tasks=1/3 questions=2 assumptions=0 '
         'requiresValidation=true hasDiagnostic=true diagnosticStreak=2',
       );
       expect(

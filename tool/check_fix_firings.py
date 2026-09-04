@@ -85,6 +85,27 @@ SIGNATURES = {
         "match": lambda s: "blocked_mutation_notice" in s
         or "File change check: this turn changed no files" in s,
     },
+    "anabasis_parent_boundary": {
+        "commit": "0e60696e",
+        "what": "the Anabasis parent is refused a mutation and delegates instead",
+        # Observed 2026-09-04, session 459bd75f: the parent called write_file,
+        # read the refusal, and switched to spawn_subagent inside the same
+        # request -- no repeat, so the refusal wording needs no work. The child
+        # then edited successfully, which is delegation being the parent's only
+        # route to effect rather than a restriction on the work.
+        "match": lambda s: "anabasis_parent_authority_refused" in s,
+    },
+    "material_assumption_confirmation": {
+        "commit": "0e60696e",
+        "what": "a material contract assumption stops a mutation and is asked about",
+        # The refusal is what the guard emits, and it is the half that reaches
+        # the log: the answer arrives through an approval, not through a model
+        # request. Seeing this code at all means the marks a plan wrote
+        # travelled all the way to a refused tool call, which no unit test can
+        # establish -- ANA0 measured the model marking assumptions, never a
+        # real turn being held by one.
+        "match": lambda s: "material_contract_assumption_unconfirmed" in s,
+    },
 }
 
 _ANCESTRY_CACHE = {}

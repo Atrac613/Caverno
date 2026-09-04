@@ -1,3 +1,4 @@
+import 'anabasis_speaker_header.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show File, Platform;
@@ -202,6 +203,8 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
         : null;
     final imageBytes = _imageBytesFor(message.imageBase64);
     final hasParticipantHeader = !isUser && message.participantId != null;
+    final hasAnabasisHeader =
+        !isUser && !hasParticipantHeader && message.isAnabasisParent;
     final showActionRow = _isHovering || _isActionRowPinned;
     final viewportWidth = MediaQuery.of(context).size.width;
     final assistantHorizontalMargin = viewportWidth >= 840 ? 56.0 : 20.0;
@@ -229,6 +232,11 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (hasAnabasisHeader)
+            Padding(
+              padding: EdgeInsets.only(bottom: hasBodyContent ? 8 : 0),
+              child: const AnabasisSpeakerHeader(),
+            ),
           if (hasParticipantHeader)
             Padding(
               padding: EdgeInsets.only(bottom: hasBodyContent ? 8 : 0),
@@ -1328,7 +1336,8 @@ class _MessageVideoChip extends StatelessWidget {
   /// Whether a still can be shown: there has to be a local file to read a
   /// frame from, so a video given only as a URL keeps the plain chip.
   bool get _canShowPoster =>
-      (message.videoPath?.isNotEmpty ?? false) && File(message.videoPath!).existsSync();
+      (message.videoPath?.isNotEmpty ?? false) &&
+      File(message.videoPath!).existsSync();
 
   @override
   Widget build(BuildContext context) {
@@ -1445,7 +1454,9 @@ class _MessageVideoChip extends StatelessWidget {
     if (url != null) {
       final parsed = Uri.tryParse(url);
       if (parsed == null) return url;
-      return parsed.pathSegments.isEmpty ? parsed.host : parsed.pathSegments.last;
+      return parsed.pathSegments.isEmpty
+          ? parsed.host
+          : parsed.pathSegments.last;
     }
     final path = message.videoPath;
     if (path == null || path.isEmpty) return '';

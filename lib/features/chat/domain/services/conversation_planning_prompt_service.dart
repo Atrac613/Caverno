@@ -9,7 +9,6 @@ import 'conversation_plan_document_builder.dart';
 import 'planning_executor_profile.dart';
 
 class ConversationPlanningPromptService {
-
   /// The saved items rendered with the epistemic markers the contract holds.
   ///
   /// Anabasis ANA0. The saved plan document below already carries the markers,
@@ -113,8 +112,8 @@ class ConversationPlanningPromptService {
         compact
             ? '- End a constraint or acceptanceCriteria item you are assuming with "(assumed)", or "(assumed, material)" when being wrong would make work done under the plan have to be thrown away rather than adjusted. Never mark an openQuestions item. Keep that marker in English.'
             : '- End a constraints or acceptanceCriteria item you are assuming rather than something you confirmed with "(assumed)". Write the marker in English exactly as shown even when the field itself is in another language, and leave items you actually confirmed from the transcript, the saved plan, research context, or a tool result unmarked.'
-              '\n- Write "(assumed, material)" instead when being wrong about it would make work done under this plan have to be thrown away rather than adjusted: a different architecture, data model, dependency, or set of tasks. If being wrong would change a value, a detail, or the order of steps, use plain "(assumed)".'
-              '\n- Never mark an openQuestions item. Asking about something already says you do not know it, so put an unknown in openQuestions or mark it as an assumption, not both.',
+                  '\n- Write "(assumed, material)" instead when being wrong about it would make work done under this plan have to be thrown away rather than adjusted: a different architecture, data model, dependency, or set of tasks. If being wrong would change a value, a detail, or the order of steps, use plain "(assumed)".'
+                  '\n- Never mark an openQuestions item. Asking about something already says you do not know it, so put an unknown in openQuestions or mark it as an assumption, not both.',
       )
       ..writeln(
         '- Preserve exact literal values from user messages, saved plans, research context, and tool results in every JSON text field. Do not abbreviate, translate, normalize, naturalize, infer, or replace URLs, file paths, file names, IDs, tokens, dates, times, money values, unit values, JSON keys, or scalar values unless the user explicitly requests conversion.',
@@ -253,7 +252,7 @@ class ConversationPlanningPromptService {
       )
       ..writeln('Keep JSON keys in English exactly as shown in the schema.')
       ..writeln(
-        'Schema: {"tasks":[{"title":string,"targetFiles":[string],"validationCommand":string,"notes":string}]}',
+        'Schema: {"tasks":[{"title":string,"targetFiles":[string],"validationCommand":string,"notes":string,"preconditions":[{"kind":"task"|"assumption"|"question","ref":string}]}]}',
       )
       ..writeln('Rules:')
       ..writeln('- Return the full suggested task list for the current thread.')
@@ -289,6 +288,21 @@ class ConversationPlanningPromptService {
         '- Do not stop at a single generic setup task such as "Initialize project structure" when the user asked for a feature to be built.',
       )
       ..writeln('- Use repo-relative file paths when you can infer them.')
+      // ANA1 PR 2b measured this against the same edge written into the task
+      // title: the array produced 1.06 edges per task to the title's 0.64, and
+      // the control wrote no edges while describing the ordering in prose in
+      // half its responses. The model knows what depends on what; this is the
+      // channel it writes it through.
+      ..writeln(
+        '- Give a task "preconditions" when it cannot start until something '
+        'else holds: {"kind":"task","ref":<the other task\'s title>} for work '
+        'that must finish first, {"kind":"assumption","ref":<the constraint '
+        'text>} for something the plan is assuming, or '
+        '{"kind":"question","ref":<the open question text>} for a decision '
+        'that is not made yet. Use an empty array for a task that can start '
+        'immediately, and reference only titles, constraints, and open '
+        'questions that appear in this plan.',
+      )
       ..writeln(
         '- For implementation tasks, validationCommand must verify the target file or module directly. Avoid generic checks such as "module importable" or validation that only appends src to sys.path.',
       )

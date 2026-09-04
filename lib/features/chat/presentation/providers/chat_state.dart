@@ -1,4 +1,3 @@
-import '../../domain/services/ask_user_question_policy.dart';
 export '../../domain/services/ask_user_question_policy.dart'
     show AskUserQuestionAnswer, AskUserQuestionOption, AskUserQuestionSelection;
 
@@ -18,45 +17,21 @@ import 'queued_chat_message.dart';
 export 'pending_tool_approvals.dart';
 import 'pending_tool_approvals.dart';
 export 'queued_chat_message.dart';
+// The model-initiated question holder moved out when this file reached its
+// ratchet ceiling; re-exported so every existing importer still sees it.
+export 'pending_ask_user_question.dart';
+// Clearing an answered approval out of this state is a per-type dispatch
+// that grows with the hierarchy, so it lives beside it rather than in
+// ThreadScopedChatState; re-exported for the callers that already import
+// chat_state.dart.
+export 'pending_tool_approval_projection.dart';
+import 'pending_ask_user_question.dart';
 
 export '../../domain/entities/workflow_proposal_draft.dart';
 
 part 'chat_state.freezed.dart';
 
 enum ContextTokenPressureLevel { normal, warning, critical }
-
-
-class PendingAskUserQuestion {
-  PendingAskUserQuestion({
-    required this.id,
-    required this.conversationId,
-    required this.question,
-    required this.help,
-    required this.options,
-    required this.allowMultiple,
-    required this.allowOther,
-    required this.otherPlaceholder,
-    required this.completer,
-    this.origin = ChatInteractionOrigin.local,
-    this.remoteDeviceId,
-  });
-
-  final String id;
-  final String? conversationId;
-  final String question;
-  final String help;
-  final List<AskUserQuestionOption> options;
-  final bool allowMultiple;
-  final bool allowOther;
-  final String otherPlaceholder;
-  final Completer<AskUserQuestionAnswer?> completer;
-
-  /// Where the turn that raised this question originated. Mirrors the pending
-  /// approval models so a question is only surfaced to a paired remote device
-  /// when the turn itself came from that device.
-  final ChatInteractionOrigin origin;
-  final String? remoteDeviceId;
-}
 
 class PendingWorkflowDecision {
   PendingWorkflowDecision({
@@ -142,6 +117,8 @@ abstract class ChatState with _$ChatState {
     PendingSerialOpen? pendingSerialOpen,
     // Participant read-only tool UI flow.
     PendingParticipantToolApproval? pendingParticipantToolApproval,
+    // ANA0 material contract assumption confirmation UI flow.
+    PendingAssumptionConfirmation? pendingAssumptionConfirmation,
     // Generic model-initiated question UI flow.
     PendingAskUserQuestion? pendingAskUserQuestion,
     // Workflow planning choice UI flow.

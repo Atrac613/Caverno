@@ -67,7 +67,7 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
           const [],
       approvalBlockerCodes: actionProposalPolicy?.blockerCodes ?? const [],
       actionProposalNextAction: actionProposalPolicy?.nextAction,
-      summary: _describeComputerUseAction(toolCall),
+      summary: ComputerUseActionPresentation.describeAction(toolCall),
       details: details,
       targetSummary: targetContext.summary,
       targetDetails: targetContext.details,
@@ -102,7 +102,9 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
           toolName: toolCall.name,
           result: blockedResult,
           isSuccess: false,
-          errorMessage: _computerUseBlockedErrorMessage(blockerCode),
+          errorMessage: ComputerUseActionPresentation.blockedErrorMessage(
+            blockerCode,
+          ),
         ),
       );
     }
@@ -130,7 +132,9 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
           toolName: toolCall.name,
           result: blockedResult,
           isSuccess: false,
-          errorMessage: _computerUseBlockedErrorMessage(blockerCode),
+          errorMessage: ComputerUseActionPresentation.blockedErrorMessage(
+            blockerCode,
+          ),
         ),
       );
     }
@@ -211,9 +215,10 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
     }
 
     final observationArguments = switch (observationToolName) {
-      'computer_vision_observe' => _computerUsePostActionVisionArguments(
-        toolCall.arguments,
-      ),
+      'computer_vision_observe' =>
+        ComputerUseActionPresentation.postActionVisionArguments(
+          toolCall.arguments,
+        ),
       _ => <String, dynamic>{},
     };
     try {
@@ -272,7 +277,9 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
         'schemaVersion': 1,
         'toolName': result.toolName,
         'policy': policy?.toJson(),
-        'action': _redactComputerUseActionResult(actionResult),
+        'action': ComputerUseActionPresentation.redactActionResult(
+          actionResult,
+        ),
         'postActionObservationRequired':
             policy?.requiresPostActionObservation == true,
         'postActionObservation': {
@@ -292,38 +299,6 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
     );
   }
 
-  Map<String, dynamic> _redactComputerUseActionResult(
-    Map<String, dynamic> actionResult,
-  ) {
-    final redacted = Map<String, dynamic>.from(actionResult)
-      ..remove('imageBase64')
-      ..remove('text');
-    if (actionResult['text'] is String) {
-      redacted['textRedacted'] = true;
-      redacted['textLength'] = (actionResult['text'] as String).length;
-    }
-    return redacted;
-  }
-
-  Map<String, dynamic> _computerUsePostActionVisionArguments(
-    Map<String, dynamic> actionArguments,
-  ) {
-    final windowId = actionArguments['window_id'];
-    final displayId = actionArguments['display_id'];
-    final arguments = <String, dynamic>{
-      'target': windowId != null ? 'window' : 'front_window',
-      'max_width': 800,
-      'include_windows': true,
-    };
-    if (windowId != null) {
-      arguments['window_id'] = windowId;
-    }
-    if (displayId != null) {
-      arguments['display_id'] = displayId;
-    }
-    return arguments;
-  }
-
   String _computerUseBlockedResult({
     required ToolCallInfo toolCall,
     required MacosComputerUseToolPolicyDecision? policy,
@@ -335,7 +310,7 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
       'ok': false,
       'toolName': toolCall.name,
       'code': code,
-      'error': _computerUseBlockedErrorMessage(code),
+      'error': ComputerUseActionPresentation.blockedErrorMessage(code),
       'policy': policy?.toJson(),
       'requiresUserApproval': policy?.requiresUserApproval ?? false,
       'requiresSmokeArming': policy?.requiresSmokeArming ?? false,
@@ -353,17 +328,6 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
         _ => 'Inspect the Computer Use approval state before retrying.',
       },
     });
-  }
-
-  String _computerUseBlockedErrorMessage(String code) {
-    return switch (code) {
-      'arming_missing' =>
-        'Computer Use action blocked because the unsafe arming confirmation was not enabled.',
-      'action_policy_blocked' =>
-        'Computer Use action blocked by the target safety policy.',
-      'approval_denied' => 'User denied macOS computer use action.',
-      _ => 'macOS computer use action was blocked.',
-    };
   }
 
   Future<ComputerUseActionApprovalDecision> requestComputerUseAction({
@@ -646,12 +610,15 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
       },
       'computer_switch_space' => {
         'label':
-            'macOS Space ${_formatComputerUseSpaceDirection(args['direction'])}',
+            'macOS Space ${ComputerUseActionPresentation.formatSpaceDirection(args['direction'])}',
         'role': 'macos_space',
         'action': 'switch_space',
       },
       'computer_press_key' => {
-        'label': _formatComputerUseKey(args['key'], args['modifiers']),
+        'label': ComputerUseActionPresentation.formatKey(
+          args['key'],
+          args['modifiers'],
+        ),
         'role': 'keyboard_shortcut',
         'action': 'press_key',
       },
@@ -664,28 +631,6 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
       return null;
     }
     return toolCall.arguments['text'] as String?;
-  }
-
-  String _describeComputerUseAction(ToolCallInfo toolCall) {
-    final args = toolCall.arguments;
-    return switch (toolCall.name) {
-      'computer_focus_window' => 'Focus window ${args['window_id']}',
-      'computer_move_mouse' => 'Move pointer to (${args['x']}, ${args['y']})',
-      'computer_click' =>
-        'Click ${args['button'] ?? 'left'} at (${args['x']}, ${args['y']})',
-      'computer_drag' =>
-        'Drag from (${args['from_x']}, ${args['from_y']}) to (${args['to_x']}, ${args['to_y']})',
-      'computer_scroll' =>
-        'Scroll by (${args['delta_x'] ?? 0}, ${args['delta_y'] ?? -5})',
-      'computer_type_text' => 'Type ${_summarizeComputerUseText(args['text'])}',
-      'computer_switch_space' =>
-        'Switch to ${_formatComputerUseSpaceDirection(args['direction'])} macOS Space',
-      'computer_press_key' =>
-        'Press ${_formatComputerUseKey(args['key'], args['modifiers'])}',
-      'computer_start_system_audio_recording' =>
-        'Start recording system audio to ${args['output_path'] ?? 'a temporary CAF file'}',
-      _ => '${toolCall.name} ${jsonEncode(args)}',
-    };
   }
 
   List<String> _computerUseActionDetails(ToolCallInfo toolCall) {
@@ -734,17 +679,19 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
       case 'computer_type_text':
         details.addAll([
           'Text length: ${('${args['text'] ?? ''}').length} characters',
-          'Text preview: ${_summarizeComputerUseText(args['text'], maxLength: 160)}',
+          'Text preview: ${ComputerUseActionPresentation.summarizeText(args['text'], maxLength: 160)}',
         ]);
       case 'computer_switch_space':
-        final direction = _formatComputerUseSpaceDirection(args['direction']);
+        final direction = ComputerUseActionPresentation.formatSpaceDirection(
+          args['direction'],
+        );
         final shortcut = direction == 'previous'
             ? 'control+left'
             : 'control+right';
         details.addAll(['Direction: $direction', 'Shortcut: $shortcut']);
       case 'computer_press_key':
         details.add(
-          'Key: ${_formatComputerUseKey(args['key'], args['modifiers'])}',
+          'Key: ${ComputerUseActionPresentation.formatKey(args['key'], args['modifiers'])}',
         );
       case 'computer_start_system_audio_recording':
         details.addAll([
@@ -756,34 +703,5 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
       details.add('Model reason: ${reason.trim()}');
     }
     return details;
-  }
-
-  String _summarizeComputerUseText(Object? value, {int maxLength = 80}) {
-    final text = (value as String?) ?? '';
-    if (text.isEmpty) return '(empty text)';
-    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (normalized.length <= maxLength) {
-      return jsonEncode(normalized);
-    }
-    return jsonEncode('${normalized.substring(0, maxLength - 1)}...');
-  }
-
-  String _formatComputerUseKey(Object? key, Object? modifiers) {
-    final modifierList = modifiers is List
-        ? modifiers.map((value) => '$value').where((value) => value.isNotEmpty)
-        : const Iterable<String>.empty();
-    final parts = [
-      ...modifierList,
-      '${key ?? ''}',
-    ].where((value) => value.trim().isNotEmpty).toList();
-    return parts.isEmpty ? '(unknown key)' : parts.join('+');
-  }
-
-  String _formatComputerUseSpaceDirection(Object? direction) {
-    final normalized = '${direction ?? ''}'.trim().toLowerCase();
-    return switch (normalized) {
-      'previous' || 'prev' || 'left' => 'previous',
-      _ => 'next',
-    };
   }
 }

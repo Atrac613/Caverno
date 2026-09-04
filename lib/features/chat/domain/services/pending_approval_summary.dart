@@ -2,7 +2,7 @@ import '../../presentation/providers/chat_state.dart';
 
 /// A pending tool approval flattened into one displayable shape.
 ///
-/// `ChatState` keeps ten independent `Pending*` fields, and more arrive over
+/// `ChatState` keeps eleven independent `Pending*` fields, and more arrive over
 /// time. Every surface that has to render "what is this turn blocked on" —
 /// the Apple Watch companion, an actionable notification, and anything added
 /// later — needs the same flattening, so it lives here once instead of being
@@ -74,6 +74,7 @@ abstract final class PendingApprovalKinds {
   static const String browserAction = 'browserAction';
   static const String computerUse = 'computerUse';
   static const String participantTool = 'participantTool';
+  static const String assumptionConfirmation = 'assumptionConfirmation';
 }
 
 /// Describes [request] for a compact surface.
@@ -165,8 +166,7 @@ PendingApprovalSummary describePendingApproval(
       id: request.id,
       kind: PendingApprovalKinds.participantTool,
       title: request.toolName,
-      subtitle:
-          '${request.participantName} (${request.participantRoleLabel})',
+      subtitle: '${request.participantName} (${request.participantRoleLabel})',
       detail: request.reason ?? '',
       isSimpleDecision: true,
       conversationId: conversationId,
@@ -183,6 +183,22 @@ PendingApprovalSummary describePendingApproval(
       // represent honestly.
       isSimpleDecision: false,
       conversationId: conversationId,
+    ),
+    PendingAssumptionConfirmation() => PendingApprovalSummary(
+      id: request.id,
+      kind: PendingApprovalKinds.assumptionConfirmation,
+      title: 'Confirm assumption',
+      subtitle: request.itemText,
+      // The model's own question when it wrote one, because that is what the
+      // user is being asked to judge; otherwise say what is blocked, which is
+      // the only other thing that makes the interruption make sense.
+      detail: request.clarificationQuestion ?? 'Blocked: ${request.toolName}',
+      // Approve or decline resolves it. Declining is not a deferral: the
+      // assumption stays unconfirmed and the mutation stays refused.
+      isSimpleDecision: true,
+      conversationId: conversationId,
+      origin: request.origin,
+      remoteDeviceId: request.remoteDeviceId,
     ),
     PendingSshConnect() => PendingApprovalSummary(
       id: request.id,

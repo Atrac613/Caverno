@@ -40,6 +40,50 @@ const _$ConversationOpenQuestionStatusEnumMap = {
   ConversationOpenQuestionStatus.deferred: 'deferred',
 };
 
+_ConversationTaskAcceptance _$ConversationTaskAcceptanceFromJson(
+  Map<String, dynamic> json,
+) => _ConversationTaskAcceptance(
+  taskId: json['taskId'] as String,
+  acceptedAt: DateTime.parse(json['acceptedAt'] as String),
+  rationale: json['rationale'] as String? ?? '',
+  evidence:
+      (json['evidence'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      const <String>[],
+  premises:
+      (json['premises'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      const <String>[],
+);
+
+Map<String, dynamic> _$ConversationTaskAcceptanceToJson(
+  _ConversationTaskAcceptance instance,
+) => <String, dynamic>{
+  'taskId': instance.taskId,
+  'acceptedAt': instance.acceptedAt.toIso8601String(),
+  'rationale': instance.rationale,
+  'evidence': instance.evidence,
+  'premises': instance.premises,
+};
+
+_ConversationTaskPrecondition _$ConversationTaskPreconditionFromJson(
+  Map<String, dynamic> json,
+) => _ConversationTaskPrecondition(
+  kind: $enumDecode(_$ConversationTaskPreconditionKindEnumMap, json['kind']),
+  ref: json['ref'] as String,
+);
+
+Map<String, dynamic> _$ConversationTaskPreconditionToJson(
+  _ConversationTaskPrecondition instance,
+) => <String, dynamic>{
+  'kind': _$ConversationTaskPreconditionKindEnumMap[instance.kind]!,
+  'ref': instance.ref,
+};
+
+const _$ConversationTaskPreconditionKindEnumMap = {
+  ConversationTaskPreconditionKind.task: 'task',
+  ConversationTaskPreconditionKind.assumption: 'assumption',
+  ConversationTaskPreconditionKind.question: 'question',
+};
+
 _ConversationWorkflowTask _$ConversationWorkflowTaskFromJson(
   Map<String, dynamic> json,
 ) => _ConversationWorkflowTask(
@@ -58,6 +102,9 @@ _ConversationWorkflowTask _$ConversationWorkflowTaskFromJson(
       const <String>[],
   validationCommand: json['validationCommand'] as String? ?? '',
   notes: json['notes'] as String? ?? '',
+  preconditions: json['preconditions'] == null
+      ? const <ConversationTaskPrecondition>[]
+      : _taskPreconditionsFromJson(json['preconditions'] as List?),
 );
 
 Map<String, dynamic> _$ConversationWorkflowTaskToJson(
@@ -69,6 +116,7 @@ Map<String, dynamic> _$ConversationWorkflowTaskToJson(
   'targetFiles': instance.targetFiles,
   'validationCommand': instance.validationCommand,
   'notes': instance.notes,
+  'preconditions': _taskPreconditionsToJson(instance.preconditions),
 };
 
 const _$ConversationWorkflowTaskStatusEnumMap = {

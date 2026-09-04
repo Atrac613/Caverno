@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/task_precondition_parsing.dart';
 import 'package:caverno/features/chat/domain/services/conversation_planning_prompt_service.dart';
 import 'package:caverno/features/chat/domain/services/planning_executor_profile.dart';
 
@@ -138,6 +139,54 @@ void main() {
     expect(
       transcript,
       contains('[middle omitted; tail preserved for exact values]'),
+    );
+  });
+
+  test('the task prompt teaches an edge shape the parser accepts', () {
+    // ANA1 PR 2c. The prompt and the extractor are string literals in
+    // different files and nothing else relates them, so the kinds are read
+    // back out of the generated prompt rather than restated here — the same
+    // reason ANA0 PR 3b's marker test reads its forms out of the prompt.
+    final prompt = ConversationPlanningPromptService.buildTaskProposalRequest(
+      currentConversation: Conversation(
+        id: 'conversation-preconditions',
+        title: 'Plan thread',
+        messages: const [],
+        createdAt: DateTime(2026, 9, 4, 10),
+        updatedAt: DateTime(2026, 9, 4, 10, 5),
+        workflowStage: ConversationWorkflowStage.tasks,
+        workflowSpec: const ConversationWorkflowSpec(goal: 'Add sync'),
+      ),
+      messages: const [],
+      languageCode: 'en',
+    );
+
+    expect(prompt, contains('"preconditions"'));
+    final taught = RegExp(
+      r'\{"kind":"(\w+)"',
+    ).allMatches(prompt).map((match) => match.group(1)!).toSet();
+    expect(
+      taught,
+      isNotEmpty,
+      reason: 'A schema line that names no kind teaches nothing.',
+    );
+    for (final kind in taught) {
+      expect(
+        TaskPreconditionParsing.kindNamed(kind),
+        isNotNull,
+        reason:
+            'The prompt tells the model to write "$kind", so the parser '
+            'has to read it.',
+      );
+    }
+    expect(
+      taught,
+      containsAll(
+        ConversationTaskPreconditionKind.values.map((kind) => kind.name),
+      ),
+      reason:
+          'A kind the parser supports but the prompt never mentions is an '
+          'edge the model will not know it may write.',
     );
   });
 

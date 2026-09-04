@@ -224,18 +224,19 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
                       value: spec.goal.trim(),
                     ),
                   ],
-                  _buildWorkflowListSection(
-                    context,
+                  ContractItemListSection(
                     label: 'chat.workflow_constraints'.tr(),
                     items: spec.constraints,
+                    spec: spec,
+                    kind: ConversationContractItemKind.constraint,
                   ),
-                  _buildWorkflowListSection(
-                    context,
+                  ContractItemListSection(
                     label: 'chat.workflow_acceptance'.tr(),
                     items: spec.acceptanceCriteria,
+                    spec: spec,
+                    kind: ConversationContractItemKind.acceptanceCriterion,
                   ),
-                  _buildWorkflowListSection(
-                    context,
+                  ContractItemListSection(
                     label: 'chat.workflow_open_questions'.tr(),
                     items: spec.openQuestions,
                   ),
@@ -624,18 +625,19 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
               value: spec.goal.trim(),
             ),
           ],
-          _buildWorkflowListSection(
-            context,
+          ContractItemListSection(
             label: 'chat.workflow_constraints'.tr(),
             items: spec.constraints,
+            spec: spec,
+            kind: ConversationContractItemKind.constraint,
           ),
-          _buildWorkflowListSection(
-            context,
+          ContractItemListSection(
             label: 'chat.workflow_acceptance'.tr(),
             items: spec.acceptanceCriteria,
+            spec: spec,
+            kind: ConversationContractItemKind.acceptanceCriterion,
           ),
-          _buildWorkflowListSection(
-            context,
+          ContractItemListSection(
             label: 'chat.workflow_open_questions'.tr(),
             items: spec.openQuestions,
           ),
@@ -876,6 +878,9 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
       task: task,
       progress: progress,
     );
+    final unmetPreconditions = const ConversationTaskReadinessResolver()
+        .resolve(currentConversation, task)
+        .unmet;
     final showValidationRecoveryActions =
         currentConversation.shouldPreferPlanDocument &&
         progress?.validationStatus ==
@@ -939,63 +944,19 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
                   task: task,
                   action: action,
                 ),
-                itemBuilder: (context) => [
-                  if (task.status != ConversationWorkflowTaskStatus.pending)
-                    PopupMenuItem(
-                      value: WorkflowTaskMenuAction.markPending,
-                      child: Text('chat.workflow_task_mark_pending'.tr()),
-                    ),
-                  if (task.status != ConversationWorkflowTaskStatus.inProgress)
-                    PopupMenuItem(
-                      value: WorkflowTaskMenuAction.markInProgress,
-                      child: Text('chat.workflow_task_mark_in_progress'.tr()),
-                    ),
-                  if (task.status != ConversationWorkflowTaskStatus.completed)
-                    PopupMenuItem(
-                      value: WorkflowTaskMenuAction.markCompleted,
-                      child: Text('chat.workflow_task_mark_completed'.tr()),
-                    ),
-                  if (task.status != ConversationWorkflowTaskStatus.blocked)
-                    PopupMenuItem(
-                      value: WorkflowTaskMenuAction.markBlocked,
-                      child: Text('chat.workflow_task_mark_blocked'.tr()),
-                    ),
-                  if (currentConversation.shouldPreferPlanDocument &&
-                      task.status == ConversationWorkflowTaskStatus.blocked)
-                    PopupMenuItem(
-                      value: WorkflowTaskMenuAction.markUnblocked,
-                      child: Text('chat.workflow_task_mark_unblocked'.tr()),
-                    ),
-                  if (currentConversation.shouldPreferPlanDocument &&
-                      task.status == ConversationWorkflowTaskStatus.blocked)
-                    PopupMenuItem(
-                      value: WorkflowTaskMenuAction.editBlockedReason,
-                      child: Text(
-                        'chat.workflow_task_edit_blocked_reason'.tr(),
-                      ),
-                    ),
-                  if (currentConversation.shouldPreferPlanDocument &&
-                      task.status == ConversationWorkflowTaskStatus.blocked)
-                    PopupMenuItem(
-                      value: WorkflowTaskMenuAction.replanFromBlocker,
-                      child: Text(
-                        'chat.workflow_task_replan_from_blocker'.tr(),
-                      ),
-                    ),
-                  if (canEditTask)
-                    PopupMenuItem(
-                      value: WorkflowTaskMenuAction.edit,
-                      child: Text('chat.workflow_task_edit'.tr()),
-                    ),
-                  if (canEditTask)
-                    PopupMenuItem(
-                      value: WorkflowTaskMenuAction.delete,
-                      child: Text('chat.workflow_task_delete'.tr()),
-                    ),
-                ],
+                itemBuilder: (context) => workflowTaskMenuItems(
+                  task: task,
+                  prefersPlanDocument:
+                      currentConversation.shouldPreferPlanDocument,
+                  canEditTask: canEditTask,
+                ),
               ),
             ],
           ),
+          if (unmetPreconditions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            TaskPreconditionNotice(unmet: unmetPreconditions),
+          ],
           if (normalizedFiles.isNotEmpty) ...[
             const SizedBox(height: 8),
             _buildWorkflowTaskDetail(
@@ -1372,43 +1333,6 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
         const SizedBox(height: 4),
         Text(value, style: theme.textTheme.bodyMedium),
       ],
-    );
-  }
-
-  Widget _buildWorkflowListSection(
-    BuildContext context, {
-    required String label,
-    required List<String> items,
-  }) {
-    final normalizedItems = items
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toList(growable: false);
-    if (normalizedItems.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          for (final item in normalizedItems)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text('• $item', style: theme.textTheme.bodyMedium),
-            ),
-        ],
-      ),
     );
   }
 }

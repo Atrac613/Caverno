@@ -95,6 +95,20 @@ List<Map<String, dynamic>> _executionProgressToJson(
   return progress.map((item) => item.toJson()).toList(growable: false);
 }
 
+List<ConversationTaskAcceptance> _taskAcceptancesFromJson(List<dynamic>? json) {
+  if (json == null) return const [];
+  return json
+      .map(
+        (item) =>
+            ConversationTaskAcceptance.fromJson(item as Map<String, dynamic>),
+      )
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _taskAcceptancesToJson(
+  List<ConversationTaskAcceptance> acceptances,
+) => acceptances.map((item) => item.toJson()).toList(growable: false);
+
 List<ConversationOpenQuestionProgress> _openQuestionProgressFromJson(
   List<dynamic>? json,
 ) {
@@ -212,6 +226,12 @@ abstract class ConversationCheckpoint with _$ConversationCheckpoint {
     )
     @Default(<ConversationOpenQuestionProgress>[])
     List<ConversationOpenQuestionProgress> openQuestionProgress,
+    @JsonKey(
+      fromJson: _taskAcceptancesFromJson,
+      toJson: _taskAcceptancesToJson,
+    )
+    @Default(<ConversationTaskAcceptance>[])
+    List<ConversationTaskAcceptance> taskAcceptances,
     @JsonKey(fromJson: _goalFromJson, toJson: _goalToJson)
     ConversationGoal? goal,
     @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)

@@ -42,7 +42,28 @@ const Map<String, int> _lineBudgets = {
   // -18: the Japanese blocker and missing-evidence phrases are code-unit
   // literals with no notifier state, and paying that forward covered the
   // cross-thread approval accessor a two-thread test needs.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8768,
+  // -5: the run_tests command spelling is six pure functions of their
+  // arguments, so it left the notifier library entirely.
+  // +1 per collaborator this file has to import, which is the same shape as
+  // chat_page.dart above; the work itself lives in a part or a service.
+  // Then +13, to 8,779: @anabasis carried the parent's role in a zone, and
+  // the request zone opened inside the turn defaults to chat and wins, so a
+  // real @anabasis turn got none of the parent's prompt. Carrying the role
+  // per interaction generation instead is state this class owns; the logic
+  // lives in AnabasisTurnRoles.
+  // Then -2: the three identical assistant-message literals became one
+  // _newAssistantMessage, which is also what stops the next field being set
+  // on one path out of three.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8778,
+  'lib/features/chat/domain/services/anabasis_address.dart': 44,
+  'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
+  'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 43,
+  'lib/features/chat/domain/services/anabasis_parent_authority_guard.dart': 76,
+  'lib/features/chat/domain/services/turn_tool_policy_chain.dart': 44,
+  'lib/features/chat/domain/services/task_delegation_brief_builder.dart': 136,
+  'lib/features/chat/domain/services/delegated_premise_audit.dart': 58,
+  'lib/features/chat/domain/services/task_acceptance_audit.dart': 145,
+  'lib/features/chat/domain/services/run_tests_command_builder.dart': 111,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -163,7 +184,13 @@ const Map<String, int> _lineBudgets = {
   // Route value types moved to secondary_completion_route_snapshot.dart when
   // the usage role joined them.
   'lib/features/chat/domain/services/secondary_completion_router.dart': 124,
-  'lib/features/chat/domain/services/execution_snapshot_observer.dart': 179,
+  // 180: this file copies ExecutionSnapshot field by field, so a new
+  // collection on the snapshot costs it exactly one line. The seven
+  // repetitions of List<String>.unmodifiable were collapsed into _frozen
+  // when ANA1's waitingTasks arrived, which bought one field; ANA2's
+  // delegatableTasks is the next one. A further offset would have to come
+  // from the copy itself, and there is nothing left in it but the fields.
+  'lib/features/chat/domain/services/execution_snapshot_observer.dart': 180,
   'lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart':
       380,
   'lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart':
@@ -327,12 +354,25 @@ const Map<String, int> _lineBudgets = {
   // without either raising this budget or extracting. The destination carries
   // its own budget below, because a move that only improves the source is the
   // gaming this ratchet exists to catch.
-  'lib/features/chat/presentation/providers/chat_state.dart': 162,
-  'lib/features/chat/presentation/providers/pending_tool_approvals.dart': 527,
+  // -23 and -79: ANA0 PR 4 needs an eleventh pending approval, and both files
+  // sat exactly at their ceilings again. PendingAskUserQuestion (never part of
+  // the sealed hierarchy) and the outstanding-approval registry each left for
+  // their own file below, which paid for the new type and its state slot with
+  // room to spare rather than by raising a budget.
+  'lib/features/chat/presentation/providers/chat_state.dart': 139,
+  'lib/features/chat/presentation/providers/pending_tool_approvals.dart': 448,
+  'lib/features/chat/presentation/providers/pending_tool_approval_registry.dart':
+      144,
+  'lib/features/chat/presentation/providers/pending_ask_user_question.dart': 46,
+  'lib/features/chat/presentation/providers/pending_tool_approval_projection.dart':
+      54,
   'lib/features/chat/presentation/providers/queued_chat_message.dart': 87,
   'lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart':
       361,
-  'lib/features/chat/presentation/providers/thread_scoped_chat_state.dart': 238,
+  // -28: clearing an answered approval out of ChatState is a per-type dispatch
+  // that grows once per pending type, which is not what this class is for; it
+  // moved to pending_tool_approval_projection.dart, budgeted above.
+  'lib/features/chat/presentation/providers/thread_scoped_chat_state.dart': 210,
   // -27: the five reviewer policy prompts are prose that changes when a
   // reviewer misreads an action, not when the permission boundary moves.
   'lib/features/chat/domain/services/tool_approval_auto_review_service.dart':
@@ -390,7 +430,29 @@ const Map<String, int> _lineBudgets = {
   // -38: the twelve approval-dialog listeners collapsed into one helper,
   // and the two presenters that lived here joined the other ten in the
   // approval-listeners part.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1861,
+  // -8: the approval sheet imports left with the sheets themselves. Then +1
+  // for the marked contract list: 1,853 was set mid-milestone, and one import
+  // is what came next. Still below the 1,861 this session started from.
+  // +3 for three widget imports. This file grows by one line per widget the
+  // page renders, so its ceiling follows rather than forcing an extraction
+  // that would only move an import somewhere it does not belong.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1857,
+  'lib/features/chat/presentation/widgets/plan/task_precondition_notice.dart':
+      57,
+  'lib/features/chat/presentation/widgets/anabasis_speaker_header.dart': 59,
+  'lib/features/chat/presentation/widgets/plan/workflow_task_menu_items.dart':
+      74,
+  'lib/features/chat/presentation/widgets/plan/contract_item_list_section.dart':
+      131,
+  // 159 rather than the 145 this file was born at one commit earlier: the
+  // eleventh sheet is the method the extraction existed for, and the number
+  // should have been set once, for the pair, rather than at the halfway line.
+  'lib/features/chat/presentation/pages/approval_sheet_dispatcher.dart': 159,
+  'lib/features/chat/domain/services/material_assumption_confirmation_gate.dart':
+      99,
+  'lib/features/chat/domain/services/computer_use_action_presentation.dart': 113,
+  'lib/features/chat/presentation/widgets/approval/assumption_confirmation_sheet.dart':
+      199,
   'lib/features/chat/presentation/coordinators/chat_dropped_attachments.dart':
       15,
   'lib/features/chat/presentation/coordinators/chat_dropped_attachments_take.dart':
@@ -459,7 +521,21 @@ const Map<String, int> _lineBudgets = {
   // intake bookkeeping is a class, and both left. What is added here is the
   // interrupt guard on the prepare gate and the input-history doc comment the
   // previous pass deleted by accident.
-  'lib/features/chat/presentation/widgets/message_input.dart': 2201,
+  // -94: the slash-command keyboard, the suggestion refresh and the list
+  // builder moved to a part, behaviour unchanged, to make room for the
+  // mention completion beside them. The mention half lives in parts and
+  // files of its own, so this file kept falling while the feature landed.
+  'lib/features/chat/presentation/widgets/message_input.dart': 2107,
+  'lib/features/chat/presentation/widgets/message_input_mention_keys.dart': 86,
+  'lib/features/chat/presentation/widgets/message_input_mention_suggestion_list.dart':
+      104,
+  'lib/features/chat/presentation/widgets/message_input_mention_suggestion_state.dart':
+      108,
+  'lib/features/chat/presentation/mentions/mention_target.dart': 65,
+  // 121: gained _handleTextChanged and the slash list builder in the same
+  // move that made room for mentions, plus the two lines that try the
+  // mention keys first.
+  'lib/features/chat/presentation/widgets/message_input_slash_keys.dart': 121,
   // -29: the PDF policy is its own file, and the choice object moved here
   // from the models file beside the picker that produces it.
   'lib/features/chat/presentation/widgets/composer_file_picker.dart': 331,
@@ -723,6 +799,13 @@ const Map<String, int> _lineBudgets = {
 };
 
 const Map<String, int> _libraryLineBudgets = {
+  // Added when message_input.dart gained its first part, so splitting a file
+  // cannot become a way to leave the ratchet: the aggregate is what the
+  // budget above was standing in for while the file was alone.
+  // 2,214 → 2,314 for the mention completion. The aggregate rising while the
+  // primary falls is the split doing its job rather than hiding growth: this
+  // entry exists so a feature cannot be added by moving it out of view.
+  'lib/features/chat/presentation/widgets/message_input.dart': 2314,
   // WS6-5 moves local command policy and execution into an owner-aware handler.
   // +15 to make the stalled-diagnostic-repair feature reachable: a shell
   // command that exits non-zero is normalized to a successful tool result,
@@ -765,7 +848,26 @@ const Map<String, int> _libraryLineBudgets = {
   // -34 net: the quality-gate fallback assembles a proposal out of the goal
   // and the best candidate so far, which needs the two services and nothing
   // from the notifier -- and it paid for the verification approval.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19829,
+  // -79 from 19,829, measured at 19,731. Which runner a run_tests call uses,
+  // how its path is rewritten relative to the package, and how both are
+  // quoted were private methods here, inside the aggregate, although not
+  // one of them reads notifier state; they are RunTestsCommandBuilder now,
+  // budgeted above and asserted directly instead of through a tool call.
+  // -17 further, to 19,733: ANA0's confirmation raise-and-resolve pair and its
+  // gate wiring cost 63 lines here, which the run_tests extraction alone did
+  // not cover, so how a computer-use action is redacted and described -- six
+  // more pure functions of their arguments -- left as well.
+  // +4, to 19,737, and it is a raise: the parent-authority guard needed a
+  // place in the tool loop's guard chain, and turning that run of early
+  // returns into TurnToolPolicyChain cost three lines of construction plus
+  // an import. Recorded rather than absorbed by trimming a comment or
+  // shuffling whitespace, which is the gaming this ratchet exists to catch.
+  // Net for the day is -92: this library entered at 19,829.
+  // -7 again, to 19,730: the @anabasis entry point cost the library a wrapper
+  // and an import, paid for by the last computer-use description helper
+  // leaving for ComputerUseActionPresentation. Then +2 fixing the zone
+  // defect that entry point shipped with.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19731,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
@@ -786,7 +888,20 @@ const Map<String, int> _libraryLineBudgets = {
   // That measured 8794; merging main's browser-mediation change added 6 lines
   // to chat_page_browser_builders.dart, so the ceiling settles at 8800 rather
   // than manufacturing an extraction to hit the older number.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8800,
+  // -120 from 8800, measured at 8670. Nine approval sheets were shown by
+  // nine copies of the same four steps inside this library, and each new
+  // approval type added another; they are now methods on
+  // ApprovalSheetDispatcher (budgeted above) and the page pays only for the
+  // listener that routes to one. Seven of the ten lines left below that
+  // ceiling were ANA0's listener, which has now landed; the ceiling follows
+  // it down.
+  // -33 further, to 8,645: the private list builder every contract section
+  // shared is ContractItemListSection now, which is where an assumed item
+  // stops rendering as a plain bullet.
+  // -38 further, to 8,607: ANA1's "waiting on" lines cost five lines in the
+  // task card, paid for by the task menu -- a pure function of a status and
+  // two permissions -- leaving for workflow_task_menu_items.dart.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8607,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };

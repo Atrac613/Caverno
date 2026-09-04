@@ -79,6 +79,22 @@ List<Map<String, dynamic>> _contractSourcesToJson(
   List<ConversationContractSourceReference> sources,
 ) => sources.map((source) => source.toJson()).toList(growable: false);
 
+List<ConversationTaskPrecondition> _taskPreconditionsFromJson(
+  List<dynamic>? json,
+) {
+  if (json == null) return const [];
+  return json
+      .map(
+        (item) =>
+            ConversationTaskPrecondition.fromJson(item as Map<String, dynamic>),
+      )
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _taskPreconditionsToJson(
+  List<ConversationTaskPrecondition> preconditions,
+) => preconditions.map((item) => item.toJson()).toList(growable: false);
+
 List<ConversationContractItemProvenance> _contractProvenanceFromJson(
   List<dynamic>? json,
 ) {
@@ -141,6 +157,79 @@ abstract class ConversationOpenQuestionProgress
   }
 }
 
+/// The Anabasis parent's record that a task's result was accepted.
+///
+/// **One writer, by design.** The acceptance model has four levels: the
+/// mechanical and evidence ones are derived from what the runners record, and
+/// the semantic one is the parent's own judgement — the reason Anabasis
+/// exists. Nothing derives a judgement, so it has to be written, and §10 of
+/// the design gives it exactly one author. `ConversationExecutionValidationStatus`
+/// is the cautionary tale: three writers, one of them judging prose, and a
+/// fourth added and reverted after the investigation found stderr outranking a
+/// clean exit 0.
+///
+/// [premises] is what makes an acceptance revisitable. ANA2's contradiction
+/// policy bars a result whose premise has lapsed, and it can only tell that if
+/// the premises in force at acceptance time were written down.
+@freezed
+abstract class ConversationTaskAcceptance with _$ConversationTaskAcceptance {
+  const ConversationTaskAcceptance._();
+
+  const factory ConversationTaskAcceptance({
+    required String taskId,
+    required DateTime acceptedAt,
+
+    /// Why the parent judged this to satisfy the goal, in its own words.
+    @Default('') String rationale,
+
+    /// What the mechanical and evidence levels rested on: the verification
+    /// command that passed, the files the child changed.
+    @Default(<String>[]) List<String> evidence,
+
+    /// The confirmed assumptions in force when this was accepted.
+    @Default(<String>[]) List<String> premises,
+  }) = _ConversationTaskAcceptance;
+
+  factory ConversationTaskAcceptance.fromJson(Map<String, dynamic> json) =>
+      _$ConversationTaskAcceptanceFromJson(json);
+
+  bool get isValid => taskId.trim().isNotEmpty;
+}
+
+/// What kind of state a precondition points at.
+enum ConversationTaskPreconditionKind {
+  /// Another task in the same contract, by task id.
+  task,
+
+  /// A contract item marked as an assumption, by its provenance item id.
+  assumption,
+
+  /// An open question, by its text — the same key
+  /// `ConversationOpenQuestionProgress` is tracked under.
+  question,
+}
+
+/// One edge in the decomposition graph: this task waits on [ref].
+///
+/// Readiness is never stored. Storing it would add a second writer for
+/// something the graph already determines, which is the failure mode this
+/// codebase has paid for before.
+@freezed
+abstract class ConversationTaskPrecondition
+    with _$ConversationTaskPrecondition {
+  const ConversationTaskPrecondition._();
+
+  const factory ConversationTaskPrecondition({
+    required ConversationTaskPreconditionKind kind,
+    required String ref,
+  }) = _ConversationTaskPrecondition;
+
+  factory ConversationTaskPrecondition.fromJson(Map<String, dynamic> json) =>
+      _$ConversationTaskPreconditionFromJson(json);
+
+  bool get isValid => ref.trim().isNotEmpty;
+}
+
 @freezed
 abstract class ConversationWorkflowTask with _$ConversationWorkflowTask {
   const ConversationWorkflowTask._();
@@ -153,6 +242,19 @@ abstract class ConversationWorkflowTask with _$ConversationWorkflowTask {
     @Default(<String>[]) List<String> targetFiles,
     @Default('') String validationCommand,
     @Default('') String notes,
+
+    /// What has to hold before this task can start (ANA1).
+    ///
+    /// A plain dependency list would only cover one of the three shapes real
+    /// blocking takes here. Each kind points at state that already exists, so
+    /// the new structure is the edge and the predicate, never new state on
+    /// either end.
+    @JsonKey(
+      fromJson: _taskPreconditionsFromJson,
+      toJson: _taskPreconditionsToJson,
+    )
+    @Default(<ConversationTaskPrecondition>[])
+    List<ConversationTaskPrecondition> preconditions,
   }) = _ConversationWorkflowTask;
 
   factory ConversationWorkflowTask.fromJson(Map<String, dynamic> json) =>

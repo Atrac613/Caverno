@@ -564,7 +564,17 @@
     "local_llm_no_models": "Online, no model loaded",
     "local_llm_loaded_models": "Loaded models",
     "local_llm_advertised_models": "Models offered (no lifecycle API)",
-    "local_llm_none_registered": "No local endpoint is registered."
+    "local_llm_none_registered": "No local endpoint is registered.",
+    "contract_assumption": "Assumed, not verified",
+    "contract_assumption_blocking": "Assumed — work pauses until you confirm this",
+    "contract_assumption_confirmed": "Assumed — you confirmed this",
+    "workflow_task_waiting_on": "Waiting on",
+    "workflow_task_waiting_task": "task",
+    "workflow_task_waiting_assumption": "unconfirmed assumption",
+    "workflow_task_waiting_question": "unanswered question",
+    "anabasis_speaker": "Anabasis",
+    "anabasis_speaker_role": "orchestrator",
+    "mention_anabasis_desc": "Orchestrates the plan: inspects, verifies and delegates."
   },
   "drawer": {
     "title": "Conversation History",

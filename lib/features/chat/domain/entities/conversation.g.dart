@@ -43,6 +43,9 @@ _ConversationCheckpoint _$ConversationCheckpointFromJson(
   openQuestionProgress: json['openQuestionProgress'] == null
       ? const <ConversationOpenQuestionProgress>[]
       : _openQuestionProgressFromJson(json['openQuestionProgress'] as List?),
+  taskAcceptances: json['taskAcceptances'] == null
+      ? const <ConversationTaskAcceptance>[]
+      : _taskAcceptancesFromJson(json['taskAcceptances'] as List?),
   goal: _goalFromJson(json['goal'] as Map<String, dynamic>?),
   planArtifact: _planArtifactFromJson(
     json['planArtifact'] as Map<String, dynamic>?,
@@ -70,6 +73,7 @@ Map<String, dynamic> _$ConversationCheckpointToJson(
   'openQuestionProgress': _openQuestionProgressToJson(
     instance.openQuestionProgress,
   ),
+  'taskAcceptances': _taskAcceptancesToJson(instance.taskAcceptances),
   'goal': _goalToJson(instance.goal),
   'planArtifact': _planArtifactToJson(instance.planArtifact),
   'compactionArtifact': _compactionArtifactToJson(instance.compactionArtifact),

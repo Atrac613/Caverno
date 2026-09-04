@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -170,6 +171,56 @@ void main() {
       );
       expect(serial.subtitle, '/dev/tty.usb');
       expect(serial.detail, '115200 baud');
+    });
+
+    test('an assumption confirmation asks the model\'s own question', () {
+      final summary = describePendingApproval(
+        PendingAssumptionConfirmation(
+          owner: owner(),
+          id: 'assume-1',
+          itemId: 'constraint:stable-entity-ids',
+          kind: ConversationContractItemKind.constraint,
+          itemText: 'Existing entities have stable UUIDs',
+          clarificationQuestion: 'Do existing entities have stable UUIDs?',
+          toolName: 'write_file',
+          completer: Completer<bool>(),
+        ),
+      );
+
+      expect(summary.kind, PendingApprovalKinds.assumptionConfirmation);
+      expect(summary.subtitle, 'Existing entities have stable UUIDs');
+      expect(summary.detail, 'Do existing entities have stable UUIDs?');
+      expect(
+        summary.isSimpleDecision,
+        isTrue,
+        reason:
+            'Confirm or decline resolves it, so a compact surface can '
+            'carry it honestly.',
+      );
+    });
+
+    test('an assumption with no question says what is blocked instead', () {
+      final summary = describePendingApproval(
+        PendingAssumptionConfirmation(
+          owner: owner(),
+          id: 'assume-2',
+          itemId: 'constraint:stable-entity-ids',
+          kind: ConversationContractItemKind.constraint,
+          itemText: 'Existing entities have stable UUIDs',
+          clarificationQuestion: null,
+          toolName: 'write_file',
+          completer: Completer<bool>(),
+        ),
+      );
+
+      expect(
+        summary.detail,
+        'Blocked: write_file',
+        reason:
+            'The model marks materiality without always writing a '
+            'question, and an empty detail leaves the interruption '
+            'unexplained.',
+      );
     });
 
     test('an unnamed BLE device falls back to its identifier', () {

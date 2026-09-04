@@ -182,8 +182,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
   ) {
     _routeThreadState(
       pending.owner.conversationId,
-      (current) =>
-          ThreadScopedChatState.clearPendingToolApproval(current, pending),
+      (current) => PendingToolApprovalProjection.clear(current, pending),
     );
   }
 
@@ -447,6 +446,46 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
         ? rationale
         : '$rationale\n\n$fallback';
   }
+
+  /// Asks the user to confirm one material contract assumption (ANA0).
+  ///
+  /// `false` covers both a decline and a turn that ended before it was
+  /// answered: neither may be read as a confirmation, because only the user
+  /// disposes of an assumption.
+  Future<bool> requestAssumptionConfirmation({
+    required ChatTurnOwner owner,
+    required ConversationContractItemProvenance item,
+    required String itemText,
+    required String toolName,
+  }) {
+    final pending = PendingAssumptionConfirmation(
+      owner: owner,
+      id: const Uuid().v4(),
+      itemId: item.itemId,
+      kind: item.kind,
+      itemText: itemText,
+      clarificationQuestion: item.normalizedClarificationQuestion,
+      toolName: toolName,
+      completer: Completer<bool>(),
+      origin: _activeInteractionOrigin,
+      remoteDeviceId: _activeRemoteDeviceId,
+    );
+    return _registerPendingToolApproval(
+      pending,
+      (s) => s.copyWith(pendingAssumptionConfirmation: pending),
+      'assumption_confirmation',
+      _approvalSummary(pending.clarificationQuestion, itemText),
+      toolName,
+    );
+  }
+
+  bool resolveAssumptionConfirmation({
+    required String id,
+    required bool confirmed,
+  }) => _completeApproval<bool, PendingAssumptionConfirmation>(
+    id,
+    (_) => confirmed,
+  );
 
   McpToolResult _autoReviewDeniedResult({
     required String toolName,

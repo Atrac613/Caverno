@@ -38,9 +38,15 @@ import '../slash_commands/slash_command.dart';
 import 'message_input_control_labels.dart';
 import 'message_input_send_handler.dart';
 import 'message_input_slash_suggestion_list.dart';
+import 'message_input_mention_suggestion_list.dart';
+import 'message_input_mention_suggestion_state.dart';
+import '../mentions/mention_target.dart';
 import 'message_input_slash_suggestion_state.dart';
 import 'pro_reasoning_mode_button.dart';
 import 'voice_mode_overlay.dart';
+
+part 'message_input_mention_keys.dart';
+part 'message_input_slash_keys.dart';
 
 class MessageInputImageAttachment {
   const MessageInputImageAttachment({
@@ -160,6 +166,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   final _droppedFileIntake = DroppedAttachmentIntake();
   MessageInputSlashSuggestionState _slashSuggestionState =
       MessageInputSlashSuggestionState.empty;
+  MessageInputMentionSuggestionState _mentionSuggestionState =
+      MessageInputMentionSuggestionState.empty;
   MessageInputWorktreeMode _worktreeMode = MessageInputWorktreeMode.local;
 
   // Shell-like input history. `_historyIndex == -1` means not browsing;
@@ -348,24 +356,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     }
   }
 
-  /// Track non-whitespace input so the trailing button can switch modes.
-  void _handleTextChanged() {
-    final hasText = _controller.text.trim().isNotEmpty;
-    final nextSlashSuggestionState = _slashSuggestionState.refresh(
-      text: _controller.text,
-      commandsEnabled: _slashCommandsEnabled,
-      hasAttachment: _hasAttachment,
-      commands: widget.slashCommands,
-    );
-    if (hasText != _hasText ||
-        !identical(nextSlashSuggestionState, _slashSuggestionState)) {
-      setState(() {
-        _hasText = hasText;
-        _slashSuggestionState = nextSlashSuggestionState;
-      });
-    }
-  }
-
   bool get _slashCommandsEnabled {
     return widget.slashCommands.isNotEmpty && widget.onSlashCommand != null;
   }
@@ -383,75 +373,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   bool get _shouldSendWorktreeSession {
     return _worktreeControlsEnabled &&
         _worktreeMode == MessageInputWorktreeMode.newWorktree;
-  }
-
-  void _refreshSlashSuggestions() {
-    final nextSlashSuggestionState = _slashSuggestionState.refresh(
-      text: _controller.text,
-      commandsEnabled: _slashCommandsEnabled,
-      hasAttachment: _hasAttachment,
-      commands: widget.slashCommands,
-    );
-    if (identical(nextSlashSuggestionState, _slashSuggestionState)) return;
-    setState(() {
-      _slashSuggestionState = nextSlashSuggestionState;
-    });
-  }
-
-  KeyEventResult _handleSlashCommandKey(KeyDownEvent event) {
-    if (!_slashCommandsEnabled) {
-      return KeyEventResult.ignored;
-    }
-
-    final hasSuggestions = _slashSuggestionState.hasSuggestions;
-    final key = event.logicalKey;
-
-    if (hasSuggestions && key == LogicalKeyboardKey.arrowDown) {
-      setState(() {
-        _slashSuggestionState = _slashSuggestionState.selectNext();
-      });
-      return KeyEventResult.handled;
-    }
-
-    if (hasSuggestions && key == LogicalKeyboardKey.arrowUp) {
-      setState(() {
-        _slashSuggestionState = _slashSuggestionState.selectPrevious();
-      });
-      return KeyEventResult.handled;
-    }
-
-    if (hasSuggestions && key == LogicalKeyboardKey.tab) {
-      _applySlashSuggestion(_slashSuggestionState.selectedSuggestion);
-      return KeyEventResult.handled;
-    }
-
-    if (hasSuggestions && key == LogicalKeyboardKey.escape) {
-      setState(() {
-        _slashSuggestionState = _slashSuggestionState.dismiss(
-          text: _controller.text,
-        );
-      });
-      return KeyEventResult.handled;
-    }
-
-    if (key == LogicalKeyboardKey.enter) {
-      if (_controller.value.composing != TextRange.empty) {
-        return KeyEventResult.ignored;
-      }
-      if (_submitSlashCommandFromComposer(allowSelectedSuggestion: true)) {
-        return KeyEventResult.handled;
-      }
-    }
-
-    return KeyEventResult.ignored;
-  }
-
-  void _applySlashSuggestion(SlashCommandDefinition command) {
-    final text = '/${command.name} ';
-    _setComposerText(text);
-    setState(() {
-      _slashSuggestionState = _slashSuggestionState.applyCompletedText(text);
-    });
   }
 
   bool _submitSlashCommandFromComposer({
@@ -1331,19 +1252,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     );
   }
 
-  Widget _buildSlashCommandSuggestions(BuildContext context, ThemeData theme) {
-    return MessageInputSlashSuggestionList(
-      suggestions: _slashSuggestionState.suggestions,
-      selectedIndex: _slashSuggestionState.selectedIndex,
-      onSelected: (index) {
-        setState(() {
-          _slashSuggestionState = _slashSuggestionState.selectIndex(index);
-        });
-        _submitSlashCommandFromComposer(allowSelectedSuggestion: true);
-      },
-    );
-  }
-
   String _goalStatusLabel(ConversationGoalStatus status) =>
       ConversationGoalStatusPresentation.labelKey(status).tr();
 
@@ -1667,8 +1575,11 @@ class _MessageInputState extends ConsumerState<MessageInput> {
             // File preview
             if (_selectedFile case final file?)
               ComposerFileChip(file: file, onCleared: _clearFile),
-            // Never both at once: the slash list owns this space when open.
-            if (_slashSuggestionState.hasSuggestions)
+            // Never more than one at once: a completion list owns this space
+            // while it is open, and `@` and `/` cannot both start a draft.
+            if (_mentionSuggestionState.hasSuggestions)
+              _buildMentionSuggestions(context, theme)
+            else if (_slashSuggestionState.hasSuggestions)
               _buildSlashCommandSuggestions(context, theme)
             else
               ComposerShortcutBar(

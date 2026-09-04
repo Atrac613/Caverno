@@ -4,6 +4,7 @@ import '../entities/conversation.dart';
 import '../entities/conversation_workflow.dart';
 import '../../presentation/providers/chat_state.dart';
 import 'proposal_parsing_text_utils.dart';
+import 'task_precondition_parsing.dart';
 import 'runtime_sampler_feedback_recorder.dart';
 import 'workflow_proposal_parser.dart';
 import 'workflow_task_proposal_quality_service.dart';
@@ -170,6 +171,7 @@ class TaskProposalParser {
           notes: ProposalParsingTextUtils.asCleanString(
             item['notes'] ?? item['memo'] ?? item['メモ'],
           ),
+          preconditions: TaskPreconditionParsing.fromProposalTask(item),
         ),
       );
     }

@@ -2450,6 +2450,10 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
   final List<String> finalAnswerChunks;
   final List<List<ToolResultInfo>> toolResultBatches = [];
   final List<List<Message>> toolResultRequestMessages = [];
+
+  /// The first request's messages, so a test can read the system prompt the
+  /// turn was actually built with.
+  final List<Message> initialRequestMessages = <Message>[];
   final List<int> toolResultToolDefinitionCounts = [];
   final List<Message> finalAnswerMessages = <Message>[];
   final List<String?> assistantContents = [];
@@ -2494,6 +2498,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) {
     initialToolTemperature = temperature;
+    initialRequestMessages.addAll(messages);
     return StreamWithToolsResult(
       stream: const Stream.empty(),
       completion: Future<ChatCompletionResult>.value(

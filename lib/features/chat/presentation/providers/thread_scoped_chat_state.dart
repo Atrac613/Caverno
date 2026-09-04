@@ -26,6 +26,7 @@ class ThreadScopedChatState {
     this.pendingBleConnect,
     this.pendingSerialOpen,
     this.pendingParticipantToolApproval,
+    this.pendingAssumptionConfirmation,
     this.participantTurnRuntime,
   });
 
@@ -48,6 +49,7 @@ class ThreadScopedChatState {
       pendingBleConnect: state.pendingBleConnect,
       pendingSerialOpen: state.pendingSerialOpen,
       pendingParticipantToolApproval: state.pendingParticipantToolApproval,
+      pendingAssumptionConfirmation: state.pendingAssumptionConfirmation,
       participantTurnRuntime: state.participantTurnRuntime,
     );
   }
@@ -96,6 +98,7 @@ class ThreadScopedChatState {
   final PendingBleConnect? pendingBleConnect;
   final PendingSerialOpen? pendingSerialOpen;
   final PendingParticipantToolApproval? pendingParticipantToolApproval;
+  final PendingAssumptionConfirmation? pendingAssumptionConfirmation;
   final ParticipantTurnRuntime? participantTurnRuntime;
 
   /// Whether the thread is blocked waiting for the user to answer something.
@@ -118,7 +121,8 @@ class ThreadScopedChatState {
       pendingFileOperation != null ||
       pendingBleConnect != null ||
       pendingSerialOpen != null ||
-      pendingParticipantToolApproval != null;
+      pendingParticipantToolApproval != null ||
+      pendingAssumptionConfirmation != null;
 
   /// Applies a state update to the thread whose turn produced it.
   ///
@@ -155,40 +159,6 @@ class ThreadScopedChatState {
         .toSet();
   }
 
-  static ChatState clearPendingToolApproval(
-    ChatState current,
-    PendingToolApproval<dynamic> pending,
-  ) {
-    return switch (pending) {
-      PendingSshConnect() when identical(current.pendingSshConnect, pending) =>
-        current.copyWith(pendingSshConnect: null),
-      PendingSshCommand() when identical(current.pendingSshCommand, pending) =>
-        current.copyWith(pendingSshCommand: null),
-      PendingGitCommand() when identical(current.pendingGitCommand, pending) =>
-        current.copyWith(pendingGitCommand: null),
-      PendingLocalCommand()
-          when identical(current.pendingLocalCommand, pending) =>
-        current.copyWith(pendingLocalCommand: null),
-      PendingFileOperation()
-          when identical(current.pendingFileOperation, pending) =>
-        current.copyWith(pendingFileOperation: null),
-      PendingComputerUseAction()
-          when identical(current.pendingComputerUseAction, pending) =>
-        current.copyWith(pendingComputerUseAction: null),
-      PendingBrowserAction()
-          when identical(current.pendingBrowserAction, pending) =>
-        current.copyWith(pendingBrowserAction: null),
-      PendingBleConnect() when identical(current.pendingBleConnect, pending) =>
-        current.copyWith(pendingBleConnect: null),
-      PendingSerialOpen() when identical(current.pendingSerialOpen, pending) =>
-        current.copyWith(pendingSerialOpen: null),
-      PendingParticipantToolApproval()
-          when identical(current.pendingParticipantToolApproval, pending) =>
-        current.copyWith(pendingParticipantToolApproval: null),
-      _ => current,
-    };
-  }
-
   bool get hasContent =>
       pendingWorkflowDecision != null ||
       isGeneratingWorkflowProposal ||
@@ -207,6 +177,7 @@ class ThreadScopedChatState {
       pendingBleConnect != null ||
       pendingSerialOpen != null ||
       pendingParticipantToolApproval != null ||
+      pendingAssumptionConfirmation != null ||
       participantTurnRuntime != null;
 
   ChatState applyTo(
@@ -232,6 +203,7 @@ class ThreadScopedChatState {
       pendingBleConnect: pendingBleConnect,
       pendingSerialOpen: pendingSerialOpen,
       pendingParticipantToolApproval: pendingParticipantToolApproval,
+      pendingAssumptionConfirmation: pendingAssumptionConfirmation,
       participantTurnRuntime: participantTurnRuntime,
     );
   }

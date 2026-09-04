@@ -136,6 +136,15 @@ class ConversationPlanDocumentBuilder {
         if (validationCommand.isNotEmpty) {
           buffer.writeln('   - Validation: $validationCommand');
         }
+        // One line per edge rather than a comma list: a question precondition
+        // is referenced by its own text, which may contain a comma.
+        for (final precondition in task.preconditions) {
+          if (!precondition.isValid) continue;
+          buffer.writeln(
+            '   - Requires: ${precondition.kind.name}: '
+            '${precondition.ref.trim()}',
+          );
+        }
         final notes = task.notes.trim();
         if (notes.isNotEmpty) {
           buffer.writeln('   - Notes: $notes');

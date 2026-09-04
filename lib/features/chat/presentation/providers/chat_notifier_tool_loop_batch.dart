@@ -60,8 +60,33 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       );
     }
     final ownerWorkspaceMode = ownerConversation.workspaceMode;
-    final ownerBlockingAssumptions = MaterialContractAssumptionArming.armed(
-      ownerConversation.effectiveWorkflowSpec,
+    final toolPolicies = TurnToolPolicyChain(
+      // Read from the turn, not from the zone. The request zone that carries
+      // the role for accounting is opened per request and does not wrap the
+      // tool loop, so `ModelUsageRole.current` is `unknown` here — which
+      // silently unarmed the parent guard. The generation is the turn's own
+      // identity and is in scope either way.
+      executingRole: _anabasisRoles.mainLoopRoleFor(interactionGeneration),
+      assumptionGate: MaterialAssumptionConfirmationGate(
+        currentSpec: () =>
+            _conversationForId(owner.conversationId)?.effectiveWorkflowSpec ??
+            const ConversationWorkflowSpec(),
+        requestConfirmation:
+            ({required item, required itemText, required toolName}) =>
+                requestAssumptionConfirmation(
+                  owner: owner,
+                  item: item,
+                  itemText: itemText,
+                  toolName: toolName,
+                ),
+        persist: (spec) => ref
+            .read(conversationsNotifierProvider.notifier)
+            .updateCurrentWorkflow(
+              workflowSpec: spec,
+              preserveWorkflowProjection: true,
+              conversationId: owner.conversationId,
+            ),
+      ),
     );
     int ownerMutationGeneration() {
       return _conversationForId(owner.conversationId)?.mutationGeneration ?? 0;
@@ -159,14 +184,15 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         if (validationProbeGuardResult != null) {
           return validationProbeGuardResult;
         }
-        final materialAssumptionGuardResult =
-            const MaterialContractAssumptionGuard().evaluate(
-              toolCall,
-              workspaceMode: ownerWorkspaceMode,
-              blockingAssumptions: ownerBlockingAssumptions,
-            );
-        if (materialAssumptionGuardResult != null) {
-          return materialAssumptionGuardResult;
+        final policyRefusal = await toolPolicies.evaluate(
+          toolCall,
+          workspaceMode: ownerWorkspaceMode,
+        );
+        if (policyRefusal != null) return policyRefusal;
+        if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+          // The chain may have waited on the user. Anything decided for a turn
+          // the conversation has moved past must not still be executed.
+          return approvalTurnExpiredResult(toolCall.name);
         }
         final truncatedArgumentsGuardResult =
             _buildTruncatedToolCallArgumentsGuardResult(toolCall, owner: owner);

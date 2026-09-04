@@ -108,4 +108,78 @@ Notes: Keep approval UI compact
       contains('Initialize project structure and requirements.txt'),
     );
   });
+
+  group('precondition edges (ANA1 PR 2c)', () {
+    test('reads the array the schema asks for', () {
+      final proposal = parser.parse('''
+{"tasks":[
+  {"title":"Audit the record ids","preconditions":[]},
+  {"title":"Write the sync engine","preconditions":[
+    {"kind":"task","ref":"Audit the record ids"},
+    {"kind":"assumption","ref":"Record ids are stable"},
+    {"kind":"question","ref":"Last-write-wins or merge?"}
+  ]}
+]}
+''');
+
+      expect(proposal, isNotNull);
+      expect(proposal!.tasks.first.preconditions, isEmpty);
+      expect(proposal.tasks.last.preconditions, [
+        const ConversationTaskPrecondition(
+          kind: ConversationTaskPreconditionKind.task,
+          ref: 'Audit the record ids',
+        ),
+        const ConversationTaskPrecondition(
+          kind: ConversationTaskPreconditionKind.assumption,
+          ref: 'Record ids are stable',
+        ),
+        const ConversationTaskPrecondition(
+          kind: ConversationTaskPreconditionKind.question,
+          ref: 'Last-write-wins or merge?',
+        ),
+      ]);
+    });
+
+    test('an edge flattened into a string is still read', () {
+      final proposal = parser.parse('''
+{"tasks":[{"title":"Write the sync engine","preconditions":["task: Audit the record ids"]}]}
+''');
+
+      expect(
+        proposal!.tasks.single.preconditions.single.ref,
+        'Audit the record ids',
+        reason:
+            'Rejecting the loose shape would report a channel failure where '
+            'the model in fact used the channel.',
+      );
+    });
+
+    test('an unreadable edge costs the edge, not the task', () {
+      final proposal = parser.parse('''
+{"tasks":[{"title":"Write the sync engine","preconditions":[
+  {"kind":"dependency","ref":"Audit"},
+  {"kind":"task","ref":""},
+  {"kind":"task","ref":"Audit the record ids"}
+]}]}
+''');
+
+      expect(proposal!.tasks.single.title, 'Write the sync engine');
+      expect(
+        proposal.tasks.single.preconditions.single.ref,
+        'Audit the record ids',
+        reason:
+            'A precondition is optional, and a plan is not worth losing over '
+            'one malformed entry.',
+      );
+    });
+
+    test('a proposal written before this field parses unchanged', () {
+      final proposal = parser.parse('''
+{"tasks":[{"title":"Write the sync engine","validationCommand":"dart test"}]}
+''');
+
+      expect(proposal!.tasks.single.preconditions, isEmpty);
+      expect(proposal.tasks.single.validationCommand, 'dart test');
+    });
+  });
 }

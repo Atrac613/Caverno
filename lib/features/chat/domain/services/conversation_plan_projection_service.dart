@@ -435,8 +435,22 @@ class ConversationPlanProjectionService {
         currentTask.notes = detail.substring(6).trim();
         continue;
       }
+      if (detail.startsWith('Requires:')) {
+        final precondition = _parsePrecondition(detail.substring(9));
+        // An unreadable edge is dropped, not fatal. Every other detail here is
+        // something the plan states about itself; this one is optional, and a
+        // misspelled kind must not cost the user the whole document. It stays
+        // visible as prose in the markdown either way.
+        if (precondition != null) {
+          currentTask.preconditions = [
+            ...currentTask.preconditions,
+            precondition,
+          ];
+        }
+        continue;
+      }
       return _TaskParseResult.error(
-        'unsupported task detail "$detail"; use Task ID, Status, Target files, Validation, or Notes',
+        'unsupported task detail "$detail"; use Task ID, Status, Target files, Validation, Requires, or Notes',
       );
     }
 
@@ -594,6 +608,24 @@ const _ignoredTitleTokens = <String>{
   'step',
 };
 
+/// Reads one `Requires: <kind>: <ref>` edge, or `null` when it cannot.
+///
+/// Splits on the first colon only: an assumption is referenced by a contract
+/// item id, which is itself `constraint:<hash>`.
+ConversationTaskPrecondition? _parsePrecondition(String detail) {
+  final separator = detail.indexOf(':');
+  if (separator <= 0) return null;
+  final kindName = detail.substring(0, separator).trim().toLowerCase();
+  final ref = detail.substring(separator + 1).trim();
+  if (ref.isEmpty) return null;
+  for (final kind in ConversationTaskPreconditionKind.values) {
+    if (kind.name == kindName) {
+      return ConversationTaskPrecondition(kind: kind, ref: ref);
+    }
+  }
+  return null;
+}
+
 class _TaskDraft {
   _TaskDraft({required this.derivedId, required this.title});
 
@@ -605,6 +637,7 @@ class _TaskDraft {
   List<String> targetFiles = const [];
   String validationCommand = '';
   String notes = '';
+  List<ConversationTaskPrecondition> preconditions = const [];
 
   bool get hasExplicitId => explicitId?.trim().isNotEmpty ?? false;
 
@@ -616,6 +649,7 @@ class _TaskDraft {
       targetFiles: targetFiles,
       validationCommand: validationCommand,
       notes: notes,
+      preconditions: preconditions,
     );
   }
 }

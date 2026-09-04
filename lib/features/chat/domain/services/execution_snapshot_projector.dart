@@ -2,8 +2,11 @@ import 'dart:convert';
 
 import '../entities/conversation.dart';
 import '../entities/conversation_workflow.dart';
+import 'conversation_contract_provenance_service.dart';
 import 'conversation_plan_execution_coordinator.dart';
 import 'conversation_plan_hash.dart';
+import 'conversation_task_readiness.dart';
+import 'task_delegation_brief_builder.dart';
 import 'verification_cadence_policy.dart';
 
 enum ExecutionSnapshotAction {
@@ -38,7 +41,9 @@ class ExecutionSnapshot {
     this.activeTaskValidationCommand = '',
     this.remainingTaskIds = const <String>[],
     this.clarificationQuestions = const <String>[],
-    this.blockingAssumptionCount = 0,
+    this.blockingAssumptions = const <String>[],
+    this.waitingTasks = const <String>[],
+    this.delegatableTasks = const <String>[],
     this.sourceCount = 0,
     this.sourcedItemCount = 0,
     this.mutationGeneration = 0,
@@ -67,7 +72,36 @@ class ExecutionSnapshot {
   final String activeTaskValidationCommand;
   final List<String> remainingTaskIds;
   final List<String> clarificationQuestions;
-  final int blockingAssumptionCount;
+
+  /// The claims the plan is assuming and the user has not confirmed, in the
+  /// plan's own words.
+  ///
+  /// ANA0 PR 5. This used to be a count beside `clarificationQuestions`, and
+  /// the prompt rendered *that* list under the heading "material assumptions
+  /// requiring user confirmation" — a set unioning open questions with
+  /// assumption questions, sampled head-and-tail to three. So the line could
+  /// name three open questions and omit the assumption that was actually
+  /// blocking the turn, while claiming to list it. Carrying the claims
+  /// themselves is what makes the line true.
+  final List<String> blockingAssumptions;
+
+  /// Tasks whose preconditions do not hold yet, each with what it waits on.
+  ///
+  /// ANA1 derives readiness and renders it in the task card; this is the same
+  /// fact reaching the model. Without it the prompt lists a task as remaining
+  /// and says nothing about the edge holding it, so the model's only options
+  /// are to start work that cannot be finished or to guess why it should not.
+  final List<String> waitingTasks;
+
+  /// Tasks that could be handed to a child right now, with their premises and
+  /// runner.
+  ///
+  /// Carried on the snapshot but deliberately **not** in [toPromptContext]:
+  /// this is what the Anabasis parent orchestrates with, and
+  /// `SystemPromptBuilder` emits it only for a turn addressed to the parent.
+  /// An ordinary turn has no use for a delegation queue and would read it as a
+  /// suggestion to spawn children.
+  final List<String> delegatableTasks;
   final int sourceCount;
   final int sourcedItemCount;
   final int mutationGeneration;
@@ -103,7 +137,9 @@ class ExecutionSnapshot {
     clarificationQuestions.join('\n'),
   ].join('|');
 
-  bool get hasBlockingAssumptions => blockingAssumptionCount > 0;
+  int get blockingAssumptionCount => blockingAssumptions.length;
+
+  bool get hasBlockingAssumptions => blockingAssumptions.isNotEmpty;
 
   String toPromptContext() {
     final lines = <String>[
@@ -192,14 +228,23 @@ class ExecutionSnapshot {
     }
     if (hasBlockingAssumptions) {
       lines.add(
-        'Material assumptions requiring user confirmation: '
-        '${_joined(clarificationQuestions, 3)}',
+        'Unconfirmed material assumptions: ${_joined(blockingAssumptions, 3)}',
       );
+      // Caverno raises the confirmation itself when a mutation is attempted
+      // (ANA0 PR 4b-2), so this states what is true rather than delegating the
+      // mechanism: asking the model to ask was the humility instruction the
+      // track exists to replace.
       lines.add(
-        'Do not mutate state until the user confirms one of these material assumptions. Ask one focused clarification question.',
+        'State mutation is blocked until the user confirms one of these. They '
+        'are asked when a mutation is attempted; treat the assumption as open '
+        'until then, and do not write it into the plan as established.',
       );
-    } else if (clarificationQuestions.isNotEmpty) {
+    }
+    if (clarificationQuestions.isNotEmpty) {
       lines.add('Open questions: ${_joined(clarificationQuestions, 3)}');
+    }
+    if (waitingTasks.isNotEmpty) {
+      lines.add('Tasks not ready: ${_joined(waitingTasks, 3)}');
     }
     return lines.join('\n');
   }
@@ -242,6 +287,7 @@ class ExecutionSnapshot {
       'validation=${validationStatus.name}',
       'tasks=$completedTaskCount/${completedTaskCount + remainingTaskCount}',
       'questions=$unresolvedQuestionCount',
+      'assumptions=$blockingAssumptionCount',
       'requiresValidation=$requiresValidation',
       'hasDiagnostic=${latestDiagnostic != null}',
       'diagnosticStreak=$commandDiagnosticStreak',
@@ -277,7 +323,9 @@ class ExecutionSnapshot {
       activeTaskValidationCommand: activeTaskValidationCommand,
       remainingTaskIds: remainingTaskIds,
       clarificationQuestions: clarificationQuestions,
-      blockingAssumptionCount: blockingAssumptionCount,
+      blockingAssumptions: blockingAssumptions,
+      waitingTasks: waitingTasks,
+      delegatableTasks: delegatableTasks,
       sourceCount: sourceCount,
       sourcedItemCount: sourcedItemCount,
       mutationGeneration: mutationGeneration,
@@ -347,18 +395,57 @@ class ExecutionSnapshotProjector {
     final progress = activeTask == null
         ? null
         : conversation.executionProgressForTask(activeTask.id);
-    final blockingAssumptions =
-        conversation.effectiveWorkflowSpec.blockingAssumptions;
-    final clarificationQuestions = <String>{
-      ...conversation.unresolvedOpenQuestionProgress.map(
-        (item) => item.question.trim(),
-      ),
-      ...blockingAssumptions.map(
-        (item) =>
-            item.normalizedClarificationQuestion ??
-            'Confirm the material ${item.kind.name} assumption.',
-      ),
-    }.where((item) => item.isNotEmpty).toList(growable: false);
+    final spec = conversation.effectiveWorkflowSpec;
+    const provenance = ConversationContractProvenanceService();
+    // The claim, not the question about it: the prompt says what is being
+    // assumed, and the app is what asks. Falling back to the question keeps a
+    // hand-marked item that no longer matches any list from disappearing
+    // silently.
+    final blockingAssumptionClaims = spec.blockingAssumptions
+        .map(
+          (item) =>
+              provenance.itemValueFor(spec, item.itemId) ??
+              item.normalizedClarificationQuestion ??
+              'An unnamed material ${item.kind.name} assumption',
+        )
+        .where((claim) => claim.trim().isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    // What each unready task waits on, in the plan's own words where it has
+    // them. The reference is rendered rather than the item id, because an id is
+    // a hash and a prompt line naming one tells the model nothing it can act
+    // on.
+    const readiness = ConversationTaskReadinessResolver();
+    final waitingTaskSummaries = <String>[
+      for (final task in spec.tasks)
+        if (task.title.trim().isNotEmpty)
+          if (readiness.resolve(conversation, task).unmet case final unmet
+              when unmet.isNotEmpty)
+            '${task.title.trim()} — waits on '
+                '${unmet.map((edge) => '${edge.kind.name}: '
+                    '${provenance.itemValueFor(spec, edge.ref) ?? edge.ref}').join('; ')}',
+    ];
+    // What the parent could delegate now, with the premises a child would have
+    // to be told and the runner the work's own declarations put it in.
+    final delegatableSummaries = <String>[
+      for (final brief in const TaskDelegationBriefBuilder().candidates(
+        conversation,
+      ))
+        [
+          brief.task.title.trim(),
+          '(${brief.runner.name})',
+          if (brief.premises.isNotEmpty)
+            '— premises: ${brief.premises.join('; ')}',
+        ].join(' '),
+    ];
+    // Open questions only. Unioning the assumption questions in here is what
+    // let the material-assumption line render three open questions and omit
+    // the assumption that was blocking the turn.
+    final clarificationQuestions = conversation.unresolvedOpenQuestionProgress
+        .map((item) => item.question.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
     final completedTaskCount = taskViews
         .where(
           (view) => view.status == ConversationWorkflowTaskStatus.completed,
@@ -382,6 +469,7 @@ class ExecutionSnapshotProjector {
         activeTask: activeTask,
         progress: progress,
         unresolvedQuestionCount: clarificationQuestions.length,
+        blockingAssumptionCount: blockingAssumptionClaims.length,
         verificationCadence: verificationCadence,
       ),
       activeTaskId: activeTask?.id,
@@ -406,7 +494,9 @@ class ExecutionSnapshotProjector {
           .where((id) => id.trim().isNotEmpty)
           .toList(growable: false),
       clarificationQuestions: clarificationQuestions,
-      blockingAssumptionCount: blockingAssumptions.length,
+      blockingAssumptions: blockingAssumptionClaims,
+      waitingTasks: waitingTaskSummaries,
+      delegatableTasks: delegatableSummaries,
       sourceCount: conversation.effectiveWorkflowSpec.sources.length,
       sourcedItemCount: conversation.effectiveWorkflowSpec.provenance
           .where((item) => item.sourceIds.isNotEmpty)
@@ -423,9 +513,14 @@ class ExecutionSnapshotProjector {
     required ConversationWorkflowTask? activeTask,
     required ConversationExecutionTaskProgress? progress,
     required int unresolvedQuestionCount,
+    required int blockingAssumptionCount,
     required VerificationCadence verificationCadence,
   }) {
-    if (unresolvedQuestionCount > 0) {
+    // Both, named separately. They used to arrive as one conflated count, and
+    // splitting the lists (ANA0 PR 5) silently turned a contract blocked on an
+    // assumption into `execute` — the sort of change a projection makes when a
+    // count is asked to mean two things.
+    if (unresolvedQuestionCount > 0 || blockingAssumptionCount > 0) {
       return ExecutionSnapshotAction.clarify;
     }
     if (activeTask?.status == ConversationWorkflowTaskStatus.blocked ||

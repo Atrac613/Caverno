@@ -3,6 +3,11 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
+import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_guard.dart';
+import 'package:caverno/features/chat/domain/services/material_contract_assumption_guard.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/tool_failure_classifier.dart';
@@ -257,6 +262,96 @@ void main() {
           result,
         ),
         ToolResultDisposition.executionFailure,
+      );
+    });
+  });
+
+  group('a policy refusal is not a broken tool', () {
+    final mutation = ToolCallInfo(
+      id: 'call-write',
+      name: 'write_file',
+      arguments: const {'path': 'lib/a.dart', 'content': '// x'},
+    );
+
+    test('the parent authority guard is read by its code, not its prose', () {
+      final result = const AnabasisParentAuthorityGuard().evaluate(
+        mutation,
+        executingRole: ModelUsageRole.anabasisParent,
+      )!;
+
+      expect(
+        '${result.errorMessage}\n${result.result}'.toLowerCase(),
+        isNot(contains('denied')),
+        reason:
+            'The fixture is only meaningful while the prose does not happen '
+            'to contain the word the substring test looks for.',
+      );
+      expect(
+        classifier.classify(mutation, result),
+        ToolResultDisposition.approvalDenied,
+        reason:
+            'Classified as an execution failure, this told the user to check '
+            'their server configuration for a policy working as designed, and '
+            'recorded tool_failure for a decision.',
+      );
+    });
+
+    test('the material assumption guard is read the same way', () {
+      final result = const MaterialContractAssumptionGuard().evaluate(
+        mutation,
+        workspaceMode: WorkspaceMode.coding,
+        blockingAssumptions: const [
+          ConversationContractItemProvenance(
+            itemId: 'constraint:stable-ids',
+            kind: ConversationContractItemKind.constraint,
+            assumption: true,
+            material: true,
+          ),
+        ],
+      )!;
+
+      expect(
+        '${result.errorMessage}\n${result.result}'.toLowerCase(),
+        isNot(contains('denied')),
+      );
+      expect(
+        classifier.classify(mutation, result),
+        ToolResultDisposition.approvalDenied,
+      );
+    });
+
+    test('an unrecognised code is still an execution failure', () {
+      expect(
+        classifier.classify(
+          mutation,
+          McpToolResult(
+            toolName: 'write_file',
+            result: jsonEncode({'code': 'disk_full', 'error': 'no space'}),
+            isSuccess: false,
+            errorMessage: 'no space left on device',
+          ),
+        ),
+        ToolResultDisposition.executionFailure,
+        reason:
+            'Treating every structured failure as a policy decision would '
+            'stop the loop retrying things a retry can actually fix.',
+      );
+    });
+
+    test('a non-JSON refusal still reaches the prose branch', () {
+      expect(
+        classifier.classify(
+          mutation,
+          McpToolResult(
+            toolName: 'write_file',
+            result: 'User denied the write.',
+            isSuccess: false,
+            errorMessage: 'denied',
+          ),
+        ),
+        ToolResultDisposition.approvalDenied,
+        reason:
+            'The codes are additive; refusals without one still rely on it.',
       );
     });
   });

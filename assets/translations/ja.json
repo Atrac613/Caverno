@@ -564,7 +564,17 @@
     "local_llm_no_models": "オンライン（モデル未ロード）",
     "local_llm_loaded_models": "ロード済みモデル",
     "local_llm_advertised_models": "提供中のモデル（ライフサイクル API なし）",
-    "local_llm_none_registered": "ローカルエンドポイントが登録されていません。"
+    "local_llm_none_registered": "ローカルエンドポイントが登録されていません。",
+    "contract_assumption": "未確認の仮定",
+    "contract_assumption_blocking": "仮定 — 確認するまで作業は止まります",
+    "contract_assumption_confirmed": "仮定 — 確認済み",
+    "workflow_task_waiting_on": "待っているもの",
+    "workflow_task_waiting_task": "タスク",
+    "workflow_task_waiting_assumption": "未確認の仮定",
+    "workflow_task_waiting_question": "未回答の質問",
+    "anabasis_speaker": "Anabasis",
+    "anabasis_speaker_role": "オーケストレーター",
+    "mention_anabasis_desc": "プランを統括します（調査・検証・委譲）"
   },
   "drawer": {
     "title": "会話履歴",

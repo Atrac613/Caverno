@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
 import 'package:caverno/features/chat/domain/services/execution_snapshot_projector.dart';
 import 'package:caverno/features/chat/domain/services/verification_cadence_policy.dart';
 
@@ -123,6 +124,175 @@ void main() {
     expect(snapshot.toPromptContext(), contains('Open questions:'));
   });
 
+  test('a ready task is offered for delegation, with its runner', () {
+    final snapshot = projector.project(
+      conversation(
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Add full-text search',
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'choose-index',
+              title: 'Choose the index format',
+            ),
+            ConversationWorkflowTask(
+              id: 'build-ui',
+              title: 'Build the query UI',
+              targetFiles: ['lib/search/query_view.dart'],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(snapshot.delegatableTasks, [
+      'Choose the index format (subagent)',
+      'Build the query UI (worktree)',
+    ]);
+    expect(
+      snapshot.toPromptContext(),
+      isNot(contains('Choose the index format (subagent)')),
+      reason:
+          'The delegation queue belongs to the Anabasis parent. An ordinary '
+          'turn would read it as a suggestion to spawn children.',
+    );
+  });
+
+  test('an unready task tells the model what it waits on', () {
+    const assumed = 'The index format is chosen';
+    const provenanceService = ConversationContractProvenanceService();
+    final assumedId = provenanceService.itemId(
+      kind: ConversationContractItemKind.constraint,
+      value: assumed,
+    );
+    final snapshot = projector.project(
+      conversation(
+        workflowSpec: ConversationWorkflowSpec(
+          goal: 'Add full-text search',
+          constraints: const [assumed],
+          tasks: [
+            const ConversationWorkflowTask(
+              id: 'choose-index',
+              title: 'Choose the index format',
+            ),
+            ConversationWorkflowTask(
+              id: 'build-ui',
+              title: 'Build the query UI',
+              preconditions: [
+                const ConversationTaskPrecondition(
+                  kind: ConversationTaskPreconditionKind.task,
+                  ref: 'choose-index',
+                ),
+                ConversationTaskPrecondition(
+                  kind: ConversationTaskPreconditionKind.assumption,
+                  ref: assumedId,
+                ),
+              ],
+            ),
+          ],
+          provenance: [
+            ConversationContractItemProvenance(
+              itemId: assumedId,
+              kind: ConversationContractItemKind.constraint,
+              assumption: true,
+              material: true,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(snapshot.waitingTasks, hasLength(1));
+    final prompt = snapshot.toPromptContext();
+    expect(prompt, contains('Tasks not ready: Build the query UI'));
+    expect(
+      prompt,
+      contains('assumption: $assumed'),
+      reason:
+          'An item id is a hash; a prompt line naming one tells the model '
+          'nothing it can act on.',
+    );
+    expect(
+      prompt,
+      contains('task: choose-index'),
+      reason:
+          'A task edge names a task id, which the plan also lists, so it '
+          'resolves for the reader as written.',
+    );
+    expect(
+      snapshot.waitingTasks.single,
+      isNot(contains('Choose the index format —')),
+      reason: 'A task with nothing holding it is not waiting on anything.',
+    );
+  });
+
+  test('the assumption line names the claim, not a sample of questions', () {
+    // The defect this pins: blocking-assumption questions used to be unioned
+    // into the open-question list, and the prompt rendered *that* list under
+    // "material assumptions requiring user confirmation", sampled to three.
+    // With three open questions the sample could contain no assumption at all
+    // while claiming to list them.
+    const assumed = 'The store is single-writer.';
+    const provenanceService = ConversationContractProvenanceService();
+    final snapshot = projector.project(
+      conversation(
+        workflowSpec: ConversationWorkflowSpec(
+          goal: 'Ship the CLI',
+          constraints: const [assumed],
+          provenance: [
+            ConversationContractItemProvenance(
+              itemId: provenanceService.itemId(
+                kind: ConversationContractItemKind.constraint,
+                value: assumed,
+              ),
+              kind: ConversationContractItemKind.constraint,
+              assumption: true,
+              material: true,
+              clarificationQuestion: 'Is the store single-writer?',
+            ),
+          ],
+          tasks: const [
+            ConversationWorkflowTask(id: 'task-1', title: 'Implement it'),
+          ],
+        ),
+        questions: const [
+          ConversationOpenQuestionProgress(
+            questionId: 'question-1',
+            question: 'Which shell should the installer target?',
+            status: ConversationOpenQuestionStatus.needsUserInput,
+          ),
+        ],
+      ),
+    );
+
+    expect(
+      snapshot.blockingAssumptions,
+      [assumed],
+      reason:
+          'The plan asserted this; the prompt should say what is assumed '
+          'rather than the question about it.',
+    );
+    final prompt = snapshot.toPromptContext();
+    expect(prompt, contains('Unconfirmed material assumptions: $assumed'));
+    expect(
+      prompt,
+      contains('Open questions: '),
+      reason:
+          'A blocked contract still has open questions, and the old '
+          'else-branch hid them the moment an assumption blocked.',
+    );
+    expect(
+      prompt,
+      isNot(contains('Unconfirmed material assumptions: Which shell')),
+    );
+    expect(
+      prompt,
+      isNot(contains('Ask one focused clarification question')),
+      reason:
+          'Caverno asks at the refusal site now (ANA0 PR 4b-2); telling '
+          'the model to ask is the humility instruction this track replaces.',
+    );
+  });
+
   test('projects planning before execution for a sourced draft contract', () {
     final snapshot = projector.project(
       conversation(
@@ -186,7 +356,15 @@ void main() {
     expect(snapshot.toPromptContext(), contains('Objective: Ship the CLI'));
     expect(
       snapshot.toPromptContext(),
-      contains('Do not mutate state until the user confirms'),
+      contains('State mutation is blocked until the user confirms'),
+    );
+    expect(
+      snapshot.blockingAssumptions,
+      ['Which runtime must be supported?'],
+      reason:
+          'This item carries a hand-written id that matches no constraint, so '
+          'the claim cannot be resolved and the question stands in for it. '
+          'Dropping it would hide the assumption that is blocking the turn.',
     );
   });
 
@@ -599,10 +777,7 @@ void main() {
       ),
     );
 
-    expect(
-      snapshot.toPromptContext(),
-      isNot(contains('Saved task progress:')),
-    );
+    expect(snapshot.toPromptContext(), isNot(contains('Saved task progress:')));
   });
   group('verification cadence reproduction (session cfaa8297)', () {
     // Production showed mutation generation 5, verification generation -1 and

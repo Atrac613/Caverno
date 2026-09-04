@@ -19,6 +19,15 @@ enum ModelUsageRole {
   goalSuggestion,
   approvalAutoReview,
   subagent,
+
+  /// The Anabasis parent orchestrator (ANA0/ANA2).
+  ///
+  /// Accounting only. The parent's *authority* is passed to
+  /// `AnabasisParentAuthorityGuard` as an explicit argument rather than read
+  /// from here: this value is ambient, and for accounting an unclaimed path
+  /// showing up as [unknown] is a visible gap, while for authority a missed
+  /// `runWith` would silently drop the parent out of its own restrictions.
+  anabasisParent,
   routine,
   eval,
 

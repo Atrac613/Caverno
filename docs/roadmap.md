@@ -181,10 +181,10 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH11 | later | Show and resolve Remote Coding approvals and questions in the companion itself, labelled with the host that owns them. | Gate on WATCH10. Record the SEC4.5g reading — the watch is the client phone's peripheral, so the principal set does not widen — before shipping. |
 | Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
 
-| Anabasis | ANA0 | current | Complete the epistemic grounding: produce `assumption`/`material` on contract items, implement the `userConfirmedAssumption` confirmation path, enforce the parent's read-only tool authority, and project the result. | PRs 1 through 3d are done. Restricting the marker to what a plan asserts took marks on open questions to zero and separated the arms 67% against 17%. PR 3e then defined materiality by consequence and took its discrimination from +0.06 to +0.44, so PR 4 blocks on `material` and builds a per-assumption approval. |
-| Anabasis | ANA1 | next | Decompose work into tasks with preconditions (task accepted / assumption confirmed / question resolved) and a derived `ready`. | Do not start before ANA0's canary is green. First substantially new implementation in the track. |
-| Anabasis | ANA2 | later | Delegate ready tasks onto the existing `spawn_subagent` and `WorktreeAgentTask` infrastructure. | Mapping and scheduling policy only; no new execution machinery. |
-| Anabasis | ANA3 | later | Separate `produced` / `verified` / `accepted` with one writer each, add parent semantic judgment, escalate user-only decisions. | Blocked on ANA1/ANA2. Requires the ownership table in the design doc §10 to be honoured. |
+| Anabasis | ANA0 | done | Complete the epistemic grounding: produce `assumption`/`material` on contract items, implement the `userConfirmedAssumption` confirmation path, enforce the parent's read-only tool authority, and project the result. | PRs 1 through 4a are done. Restricting the marker to what a plan asserts took marks on open questions to zero and separated the arms 67% against 17%. PR 3e then defined materiality by consequence and took its discrimination from +0.06 to +0.44, so PR 4 blocks on `material` and builds a per-assumption approval. PR 4a landed that approval's state — three files were exactly at their ratchet ceilings, so the eleventh pending type cost three extractions first — and left the guard unarmed and the canary skipped, because a surface a user cannot answer in the app is the ordering hazard ANA0 has already recorded twice. PR 4b-1 then cleared the chat page library, which was at 8,800 of 8,800: nine approval sheets moved to `ApprovalSheetDispatcher`, so the eleventh kind costs a listener rather than another copy of the same four steps. PR 4b-2 then closed the loop: the confirmation is raised at the refusal site through `MaterialAssumptionConfirmationGate`, answered in a sheet, recorded as provenance, and the same tool call proceeds — so the canary that has carried a deliberate skip since PR 1 now runs green in full. 4c then closed the last criterion — the parent may inspect, verify and delegate, and nothing else — enforced before the parent has an execution path, because the design's own instruction is to start with the boundary closed rather than retrofit one. ANA0 is complete. |
+| Anabasis | ANA1 | done | Decompose work into tasks with preconditions (task accepted / assumption confirmed / question resolved) and a derived `ready`. | ANA0's canary is green, so this started. PR 1 landed the edge and the predicate: readiness returns the unmet edges rather than a boolean, resolves all three kinds against state that already exists, and treats an edge pointing at something absent as unmet. A task precondition asks for validation evidence where the task declares a command, because `completed` conflates produced with accepted until ANA3. PR 2a then made the plan document round-trip them, hand-typed edges included, with an unreadable edge dropped rather than fatal. PR 2b measured which channel the model writes an edge through, live, 36 requests: a `preconditions` array per task yields 1.06 edges per task against 0.64 for a title marker, both resolve 100% of their edges, and the schema arm parsed 12 of 12 — so ANA0 PR 3b's reason for keeping a marker out of the JSON schema does not reproduce on this model. The control wrote no edges but described the ordering in prose in half its responses. PR 2c shipped the schema channel — the extractor that chose it is the one that ships, and the prompt is pinned to the parser by reading the kinds back out of it. PR 3 then rendered the unmet edges under each task card. ANA1 is complete; ANA2 (delegate) is next, with the open question of how a child inherits confirmed assumptions still to answer. |
+| Anabasis | ANA2 | current | Delegate ready tasks onto the existing `spawn_subagent` and `WorktreeAgentTask` infrastructure. | Mapping and scheduling policy only; no new execution machinery. PR 1 landed what may be delegated and what a child is told, which answers the design's MVP 1 open question: a subagent cannot see the conversation, so without ANA1's edges the only safe premise set is the whole contract — the re-send the question was avoiding. An assumption edge names exactly what a task stands on. Next: the runner mapping, then the contradiction policy for a running child. |
+| Anabasis | ANA3 | current | Separate `produced` / `verified` / `accepted` with one writer each, add parent semantic judgment, escalate user-only decisions. | ANA1/ANA2 are done, so this started. PR 1 derives the two mechanical levels and stores nothing — §10 warns that adding acceptance levels before fixing ownership reproduces the `ConversationExecutionValidationStatus` three-writer problem at a larger scale, and a derived verdict has no writer. Every verdict is currently outstanding because nothing derives a judgement, which is correct but inert. Next: a place for the parent's semantic judgement, with one writer. |
 | Anabasis | ANA4 | later | Dedicated Anabasis workspace (`WorkspaceMode`), state panel beside the conversation. | Surface work; deliberately last so the boundary is proven before it gets a UI. |
 
 Foundation F5 and the future platform vision milestones are
@@ -1951,6 +1951,12 @@ Next action:
 
 ## Anabasis Orchestrator Track
 
+The 2026-09-04 build of ANA0-ANA3 is narrated in
+`docs/anabasis_orchestrator_build_2026-09-04.md`: the three decisions settled by
+live measurement, the two defects only the running app found, and the
+extractions the ratchet asked for. It exists because that work was squashed
+into one commit.
+
 Anabasis is a parent orchestrator over Caverno's existing Goal, Plan,
 provenance, subagent, and verification machinery — not a second coding agent
 and not a fourth authoritative conversation state. The full design, including
@@ -1976,7 +1982,7 @@ already emitted). Check §3 of the design document before adding any type.
 
 ### ANA0: Epistemic Grounding
 
-Status: `current`
+Status: `done`
 
 Scope:
 - Confirmation path: record a user's confirmation as a
@@ -2025,8 +2031,12 @@ PR split:
 | 3c | Measure: material assumptions per plan, and how often the model over-asserts | done |
 | 3d | Marks are for what the plan asserts: restrict the marker by item kind, enforce it centrally, report marks by kind, re-measure | done |
 | 3e | Define materiality by consequence rather than by restating the word, and re-measure | done |
-| 4 | Confirm surface sized to 3c (**per-assumption approval**, not batch review), guard armed in `MaterialContractAssumptionArming.armed`, parent authority policy, and **unskip the canary's reachability assertion** | next |
-| 5 | `ExecutionSnapshot` extension and the Understanding panel | |
+| 4a | Room, then the slot: three extractions off ratchet ceilings, `PendingAssumptionConfirmation`, its `ChatState` / `ThreadScopedChatState` projection, the item-text lookup the surface needs, and its compact-surface description | done |
+| 4b-1 | Room on the UI side: nine approval sheets leave the chat page library for `ApprovalSheetDispatcher` | done |
+| 4b-2 | Confirm surface sized to 3c (**per-assumption approval**, not batch review), guard armed in `MaterialContractAssumptionArming.armed`, and **unskip the canary's reachability assertion** | done |
+| 4c | Parent execution identity (`ModelUsageRole.anabasisParent`), the explicit executing-role parameter, and the `inspection \| verification \| delegation` authority guard | done |
+| 5a | `ExecutionSnapshot` carries the assumed claims, and the prompt stops describing them with the wrong list | done |
+| 5b | Assumed contract items stop rendering as facts, where the user already reads the contract | done |
 
 Supporting decision: the confirm surface is the **approval flow** — the guard
 refuses at the moment a mutation is attempted, so a pending interaction raised
@@ -2223,28 +2233,229 @@ Verification evidence:
   `fvm dart run tool/ana0_assumption_marking_measurement.dart --endpoint
   http://<host>:1234/v1/chat/completions --model <id> --repeats 3
   --out build/ana0/marking.json --dump-dir build/ana0/raw`.
-- Full suite green (the PR 4 canary assertion the only skip); `flutter analyze`
-  clean.
+- PR 4a: `pending_assumption_confirmation_slot_test.dart` and
+  `conversation_contract_item_value_lookup_test.dart`, plus two cases in
+  `pending_approval_summary_test.dart`. The slot is asserted where it can be
+  lost silently: a confirmation raised on a background thread survives the
+  stash and lists the thread as waiting, a late answer does not blank a
+  successor's slot, an expired turn cancels to `false` rather than confirming,
+  and the registry answers it by id from outside its thread. The item-text
+  lookup is pinned to the same id definition the forward derivation uses,
+  because two definitions would show the wrong item's text under the right
+  item's question.
+- PR 4a: three files sat *exactly* at their ratchet ceilings, so the eleventh
+  pending type cost three extractions before it cost a line of its own:
+  the outstanding-approval registry (`pending_tool_approval_registry.dart`),
+  `PendingAskUserQuestion` (`pending_ask_user_question.dart`, never part of the
+  sealed hierarchy), and the per-type clear dispatch
+  (`pending_tool_approval_projection.dart`, which grows once per pending type
+  and so does not belong in a class about what a thread stashes). All three are
+  re-exported, so no importer changed.
+- PR 4a, found by the compiler rather than by reading: `PendingToolApproval` is
+  sealed and `describePendingApproval` switches exhaustively over it, so the
+  new type could not be added without declaring how it appears on the Watch and
+  in notifications. That is the design working — a new approval kind cannot
+  silently fail to reach a compact surface — and it is why the type carries
+  `origin` / `remoteDeviceId` from the start: SEC4.5g's ownership gate reads
+  them, and a type lacking them cannot be filtered.
+- **PR 4b is bigger than its diff will look, for two reasons found in 4a and
+  not in the earlier scoping.** First, the `chat_notifier.dart` library
+  aggregate is at 19,827 of 19,829: there are two lines of margin in the
+  whole library, so the resolve handler and the ask site need an offsetting
+  extraction before they can be written. The chat page library was in the same
+  state — 8,800 of 8,800, no margin at all — which PR 4b-1 cleared. Second, the obvious write-back,
+  `updateCurrentWorkflow(preserveWorkflowProjection: true)`, appears able to
+  *discard* the confirmation: `shouldPreserveProjectedTasks` replaces the
+  requested spec with the conversation's own whenever the plan document is
+  preferred, execution task views exist, and the requested spec has no tasks.
+  **Checked in 4b-2 and it cannot fire here**, which is worth recording because
+  the branch reads as if it can: `executionTaskViews` is derived from
+  `effectiveWorkflowSpec.tasks`, and a confirmation is the current spec with
+  two provenance lists replaced, so "the conversation has tasks" and "the
+  requested spec has none" are mutually exclusive for this caller. That also
+  means `ConversationsNotifier` — itself at 1,791 of 1,791 — needs no new
+  method.
+- PR 4b-1: nine `_show*Dialog` methods were nine copies of the same four steps
+  — show the sheet, check `mounted`, read the notifier, resolve by id — sitting
+  inside a library with no margin, so each new approval kind paid for a copy in
+  the place that could least afford one. They are now methods on
+  `ApprovalSheetDispatcher`, an independent file with its own budget, and the
+  page pays only for the listener that routes to one. The library drops from
+  8,800 to 8,670, ten of which are left as a stated margin so the eleventh
+  approval's listener does not have to re-extract. The workflow-decision and
+  ask-user-question sheets stay behind on purpose: their sheet widgets are
+  private to the chat page library and cannot be named from outside it.
+- **What PR 4b-2 still needs, measured rather than estimated.** In the notifier
+  library the ask site is roughly neutral — moving the arming read and the
+  guard call into a collaborator removes about as much as the call adds — so
+  what needs room is the raise method and its `resolve` pair, about 18 lines
+  against 2 available. `_ChatNotifierSshPorts` is the obvious candidate to move
+  out and is not yet eligible: it reaches four private notifier members
+  (`_settings`, `_expiredApproval`, `_resolveToolApprovalGate`,
+  `_buildAutoReviewRequest`) and would need a seam for them first.
+- PR 4b-2 closes ANA0's first acceptance criterion end to end: a material
+  assumption is raised as `PendingAssumptionConfirmation` at the guard's
+  refusal site, answered in `AssumptionConfirmationSheet`, recorded through
+  `confirmMaterialAssumption`, and the same tool call then proceeds.
+  `MaterialContractAssumptionArming.armed` returns the spec's blocking
+  assumptions, and **the canary's reachability assertion is unskipped** — the
+  file that has carried a deliberate skip since PR 1 now runs all eight.
+- PR 4b-2's mechanism is `MaterialAssumptionConfirmationGate`, and three of its
+  properties are specified rather than discovered, each pinned by a test:
+  the blocking list is read **per call** (a confirmation answered mid-batch, or
+  on the watch, has to reach the next call in that batch); an item is asked
+  about **at most once per gate** (a confirmation that fails to clear its item
+  must refuse rather than reopen the dialog forever); and declining **refuses**
+  rather than deferring or confirming.
+- PR 4b-2's canary change replaces a shadow-era assertion with its successor.
+  "The feed site goes through the arming policy" was the right invariant while
+  `armed` returned nothing; now that it returns the real list, the invariant
+  that carries the same hazard is that the loop evaluates through the gate,
+  which asks, and never calls the guard directly, which can only refuse.
+- **What the ratchet cost, recorded because it is the honest size of the
+  slice.** The feature is 63 lines inside the notifier library, which had 2.
+  The `run_tests` command spelling left first (six pure functions, ~96 lines),
+  and that still was not enough once the gate wiring landed, so how a
+  computer-use action is redacted and described left too (six more, ~84 lines).
+  Both are now independently testable, which the `run_tests` path had never
+  been. The chat page library was paid for in 4b-1.
+- PR 4b-2 follow-up, because the canary's own comment calls its reachability
+  assertion "the weakest honest proxy a source scan can express":
+  `chat_notifier_assumption_confirmation_part.dart` drives the wiring through
+  the real notifier — the loop refuses, the confirmation is raised as a pending
+  approval, the answer is given by id the way the sheet gives it, and the same
+  call is re-evaluated. Two of the three tests hung on the first run, which is
+  the finding: a confirmed `write_file` reaches **its own** approval, so the
+  proof that the assumption gate stopped holding the call is that a second gate
+  now holds it. That is asserted rather than worked around.
+- PR 4b-2 registers `material_assumption_confirmation` in
+  `tool/check_fix_firings.py`. It reports *not yet observed, 0 logs on a build
+  that could produce it*, which is the honest state: ANA0 has measured the
+  model marking assumptions (3c/3d/3e) and has never observed a real turn being
+  held by one. The refusal code is the half that reaches a session log; the
+  answer arrives through an approval, not a model request.
+- PR 5a found the defect it was meant to prevent, already shipped. The prompt
+  line "Material assumptions requiring user confirmation" rendered
+  `clarificationQuestions` — a set unioning unresolved open questions *with*
+  assumption questions, then sampled head-and-tail to three. With three open
+  questions the line could name none of the assumptions while claiming to list
+  them. `ExecutionSnapshot` now carries the assumed **claims**, resolved
+  through `itemValueFor`, and the two lists are rendered separately; a blocked
+  contract also stops hiding its open questions, which the old `else if` did.
+- PR 5a, second finding, from splitting the lists: the snapshot's `action`
+  silently became `execute` for a contract blocked on an assumption, because
+  `_actionFor` read the conflated count. Blocking assumptions are now a named
+  input to that decision rather than an inflated question count, and
+  `toRedactedLogSummary` reports `assumptions=` beside `questions=` so the two
+  can be told apart in a session log.
+- PR 5a also corrects an instruction that 4b-2 made false. The guard's
+  `required_action` told the model to "ask the user this one focused
+  clarification question and wait" — but this payload now only reaches the
+  model *after* the user has been asked and has not confirmed, so it sent the
+  model back to re-ask a question the user had just declined. It now says not
+  to mutate, and to investigate or say what it needs. The prompt context lost
+  its parallel "ask one focused clarification question" for the same reason:
+  asking the model to run a mechanism the app runs is the humility instruction
+  this track exists to replace.
+- PR 5b is deliberately **not** the panel the milestone sketched. ANA0's track
+  rule is to reuse the representation that already expresses the concept, and
+  "what is this plan assuming?" is answered by the constraint list the user is
+  already reading — which rendered every item as an identical plain bullet, so
+  the one surface where the distinction had to survive was the one place it did
+  not. `ContractItemListSection` replaces the page's private list builder at
+  all nine call sites and marks an assumed item three ways: blocking,
+  confirmed, or plain `(assumed)`. A separate panel would have added a second
+  place to read the same contract, and left the first one lying.
+- PR 5b marks constraints and acceptance criteria only. Open questions keep
+  plain bullets, which is PR 3d's rule (`marksApplyTo`) reaching the UI: asking
+  about something already says you do not know it.
+- PR 5b paid for itself: deleting the shared private builder took the chat page
+  library from 8,678 to 8,645, and the widget carries its own budget. The
+  primary file's ceiling moves 1,853 → 1,854 for the import, and that is worth
+  naming as a mistake rather than a rule change: 1,853 was tightened mid-
+  milestone in 4b-1, one commit before the import it had to accommodate. The
+  same thing happened to `approval_sheet_dispatcher.dart` (145 → 159). Set a
+  new file's budget when the milestone using it is finished, not at its
+  halfway line.
+- PR 4c closes ANA0's last acceptance criterion, deliberately **before** the
+  parent has an execution path: the design's own instruction is to enforce the
+  boundary from MVP 0, because retrofitting one after the parent has learned to
+  edit is much harder than starting with it closed. `AnabasisParentAuthorityGuard`
+  refuses anything that is not `inspection`, `verification`, or a delegation
+  tool, as a structured `McpToolResult` rather than a throw — a throw ends the
+  turn and leaves the call unexecuted, which is the wrong shape for a policy.
+- PR 4c takes the executing role as an **explicit argument**. `ModelUsageRole`
+  is added for accounting, but it is ambient and defaults to `unknown`: for
+  accounting an unclaimed path showing up as a gap is useful, while for
+  authority a missed `runWith` would silently drop the parent out of its own
+  restrictions. The tool loop reads the ambient value once and hands it down;
+  the guards are pure functions of what they are told.
+- PR 4c refuses `unknown` effects, where `MaterialContractAssumptionGuard`
+  passes them, and the asymmetry is pinned by a test. There a false positive
+  blocks ordinary work; here an unclassified tool is not proof of safety.
+- PR 4c introduces `TurnToolPolicyChain` so the loop has one entry point rather
+  than a growing run of early returns, and **order is policy**: authority is
+  evaluated first, because asking the user to confirm an assumption before
+  refusing a parent mutation would raise an approval whose answer changes
+  nothing — and a confirmation is durable state the user gave for a reason that
+  never applied.
+- PR 4c is the one place today's work **raised** a ratchet ceiling: the
+  notifier library goes 19,733 → 19,737 for the chain's construction and an
+  import. Recorded in the ratchet with its reason rather than absorbed by
+  trimming a comment or shuffling whitespace. Net for the day is −92; the
+  library entered at 19,829. Two attempted offsets were reverted first — one
+  moved a queued-message predicate into the domain layer, where the message
+  type is not visible, and the layer-safe version of it made the primary file
+  *larger* by turning one call site into six lines.
+- **PR 4c's guard is no longer unobserved.** `@anabasis` from the shared chat
+  is the first of the three entry points §5 names, and it is live: the address
+  is parsed, the turn runs in `ModelUsageRole.anabasisParent` through a zone,
+  the tool loop reads that role, and the authority guard refuses the mutation
+  there. `chat_notifier_assumption_confirmation_part.dart` asserts it end to
+  end without naming the guard — if the wiring is wrong, the write simply
+  happens.
+- The address is **parsed, not inferred**: `@anabasis` at the start of a
+  message, as a whole word. "ask @anabasis about it" is a message to the
+  assistant *about* the parent and is not routed to it. Nothing is being
+  decided from prose, which is the line the heuristic-removal track draws.
+- **A guard without a prompt block is a dead end**, so the block ships with the
+  entry point. A model told nothing reads a structured refusal as a transient
+  failure and retries — the loop ANA0's ordering constraint exists to prevent.
+  The block names delegation as the route out, not only what is forbidden, and
+  it states that a child reporting success means `produced` rather than
+  `accepted`.
+- The zone is ambient on purpose and only carries *prose*: the guard still
+  takes the role as an explicit argument. A missed zone therefore costs the
+  parent its instructions — a confused turn — and can never cost it its
+  restrictions. A test pins the role reaching an async continuation, since the
+  tool loop reads it several awaits into the turn.
+- Full suite green with **no skips**; `flutter analyze` clean.
 - Full suite green apart from the canary; `flutter analyze` clean.
 
 Next action:
-- PR 4, with its one open decision already settled by 3e: **block on
-  `material`**, which `blocksExecution` already does. It separates the arms six
-  to one and mis-fires once in eighteen grounded plans.
-- Build the confirm surface as a **per-assumption approval** on the existing
-  `PendingToolApproval` hierarchy — a `PendingAssumptionConfirmation` raised
-  from the guard's refusal site in `chat_notifier_tool_loop_batch.dart`,
-  resolving into `confirmMaterialAssumption`. The approval flow is the only
-  surface with no dead end, and the registry answers by id from outside the
-  thread, so a blocked background turn is not stranded. Sizing: at most three
-  material assumptions in a plan, none in 12 of 18.
+- PR 4c: parent execution identity (`ModelUsageRole.anabasisParent`), the
+  explicit executing-role parameter, and the authority guard restricting the
+  parent to `inspection | verification | delegation`. None of it exists yet,
+  and it is the last of ANA0's acceptance criteria still open.
+- Then PR 5: the `ExecutionSnapshot` extension and the Understanding panel.
+- The decision PR 4b-2 shipped on, for the record: **block on `material`**,
+  which `blocksExecution` already does. It separates the arms six to one and
+  mis-fires once in eighteen grounded plans.
+- The confirm surface is a **per-assumption approval** on the existing
+  `PendingToolApproval` hierarchy. `PendingAssumptionConfirmation` and its
+  projection landed in PR 4a; what remains is raising it from the guard's
+  refusal site in `chat_notifier_tool_loop_batch.dart` and resolving it into
+  `confirmMaterialAssumption`. The approval flow is the only surface with no
+  dead end, and the registry answers by id from outside the thread, so a
+  blocked background turn is not stranded. Sizing: at most three material
+  assumptions in a plan, none in 12 of 18.
 
   Scoped 2026-09-03, with the obstacles named so PR 4 is not mistaken for a
   small change:
-  - `pending_tool_approvals.dart` (527) and `thread_scoped_chat_state.dart`
-    (238) are both **exactly at their ratchet ceilings**, which the ratchet
-    forbids raising. The twelfth pending type needs the same extraction PR 2
-    had to do for the eleventh.
+  - ~~`pending_tool_approvals.dart` (527) and `thread_scoped_chat_state.dart`
+    (238) are both **exactly at their ratchet ceilings**~~ — cleared in PR 4a,
+    which also found `chat_state.dart` (162) at its own ceiling and the
+    `chat_notifier.dart` library one line under its aggregate.
   - The guard's blocking list is captured **once per batch**
     (`ownerBlockingAssumptions`). A confirmation mid-batch does not clear it,
     so it has to become a per-call read of current conversation state, and the
@@ -2257,15 +2468,14 @@ Next action:
   - The `execute:` closure the guard runs inside is already `async`, so the ask
     can be awaited there — but every await needs the
     `_isCurrentInteractionGeneration` check the surrounding loop uses.
-- Arm `MaterialContractAssumptionArming.armed` and unskip the canary's
+- ~~Arm `MaterialContractAssumptionArming.armed` and unskip the canary's
   reachability assertion **only once a human can answer the approval in the
-  app**. A domain-only PR 4 that arms the guard reproduces the ordering hazard
-  ANA0 has already recorded twice: the mutation is refused and the only way to
-  clear it exists in tests. If PR 4 is split, the UI half carries the arming.
+  app**~~ — honoured: 4b-2 landed the sheet, the arming and the unskip in one
+  commit, so the guard was never armed without a way to answer it.
 
 ### ANA1: Decompose
 
-Status: `next`
+Status: `done`
 
 Scope:
 - Precondition edges on `ConversationWorkflowTask`, covering all three blocking
@@ -2278,13 +2488,144 @@ This is the first substantially new implementation in the track: no dependency
 or precondition field exists on `ConversationWorkflowTask`,
 `WorktreeAgentTask`, or `SubagentTask` today.
 
+PR split:
+
+| PR | Content | Status |
+|---|---|---|
+| 1 | Precondition edges on `ConversationWorkflowTask` and the derived readiness predicate | done |
+| 2a | The plan document round-trips preconditions, including hand-typed ones | done |
+| 2b | Measure which channel the model writes an edge through | done |
+| 2c | Ship the measured channel: the task schema carries `preconditions` | done |
+| 3 | Decomposition rendered — a task says what it is waiting on | done |
+
+Verification evidence:
+- PR 1: `conversation_task_readiness_test.dart` and two cases in
+  `conversation_workflow_test.dart`. `ConversationTaskPrecondition` carries a
+  kind and a ref; `ConversationTaskReadinessResolver` derives readiness and
+  returns the *unmet* edges rather than a boolean, because every consumer has
+  to explain itself — a scheduler that only knew "not ready" would have nothing
+  to tell the user when nothing moves.
+- PR 1 resolves each kind against state that already exists: task status plus
+  its validation evidence, `ConversationContractItemProvenance.confirmed`, and
+  `ConversationOpenQuestionStatus.resolved`. Nothing is stored, so no second
+  writer can disagree with the graph.
+- PR 1's one judgement call, made conservatively: the lifecycle wants
+  `accepted` for a task precondition and no status enum has it — `completed`
+  conflates produced, verified and accepted until ANA3 separates them. So a
+  task that *declares* a validation command must also have passed it. Reading
+  the lenient of two notions of "verified" is a mistake this codebase has
+  already paid for once.
+- PR 1: an edge pointing at something absent is **unmet**, never vacuously
+  satisfied, for all three kinds. A malformed plan must not run work it said
+  depended on something.
+- PR 1 defect found by its own persistence test: freezed's generated `toJson`
+  emitted the nested precondition objects raw, so a saved task could not be
+  read back. The file's own established pattern — an explicit
+  `@JsonKey(fromJson:, toJson:)` converter pair, as `sources` and `provenance`
+  already use — fixes it. Every conversation on disk predates this field, and
+  the test that loads a task without a `preconditions` key is what keeps the
+  migration to none.
+
+- PR 2a: `task_precondition_round_trip_test.dart`. Each edge is its own
+  `- Requires: <kind>: <ref>` line rather than a comma list, because a question
+  is referenced by its own text and may contain a comma; only the first colon
+  separates kind from reference, because an assumption is referenced by a
+  contract item id that is itself `constraint:<hash>`.
+- PR 2a's one deliberate asymmetry with the rest of the parser: an unreadable
+  `Requires:` line is **dropped, not fatal**. Every other task detail is
+  something the plan states about itself and an unknown one is an error; this
+  one is optional, and a misspelled kind must cost the edge rather than the
+  user's whole document. It stays visible as prose in the markdown either way.
+- PR 2a covers the hand-typed case, as ANA0 PR 3a did for epistemic markers:
+  the plan document is a surface the user edits, so what they can type into it
+  is part of the contract.
+
+#### PR 2b measurement (2026-09-04)
+
+Instrument: `tool/ana1_precondition_channel_measurement.dart` with 15
+scripted-response tests fixing each verdict before any number was believed.
+Three arms differing only in one instruction appended to the production task
+prompt — `none` (control), `title` (`[requires: <kind>: <ref>]` in the task
+title, ANA0 PR 3b's shape), `schema` (a `preconditions` array per task).
+`qwen3.8-27b-vision`, temperature 0.7, 4 scenarios, 3 repeats, 36 requests.
+
+| arm | parsed | tasks | edges | resolved | plans with an edge | edges/task |
+|---|---|---|---|---|---|---|
+| none | 12/12 | 68 | 0 | 0 | 0/12 | 0.00 |
+| title | 12/12 | 67 | 43 | 43 | 11/12 | 0.64 |
+| schema | 12/12 | 65 | **69** | **69** | 11/12 | **1.06** |
+
+**The reason ANA0 kept its marker out of the JSON schema does not reproduce
+here.** PR 3b's stated rationale was that a growing schema costs weak local
+models their structured-output fidelity; the schema arm parsed 12 of 12,
+exactly like the other two. So the choice is settled by what the channels
+produce rather than by inheriting that judgement: schema yields 1.06 edges per
+task against title's 0.64, and **every edge in both arms resolved** — 43 of 43
+and 69 of 69 named a task or a contract item the plan actually contains.
+
+**The control is the finding that matters most.** It wrote no edges, as it
+must — but in 6 of 12 responses it described the ordering in prose anyway. The
+model already knows what depends on what; without a channel it spends that
+knowledge on text nothing can read. That is the same shape as ANA0 3c, where
+the model routed unknowns into `openQuestions` because the prompt gave it
+nowhere else to put them.
+
+**Instrument defect, found by reading raw responses rather than the counts.**
+The first run scored 12 of 12 unparseable and would have read as a model that
+refuses to write edges. The *proposal* prompt returns `kind: decision` and no
+tasks at all — tasks are drafted in a second phase against an approved
+contract, so an edge had nowhere to live in what was being measured. The
+scenarios now carry an approved contract and the measurement runs
+`buildTaskProposalRequest`. Edge references resolve against *that* contract,
+not against text the same response invented.
+
+**Scope, stated rather than implied.** This measures whether a channel works —
+edges written, references that resolve, proposals still parseable. It does not
+score over-generation: 69 edges across 65 tasks is close to one per task, and
+whether that is a graph or a reflex needs a fixture with a known-correct
+answer. Evidence: `build/ana1/channel_r3.json` and `build/ana1/raw_r3/`.
+
+- PR 2c: `TaskPreconditionParsing` reads the array, `TaskProposalParser` puts
+  it on the task, and the task prompt's schema line teaches it. Tolerant on the
+  way in for the reasons every parser here is — a synonym key, an entry
+  flattened into `"task: Audit the model"` — and an unreadable entry costs the
+  edge rather than the task.
+- PR 2c: the measurement instrument now reads edges *through* the production
+  extractor, so the extractor that chose the channel is the one that ships and
+  a later change to it cannot quietly make the measurement unreproducible. Its
+  15 scripted tests still pass against production code.
+- PR 2c pins prompt and parser together by reading the kinds back out of the
+  generated prompt, as ANA0 PR 3b's marker test does: the two are string
+  literals in different files and nothing else relates them. A kind the parser
+  supports but the prompt never mentions is an edge the model will not know it
+  may write.
+
+- PR 3: `TaskPreconditionNotice` renders the **unmet** edges under the task
+  card, not a "not ready" flag. Two of the three kinds — an unconfirmed
+  assumption, an unanswered question — are things the user can clear
+  themselves, so naming which one is missing is what makes the row actionable
+  rather than merely informative. Readiness stays derived; nothing is stored.
+- PR 3 paid for its five lines in the task card by extracting the task menu,
+  which is a pure function of a status and two permissions, to
+  `workflow_task_menu_items.dart`. The chat page library goes 8,645 → 8,607.
+  The primary file's ceiling moves 1,854 → 1,857 for three widget imports:
+  that file grows by one line per widget the page renders, and forcing an
+  extraction to avoid it would only move an import somewhere it does not
+  belong.
+
 Next action:
-- Blocked on ANA0. Open question to answer first: how a child inherits the
-  parent's confirmed assumptions as premises without re-sending the contract.
+- ANA1 is complete. ANA2 next, or the over-generation measurement below.
+- Not measured, and worth measuring once real plans carry edges: whether the
+  model **over**-generates them. 69 edges across 65 tasks is close to one
+  apiece, and telling a graph from a reflex needs a fixture with a
+  known-correct answer. The producer question is which
+  channel the model writes an edge through, and the honest answer is not
+  Open question still to answer before ANA2: how a child inherits the parent's
+  confirmed assumptions as premises without re-sending the contract.
 
 ### ANA2: Delegate
 
-Status: `later`
+Status: `current`
 
 Scope:
 - Map ready tasks onto `spawn_subagent` (in-conversation children, depth fixed
@@ -2292,15 +2633,197 @@ Scope:
   changed-file evidence). New code is the mapping and scheduling policy, not a
   runner.
 
+PR split:
+
+| PR | Content | Status |
+|---|---|---|
+| 1 | What may be delegated, and what a child has to be told | done |
+| 2 | Runner mapping: which candidates go to `spawn_subagent` and which to `WorktreeAgentTask` | done |
+| 3 | Contradiction policy for a running child | done |
+
+Verification evidence:
+- PR 1: `task_delegation_brief_builder_test.dart`. `candidates` offers a task
+  only when its preconditions all hold and nothing is already running it —
+  reading *recorded* progress rather than the authored status, because nothing
+  writes completion back to the authored one and reading it alone would hand
+  running work to a second child.
+- **PR 1 answers the design's MVP 1 open question, and ANA1 is why it can be
+  answered.** `spawn_subagent`'s own contract says the child cannot see the
+  conversation and its prompt must be complete on its own, so anything it needs
+  must be in that prompt. Without precondition edges there is no basis for
+  choosing which assumptions matter and the only safe option is all of them —
+  which is the re-send the question was trying to avoid. An assumption edge
+  names exactly the premises a task stands on, so a brief carries those and
+  nothing else.
+- PR 1 carries **confirmed** assumptions only, and that costs nothing to
+  enforce: an unconfirmed one would still be holding the task, so a task that
+  reaches a brief has none outstanding. An edge pointing at an item a revision
+  dropped is unmet, so the task is held rather than delegated with a premise
+  nobody can read.
+- PR 1 adds no execution machinery. It decides what may be delegated and what
+  to say, never who runs it.
+
+- **PR 2's rule follows from what the two runners return, not from task size.**
+  `SubagentTask` carries `resultSummary`, `output` and `error`: no changed-file
+  evidence, no verification result, and no worktree — it runs where the parent
+  runs. `WorktreeAgentTask` carries `branchName` / `worktreePath`,
+  `verificationCommand` / `verifiedGreen` and `changedFiles`. ANA3's rule is
+  that a child saying "done" means `produced` and only evidence promotes it to
+  `accepted`, and a subagent has no evidence to offer. So work that changes the
+  workspace goes to a worktree.
+- PR 2 **fails toward isolation**, and the asymmetry is the argument: two
+  subagents editing one workspace corrupt each other's work *and* leave nothing
+  to accept on, while a worktree spent on inspection costs one worktree. Only
+  one of those errors is recoverable. A task routes to a subagent only when it
+  declares neither a file to change nor a command to verify — the task's own
+  statement about itself, never a guess read off its title, which is what the
+  heuristic-removal track exists to stop.
+
+- **PR 3 answers the design's MVP 2 open question: invalidate.** The child is
+  not stopped; its result is barred from acceptance. This is a judgement rather
+  than a measurement — there is no corpus of contradicted children to count —
+  and the argument is ANA3's ownership rule: "done" means `produced`, and only
+  evidence promotes it to `accepted`. A lapsed premise is missing evidence, so
+  the promotion is what must fail, not the work.
+- PR 3's three rejected options, stated so the choice can be re-examined:
+  *cancel* throws away a partial result mostly unrelated to the premise — a
+  worktree child leaves a branch, an inspecting child leaves findings;
+  *restart* is a decision that belongs to the user after the assumption is
+  settled again, not to a policy running while it is unsettled; *continue*
+  without a bar is the only option that is simply wrong, because it ends with
+  unverifiable work being accepted.
+- PR 3 matches premises by the **claim's own text**, not by item id. The id is
+  a hash of that text, so an edit that rewrites the claim changes it, and
+  treating the new id as "the same premise, still confirmed" would carry a
+  confirmation across a change of meaning.
+- PR 3 is reachable rather than hypothetical, in two ways: ANA0 PR 4b-2 gave
+  the user a way to answer an assumption, which is a way to decline one, and
+  ANA0 PR 2 recorded that `attachApprovedPlanSource` rebuilds provenance
+  wholesale — so a re-approved plan starts unconfirmed with nobody having
+  changed their mind.
+- **ANA2's policies are complete and none of them is wired.** That is the
+  milestone's stated shape — mapping and scheduling policy, not a runner — but
+  it means three services now exist with no caller, which is the state ANA0
+  PR 4a was careful not to leave behind for long.
+
+- PR 3 follow-up: readiness now has a second consumer. `ExecutionSnapshot`
+  carries `waitingTasks`, so the prompt says which tasks are not ready and what
+  each waits on, rendering the *claim* behind an assumption edge rather than its
+  item id — an id is a hash, and a prompt line naming one tells the model
+  nothing it can act on. Before this the prompt listed a task as remaining and
+  said nothing about the edge holding it, leaving the model to either start
+  work that cannot be finished or guess why it should not.
+
 Next action:
-- Blocked on ANA1. Open question to answer first: what happens to a running
-  child when an assumption it depended on is contradicted mid-flight —
-  continue, cancel, invalidate, or restart, as a policy rather than a
-  case-by-case call.
+- **The parent has an execution path and its candidates**: `@anabasis` from the
+  shared chat is the first of §5's three entry points, 4c's guard fires there,
+  and `ExecutionSnapshot.delegatableTasks` — built from
+  `TaskDelegationBriefBuilder` — reaches the parent's prompt and nowhere else.
+  So every policy this track has written now has a caller.
+- The queue is emitted only for a turn addressed to the parent, and is
+  deliberately absent from `toPromptContext`: a delegation queue in an ordinary
+  turn reads as a suggestion to spawn children. Each line carries the task, its
+  runner, and the premises a child would have to be told, so a premise reaches
+  the parent before it can reach the child.
+#### Parent boundary measurement (2026-09-04)
+
+`tool/ana_parent_boundary_measurement.dart`, two arms over the same request and
+the same four tools — `read_file`, `write_file`, `local_execute_command`,
+`spawn_subagent` — scored off the tool call the model makes rather than its
+prose. `qwen3.8-27b-vision`, 18 requests across two runs.
+
+| arm | edited | delegated |
+|---|---|---|
+| bare (no parent block) | **9/9** | 0/9 |
+| parent | **4/9** | 5/9 |
+
+**The prompt block is necessary and not sufficient, and that settles a question
+the unit tests could not.** The control edited every single time, so the
+fixture really is asking for work. Told it may not edit and should delegate,
+the model delegated five times in nine — and reached for `write_file` the other
+four. So neither half of the boundary is decoration: without the block the
+parent tries to edit 100% of the time and is refused on every turn, which is
+the loop ANA0's ordering constraint exists to prevent; without the guard the
+block leaks in nearly half of turns.
+
+Recorded because it is the opposite of the comfortable conclusion. "The prompt
+tells it not to, so it won't" would have been easy to assume, and it is wrong
+four times in nine.
+
+#### Observed in a real session (2026-09-04, `459bd75f`, build `7d362b177`)
+
+**The boundary fired, and the model delegated.** The parent called
+`write_file`, the guard refused it, and in the *same* request the model called
+`spawn_subagent` instead. The child then edited successfully, ran a command,
+listed a directory and edited again — which is delegation working as the
+parent's only route to effect rather than as a restriction on the work. The
+final answer came back through the child's result.
+
+That answers the other half of the refusal-loop question, and answers it
+better than the fixture did: **no repeat, so the refusal wording needs no
+work.** The live boundary measurement had the model reaching for `write_file`
+four times in nine; what it could not show was whether a refused model tries
+again or moves on. It moves on.
+
+`anabasis_parent_boundary` is registered in `tool/check_fix_firings.py` and
+now reports FIRED, confirmed against that session's build. It is the first of
+this track's mechanisms observed outside a test.
+
+The two surfaces a log cannot show were confirmed on screen in the same build:
+the `@` completion offers its target at the start of a draft and Tab inserts
+it, and a parent reply carries the **Anabasis · orchestrator** header. Worth
+recording because both were broken once while every test was green — the header
+on one of three assistant-message literals, and the role in a zone the request
+path nested past.
+
+Investigating that half found the loop is already bounded, and found a defect
+next to it. The tool loop ends after **two** consecutive failures on the same
+`toolFailureKey`, and `commandRetryGeneration` advances only on the *success*
+path — so a refused `write_file` re-issued verbatim hits the same key and the
+loop stops. What it stopped as was wrong: `ToolFailureClassifier.isApprovalDenial`
+was a substring test for `denied` / `auto-review`, and **neither** of ANA0's
+guards says either word, so both refusals classified as `executionFailure`.
+That meant the abort notice told the user to check their server configuration
+for a policy working exactly as designed — the notice's own comment says not to
+do that for a policy decision — and `lifecycleResultStatus` recorded
+`tool_failure` for a decision, which is the population
+[[caverno-tool-failure-abort-population]] measures. Fixed by reading the
+machine-readable `code` both guards already return, with the prose branch kept
+as the remainder for refusals that predate a code rather than replaced.
+
+- **`@anabasis` shipped broken, and typing it into the real app is what found
+  that.** The role was carried in a zone opened around the turn. Inside it,
+  `_runWithLlmSessionLogContextForGeneration` opens its own zone defaulting to
+  `ModelUsageRole.chat` — deliberately, so a secondary role started mid-turn
+  wins — and an inner zone beats an outer one. So the parent's role was
+  replaced before the system prompt was built: two real turns reached the model
+  with `@anabasis` in the user message, a 29,784-character system prompt, and
+  none of the parent's instructions in it. The tool loop was worse off still:
+  it runs outside the request zone entirely, so `ModelUsageRole.current` was
+  `unknown` there and the authority guard never armed.
+- Every test passed throughout, and so did the live measurement. The unit tests
+  exercised the zone directly; the 18-request measurement built the parent's
+  system prompt itself and posted it. Neither went through the path that nests
+  inside the zone. This is [[caverno-canary-harness-blindness]] with a new
+  surface: a green harness that verifies the old path.
+- Fixed by carrying the role per interaction generation in `AnabasisTurnRoles`
+  and reading it explicitly at both sites — which is what §5 asked for in the
+  first place. Its warning was about authority, and it turned out to apply to
+  the prompt path too: ambient is the wrong channel for anything a turn needs
+  to be sure of.
+- `chat_notifier_turn_teardown_contract_test.dart` caught the new
+  generation-scoped field and demanded its release entry, which is the gate
+  working: one destructor per key, and a leak into a later turn fails the build
+  rather than the next session.
+- The regression test reads the system prompt the datasource was handed, not
+  the zone. Nothing weaker would have caught this.
+- ANA3 remains available and does not need the parent: separating `produced` /
+  `verified` / `accepted` is the change ANA2's invalidate policy already
+  depends on conceptually.
 
 ### ANA3: Accept
 
-Status: `later`
+Status: `current`
 
 Scope:
 - `produced` / `verified` / `accepted` as distinct states. Both existing status
@@ -2320,8 +2843,70 @@ Precedent for taking the ownership table seriously:
 judges prose; a fourth exit-code writer was added and reverted after the
 investigation found stderr outranking a clean exit 0.
 
+PR split:
+
+| PR | Content | Status |
+|---|---|---|
+| 1 | The two derivable acceptance levels, as a verdict nobody writes | done |
+| 2a | Where an acceptance lives, and what has to hold before one may be written | done |
+| 2b | The parent's route to writing one | next |
+| 3 | `produced` / `verified` / `accepted` as distinct stored states, one writer each | |
+
+Verification evidence:
+- PR 1: `task_acceptance_audit_test.dart`. `TaskAcceptanceAudit` derives levels
+  1 and 2 from evidence the runners already record — `verificationCommand` /
+  `verifiedGreen`, and `changedFiles` — and leaves 3 and 4 outstanding, so
+  **nothing it returns is ever accepted**. That is the honest answer while the
+  parent has no way to record a judgement, and it is what stops "the tests are
+  green" being read as "the goal is met".
+- **PR 1 stores nothing, deliberately.** This milestone's design opens by
+  warning that adding acceptance levels before fixing ownership reproduces the
+  `ConversationExecutionValidationStatus` problem — three writers, one judging
+  prose, a fourth added and reverted — at a larger scale. A derived verdict has
+  no writer at all, so PR 3 can introduce stored states once there is one owner
+  for each.
+- PR 1 keeps *inapplicable* apart from *passed*. A task with no verification
+  command owes nothing mechanically and has proved nothing; collapsing those
+  two into one is how a green light appears for work nobody checked.
+- PR 1 asks the two runners different questions, which is ANA2 PR 2's routing
+  reaching acceptance: a worktree child was sent there because the work changes
+  files, so an empty `changedFiles` owes the evidence level; an inspecting
+  child changes nothing by design, so evidence is inapplicable *unless* it
+  reported nothing at all.
+- Truncated evidence is not evidence: a partial list cannot show the artifacts
+  match the claim, only that some of them might.
+
+- PR 2a: `ConversationTaskAcceptance` on the conversation, with one writer by
+  design. It carries the rationale, the evidence the mechanical levels rested
+  on, and — the field that makes an acceptance revisitable — the **premises in
+  force when it was written**. ANA2's contradiction policy can only bar a
+  result whose premise has lapsed if the premises at acceptance time were
+  recorded.
+- PR 2a deliberately keeps it off `ConversationExecutionTaskProgress`. That
+  record already has three writers, one of which judges prose, and a fourth was
+  added and reverted after the investigation found stderr outranking a clean
+  exit 0. §10 exists because of that history.
+- **PR 2a's rule is the whole milestone in one line: the parent supplies level
+  3 by judging and cannot supply levels 1 and 2.** `mayParentAccept` refuses
+  while the mechanical or evidence level is outstanding, so a confident
+  rationale cannot stand in for a test that did not pass or files nobody can
+  see. An inspecting child is the interesting case: both derivable levels are
+  *inapplicable* to it, so the judgement is the whole test — unless it reported
+  nothing, which leaves nothing to judge.
+
 Next action:
-- Blocked on ANA1 and ANA2.
+- PR 2b: the parent's route to writing one. The judgement itself already
+  happens — the observed session had the parent read a child's result and write
+  the final answer from it — so what is missing is recording it where the next
+  turn can see it.
+- **PR 2b needs three extractions before it can write a line**, measured
+  2026-09-04: `conversations_notifier.dart` is at 1,791 of 1,791,
+  `chat_notifier.dart` at 8,778 of 8,778, and the notifier library at 19,731 of
+  19,731. The tool definition, its handler and the write path land in those
+  three. Worth naming here because five extractions were needed for the work
+  before it and each was found by hitting the ceiling rather than by looking
+  first — and `conversations_notifier.dart` is the one this session never
+  touched, so its seams are unknown.
 
 ### ANA4: Anabasis Workspace
 

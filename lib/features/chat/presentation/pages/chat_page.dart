@@ -13,7 +13,6 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/browser_session_service.dart';
 import '../../../../core/services/coding_terminal_service.dart';
-import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../dashboard/presentation/widgets/dashboard_view.dart';
@@ -25,6 +24,10 @@ import '../../../routines/presentation/providers/routines_notifier.dart';
 import '../../../routines/presentation/widgets/routine_editor_launcher.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../../../personal_eval/presentation/pages/personal_eval_record_page.dart';
+import '../widgets/plan/contract_item_list_section.dart';
+import '../widgets/plan/task_precondition_notice.dart';
+import '../widgets/plan/workflow_task_menu_items.dart';
+import 'approval_sheet_dispatcher.dart';
 import 'thread_scroll_coordinator.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/providers/model_list_provider.dart';
@@ -39,6 +42,7 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/composer_assistant_mode_resolver.dart';
+import '../../domain/services/conversation_task_readiness.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_recovery_service.dart';
@@ -69,15 +73,6 @@ import '../slash_commands/slash_command_catalog.dart';
 import '../slash_commands/slash_command_prompt_template.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/conversation_goal_status_presentation.dart';
-import '../widgets/approval/ble_connect_approval_sheet.dart';
-import '../widgets/approval/computer_use_action_approval_sheet.dart';
-import '../widgets/approval/file_operation_approval_sheet.dart';
-import '../widgets/approval/git_command_approval_sheet.dart';
-import '../widgets/approval/local_command_approval_sheet.dart';
-import '../widgets/approval/participant_tool_approval_sheet.dart';
-import '../widgets/approval/serial_open_approval_sheet.dart';
-import '../widgets/approval/ssh_command_approval_sheet.dart';
-import '../widgets/approval/ssh_connect_approval_sheet.dart';
 import '../widgets/file_workspace_viewer_sheet.dart';
 import '../widgets/subagent_task_banner.dart';
 import '../widgets/worktree_agent_task_banner.dart';
@@ -666,6 +661,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ),
       );
     }
+
     // Send and interrupt take the same payload and differ only in whether the
     // running turn is joined, so one factory makes both rather than two
     // hand-written forwarders that have to be edited together.

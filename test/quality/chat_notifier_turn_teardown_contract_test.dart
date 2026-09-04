@@ -69,6 +69,10 @@ const List<String> _generationCleanupContract = [
   '_explicitTerminalSuccessSummariesByGeneration.remove(generation)',
   '_productionReleaseApprovals.clearGeneration(generation)',
   '_turnFinalizationRecoveryGenerations.remove(generation)',
+  // ANA0: which turn was addressed to the Anabasis parent. Generation-scoped
+  // because threads run concurrently, so it has to be released here like the
+  // rest — this gate is what asked for the entry when the field was added.
+  '_anabasisRoles.release(generation)',
   '_syncBusyConversationIds()',
 ];
 

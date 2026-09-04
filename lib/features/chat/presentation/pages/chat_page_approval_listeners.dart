@@ -29,25 +29,26 @@ extension _ChatPageApprovalListeners on _ChatPageState {
   }
 
   void _registerApprovalDialogListeners(BuildContext context) {
+    final sheets = ApprovalSheetDispatcher(ref: ref, isMounted: () => mounted);
     _syncApprovalDialog<PendingSshConnect>(
       context,
       (s) => s.pendingSshConnect,
       (p) => p.id,
-      (p) => _showSshConnectDialog(context, p),
+      (p) => sheets.showSshConnect(context, p),
     );
 
     _syncApprovalDialog<PendingSshCommand>(
       context,
       (s) => s.pendingSshCommand,
       (p) => p.id,
-      (p) => _showSshCommandDialog(context, p),
+      (p) => sheets.showSshCommand(context, p),
     );
 
     _syncApprovalDialog<PendingGitCommand>(
       context,
       (s) => s.pendingGitCommand,
       (p) => p.id,
-      (p) => _showGitCommandDialog(context, p),
+      (p) => sheets.showGitCommand(context, p),
       shouldPresent: (p) => shouldPresentDesktopApproval(p.origin),
     );
 
@@ -55,7 +56,7 @@ extension _ChatPageApprovalListeners on _ChatPageState {
       context,
       (s) => s.pendingLocalCommand,
       (p) => p.id,
-      (p) => _showLocalCommandDialog(context, p),
+      (p) => sheets.showLocalCommand(context, p),
       shouldPresent: (p) => shouldPresentDesktopApproval(p.origin),
     );
 
@@ -63,7 +64,7 @@ extension _ChatPageApprovalListeners on _ChatPageState {
       context,
       (s) => s.pendingComputerUseAction,
       (p) => p.id,
-      (p) => _showComputerUseActionDialog(context, p),
+      (p) => sheets.showComputerUseAction(context, p),
     );
 
     _syncApprovalDialog<PendingBrowserAction>(
@@ -77,7 +78,7 @@ extension _ChatPageApprovalListeners on _ChatPageState {
       context,
       (s) => s.pendingFileOperation,
       (p) => p.id,
-      (p) => _showFileOperationDialog(context, p),
+      (p) => sheets.showFileOperation(context, p),
       shouldPresent: (p) => shouldPresentDesktopApproval(p.origin),
     );
 
@@ -96,25 +97,33 @@ extension _ChatPageApprovalListeners on _ChatPageState {
       shouldPresent: (p) => shouldPresentDesktopQuestion(p.origin),
     );
 
+    _syncApprovalDialog<PendingAssumptionConfirmation>(
+      context,
+      (s) => s.pendingAssumptionConfirmation,
+      (p) => p.id,
+      (p) => sheets.showAssumptionConfirmation(context, p),
+      shouldPresent: (p) => shouldPresentDesktopApproval(p.origin),
+    );
+
     _syncApprovalDialog<PendingBleConnect>(
       context,
       (s) => s.pendingBleConnect,
       (p) => p.id,
-      (p) => _showBleConnectDialog(context, p),
+      (p) => sheets.showBleConnect(context, p),
     );
 
     _syncApprovalDialog<PendingSerialOpen>(
       context,
       (s) => s.pendingSerialOpen,
       (p) => p.id,
-      (p) => _showSerialOpenDialog(context, p),
+      (p) => sheets.showSerialOpen(context, p),
     );
 
     _syncApprovalDialog<PendingParticipantToolApproval>(
       context,
       (s) => s.pendingParticipantToolApproval,
       (p) => p.id,
-      (p) => _showParticipantToolApprovalDialog(context, p),
+      (p) => sheets.showParticipantToolApproval(context, p),
     );
   }
 
@@ -161,128 +170,5 @@ extension _ChatPageApprovalListeners on _ChatPageState {
     ref
         .read(chatNotifierProvider.notifier)
         .resolveAskUserQuestion(id: pending.id, answer: answer);
-  }
-
-  Future<void> _showSshConnectDialog(
-    BuildContext context,
-    PendingSshConnect pending,
-  ) async {
-    final approval = await SshConnectApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveSshConnect(id: pending.id, approval: approval);
-  }
-
-  Future<void> _showSshCommandDialog(
-    BuildContext context,
-    PendingSshCommand pending,
-  ) async {
-    final approved = await SshCommandApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveSshCommand(id: pending.id, approved: approved ?? false);
-  }
-
-  Future<void> _showGitCommandDialog(
-    BuildContext context,
-    PendingGitCommand pending,
-  ) async {
-    final approved = await GitCommandApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveGitCommand(id: pending.id, approved: approved ?? false);
-  }
-
-  Future<void> _showLocalCommandDialog(
-    BuildContext context,
-    PendingLocalCommand pending,
-  ) async {
-    final approval = await LocalCommandApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveLocalCommand(
-          id: pending.id,
-          approval: approval ?? const LocalCommandApproval(approved: false),
-        );
-  }
-
-  Future<void> _showComputerUseActionDialog(
-    BuildContext context,
-    PendingComputerUseAction pending,
-  ) async {
-    final decision = await ComputerUseActionApprovalSheet.show(
-      context,
-      pending,
-      stopHelperWork: () =>
-          ref.read(macosComputerUseServiceProvider).stopHelperWork(),
-    );
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveComputerUseAction(
-          id: pending.id,
-          approved: decision?.approved ?? false,
-          armed: decision?.armed ?? !pending.requiresSmokeArming,
-        );
-  }
-
-  Future<void> _showFileOperationDialog(
-    BuildContext context,
-    PendingFileOperation pending,
-  ) async {
-    final approved = await FileOperationApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveFileOperation(id: pending.id, approved: approved ?? false);
-  }
-
-  Future<void> _showParticipantToolApprovalDialog(
-    BuildContext context,
-    PendingParticipantToolApproval pending,
-  ) async {
-    final approved = await ParticipantToolApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveParticipantToolApproval(
-          id: pending.id,
-          approved: approved ?? false,
-        );
-  }
-
-  Future<void> _showBleConnectDialog(
-    BuildContext context,
-    PendingBleConnect pending,
-  ) async {
-    final approved = await BleConnectApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveBleConnect(id: pending.id, approved: approved ?? false);
-  }
-
-  Future<void> _showSerialOpenDialog(
-    BuildContext context,
-    PendingSerialOpen pending,
-  ) async {
-    final approved = await SerialOpenApprovalSheet.show(context, pending);
-
-    if (!mounted) return;
-    ref
-        .read(chatNotifierProvider.notifier)
-        .resolveSerialOpen(id: pending.id, approved: approved ?? false);
   }
 }
