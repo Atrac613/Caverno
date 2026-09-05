@@ -2098,9 +2098,25 @@ Verified live, 2026-09-05, Mac server and a real iPhone client:
   app, and the log agrees: `actionable=true category=caverno_approval`. They
   appear on long press rather than in the collapsed list, which is how iOS
   renders every notification action and not a defect.
-- Still unproven: that pressing one resolves the turn on the desktop, and that
-  a paired watch receives the forwarded actions. Everything up to and including
-  the buttons being offered is confirmed.
+- Approve pressed on the notification resolves the turn on the desktop. The
+  whole chain is in one log: `raising for <id> on "MacBook-Pro-3.local"` →
+  `actionable=true category=caverno_approval` → `scene action
+  actionId=caverno_approve` → `sent to the desktop (approved=true)` →
+  `withdrawing the notification; the approval is gone`. The withdrawal is the
+  desktop's own answer coming back: the approval left the server's snapshot
+  because the resolution landed there.
+- Seven defects stood between the first build and that log, and every one of
+  them presented as silence — no notification, or a button that did nothing.
+  Three were suppression and lifecycle mistakes of this milestone's own making;
+  two were the notification service's (a permission latch on the attempt rather
+  than the answer, and a dropped action identifier on a cold launch); one was
+  Firebase owning `UNUserNotificationCenter.delegate`; and the last was
+  `UIApplicationSceneManifest`, where `flutter_local_notifications` registers
+  only as an application delegate and never sees a scene-delivered action.
+  None was diagnosable until the path logged its own decisions and the device
+  log was read beside them.
+- Still unproven: that a paired watch receives the forwarded actions. That is
+  iOS forwarding, the mechanism WATCH1 already relies on.
 
 Earlier evidence:
 - A `localCommand` approval from a phone-initiated turn reached the phone and
