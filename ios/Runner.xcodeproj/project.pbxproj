@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		07279F6224D71290A451356A /* GoalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64DEEDF99B1FD52FE959EA74 /* GoalView.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		167F7DC02F62062B44D4E648 /* TranscriptTimestamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4DEF05942E8FE8C3852F625 /* TranscriptTimestamp.swift */; };
 		1C3FB44DBE1985C6F54430C9 /* CavernoWatchWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2883BE6A5E5350F7AF28CC3 /* CavernoWatchWidget.swift */; };
@@ -118,6 +119,7 @@
 		398CEB898F2775FC26300CEE /* QuestionView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuestionView.swift; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		4DDF825744B8950426046932 /* WatchModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchModels.swift; sourceTree = "<group>"; };
+		64DEEDF99B1FD52FE959EA74 /* GoalView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalView.swift; sourceTree = "<group>"; };
 		675DDD5890FAE0E7A44F8FA2 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		68460DEF204D41459365BC2D /* MessageBubbleView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MessageBubbleView.swift; sourceTree = "<group>"; };
 		733EF5111DDC510471D4FEB9 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
@@ -205,6 +207,7 @@
 				68460DEF204D41459365BC2D /* MessageBubbleView.swift */,
 				E4DEF05942E8FE8C3852F625 /* TranscriptTimestamp.swift */,
 				0AF298B1DA568BC6C0D0A7ED /* TranscriptView.swift */,
+				64DEEDF99B1FD52FE959EA74 /* GoalView.swift */,
 			);
 			path = "CavernoWatch Watch App";
 			sourceTree = SOURCE_ROOT;
@@ -647,6 +650,7 @@
 				A52083488A96F6EE4D3A0E9B /* MessageBubbleView.swift in Sources */,
 				167F7DC02F62062B44D4E648 /* TranscriptTimestamp.swift in Sources */,
 				CEC3D2699C7BC2D7C1DF145D /* TranscriptView.swift in Sources */,
+				07279F6224D71290A451356A /* GoalView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -799,10 +803,11 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = CavernoWatchWidget/CavernoWatchWidget.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Distribution";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
+				"DEVELOPMENT_TEAM[sdk=watchsimulator*]" = 89UG59TBNX;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CavernoWatchWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Caverno;
@@ -910,10 +915,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "CavernoWatch Watch App/CavernoWatch.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Distribution";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
+				"DEVELOPMENT_TEAM[sdk=watchsimulator*]" = 89UG59TBNX;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Caverno;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -1142,10 +1148,11 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = CavernoWatchWidget/CavernoWatchWidget.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Developer";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
+				"DEVELOPMENT_TEAM[sdk=watchsimulator*]" = 89UG59TBNX;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CavernoWatchWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Caverno;
@@ -1172,10 +1179,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "CavernoWatch Watch App/CavernoWatch.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Developer";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = 89UG59TBNX;
+				"DEVELOPMENT_TEAM[sdk=watchsimulator*]" = 89UG59TBNX;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Caverno;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";

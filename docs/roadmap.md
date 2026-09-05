@@ -176,7 +176,7 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH6 | done | Dismiss an approval or question dialog on the phone when the watch resolves it. | Shipped 2026-09-02 and verified on paired simulators: answering from the wrist closes the phone's sheet. Dismissal pops by route name, so it is a no-op when the dialog is not topmost. |
 | Watch | WATCH7 | done | Make the wrist screen a message thread rather than a status glance: bubbles with tails, relative timestamp headers, a typing indicator, and a pinned compose bar. | Shipped 2026-09-02. The frame now carries the tail of the thread; verified on the watch simulator, including the fallback for a watch newer than its phone. |
 | Watch | WATCH8 | done | Keep Watch snapshots ordered across iPhone process restarts without allowing a delayed old frame to resurrect resolved state. | Completed 2026-09-04. Frames now carry a source identity and start time in addition to their per-source sequence; verified with the Watch process kept alive across an iPhone restart. |
-| Watch | WATCH9 | next | Put coding-thread state on the wrist: workspace mode and the conversation goal, with `awaitingConfirmation` surfaced as an interaction to answer rather than as idle. | Headroom measured 2026-09-05 and the budget is now enforced rather than asserted; a maximal Japanese frame leaves 1,755 bytes, so size the goal fields to that. |
+| Watch | WATCH9 | done | Put coding-thread state on the wrist: workspace mode and the conversation goal, with `awaitingConfirmation` surfaced as an interaction to answer rather than as idle. | Shipped 2026-09-05. Nothing has been run on paired simulators yet; the native/Dart bridge boundary is the seam unit tests cannot reach, so verify `resolveGoal` there before relying on it. |
 | Watch | WATCH10 | next | Raise the actionable approval notification for a Remote Coding turn, so a blocked desktop agent reaches the wrist at all. Today it reaches it through no path whatsoever. | Not WATCH5: the client holds a live WebSocket, so this needs no push contract. Route the action to `RemoteCodingClientNotifier`, which `approvalNotificationActionsProvider` does not reach today. |
 | Watch | WATCH11 | later | Show and resolve Remote Coding approvals and questions in the companion itself, labelled with the host that owns them. | Gate on WATCH10. Record the SEC4.5g reading — the watch is the client phone's peripheral, so the principal set does not widen — before shipping. |
 | Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
@@ -1774,7 +1774,7 @@ Next action:
 
 ### WATCH9: Goal State On The Wrist
 
-Status: `next`
+Status: `done`
 
 The companion mirrors `ChatState` and the conversation list, and nothing else.
 A coding thread therefore reaches the wrist as bubbles with none of the state
@@ -1837,8 +1837,43 @@ Prerequisite, completed 2026-09-05:
   projection larger than that does not fail — it costs the thread picker on
   that frame — but sizing the new fields to fit is the point of measuring.
 
+Completed 2026-09-05:
+- `WatchSnapshot` carries `workspaceMode` and a projected `WatchGoal`
+  (`objective`, `status`, `completionSummary`, `blockedReason`), each capped at
+  `watchSnapshotGoalTextLimit` and counted in runes. A disabled or
+  objective-less goal is not projected at all, because an empty affordance on a
+  wrist is worse than none.
+- `WatchTurnStatus.awaitingGoalConfirmation` is its own status and is counted
+  in `needsAttention`, so the transcript's attention button, the glance and the
+  widget agree without any of them special-casing it — the widget already
+  renders "Needs you" from that flag.
+- `resolveGoal` routes through `markCurrentGoalStatus`, the same writer the
+  phone's goal menu uses. It is stamped with the thread it was composed against
+  (WATCH3, applied to goals) and refused with `goal_not_awaiting` when the goal
+  has moved on, so a seconds-old frame cannot close a goal that resumed.
+- `GoalView` shows the harness's `completionSummary` beside the choice and
+  waits for the correlated result the way the approval and question screens do.
+  A blocked goal names its blocker in the transcript footer.
+- The thread picker labels each thread's workspace mode. Mode and goal status
+  travel as strings, so a watch older than its phone degrades to showing less
+  rather than failing to decode the frame.
+
+Verification evidence:
+- `tool/flutter_test_quiet.sh test/features/watch/` passed 79 tests, up from
+  61; the full suite passed 9270 and `flutter analyze` is clean.
+- A maximal frame carrying a goal encodes to 40.1% of the budget in English,
+  **97.5% in Japanese** — still the full projection, which is the acceptance
+  criterion — and 64.3% in emoji after the ladder sheds the thread list and
+  half the transcript. The budget test covers all three.
+- `xcodebuild -target "CavernoWatch Watch App"` succeeded and the snapshot
+  cursor smoke test still passes.
+
 Next action:
-- Project the goal and add `resolveGoal`.
+- Run it on paired simulators. The native/Dart bridge boundary is the one seam
+  unit tests cannot reach, and WATCH2 found ten defects there.
+- Note for whoever adds the next wire field: rung 0 is now 97.5% full in
+  Japanese, so the next field pushes a wide frame onto the shedding ladder
+  rather than fitting beside the thread picker.
 
 ### WATCH10: Remote Coding Approvals As Notifications
 

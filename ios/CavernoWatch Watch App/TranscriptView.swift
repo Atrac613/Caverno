@@ -130,6 +130,19 @@ struct TranscriptView: View {
           }
           .accessibilityLabel("Question waiting")
         }
+      } else if let goal = snapshot.goalAwaitingConfirmation {
+        // Ranked below the approval and the question for the same reason they
+        // are ranked against each other: one button, and a turn blocked on a
+        // tool outranks a goal that has merely run out of work.
+        ToolbarItem(placement: .topBarTrailing) {
+          NavigationLink {
+            GoalView(goal: goal)
+          } label: {
+            Image(systemName: "target")
+              .foregroundStyle(.orange)
+          }
+          .accessibilityLabel("Goal awaiting confirmation")
+        }
       }
       // `conversationsTruncated` alone is enough to open the picker: a frame
       // that overran the payload budget sheds the thread list first, and
@@ -278,6 +291,13 @@ struct TranscriptView: View {
   private var statusParts: [String] {
     var parts: [String] = []
     if snapshot.status == .streaming { parts.append(elapsed) }
+    // A blocked goal used to read as an idle thread. Naming the blocker is
+    // the difference between "this is finished" and "this is stuck".
+    if let goal = snapshot.goal, goal.status == .blocked,
+      !goal.blockedReason.isEmpty
+    {
+      parts.append("Blocked: \(goal.blockedReason)")
+    }
     if snapshot.queuedCount > 0 { parts.append("\(snapshot.queuedCount) queued") }
     if snapshot.busyThreadCount > 1 {
       parts.append("\(snapshot.busyThreadCount) threads")

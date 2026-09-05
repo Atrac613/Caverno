@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/watch_bridge_service.dart';
+import '../../../core/types/workspace_mode.dart';
+import '../../chat/domain/entities/conversation.dart';
+import '../../chat/domain/entities/conversation_goal.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/chat_state.dart';
@@ -201,6 +204,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     final current = conversations.currentConversation;
     final approval = _approvals.map(chatState);
     final question = _approvals.mapQuestion(chatState);
+    final goal = _goalFor(current);
     final startedAt = _turnStartedAt;
 
     return WatchSnapshot(
@@ -210,7 +214,14 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       sourceStartedAtMicros: _sourceStartedAtMicros,
       conversationId: current?.id,
       conversationTitle: _titleFor(current?.title),
-      status: _statusFor(chatState, approval: approval, question: question),
+      workspaceMode: current?.workspaceMode.name ?? '',
+      goal: goal,
+      status: _statusFor(
+        chatState,
+        approval: approval,
+        question: question,
+        goal: current?.goal,
+      ),
       lastAssistantText: _lastAssistantText(chatState.messages),
       messages: _transcript(chatState.messages),
       messagesTruncated:
@@ -255,14 +266,34 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
             (conversation) => WatchConversation(
               id: conversation.id,
               title: _titleFor(conversation.title),
+              mode: conversation.workspaceMode == WorkspaceMode.chat
+                  ? ''
+                  : conversation.workspaceMode.name,
             ),
           )
           .toList(growable: false);
+
+  /// Projects the thread's goal, or null when there is nothing to show.
+  ///
+  /// A disabled or objective-less goal is not projected at all: an empty
+  /// affordance on a wrist is worse than none, and `hasObjective` is what every
+  /// other surface already treats as "there is a goal here".
+  WatchGoal? _goalFor(Conversation? conversation) {
+    final goal = conversation?.goal;
+    if (goal == null || !goal.enabled || !goal.hasObjective) return null;
+    return WatchGoal(
+      objective: goal.normalizedObjective ?? '',
+      status: goal.status.name,
+      completionSummary: goal.normalizedCompletionSummary ?? '',
+      blockedReason: goal.normalizedBlockedReason ?? '',
+    );
+  }
 
   WatchTurnStatus _statusFor(
     ChatState chatState, {
     required WatchApproval? approval,
     required WatchQuestion? question,
+    required ConversationGoal? goal,
   }) {
     // A blocked turn outranks a running one: the watch exists to unblock, and
     // "streaming" would hide the very thing the user must act on.
@@ -270,6 +301,12 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     if (question != null) return WatchTurnStatus.waitingQuestion;
     if (chatState.isLoading) return WatchTurnStatus.streaming;
     if (chatState.error?.isNotEmpty == true) return WatchTurnStatus.error;
+    // Ranked below an error but above idle. Nothing is running either way, and
+    // rendering this as idle made a decision waiting for the person look like
+    // a finished thread.
+    if (goal?.isAwaitingConfirmation == true) {
+      return WatchTurnStatus.awaitingGoalConfirmation;
+    }
     return WatchTurnStatus.idle;
   }
 
@@ -412,6 +449,8 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
         await _succeed(command);
       case WatchCommand.selectConversation:
         await _handleSelectConversation(command);
+      case WatchCommand.resolveGoal:
+        await _handleResolveGoal(command);
     }
   }
 
@@ -459,6 +498,69 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
             origin: ChatInteractionOrigin.local,
           ),
     );
+    await _succeed(command);
+  }
+
+  /// Answers a goal awaiting confirmation from the wrist.
+  ///
+  /// Routed through `markCurrentGoalStatus`, the same writer the phone's goal
+  /// menu uses, rather than persisting a goal here. `validationStatus` already
+  /// has three writers and the lesson from that is not to add a fourth shape
+  /// of the same problem: a second path would drift from the transition rules
+  /// in `ConversationGoalStatusTransition` the moment either side changed.
+  Future<void> _handleResolveGoal(WatchCommand command) async {
+    final completed = command.payload['completed'];
+    if (completed is! bool) {
+      await _fail(
+        command,
+        code: 'invalid_goal_decision',
+        message: 'A goal decision must say completed true or false.',
+      );
+      return;
+    }
+    final conversations = ref.read(conversationsNotifierProvider);
+    final current = conversations.currentConversation;
+    // Stamped with the thread it was composed against, for the reason WATCH3
+    // gave `sendMessage` the same check: `WatchSessionClient` falls back to
+    // `transferUserInfo` when the phone is unreachable, which guarantees
+    // delivery but not promptness. An unstamped decision would close whichever
+    // goal happened to be current when it finally landed.
+    final composedFor = (command.payload['conversationId'] as String?)?.trim();
+    if (composedFor != null &&
+        composedFor.isNotEmpty &&
+        current != null &&
+        composedFor != current.id) {
+      await _fail(
+        command,
+        code: 'conversation_changed',
+        message: 'That thread is no longer open.',
+      );
+      return;
+    }
+    final goal = current?.goal;
+    // Refused rather than applied when the goal is not actually asking. The
+    // frame the watch acted on may be several seconds old, and quietly closing
+    // a goal that resumed in the meantime is exactly the stale-frame failure
+    // the snapshot cursor exists to prevent.
+    if (goal == null || !goal.isAwaitingConfirmation) {
+      await _fail(
+        command,
+        code: 'goal_not_awaiting',
+        message: 'That goal is no longer waiting for confirmation.',
+      );
+      return;
+    }
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .markCurrentGoalStatus(
+          status: completed
+              ? ConversationGoalStatus.completed
+              : ConversationGoalStatus.active,
+          completionSummary: completed
+              ? (goal.normalizedCompletionSummary ??
+                    'Confirmed complete from Apple Watch.')
+              : null,
+        );
     await _succeed(command);
   }
 

@@ -13,6 +13,10 @@ enum WatchTurnStatus: String, Decodable {
   case streaming
   case waitingApproval
   case waitingQuestion
+  /// The goal harness stopped scheduling and is asking whether the objective
+  /// was met. Distinct from `idle`, which is what it used to arrive as: both
+  /// mean nothing is running, but only one is waiting on the person.
+  case awaitingGoalConfirmation
   case error
 
   init(from decoder: Decoder) throws {
@@ -138,9 +142,94 @@ struct WatchMessage: Decodable, Equatable, Identifiable {
   private static let plainFormatter = ISO8601DateFormatter()
 }
 
+/// The workspace a thread belongs to.
+///
+/// Decoded from a string with an unknown case rather than a closed enum: the
+/// phone gains modes, and a watch older than its phone must show the thread
+/// without a label instead of failing to decode the picker.
+enum WatchWorkspaceMode: String, Decodable {
+  case chat
+  case coding
+  case routines
+
+  var label: String {
+    switch self {
+    case .chat: return "Chat"
+    case .coding: return "Coding"
+    case .routines: return "Routine"
+    }
+  }
+}
+
 struct WatchConversation: Decodable, Equatable, Identifiable {
   let id: String
   let title: String
+  let mode: WatchWorkspaceMode?
+
+  private enum CodingKeys: String, CodingKey { case id, title, mode }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decodeIfPresent(String.self, forKey: .id) ?? ""
+    title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
+    mode = WatchWorkspaceMode(
+      rawValue: try container.decodeIfPresent(String.self, forKey: .mode) ?? "")
+  }
+
+  init(id: String, title: String, mode: WatchWorkspaceMode? = nil) {
+    self.id = id
+    self.title = title
+    self.mode = mode
+  }
+}
+
+/// How the conversation goal stands, as the phone reports it.
+///
+/// A string rather than a closed enum for the same reason as the workspace
+/// mode: `ConversationGoalStatus` gains members, and an unknown one must show
+/// the objective rather than drop the goal.
+enum WatchGoalStatus: String, Decodable {
+  case active
+  case completed
+  case blocked
+  case awaitingConfirmation
+}
+
+struct WatchGoal: Decodable, Equatable {
+  let objective: String
+  let status: WatchGoalStatus?
+  let completionSummary: String
+  let blockedReason: String
+
+  private enum CodingKeys: String, CodingKey {
+    case objective, status, completionSummary, blockedReason
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    objective =
+      try container.decodeIfPresent(String.self, forKey: .objective) ?? ""
+    status = WatchGoalStatus(
+      rawValue: try container.decodeIfPresent(String.self, forKey: .status)
+        ?? "")
+    completionSummary =
+      try container.decodeIfPresent(String.self, forKey: .completionSummary)
+      ?? ""
+    blockedReason =
+      try container.decodeIfPresent(String.self, forKey: .blockedReason) ?? ""
+  }
+
+  init(
+    objective: String,
+    status: WatchGoalStatus?,
+    completionSummary: String = "",
+    blockedReason: String = ""
+  ) {
+    self.objective = objective
+    self.status = status
+    self.completionSummary = completionSummary
+    self.blockedReason = blockedReason
+  }
 }
 
 struct WatchSnapshot: Decodable, Equatable {
@@ -150,6 +239,8 @@ struct WatchSnapshot: Decodable, Equatable {
   let sourceStartedAtMicros: Int64
   let conversationId: String?
   let conversationTitle: String
+  let workspaceMode: WatchWorkspaceMode?
+  let goal: WatchGoal?
   let status: WatchTurnStatus
   /// The most recent answer on its own, kept for the case where this watch is
   /// newer than the iPhone build it is paired with and the frame carries no
@@ -168,11 +259,23 @@ struct WatchSnapshot: Decodable, Equatable {
 
   var needsAttention: Bool {
     status == .waitingApproval || status == .waitingQuestion
+      || status == .awaitingGoalConfirmation
+  }
+
+  /// The goal, only while it is actually asking something.
+  ///
+  /// The transcript shows a goal it cannot act on as context; this is the one
+  /// that earns an attention button.
+  var goalAwaitingConfirmation: WatchGoal? {
+    guard status == .awaitingGoalConfirmation, let goal,
+      !goal.objective.isEmpty
+    else { return nil }
+    return goal
   }
 
   private enum CodingKeys: String, CodingKey {
     case sequence, generatedAt, sourceInstanceId, sourceStartedAtMicros
-    case conversationId, conversationTitle, status
+    case conversationId, conversationTitle, workspaceMode, goal, status
     case lastAssistantText, messages, messagesTruncated, approval, question
     case elapsedSeconds, queuedCount
     case busyThreadCount, conversations, conversationsTruncated, error
@@ -194,6 +297,10 @@ struct WatchSnapshot: Decodable, Equatable {
     conversationTitle =
       try container.decodeIfPresent(String.self, forKey: .conversationTitle)
       ?? ""
+    workspaceMode = WatchWorkspaceMode(
+      rawValue: try container.decodeIfPresent(
+        String.self, forKey: .workspaceMode) ?? "")
+    goal = try container.decodeIfPresent(WatchGoal.self, forKey: .goal)
     status =
       try container.decodeIfPresent(WatchTurnStatus.self, forKey: .status)
       ?? .idle
@@ -298,4 +405,5 @@ enum WatchCommandType: String {
   case cancelStreaming
   case requestSnapshot
   case selectConversation
+  case resolveGoal
 }

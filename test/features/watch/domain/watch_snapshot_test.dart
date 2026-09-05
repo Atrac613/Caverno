@@ -32,6 +32,13 @@ void main() {
       sourceStartedAtMicros: 1788264000000000,
       conversationId: 'conversation-1',
       conversationTitle: fill * 4000,
+      workspaceMode: 'coding',
+      goal: WatchGoal(
+        objective: fill * 4000,
+        status: 'awaitingConfirmation',
+        completionSummary: fill * 4000,
+        blockedReason: fill * 4000,
+      ),
       status: WatchTurnStatus.waitingApproval,
       lastAssistantText: fill * 40000,
       approval: WatchApproval(
@@ -68,7 +75,11 @@ void main() {
       busyThreadCount: 2,
       conversations: List.generate(
         40,
-        (index) => WatchConversation(id: 'c\$index', title: fill * 4000),
+        (index) => WatchConversation(
+          id: 'c\$index',
+          title: fill * 4000,
+          mode: 'coding',
+        ),
       ),
       error: fill * 4000,
     );
@@ -363,4 +374,78 @@ void main() {
       expect(decoded.canResolveOnWatch, isFalse);
     });
   });
+
+  group('goal projection', () {
+    test('caps every goal field and keeps the status verbatim', () {
+      final json = WatchGoal(
+        objective: 'o' * 500,
+        status: 'awaitingConfirmation',
+        completionSummary: 's' * 500,
+        blockedReason: 'b' * 500,
+      ).toJson();
+
+      expect(
+        (json['objective']! as String).runes.length,
+        watchSnapshotGoalTextLimit + 1,
+      );
+      expect(json['status'], 'awaitingConfirmation');
+      expect(
+        (json['completionSummary']! as String).runes.length,
+        watchSnapshotGoalTextLimit + 1,
+      );
+      expect(
+        (json['blockedReason']! as String).runes.length,
+        watchSnapshotGoalTextLimit + 1,
+      );
+    });
+
+    test('omits the fields it has nothing to say about', () {
+      final json = const WatchGoal(
+        objective: 'Ship it',
+        status: 'active',
+      ).toJson();
+
+      expect(json.containsKey('completionSummary'), isFalse);
+      expect(json.containsKey('blockedReason'), isFalse);
+    });
+
+    test('an unknown status survives rather than dropping the goal', () {
+      // ConversationGoalStatus gains members, and the two apps ship as one
+      // bundle without being guaranteed to be the same build at runtime.
+      final goal = WatchGoal.fromJson(const {
+        'objective': 'Ship it',
+        'status': 'somethingNewer',
+      });
+
+      expect(goal.objective, 'Ship it');
+      expect(goal.status, 'somethingNewer');
+    });
+
+    test('a frame from a phone without a goal decodes as no goal', () {
+      final snapshot = WatchSnapshot.fromJson(const {
+        'sequence': 1,
+        'status': 'idle',
+      });
+
+      expect(snapshot.goal, isNull);
+      expect(snapshot.workspaceMode, '');
+      expect(snapshot.needsAttention, isFalse);
+    });
+
+    test('awaitingGoalConfirmation is an attention state', () {
+      final snapshot = WatchSnapshot(
+        sequence: 1,
+        generatedAt: DateTime.utc(2026, 9, 5),
+        status: WatchTurnStatus.awaitingGoalConfirmation,
+      );
+
+      expect(snapshot.needsAttention, isTrue);
+      expect(snapshot.toJson()['status'], 'awaitingGoalConfirmation');
+      expect(
+        WatchSnapshot.fromJson(snapshot.toJson()).status,
+        WatchTurnStatus.awaitingGoalConfirmation,
+      );
+    });
+  });
+
 }

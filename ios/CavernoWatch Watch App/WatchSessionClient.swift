@@ -84,6 +84,20 @@ final class WatchSessionClient: NSObject, ObservableObject {
     return send(.sendMessage, payload: payload)
   }
 
+  /// Answers a goal awaiting confirmation.
+  ///
+  /// Stamped with the thread the decision was made against, for the reason
+  /// `sendMessage` is: an unstamped command that falls back to
+  /// `transferUserInfo` would close whichever goal is current when it lands.
+  @discardableResult
+  func resolveGoal(completed: Bool) -> String? {
+    var payload: [String: Any] = ["completed": completed]
+    if let conversationId = snapshot?.conversationId {
+      payload["conversationId"] = conversationId
+    }
+    return send(.resolveGoal, payload: payload)
+  }
+
   @discardableResult
   func resolveApproval(id: String, approved: Bool) -> String? {
     send(

@@ -156,6 +156,48 @@ connect needs credentials, and neither can be answered honestly with a single
 yes/no. They report `isSimpleDecision: false` and the watch says "Continue on
 iPhone".
 
+## The goal
+
+A coding thread reached the wrist as bubbles with none of the state that makes
+it a coding thread, and one piece of that state is a decision:
+`ConversationGoalStatus.awaitingConfirmation` means the harness ran out of work
+and cannot say the objective was met. It rendered as `WatchTurnStatus.idle` —
+indistinguishable from a finished thread. It is now its own status, counted in
+`needsAttention`, so the transcript's attention button, the glance and the
+Smart Stack widget agree without any of them special-casing it.
+
+The measured behaviour behind the whole feature is that the model does not
+volunteer `update_goal` but answers when asked. Being asked is the mechanism,
+and a wrist is where asking is cheapest.
+
+`resolveGoal` routes through `markCurrentGoalStatus`, the writer the phone's
+goal menu uses, rather than persisting a goal of its own. `validationStatus`
+already has three writers and the lesson from that is not to add a fourth shape
+of the same problem: a second path would drift from
+`ConversationGoalStatusTransition` the moment either side changed. The decision
+is stamped with the thread it was composed against for the reason WATCH3 gave
+`sendMessage` the same stamp, and it is refused outright when the goal is no
+longer asking — the frame the watch acted on can be seconds old, and quietly
+closing a goal that resumed in the meantime is the stale-frame failure the
+snapshot cursor exists to prevent.
+
+The confirm screen shows the harness's `completionSummary` beside the choice.
+Answering "was this met?" without it is answering blind. A blocked goal names
+its blocker in the transcript footer, which is the difference between "this is
+finished" and "this is stuck".
+
+The thread picker labels each thread's workspace mode.
+`ConversationsState.conversations` is unfiltered, so without it a coding agent
+mid-task is offered as if it were another chat. Both the mode and the goal
+status travel as strings rather than closed enums, for the reason
+`WatchApproval.kind` does: a watch older than its phone must degrade to showing
+less rather than failing to decode the frame.
+
+Adding these fields spent most of what was left. A maximal frame carrying a
+goal encodes to 97.5% of the budget in Japanese — still the full projection,
+which is the acceptance criterion, but the next field to go on the wire will
+push a wide frame onto the shedding ladder rather than fitting beside it.
+
 ## Notification fallback
 
 When the watch app is not running, the approval notification itself carries

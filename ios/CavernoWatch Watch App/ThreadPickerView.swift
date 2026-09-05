@@ -23,8 +23,19 @@ struct ThreadPickerView: View {
           commandId = client.selectConversation(id: conversation.id)
         } label: {
           HStack {
-            Text(conversation.title.isEmpty ? "Untitled" : conversation.title)
-              .multilineTextAlignment(.leading)
+            // `ConversationsState.conversations` is unfiltered, so chat,
+            // coding and routine threads arrive looking like the same kind of
+            // thing. The mode is the difference between picking a chat and
+            // picking an agent that is mid-task.
+            VStack(alignment: .leading, spacing: 1) {
+              Text(conversation.title.isEmpty ? "Untitled" : conversation.title)
+                .multilineTextAlignment(.leading)
+              if let mode = conversation.mode, mode != .chat {
+                Text(mode.label)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+              }
+            }
             Spacer()
             if conversation.id == selectedId && isSubmitting {
               ProgressView()

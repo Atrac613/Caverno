@@ -6,7 +6,9 @@ import 'package:caverno/features/chat/data/repositories/chat_memory_repository.d
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository_api.dart';
 import 'package:caverno/features/chat/data/repositories/key_value_store.dart';
+import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
@@ -237,6 +239,277 @@ void main() {
     );
 
     expect(bridge.results.single.code, 'empty_message');
+  });
+
+  group('goal on the wrist', () {
+    Future<void> setGoal(
+      ConversationsNotifier conversations, {
+      required ConversationGoalStatus status,
+      String objective = 'Ship the watch companion',
+      String completionSummary = '',
+      String blockedReason = '',
+      bool enabled = true,
+    }) => conversations.saveCurrentGoal(
+      objective: objective,
+      enabled: enabled,
+      status: status,
+      completionSummary: completionSummary,
+      blockedReason: blockedReason,
+    );
+
+    test('a goal awaiting confirmation is an attention state', () async {
+      // It used to project as `idle`, which is what a finished thread looks
+      // like. Nothing is running either way; only one of the two is a
+      // decision waiting for the person.
+      final instance = await notifier();
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation();
+      await setGoal(
+        conversations,
+        status: ConversationGoalStatus.awaitingConfirmation,
+        completionSummary: 'Bridge and views landed.',
+      );
+
+      await instance.handleCommandForTest(
+        const WatchCommand(type: WatchCommand.requestSnapshot),
+      );
+
+      final snapshot = bridge.pushedSnapshots.last;
+      expect(snapshot.status, WatchTurnStatus.awaitingGoalConfirmation);
+      expect(snapshot.needsAttention, isTrue);
+      expect(snapshot.goal?.objective, 'Ship the watch companion');
+      expect(snapshot.goal?.status, 'awaitingConfirmation');
+      expect(snapshot.goal?.completionSummary, 'Bridge and views landed.');
+    });
+
+    test('an active goal travels but does not claim attention', () async {
+      final instance = await notifier();
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation();
+      await setGoal(conversations, status: ConversationGoalStatus.active);
+
+      await instance.handleCommandForTest(
+        const WatchCommand(type: WatchCommand.requestSnapshot),
+      );
+
+      final snapshot = bridge.pushedSnapshots.last;
+      expect(snapshot.status, WatchTurnStatus.idle);
+      expect(snapshot.needsAttention, isFalse);
+      expect(snapshot.goal?.status, 'active');
+    });
+
+    test('a blocked goal carries its blocker', () async {
+      final instance = await notifier();
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation();
+      await setGoal(
+        conversations,
+        status: ConversationGoalStatus.blocked,
+        blockedReason: 'dart analyze is failing',
+      );
+
+      await instance.handleCommandForTest(
+        const WatchCommand(type: WatchCommand.requestSnapshot),
+      );
+
+      expect(
+        bridge.pushedSnapshots.last.goal?.blockedReason,
+        'dart analyze is failing',
+      );
+    });
+
+    test('a disabled goal is not projected at all', () async {
+      // An empty affordance on a wrist is worse than none.
+      final instance = await notifier();
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation();
+      await setGoal(
+        conversations,
+        status: ConversationGoalStatus.awaitingConfirmation,
+        enabled: false,
+      );
+
+      await instance.handleCommandForTest(
+        const WatchCommand(type: WatchCommand.requestSnapshot),
+      );
+
+      final snapshot = bridge.pushedSnapshots.last;
+      expect(snapshot.goal, isNull);
+      expect(snapshot.status, WatchTurnStatus.idle);
+    });
+
+    test('confirming from the wrist completes the goal', () async {
+      final instance = await notifier();
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation();
+      await setGoal(
+        conversations,
+        status: ConversationGoalStatus.awaitingConfirmation,
+        completionSummary: 'Bridge and views landed.',
+      );
+
+      await instance.handleCommandForTest(
+        const WatchCommand(
+          type: WatchCommand.resolveGoal,
+          id: 'g-1',
+          payload: {'completed': true},
+        ),
+      );
+
+      expect(bridge.results.single.ok, isTrue);
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .goal!;
+      expect(goal.status, ConversationGoalStatus.completed);
+      expect(goal.completionSummary, 'Bridge and views landed.');
+    });
+
+    test('keeping going reactivates the goal', () async {
+      final instance = await notifier();
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation();
+      await setGoal(
+        conversations,
+        status: ConversationGoalStatus.awaitingConfirmation,
+      );
+
+      await instance.handleCommandForTest(
+        const WatchCommand(
+          type: WatchCommand.resolveGoal,
+          id: 'g-1',
+          payload: {'completed': false},
+        ),
+      );
+
+      expect(bridge.results.single.ok, isTrue);
+      expect(
+        container
+            .read(conversationsNotifierProvider)
+            .currentConversation!
+            .goal!
+            .status,
+        ConversationGoalStatus.active,
+      );
+    });
+
+    test('a goal that is no longer asking refuses the decision', () async {
+      // The frame the watch acted on can be seconds old. Quietly closing a
+      // goal that resumed in the meantime is the stale-frame failure the
+      // snapshot cursor exists to prevent.
+      final instance = await notifier();
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation();
+      await setGoal(conversations, status: ConversationGoalStatus.active);
+
+      await instance.handleCommandForTest(
+        const WatchCommand(
+          type: WatchCommand.resolveGoal,
+          id: 'g-1',
+          payload: {'completed': true},
+        ),
+      );
+
+      expect(bridge.results.single.ok, isFalse);
+      expect(bridge.results.single.code, 'goal_not_awaiting');
+      expect(
+        container
+            .read(conversationsNotifierProvider)
+            .currentConversation!
+            .goal!
+            .status,
+        ConversationGoalStatus.active,
+      );
+    });
+
+    test('a decision composed against another thread is refused', () async {
+      // WATCH3, applied to goals: a command that fell back to
+      // transferUserInfo must not close whichever goal is current when it
+      // finally lands.
+      final instance = await notifier();
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation();
+      await setGoal(
+        conversations,
+        status: ConversationGoalStatus.awaitingConfirmation,
+      );
+
+      await instance.handleCommandForTest(
+        const WatchCommand(
+          type: WatchCommand.resolveGoal,
+          id: 'g-1',
+          payload: {'completed': true, 'conversationId': 'another-thread'},
+        ),
+      );
+
+      expect(bridge.results.single.ok, isFalse);
+      expect(bridge.results.single.code, 'conversation_changed');
+      expect(
+        container
+            .read(conversationsNotifierProvider)
+            .currentConversation!
+            .goal!
+            .status,
+        ConversationGoalStatus.awaitingConfirmation,
+      );
+    });
+
+    test('a decision without a verdict is refused', () async {
+      final instance = await notifier();
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.createNewConversation();
+      await setGoal(
+        conversations,
+        status: ConversationGoalStatus.awaitingConfirmation,
+      );
+
+      await instance.handleCommandForTest(
+        const WatchCommand(type: WatchCommand.resolveGoal, id: 'g-1'),
+      );
+
+      expect(bridge.results.single.ok, isFalse);
+      expect(bridge.results.single.code, 'invalid_goal_decision');
+    });
+
+    test('the thread picker says which workspace each thread is', () async {
+      // `ConversationsState.conversations` is unfiltered, so without this a
+      // coding agent mid-task is offered as if it were another chat.
+      final instance = await notifier();
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.activateWorkspace(workspaceMode: WorkspaceMode.coding);
+      conversations.createNewConversation();
+
+      await instance.handleCommandForTest(
+        const WatchCommand(type: WatchCommand.requestSnapshot),
+      );
+
+      final snapshot = bridge.pushedSnapshots.last;
+      expect(snapshot.workspaceMode, 'coding');
+      expect(
+        snapshot.conversations.any((thread) => thread.mode == 'coding'),
+        isTrue,
+      );
+    });
   });
 
   group('thread switching', () {

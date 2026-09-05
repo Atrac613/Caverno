@@ -48,12 +48,32 @@ const int watchSnapshotLastMessageTextLimit = 400;
 /// so the watch can point at the iPhone instead of implying it is complete.
 const int watchSnapshotMaxConversations = 8;
 
+/// Per-field budget for the projected goal.
+///
+/// Sized against measured headroom, not picked: a maximal frame in Japanese
+/// leaves 1,755 bytes, and three fields of this length cost about 1,200 of
+/// them. A larger goal does not fail — the ladder in this file sheds the
+/// thread picker instead — but it would spend a real affordance on text a
+/// wrist cannot read anyway.
+const int watchSnapshotGoalTextLimit = 120;
+
 /// What the watch should show for the conversation it is mirroring.
 enum WatchTurnStatus {
   idle,
   streaming,
   waitingApproval,
   waitingQuestion,
+
+  /// The goal harness stopped scheduling and is asking whether the objective
+  /// was met.
+  ///
+  /// Its own status rather than [idle], which is what it used to render as:
+  /// nothing is running either way, but one of the two is a decision waiting
+  /// for the person and the other is a finished thread. The measured behaviour
+  /// is that the model does not volunteer `update_goal` and answers when
+  /// asked, so being asked is the whole mechanism — and a wrist is where the
+  /// asking is cheapest.
+  awaitingGoalConfirmation,
   error,
 }
 
@@ -61,6 +81,7 @@ WatchTurnStatus _watchTurnStatusFromName(String name) => switch (name) {
   'streaming' => WatchTurnStatus.streaming,
   'waitingApproval' => WatchTurnStatus.waitingApproval,
   'waitingQuestion' => WatchTurnStatus.waitingQuestion,
+  'awaitingGoalConfirmation' => WatchTurnStatus.awaitingGoalConfirmation,
   'error' => WatchTurnStatus.error,
   _ => WatchTurnStatus.idle,
 };
@@ -189,21 +210,78 @@ class WatchQuestion {
   };
 }
 
+/// The conversation goal, reduced to what a wrist can act on.
+///
+/// [status] is a free-form string for the same reason `WatchApproval.kind` is:
+/// `ConversationGoalStatus` gains members, and a watch build older than its
+/// phone must degrade to showing the objective rather than dropping the goal
+/// entirely.
+class WatchGoal {
+  const WatchGoal({
+    required this.objective,
+    required this.status,
+    this.completionSummary = '',
+    this.blockedReason = '',
+  });
+
+  final String objective;
+  final String status;
+
+  /// What the harness believes it achieved, shown beside the confirm choice.
+  ///
+  /// Answering "was this met?" without it is answering blind, which is the
+  /// failure this projection exists to avoid.
+  final String completionSummary;
+  final String blockedReason;
+
+  factory WatchGoal.fromJson(Map<String, dynamic> json) => WatchGoal(
+    objective: (json['objective'] as String?)?.trim() ?? '',
+    status: (json['status'] as String?)?.trim() ?? 'active',
+    completionSummary: (json['completionSummary'] as String?)?.trim() ?? '',
+    blockedReason: (json['blockedReason'] as String?)?.trim() ?? '',
+  );
+
+  Map<String, dynamic> toJson({int limit = watchSnapshotGoalTextLimit}) => {
+    'objective': truncateForWatch(objective, limit),
+    'status': status,
+    if (completionSummary.isNotEmpty)
+      'completionSummary': truncateForWatch(completionSummary, limit),
+    if (blockedReason.isNotEmpty)
+      'blockedReason': truncateForWatch(blockedReason, limit),
+  };
+}
+
 /// A thread the watch can switch to.
 class WatchConversation {
-  const WatchConversation({required this.id, required this.title});
+  const WatchConversation({
+    required this.id,
+    required this.title,
+    this.mode = '',
+  });
 
   final String id;
   final String title;
+
+  /// The thread's `WorkspaceMode`, by name.
+  ///
+  /// `ConversationsState.conversations` is unfiltered, so chat, coding and
+  /// routine threads reach the picker as if they were the same kind of thing.
+  /// Sent by name rather than as an enum so an unknown mode renders as no
+  /// label instead of collapsing the thread into the wrong one.
+  final String mode;
 
   factory WatchConversation.fromJson(Map<String, dynamic> json) =>
       WatchConversation(
         id: (json['id'] as String?)?.trim() ?? '',
         title: (json['title'] as String?)?.trim() ?? '',
+        mode: (json['mode'] as String?)?.trim() ?? '',
       );
 
-  Map<String, dynamic> toJson({int titleLimit = watchSnapshotTitleLimit}) =>
-      {'id': id, 'title': truncateForWatch(title, titleLimit)};
+  Map<String, dynamic> toJson({int titleLimit = watchSnapshotTitleLimit}) => {
+    'id': id,
+    'title': truncateForWatch(title, titleLimit),
+    if (mode.isNotEmpty) 'mode': mode,
+  };
 }
 
 /// Who a transcript bubble belongs to.
@@ -281,6 +359,7 @@ class _WatchFrameCaps {
     required this.title,
     required this.detail,
     required this.optionLabel,
+    required this.goalText,
   });
 
   final int conversations;
@@ -293,6 +372,10 @@ class _WatchFrameCaps {
   final int title;
   final int detail;
   final int optionLabel;
+
+  /// The goal shrinks with the rest but is never shed: a goal awaiting
+  /// confirmation is a pending decision, and this frame exists to carry one.
+  final int goalText;
 }
 
 /// What a frame sheds when it does not fit, and in what order.
@@ -320,6 +403,7 @@ const List<_WatchFrameCaps> _watchFrameCapLadder = [
     title: watchSnapshotTitleLimit,
     detail: watchSnapshotDetailLimit,
     optionLabel: watchSnapshotOptionLabelLimit,
+    goalText: watchSnapshotGoalTextLimit,
   ),
   _WatchFrameCaps(
     conversations: 0,
@@ -330,6 +414,7 @@ const List<_WatchFrameCaps> _watchFrameCapLadder = [
     title: watchSnapshotTitleLimit,
     detail: watchSnapshotDetailLimit,
     optionLabel: watchSnapshotOptionLabelLimit,
+    goalText: watchSnapshotGoalTextLimit,
   ),
   _WatchFrameCaps(
     conversations: 0,
@@ -340,6 +425,7 @@ const List<_WatchFrameCaps> _watchFrameCapLadder = [
     title: watchSnapshotTitleLimit,
     detail: watchSnapshotDetailLimit,
     optionLabel: watchSnapshotOptionLabelLimit,
+    goalText: watchSnapshotGoalTextLimit,
   ),
   _WatchFrameCaps(
     conversations: 0,
@@ -350,6 +436,7 @@ const List<_WatchFrameCaps> _watchFrameCapLadder = [
     title: 80,
     detail: 160,
     optionLabel: 40,
+    goalText: 80,
   ),
   _WatchFrameCaps(
     conversations: 0,
@@ -360,6 +447,7 @@ const List<_WatchFrameCaps> _watchFrameCapLadder = [
     title: 60,
     detail: 100,
     optionLabel: 24,
+    goalText: 60,
   ),
 ];
 
@@ -372,6 +460,8 @@ class WatchSnapshot {
     this.sourceStartedAtMicros = 0,
     this.conversationId,
     this.conversationTitle = '',
+    this.workspaceMode = '',
+    this.goal,
     this.status = WatchTurnStatus.idle,
     this.lastAssistantText = '',
     this.messages = const <WatchMessage>[],
@@ -401,6 +491,14 @@ class WatchSnapshot {
   final int sourceStartedAtMicros;
   final String? conversationId;
   final String conversationTitle;
+
+  /// The mirrored thread's `WorkspaceMode`, by name. See
+  /// [WatchConversation.mode] for why this travels as a string.
+  final String workspaceMode;
+
+  /// The thread's goal, when it has one worth showing.
+  final WatchGoal? goal;
+
   final WatchTurnStatus status;
 
   /// The most recent assistant answer, kept for watch builds older than the
@@ -426,11 +524,13 @@ class WatchSnapshot {
 
   bool get needsAttention =>
       status == WatchTurnStatus.waitingApproval ||
-      status == WatchTurnStatus.waitingQuestion;
+      status == WatchTurnStatus.waitingQuestion ||
+      status == WatchTurnStatus.awaitingGoalConfirmation;
 
   factory WatchSnapshot.fromJson(Map<String, dynamic> json) {
     final approval = json['approval'];
     final question = json['question'];
+    final goal = json['goal'];
     return WatchSnapshot(
       sequence: (json['sequence'] as num?)?.toInt() ?? 0,
       generatedAt:
@@ -441,6 +541,8 @@ class WatchSnapshot {
           (json['sourceStartedAtMicros'] as num?)?.toInt() ?? 0,
       conversationId: (json['conversationId'] as String?)?.trim(),
       conversationTitle: (json['conversationTitle'] as String?)?.trim() ?? '',
+      workspaceMode: (json['workspaceMode'] as String?)?.trim() ?? '',
+      goal: goal is Map<String, dynamic> ? WatchGoal.fromJson(goal) : null,
       status: _watchTurnStatusFromName((json['status'] as String?) ?? ''),
       lastAssistantText: (json['lastAssistantText'] as String?) ?? '',
       messages: (json['messages'] as List<dynamic>? ?? const <dynamic>[])
@@ -498,6 +600,8 @@ class WatchSnapshot {
     if (conversationId != null && conversationId!.isNotEmpty)
       'conversationId': conversationId,
     'conversationTitle': truncateForWatch(conversationTitle, caps.title),
+    if (workspaceMode.isNotEmpty) 'workspaceMode': workspaceMode,
+    if (goal != null) 'goal': goal!.toJson(limit: caps.goalText),
     'status': status.name,
     if (caps.assistantText > 0)
       'lastAssistantText': truncateForWatch(

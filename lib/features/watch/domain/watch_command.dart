@@ -21,6 +21,10 @@ class WatchCommand {
   static const String requestSnapshot = 'requestSnapshot';
   static const String selectConversation = 'selectConversation';
 
+  /// Answers `ConversationGoalStatus.awaitingConfirmation`: the harness has
+  /// nothing left to schedule and is asking whether the objective was met.
+  static const String resolveGoal = 'resolveGoal';
+
   /// Commands the bridge will act on. Anything else is answered with an error
   /// rather than ignored, so a watch build that is newer than the iPhone build
   /// gets a diagnosable failure instead of silence.
@@ -31,6 +35,7 @@ class WatchCommand {
     cancelStreaming,
     requestSnapshot,
     selectConversation,
+    resolveGoal,
   };
 
   factory WatchCommand.fromJson(Map<String, dynamic> json) {
