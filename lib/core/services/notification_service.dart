@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../utils/logger.dart';
+
 import '../../features/remote_coding/data/remote_coding_notification_payload.dart';
 
 /// Wrapper around [FlutterLocalNotificationsPlugin] for showing local
@@ -205,6 +207,14 @@ class NotificationService {
   }) async {
     final actionable =
         allowsDirectDecision && (approvalId?.isNotEmpty ?? false);
+    // Whether the buttons were asked for is not observable from the phone: a
+    // notification without them looks exactly like one iOS chose not to
+    // expand. Saying so here separates "the app did not request actions" from
+    // "iOS did not show the ones it was given".
+    appLog(
+      '[Notifications] approval $approvalId actionable=$actionable '
+      'category=${actionable ? approvalCategoryId : 'none'}',
+    );
     await _showNotification(
       id: conversationId.hashCode & 0x7fffffff,
       title: title,
