@@ -1,6 +1,7 @@
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_task_readiness.dart';
 import 'package:test/test.dart';
 
@@ -281,5 +282,201 @@ void main() {
     );
     expect(readiness['build-sync']!.isReady, isFalse);
     expect(readiness['inspect-model']!.isReady, isTrue);
+  });
+
+  group('the shape a real plan actually carries', () {
+    // Every fixture above hand-writes an id into the ref, and every one of them
+    // passed while no real edge could resolve. The parser mints task ids after
+    // the model has answered and a contract item's id is a hash of its own
+    // text, so a proposal can only ever reference human text -- which is what
+    // the planning prompt asks it for.
+    const provenance = ConversationContractProvenanceService();
+    const sampleTaskId = 'a4f19c02-8d31-4d5f-9b77-2f0c1e6d5a83';
+    const implementTaskId = 'f498f1f9-900b-427b-b3bf-269bab08e359';
+    const sampleTitle = 'Create the sample JSONL file';
+    const constraintText = 'Existing entities have stable UUIDs';
+
+    ConversationWorkflowTask sampleTask({
+      ConversationWorkflowTaskStatus status =
+          ConversationWorkflowTaskStatus.completed,
+      String title = sampleTitle,
+    }) {
+      return ConversationWorkflowTask(
+        id: sampleTaskId,
+        title: title,
+        status: status,
+      );
+    }
+
+    ConversationWorkflowTask implementTask({
+      required List<ConversationTaskPrecondition> preconditions,
+    }) {
+      return ConversationWorkflowTask(
+        id: implementTaskId,
+        title: 'Implement the counter',
+        preconditions: preconditions,
+      );
+    }
+
+    Conversation planWith({
+      required List<ConversationWorkflowTask> tasks,
+      List<ConversationContractItemProvenance> provenanceItems = const [],
+    }) {
+      return Conversation(
+        id: 'conversation-2',
+        title: 'Real plan',
+        messages: const <Message>[],
+        createdAt: DateTime(2026, 9, 5),
+        updatedAt: DateTime(2026, 9, 5),
+        workflowSpec: ConversationWorkflowSpec(
+          goal: 'Count JSONL fields',
+          constraints: const [constraintText],
+          tasks: tasks,
+          provenance: provenanceItems,
+        ),
+      );
+    }
+
+    test('a task edge naming the dependency by title is satisfied', () {
+      final task = implementTask(
+        preconditions: const [
+          ConversationTaskPrecondition(
+            kind: ConversationTaskPreconditionKind.task,
+            ref: sampleTitle,
+          ),
+        ],
+      );
+
+      final readiness = _resolver.resolve(
+        planWith(tasks: [sampleTask(), task]),
+        task,
+      );
+
+      expect(
+        readiness.isReady,
+        isTrue,
+        reason:
+            'Three sessions showed every dependent task listed as waiting on '
+            'work that had already finished, because the ref held a title and '
+            'the resolver compared it to a UUID.',
+      );
+    });
+
+    test('a title edge still owes the dependency being finished', () {
+      final task = implementTask(
+        preconditions: const [
+          ConversationTaskPrecondition(
+            kind: ConversationTaskPreconditionKind.task,
+            ref: sampleTitle,
+          ),
+        ],
+      );
+
+      final readiness = _resolver.resolve(
+        planWith(
+          tasks: [
+            sampleTask(status: ConversationWorkflowTaskStatus.inProgress),
+            task,
+          ],
+        ),
+        task,
+      );
+
+      expect(readiness.isReady, isFalse);
+    });
+
+    test('two tasks sharing a title resolve to neither', () {
+      final task = implementTask(
+        preconditions: const [
+          ConversationTaskPrecondition(
+            kind: ConversationTaskPreconditionKind.task,
+            ref: sampleTitle,
+          ),
+        ],
+      );
+      final duplicate = ConversationWorkflowTask(
+        id: 'b7c2d1e0-1111-2222-3333-444455556666',
+        title: sampleTitle,
+        status: ConversationWorkflowTaskStatus.completed,
+      );
+
+      final readiness = _resolver.resolve(
+        planWith(tasks: [sampleTask(), duplicate, task]),
+        task,
+      );
+
+      expect(
+        readiness.isReady,
+        isFalse,
+        reason:
+            'An ambiguous reference cannot be checked, and picking one would '
+            'start work on a premise nobody established.',
+      );
+    });
+
+    test('an assumption edge naming the constraint text is satisfied', () {
+      final itemId = provenance.itemId(
+        kind: ConversationContractItemKind.constraint,
+        value: constraintText,
+      );
+      final task = implementTask(
+        preconditions: const [
+          ConversationTaskPrecondition(
+            kind: ConversationTaskPreconditionKind.assumption,
+            ref: constraintText,
+          ),
+        ],
+      );
+
+      final readiness = _resolver.resolve(
+        planWith(
+          tasks: [task],
+          provenanceItems: [
+            ConversationContractItemProvenance(
+              itemId: itemId,
+              kind: ConversationContractItemKind.constraint,
+              assumption: true,
+              material: true,
+              confirmed: true,
+            ),
+          ],
+        ),
+        task,
+      );
+
+      expect(readiness.isReady, isTrue);
+    });
+
+    test('an unconfirmed assumption named by text stays unmet', () {
+      final itemId = provenance.itemId(
+        kind: ConversationContractItemKind.constraint,
+        value: constraintText,
+      );
+      final task = implementTask(
+        preconditions: const [
+          ConversationTaskPrecondition(
+            kind: ConversationTaskPreconditionKind.assumption,
+            ref: constraintText,
+          ),
+        ],
+      );
+
+      final readiness = _resolver.resolve(
+        planWith(
+          tasks: [task],
+          provenanceItems: [
+            ConversationContractItemProvenance(
+              itemId: itemId,
+              kind: ConversationContractItemKind.constraint,
+              assumption: true,
+              material: true,
+            ),
+          ],
+        ),
+        task,
+      );
+
+      expect(readiness.isReady, isFalse);
+    });
   });
 }

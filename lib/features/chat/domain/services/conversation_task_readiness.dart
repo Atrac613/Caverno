@@ -1,5 +1,6 @@
 import '../entities/conversation.dart';
 import '../entities/conversation_workflow.dart';
+import 'conversation_task_precondition_refs.dart';
 
 /// Why a task is not ready yet, or that it is.
 ///
@@ -22,7 +23,11 @@ class ConversationTaskReadiness {
 /// `ConversationOpenQuestionStatus.resolved`. Nothing here is stored, so there
 /// is no second writer to disagree with the graph.
 class ConversationTaskReadinessResolver {
-  const ConversationTaskReadinessResolver();
+  const ConversationTaskReadinessResolver({
+    this.refs = const ConversationTaskPreconditionRefs(),
+  });
+
+  final ConversationTaskPreconditionRefs refs;
 
   ConversationTaskReadiness resolve(
     Conversation conversation,
@@ -52,10 +57,10 @@ class ConversationTaskReadinessResolver {
     final ref = precondition.ref.trim();
     return switch (precondition.kind) {
       ConversationTaskPreconditionKind.task => _isTaskDone(conversation, ref),
-      ConversationTaskPreconditionKind.assumption =>
-        conversation.effectiveWorkflowSpec.provenance.any(
-          (item) => item.itemId == ref && item.confirmed,
-        ),
+      ConversationTaskPreconditionKind.assumption => _isAssumptionConfirmed(
+        conversation,
+        ref,
+      ),
       ConversationTaskPreconditionKind.question =>
         conversation.openQuestionProgress.any(
           (item) =>
@@ -75,15 +80,29 @@ class ConversationTaskReadinessResolver {
   /// is the same distinction goal auto-continue once got wrong by reading the
   /// lenient of two notions of "verified".
   bool _isTaskDone(Conversation conversation, String ref) {
-    final tasks = conversation.effectiveWorkflowSpec.tasks;
-    final match = tasks.where((task) => task.id.trim() == ref);
-    if (match.isEmpty) return false;
-    final task = match.first;
+    final spec = conversation.effectiveWorkflowSpec;
+    final task = refs.taskFor(spec, ref);
+    if (task == null) return false;
     final progress = conversation.executionProgressForTask(task.id);
     final status = progress?.status ?? task.status;
     if (status != ConversationWorkflowTaskStatus.completed) return false;
     if (task.validationCommand.trim().isEmpty) return true;
     return progress?.validationStatus ==
         ConversationExecutionValidationStatus.passed;
+  }
+
+  /// Whether the contract item [ref] names has been confirmed by the user.
+  ///
+  /// The ref arrives as the constraint's own text, so it is resolved to an id
+  /// before the provenance is asked. Comparing it to `itemId` directly — which
+  /// is what this did until the first real plan was measured — can never match:
+  /// an id is a hash of the text, not the text.
+  bool _isAssumptionConfirmed(Conversation conversation, String ref) {
+    final spec = conversation.effectiveWorkflowSpec;
+    final itemId = refs.itemIdFor(spec, ref);
+    if (itemId == null) return false;
+    return spec.provenance.any(
+      (item) => item.itemId == itemId && item.confirmed,
+    );
   }
 }

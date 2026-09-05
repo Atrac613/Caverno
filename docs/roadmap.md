@@ -2623,6 +2623,45 @@ Next action:
   Open question still to answer before ANA2: how a child inherits the parent's
   confirmed assumptions as premises without re-sending the contract.
 
+#### A task edge could never resolve (2026-09-05, session `6a5d42a0`)
+
+The first session with a real plan behind it — plan mode on, a new thread,
+`stage=plan tasks=1` becoming `stage=implement tasks=4`, progress running
+0→1→2→3. The model wrote the edges: four tasks, three `task` edges, a clean
+serial chain. And not one of them could ever be satisfied.
+
+- The planning prompt asks for `{"kind":"task","ref":<the other task's
+  title>}`, and it has to: `TaskProposalParser` mints `id: _createId()` *after*
+  the model has answered, so a proposal can only reference ids it invented. The
+  model complied exactly. `_isTaskDone` then compared that title to `task.id`,
+  a UUID.
+- `assumption` was broken the same way — the prompt asks for the constraint's
+  text, the resolver compared it to `itemId`, which is a hash *of* that text.
+  Only `question` was ever right, and only because it alone compared text to
+  text.
+- The snapshot shows it plainly: `Saved task progress: 3 of 4 completed` with
+  all three dependents still under `Tasks not ready`, each waiting on work that
+  had already finished.
+- **This is why the delegation queue was empty in all three sessions.**
+  `TaskDelegationBriefBuilder.candidates` gates on readiness, so the queue
+  could only ever hold tasks with no preconditions — writing an edge made a
+  task *less* delegatable, which inverts what ANA1 was built for. The two
+  earlier sessions had `totalTaskCount: 0` and hid it behind a second cause.
+- Every readiness test passed throughout, because each one hand-writes a ref
+  that matches a hand-written id (`ref: 'inspect-model'`). Real ids are UUIDs
+  and real refs are prose, so the fixtures agree with each other and with
+  nothing else. [[caverno-canary-harness-blindness]] again, in the layer the
+  measurement was reading.
+- Fixed by resolving a ref through `ConversationTaskPreconditionRefs`: id
+  first, then exact trimmed text, with the id form kept for edges typed by hand
+  against an existing plan. No fuzzy matching — two tasks sharing a title
+  resolve to neither, on the same reasoning that makes an edge pointing nowhere
+  unmet. The premise lookup moved onto the same resolver, so the brief builder
+  and the readiness predicate cannot drift apart.
+- Worth noting what found it: not a failing test, and not the queue being empty
+  — that had been explained away twice. It was reading `Tasks not ready` in a
+  logged prompt against `3 of 4 completed` in the same snapshot.
+
 ### ANA2: Delegate
 
 Status: `current`

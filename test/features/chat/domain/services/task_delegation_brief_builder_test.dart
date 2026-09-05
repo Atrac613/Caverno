@@ -306,4 +306,60 @@ void main() {
       );
     });
   });
+
+  group('the shape a real plan actually carries', () {
+    // Every fixture above builds its refs with _idFor, and every one of them
+    // passed while no real edge could resolve: the planning prompt asks for the
+    // constraint's own text, and an item id is a hash of that text.
+    test('a premise named by its text reaches the child', () {
+      final task = _task(
+        id: 'f498f1f9-900b-427b-b3bf-269bab08e359',
+        title: 'Implement the counter',
+        targetFiles: const ['jsonl_count.py'],
+        preconditions: const [
+          ConversationTaskPrecondition(
+            kind: ConversationTaskPreconditionKind.assumption,
+            ref: _confirmedClaim,
+          ),
+        ],
+      );
+
+      final briefs = _builder.candidates(_conversation(tasks: [task]));
+
+      expect(
+        briefs.single.premises,
+        [_confirmedClaim],
+        reason:
+            'A child that cannot see the conversation is told only what its '
+            'task stands on. An unresolvable ref left that list empty, so the '
+            'premise silently turned back into a guess one level down.',
+      );
+    });
+
+    test('an unconfirmed premise named by its text keeps the task out', () {
+      final task = _task(
+        id: 'f498f1f9-900b-427b-b3bf-269bab08e359',
+        title: 'Implement the counter',
+        targetFiles: const ['jsonl_count.py'],
+        preconditions: const [
+          ConversationTaskPrecondition(
+            kind: ConversationTaskPreconditionKind.assumption,
+            ref: _openClaim,
+          ),
+        ],
+      );
+
+      final briefs = _builder.candidates(_conversation(tasks: [task]));
+
+      expect(
+        briefs,
+        isEmpty,
+        reason:
+            'An unconfirmed assumption is an unmet edge, so the task never '
+            'becomes a candidate. Delegating it with the premise merely '
+            'omitted would hand a child work resting on something nobody '
+            'established.',
+      );
+    });
+  });
 }

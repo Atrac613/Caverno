@@ -1,6 +1,5 @@
 import '../entities/conversation.dart';
 import '../entities/conversation_workflow.dart';
-import 'conversation_contract_provenance_service.dart';
 import 'conversation_task_readiness.dart';
 
 /// Where a delegated task should run.
@@ -53,11 +52,9 @@ class TaskDelegationBrief {
 class TaskDelegationBriefBuilder {
   const TaskDelegationBriefBuilder({
     this.readiness = const ConversationTaskReadinessResolver(),
-    this.provenance = const ConversationContractProvenanceService(),
   });
 
   final ConversationTaskReadinessResolver readiness;
-  final ConversationContractProvenanceService provenance;
 
   /// Briefs for every task that could be handed to a child right now.
   ///
@@ -123,13 +120,10 @@ class TaskDelegationBriefBuilder {
     final premises = <String>[];
     for (final edge in task.preconditions) {
       if (edge.kind != ConversationTaskPreconditionKind.assumption) continue;
-      final ref = edge.ref.trim();
-      final item = spec.provenance
-          .where((entry) => entry.itemId == ref && entry.confirmed)
-          .firstOrNull;
-      if (item == null) continue;
-      final text = provenance.itemValueFor(spec, ref) ?? ref;
-      if (text.trim().isNotEmpty) premises.add(text.trim());
+      // The ref carries the constraint's own text, not its id, so resolution
+      // lives with the other ref lookups rather than being re-derived here.
+      final text = readiness.refs.confirmedItemTextFor(spec, edge.ref);
+      if (text != null) premises.add(text);
     }
     return List<String>.unmodifiable(premises);
   }
