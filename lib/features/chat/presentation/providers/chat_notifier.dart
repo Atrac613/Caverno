@@ -1473,6 +1473,11 @@ class ChatNotifier extends Notifier<ChatState> {
         ),
       );
 
+      // A recovered prefix cannot establish that all requested tasks exist.
+      if (ProposalParsingTextUtils.isCompletionTruncated(result.finishReason)) {
+        lastError = 'task proposal was truncated; retry a complete task list';
+        continue;
+      }
       final proposal = _taskProposalParser.parseWithFallback(result.content);
       if (proposal != null) {
         final finalizedProposal = _finalizeTaskProposalDraft(
@@ -1505,47 +1510,10 @@ class ChatNotifier extends Notifier<ChatState> {
       }
 
       final preview = ProposalParsingTextUtils.proposalPreview(result.content);
-      final truncated = ProposalParsingTextUtils.isCompletionTruncated(
-        result.finishReason,
-      );
-      if (truncated) {
-        final fallbackProposal = _buildTaskProposalTruncationFallback(
-          currentConversation: currentConversation,
-          rawContent: result.content,
-          projectLooksEmpty: projectLooksEmpty,
-          workflowSpecOverride: workflowSpecOverride,
-        );
-        if (fallbackProposal != null) {
-          final finalizedFallback = _finalizeTaskProposalDraft(
-            fallbackProposal,
-            researchContext: researchContext,
-          );
-          if (!_taskProposalQualityService.taskProposalNeedsRetryForWorkflow(
-            fallbackProposal,
-            finalizedFallback,
-            projectLooksEmpty,
-            workflowSpec,
-          )) {
-            appLog(
-              '[Workflow] Task proposal recovered from truncated reasoning fallback',
-            );
-            return finalizedFallback;
-          }
-          bestRetryCandidate = _preferTaskProposalRetryCandidate(
-            current: bestRetryCandidate,
-            candidate: finalizedFallback,
-          );
-        }
-      }
       appLog(
-        '[Workflow] Task proposal parse failed (attempt ${index + 1}/${attempts.length}, truncated: $truncated): $preview',
+        '[Workflow] Task proposal parse failed (attempt ${index + 1}/${attempts.length}): $preview',
       );
-      lastError = truncated
-          ? 'task proposal was truncated: $preview'
-          : 'task proposal parse failed: $preview';
-      if (!truncated && index == 0) {
-        continue;
-      }
+      lastError = 'task proposal parse failed: $preview';
     }
 
     if (bestRetryCandidate != null &&

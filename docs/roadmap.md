@@ -2748,6 +2748,15 @@ utility-level and task-parser regressions covering both boundaries. One live
 rerun remains before ANA2 closes because the malformed saved command prevented
 the session from validating its first task cleanly.
 
+Session `1aac111f-63ae-4bdb-99fc-c01d6a990de4` exposed a separate incomplete
+plan: task generation hit `length` during the second task, and prefix recovery
+published only two tasks, omitting the requested unittest work. Task generation
+now checks truncation before parsing and retries without retaining that prefix
+as a review candidate. Exhausted attempts use the existing requirement-based
+fallback. A notifier regression covers all three truncated attempts. This run
+invoked Anabasis only after both saved tasks completed and made no child calls,
+so it does not close the planned delegation observation.
+
 Scope:
 - Map ready tasks onto `spawn_subagent` (in-conversation children, depth fixed
   at 1) and `WorktreeAgentTask` (isolated branch work with verification and

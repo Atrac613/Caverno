@@ -54,7 +54,7 @@ const Map<String, int> _lineBudgets = {
   // Then -2: the three identical assistant-message literals became one
   // _newAssistantMessage, which is also what stops the next field being set
   // on one path out of three.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8778,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8746,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 43,
@@ -869,7 +869,7 @@ const Map<String, int> _libraryLineBudgets = {
   // and an import, paid for by the last computer-use description helper
   // leaving for ComputerUseActionPresentation. Then +2 fixing the zone
   // defect that entry point shipped with.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19731,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19699,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
