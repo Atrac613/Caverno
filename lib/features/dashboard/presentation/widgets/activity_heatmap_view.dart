@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
@@ -381,8 +383,17 @@ class _HeatmapCell extends StatelessWidget {
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: _bucketColor(context, bucket),
+              // `min`, not `clamp(1.0, cellSize / 3)`. A year is 53 columns,
+              // and on a phone the gaps between them take more width than the
+              // cells do, so the cell shrinks below three logical pixels and
+              // that upper bound falls under its own lower bound — which
+              // `num.clamp` answers with an `ArgumentError`. Every cell threw
+              // at once, and the error widgets standing in for them are what
+              // produced the five-million-pixel overflow beside it. A cell
+              // narrower than the radius it was being given did not want that
+              // radius anyway.
               borderRadius: BorderRadius.circular(
-                context.radii.xs.clamp(1.0, cellSize / 3),
+                math.max(0.0, math.min(context.radii.xs, cellSize / 3)),
               ),
               border: selected
                   ? Border.all(

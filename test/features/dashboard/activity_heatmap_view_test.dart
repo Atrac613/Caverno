@@ -59,6 +59,42 @@ void main() {
     expect(find.textContaining('0 messages'), findsOneWidget);
   });
 
+  testWidgets('renders a full year on a phone-width screen', (tester) async {
+    // A year is 53 columns. On a phone the inter-column gaps take more width
+    // than the cells, so the cell shrinks below three logical pixels — and the
+    // corner radius was computed as `radii.xs.clamp(1.0, cellSize / 3)`, whose
+    // upper bound then falls under its lower bound and throws. Every cell threw
+    // at once, and the error widgets that replaced them are what produced the
+    // five-million-pixel RenderFlex overflow beside it.
+    final year = ActivityHeatmap(
+      startDay: DateTime(2025, 1, 5),
+      endDay: DateTime(2026, 1, 3),
+      dailyCounts: List<int>.filled(364, 0),
+      dailyBuckets: List<int>.filled(364, 0),
+    );
+
+    await _pump(tester, heatmap: year, width: 390);
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('survives a width with no room for the grid at all', (
+    tester,
+  ) async {
+    // The label column and its gap can exceed the available width, which
+    // clamps the grid to zero and the cell with it.
+    final year = ActivityHeatmap(
+      startDay: DateTime(2025, 1, 5),
+      endDay: DateTime(2026, 1, 3),
+      dailyCounts: List<int>.filled(364, 0),
+      dailyBuckets: List<int>.filled(364, 0),
+    );
+
+    await _pump(tester, heatmap: year, width: 24);
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('fits the grid to the available width', (tester) async {
     await _pump(tester, heatmap: heatmap, width: 400);
 
