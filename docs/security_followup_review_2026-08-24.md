@@ -2,6 +2,7 @@
 
 Status: High severity remediation complete; defense-in-depth queue open.
 SA-24 added 2026-09-02 for the Apple Watch resolution channel.
+SA-25 added 2026-09-06 for a desktop's own approval on its owner's phone.
 
 Reviewed revision: `a3d35fc9e592`.
 
@@ -302,6 +303,115 @@ Residual scope, deliberately not addressed here:
 - Actionable approval notifications carry Approve/Deny only when the approval id
   is known and the kind is a plain yes/no, so a queued second approval cannot
   receive a decision meant for the first.
+
+## SA-25: A Desktop's Own Approval On Its Owner's Paired Phone
+
+Opened 2026-09-06 as WATCH13. This is a policy question SEC4.5g never answered,
+not a finding: nothing is currently exposed, and the milestone exists because
+the *absence* of exposure is itself a product problem.
+
+Decision: **a paired device may see the desktop's own pending approval; it may
+not resolve one.** Settled 2026-09-06.
+
+### The question
+
+`RemoteCodingServerNotifier._canResolveInteraction`
+(`remote_coding_server_notifier.dart:1274-1289`) admits an interaction only when
+`origin == ChatInteractionOrigin.remote`, the owner id is non-empty, it equals
+the authenticated device id, and that device still holds an active pairing. A
+turn started at the Mac carries `ChatInteractionOrigin.local` and no owner, so
+it fails the first clause for every paired device — including the phone
+belonging to the person sitting at that Mac.
+
+SEC4.5g decided that paired device A may not resolve paired device B's turn.
+It did not decide whether the *desktop's own* approval may reach a device that
+person paired to it. WATCH10 established that this, not missing transport, is
+why a blocked desktop turn is silent on the phone.
+
+### Why the WATCH1 argument does not extend
+
+SA-24 accepted that the Apple Watch is a peripheral of the phone rather than a
+principal, and let it see local-origin approvals. The tempting move is to run
+that argument one hop further: the phone is a peripheral of the desktop.
+
+It does not survive the hop, for a reason specific to this codebase:
+
+- The watch gains **no authority** it did not already have. It answers only
+  what the phone could already answer, and `WCSession` reaches exactly the one
+  watch physically paired to that phone.
+- The phone would gain authority it **structurally cannot hold**. File, local
+  command, and git approvals are gated behind `isDesktopPlatform`
+  (`mcp_tool_service.dart:287`, `:293`, `:322`) and cannot arise on iOS at all.
+  Under SEC4.4g every native shell command needs a fresh, non-cacheable
+  approval, so these are the highest-consequence approvals the app raises.
+  Widening the gate would make an unlocked phone a remote-execution console for
+  a machine it is not.
+
+The peripheral argument holds where the peripheral adds no authority. Here it
+would create it. So the two cases are not the same shape, and SA-24 is not a
+precedent for this one.
+
+### Why a view is different from a resolution
+
+Today the same predicate serves both: `_pendingRemoteApproval` (`:1182`) and
+`_pendingRemoteQuestion` (`:1149`) decide what a client *sees*, and
+`_canResolveApproval` (`:1242`) with `_handleResolveApproval` (`:970`) /
+`_handleResolveQuestion` (`:1007`) decide what it may *answer*. Because one
+predicate answers both questions, the desktop's own approval is not merely
+unanswerable from the phone — it is invisible, and the turn stalls with no
+account of why.
+
+Showing it costs nothing in the threat model. The same authenticated socket
+already carries the desktop's project list, thread titles, transcript content,
+and terminal output to that phone; the text of a pending approval is not more
+sensitive than what the client already receives. What it buys is the whole
+practical complaint: the person who walked away learns the Mac is waiting, and
+on what.
+
+Granting a resolution is where the authority is created, and it is the part
+this decision declines.
+
+### Consequences to honour when it is implemented
+
+1. **Two predicates, not a loosened one.** Split view from resolution rather
+   than relaxing `_canResolveInteraction` in place. WATCH13 already recorded
+   that a widening must be a distinct origin case; SA-24 recorded the shape of
+   the mistake, where reading `remoteDeviceId` alone inverted the check. A
+   predicate that answers two questions cannot be widened for one of them.
+2. **The resolution boundary keeps the existing predicate unchanged.** The
+   mutation path must still reject desktop-origin interactions with the
+   existing generic not-found error, so a client that guesses an id learns
+   nothing from the failure.
+3. **A visible approval must not become an actionable one.** The client's
+   approval sheet, the actionable notification built in WATCH10, and any
+   WATCH11 wrist card must all render a desktop-origin pending as read-only,
+   with the reason stated on screen rather than as a silently missing button.
+4. **The watch is unaffected by this decision.** `WatchApprovalMapper.map`
+   reads this device's own `ChatState`; a desktop's approval reaches the phone
+   as a `RemoteCodingApproval` on a different state tree, so nothing arrives at
+   the wrist until WATCH11 puts it there deliberately.
+5. **Two paired phones both see it.** That is consistent with the rest of the
+   snapshot, which is already identical for every authenticated client apart
+   from the ownership filter. No precedence question arises, because no device
+   may answer.
+
+### What is left open
+
+Whether a desktop may *opt in* to letting one named paired device resolve its
+own approvals — default off, per device, revocable — is a separate decision. It
+should not be taken until the view path has shipped and there is evidence that
+seeing the stall is not enough. Recording it here so a later reader does not
+mistake this decision for a refusal to ever consider it.
+
+### Exit evidence when the view path ships
+
+- A desktop-origin pending approval appears in the per-client snapshot and is
+  rendered read-only on the client.
+- `resolveApproval` and `resolveQuestion` for that same id are rejected with
+  the existing generic not-found error, from the paired device that is the
+  desktop owner's own phone.
+- A revoked device sees neither.
+- The watch snapshot is unchanged by the presence of a desktop-origin approval.
 
 ## Roadmap Order
 

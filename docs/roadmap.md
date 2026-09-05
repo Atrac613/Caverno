@@ -172,14 +172,15 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH2 | done | Prove the companion actually works: the native/Dart bridge boundary is the one seam unit tests cannot reach. Verified 2026-09-01/02 on paired simulators, including a live `ask_user_question` answered from the wrist. Ten defects surfaced, all fixed. | Closed. Approvals of the file/shell/git kinds cannot arise on iOS by design, so that path is verified through WATCH6's work or a Remote Coding turn, not here. |
 | Watch | WATCH3 | done | Bind a deferred watch command to the conversation it was composed against, so a queued `sendMessage` cannot land in whichever thread happens to be current when it is finally delivered. | Shipped 2026-09-01. The watch stamps the thread; the phone refuses a mismatch with its own code and still accepts unstamped commands from older watch builds. |
 | Watch | WATCH4 | done | Glanceable surfaces and thread choice: Smart Stack widget plus switching the mirrored conversation from the watch. | Shipped 2026-09-01. Thread switching is verified; the widget's App Group data path is not, because an unsigned simulator build applies no entitlements. Confirm it on a signed build. |
-| Watch | WATCH5 | blocked | Approve/Deny on a push-delivered notification, not only a locally raised one. | Blocked on a contract that does not exist: no push carries an approval, only a run-completion. Gated behind WATCH13 as well — a transport cannot deliver what the server withholds at the source. |
+| Watch | WATCH5 | later | Carry a **desktop-origin** pending approval to the phone over push, as a notice rather than as Approve/Deny. | Its original shape is refused, not blocked: SA-25 decided a paired device may see the desktop's own approval and may not resolve one, so no push may ever carry those buttons. What remains is worth doing — a run-completion push already exists, and a blocked-turn push is the same contract with a different payload. Still needs that payload defined. |
 | Watch | WATCH6 | done | Dismiss an approval or question dialog on the phone when the watch resolves it. | Shipped 2026-09-02 and verified on paired simulators: answering from the wrist closes the phone's sheet. Dismissal pops by route name, so it is a no-op when the dialog is not topmost. |
 | Watch | WATCH7 | done | Make the wrist screen a message thread rather than a status glance: bubbles with tails, relative timestamp headers, a typing indicator, and a pinned compose bar. | Shipped 2026-09-02. The frame now carries the tail of the thread; verified on the watch simulator, including the fallback for a watch newer than its phone. |
 | Watch | WATCH8 | done | Keep Watch snapshots ordered across iPhone process restarts without allowing a delayed old frame to resurrect resolved state. | Completed 2026-09-04. Frames now carry a source identity and start time in addition to their per-source sequence; verified with the Watch process kept alive across an iPhone restart. |
 | Watch | WATCH9 | done | Put coding-thread state on the wrist: workspace mode and the conversation goal, with `awaitingConfirmation` surfaced as an interaction to answer rather than as idle. | Shipped 2026-09-05, and the paired-simulator run then found the goal half **cannot fire on iOS**: goals are gated to coding threads and iOS has none. Correct machinery, wrong source; reaching it is WATCH11's job. |
 | Watch | WATCH10 | done | Raise the actionable approval notification for a **phone-initiated** Remote Coding turn. | Built and re-scoped 2026-09-05. Its stated premise was wrong: a desktop-initiated approval is withheld from the phone by SEC4.5g, not by missing wiring, so no transport reaches it. That case is now WATCH13, a policy decision rather than plumbing. |
-| Watch | WATCH11 | later | Show and resolve Remote Coding approvals and questions in the companion itself, labelled with the host that owns them. | Gate on WATCH10. Record the SEC4.5g reading — the watch is the client phone's peripheral, so the principal set does not widen — before shipping. |
+| Watch | WATCH11 | later | Show Remote Coding approvals and questions in the companion, labelled with the host that owns them; resolve only the ones this phone owns. | Ungated by SA-25, which also fixed its shape: a desktop-origin card is read-only on the wrist with its reason on screen, and only a remote-origin approval this phone started may be answered there. WATCH10 already proves the client wiring and the host naming. |
 | Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
+| Watch | WATCH13 | next | Decide whether a desktop's own approval may reach a phone its owner paired, and ship what that allows. | Decision written 2026-09-06 as SA-25 in `docs/security_followup_review_2026-08-24.md`: **see yes, resolve no**. SA-24's peripheral argument does not extend, because the phone would gain authority iOS structurally cannot hold. Implementation open: split the view predicate from `_canResolveInteraction` rather than loosening it. |
 
 | Anabasis | ANA0 | done | Complete the epistemic grounding: produce `assumption`/`material` on contract items, implement the `userConfirmedAssumption` confirmation path, enforce the parent's read-only tool authority, and project the result. | PRs 1 through 4a are done. Restricting the marker to what a plan asserts took marks on open questions to zero and separated the arms 67% against 17%. PR 3e then defined materiality by consequence and took its discrimination from +0.06 to +0.44, so PR 4 blocks on `material` and builds a per-assumption approval. PR 4a landed that approval's state — three files were exactly at their ratchet ceilings, so the eleventh pending type cost three extractions first — and left the guard unarmed and the canary skipped, because a surface a user cannot answer in the app is the ordering hazard ANA0 has already recorded twice. PR 4b-1 then cleared the chat page library, which was at 8,800 of 8,800: nine approval sheets moved to `ApprovalSheetDispatcher`, so the eleventh kind costs a listener rather than another copy of the same four steps. PR 4b-2 then closed the loop: the confirmation is raised at the refusal site through `MaterialAssumptionConfirmationGate`, answered in a sheet, recorded as provenance, and the same tool call proceeds — so the canary that has carried a deliberate skip since PR 1 now runs green in full. 4c then closed the last criterion — the parent may inspect, verify and delegate, and nothing else — enforced before the parent has an execution path, because the design's own instruction is to start with the boundary closed rather than retrofit one. ANA0 is complete. |
 | Anabasis | ANA1 | done | Decompose work into tasks with preconditions (task accepted / assumption confirmed / question resolved) and a derived `ready`. | ANA0's canary is green, so this started. PR 1 landed the edge and the predicate: readiness returns the unmet edges rather than a boolean, resolves all three kinds against state that already exists, and treats an edge pointing at something absent as unmet. A task precondition asks for validation evidence where the task declares a command, because `completed` conflates produced with accepted until ANA3. PR 2a then made the plan document round-trip them, hand-typed edges included, with an unreadable edge dropped rather than fatal. PR 2b measured which channel the model writes an edge through, live, 36 requests: a `preconditions` array per task yields 1.06 edges per task against 0.64 for a title marker, both resolve 100% of their edges, and the schema arm parsed 12 of 12 — so ANA0 PR 3b's reason for keeping a marker out of the JSON schema does not reproduce on this model. The control wrote no edges but described the ordering in prose in half its responses. PR 2c shipped the schema channel — the extractor that chose it is the one that ships, and the prompt is pinned to the parser by reading the kinds back out of it. PR 3 then rendered the unmet edges under each task card. ANA1 is complete; ANA2 (delegate) is next, with the open question of how a child inherits confirmed assumptions still to answer. |
@@ -1628,38 +1629,47 @@ Next action:
 
 ### WATCH5: Push-Originated Notification Actions
 
-Status: `blocked`
+Status: `later`
 
-Scope:
-- Let Approve/Deny work on a notification delivered by push, not only one
-  raised locally.
+Scope, as re-cut on 2026-09-06:
+- Carry a **desktop-origin** blocked turn to the phone over push, as a notice.
+  Not as Approve/Deny — SA-25 decided that a paired device may see the
+  desktop's own approval and may not resolve one, so those buttons may never
+  ride a push for this case. The original scope is refused, not deferred.
 
-Why it is blocked rather than merely later (assessed 2026-09-01):
-- **There is no approval to push.** The only notification the relay sends is
-  `remote_coding_run_terminal`, a run *completion*. Attaching an approval
-  category to it would put Approve/Deny on something that is not a decision.
-  Carrying a real approval would mean adding fields to
-  `RemoteCodingNotificationPayload`, which its own contract says is a
-  privacy-boundary change requiring explicit review.
-- The `firebase_messaging` limitation is real but secondary: it does not
-  surface `actionIdentifier` on iOS, so the action would have to be read by a
-  native `UNUserNotificationCenter` delegate. That plumbing is not worth
-  writing before there is something for it to carry.
-- Verifying any of this on a simulator is circular. A pushed notification is
-  only displayed once notification permission is granted, and the app defers
-  that request until it first raises a local notification — which happens when
-  a background thread blocks on an approval. `xcrun simctl push` with a
-  `caverno_approval` category was delivered and silently dropped for exactly
-  this reason.
+One of the three 2026-09-01 blockers is gone:
+- **The `firebase_messaging` limitation is handled.** It does not surface
+  `actionIdentifier` on iOS, so an action has to be read by a native
+  `UNUserNotificationCenter` delegate. WATCH10 wrote exactly that: the app
+  claims the delegate in `AppDelegate` before plugin registration and forwards
+  scene-delivered actions to Dart over `com.caverno/notification_actions`. The
+  plumbing exists and is verified on a device.
 
-The local path already covers the case this milestone was meant to serve: an
-approval raised on the phone carries Approve/Deny, and iOS forwards the
-notification and its actions to a paired watch with no watchOS code involved.
+What still blocks it:
+- **There is still no approval-shaped payload to push.** The only notification
+  the relay sends is `remote_coding_run_terminal`, a run *completion*. A
+  blocked-turn notice is the same contract with a different payload, but
+  adding fields to `RemoteCodingNotificationPayload` is a privacy-boundary
+  change its own contract says needs explicit review.
+- **The simulator circularity is reduced, not removed.** WATCH10 moved the
+  permission latch from the *attempt* to the *answer*, so an attempt consumed
+  while backgrounded is retried rather than lost. But `_ensurePermission` is
+  still reached only from the notification-raising path
+  (`notification_service.dart:447`), so a fresh install that has never raised a
+  local notification still has undetermined permission, and `xcrun simctl push`
+  is still dropped. Raise one local notification in the foreground first, or
+  request permission at startup before testing a push.
+
+The local path already covers the phone-initiated case this milestone was
+originally meant to serve: an approval raised on the phone carries Approve/Deny
+(WATCH10), and iOS forwards the notification and its actions to a paired watch
+with no watchOS code involved.
 
 Next action:
-- None. Revisit only when a push genuinely needs to carry an approval — that
-  is a Remote Coding decision, gated by `docs/remote_coding_fcm_release_gate.md`,
-  not a watch one.
+- Define the blocked-turn payload, or leave it. It is a Remote Coding decision
+  gated by `docs/remote_coding_fcm_release_gate.md`, not a watch one, and
+  SA-25's read-only view path should ship over the existing socket first — the
+  push only matters once the app is not running.
 
 ### WATCH6: Dismiss A Resolved Interaction On The Phone
 
@@ -2195,9 +2205,21 @@ Added 2026-09-05 — the goal, not only approvals:
   problem this milestone already owns, so it belongs here rather than in a new
   milestone.
 
+Settled 2026-09-06 by SA-25 — what the wrist may do with a remote card:
+- A **desktop-origin** approval or question is read-only on the watch, with the
+  reason stated on screen. SA-25 decided a paired device may see the desktop's
+  own approval and may not resolve one; the watch is the phone's peripheral, so
+  it inherits exactly the phone's authority and no more.
+- A **remote-origin** approval this phone started stays fully resolvable, which
+  is what SEC4.5g already allows and WATCH10 already delivers on the phone.
+- That removes the open trust question this milestone was carrying: the
+  principal set does not widen, because the only new card is one nobody may
+  answer.
+
 Next action:
 - Gate on WATCH10 shipping, then settle cross-source precedence before writing
-  any wire fields.
+  any wire fields. The read-only rendering is now a requirement rather than an
+  option; build it before the cross-source merge, not after.
 
 ### WATCH12: Running Tool And Verification Readout
 
@@ -2249,19 +2271,43 @@ Why it is not obvious:
   whether a *resolution* may come back from a device that did not start the
   turn even if a *view* may.
 
-Scope:
-- Settle the question in writing first, beside SA-24 in
-  `docs/security_followup_review_2026-08-24.md`, before any code. A gate this
-  one loosens is not a place to discover the reasoning afterwards.
-- If it is widened, it is a distinct origin case rather than a relaxation of
-  the existing predicate: reading only `remoteDeviceId` inverts the check, the
-  mistake SA-24 already recorded once.
+Decision, settled 2026-09-06 as **SA-25** in
+`docs/security_followup_review_2026-08-24.md`: **a paired device may see the
+desktop's own pending approval; it may not resolve one.**
+
+The reasoning that settled it: SA-24's peripheral argument holds because the
+watch gains no authority it did not already have. The phone would gain
+authority it structurally cannot hold — file, shell, and git approvals are
+gated behind `isDesktopPlatform` and cannot arise on iOS at all, and under
+SEC4.4g each shell command needs a fresh non-cacheable approval. So the hop
+from "the phone's watch" to "the desktop's phone" changes shape rather than
+repeating, and the precedent does not carry.
+
+The view costs nothing the same socket does not already carry — projects,
+thread titles, transcripts, terminal output — and it buys the entire practical
+complaint: the person who walked away learns the Mac is blocked, and on what.
+The resolution is where the authority would be created, and that is the part
+declined.
+
+Scope of the work this authorizes:
+- Split the predicate. `_canResolveInteraction` currently answers both "may
+  this client see it" and "may this client answer it"; only the first widens.
+  A predicate that answers two questions cannot be loosened for one of them,
+  and SA-24 already recorded what an inverted origin check looks like.
+- The mutation boundary stays exactly as it is, rejecting desktop-origin with
+  the existing generic not-found error.
+- A visible approval must render as read-only with its reason on screen, in
+  the client sheet, in WATCH10's notification, and in any WATCH11 wrist card —
+  never as a silently missing button.
+- Whether a desktop may later *opt in* to letting one named device resolve its
+  approvals is deliberately left open in SA-25, not refused.
 
 Dependencies:
-- None. WATCH10 supplies the notification path the decision would light up.
+- None. WATCH10 supplies the notification path the decision lights up.
 
 Next action:
-- Write the decision. Do not touch `_canResolveInteraction` before it exists.
+- Ship the read-only view path. Do not touch `_canResolveInteraction` in
+  place; add the view predicate beside it.
 
 ## Anabasis Orchestrator Track
 
