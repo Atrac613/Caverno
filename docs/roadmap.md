@@ -49,7 +49,7 @@ handoffs can refer to the same unit of work over time.
 
 ## Active Focus
 
-Reviewed on 2026-09-05 against repository HEAD `0d3270d9e`. This is a
+Reviewed on 2026-09-05 against local main `012ee320b`. This is a
 planning index, not a fresh execution of every historical release gate.
 `current` means a track has unfinished work; it does not mean every track is
 being implemented at once. `next` identifies a candidate within its track,
@@ -57,18 +57,20 @@ not a global commitment to start all candidates.
 
 ### Recommended Next Slice
 
-Prioritize ANA3 PR 2b: record the parent's semantic acceptance through one
-guarded writer. The acceptance record and gate already exist, and the observed
-parent reads a child's output but cannot persist its judgment. First inspect
-and create room in the three ratcheted files identified under ANA3; then wire
-only the guarded write path and verify rejection of insufficient or lapsed
-evidence and persistence across reload. Do not combine stored execution-state
-separation (PR 3) or ANA4 workspace UI with this slice.
+First close ANA2's repaired queue evidence gap. Main `012ee320b` fixed
+model-written title and assumption-text references that previously compared
+against generated ids. Verify the parser-to-readiness-to-snapshot path before
+building on that queue, then observe a planned parent turn with a non-empty
+queue and the expected premises. A passing offline test does not establish
+that the live parent selects and delegates the candidate.
+
+After that evidence, prioritize ANA3 PR 2b: record the parent's semantic
+acceptance through one guarded writer. Inspect the three ratcheted files
+identified under ANA3 before implementation. Keep stored execution-state
+separation (PR 3) and ANA4 workspace UI as separate slices.
 
 This is an implementation recommendation, not a release sign-off. Security
-promotion gates below still apply. Keep one implementation slice active;
-KC1 measurements and ANA2 queue evidence are separate candidates when their
-required fixtures or execution context are available.
+promotion gates below still apply. Keep one implementation slice active.
 
 ### In Progress
 
@@ -2707,6 +2709,22 @@ serial chain. And not one of them could ever be satisfied.
 ### ANA2: Delegate
 
 Status: `current`
+
+Integration regression added after `012ee320b`:
+`test/features/chat/domain/services/parsed_plan_delegation_test.dart` feeds
+model-shaped JSON through the production parser with generated UUIDs, then
+checks readiness through the delegation builder and execution snapshot. It
+covers verified dependency completion, confirmed premise transmission,
+unconfirmed assumptions, and ambiguous task titles. It does not replace the
+remaining live planned-parent queue observation.
+
+Verification: `tool/codex_verify.sh --no-codegen` with focused targets
+`parsed_plan_delegation_test.dart`, `conversation_task_readiness_test.dart`,
+and `task_delegation_brief_builder_test.dart` passed all 32 tests on 2026-09-05;
+application and workspace-package static analysis also passed. Adjacent review
+covered reference resolution in the readiness resolver, delegation brief
+builder, and snapshot projector. The parser removes duplicate titles, so the
+ambiguity regression models a subsequent plan edit.
 
 Scope:
 - Map ready tasks onto `spawn_subagent` (in-conversation children, depth fixed
