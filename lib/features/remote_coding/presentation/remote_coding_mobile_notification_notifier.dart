@@ -137,7 +137,15 @@ final class RemoteCodingMobileNotificationNotifier
         (clientState) => clientState.pendingApproval,
       ),
       (previous, next) {
-        if (next == null || previous?.id == next.id) {
+        if (next == null) {
+          // Answered on the desktop, or withdrawn. A notification whose
+          // buttons resolve nothing is worse than no notification.
+          if (previous != null) {
+            unawaited(_withdrawApprovalNotification());
+          }
+          return;
+        }
+        if (previous?.id == next.id) {
           return;
         }
         unawaited(_presentApprovalOnce(next));
@@ -430,6 +438,31 @@ final class RemoteCodingMobileNotificationNotifier
 
   static const int _maxRememberedApprovalIds = 128;
 
+  /// The conversation the last raised approval notification was keyed on.
+  ///
+  /// Held here rather than re-derived, because the client state has already
+  /// moved on by the time the approval is withdrawn and the notification is
+  /// keyed on where it *was*.
+  String? _raisedApprovalConversationId;
+
+  Future<void> _withdrawApprovalNotification() async {
+    final conversationId = _raisedApprovalConversationId;
+    if (conversationId == null) {
+      return;
+    }
+    _raisedApprovalConversationId = null;
+    try {
+      await _notificationService.cancelApprovalRequiredNotification(
+        conversationId,
+      );
+    } catch (error, stackTrace) {
+      appLog(
+        '[RemoteCodingNotifications] withdrawing an approval notification '
+        'failed: $error\n$stackTrace',
+      );
+    }
+  }
+
   Future<void> _presentApprovalOnce(RemoteCodingApproval approval) async {
     if (_isRemoteCodingPageVisible || approval.id.isEmpty) {
       return;
@@ -444,10 +477,12 @@ final class RemoteCodingMobileNotificationNotifier
     }
     try {
       final clientState = ref.read(remoteCodingClientProvider);
+      final conversationId =
+          clientState.currentConversationId ?? clientState.host?.id ?? '';
+      _raisedApprovalConversationId = conversationId;
       await showPendingApprovalNotification(
         _notificationService,
-        conversationId:
-            clientState.currentConversationId ?? clientState.host?.id ?? '',
+        conversationId: conversationId,
         // The host name, not a thread title. "wants to run: dart analyze"
         // without saying which machine will run it is exactly the failure this
         // must not ship.

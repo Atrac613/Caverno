@@ -195,6 +195,19 @@ class NotificationService {
     );
   }
 
+  /// Withdraws the approval notification raised for [conversationId].
+  ///
+  /// A request answered somewhere else — the desktop that asked it, or the
+  /// phone's own dialog — must not leave a notification whose buttons resolve
+  /// nothing. The id derivation matches
+  /// [showApprovalRequiredNotification] exactly; two threads keep their own
+  /// notifications, so withdrawing one leaves the other alone.
+  Future<void> cancelApprovalRequiredNotification(
+    String conversationId,
+  ) async {
+    await _plugin.cancel(id: conversationId.hashCode & 0x7fffffff);
+  }
+
   NotificationActionEvent? _decodeApprovalAction(
     String actionId,
     String payload,

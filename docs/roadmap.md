@@ -2003,6 +2003,11 @@ Built 2026-09-05:
   visibility: the notifier cannot infer "the user is looking at this" from any
   state it holds. This matches `ChatNotifier`, which notifies only for a thread
   other than the visible one.
+- The notification is withdrawn when the approval leaves the client state, so
+  answering on the desktop does not leave buttons on the phone that resolve
+  nothing. `NotificationService` had no cancel at all; the new one derives its
+  id exactly the way the raise does, so one thread's withdrawal leaves
+  another's notification alone.
 
 Two corrections to this milestone's own plan:
 - It said to reuse `RemoteCodingNotificationReceiptStore` for dedup. Its keys
@@ -2015,9 +2020,10 @@ Two corrections to this milestone's own plan:
   when relay push is enabled, and never checks whether anything is on screen.
 
 Verification evidence:
-- `tool/flutter_test_quiet.sh` passed 9281 tests, up from 9270; the new cases
+- `tool/flutter_test_quiet.sh` passed 9283 tests, up from 9270; the new cases
   cover the raise, host naming, all three kinds being answerable, dedup across
-  a reconnect, page suppression, and the action routing to the owning notifier.
+  a reconnect, page suppression, withdrawal when the desktop answers, and the
+  action routing to the owning notifier.
 - `flutter analyze` clean.
 
 Next action:

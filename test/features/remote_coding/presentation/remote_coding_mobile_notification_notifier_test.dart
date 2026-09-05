@@ -319,6 +319,56 @@ void main() {
       expect(fixture.notificationService.shownApprovals, isEmpty);
     });
 
+    test('resolving on the desktop withdraws the notification', () async {
+      // A notification whose buttons resolve nothing is worse than none: the
+      // desktop already answered, and the phone would be offering a decision
+      // that lands nowhere.
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+
+      fixture.clientNotifier.emitPendingApproval(
+        approval(),
+        host: host(),
+        currentConversationId: 'conversation-9',
+      );
+      await _waitUntil(
+        () => fixture.notificationService.shownApprovals.isNotEmpty,
+      );
+      fixture.clientNotifier.clearApproval();
+      await _waitUntil(
+        () => fixture
+            .notificationService
+            .cancelledApprovalConversationIds
+            .isNotEmpty,
+      );
+
+      expect(
+        fixture.notificationService.cancelledApprovalConversationIds,
+        ['conversation-9'],
+      );
+    });
+
+    test('nothing is withdrawn when nothing was raised', () async {
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+      fixture.notifier.setRemoteCodingPageVisible(true);
+
+      fixture.clientNotifier.emitPendingApproval(approval(), host: host());
+      fixture.clientNotifier.clearApproval();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(
+        fixture.notificationService.cancelledApprovalConversationIds,
+        isEmpty,
+      );
+    });
+
     test('leaving the page lets the next approval through', () async {
       final fixture = await _fixture(now);
       addTearDown(fixture.dispose);
@@ -495,6 +545,15 @@ final class _FakeNotificationService extends NotificationService {
     RemoteCodingNotificationPayload notification,
   ) async {
     shownNotifications.add(notification);
+  }
+
+  final cancelledApprovalConversationIds = <String>[];
+
+  @override
+  Future<void> cancelApprovalRequiredNotification(
+    String conversationId,
+  ) async {
+    cancelledApprovalConversationIds.add(conversationId);
   }
 
   @override
