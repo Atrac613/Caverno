@@ -552,6 +552,17 @@ final class RemoteCodingMobileNotificationNotifier
 
   /// Flattens a remote approval into the shape the notification path takes.
   ///
+  /// `title` has to be the thing being approved, because the body reads
+  /// `"<host> wants to run: <title>"`. The Remote Coding wire model does not
+  /// carry it there for commands — `RemoteCodingApproval.title` is the kind's
+  /// label, "Local Command Approval", and the command itself is in `detail` —
+  /// so mapping the fields across verbatim produced "wants to run: Local
+  /// Command Approval". That is precisely the notification WATCH1 says must
+  /// not ship: a button that approves an unseen command defeats the approval
+  /// gate it belongs to, and a wrist is where it is most likely to be pressed
+  /// without looking. `PendingApprovalSummary` for a chat-side command puts
+  /// `request.command` in `title`, and this restores that.
+  ///
   /// `isSimpleDecision` is unconditionally true because the remote kinds are
   /// exhaustively `file`, `localCommand` and `gitCommand`, and every one of
   /// them is a bare yes/no. The chat side has kinds that are not — SSH connect
@@ -560,16 +571,28 @@ final class RemoteCodingMobileNotificationNotifier
   PendingApprovalSummary _summaryFor(
     RemoteCodingApproval approval,
     RemoteCodingClientState clientState,
-  ) => PendingApprovalSummary(
-    id: approval.id,
-    kind: approval.kind.name,
-    title: approval.title,
-    subtitle: approval.subtitle,
-    detail: approval.detail,
-    isSimpleDecision: true,
-    conversationId:
-        clientState.currentConversationId ?? clientState.host?.id ?? '',
-  );
+  ) {
+    // Exhaustive on purpose: a kind added to the wire model should be a
+    // compile error here rather than a notification that names nothing.
+    final subject = switch (approval.kind) {
+      RemoteCodingApprovalKind.localCommand ||
+      RemoteCodingApprovalKind.gitCommand => approval.detail,
+      // The server already puts the operation in `title` and the path in
+      // `subtitle` for a file, matching the chat side.
+      RemoteCodingApprovalKind.file => approval.title,
+    };
+    final named = subject.trim().isEmpty ? approval.title : subject.trim();
+    return PendingApprovalSummary(
+      id: approval.id,
+      kind: approval.kind.name,
+      title: named,
+      subtitle: approval.subtitle,
+      detail: approval.detail,
+      isSimpleDecision: true,
+      conversationId:
+          clientState.currentConversationId ?? clientState.host?.id ?? '',
+    );
+  }
 
   void _recordNotificationTap(Map<String, dynamic> data) {
     try {

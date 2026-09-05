@@ -218,15 +218,17 @@ void main() {
       certificatePin: 'pin',
     );
 
+    // Shaped the way the server actually sends it: the title is the kind's
+    // label and the command lives in the detail.
     RemoteCodingApproval approval({
       String id = 'approval-1',
       RemoteCodingApprovalKind kind = RemoteCodingApprovalKind.localCommand,
     }) => RemoteCodingApproval(
       id: id,
       kind: kind,
-      title: 'dart analyze',
-      subtitle: 'caverno',
-      detail: 'Runs in the project root.',
+      title: 'Local Command Approval',
+      subtitle: '/Users/dev/caverno',
+      detail: 'dart analyze',
     );
 
     test('a blocked desktop turn raises an actionable notification', () async {
@@ -257,7 +259,67 @@ void main() {
       // saying which machine will run it is the failure this must not ship.
       expect(raised.title, 'studio-mac');
       expect(raised.body, contains('studio-mac'));
+      // The command, not the kind's label. A button that approves an unseen
+      // command defeats the approval gate it belongs to, and a wrist is where
+      // it is most likely to be pressed without looking.
       expect(raised.body, contains('dart analyze'));
+      expect(raised.body, isNot(contains('Local Command Approval')));
+    });
+
+    test('a git command is named by its command too', () async {
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+
+      fixture.clientNotifier.emitPendingApproval(
+        const RemoteCodingApproval(
+          id: 'approval-git',
+          kind: RemoteCodingApprovalKind.gitCommand,
+          title: 'Git Command Approval',
+          subtitle: '/Users/dev/caverno',
+          detail: 'git push --force',
+        ),
+        host: host(),
+      );
+      await _waitUntil(
+        () => fixture.notificationService.shownApprovals.isNotEmpty,
+      );
+
+      expect(
+        fixture.notificationService.shownApprovals.single.body,
+        contains('git push --force'),
+      );
+    });
+
+    test('a file approval is named by its operation and path', () async {
+      // The server already puts the operation in the title for this kind, so
+      // it must not be rewritten from the detail, which carries a preview.
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+
+      fixture.clientNotifier.emitPendingApproval(
+        const RemoteCodingApproval(
+          id: 'approval-file',
+          kind: RemoteCodingApprovalKind.file,
+          title: 'write lib/main.dart',
+          subtitle: 'lib/main.dart',
+          detail: 'void main() { ... }',
+        ),
+        host: host(),
+      );
+      await _waitUntil(
+        () => fixture.notificationService.shownApprovals.isNotEmpty,
+      );
+
+      expect(
+        fixture.notificationService.shownApprovals.single.body,
+        contains('write lib/main.dart'),
+      );
     });
 
     test('every remote kind is a truthful yes/no', () async {

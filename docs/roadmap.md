@@ -2078,7 +2078,23 @@ skipped twice already:
 - `_canResolveInteraction` therefore passes, `_pendingRemoteApproval` puts the
   approval in the snapshot, and the client's listener raises the notification.
 
-Live evidence, 2026-09-05, Mac server and a real iPhone client:
+Verified live, 2026-09-05, Mac server and a real iPhone client:
+- The banner appears. A `localCommand` approval from a phone-initiated turn
+  raised a notification titled with the host and shown while the app was
+  foregrounded on another screen.
+- It took four defects to get there, all of them invisible from the app itself:
+  suppression that a mounted-but-backgrounded page never cleared, a `dispose`
+  that threw before clearing it at all, a permission latch that recorded the
+  attempt rather than the answer, and Firebase owning
+  `UNUserNotificationCenter.delegate` and answering
+  `UNNotificationPresentationOptionNone` for every foreground notification.
+- The first banner then showed the fifth: it read "wants to run: Local Command
+  Approval" instead of naming the command. The wire model puts the kind's label
+  in `title` and the command in `detail`, and mapping the fields across
+  verbatim produced exactly the notification WATCH1 says must not ship. Fixed
+  and covered per kind.
+
+Earlier evidence:
 - A `localCommand` approval from a phone-initiated turn reached the phone and
   raised the notification naming the host, and the notification was withdrawn
   when the approval was resolved. The phone's log carried the whole path:
