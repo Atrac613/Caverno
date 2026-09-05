@@ -2092,7 +2092,11 @@ Verified live, 2026-09-05, Mac server and a real iPhone client:
   Approval" instead of naming the command. The wire model puts the kind's label
   in `title` and the command in `detail`, and mapping the fields across
   verbatim produced exactly the notification WATCH1 says must not ship. Fixed
-  and covered per kind.
+  and covered per kind; the banner now reads "MacBook-Pro-3.local wants to run:
+  fvm dart analyze."
+- Still unproven: that Approve/Deny chosen from the notification resolves the
+  turn on the desktop, and that a paired watch receives the forwarded actions.
+  Everything up to and including what the banner says is confirmed.
 
 Earlier evidence:
 - A `localCommand` approval from a phone-initiated turn reached the phone and
