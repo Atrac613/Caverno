@@ -172,12 +172,12 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH2 | done | Prove the companion actually works: the native/Dart bridge boundary is the one seam unit tests cannot reach. Verified 2026-09-01/02 on paired simulators, including a live `ask_user_question` answered from the wrist. Ten defects surfaced, all fixed. | Closed. Approvals of the file/shell/git kinds cannot arise on iOS by design, so that path is verified through WATCH6's work or a Remote Coding turn, not here. |
 | Watch | WATCH3 | done | Bind a deferred watch command to the conversation it was composed against, so a queued `sendMessage` cannot land in whichever thread happens to be current when it is finally delivered. | Shipped 2026-09-01. The watch stamps the thread; the phone refuses a mismatch with its own code and still accepts unstamped commands from older watch builds. |
 | Watch | WATCH4 | done | Glanceable surfaces and thread choice: Smart Stack widget plus switching the mirrored conversation from the watch. | Shipped 2026-09-01. Thread switching is verified; the widget's App Group data path is not, because an unsigned simulator build applies no entitlements. Confirm it on a signed build. |
-| Watch | WATCH5 | blocked | Approve/Deny on a push-delivered notification, not only a locally raised one. | Blocked on a contract that does not exist: no push carries an approval, only a run-completion. Do not build the delegate plumbing until a push needs to carry one. |
+| Watch | WATCH5 | blocked | Approve/Deny on a push-delivered notification, not only a locally raised one. | Blocked on a contract that does not exist: no push carries an approval, only a run-completion. Gated behind WATCH13 as well — a transport cannot deliver what the server withholds at the source. |
 | Watch | WATCH6 | done | Dismiss an approval or question dialog on the phone when the watch resolves it. | Shipped 2026-09-02 and verified on paired simulators: answering from the wrist closes the phone's sheet. Dismissal pops by route name, so it is a no-op when the dialog is not topmost. |
 | Watch | WATCH7 | done | Make the wrist screen a message thread rather than a status glance: bubbles with tails, relative timestamp headers, a typing indicator, and a pinned compose bar. | Shipped 2026-09-02. The frame now carries the tail of the thread; verified on the watch simulator, including the fallback for a watch newer than its phone. |
 | Watch | WATCH8 | done | Keep Watch snapshots ordered across iPhone process restarts without allowing a delayed old frame to resurrect resolved state. | Completed 2026-09-04. Frames now carry a source identity and start time in addition to their per-source sequence; verified with the Watch process kept alive across an iPhone restart. |
 | Watch | WATCH9 | done | Put coding-thread state on the wrist: workspace mode and the conversation goal, with `awaitingConfirmation` surfaced as an interaction to answer rather than as idle. | Shipped 2026-09-05, and the paired-simulator run then found the goal half **cannot fire on iOS**: goals are gated to coding threads and iOS has none. Correct machinery, wrong source; reaching it is WATCH11's job. |
-| Watch | WATCH10 | done | Raise the actionable approval notification for a Remote Coding turn, so a blocked desktop agent reaches the wrist at all. Today it reaches it through no path whatsoever. | Built 2026-09-05 after confirming the source is reachable on iOS first — the lesson WATCH9 taught. End to end still needs a Mac server, an iPhone client and a real watch. |
+| Watch | WATCH10 | done | Raise the actionable approval notification for a **phone-initiated** Remote Coding turn. | Built and re-scoped 2026-09-05. Its stated premise was wrong: a desktop-initiated approval is withheld from the phone by SEC4.5g, not by missing wiring, so no transport reaches it. That case is now WATCH13, a policy decision rather than plumbing. |
 | Watch | WATCH11 | later | Show and resolve Remote Coding approvals and questions in the companion itself, labelled with the host that owns them. | Gate on WATCH10. Record the SEC4.5g reading — the watch is the client phone's peripheral, so the principal set does not widen — before shipping. |
 | Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
 
@@ -1929,7 +1929,33 @@ Next action:
 
 ### WATCH10: Remote Coding Approvals As Notifications
 
-Status: `done`
+Status: `done`, and its premise was wrong
+
+**The correction, found by running it.** This milestone said a Mac waiting on
+`dart analyze` "reaches the wrist through no path at all: not the companion,
+and not a notification either. Fix the wiring, then fix the sentence." The
+wiring was never the reason. `RemoteCodingServerNotifier._pendingRemoteApproval`
+puts an approval in the snapshot only when `_canResolveInteraction` passes, and
+that requires `origin == ChatInteractionOrigin.remote` with an owner matching
+the authenticated device. A turn started on the desktop itself is
+`origin: local`, so the approval is *deliberately withheld* from the paired
+phone. That is SEC4.5g doing exactly what it was built to do.
+
+The phone's own log said so in one line — `pendingApproval=none` on a connected
+snapshot — after three rounds of guessing at the notification code, which was
+never the problem.
+
+**Two consequences.** This milestone covers approvals from turns the *phone*
+started: those carry `origin: remote` with the phone as owner, reach the
+snapshot, and raise the notification. That is a real case — drive a coding turn
+from the phone, move to another screen, get told when it blocks — and it is
+what to verify.
+
+And no transport fixes the desktop-initiated case. A push contract (WATCH5)
+would carry only what the phone is already entitled to see, so the option of
+"solve it with push" does not exist. Deciding whether the owner's own paired
+phone may see their desktop's approval is a security-policy question, and it is
+WATCH13.
 
 The Remote Coding server is desktop-only
 (`Platform.isMacOS || isLinux || isWindows`); mobile is client-only. A blocked
@@ -2041,10 +2067,14 @@ Verification evidence:
 - `flutter analyze` clean.
 
 Next action:
-- Verify with a Mac server, an iPhone client and a paired watch. Paired
-  simulators are not sufficient: the whole point is a three-device path, and
-  this worktree cannot build the desktop app at all — it holds no
-  `.macos-canonical` sentinel.
+- Verify the case this actually covers: send a coding turn **from the phone**
+  over Remote Coding, move the phone to another screen while the app stays
+  foregrounded, and check that the blocked turn raises the notification naming
+  the host. Starting the turn on the Mac cannot work and is what the first
+  three attempts were doing.
+- This worktree cannot build the desktop app at all — it holds no
+  `.macos-canonical` sentinel — so the Mac side runs from the canonical
+  checkout. It needs no change from this branch.
 
 ### WATCH11: Remote Coding Interactions In The Companion
 
@@ -2126,6 +2156,49 @@ Why this is `later` and not `next`:
 Next action:
 - None. Revisit if WATCH9 or WATCH11 usage shows the glance is
   under-informative.
+
+### WATCH13: May A Desktop's Own Approval Reach Its Owner's Phone
+
+Status: `next`
+
+A blocked desktop turn does not reach the phone, and WATCH10 proved the reason
+is policy rather than plumbing: `_canResolveInteraction` requires
+`origin == remote` with a matching owner, so an approval raised by a turn
+started at the Mac is withheld from every paired device — including the phone
+belonging to the same person sitting at that Mac.
+
+That gate exists for a good reason. SEC4.5g stops paired device A from seeing
+and resolving paired device B's turn. The question this milestone asks is
+narrower and was never decided: may the *desktop's own* pending approval be
+shown to a device that person has paired to it?
+
+Why it is not obvious:
+- The phone is not the principal that started the turn, so widening the gate
+  weakens exactly the property SEC4.5g established.
+- But WATCH1 already reasoned that the watch is a peripheral of the phone
+  rather than a principal, and the same argument may or may not extend one hop
+  further — from "the phone's own approvals on the phone's own watch" to "the
+  desktop's own approvals on a phone the desktop's owner paired". Pairing is
+  authenticated and revocable, which is an argument for; a stolen unlocked
+  phone now resolves the desktop's shell commands, which is an argument
+  against.
+- Any widening also has to say what happens with two paired phones, and
+  whether a *resolution* may come back from a device that did not start the
+  turn even if a *view* may.
+
+Scope:
+- Settle the question in writing first, beside SA-24 in
+  `docs/security_followup_review_2026-08-24.md`, before any code. A gate this
+  one loosens is not a place to discover the reasoning afterwards.
+- If it is widened, it is a distinct origin case rather than a relaxation of
+  the existing predicate: reading only `remoteDeviceId` inverts the check, the
+  mistake SA-24 already recorded once.
+
+Dependencies:
+- None. WATCH10 supplies the notification path the decision would light up.
+
+Next action:
+- Write the decision. Do not touch `_canResolveInteraction` before it exists.
 
 ## Anabasis Orchestrator Track
 
