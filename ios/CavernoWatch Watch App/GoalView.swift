@@ -74,14 +74,21 @@ struct GoalView: View {
         dismiss()
       }
     }
-    .onChange(of: client.snapshot?.goalAwaitingConfirmation == nil) {
-      _, resolvedElsewhere in
-      if resolvedElsewhere { dismiss() }
+    // Watches the goal's own status, not the derived attention state. The
+    // latter also goes nil when the phone merely starts streaming, which
+    // dismissed this screen out from under someone mid-read with the goal
+    // still unanswered.
+    .onChange(of: client.snapshot?.goal?.status) { _, status in
+      if status != nil && status != .awaitingConfirmation { dismiss() }
     }
   }
 
+  /// A command queued for an unreachable phone reports a notice and never a
+  /// result, so waiting on the result alone left both buttons disabled behind
+  /// a spinner with no way out but the crown.
   private var isSubmitting: Bool {
     guard let commandId else { return false }
+    if client.lastCommandNotice?.isEmpty == false { return false }
     return client.lastCommandResult?.id != commandId
   }
 

@@ -116,14 +116,50 @@ void main() {
     test('sheds the thread picker before the transcript', () {
       // The frame exists to answer a blocked turn. Thread switching is
       // navigation, and `conversationsTruncated` already tells the watch to
-      // point at the iPhone, so it is the cheapest thing to give up.
+      // point at the iPhone, so it is the cheapest thing to give up. Asserting
+      // the *order* needs the counts, not just non-emptiness: every rung of
+      // the ladder keeps at least one message, so `isNotEmpty` alone would
+      // hold even if the rungs were reversed.
       final json = maximal(fill: '👍').toJson();
+      final conversations = json['conversations']! as List<dynamic>;
+      final messages = json['messages']! as List<dynamic>;
 
-      expect(json['conversations'], isEmpty);
+      expect(
+        conversations.length,
+        lessThan(watchSnapshotMaxConversations),
+        reason: 'the picker is given up before the transcript is',
+      );
       expect(json['conversationsTruncated'], isTrue);
-      expect(json['messages'], isNotEmpty);
+      expect(
+        messages.length,
+        greaterThanOrEqualTo(conversations.length),
+        reason: 'the transcript must outlive the picker, not the reverse',
+      );
       expect(json['approval'], isNotNull);
       expect(json['question'], isNotNull);
+    });
+
+    test('never sheds the older-watch answer field', () {
+      // `lastAssistantText` is what a watch newer than its phone falls back
+      // to. Dropping it on the tight rungs removed it exactly in the frames
+      // those rungs are reached by.
+      for (final fill in const ['A', '日', '👍']) {
+        final json = maximal(fill: fill).toJson();
+
+        expect(
+          json['lastAssistantText'],
+          isA<String>().having((text) => text.isNotEmpty, 'isNotEmpty', isTrue),
+          reason: 'a "$fill" frame dropped the compatibility answer',
+        );
+      }
+    });
+
+    test('encode() and toJson() describe the same frame', () {
+      // The bridge sends `encode()`; anything reading `toJson()` — the tests,
+      // and any future caller — must see what the watch will.
+      final snapshot = maximal(fill: '日');
+
+      expect(snapshot.encode(), jsonEncode(snapshot.toJson()));
     });
 
     test('keeps the full projection when the frame already fits', () {

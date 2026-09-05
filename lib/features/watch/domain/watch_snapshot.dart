@@ -367,7 +367,10 @@ class _WatchFrameCaps {
   final int messageText;
   final int lastMessageText;
 
-  /// Zero omits `lastAssistantText` from the frame entirely.
+  /// Never zero. The field exists so a watch build older than its phone still
+  /// renders an answer, and dropping it on the tight rungs removed it exactly
+  /// in the wide-script frames those rungs are reached by — the case it was
+  /// added for. It shrinks with everything else instead.
   final int assistantText;
   final int title;
   final int detail;
@@ -387,7 +390,9 @@ class _WatchFrameCaps {
 ///
 /// The thread picker goes first — it is navigation, not the decision, and
 /// `conversationsTruncated` already tells the watch to point at the iPhone
-/// instead of implying the list is complete. Transcript depth follows, under
+/// instead of implying the list is complete. It is trimmed before it is
+/// dropped: a frame that overruns by a few hundred bytes used to lose all
+/// eight threads and leave kilobytes of budget unspent. Transcript depth follows, under
 /// the `messagesTruncated` signal that exists for the same reason.
 /// `lastAssistantText` is next: it duplicates the newest bubble and is kept
 /// only for a watch build older than its phone, which is a smaller loss than a
@@ -396,6 +401,17 @@ class _WatchFrameCaps {
 const List<_WatchFrameCaps> _watchFrameCapLadder = [
   _WatchFrameCaps(
     conversations: watchSnapshotMaxConversations,
+    messages: watchSnapshotMaxMessages,
+    messageText: watchSnapshotMessageTextLimit,
+    lastMessageText: watchSnapshotLastMessageTextLimit,
+    assistantText: watchSnapshotAssistantTextLimit,
+    title: watchSnapshotTitleLimit,
+    detail: watchSnapshotDetailLimit,
+    optionLabel: watchSnapshotOptionLabelLimit,
+    goalText: watchSnapshotGoalTextLimit,
+  ),
+  _WatchFrameCaps(
+    conversations: 3,
     messages: watchSnapshotMaxMessages,
     messageText: watchSnapshotMessageTextLimit,
     lastMessageText: watchSnapshotLastMessageTextLimit,
@@ -421,7 +437,7 @@ const List<_WatchFrameCaps> _watchFrameCapLadder = [
     messages: 4,
     messageText: 120,
     lastMessageText: 300,
-    assistantText: 0,
+    assistantText: 200,
     title: watchSnapshotTitleLimit,
     detail: watchSnapshotDetailLimit,
     optionLabel: watchSnapshotOptionLabelLimit,
@@ -432,7 +448,7 @@ const List<_WatchFrameCaps> _watchFrameCapLadder = [
     messages: 2,
     messageText: 60,
     lastMessageText: 160,
-    assistantText: 0,
+    assistantText: 120,
     title: 80,
     detail: 160,
     optionLabel: 40,
@@ -443,7 +459,7 @@ const List<_WatchFrameCaps> _watchFrameCapLadder = [
     messages: 1,
     messageText: 40,
     lastMessageText: 80,
-    assistantText: 0,
+    assistantText: 80,
     title: 60,
     detail: 100,
     optionLabel: 24,
@@ -577,19 +593,27 @@ class WatchSnapshot {
   /// rung overruns, that frame is still returned: sending the smallest thing
   /// that can be built is strictly better than sending nothing, and the caps
   /// there are small enough that no input reaches this.
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toJson() => _fit().json;
+
+  /// The frame as the bridge should send it, already encoded.
+  ///
+  /// The budget check has to encode anyway, and a snapshot is pushed on every
+  /// streamed chunk; handing the string back means one `jsonEncode` per frame
+  /// rather than one for the measurement and another in the bridge.
+  String encode() => _fit().text;
+
+  ({Map<String, dynamic> json, String text}) _fit() {
     var encoded = _encodeWith(_watchFrameCapLadder.first);
+    var text = jsonEncode(encoded);
     for (final caps in _watchFrameCapLadder.skip(1)) {
-      if (_encodedByteLength(encoded) <= watchSnapshotMaxEncodedBytes) {
-        return encoded;
+      if (utf8.encode(text).length <= watchSnapshotMaxEncodedBytes) {
+        return (json: encoded, text: text);
       }
       encoded = _encodeWith(caps);
+      text = jsonEncode(encoded);
     }
-    return encoded;
+    return (json: encoded, text: text);
   }
-
-  static int _encodedByteLength(Map<String, dynamic> json) =>
-      utf8.encode(jsonEncode(json)).length;
 
   Map<String, dynamic> _encodeWith(_WatchFrameCaps caps) => {
     'sequence': sequence,
@@ -603,11 +627,10 @@ class WatchSnapshot {
     if (workspaceMode.isNotEmpty) 'workspaceMode': workspaceMode,
     if (goal != null) 'goal': goal!.toJson(limit: caps.goalText),
     'status': status.name,
-    if (caps.assistantText > 0)
-      'lastAssistantText': truncateForWatch(
-        lastAssistantText,
-        caps.assistantText,
-      ),
+    'lastAssistantText': truncateForWatch(
+      lastAssistantText,
+      caps.assistantText,
+    ),
     'messages': _encodedMessages(caps),
     'messagesTruncated': messagesTruncated || messages.length > caps.messages,
     if (approval != null)

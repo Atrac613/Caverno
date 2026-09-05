@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -30,6 +31,17 @@ class NotificationActionEvent {
 }
 
 class NotificationService {
+  /// Shared with `NotificationActionPlugin` in `ios/Runner/AppDelegate.swift`.
+  ///
+  /// The two halves are hand-matched, so a rename on one side alone silently
+  /// kills every wrist and lock-screen approval; `notification_service_test`
+  /// pins this name and the argument keys.
+  static const String _sceneActionChannelName =
+      'com.caverno/notification_actions';
+
+  @visibleForTesting
+  static const String sceneActionChannelName = _sceneActionChannelName;
+
   static const remoteCodingChannelId = 'remote_coding_completion';
   static const remoteCodingChannelName = 'Remote Coding Completion';
 
@@ -132,7 +144,7 @@ class NotificationService {
         _notificationTapController.add(payload);
       },
     );
-    _listenForSceneNotificationActions();
+    await _listenForSceneNotificationActions();
     _initialized = true;
   }
 
@@ -145,26 +157,45 @@ class NotificationService {
   /// [onDidReceiveNotificationResponse] above never fires — the notification
   /// showed its buttons and dropped every press. `AppDelegate` catches it and
   /// sends it here.
-  void _listenForSceneNotificationActions() {
-    const channel = MethodChannel('com.caverno/notification_actions');
+  Future<void> _listenForSceneNotificationActions() async {
+    const channel = MethodChannel(_sceneActionChannelName);
     channel.setMethodCallHandler((call) async {
-      if (call.method != 'notificationAction') return null;
-      final arguments = call.arguments;
-      if (arguments is! Map) return null;
-      final actionId = (arguments['actionId'] as String?)?.trim() ?? '';
-      final payload = (arguments['payload'] as String?)?.trim() ?? '';
+      if (call.method != 'notificationActions') return null;
+      _applySceneActions(call.arguments);
+      return null;
+    });
+    // Then pull whatever arrived before this handler existed. A press
+    // delivered during a background launch reaches the native side well before
+    // Dart runs, and pushing it then would send it into a channel nobody was
+    // listening on.
+    try {
+      _applySceneActions(
+        await channel.invokeMethod<List<dynamic>>('takePendingActions'),
+      );
+    } on MissingPluginException {
+      // Not iOS, or a host binary without the plugin.
+    } on PlatformException catch (error) {
+      appLog('[Notifications] could not drain pending actions: $error');
+    }
+  }
+
+  void _applySceneActions(Object? arguments) {
+    if (arguments is! List) return;
+    for (final entry in arguments) {
+      if (entry is! Map) continue;
+      final actionId = (entry['actionId'] as String?)?.trim() ?? '';
+      final payload = (entry['payload'] as String?)?.trim() ?? '';
       appLog('[Notifications] scene action actionId=$actionId');
-      if (payload.isEmpty) return null;
+      if (payload.isEmpty) continue;
       if (actionId == approveActionId || actionId == denyActionId) {
         final action = _decodeApprovalAction(actionId, payload);
         if (action != null) {
           _notificationActionController.add(action);
         }
-        return null;
+        continue;
       }
       _notificationTapController.add(payload);
-      return null;
-    });
+    }
   }
 
   /// Request notification permissions, retrying until one is actually granted.
@@ -179,8 +210,22 @@ class NotificationService {
   /// raised and nothing appeared. Latching on the *answer* instead means a
   /// refused-or-never-asked attempt is retried the next time, which is when the
   /// app is more likely to be in front of someone.
-  Future<void> _ensurePermission() async {
-    if (_permissionGranted) return;
+  Future<void> _ensurePermission() {
+    if (_permissionGranted) return Future<void>.value();
+    // Single-flight. Latching the *attempt* was the original bug, but dropping
+    // the latch entirely let two notifications in one tick request
+    // concurrently, and Android answers the second with
+    // PERMISSION_REQUEST_IN_PROGRESS — a PlatformException thrown out of a
+    // fire-and-forget call site, losing that notification. Sharing the
+    // in-flight future keeps one request without remembering a refusal.
+    return _permissionRequest ??= _requestPermission().whenComplete(() {
+      _permissionRequest = null;
+    });
+  }
+
+  Future<void>? _permissionRequest;
+
+  Future<void> _requestPermission() async {
 
     // iOS / macOS
     final darwin = _plugin
@@ -372,13 +417,12 @@ class NotificationService {
 
   /// The notification that launched the app, if one did.
   ///
-  /// An Approve or Deny pressed while the app was not running arrives here
-  /// rather than on [notificationActions]: the stream only exists once a Dart
-  /// isolate does. Dropping the action identifier — which this did — lost the
-  /// decision silently on the two surfaces the buttons exist for, a lock
-  /// screen and a paired watch, where the app is least likely to be running.
-  /// An action is emitted as an action and returns no tap payload, so it is
-  /// answered rather than merely navigated to.
+  /// Actions do not arrive here. `flutter_local_notifications` records launch
+  /// details only for `UNNotificationDefaultActionIdentifier` and for
+  /// identifiers it registered as foreground actions, and Approve/Deny are
+  /// neither — an earlier attempt to answer them from here could never run.
+  /// The scene channel drains them instead; see
+  /// [_listenForSceneNotificationActions].
   Future<String?> getInitialNotificationTapPayload() async {
     await init();
     final details = await _plugin.getNotificationAppLaunchDetails();
@@ -386,22 +430,7 @@ class NotificationService {
       return null;
     }
     final payload = details?.notificationResponse?.payload?.trim();
-    if (payload == null || payload.isEmpty) {
-      return null;
-    }
-    final actionId = details?.notificationResponse?.actionId?.trim() ?? '';
-    if (actionId == approveActionId || actionId == denyActionId) {
-      final action = _decodeApprovalAction(actionId, payload);
-      if (action != null) {
-        appLog(
-          '[Notifications] launch response carried action $actionId for '
-          '${action.approvalId}',
-        );
-        _notificationActionController.add(action);
-        return null;
-      }
-    }
-    return payload;
+    return payload == null || payload.isEmpty ? null : payload;
   }
 
   Future<void> _showNotification({
@@ -460,6 +489,10 @@ class NotificationService {
   }
 
   void dispose() {
+    // The channel handler is process-global and outlives this instance
+    // otherwise: a later service would silence this one's streams, and a stale
+    // handler would add to a closed controller.
+    const MethodChannel(_sceneActionChannelName).setMethodCallHandler(null);
     unawaited(_notificationTapController.close());
     unawaited(_notificationActionController.close());
   }

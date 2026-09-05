@@ -20,7 +20,6 @@ abstract interface class RemoteCodingMobileNotificationGateway {
 
   Future<RemoteCodingNotificationPermission> initialize();
 
-
   Future<RemoteCodingNotificationPermission> requestPermission();
 
   Future<String> getFcmToken();

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../../core/services/notification_providers.dart';
 import '../../../core/services/notification_service.dart';
@@ -102,9 +102,24 @@ final class RemoteCodingMobileNotificationNotifier
   /// tab — which is the tab a Remote Coding user is obviously on, and the
   /// state the notification exists to serve. It is only a suppression signal
   /// together with the app being foregrounded.
-  bool _isRemoteCodingPageMounted = false;
+  /// Counted, not a flag. A keyed remount inflates the replacement before it
+  /// disposes the old element, so a boolean ended up false while the page was
+  /// on screen and the next approval asked the same question twice.
+  int _remoteCodingPagesMounted = 0;
 
-  /// Approvals already raised, so a reconnect does not notify twice.
+  /// Notifications currently on screen, by approval id.
+  ///
+  /// The value is the conversation the notification was keyed on, because
+  /// cancelling needs the id the raise used and the client state has moved on
+  /// by then. Two approvals in flight therefore keep their own notifications,
+  /// which a single remembered conversation could not.
+  ///
+  /// The membership means "a notification for this exists right now", not
+  /// "was ever raised". The earlier reading deadlocked with the withdraw path:
+  /// a socket blip clears `pendingApproval`, the withdrawal cancels the
+  /// banner, the reconnect re-sends the same still-unanswered approval, and a
+  /// permanent set refused to raise it again — leaving no notification at all
+  /// for a live blocked desktop turn.
   ///
   /// Deliberately not `RemoteCodingNotificationReceiptStore`, which the
   /// terminal notifications use: its keys are frozen to
@@ -112,7 +127,15 @@ final class RemoteCodingMobileNotificationNotifier
   /// week-long persistence exists because a *push* can be redelivered after a
   /// restart. This one arrives on a live WebSocket, so it cannot outlive the
   /// connection that carried it, and in-memory is the honest lifetime.
-  final Set<String> _raisedApprovalIds = <String>{};
+  final Map<String, String> _liveApprovalNotifications = <String, String>{};
+
+  /// An approval that was suppressed because the person was looking at it.
+  ///
+  /// Held so the decision can be revisited: suppression was evaluated once, at
+  /// arrival, and `ref.listen` never fires again for an unchanged id, so
+  /// locking the phone on the Remote Coding page used to mean the notification
+  /// was never raised at all and the desktop blocked indefinitely.
+  RemoteCodingApproval? _suppressedApproval;
 
   @override
   RemoteCodingMobileNotificationState build() {
@@ -147,7 +170,7 @@ final class RemoteCodingMobileNotificationNotifier
           // Answered on the desktop, or withdrawn. A notification whose
           // buttons resolve nothing is worse than no notification.
           if (previous != null) {
-            unawaited(_withdrawApprovalNotification());
+            unawaited(_withdrawApprovalNotification(previous.id));
           }
           return;
         }
@@ -156,6 +179,16 @@ final class RemoteCodingMobileNotificationNotifier
         }
         unawaited(_presentApprovalOnce(next));
       },
+    );
+    // Locking the phone lifts suppression as surely as leaving the page does,
+    // and nothing else would notice: the client's state has not changed, so
+    // the approval listener above stays silent.
+    final lifecycleObserver = _SuppressionLifecycleObserver(
+      _reconsiderSuppressedApproval,
+    );
+    WidgetsBinding.instance.addObserver(lifecycleObserver);
+    ref.onDispose(
+      () => WidgetsBinding.instance.removeObserver(lifecycleObserver),
     );
     _listenForLocalNotificationTaps();
     unawaited(_loadInitialLocalNotificationTap());
@@ -439,11 +472,37 @@ final class RemoteCodingMobileNotificationNotifier
   /// Called by the page itself rather than inferred, because no state this
   /// notifier holds says which screen is on top.
   void setRemoteCodingPageVisible(bool visible) {
-    _isRemoteCodingPageMounted = visible;
+    _remoteCodingPagesMounted = visible
+        ? _remoteCodingPagesMounted + 1
+        : (_remoteCodingPagesMounted - 1).clamp(0, 1 << 20);
+    if (_remoteCodingPagesMounted == 0) {
+      _reconsiderSuppressedApproval();
+    }
+  }
+
+  /// Raises an approval that suppression held back, once it no longer applies.
+  void _reconsiderSuppressedApproval() {
+    final suppressed = _suppressedApproval;
+    if (suppressed == null || _approvalIsAlreadyVisible) {
+      return;
+    }
+    if (ref.read(remoteCodingClientProvider).pendingApproval?.id !=
+        suppressed.id) {
+      // Answered in the meantime.
+      _suppressedApproval = null;
+      return;
+    }
+    unawaited(_presentApprovalOnce(suppressed));
   }
 
   @visibleForTesting
-  bool get debugIsRemoteCodingPageMounted => _isRemoteCodingPageMounted;
+  bool get debugIsRemoteCodingPageMounted => _remoteCodingPagesMounted > 0;
+
+  /// Re-delivers an approval the way a reconnect does, without a state change.
+  @visibleForTesting
+  void presentApprovalForTest(RemoteCodingApproval approval) {
+    unawaited(_presentApprovalOnce(approval));
+  }
 
   /// Whether the person can already see this approval without a notification.
   ///
@@ -451,28 +510,21 @@ final class RemoteCodingMobileNotificationNotifier
   /// they are looking at; the page while the app is backgrounded means nobody
   /// is looking at anything.
   bool get _approvalIsAlreadyVisible =>
-      _isRemoteCodingPageMounted &&
+      _remoteCodingPagesMounted > 0 &&
       !ref.read(appLifecycleServiceProvider).isInBackground;
 
   static const int _maxRememberedApprovalIds = 128;
 
-  /// The conversation the last raised approval notification was keyed on.
-  ///
-  /// Held here rather than re-derived, because the client state has already
-  /// moved on by the time the approval is withdrawn and the notification is
-  /// keyed on where it *was*.
-  String? _raisedApprovalConversationId;
-
-  Future<void> _withdrawApprovalNotification() async {
-    final conversationId = _raisedApprovalConversationId;
+  Future<void> _withdrawApprovalNotification(String approvalId) async {
+    _suppressedApproval = null;
+    final conversationId = _liveApprovalNotifications.remove(approvalId);
     if (conversationId == null) {
       return;
     }
     appLog(
       '[RemoteCodingNotifications] withdrawing the notification for '
-      'conversation "$conversationId"; the approval is gone',
+      'conversation "$conversationId"; approval $approvalId is gone',
     );
-    _raisedApprovalConversationId = null;
     try {
       await _notificationService.cancelApprovalRequiredNotification(
         conversationId,
@@ -504,29 +556,34 @@ final class RemoteCodingMobileNotificationNotifier
       return;
     }
     if (_approvalIsAlreadyVisible) {
+      // Held rather than forgotten: the listener will not fire again for this
+      // id, so leaving the page or backgrounding the app has to be able to
+      // raise it later.
+      _suppressedApproval = approval;
       appLog(
-        '[RemoteCodingNotifications] not raised: the Remote Coding page is '
+        '[RemoteCodingNotifications] not raised yet: the Remote Coding page is '
         'open and foregrounded, so its own sheet is already asking',
       );
       return;
     }
+    _suppressedApproval = null;
     // A dropped connection re-sends the whole snapshot, so the same pending
-    // approval arrives again with the first notification still on screen.
-    if (!_raisedApprovalIds.add(approval.id)) {
+    // approval can arrive again while its notification is still on screen.
+    if (_liveApprovalNotifications.containsKey(approval.id)) {
       appLog(
-        '[RemoteCodingNotifications] not raised: ${approval.id} was already '
-        'raised in this session',
+        '[RemoteCodingNotifications] not raised: ${approval.id} already has a '
+        'notification on screen',
       );
       return;
-    }
-    if (_raisedApprovalIds.length > _maxRememberedApprovalIds) {
-      _raisedApprovalIds.remove(_raisedApprovalIds.first);
     }
     try {
       final clientState = ref.read(remoteCodingClientProvider);
       final conversationId =
           clientState.currentConversationId ?? clientState.host?.id ?? '';
-      _raisedApprovalConversationId = conversationId;
+      _liveApprovalNotifications[approval.id] = conversationId;
+      if (_liveApprovalNotifications.length > _maxRememberedApprovalIds) {
+        _liveApprovalNotifications.remove(_liveApprovalNotifications.keys.first);
+      }
       appLog(
         '[RemoteCodingNotifications] raising for ${approval.id} on '
         '"${clientState.host?.name.trim() ?? ''}" '
@@ -689,4 +746,21 @@ String _permissionMessage(RemoteCodingNotificationPermission permission) {
     RemoteCodingNotificationPermission.provisional =>
       'Completion notifications are disabled.',
   };
+}
+
+
+/// Tells the notifier when the app changes lifecycle state.
+///
+/// `AppLifecycleService` records the state but announces nothing, and the
+/// suppressed approval has to be revisited the moment the person stops looking
+/// at the screen that was holding it back.
+final class _SuppressionLifecycleObserver with WidgetsBindingObserver {
+  _SuppressionLifecycleObserver(this._onChanged);
+
+  final void Function() _onChanged;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _onChanged();
+  }
 }

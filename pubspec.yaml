@@ -169,6 +169,10 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Transitive through flutter_local_notifications; named here so the scene
+  # action channel test can stand in for the platform instance that no test
+  # host registers.
+  flutter_local_notifications_platform_interface: ^12.2.0
   integration_test:
     sdk: flutter
 

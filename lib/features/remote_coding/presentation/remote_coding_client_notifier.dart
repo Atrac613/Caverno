@@ -753,7 +753,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       if (state.status != RemoteCodingConnectionStatus.connected ||
           approvalJson != null) {
         appLog(
-          '[RemoteCodingClient] snapshot: connected, '
+          '[RemoteCodingClient] snapshot while ${state.status.name}: '
           'pendingApproval=${approvalJson is Map<String, dynamic> ? approvalJson['id'] : 'none'}, '
           'pendingQuestion=${questionJson is Map<String, dynamic> ? 'yes' : 'none'}',
         );

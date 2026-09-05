@@ -21,6 +21,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  // The notifier observes app lifecycle to revisit a suppressed approval, and
+  // WidgetsBinding.instance needs a binding to exist.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   final now = DateTime.utc(2026, 8, 10, 16);
 
   test(
@@ -349,7 +353,30 @@ void main() {
       }
     });
 
-    test('the same approval is not raised twice', () async {
+    test('a re-sent approval does not stack a second notification', () async {
+      // A dropped connection re-sends the whole snapshot while the first
+      // notification is still on screen.
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+
+      fixture.clientNotifier.emitPendingApproval(approval(), host: host());
+      await _waitUntil(
+        () => fixture.notificationService.shownApprovals.isNotEmpty,
+      );
+      fixture.notifier.presentApprovalForTest(approval());
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(fixture.notificationService.shownApprovals, hasLength(1));
+    });
+
+    test('a withdrawn approval can be raised again', () async {
+      // The withdrawal cancels the notification, so refusing to raise the same
+      // approval afterwards leaves a live blocked desktop turn with nothing on
+      // the phone at all. A socket blip is exactly this sequence: the client
+      // clears `pendingApproval` on close and re-sends it on reconnect.
       final fixture = await _fixture(now);
       addTearDown(fixture.dispose);
       await fixture.waitForStatus(
@@ -361,10 +388,97 @@ void main() {
         () => fixture.notificationService.shownApprovals.isNotEmpty,
       );
       fixture.clientNotifier.clearApproval();
+      await _waitUntil(
+        () => fixture
+            .notificationService
+            .cancelledApprovalConversationIds
+            .isNotEmpty,
+      );
+      fixture.clientNotifier.emitPendingApproval(approval(), host: host());
+      await _waitUntil(
+        () => fixture.notificationService.shownApprovals.length > 1,
+      );
+
+      expect(fixture.notificationService.shownApprovals, hasLength(2));
+    });
+
+    test('two approvals each keep their own notification', () async {
+      // Only one conversation id used to be remembered, so the first
+      // notification was orphaned with live buttons nothing owned.
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+
+      fixture.clientNotifier.emitPendingApproval(
+        approval(id: 'approval-a'),
+        host: host(),
+        currentConversationId: 'conversation-a',
+      );
+      await _waitUntil(
+        () => fixture.notificationService.shownApprovals.isNotEmpty,
+      );
+      fixture.clientNotifier.emitPendingApproval(
+        approval(id: 'approval-b'),
+        host: host(),
+        currentConversationId: 'conversation-b',
+      );
+      await _waitUntil(
+        () => fixture.notificationService.shownApprovals.length > 1,
+      );
+      fixture.clientNotifier.clearApproval();
+      await _waitUntil(
+        () => fixture
+            .notificationService
+            .cancelledApprovalConversationIds
+            .isNotEmpty,
+      );
+
+      expect(
+        fixture.notificationService.cancelledApprovalConversationIds,
+        ['conversation-b'],
+      );
+    });
+
+    test('a suppressed approval is raised once the page closes', () async {
+      // Suppression was decided once, at arrival, and the listener never fires
+      // again for an unchanged id — so leaving the page had to be able to
+      // raise it, or the desktop blocked forever.
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+      fixture.notifier.setRemoteCodingPageVisible(true);
+
       fixture.clientNotifier.emitPendingApproval(approval(), host: host());
       await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(fixture.notificationService.shownApprovals, isEmpty);
+
+      fixture.notifier.setRemoteCodingPageVisible(false);
+      await _waitUntil(
+        () => fixture.notificationService.shownApprovals.isNotEmpty,
+      );
 
       expect(fixture.notificationService.shownApprovals, hasLength(1));
+    });
+
+    test('a suppressed approval is dropped once it is answered', () async {
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+      fixture.notifier.setRemoteCodingPageVisible(true);
+
+      fixture.clientNotifier.emitPendingApproval(approval(), host: host());
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      fixture.clientNotifier.clearApproval();
+      fixture.notifier.setRemoteCodingPageVisible(false);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(fixture.notificationService.shownApprovals, isEmpty);
     });
 
     test('nothing is raised while the Remote Coding page is open', () async {

@@ -102,7 +102,7 @@ class MethodChannelWatchBridgeService implements WatchBridgeService {
 
   @override
   Future<void> pushSnapshot(WatchSnapshot snapshot) =>
-      _invoke('pushSnapshot', jsonEncode(snapshot.toJson()));
+      _invoke('pushSnapshot', snapshot.encode());
 
   @override
   Future<void> pushStreamChunk({

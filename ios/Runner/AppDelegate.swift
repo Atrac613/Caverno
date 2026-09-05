@@ -89,26 +89,49 @@ import FoundationModels
 enum NotificationActionPlugin {
   static let channelName = "com.caverno/notification_actions"
   private static var channel: FlutterMethodChannel?
-  private static var pending: [String: String]?
+  /// Every press, not just the last: two threads can block at once, and the
+  /// single slot silently dropped the first.
+  private static var pending: [[String: String]] = []
+  private static let queue = DispatchQueue(label: "com.caverno.notification-actions")
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
       name: channelName,
       binaryMessenger: registrar.messenger()
     )
-    self.channel = channel
-    if let pending {
-      channel.invokeMethod("notificationAction", arguments: pending)
-      self.pending = nil
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "takePendingActions" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      // Dart pulls rather than being pushed to. Registration happens during
+      // engine init, long before `NotificationService.init()` attaches its
+      // handler, so replaying on registration sent the press into a channel
+      // nobody was listening on. A background launch to deliver a lock-screen
+      // or wrist press is exactly that window.
+      result(drainPending())
     }
+    self.channel = channel
   }
 
   static func send(actionIdentifier: String, payload: String) {
     let arguments = ["actionId": actionIdentifier, "payload": payload]
-    if let channel {
-      channel.invokeMethod("notificationAction", arguments: arguments)
-    } else {
-      pending = arguments
+    queue.sync { pending.append(arguments) }
+    // The channel must be used from the platform thread, and a notification
+    // delegate callback is not documented to run there.
+    DispatchQueue.main.async {
+      guard let channel else { return }
+      let ready = drainPending()
+      guard !ready.isEmpty else { return }
+      channel.invokeMethod("notificationActions", arguments: ready)
+    }
+  }
+
+  private static func drainPending() -> [[String: String]] {
+    queue.sync {
+      let drained = pending
+      pending = []
+      return drained
     }
   }
 }
