@@ -32,11 +32,84 @@ import FoundationModels
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  /// Hands an Approve/Deny press to Dart.
+  ///
+  /// This app adopts `UIApplicationSceneManifest`, so iOS delivers the press as
+  /// a `UINotificationResponseAction` in a scene update. The device log shows
+  /// it arriving — "Received action(s) in scene-update" — and the app then
+  /// answering `BSActionResponse ... "empty-response"`, because nothing
+  /// handled it: `flutter_local_notifications` registers itself only through
+  /// `addApplicationDelegate:`, never `addSceneDelegate:`, so its own
+  /// `UNUserNotificationCenterDelegate` implementation is never reached on a
+  /// scene-based app. The notification was raised, showed its buttons, and
+  /// dropped every press.
+  ///
+  /// Forwarding the two fields Dart needs — the action identifier and the
+  /// payload the plugin stored under `userInfo["payload"]` — is deliberately
+  /// narrow. It does not reimplement the plugin or touch presentation, which
+  /// already works.
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    let actionIdentifier = response.actionIdentifier
+    let payload = response.notification.request.content.userInfo["payload"]
+      as? String
+    if let payload, !payload.isEmpty,
+      actionIdentifier != UNNotificationDefaultActionIdentifier,
+      actionIdentifier != UNNotificationDismissActionIdentifier
+    {
+      NotificationActionPlugin.send(
+        actionIdentifier: actionIdentifier,
+        payload: payload
+      )
+    }
+    super.userNotificationCenter(
+      center,
+      didReceive: response,
+      withCompletionHandler: completionHandler
+    )
+  }
+
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     BackgroundTaskPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "BackgroundTaskPlugin")!)
     AppleFoundationModelsPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "AppleFoundationModelsPlugin")!)
     WatchBridgePlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "WatchBridgePlugin")!)
+    NotificationActionPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "NotificationActionPlugin")!)
+  }
+}
+
+/// Carries a notification action from the scene delegate to Dart.
+///
+/// A plain channel rather than a plugin with a registrar: the response can
+/// arrive before Dart is listening, so the last one is held and replayed when
+/// the channel is attached.
+enum NotificationActionPlugin {
+  static let channelName = "com.caverno/notification_actions"
+  private static var channel: FlutterMethodChannel?
+  private static var pending: [String: String]?
+
+  static func register(with registrar: FlutterPluginRegistrar) {
+    let channel = FlutterMethodChannel(
+      name: channelName,
+      binaryMessenger: registrar.messenger()
+    )
+    self.channel = channel
+    if let pending {
+      channel.invokeMethod("notificationAction", arguments: pending)
+      self.pending = nil
+    }
+  }
+
+  static func send(actionIdentifier: String, payload: String) {
+    let arguments = ["actionId": actionIdentifier, "payload": payload]
+    if let channel {
+      channel.invokeMethod("notificationAction", arguments: arguments)
+    } else {
+      pending = arguments
+    }
   }
 }
 

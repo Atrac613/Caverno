@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../utils/logger.dart';
@@ -131,7 +132,39 @@ class NotificationService {
         _notificationTapController.add(payload);
       },
     );
+    _listenForSceneNotificationActions();
     _initialized = true;
+  }
+
+  /// Receives an action the scene delegate caught.
+  ///
+  /// This app adopts `UIApplicationSceneManifest`, and on a scene-based app
+  /// iOS delivers an Approve/Deny press as a `UINotificationResponseAction` in
+  /// a scene update. `flutter_local_notifications` registers only through
+  /// `addApplicationDelegate:`, so its own delegate never sees it and
+  /// [onDidReceiveNotificationResponse] above never fires — the notification
+  /// showed its buttons and dropped every press. `AppDelegate` catches it and
+  /// sends it here.
+  void _listenForSceneNotificationActions() {
+    const channel = MethodChannel('com.caverno/notification_actions');
+    channel.setMethodCallHandler((call) async {
+      if (call.method != 'notificationAction') return null;
+      final arguments = call.arguments;
+      if (arguments is! Map) return null;
+      final actionId = (arguments['actionId'] as String?)?.trim() ?? '';
+      final payload = (arguments['payload'] as String?)?.trim() ?? '';
+      appLog('[Notifications] scene action actionId=$actionId');
+      if (payload.isEmpty) return null;
+      if (actionId == approveActionId || actionId == denyActionId) {
+        final action = _decodeApprovalAction(actionId, payload);
+        if (action != null) {
+          _notificationActionController.add(action);
+        }
+        return null;
+      }
+      _notificationTapController.add(payload);
+      return null;
+    });
   }
 
   /// Request notification permissions, retrying until one is actually granted.

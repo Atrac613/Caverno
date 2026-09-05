@@ -272,6 +272,33 @@ notification also states its own `presentBanner`/`presentList`/`presentAlert`,
 rather than relying on defaults persisted in `NSUserDefaults` at plugin
 initialization.
 
+## Notification actions and UIScene
+
+Approve and Deny appeared on the notification and every press was dropped. The
+device log is what settled it, after several rounds of reading Dart that was
+never the problem:
+
+```
+SpringBoard  Sending action(s) in update: <UINotificationResponseAction>
+Runner       Received action(s) in scene-update: <UINotificationResponseAction>
+SpringBoard  recieved action response <BSActionResponse ... "empty-response">
+```
+
+The app adopts `UIApplicationSceneManifest`, so iOS delivers the press as a
+`UINotificationResponseAction` in a scene update. `flutter_local_notifications`
+registers itself only through `addApplicationDelegate:` and never
+`addSceneDelegate:`, so its own `UNUserNotificationCenterDelegate`
+implementation is never reached on a scene-based app, and the app answers
+"empty-response" — the notification showed its buttons and threw away every
+answer.
+
+`AppDelegate` catches the response and forwards the two fields Dart needs, the
+action identifier and the payload the plugin stored under
+`userInfo["payload"]`, over `com.caverno/notification_actions`. Deliberately
+narrow: it does not reimplement the plugin and does not touch presentation,
+which already works. The channel holds the last response until Dart attaches,
+because a press can arrive before an isolate exists.
+
 ## Thread switching and the glance
 
 The snapshot carries the threads the watch may switch to, capped at the source
