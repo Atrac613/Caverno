@@ -28,6 +28,12 @@ final approvalNotificationActionsProvider = Provider<void>((ref) {
 
 void _apply(Ref ref, NotificationActionEvent action) {
   if (!action.isApprove && !action.isDeny) return;
+  // The button press itself is the one step with no visible trace: the
+  // notification disappears whether or not anything acted on it.
+  appLog(
+    '[ApprovalNotification] action ${action.actionId} for '
+    '${action.approvalId}',
+  );
   // Resolution is by approval id, never by thread: a second approval can queue
   // behind the first while the notification is still on screen, and answering
   // "whatever that thread is waiting on" would then land on the wrong command.
@@ -41,10 +47,18 @@ void _apply(Ref ref, NotificationActionEvent action) {
     id: action.approvalId,
     approved: action.isApprove,
   )) {
+    appLog(
+      '[ApprovalNotification] ${action.approvalId} resolved locally '
+      '(approved=${action.isApprove})',
+    );
     return;
   }
   final client = ref.read(remoteCodingClientProvider);
   if (client.pendingApproval?.id == action.approvalId) {
+    appLog(
+      '[ApprovalNotification] ${action.approvalId} sent to the desktop '
+      '(approved=${action.isApprove})',
+    );
     unawaited(
       ref
           .read(remoteCodingClientProvider.notifier)

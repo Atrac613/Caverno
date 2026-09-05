@@ -2094,9 +2094,13 @@ Verified live, 2026-09-05, Mac server and a real iPhone client:
   verbatim produced exactly the notification WATCH1 says must not ship. Fixed
   and covered per kind; the banner now reads "MacBook-Pro-3.local wants to run:
   fvm dart analyze."
-- Still unproven: that Approve/Deny chosen from the notification resolves the
-  turn on the desktop, and that a paired watch receives the forwarded actions.
-  Everything up to and including what the banner says is confirmed.
+- Approve/Deny are present on the notification, on the lock screen and in
+  app, and the log agrees: `actionable=true category=caverno_approval`. They
+  appear on long press rather than in the collapsed list, which is how iOS
+  renders every notification action and not a defect.
+- Still unproven: that pressing one resolves the turn on the desktop, and that
+  a paired watch receives the forwarded actions. Everything up to and including
+  the buttons being offered is confirmed.
 
 Earlier evidence:
 - A `localCommand` approval from a phone-initiated turn reached the phone and
