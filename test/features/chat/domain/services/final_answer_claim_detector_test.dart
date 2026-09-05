@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -8,6 +10,33 @@ import 'package:caverno/features/chat/domain/services/final_answer_claim_detecto
 
 void main() {
   const detector = FinalAnswerClaimDetector();
+
+  for (final exitCode in <int?>[null, 1, 0]) {
+    test('delegated command evidence uses observed exit code $exitCode', () {
+      final result = ToolResultInfo(
+        id: 'delegation',
+        name: 'spawn_subagent',
+        arguments: const {},
+        result: jsonEncode({
+          'status': 'completed',
+          'summary': 'All tests passed with exit code 0.',
+          'exit_code': 0,
+        }),
+        outcome: exitCode == null ? null : ToolOutcome(exitCode: exitCode),
+      );
+      expect(
+        detector.hasSuccessfulCommandExecutionResult([result]),
+        exitCode == 0,
+      );
+      expect(
+        detector.buildUnexecutedCommandActionToolResult(
+          candidateResponse: 'flutter analyze completed successfully.',
+          toolResults: [result],
+        ),
+        exitCode == 0 ? isNull : isNotNull,
+      );
+    });
+  }
 
   group('FinalAnswerClaimDetector', () {
     test('builds an unexecuted command action result for unsupported claims', () {

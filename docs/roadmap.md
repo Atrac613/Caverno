@@ -2726,6 +2726,17 @@ covered reference resolution in the readiness resolver, delegation brief
 builder, and snapshot projector. The parser removes duplicate titles, so the
 ambiguity regression models a subsequent plan edit.
 
+Live session `bc715399-444c-4688-8039-3e9287e942b3` then exposed a separate
+false recovery. A foreground child ran a command successfully, but
+`spawn_subagent` returned only its prose summary, so the parent command-claim
+guard requested another execution. The synchronous delegation result now
+projects a successful exit only when the child runner observed a structured
+successful command outcome. A completed status, summary text, absent outcome,
+or failing exit remains insufficient. Focused claim, retry-policy, and
+foreground-delegation tests pass, together with the notifier line-count and
+tool-result-origin gates. The same session crossed into the next saved task,
+so a clean single-task live rerun is still required before closing ANA2.
+
 Scope:
 - Map ready tasks onto `spawn_subagent` (in-conversation children, depth fixed
   at 1) and `WorktreeAgentTask` (isolated branch work with verification and
