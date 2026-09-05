@@ -2735,7 +2735,18 @@ successful command outcome. A completed status, summary text, absent outcome,
 or failing exit remains insufficient. Focused claim, retry-policy, and
 foreground-delegation tests pass, together with the notifier line-count and
 tool-result-origin gates. The same session crossed into the next saved task,
-so a clean single-task live rerun is still required before closing ANA2.
+so a clean single-task live rerun was still required before closing ANA2.
+
+Live session `727c85d3-d279-453c-9522-ee46e0f51cb9` confirmed that the
+structured child exit now reaches both `spawn_subagent` results and prevents
+the false command-action retry. It also exposed a planning-parser defect: a
+proposal truncated during a later task contained a complete earlier
+`validationCommand`, but loose JSON recovery treated the command's escaped
+quote as the end of the field and saved `python3 -c \\`. Loose scalar recovery
+now decodes escaped JSON strings and declines unterminated quoted fields, with
+utility-level and task-parser regressions covering both boundaries. One live
+rerun remains before ANA2 closes because the malformed saved command prevented
+the session from validating its first task cleanly.
 
 Scope:
 - Map ready tasks onto `spawn_subagent` (in-conversation children, depth fixed

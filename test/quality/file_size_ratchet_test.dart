@@ -223,7 +223,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart':
       245,
   'lib/features/chat/domain/services/proposal_option_extraction.dart': 621,
-  'lib/features/chat/domain/services/proposal_parsing_text_utils.dart': 693,
+  // -21: escaped loose scalar decoding moved behind its own bounded parser.
+  'lib/features/chat/domain/services/proposal_parsing_text_utils.dart': 672,
+  'lib/features/chat/domain/services/loose_json_scalar_extractor.dart': 37,
   'lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart': 55,
   // -11: the block payload and the Git working-tree evidence check moved to
   // their own collaborators.

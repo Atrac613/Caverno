@@ -109,6 +109,22 @@ Notes: Keep approval UI compact
     );
   });
 
+  test('preserves a complete quoted command in truncated proposal JSON', () {
+    final proposal = parser.parseTaskProposalFromLooseJson(r'''
+{"tasks":[
+  {"title":"Create sample data","targetFiles":["sample.jsonl"],"validationCommand":"test -f sample.jsonl && python3 -c \"print('ok')\""},
+  {"title":"Implement the CLI","targetFiles":["count.py"],"notes":"unfinished
+''');
+
+    expect(proposal, isNotNull);
+    expect(proposal!.tasks, hasLength(2));
+    expect(
+      proposal.tasks.first.validationCommand,
+      '''test -f sample.jsonl && python3 -c "print('ok')"''',
+    );
+    expect(proposal.tasks.last.validationCommand, isEmpty);
+  });
+
   group('precondition edges (ANA1 PR 2c)', () {
     test('reads the array the schema asks for', () {
       final proposal = parser.parse('''
