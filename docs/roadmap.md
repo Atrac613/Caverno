@@ -2066,6 +2066,18 @@ Verification evidence:
   action routing to the owning notifier.
 - `flutter analyze` clean.
 
+The phone-initiated chain, checked link by link rather than assumed — the step
+skipped twice already:
+- `_handleSendMessage` calls `sendMessage(origin: remote, remoteDeviceId:
+  client.deviceId)`, which sets `_activeInteractionOrigin` and
+  `_activeRemoteDeviceId` for the turn.
+- `PendingLocalCommand`, `PendingFileOperation` and `PendingGitCommand` are all
+  constructed with `origin: _activeInteractionOrigin` and
+  `remoteDeviceId: _activeRemoteDeviceId`, so the approval inherits the turn's
+  owner rather than defaulting to local.
+- `_canResolveInteraction` therefore passes, `_pendingRemoteApproval` puts the
+  approval in the snapshot, and the client's listener raises the notification.
+
 Next action:
 - Verify the case this actually covers: send a coding turn **from the phone**
   over Remote Coding, move the phone to another screen while the app stays
