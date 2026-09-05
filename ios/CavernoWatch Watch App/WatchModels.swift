@@ -8,7 +8,7 @@ import Foundation
 /// keeps the previously installed companion until it syncs), so an unknown
 /// status or approval kind must degrade rather than fail to decode.
 
-enum WatchTurnStatus: String, Decodable {
+enum WatchTurnStatus: String, Decodable, CaseIterable {
   case idle
   case streaming
   case waitingApproval
@@ -398,7 +398,7 @@ struct WatchCommandResult: Decodable, Equatable {
 }
 
 /// Command vocabulary, mirroring `WatchCommand` on the Dart side.
-enum WatchCommandType: String {
+enum WatchCommandType: String, CaseIterable {
   case sendMessage
   case resolveApproval
   case resolveQuestion
