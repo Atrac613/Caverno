@@ -1880,10 +1880,30 @@ Follow-up, completed 2026-09-05:
   goal key, removing `resolveGoal` from the watch's command list, and adding a
   status the watch does not name each fail it with a named diagnostic.
 
+Partial paired-simulator run, 2026-09-05:
+- The WATCH9 build was installed on an iPhone 17 Pro Max / Watch Series 11 pair
+  and the bridge itself was proved end to end: the watch rendered a real frame
+  projected from the phone's `ChatState`, with the empty-thread state, the
+  thread-picker affordance, and the compose bar. The `MethodChannel` /
+  `WCSession` path therefore works in this build.
+- The goal path — the attention button, `GoalView`, and `resolveGoal` moving a
+  goal — was **not** reached. Driving the phone's compose bar through the
+  simulator control tool would not fire the send button, so `/goal` never
+  submitted and no goal ever entered `awaitingConfirmation`.
+- Two environment traps cost most of that session and are now written up in
+  `docs/apple_watch_companion.md`: `appInstalled: NO` until the *pair* is
+  rebooted, and a wedged `wcd` that activates and never answers with a session
+  state. Both present as the watch sitting on "Loading…" and neither is a
+  bridge defect.
+
 Next action:
-- Run it on paired simulators. The contract test covers the wire format; it
-  does not cover the `MethodChannel`/`WCSession` round trip or `resolveGoal`
-  actually moving a goal, and WATCH2 found ten defects at that seam.
+- Finish the paired-simulator run: set a goal to `awaitingConfirmation` through
+  the goal editor's status dropdown, confirm the wrist raises the attention
+  affordance, and answer it. The contract test covers the wire format; it does
+  not cover `resolveGoal` actually moving a goal, and WATCH2 found ten defects
+  at that seam.
+- Haptics on the new attention transition and notification forwarding need real
+  hardware, as they do for WATCH1.
 - Note for whoever adds the next wire field: rung 0 is now 97.5% full in
   Japanese, so the next field pushes a wide frame onto the shedding ladder
   rather than fitting beside the thread picker.

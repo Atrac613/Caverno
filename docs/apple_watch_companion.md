@@ -351,12 +351,42 @@ in. A checked-in fixture would only prove the watch decodes whatever the
 fixture says, which is the same blind spot one layer up.
 
 Pair the simulators from the command line — `xcrun simctl pair` exists and
-`simctl boot <pair-udid>` brings both up; no GUI is needed. Two things about
-that environment cost real time, so they are worth knowing: the app's
-preferences live in its sandboxed container, not where `simctl spawn defaults`
-writes, and cfprefsd caches them until the device is rebooted; and a simulator
-configured for Japanese input turns typed ASCII into kana, so drive text entry
-through `simctl pbcopy` and paste, or set `AppleKeyboards` to English first.
+`simctl boot <pair-udid>` brings both up; no GUI is needed. Four things about
+that environment cost real time, so they are worth knowing.
+
+The app's preferences live in its sandboxed container, not where `simctl spawn
+defaults` writes, and cfprefsd caches them until the device is rebooted. A
+simulator configured for Japanese input turns typed ASCII into kana, so drive
+text entry through `simctl pbcopy` and paste, or set `AppleKeyboards` to
+English first.
+
+The other two both present as the watch sitting on "Loading…" forever, which
+looks like a bridge defect and is not one. Read the phone's session state
+before assuming anything:
+
+```bash
+xcrun simctl spawn <phone-udid> log show --last 2m --style compact \
+  --predicate 'process == "Runner"' \
+  | grep -oE "reachable: (YES|NO), paired: (YES|NO), appInstalled: (YES|NO)"
+```
+
+`appInstalled: NO` after `simctl install` of the iPhone app means the
+WatchConnectivity daemon has not noticed the companion that `Runner.app/Watch`
+carried onto the paired watch, even though `simctl listapps` on the watch shows
+it. Shut both devices down and boot the *pair* again.
+
+An activation with no session state at all — `informing daemon ready for
+session state` and then silence, where a healthy launch answers within
+milliseconds — is a wedged `wcd`, usually after a pair reboot. Restart it on
+both devices and relaunch the phone app:
+
+```bash
+xcrun simctl spawn <udid> launchctl kickstart -k system/com.apple.wcd
+```
+
+Note that `timeout` is not installed on macOS by default, so a `log stream`
+wrapped in it silently produces nothing. Prefer `log show --last`; an empty
+result from a `timeout`-wrapped stream is not evidence.
 Keep the watch app running while restarting only the iPhone app at least once.
 The first snapshot from the restarted projection has a reset sequence, so this
 is the boundary test that proves source-aware ordering rather than only ordinary
