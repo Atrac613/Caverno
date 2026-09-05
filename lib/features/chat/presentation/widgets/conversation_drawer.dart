@@ -29,6 +29,9 @@ const _collapsedCodingProjectIdsPrefsKey =
     'conversationDrawer.collapsedCodingProjectIds';
 const _codingProjectSortOrderPrefsKey =
     'conversationDrawer.codingProjectSortOrder';
+// Inset for rounded ListTile hover/selection so the fill does not touch the
+// drawer edge.
+const _drawerRowMargin = 8.0;
 
 enum _CodingProjectSortOrder {
   newestFirst,
@@ -231,8 +234,15 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                     },
             ),
             const Divider(height: 1),
-            _SearchDrawerTile(onTap: () => _openSearch(context)),
-            _SettingsDrawerTile(onTap: () => _openSettings(context)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: _drawerRowMargin),
+              child: Column(
+                children: [
+                  _SearchDrawerTile(onTap: () => _openSearch(context)),
+                  _SettingsDrawerTile(onTap: () => _openSettings(context)),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -549,7 +559,12 @@ class _WorkspaceSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+      padding: const EdgeInsets.fromLTRB(
+        _drawerRowMargin,
+        _drawerRowMargin,
+        _drawerRowMargin,
+        6,
+      ),
       child: Column(
         children: [
           _WorkspaceTile(
@@ -679,7 +694,12 @@ class _ChatConversationSection extends StatelessWidget {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.fromLTRB(
+                    _drawerRowMargin,
+                    0,
+                    _drawerRowMargin,
+                    8,
+                  ),
                   itemCount: conversations.length,
                   itemBuilder: (context, index) {
                     final conversation = conversations[index];
@@ -814,7 +834,12 @@ class _CodingProjectsSection extends StatelessWidget {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.fromLTRB(
+                    _drawerRowMargin,
+                    0,
+                    _drawerRowMargin,
+                    8,
+                  ),
                   itemCount: projects.length,
                   itemBuilder: (context, index) {
                     final project = projects[index];
@@ -982,12 +1007,15 @@ class _RoutinesSection extends ConsumerWidget {
             ),
           ],
         ),
-        _RoutineHomeTile(
-          isSelected: selectedId == null,
-          onTap: () {
-            ref.read(routinesNotifierProvider.notifier).selectRoutine(null);
-            closeDrawer();
-          },
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: _drawerRowMargin),
+          child: _RoutineHomeTile(
+            isSelected: selectedId == null,
+            onTap: () {
+              ref.read(routinesNotifierProvider.notifier).selectRoutine(null);
+              closeDrawer();
+            },
+          ),
         ),
         const Divider(height: 1),
         Expanded(
@@ -1003,7 +1031,12 @@ class _RoutinesSection extends ConsumerWidget {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.fromLTRB(
+                    _drawerRowMargin,
+                    0,
+                    _drawerRowMargin,
+                    8,
+                  ),
                   itemCount: routines.length,
                   itemBuilder: (context, index) {
                     final routine = routines[index];

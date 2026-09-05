@@ -954,7 +954,7 @@ class _RemoteCodingDrawerSectionState
                   message: 'No desktop projects yet.',
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                   itemCount: state.projects.length,
                   itemBuilder: (context, index) {
                     final project = state.projects[index];
