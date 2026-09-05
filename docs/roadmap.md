@@ -176,7 +176,7 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH6 | done | Dismiss an approval or question dialog on the phone when the watch resolves it. | Shipped 2026-09-02 and verified on paired simulators: answering from the wrist closes the phone's sheet. Dismissal pops by route name, so it is a no-op when the dialog is not topmost. |
 | Watch | WATCH7 | done | Make the wrist screen a message thread rather than a status glance: bubbles with tails, relative timestamp headers, a typing indicator, and a pinned compose bar. | Shipped 2026-09-02. The frame now carries the tail of the thread; verified on the watch simulator, including the fallback for a watch newer than its phone. |
 | Watch | WATCH8 | done | Keep Watch snapshots ordered across iPhone process restarts without allowing a delayed old frame to resurrect resolved state. | Completed 2026-09-04. Frames now carry a source identity and start time in addition to their per-source sequence; verified with the Watch process kept alive across an iPhone restart. |
-| Watch | WATCH9 | done | Put coding-thread state on the wrist: workspace mode and the conversation goal, with `awaitingConfirmation` surfaced as an interaction to answer rather than as idle. | Shipped 2026-09-05. Nothing has been run on paired simulators yet; the native/Dart bridge boundary is the seam unit tests cannot reach, so verify `resolveGoal` there before relying on it. |
+| Watch | WATCH9 | done | Put coding-thread state on the wrist: workspace mode and the conversation goal, with `awaitingConfirmation` surfaced as an interaction to answer rather than as idle. | Shipped 2026-09-05, and the paired-simulator run then found the goal half **cannot fire on iOS**: goals are gated to coding threads and iOS has none. Correct machinery, wrong source; reaching it is WATCH11's job. |
 | Watch | WATCH10 | next | Raise the actionable approval notification for a Remote Coding turn, so a blocked desktop agent reaches the wrist at all. Today it reaches it through no path whatsoever. | Not WATCH5: the client holds a live WebSocket, so this needs no push contract. Route the action to `RemoteCodingClientNotifier`, which `approvalNotificationActionsProvider` does not reach today. |
 | Watch | WATCH11 | later | Show and resolve Remote Coding approvals and questions in the companion itself, labelled with the host that owns them. | Gate on WATCH10. Record the SEC4.5g reading — the watch is the client phone's peripheral, so the principal set does not widen — before shipping. |
 | Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
@@ -1896,14 +1896,33 @@ Partial paired-simulator run, 2026-09-05:
   state. Both present as the watch sitting on "Loading…" and neither is a
   bridge defect.
 
+Reachability gap found by that run, 2026-09-05:
+- Trying to set a goal on the phone answered "Goals are available in coding
+  threads." `/goal` is gated on `isCodingWorkspace`
+  (`slash_command_action_coordinator.dart`), and on iOS the coding workspace
+  always renders `RemoteCodingPage` — `isMobileRemoteCoding` in
+  `chat_page.dart` is `isCodingWorkspace && isRemoteCodingMobilePlatform()`,
+  and that predicate is simply `Platform.isAndroid || Platform.isIOS`.
+- So a local iOS thread can never carry a goal, and `_goalFor` reads exactly
+  that: `conversationsNotifierProvider.currentConversation.goal`. **The goal
+  projection, the `awaitingGoalConfirmation` attention state, and `resolveGoal`
+  cannot fire on the only platform the companion ships to.**
+- This is WATCH10's defect class, not a coding error: the machinery is right
+  and points at the wrong source. The goal a phone user actually has is on the
+  *desktop* they are driving through Remote Coding, which is
+  `RemoteCodingClientState` — the second input source WATCH11 exists to add.
+- What does survive on iOS: `workspaceMode` in the frame, the thread picker's
+  mode labels for chat and routine threads, and the payload budget work the
+  measurement produced. The goal code stays rather than being reverted: it is
+  tested, it is the shape WATCH11 needs, and it fires the moment a goal reaches
+  `ChatState`.
+
 Next action:
-- Finish the paired-simulator run: set a goal to `awaitingConfirmation` through
-  the goal editor's status dropdown, confirm the wrist raises the attention
-  affordance, and answer it. The contract test covers the wire format; it does
-  not cover `resolveGoal` actually moving a goal, and WATCH2 found ten defects
-  at that seam.
-- Haptics on the new attention transition and notification forwarding need real
-  hardware, as they do for WATCH1.
+- Fold the goal source into WATCH11 rather than re-running this on simulators.
+  Verifying `resolveGoal` against a source that cannot exist on iOS proves
+  nothing.
+- Haptics on the new attention transition and notification forwarding still
+  need real hardware, as they do for WATCH1.
 - Note for whoever adds the next wire field: rung 0 is now 97.5% full in
   Japanese, so the next field pushes a wide frame onto the shedding ladder
   rather than fitting beside the thread picker.
@@ -2010,6 +2029,15 @@ Acceptance criteria:
 Dependencies:
 - WATCH10, which proves the client-side wiring and the host naming with far
   less machinery.
+
+Added 2026-09-05 — the goal, not only approvals:
+- WATCH9 built the goal projection and `resolveGoal` against `ChatState`, and
+  the paired-simulator run then showed that source can never hold a goal on
+  iOS. The wire model, the attention state, the confirm screen and the resolve
+  path all exist and are tested; what they lack is a source. Pointing them at
+  `remoteCodingClientProvider` alongside the approvals is the same second-input
+  problem this milestone already owns, so it belongs here rather than in a new
+  milestone.
 
 Next action:
 - Gate on WATCH10 shipping, then settle cross-source precedence before writing

@@ -193,6 +193,18 @@ status travel as strings rather than closed enums, for the reason
 `WatchApproval.kind` does: a watch older than its phone must degrade to showing
 less rather than failing to decode the frame.
 
+**None of the goal half can fire on iOS today**, and the paired-simulator run
+is what found it. `/goal` is gated on `isCodingWorkspace`, and on iOS the
+coding workspace always renders `RemoteCodingPage` — `isMobileRemoteCoding` is
+`isCodingWorkspace && isRemoteCodingMobilePlatform()`, and that predicate is
+just `Platform.isAndroid || Platform.isIOS`. A local iOS thread therefore never
+carries a goal, and `_goalFor` reads exactly that thread. This is the same
+shape as the approval gap above: the machinery is right and points at the wrong
+source. The goal a phone user has is on the desktop they are driving through
+Remote Coding, which lives in `RemoteCodingClientState` — the second input
+source WATCH11 adds. The code stays because it is tested, it is the shape
+WATCH11 needs, and it fires the moment a goal reaches `ChatState`.
+
 Adding these fields spent most of what was left. A maximal frame carrying a
 goal encodes to 97.5% of the budget in Japanese — still the full projection,
 which is the acceptance criterion, but the next field to go on the wire will
