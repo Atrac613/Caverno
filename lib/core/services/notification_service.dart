@@ -110,6 +110,14 @@ class NotificationService {
     await _plugin.initialize(
       settings: settings,
       onDidReceiveNotificationResponse: (response) {
+        // Logged before any filtering. Everything downstream of this point is
+        // ours to fix; nothing upstream of it is visible from Dart at all, so
+        // the presence or absence of this line is what says which side of the
+        // platform boundary a lost button press was lost on.
+        appLog(
+          '[Notifications] response actionId=${response.actionId} '
+          'hasPayload=${(response.payload?.trim().isNotEmpty) ?? false}',
+        );
         final payload = response.payload?.trim();
         if (payload == null || payload.isEmpty) return;
         final actionId = response.actionId?.trim() ?? '';
@@ -329,6 +337,15 @@ class NotificationService {
     );
   }
 
+  /// The notification that launched the app, if one did.
+  ///
+  /// An Approve or Deny pressed while the app was not running arrives here
+  /// rather than on [notificationActions]: the stream only exists once a Dart
+  /// isolate does. Dropping the action identifier — which this did — lost the
+  /// decision silently on the two surfaces the buttons exist for, a lock
+  /// screen and a paired watch, where the app is least likely to be running.
+  /// An action is emitted as an action and returns no tap payload, so it is
+  /// answered rather than merely navigated to.
   Future<String?> getInitialNotificationTapPayload() async {
     await init();
     final details = await _plugin.getNotificationAppLaunchDetails();
@@ -336,7 +353,22 @@ class NotificationService {
       return null;
     }
     final payload = details?.notificationResponse?.payload?.trim();
-    return payload == null || payload.isEmpty ? null : payload;
+    if (payload == null || payload.isEmpty) {
+      return null;
+    }
+    final actionId = details?.notificationResponse?.actionId?.trim() ?? '';
+    if (actionId == approveActionId || actionId == denyActionId) {
+      final action = _decodeApprovalAction(actionId, payload);
+      if (action != null) {
+        appLog(
+          '[Notifications] launch response carried action $actionId for '
+          '${action.approvalId}',
+        );
+        _notificationActionController.add(action);
+        return null;
+      }
+    }
+    return payload;
   }
 
   Future<void> _showNotification({
