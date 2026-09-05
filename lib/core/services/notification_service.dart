@@ -43,7 +43,11 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   Future<void>? _initialization;
   bool _initialized = false;
-  bool _permissionRequested = false;
+  /// Whether a permission request has come back granted.
+  ///
+  /// Not "whether we asked": an attempt that was never actually presented, or
+  /// was refused, must be able to ask again.
+  bool _permissionGranted = false;
   final StreamController<String> _notificationTapController =
       StreamController<String>.broadcast();
   final StreamController<NotificationActionEvent> _notificationActionController =
@@ -120,30 +124,51 @@ class NotificationService {
     _initialized = true;
   }
 
-  /// Request notification permissions if not already done.
+  /// Request notification permissions, retrying until one is actually granted.
+  ///
+  /// The request is made lazily, on the first notification rather than at
+  /// launch, so the prompt appears next to something the person asked for. That
+  /// timing has a trap: iOS shows the prompt only while the app is
+  /// foregrounded, and this used to mark the request done before awaiting its
+  /// result. A first notification raised in the background therefore consumed
+  /// the only attempt without ever asking, permission stayed undetermined, and
+  /// every later notification was posted into a void — the log said it was
+  /// raised and nothing appeared. Latching on the *answer* instead means a
+  /// refused-or-never-asked attempt is retried the next time, which is when the
+  /// app is more likely to be in front of someone.
   Future<void> _ensurePermission() async {
-    if (_permissionRequested) return;
-    _permissionRequested = true;
+    if (_permissionGranted) return;
 
     // iOS / macOS
     final darwin = _plugin
         .resolvePlatformSpecificImplementation<
           IOSFlutterLocalNotificationsPlugin
         >();
-    await darwin?.requestPermissions(alert: true, sound: true);
+    if (darwin != null) {
+      _permissionGranted =
+          await darwin.requestPermissions(alert: true, sound: true) ?? false;
+      return;
+    }
 
     final macOS = _plugin
         .resolvePlatformSpecificImplementation<
           MacOSFlutterLocalNotificationsPlugin
         >();
-    await macOS?.requestPermissions(alert: true, sound: true);
+    if (macOS != null) {
+      _permissionGranted =
+          await macOS.requestPermissions(alert: true, sound: true) ?? false;
+      return;
+    }
 
     // Android 13+
     final android = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >();
-    await android?.requestNotificationsPermission();
+    if (android != null) {
+      _permissionGranted =
+          await android.requestNotificationsPermission() ?? false;
+    }
   }
 
   /// Show a notification indicating that the LLM response is ready.
