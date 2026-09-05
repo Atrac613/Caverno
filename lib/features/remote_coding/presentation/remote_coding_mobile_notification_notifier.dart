@@ -188,6 +188,9 @@ final class RemoteCodingMobileNotificationNotifier
     // app is in front of the person, which is most of the time it matters.
     try {
       await _gateway.allowForegroundNotifications();
+      appLog(
+        '[RemoteCodingNotifications] foreground presentation allowed',
+      );
     } catch (error) {
       appLog(
         '[RemoteCodingNotifications] could not allow foreground presentation: '

@@ -349,8 +349,24 @@ class NotificationService {
       priority: Priority.defaultPriority,
     );
 
+    // Presentation is stated per notification rather than left to the
+    // defaults persisted at plugin initialization. Those defaults are read
+    // from `NSUserDefaults` when the content is built, and they are only one
+    // of two paths that decide whether anything appears while the app is in
+    // front — the other being whichever plugin ends up owning
+    // `UNUserNotificationCenter.delegate`. Stating them here removes this
+    // notification's dependence on both.
+    //
+    // Foreground presentation is wanted for every kind raised here: the
+    // answer-ready notification is already gated on the app being in the
+    // background, and an approval is raised precisely because the person is
+    // not looking at the surface that owns it.
     final darwinDetails = DarwinNotificationDetails(
       categoryIdentifier: darwinCategoryId,
+      presentAlert: true,
+      presentBanner: true,
+      presentList: true,
+      presentSound: true,
     );
 
     final details = NotificationDetails(
