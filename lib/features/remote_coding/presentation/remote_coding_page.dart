@@ -975,9 +975,10 @@ class _RemoteCodingDrawerSectionState
               ? const _RemoteDrawerEmptyState(
                   message: 'No desktop projects yet.',
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 8),
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                   itemCount: state.projects.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 4),
                   itemBuilder: (context, index) {
                     final project = state.projects[index];
                     final isSelected = project.id == state.selectedProjectId;
@@ -1125,6 +1126,7 @@ class _RemoteProjectThreadGroup extends StatelessWidget {
     final hiddenThreadCount = threads.length - collapsedThreadLimit;
 
     return Column(
+      spacing: 4,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _RemoteProjectTile(

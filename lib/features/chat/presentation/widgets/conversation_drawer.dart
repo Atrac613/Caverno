@@ -29,6 +29,10 @@ const _collapsedCodingProjectIdsPrefsKey =
     'conversationDrawer.collapsedCodingProjectIds';
 const _codingProjectSortOrderPrefsKey =
     'conversationDrawer.codingProjectSortOrder';
+// Inset for rounded ListTile hover/selection so the fill does not touch the
+// drawer edge, plus a gap between neighboring rows.
+const _drawerRowMargin = 8.0;
+const _drawerRowGap = 4.0;
 
 enum _CodingProjectSortOrder {
   newestFirst,
@@ -231,8 +235,16 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                     },
             ),
             const Divider(height: 1),
-            _SearchDrawerTile(onTap: () => _openSearch(context)),
-            _SettingsDrawerTile(onTap: () => _openSettings(context)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: _drawerRowMargin),
+              child: Column(
+                spacing: _drawerRowGap,
+                children: [
+                  _SearchDrawerTile(onTap: () => _openSearch(context)),
+                  _SettingsDrawerTile(onTap: () => _openSettings(context)),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -549,8 +561,14 @@ class _WorkspaceSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+      padding: const EdgeInsets.fromLTRB(
+        _drawerRowMargin,
+        _drawerRowMargin,
+        _drawerRowMargin,
+        6,
+      ),
       child: Column(
+        spacing: _drawerRowGap,
         children: [
           _WorkspaceTile(
             key: const ValueKey('drawer-workspace-dashboard'),
@@ -678,9 +696,16 @@ class _ChatConversationSection extends StatelessWidget {
                     style: const TextStyle(color: Colors.grey),
                   ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 8),
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(
+                    _drawerRowMargin,
+                    0,
+                    _drawerRowMargin,
+                    8,
+                  ),
                   itemCount: conversations.length,
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(height: _drawerRowGap),
                   itemBuilder: (context, index) {
                     final conversation = conversations[index];
                     return _ConversationTile(
@@ -813,9 +838,16 @@ class _CodingProjectsSection extends StatelessWidget {
                     style: const TextStyle(color: Colors.grey),
                   ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 8),
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(
+                    _drawerRowMargin,
+                    0,
+                    _drawerRowMargin,
+                    8,
+                  ),
                   itemCount: projects.length,
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(height: _drawerRowGap),
                   itemBuilder: (context, index) {
                     final project = projects[index];
                     final threads = _threadsForProject(project.id);
@@ -927,6 +959,7 @@ class _ProjectThreadGroup extends StatelessWidget {
     final hiddenThreadCount = threads.length - collapsedThreadLimit;
 
     return Column(
+      spacing: _drawerRowGap,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ProjectTile(
@@ -982,12 +1015,15 @@ class _RoutinesSection extends ConsumerWidget {
             ),
           ],
         ),
-        _RoutineHomeTile(
-          isSelected: selectedId == null,
-          onTap: () {
-            ref.read(routinesNotifierProvider.notifier).selectRoutine(null);
-            closeDrawer();
-          },
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: _drawerRowMargin),
+          child: _RoutineHomeTile(
+            isSelected: selectedId == null,
+            onTap: () {
+              ref.read(routinesNotifierProvider.notifier).selectRoutine(null);
+              closeDrawer();
+            },
+          ),
         ),
         const Divider(height: 1),
         Expanded(
@@ -1002,9 +1038,16 @@ class _RoutinesSection extends ConsumerWidget {
                     ),
                   ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 8),
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(
+                    _drawerRowMargin,
+                    0,
+                    _drawerRowMargin,
+                    8,
+                  ),
                   itemCount: routines.length,
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(height: _drawerRowGap),
                   itemBuilder: (context, index) {
                     final routine = routines[index];
                     return _RoutineDrawerTile(

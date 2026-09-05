@@ -615,6 +615,91 @@ void main() {
     );
   });
 
+  testWidgets('chat conversation tiles keep a gutter outside the hover frame', (
+    tester,
+  ) async {
+    await _pumpDrawerApp(
+      tester,
+      conversationsState: ConversationsState(
+        conversations: [
+          _conversation(
+            id: 'chat-1',
+            title: 'General question',
+            workspaceMode: WorkspaceMode.chat,
+          ),
+          _conversation(
+            id: 'chat-2',
+            title: 'Follow-up',
+            workspaceMode: WorkspaceMode.chat,
+            minutesAgo: 5,
+          ),
+        ],
+        currentConversationId: 'chat-1',
+        activeWorkspaceMode: WorkspaceMode.chat,
+        activeProjectId: null,
+      ),
+      projectsState: CodingProjectsState.initial(),
+    );
+
+    expect(
+      _horizontalGutter(
+        tester,
+        find.byKey(const ValueKey('drawer-conversation-chat-1')),
+      ),
+      8,
+    );
+    expect(
+      _verticalGap(
+        tester,
+        find.byKey(const ValueKey('drawer-conversation-chat-1')),
+        find.byKey(const ValueKey('drawer-conversation-chat-2')),
+      ),
+      4,
+    );
+  });
+
+  testWidgets('coding thread tiles keep a gutter outside the hover frame', (
+    tester,
+  ) async {
+    final project = _project(id: 'project-1', name: 'sample_app');
+    await _pumpDrawerApp(
+      tester,
+      conversationsState: ConversationsState(
+        conversations: [
+          _conversation(
+            id: 'thread-1',
+            title: 'Fix parser',
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+          ),
+        ],
+        currentConversationId: 'thread-1',
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+      projectsState: CodingProjectsState(
+        projects: [project],
+        selectedProjectId: project.id,
+      ),
+    );
+
+    expect(
+      _horizontalGutter(
+        tester,
+        find.byKey(const ValueKey('drawer-thread-thread-1')),
+      ),
+      8,
+    );
+    expect(
+      _verticalGap(
+        tester,
+        find.byKey(const ValueKey('drawer-project-project-1')),
+        find.byKey(const ValueKey('drawer-thread-thread-1')),
+      ),
+      4,
+    );
+  });
+
   testWidgets('coding drawer swaps thread date for delete action on hover', (
     tester,
   ) async {
@@ -1017,4 +1102,17 @@ Conversation _conversation({
     workspaceMode: workspaceMode,
     projectId: projectId,
   );
+}
+
+double _horizontalGutter(WidgetTester tester, Finder tileFinder) {
+  final drawerRect = tester.getRect(find.byType(Drawer));
+  final tileRect = tester.getRect(tileFinder);
+  final left = tileRect.left - drawerRect.left;
+  final right = drawerRect.right - tileRect.right;
+  expect(left, right, reason: 'left and right gutters should match');
+  return left;
+}
+
+double _verticalGap(WidgetTester tester, Finder above, Finder below) {
+  return tester.getRect(below).top - tester.getRect(above).bottom;
 }
