@@ -627,6 +627,12 @@ void main() {
             title: 'General question',
             workspaceMode: WorkspaceMode.chat,
           ),
+          _conversation(
+            id: 'chat-2',
+            title: 'Follow-up',
+            workspaceMode: WorkspaceMode.chat,
+            minutesAgo: 5,
+          ),
         ],
         currentConversationId: 'chat-1',
         activeWorkspaceMode: WorkspaceMode.chat,
@@ -641,6 +647,14 @@ void main() {
         find.byKey(const ValueKey('drawer-conversation-chat-1')),
       ),
       8,
+    );
+    expect(
+      _verticalGap(
+        tester,
+        find.byKey(const ValueKey('drawer-conversation-chat-1')),
+        find.byKey(const ValueKey('drawer-conversation-chat-2')),
+      ),
+      4,
     );
   });
 
@@ -675,6 +689,14 @@ void main() {
         find.byKey(const ValueKey('drawer-thread-thread-1')),
       ),
       8,
+    );
+    expect(
+      _verticalGap(
+        tester,
+        find.byKey(const ValueKey('drawer-project-project-1')),
+        find.byKey(const ValueKey('drawer-thread-thread-1')),
+      ),
+      4,
     );
   });
 
@@ -1089,4 +1111,8 @@ double _horizontalGutter(WidgetTester tester, Finder tileFinder) {
   final right = drawerRect.right - tileRect.right;
   expect(left, right, reason: 'left and right gutters should match');
   return left;
+}
+
+double _verticalGap(WidgetTester tester, Finder above, Finder below) {
+  return tester.getRect(below).top - tester.getRect(above).bottom;
 }
