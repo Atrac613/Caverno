@@ -257,9 +257,20 @@ notification — including the local ones, because
 implements the callback. The log said the notification was raised and nothing
 appeared.
 
-`allowForegroundNotifications` sets those options, and it runs before the relay
-check rather than as part of enabling push: the delegate is claimed at plugin
-registration, so the suppression exists on a device that never turns push on.
+The fix is native and deterministic: `AppDelegate` claims
+`UNUserNotificationCenter.delegate` in `didFinishLaunchingWithOptions`, before
+`didInitializeImplicitFlutterEngine` registers anything. Firebase then finds an
+earlier delegate, captures it, and forwards `willPresentNotification` to it,
+which reaches the plugin chain and lets each notification's own presentation
+options decide.
+
+Doing it from Dart was tried first and does not work: it needs Firebase
+initialized, and on a device that never configured Firebase the call fails with
+`[core/not-initialized]` — which is exactly the device that most needs
+foreground notifications to work, since it has no push at all. Each
+notification also states its own `presentBanner`/`presentList`/`presentAlert`,
+rather than relying on defaults persisted in `NSUserDefaults` at plugin
+initialization.
 
 ## Thread switching and the glance
 

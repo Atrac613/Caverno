@@ -181,22 +181,6 @@ final class RemoteCodingMobileNotificationNotifier
       );
       return;
     }
-    // Ahead of the relay check on purpose. Firebase claims the notification
-    // delegate at plugin registration and suppresses foreground presentation
-    // by default, so this has to run on a device that never enables push —
-    // otherwise the approval notification is raised into a void whenever the
-    // app is in front of the person, which is most of the time it matters.
-    try {
-      await _gateway.allowForegroundNotifications();
-      appLog(
-        '[RemoteCodingNotifications] foreground presentation allowed',
-      );
-    } catch (error) {
-      appLog(
-        '[RemoteCodingNotifications] could not allow foreground presentation: '
-        '$error',
-      );
-    }
     if (ref.read(remoteCodingNotificationRelayClientProvider) == null) {
       state = const RemoteCodingMobileNotificationState(
         status: RemoteCodingMobileNotificationStatus.unavailable,

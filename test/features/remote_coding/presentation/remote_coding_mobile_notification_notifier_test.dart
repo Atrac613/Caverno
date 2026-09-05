@@ -207,20 +207,6 @@ void main() {
     },
   );
 
-  test('foreground presentation is allowed even without a relay', () async {
-    // Firebase claims the notification delegate at plugin registration and
-    // suppresses foreground presentation by default, so this cannot wait for
-    // push to be configured: without it the approval notification is raised
-    // into a void whenever the app is in front of the person.
-    final fixture = await _fixture(now, withRelayClient: false);
-    addTearDown(fixture.dispose);
-    await fixture.waitForStatus(
-      RemoteCodingMobileNotificationStatus.unavailable,
-    );
-
-    expect(fixture.gateway.foregroundPresentationAllowedCount, 1);
-  });
-
   group('remote approvals reach the phone', () {
     RemoteCodingHost host() => RemoteCodingHost(
       id: 'host-1',
@@ -670,13 +656,6 @@ final class _FakeNotificationGateway
   final tapController = StreamController<Map<String, dynamic>>.broadcast();
   int permissionRequestCount = 0;
   int tokenDisableCount = 0;
-  int foregroundPresentationAllowedCount = 0;
-
-  @override
-  Future<void> allowForegroundNotifications() async {
-    foregroundPresentationAllowedCount += 1;
-  }
-
   @override
   RemoteCodingRelayPlatform get platform => RemoteCodingRelayPlatform.ios;
 

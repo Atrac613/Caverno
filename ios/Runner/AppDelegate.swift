@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import UserNotifications
 import WatchConnectivity
 #if canImport(FoundationModels)
 import FoundationModels
@@ -11,6 +12,23 @@ import FoundationModels
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // Claim the notification-centre delegate before any plugin registers.
+    //
+    // There is one delegate per app and `FLTFirebaseMessagingPlugin` takes it.
+    // When it finds no earlier delegate to forward `willPresentNotification`
+    // to, it answers `UNNotificationPresentationOptionNone` unless
+    // `setForegroundNotificationPresentationOptions` has persisted otherwise —
+    // which silently suppressed every foreground notification, including the
+    // local ones. `flutter_local_notifications` never claims the delegate at
+    // all; it only implements the callback and relies on `FlutterAppDelegate`
+    // forwarding to it.
+    //
+    // Setting it here, before `didInitializeImplicitFlutterEngine` registers
+    // anything, makes Firebase capture this delegate and forward to it, which
+    // reaches the plugin chain and lets each notification's own presentation
+    // options decide. Doing it in Dart instead needs Firebase initialized,
+    // which fails outright on a device that never configured it.
+    UNUserNotificationCenter.current().delegate = self
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
