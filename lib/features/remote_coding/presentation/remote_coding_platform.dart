@@ -2,5 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-bool isRemoteCodingMobileRuntimePlatform() =>
-    !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+@visibleForTesting
+bool Function()? debugRemoteCodingMobileRuntimePlatformOverride;
+
+bool isRemoteCodingMobileRuntimePlatform() {
+  final override = debugRemoteCodingMobileRuntimePlatformOverride;
+  if (override != null) {
+    return override();
+  }
+  return !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+}

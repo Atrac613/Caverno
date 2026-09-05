@@ -2003,8 +2003,15 @@ Built 2026-09-05:
   visibility: the notifier cannot infer "the user is looking at this" from any
   state it holds. This matches `ChatNotifier`, which notifies only for a thread
   other than the visible one.
-- Suppression needs the app foregrounded as well as the page mounted. The
-  first Leg A attempt saw no notification at all, and this was why:
+- Two defects in the suppression signal, both found by Leg A rather than by
+  any test. The second is the one that mattered: `dispose` read `ref`, which
+  throws a `StateError` there, so the flag was never cleared and every later
+  approval was suppressed on every screen for the rest of the session — and
+  `dispose` aborted before releasing the page's controllers. The notifier is
+  now captured while the page is mounted. A stuck suppression flag silences the
+  whole feature, so it has a widget test of its own that fails against the
+  defective form.
+- Suppression also needs the app foregrounded as well as the page mounted:
   backgrounding does not dispose the page, so a phone left on the Coding tab —
   the tab a Remote Coding user is obviously on, and the exact state the
   notification exists to serve — was silenced by its own suppression. Mounted

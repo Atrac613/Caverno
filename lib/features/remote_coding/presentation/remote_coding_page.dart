@@ -40,28 +40,32 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
   final Set<String> _presentedQuestionIds = <String>{};
   final Set<String> _handledNotificationTapEventIds = <String>{};
 
+  /// Captured while the page is mounted, because `ref` cannot be read from
+  /// `dispose` — it throws a `StateError` there, which left the suppression
+  /// flag below stuck on and silenced the notification for the rest of the
+  /// session. It also aborted `dispose` before the controllers were released.
+  RemoteCodingMobileNotificationNotifier? _notifications;
+
   @override
   void initState() {
     super.initState();
     // This page raises its own approval sheet, so while it is on screen a
     // notification would ask the same question twice. The notifier cannot
     // infer that from any state it holds, so the page says so itself.
-    _setNotificationSuppression(true);
+    if (isRemoteCodingMobileRuntimePlatform()) {
+      _notifications = ref.read(
+        remoteCodingMobileNotificationProvider.notifier,
+      );
+      _notifications!.setRemoteCodingPageVisible(true);
+    }
   }
 
   @override
   void dispose() {
-    _setNotificationSuppression(false);
+    _notifications?.setRemoteCodingPageVisible(false);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
-  }
-
-  void _setNotificationSuppression(bool suppress) {
-    if (!isRemoteCodingMobileRuntimePlatform()) return;
-    ref
-        .read(remoteCodingMobileNotificationProvider.notifier)
-        .setRemoteCodingPageVisible(suppress);
   }
 
   void _schedulePendingPrompts(RemoteCodingClientState state) {

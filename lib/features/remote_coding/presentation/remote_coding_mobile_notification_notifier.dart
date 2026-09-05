@@ -442,6 +442,9 @@ final class RemoteCodingMobileNotificationNotifier
     _isRemoteCodingPageMounted = visible;
   }
 
+  @visibleForTesting
+  bool get debugIsRemoteCodingPageMounted => _isRemoteCodingPageMounted;
+
   /// Whether the person can already see this approval without a notification.
   ///
   /// Both halves are required. The page alone means the sheet is on the screen
