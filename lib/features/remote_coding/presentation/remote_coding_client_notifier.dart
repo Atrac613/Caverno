@@ -9,6 +9,7 @@ import '../../chat/domain/entities/message.dart';
 import '../../dashboard/domain/entities/dashboard_stats.dart';
 import '../../dashboard/domain/services/dashboard_stats_codec.dart';
 import '../data/remote_coding_connection_messages.dart';
+import '../../../core/utils/logger.dart';
 import '../data/remote_coding_notification_payload.dart';
 import '../data/remote_coding_notification_relay_delegation.dart';
 import '../data/remote_coding_notification_relay_pairing.dart';
@@ -745,6 +746,18 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
                 .toList(growable: false);
       final approvalJson = payload['pendingApproval'];
       final questionJson = payload['pendingQuestion'];
+      // The one line that separates "the desktop never told us" from "we were
+      // told and did not act". Everything downstream of this — the
+      // notification, its actions, the watch — is invisible when it does not
+      // happen, and this notifier logged nothing at all before.
+      if (state.status != RemoteCodingConnectionStatus.connected ||
+          approvalJson != null) {
+        appLog(
+          '[RemoteCodingClient] snapshot: connected, '
+          'pendingApproval=${approvalJson is Map<String, dynamic> ? approvalJson['id'] : 'none'}, '
+          'pendingQuestion=${questionJson is Map<String, dynamic> ? 'yes' : 'none'}',
+        );
+      }
       final dashboardStatsByRange = DashboardStatsCodec.decodeByRange(
         payload['dashboardStatsByRange'],
       );

@@ -468,6 +468,10 @@ final class RemoteCodingMobileNotificationNotifier
     if (conversationId == null) {
       return;
     }
+    appLog(
+      '[RemoteCodingNotifications] withdrawing the notification for '
+      'conversation "$conversationId"; the approval is gone',
+    );
     _raisedApprovalConversationId = null;
     try {
       await _notificationService.cancelApprovalRequiredNotification(
@@ -481,13 +485,38 @@ final class RemoteCodingMobileNotificationNotifier
     }
   }
 
+  /// Every decision on this path is logged, and that is deliberate.
+  ///
+  /// A notification that is not raised leaves no trace anywhere — not on the
+  /// screen, not in the state, not in a test. Three separate defects here were
+  /// each found only by a person reporting "nothing happened", and each cost a
+  /// round trip that a single line of output would have settled.
   Future<void> _presentApprovalOnce(RemoteCodingApproval approval) async {
-    if (_approvalIsAlreadyVisible || approval.id.isEmpty) {
+    appLog(
+      '[RemoteCodingNotifications] approval ${approval.id} '
+      '(${approval.kind.name}) is pending',
+    );
+    if (approval.id.isEmpty) {
+      appLog(
+        '[RemoteCodingNotifications] not raised: the approval carries no id, '
+        'so Approve/Deny could not be routed back to it',
+      );
+      return;
+    }
+    if (_approvalIsAlreadyVisible) {
+      appLog(
+        '[RemoteCodingNotifications] not raised: the Remote Coding page is '
+        'open and foregrounded, so its own sheet is already asking',
+      );
       return;
     }
     // A dropped connection re-sends the whole snapshot, so the same pending
     // approval arrives again with the first notification still on screen.
     if (!_raisedApprovalIds.add(approval.id)) {
+      appLog(
+        '[RemoteCodingNotifications] not raised: ${approval.id} was already '
+        'raised in this session',
+      );
       return;
     }
     if (_raisedApprovalIds.length > _maxRememberedApprovalIds) {
@@ -498,6 +527,11 @@ final class RemoteCodingMobileNotificationNotifier
       final conversationId =
           clientState.currentConversationId ?? clientState.host?.id ?? '';
       _raisedApprovalConversationId = conversationId;
+      appLog(
+        '[RemoteCodingNotifications] raising for ${approval.id} on '
+        '"${clientState.host?.name.trim() ?? ''}" '
+        '(conversation "$conversationId")',
+      );
       await showPendingApprovalNotification(
         _notificationService,
         conversationId: conversationId,
