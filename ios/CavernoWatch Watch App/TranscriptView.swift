@@ -131,7 +131,12 @@ struct TranscriptView: View {
           .accessibilityLabel("Question waiting")
         }
       }
-      if snapshot.conversations.count > 1 {
+      // `conversationsTruncated` alone is enough to open the picker: a frame
+      // that overran the payload budget sheds the thread list first, and
+      // gating the button on the list itself would take the "More threads on
+      // iPhone" notice away with it, leaving the wrist with no sign that
+      // other threads exist.
+      if snapshot.conversations.count > 1 || snapshot.conversationsTruncated {
         ToolbarItem(placement: .topBarTrailing) {
           NavigationLink {
             ThreadPickerView(

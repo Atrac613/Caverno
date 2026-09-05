@@ -85,14 +85,85 @@ void main() {
       );
     });
 
-    test('stays inside the budget in a multi-byte script too', () {
-      // Every cap counts runes, and the app is used in Japanese, so an
-      // ASCII-only measurement under-reports the real payload threefold.
-      // Measuring the budget in the wide case is what keeps a frame that is
-      // legal in English from being rejected at runtime in Japanese.
-      final encoded = utf8.encode(jsonEncode(maximal(fill: '日').toJson()));
+    test('stays inside the budget in every script width', () {
+      // Every cap counts runes, so the same frame costs one byte per rune in
+      // English, three in Japanese and four in emoji. Sized by runes alone a
+      // maximal frame reaches 116% of the budget in the widest case, and
+      // WatchConnectivity refuses an oversized dictionary rather than clipping
+      // it — the watch then sits on stale state with only an NSLog to say why.
+      for (final fill in const ['A', '日', '👍']) {
+        final encoded = utf8.encode(jsonEncode(maximal(fill: fill).toJson()));
 
-      expect(encoded.length, lessThan(watchSnapshotMaxEncodedBytes));
+        expect(
+          encoded.length,
+          lessThanOrEqualTo(watchSnapshotMaxEncodedBytes),
+          reason: 'a maximal frame filled with "$fill" overran the budget',
+        );
+      }
+    });
+
+    test('sheds the thread picker before the transcript', () {
+      // The frame exists to answer a blocked turn. Thread switching is
+      // navigation, and `conversationsTruncated` already tells the watch to
+      // point at the iPhone, so it is the cheapest thing to give up.
+      final json = maximal(fill: '👍').toJson();
+
+      expect(json['conversations'], isEmpty);
+      expect(json['conversationsTruncated'], isTrue);
+      expect(json['messages'], isNotEmpty);
+      expect(json['approval'], isNotNull);
+      expect(json['question'], isNotNull);
+    });
+
+    test('keeps the full projection when the frame already fits', () {
+      final json = maximal().toJson();
+
+      expect(
+        (json['conversations']! as List<dynamic>).length,
+        watchSnapshotMaxConversations,
+      );
+      expect(
+        (json['messages']! as List<dynamic>).length,
+        watchSnapshotMaxMessages,
+      );
+      expect(json['lastAssistantText'], isNotNull);
+    });
+
+    test('fits the budget even when one bubble is the whole frame', () {
+      // A single message long enough to blow the budget on its own has no
+      // thread list or scrollback left to shed, so this is the rung that
+      // proves the ladder bottoms out inside the budget rather than merely
+      // shrinking.
+      final snapshot = WatchSnapshot(
+        sequence: 1,
+        generatedAt: DateTime.utc(2026, 9, 1, 12),
+        conversationTitle: '👍' * 4000,
+        status: WatchTurnStatus.waitingApproval,
+        lastAssistantText: '👍' * 40000,
+        approval: WatchApproval(
+          id: 'approval-1',
+          kind: 'localCommand',
+          title: '👍' * 4000,
+          subtitle: '👍' * 4000,
+          detail: '👍' * 40000,
+          canResolveOnWatch: true,
+        ),
+        messages: [
+          WatchMessage(
+            id: 'm0',
+            role: WatchMessageRole.assistant,
+            text: '👍' * 40000,
+            timestamp: DateTime.utc(2026, 9, 1, 11),
+          ),
+        ],
+        error: '👍' * 4000,
+      );
+
+      final encoded = utf8.encode(jsonEncode(snapshot.toJson()));
+
+      expect(encoded.length, lessThanOrEqualTo(watchSnapshotMaxEncodedBytes));
+      // Shrinking must not cost the decision itself.
+      expect(snapshot.toJson()['approval'], isNotNull);
     });
 
     test('caps the thread list and says that it did', () {

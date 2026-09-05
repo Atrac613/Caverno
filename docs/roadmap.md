@@ -176,7 +176,7 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH6 | done | Dismiss an approval or question dialog on the phone when the watch resolves it. | Shipped 2026-09-02 and verified on paired simulators: answering from the wrist closes the phone's sheet. Dismissal pops by route name, so it is a no-op when the dialog is not topmost. |
 | Watch | WATCH7 | done | Make the wrist screen a message thread rather than a status glance: bubbles with tails, relative timestamp headers, a typing indicator, and a pinned compose bar. | Shipped 2026-09-02. The frame now carries the tail of the thread; verified on the watch simulator, including the fallback for a watch newer than its phone. |
 | Watch | WATCH8 | done | Keep Watch snapshots ordered across iPhone process restarts without allowing a delayed old frame to resurrect resolved state. | Completed 2026-09-04. Frames now carry a source identity and start time in addition to their per-source sequence; verified with the Watch process kept alive across an iPhone restart. |
-| Watch | WATCH9 | next | Put coding-thread state on the wrist: workspace mode and the conversation goal, with `awaitingConfirmation` surfaced as an interaction to answer rather than as idle. | Re-measure maximal snapshot headroom in a multi-byte script before adding fields; the transcript already spends most of the 16 KB budget. |
+| Watch | WATCH9 | next | Put coding-thread state on the wrist: workspace mode and the conversation goal, with `awaitingConfirmation` surfaced as an interaction to answer rather than as idle. | Headroom measured 2026-09-05 and the budget is now enforced rather than asserted; a maximal Japanese frame leaves 1,755 bytes, so size the goal fields to that. |
 | Watch | WATCH10 | next | Raise the actionable approval notification for a Remote Coding turn, so a blocked desktop agent reaches the wrist at all. Today it reaches it through no path whatsoever. | Not WATCH5: the client holds a live WebSocket, so this needs no push contract. Route the action to `RemoteCodingClientNotifier`, which `approvalNotificationActionsProvider` does not reach today. |
 | Watch | WATCH11 | later | Show and resolve Remote Coding approvals and questions in the companion itself, labelled with the host that owns them. | Gate on WATCH10. Record the SEC4.5g reading — the watch is the client phone's peripheral, so the principal set does not widen — before shipping. |
 | Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
@@ -1817,9 +1817,28 @@ Acceptance criteria:
 Dependencies:
 - None beyond the shipped companion.
 
+Prerequisite, completed 2026-09-05:
+- The headroom re-measurement asked for here found a live defect rather than a
+  number. Rune caps are a screen constraint and `watchSnapshotMaxEncodedBytes`
+  is a transport one, and a maximal frame encoded to 36% of the budget in
+  English, 89% in Japanese and **116% in emoji**. The two budget tests covered
+  only the one-byte and three-byte cases, so the overrun was invisible.
+  `WCSession` refuses an oversized dictionary instead of clipping it, and the
+  refusal is only an `NSLog`, so the symptom would have been a watch silently
+  stuck on stale state.
+- `WatchSnapshot.toJson` now enforces the budget by walking a ladder of
+  progressively smaller caps and sending the first frame that fits, shedding
+  the thread picker, then transcript depth, then `lastAssistantText`, and
+  shrinking the pending decision last. The emoji frame now encodes to 91%.
+  `TranscriptView` opens the thread picker on `conversationsTruncated` alone,
+  so shedding the list no longer removes the "More threads on iPhone" notice
+  with it.
+- Headroom for this milestone: 1,755 bytes in a maximal Japanese frame. A goal
+  projection larger than that does not fail — it costs the thread picker on
+  that frame — but sizing the new fields to fit is the point of measuring.
+
 Next action:
-- Re-measure maximal snapshot headroom first, then project the goal and add
-  `resolveGoal`.
+- Project the goal and add `resolveGoal`.
 
 ### WATCH10: Remote Coding Approvals As Notifications
 

@@ -66,8 +66,8 @@ agreed in the shipped build only by coincidence. Recorded as SA-24 in
 `RemoteCodingServerNotifier._buildSnapshot`, which carries the full transcript
 and dashboard statistics and does not fit a WatchConnectivity payload.
 `WCSession` rejects oversized dictionaries at runtime, so every unbounded field
-is capped, and `watch_snapshot_test.dart` asserts a maximal snapshot stays
-inside `watchSnapshotMaxEncodedBytes`.
+is capped and the encoded frame is held to `watchSnapshotMaxEncodedBytes`
+whatever the caps produce — see below.
 
 The frame carries the tail of the thread, not just the last answer: the watch
 draws a message transcript, and a single trailing paragraph cannot say what was
@@ -77,10 +77,25 @@ frame even though the transcript supersedes it, because the two apps ship as
 one bundle but are not guaranteed to be the same build at runtime, and a watch
 newer than its phone would otherwise render an empty thread.
 
-Budget headroom is measured in a multi-byte script, not in ASCII. Every cap
-counts runes, so an English-only measurement under-reports the real payload
-threefold and would let a frame that is legal in English be rejected at runtime
-in Japanese.
+The rune caps and the byte budget are two different constraints, and they do
+not agree. A rune costs one byte in English, three in Japanese and four in
+emoji, so a maximal frame sized only by runes lands at 36% of the budget in
+English, 89% in Japanese and 116% in emoji. `WCSession` does not clip an
+oversized dictionary — it refuses it — and the refusal surfaces as an `NSLog`
+in `WatchBridgePlugin`, so the visible symptom is a watch silently stuck on
+stale state.
+
+`toJson` therefore enforces the budget rather than asserting it: it walks a
+ladder of progressively smaller caps and sends the first frame that fits.
+Almost every real frame fits on the first rung, which is the full projection.
+The shedding order follows what the frame is for. The thread picker goes first
+— it is navigation, not the decision, and `conversationsTruncated` already
+tells the watch to point at the iPhone; the picker stays reachable on that flag
+alone, so shedding the list does not also take the notice away. Transcript
+depth follows under `messagesTruncated`. `lastAssistantText` is next, since it
+duplicates the newest bubble and exists only for a watch older than its phone,
+which is a smaller loss than a frame that reaches no watch at all. The pending
+approval and question shrink last and never disappear.
 
 Snapshots carry a source identity, the time that source started, and a
 monotonic per-source sequence number. WatchConnectivity gives no ordering

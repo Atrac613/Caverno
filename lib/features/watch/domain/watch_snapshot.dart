@@ -5,8 +5,11 @@
 /// dashboard statistics, which does not fit a WatchConnectivity payload; the
 /// watch only needs enough to render one glance and one decision. Keeping the
 /// projection small is a correctness requirement, not an optimisation, so the
-/// truncation limits below are part of the contract and are asserted by tests.
+/// truncation limits below are part of the contract and are enforced by
+/// [WatchSnapshot.toJson], not merely asserted by tests.
 library;
+
+import 'dart:convert';
 
 /// Payload budget for a single snapshot encoded as JSON.
 ///
@@ -111,12 +114,15 @@ class WatchApproval {
     canResolveOnWatch: json['canResolveOnWatch'] == true,
   );
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson({
+    int titleLimit = watchSnapshotTitleLimit,
+    int detailLimit = watchSnapshotDetailLimit,
+  }) => {
     'id': id,
     'kind': kind,
-    'title': truncateForWatch(title, watchSnapshotTitleLimit),
-    'subtitle': truncateForWatch(subtitle, watchSnapshotTitleLimit),
-    'detail': truncateForWatch(detail, watchSnapshotDetailLimit),
+    'title': truncateForWatch(title, titleLimit),
+    'subtitle': truncateForWatch(subtitle, titleLimit),
+    'detail': truncateForWatch(detail, detailLimit),
     'canResolveOnWatch': canResolveOnWatch,
   };
 }
@@ -133,10 +139,9 @@ class WatchQuestionOption {
         label: (json['label'] as String?)?.trim() ?? '',
       );
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'label': truncateForWatch(label, watchSnapshotOptionLabelLimit),
-  };
+  Map<String, dynamic> toJson({
+    int labelLimit = watchSnapshotOptionLabelLimit,
+  }) => {'id': id, 'label': truncateForWatch(label, labelLimit)};
 }
 
 /// A pending `ask_user_question` reduced to a tappable option list.
@@ -166,12 +171,15 @@ class WatchQuestion {
     allowOther: json['allowOther'] == true,
   );
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson({
+    int questionLimit = watchSnapshotDetailLimit,
+    int optionLabelLimit = watchSnapshotOptionLabelLimit,
+  }) => {
     'id': id,
-    'question': truncateForWatch(question, watchSnapshotDetailLimit),
+    'question': truncateForWatch(question, questionLimit),
     'options': options
         .take(watchSnapshotMaxQuestionOptions)
-        .map((option) => option.toJson())
+        .map((option) => option.toJson(labelLimit: optionLabelLimit))
         .toList(growable: false),
     'allowMultiple': allowMultiple,
     'allowOther': allowOther,
@@ -194,10 +202,8 @@ class WatchConversation {
         title: (json['title'] as String?)?.trim() ?? '',
       );
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'title': truncateForWatch(title, watchSnapshotTitleLimit),
-  };
+  Map<String, dynamic> toJson({int titleLimit = watchSnapshotTitleLimit}) =>
+      {'id': id, 'title': truncateForWatch(title, titleLimit)};
 }
 
 /// Who a transcript bubble belongs to.
@@ -254,6 +260,108 @@ class WatchMessage {
     if (isStreaming) 'isStreaming': true,
   };
 }
+
+/// One rung of the payload-shedding ladder used when encoding a frame.
+///
+/// The rune caps above are a *screen* constraint;
+/// [watchSnapshotMaxEncodedBytes] is a *transport* one, and the two do not
+/// agree. A rune costs one byte in English, three in Japanese and four in
+/// emoji, so a maximal frame sized only by runes lands at 36% of the budget in
+/// English, 89% in Japanese and 116% in emoji. WatchConnectivity does not clip
+/// an oversized dictionary — it refuses it — and the refusal surfaces as an
+/// `NSLog` in `WatchBridgePlugin`, so the visible symptom is a watch silently
+/// stuck on stale state.
+class _WatchFrameCaps {
+  const _WatchFrameCaps({
+    required this.conversations,
+    required this.messages,
+    required this.messageText,
+    required this.lastMessageText,
+    required this.assistantText,
+    required this.title,
+    required this.detail,
+    required this.optionLabel,
+  });
+
+  final int conversations;
+  final int messages;
+  final int messageText;
+  final int lastMessageText;
+
+  /// Zero omits `lastAssistantText` from the frame entirely.
+  final int assistantText;
+  final int title;
+  final int detail;
+  final int optionLabel;
+}
+
+/// What a frame sheds when it does not fit, and in what order.
+///
+/// The first rung is the full projection, and it is what every frame in a
+/// one-byte or three-byte script encodes to. The rest exist so that the budget
+/// is an enforced invariant rather than a hope, and their order follows what
+/// the frame is *for*: answering a blocked turn.
+///
+/// The thread picker goes first — it is navigation, not the decision, and
+/// `conversationsTruncated` already tells the watch to point at the iPhone
+/// instead of implying the list is complete. Transcript depth follows, under
+/// the `messagesTruncated` signal that exists for the same reason.
+/// `lastAssistantText` is next: it duplicates the newest bubble and is kept
+/// only for a watch build older than its phone, which is a smaller loss than a
+/// frame that reaches no watch at all. The pending approval and question shrink
+/// last, and never disappear.
+const List<_WatchFrameCaps> _watchFrameCapLadder = [
+  _WatchFrameCaps(
+    conversations: watchSnapshotMaxConversations,
+    messages: watchSnapshotMaxMessages,
+    messageText: watchSnapshotMessageTextLimit,
+    lastMessageText: watchSnapshotLastMessageTextLimit,
+    assistantText: watchSnapshotAssistantTextLimit,
+    title: watchSnapshotTitleLimit,
+    detail: watchSnapshotDetailLimit,
+    optionLabel: watchSnapshotOptionLabelLimit,
+  ),
+  _WatchFrameCaps(
+    conversations: 0,
+    messages: watchSnapshotMaxMessages,
+    messageText: watchSnapshotMessageTextLimit,
+    lastMessageText: watchSnapshotLastMessageTextLimit,
+    assistantText: watchSnapshotAssistantTextLimit,
+    title: watchSnapshotTitleLimit,
+    detail: watchSnapshotDetailLimit,
+    optionLabel: watchSnapshotOptionLabelLimit,
+  ),
+  _WatchFrameCaps(
+    conversations: 0,
+    messages: 4,
+    messageText: 120,
+    lastMessageText: 300,
+    assistantText: 0,
+    title: watchSnapshotTitleLimit,
+    detail: watchSnapshotDetailLimit,
+    optionLabel: watchSnapshotOptionLabelLimit,
+  ),
+  _WatchFrameCaps(
+    conversations: 0,
+    messages: 2,
+    messageText: 60,
+    lastMessageText: 160,
+    assistantText: 0,
+    title: 80,
+    detail: 160,
+    optionLabel: 40,
+  ),
+  _WatchFrameCaps(
+    conversations: 0,
+    messages: 1,
+    messageText: 40,
+    lastMessageText: 80,
+    assistantText: 0,
+    title: 60,
+    detail: 100,
+    optionLabel: 24,
+  ),
+];
 
 /// One frame of iPhone chat state, projected for the watch.
 class WatchSnapshot {
@@ -359,7 +467,29 @@ class WatchSnapshot {
     );
   }
 
-  Map<String, dynamic> toJson() => {
+  /// Encodes the frame, shedding payload until it fits the byte budget.
+  ///
+  /// Walks [_watchFrameCapLadder] and returns the first encoding inside
+  /// [watchSnapshotMaxEncodedBytes]. Almost every real frame fits on the first
+  /// rung, so this costs one encode in the common case. If even the tightest
+  /// rung overruns, that frame is still returned: sending the smallest thing
+  /// that can be built is strictly better than sending nothing, and the caps
+  /// there are small enough that no input reaches this.
+  Map<String, dynamic> toJson() {
+    var encoded = _encodeWith(_watchFrameCapLadder.first);
+    for (final caps in _watchFrameCapLadder.skip(1)) {
+      if (_encodedByteLength(encoded) <= watchSnapshotMaxEncodedBytes) {
+        return encoded;
+      }
+      encoded = _encodeWith(caps);
+    }
+    return encoded;
+  }
+
+  static int _encodedByteLength(Map<String, dynamic> json) =>
+      utf8.encode(jsonEncode(json)).length;
+
+  Map<String, dynamic> _encodeWith(_WatchFrameCaps caps) => {
     'sequence': sequence,
     'generatedAt': generatedAt.toUtc().toIso8601String(),
     if (sourceInstanceId.isNotEmpty) 'sourceInstanceId': sourceInstanceId,
@@ -367,46 +497,50 @@ class WatchSnapshot {
       'sourceStartedAtMicros': sourceStartedAtMicros,
     if (conversationId != null && conversationId!.isNotEmpty)
       'conversationId': conversationId,
-    'conversationTitle': truncateForWatch(
-      conversationTitle,
-      watchSnapshotTitleLimit,
-    ),
+    'conversationTitle': truncateForWatch(conversationTitle, caps.title),
     'status': status.name,
-    'lastAssistantText': truncateForWatch(
-      lastAssistantText,
-      watchSnapshotAssistantTextLimit,
-    ),
-    'messages': _encodedMessages(),
-    'messagesTruncated':
-        messagesTruncated || messages.length > watchSnapshotMaxMessages,
-    if (approval != null) 'approval': approval!.toJson(),
-    if (question != null) 'question': question!.toJson(),
+    if (caps.assistantText > 0)
+      'lastAssistantText': truncateForWatch(
+        lastAssistantText,
+        caps.assistantText,
+      ),
+    'messages': _encodedMessages(caps),
+    'messagesTruncated': messagesTruncated || messages.length > caps.messages,
+    if (approval != null)
+      'approval': approval!.toJson(
+        titleLimit: caps.title,
+        detailLimit: caps.detail,
+      ),
+    if (question != null)
+      'question': question!.toJson(
+        questionLimit: caps.detail,
+        optionLabelLimit: caps.optionLabel,
+      ),
     'elapsedSeconds': elapsedSeconds,
     'queuedCount': queuedCount,
     'busyThreadCount': busyThreadCount,
     'conversations': conversations
-        .take(watchSnapshotMaxConversations)
-        .map((conversation) => conversation.toJson())
+        .take(caps.conversations)
+        .map((conversation) => conversation.toJson(titleLimit: caps.title))
         .toList(growable: false),
     'conversationsTruncated':
-        conversationsTruncated ||
-        conversations.length > watchSnapshotMaxConversations,
+        conversationsTruncated || conversations.length > caps.conversations,
     if (error != null && error!.isNotEmpty)
-      'error': truncateForWatch(error!, watchSnapshotTitleLimit),
+      'error': truncateForWatch(error!, caps.title),
   };
 
-  /// Encodes the newest [watchSnapshotMaxMessages] bubbles, giving the last
+  /// Encodes the newest [_WatchFrameCaps.messages] bubbles, giving the last
   /// one the larger text allowance.
-  List<Map<String, dynamic>> _encodedMessages() {
-    final kept = messages.length <= watchSnapshotMaxMessages
+  List<Map<String, dynamic>> _encodedMessages(_WatchFrameCaps caps) {
+    final kept = messages.length <= caps.messages
         ? messages
-        : messages.sublist(messages.length - watchSnapshotMaxMessages);
+        : messages.sublist(messages.length - caps.messages);
     return [
       for (var i = 0; i < kept.length; i++)
         kept[i].toJson(
           limit: i == kept.length - 1
-              ? watchSnapshotLastMessageTextLimit
-              : watchSnapshotMessageTextLimit,
+              ? caps.lastMessageText
+              : caps.messageText,
         ),
     ];
   }
