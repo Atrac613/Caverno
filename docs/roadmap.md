@@ -177,7 +177,7 @@ handoffs can refer to the same unit of work over time.
 | Watch | WATCH7 | done | Make the wrist screen a message thread rather than a status glance: bubbles with tails, relative timestamp headers, a typing indicator, and a pinned compose bar. | Shipped 2026-09-02. The frame now carries the tail of the thread; verified on the watch simulator, including the fallback for a watch newer than its phone. |
 | Watch | WATCH8 | done | Keep Watch snapshots ordered across iPhone process restarts without allowing a delayed old frame to resurrect resolved state. | Completed 2026-09-04. Frames now carry a source identity and start time in addition to their per-source sequence; verified with the Watch process kept alive across an iPhone restart. |
 | Watch | WATCH9 | done | Put coding-thread state on the wrist: workspace mode and the conversation goal, with `awaitingConfirmation` surfaced as an interaction to answer rather than as idle. | Shipped 2026-09-05, and the paired-simulator run then found the goal half **cannot fire on iOS**: goals are gated to coding threads and iOS has none. Correct machinery, wrong source; reaching it is WATCH11's job. |
-| Watch | WATCH10 | next | Raise the actionable approval notification for a Remote Coding turn, so a blocked desktop agent reaches the wrist at all. Today it reaches it through no path whatsoever. | Not WATCH5: the client holds a live WebSocket, so this needs no push contract. Route the action to `RemoteCodingClientNotifier`, which `approvalNotificationActionsProvider` does not reach today. |
+| Watch | WATCH10 | done | Raise the actionable approval notification for a Remote Coding turn, so a blocked desktop agent reaches the wrist at all. Today it reaches it through no path whatsoever. | Built 2026-09-05 after confirming the source is reachable on iOS first — the lesson WATCH9 taught. End to end still needs a Mac server, an iPhone client and a real watch. |
 | Watch | WATCH11 | later | Show and resolve Remote Coding approvals and questions in the companion itself, labelled with the host that owns them. | Gate on WATCH10. Record the SEC4.5g reading — the watch is the client phone's peripheral, so the principal set does not widen — before shipping. |
 | Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
 
@@ -1929,7 +1929,7 @@ Next action:
 
 ### WATCH10: Remote Coding Approvals As Notifications
 
-Status: `next`
+Status: `done`
 
 The Remote Coding server is desktop-only
 (`Platform.isMacOS || isLinux || isWindows`); mobile is client-only. A blocked
@@ -1978,10 +1978,53 @@ Acceptance criteria:
 Dependencies:
 - None. Independent of WATCH9 and a prerequisite for WATCH11.
 
+Reachability confirmed before building, 2026-09-05:
+- WATCH9 shipped a feature whose source could not exist on iOS, so this one was
+  checked first. `RemoteCodingClientState.pendingApproval` is populated from
+  the WebSocket snapshot on the client, `RemoteCodingClientNotifier`
+  `.resolveApproval` exists, `showPendingApprovalNotification` takes a
+  `NotificationService` and a summary rather than anything chat-shaped, and
+  `RemoteCodingMobileNotificationNotifier` already lives app-wide on mobile
+  through `RemoteCodingNotificationNavigationShell` in `main.dart`. Every input
+  exists on the shipping platform.
+
+Built 2026-09-05:
+- The approval notification is raised from
+  `RemoteCodingMobileNotificationNotifier`, which already listens to the client
+  for terminal notifications and holds the notification service.
+- Approve/Deny routes by id to the owning notifier: chat first — which reports
+  whether it held the request — then the Remote Coding client when the pending
+  approval's id matches, and an id nothing owns is logged rather than applied
+  to whatever else is pending.
+- The host name is the notification title and appears in the body, so
+  "wants to run: dart analyze" always says which machine will run it.
+- The notification is suppressed while the Remote Coding page is on screen,
+  since that page raises its own approval sheet. The page registers its own
+  visibility: the notifier cannot infer "the user is looking at this" from any
+  state it holds. This matches `ChatNotifier`, which notifies only for a thread
+  other than the visible one.
+
+Two corrections to this milestone's own plan:
+- It said to reuse `RemoteCodingNotificationReceiptStore` for dedup. Its keys
+  are frozen to `^[A-Za-z0-9_-]{1,256}$`, which an approval id need not match,
+  and its week-long persistence exists because a *push* can be redelivered
+  after a restart. A WebSocket approval cannot outlive its connection, so dedup
+  is an in-memory set of raised ids.
+- It said suppression would match "the existing terminal-notification
+  behaviour". There is no such behaviour: the terminal path dedups and skips
+  when relay push is enabled, and never checks whether anything is on screen.
+
+Verification evidence:
+- `tool/flutter_test_quiet.sh` passed 9281 tests, up from 9270; the new cases
+  cover the raise, host naming, all three kinds being answerable, dedup across
+  a reconnect, page suppression, and the action routing to the owning notifier.
+- `flutter analyze` clean.
+
 Next action:
-- Add the client-side raise and the action route, then verify with a Mac
-  server, an iPhone client, and a paired watch. Paired simulators are not
-  sufficient here: the whole point is a three-device path.
+- Verify with a Mac server, an iPhone client and a paired watch. Paired
+  simulators are not sufficient: the whole point is a three-device path, and
+  this worktree cannot build the desktop app at all — it holds no
+  `.macos-canonical` sentinel.
 
 ### WATCH11: Remote Coding Interactions In The Companion
 

@@ -13,6 +13,7 @@ import '../data/remote_coding_support_packet.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_client_notifier.dart';
 import 'remote_coding_mobile_notification_notifier.dart';
+import 'remote_coding_platform.dart';
 import '../../../core/theme/app_tokens.dart';
 
 class RemoteCodingPage extends ConsumerStatefulWidget {
@@ -40,10 +41,27 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
   final Set<String> _handledNotificationTapEventIds = <String>{};
 
   @override
+  void initState() {
+    super.initState();
+    // This page raises its own approval sheet, so while it is on screen a
+    // notification would ask the same question twice. The notifier cannot
+    // infer that from any state it holds, so the page says so itself.
+    _setNotificationSuppression(true);
+  }
+
+  @override
   void dispose() {
+    _setNotificationSuppression(false);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _setNotificationSuppression(bool suppress) {
+    if (!isRemoteCodingMobileRuntimePlatform()) return;
+    ref
+        .read(remoteCodingMobileNotificationProvider.notifier)
+        .setRemoteCodingPageVisible(suppress);
   }
 
   void _schedulePendingPrompts(RemoteCodingClientState state) {

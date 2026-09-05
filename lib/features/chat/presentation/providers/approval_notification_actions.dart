@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/notification_providers.dart';
 import '../../../../core/services/notification_service.dart';
+import '../../../../core/utils/logger.dart';
+import '../../../remote_coding/presentation/remote_coding_client_notifier.dart';
 import 'chat_notifier.dart';
 import 'pending_approval_resolution.dart';
 
@@ -27,9 +31,34 @@ void _apply(Ref ref, NotificationActionEvent action) {
   // Resolution is by approval id, never by thread: a second approval can queue
   // behind the first while the notification is still on screen, and answering
   // "whatever that thread is waiting on" would then land on the wrong command.
-  resolveApprovalById(
+  //
+  // The id also decides *which* notifier owns the request. Two of them raise
+  // this notification now — `ChatNotifier` for a local turn and the Remote
+  // Coding client for a blocked desktop one — and resolving a remote id
+  // against the chat notifier silently resolved nothing at all.
+  if (resolveApprovalById(
     ref.read(chatNotifierProvider.notifier),
     id: action.approvalId,
     approved: action.isApprove,
+  )) {
+    return;
+  }
+  final client = ref.read(remoteCodingClientProvider);
+  if (client.pendingApproval?.id == action.approvalId) {
+    unawaited(
+      ref
+          .read(remoteCodingClientProvider.notifier)
+          .resolveApproval(
+            approvalId: action.approvalId,
+            approved: action.isApprove,
+          ),
+    );
+    return;
+  }
+  // A stale id fails where it can be seen rather than resolving whatever else
+  // happens to be pending.
+  appLog(
+    '[ApprovalNotification] no pending approval owns '
+    '${action.approvalId}; the request was already resolved or withdrawn.',
   );
 }

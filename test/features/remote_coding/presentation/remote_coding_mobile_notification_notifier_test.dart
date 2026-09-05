@@ -12,6 +12,7 @@ import 'package:caverno/features/remote_coding/data/remote_coding_notification_r
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_secure_store.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_mobile_notification_notifier.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -203,6 +204,138 @@ void main() {
       );
     },
   );
+
+  group('remote approvals reach the phone', () {
+    RemoteCodingHost host() => RemoteCodingHost(
+      id: 'host-1',
+      name: 'studio-mac',
+      host: '192.168.100.5',
+      port: 8443,
+      createdAt: now,
+      updatedAt: now,
+      certificatePin: 'pin',
+    );
+
+    RemoteCodingApproval approval({
+      String id = 'approval-1',
+      RemoteCodingApprovalKind kind = RemoteCodingApprovalKind.localCommand,
+    }) => RemoteCodingApproval(
+      id: id,
+      kind: kind,
+      title: 'dart analyze',
+      subtitle: 'caverno',
+      detail: 'Runs in the project root.',
+    );
+
+    test('a blocked desktop turn raises an actionable notification', () async {
+      // Before this the path did not exist: the Remote Coding server is
+      // desktop-only, so a blocked desktop turn lived in
+      // RemoteCodingClientState and showPendingApprovalNotification was raised
+      // only from ChatNotifier.
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+
+      fixture.clientNotifier.emitPendingApproval(
+        approval(),
+        host: host(),
+        currentConversationId: 'conversation-9',
+      );
+      await _waitUntil(
+        () => fixture.notificationService.shownApprovals.isNotEmpty,
+      );
+
+      final raised = fixture.notificationService.shownApprovals.single;
+      expect(raised.approvalId, 'approval-1');
+      expect(raised.allowsDirectDecision, isTrue);
+      expect(raised.conversationId, 'conversation-9');
+      // Naming the host is load-bearing: "wants to run: dart analyze" without
+      // saying which machine will run it is the failure this must not ship.
+      expect(raised.title, 'studio-mac');
+      expect(raised.body, contains('studio-mac'));
+      expect(raised.body, contains('dart analyze'));
+    });
+
+    test('every remote kind is a truthful yes/no', () async {
+      // file, localCommand and gitCommand are exhaustive on the wire and all
+      // three are bare decisions, unlike the chat kinds that need credentials
+      // or smoke arming.
+      for (final kind in RemoteCodingApprovalKind.values) {
+        final fixture = await _fixture(now);
+        addTearDown(fixture.dispose);
+        await fixture.waitForStatus(
+          RemoteCodingMobileNotificationStatus.notDetermined,
+        );
+
+        fixture.clientNotifier.emitPendingApproval(
+          approval(id: 'approval-${kind.name}', kind: kind),
+          host: host(),
+        );
+        await _waitUntil(
+          () => fixture.notificationService.shownApprovals.isNotEmpty,
+        );
+
+        expect(
+          fixture.notificationService.shownApprovals.single.allowsDirectDecision,
+          isTrue,
+          reason: '${kind.name} must be answerable from the notification',
+        );
+      }
+    });
+
+    test('the same approval is not raised twice', () async {
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+
+      fixture.clientNotifier.emitPendingApproval(approval(), host: host());
+      await _waitUntil(
+        () => fixture.notificationService.shownApprovals.isNotEmpty,
+      );
+      fixture.clientNotifier.clearApproval();
+      fixture.clientNotifier.emitPendingApproval(approval(), host: host());
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(fixture.notificationService.shownApprovals, hasLength(1));
+    });
+
+    test('nothing is raised while the Remote Coding page is open', () async {
+      // The page raises its own approval sheet, so a notification on top of it
+      // asks the same question twice.
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+      fixture.notifier.setRemoteCodingPageVisible(true);
+
+      fixture.clientNotifier.emitPendingApproval(approval(), host: host());
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(fixture.notificationService.shownApprovals, isEmpty);
+    });
+
+    test('leaving the page lets the next approval through', () async {
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+      fixture.notifier.setRemoteCodingPageVisible(true);
+      fixture.notifier.setRemoteCodingPageVisible(false);
+
+      fixture.clientNotifier.emitPendingApproval(approval(), host: host());
+      await _waitUntil(
+        () => fixture.notificationService.shownApprovals.isNotEmpty,
+      );
+
+      expect(fixture.notificationService.shownApprovals, hasLength(1));
+    });
+  });
 }
 
 Map<String, dynamic> _terminalData(DateTime now) => <String, dynamic>{
@@ -296,17 +429,51 @@ final class _Fixture {
 }
 
 final class _FakeRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
+  final resolvedApprovals = <({String id, bool approved})>[];
+
   @override
   RemoteCodingClientState build() => const RemoteCodingClientState();
 
   void emitTerminalNotification(RemoteCodingNotificationPayload notification) {
     state = state.copyWith(lastTerminalNotification: notification);
   }
+
+  void emitPendingApproval(
+    RemoteCodingApproval approval, {
+    RemoteCodingHost? host,
+    String? currentConversationId,
+  }) {
+    state = state.copyWith(
+      pendingApproval: approval,
+      host: host ?? state.host,
+      currentConversationId: currentConversationId,
+    );
+  }
+
+  void clearApproval() {
+    state = state.copyWith(clearPendingApproval: true);
+  }
+
+  @override
+  Future<void> resolveApproval({
+    required String approvalId,
+    required bool approved,
+  }) async {
+    resolvedApprovals.add((id: approvalId, approved: approved));
+  }
 }
 
 final class _FakeNotificationService extends NotificationService {
   final tapController = StreamController<String>.broadcast();
   final shownNotifications = <RemoteCodingNotificationPayload>[];
+  final shownApprovals =
+      <({
+        String conversationId,
+        String title,
+        String body,
+        String? approvalId,
+        bool allowsDirectDecision,
+      })>[];
   int channelPreparationCount = 0;
 
   @override
@@ -328,6 +495,23 @@ final class _FakeNotificationService extends NotificationService {
     RemoteCodingNotificationPayload notification,
   ) async {
     shownNotifications.add(notification);
+  }
+
+  @override
+  Future<void> showApprovalRequiredNotification({
+    required String conversationId,
+    required String title,
+    required String body,
+    String? approvalId,
+    bool allowsDirectDecision = false,
+  }) async {
+    shownApprovals.add((
+      conversationId: conversationId,
+      title: title,
+      body: body,
+      approvalId: approvalId,
+      allowsDirectDecision: allowsDirectDecision,
+    ));
   }
 
   @override

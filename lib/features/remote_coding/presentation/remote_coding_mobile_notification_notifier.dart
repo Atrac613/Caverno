@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/services/notification_providers.dart';
 import '../../../core/services/notification_service.dart';
+import '../../chat/domain/services/pending_approval_summary.dart';
+import '../../chat/presentation/providers/pending_approval_resolution.dart';
 import '../../../core/utils/logger.dart';
 import '../data/remote_coding_mobile_notification_gateway.dart';
 import '../data/remote_coding_notification_receipt_store.dart';
@@ -13,6 +15,7 @@ import '../data/remote_coding_notification_relay_mobile_registration.dart';
 import '../data/remote_coding_notification_payload.dart';
 import '../data/remote_coding_notification_relay_providers.dart';
 import '../data/remote_coding_repository.dart';
+import '../domain/remote_coding_models.dart';
 import 'remote_coding_client_notifier.dart';
 
 final remoteCodingMobileNotificationProvider =
@@ -86,6 +89,25 @@ final class RemoteCodingMobileNotificationNotifier
   StreamSubscription<String>? _localNotificationTapSubscription;
   bool _operationInProgress = false;
 
+  /// Whether the Remote Coding page is on screen.
+  ///
+  /// The page raises its own approval sheet, so a notification on top of it
+  /// would ask the same question twice. This mirrors `ChatNotifier`, which
+  /// notifies only for a thread other than the one being looked at; the
+  /// difference is only that a page, not a thread, is the visible surface
+  /// here.
+  bool _isRemoteCodingPageVisible = false;
+
+  /// Approvals already raised, so a reconnect does not notify twice.
+  ///
+  /// Deliberately not `RemoteCodingNotificationReceiptStore`, which the
+  /// terminal notifications use: its keys are frozen to
+  /// `^[A-Za-z0-9_-]{1,256}$` and an approval id need not match, and its
+  /// week-long persistence exists because a *push* can be redelivered after a
+  /// restart. This one arrives on a live WebSocket, so it cannot outlive the
+  /// connection that carried it, and in-memory is the honest lifetime.
+  final Set<String> _raisedApprovalIds = <String>{};
+
   @override
   RemoteCodingMobileNotificationState build() {
     _repository = ref.read(remoteCodingRepositoryProvider);
@@ -101,6 +123,24 @@ final class RemoteCodingMobileNotificationNotifier
           return;
         }
         unawaited(_handleWebSocketNotification(next));
+      },
+    );
+    // A blocked desktop turn reached the phone through no path at all before
+    // this: the Remote Coding server is desktop-only, so its approvals live in
+    // `RemoteCodingClientState` and `showPendingApprovalNotification` was
+    // raised only from `ChatNotifier`. This needs no push contract — the
+    // client holds a live WebSocket and the approval arrives on it — and iOS
+    // forwards the notification and its actions to a paired watch with no
+    // watchOS code involved.
+    ref.listen<RemoteCodingApproval?>(
+      remoteCodingClientProvider.select(
+        (clientState) => clientState.pendingApproval,
+      ),
+      (previous, next) {
+        if (next == null || previous?.id == next.id) {
+          return;
+        }
+        unawaited(_presentApprovalOnce(next));
       },
     );
     _listenForLocalNotificationTaps();
@@ -379,6 +419,70 @@ final class RemoteCodingMobileNotificationNotifier
       );
     }
   }
+
+  /// Tells the notifier whether the Remote Coding page is on screen.
+  ///
+  /// Called by the page itself rather than inferred, because "is the user
+  /// looking at this" is not derivable from any state this notifier holds.
+  void setRemoteCodingPageVisible(bool visible) {
+    _isRemoteCodingPageVisible = visible;
+  }
+
+  static const int _maxRememberedApprovalIds = 128;
+
+  Future<void> _presentApprovalOnce(RemoteCodingApproval approval) async {
+    if (_isRemoteCodingPageVisible || approval.id.isEmpty) {
+      return;
+    }
+    // A dropped connection re-sends the whole snapshot, so the same pending
+    // approval arrives again with the first notification still on screen.
+    if (!_raisedApprovalIds.add(approval.id)) {
+      return;
+    }
+    if (_raisedApprovalIds.length > _maxRememberedApprovalIds) {
+      _raisedApprovalIds.remove(_raisedApprovalIds.first);
+    }
+    try {
+      final clientState = ref.read(remoteCodingClientProvider);
+      await showPendingApprovalNotification(
+        _notificationService,
+        conversationId:
+            clientState.currentConversationId ?? clientState.host?.id ?? '',
+        // The host name, not a thread title. "wants to run: dart analyze"
+        // without saying which machine will run it is exactly the failure this
+        // must not ship.
+        threadTitle: clientState.host?.name.trim() ?? '',
+        summary: _summaryFor(approval, clientState),
+      );
+    } catch (error, stackTrace) {
+      // Notification delivery is best effort and must not affect the session.
+      appLog(
+        '[RemoteCodingNotifications] presenting an approval notification '
+        'failed: $error\n$stackTrace',
+      );
+    }
+  }
+
+  /// Flattens a remote approval into the shape the notification path takes.
+  ///
+  /// `isSimpleDecision` is unconditionally true because the remote kinds are
+  /// exhaustively `file`, `localCommand` and `gitCommand`, and every one of
+  /// them is a bare yes/no. The chat side has kinds that are not — SSH connect
+  /// needs credentials, computer-use needs smoke arming — which is why that
+  /// flag exists at all.
+  PendingApprovalSummary _summaryFor(
+    RemoteCodingApproval approval,
+    RemoteCodingClientState clientState,
+  ) => PendingApprovalSummary(
+    id: approval.id,
+    kind: approval.kind.name,
+    title: approval.title,
+    subtitle: approval.subtitle,
+    detail: approval.detail,
+    isSimpleDecision: true,
+    conversationId:
+        clientState.currentConversationId ?? clientState.host?.id ?? '',
+  );
 
   void _recordNotificationTap(Map<String, dynamic> data) {
     try {

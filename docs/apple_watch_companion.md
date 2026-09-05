@@ -126,14 +126,18 @@ approval path actually serves is therefore the kinds mobile does have — BLE,
 SSH, browser, participant. `ask_user_question` is unconditional and is the
 interaction the companion answers most often on a phone-only setup.
 
-A desktop-driven turn does **not** reach the wrist today, and this document
-previously claimed it did. The Remote Coding server is desktop-only and mobile
-is client-only, so a blocked desktop turn lives in `RemoteCodingClientState` on
-the phone — a provider neither `WatchSessionNotifier` nor `ChatNotifier` reads.
-`showPendingApprovalNotification` is raised only from `ChatNotifier`, so the
-notification fallback below does not cover it either. Closing that gap is
-WATCH10 (the notification, which needs no push contract) and WATCH11 (the
-companion itself) in `docs/roadmap.md`.
+A desktop-driven turn now reaches the wrist as a notification, but not in the
+companion app. The Remote Coding server is desktop-only and mobile is
+client-only, so a blocked desktop turn lives in `RemoteCodingClientState` on
+the phone — a provider `WatchSessionNotifier` does not read. WATCH10 closed
+half of that: `RemoteCodingMobileNotificationNotifier` raises the actionable
+approval notification when the client receives one, iOS forwards it and its
+actions to the wrist with no watchOS code, and Approve/Deny routes back by id
+to whichever notifier owns the request. The notification names the host,
+because approving a shell command without knowing which machine runs it is the
+failure that path must not ship, and it is suppressed while the Remote Coding
+page is on screen, since that page raises its own sheet. Showing the same
+interaction inside the companion is WATCH11.
 
 A dialog the watch resolves is dismissed on the phone by `ApprovalDialogPresenter`,
 which pops by route name. That is deliberately a no-op when the dialog is not
