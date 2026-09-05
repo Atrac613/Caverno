@@ -20,6 +20,23 @@ abstract interface class RemoteCodingMobileNotificationGateway {
 
   Future<RemoteCodingNotificationPermission> initialize();
 
+  /// Lets notifications appear while the app is in the foreground.
+  ///
+  /// `FLTFirebaseMessagingPlugin` takes `UNUserNotificationCenter.delegate`,
+  /// and when no earlier delegate answers `willPresentNotification` it returns
+  /// `UNNotificationPresentationOptionNone` unless
+  /// `setForegroundNotificationPresentationOptions` has persisted otherwise.
+  /// There is one such delegate per app, so that suppressed *every*
+  /// foreground notification — including the local ones
+  /// `flutter_local_notifications` raises, which never claims the delegate at
+  /// all and only implements the callback. The symptom is a log line saying a
+  /// notification was raised and nothing on the screen.
+  ///
+  /// Separate from [initialize] because it must run even when the relay is not
+  /// configured: the delegate is claimed at plugin registration, so the
+  /// suppression exists whether or not this device ever uses push.
+  Future<void> allowForegroundNotifications();
+
   Future<RemoteCodingNotificationPermission> requestPermission();
 
   Future<String> getFcmToken();
@@ -94,6 +111,17 @@ final class FirebaseRemoteCodingMobileNotificationGateway
           : const AppleAppAttestWithDeviceCheckFallbackProvider(),
     );
     _messaging ??= FirebaseMessaging.instance;
+  }
+
+  @override
+  Future<void> allowForegroundNotifications() async {
+    if (platform == null) return;
+    await _initializeFirebase();
+    await _requireMessaging().setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
   }
 
   @override

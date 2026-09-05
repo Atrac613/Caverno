@@ -239,6 +239,28 @@ surface `actionIdentifier` on iOS, so a native `UNUserNotificationCenter`
 delegate would be needed — is real but secondary. See WATCH5 in
 `docs/roadmap.md`.
 
+## Foreground notifications and the delegate
+
+A notification raised while the app is in the foreground is the normal case for
+this feature, not an edge case: the approval is raised precisely when the
+person is not looking at the surface that owns it, which usually means they are
+looking at another one.
+
+That did not work, and the reason is worth writing down because the symptom is
+silent. `FLTFirebaseMessagingPlugin` takes
+`UNUserNotificationCenter.delegate`, and when no earlier delegate answers
+`willPresentNotification` it returns `UNNotificationPresentationOptionNone`
+unless `setForegroundNotificationPresentationOptions` has persisted otherwise.
+There is one such delegate per app, so this suppressed every foreground
+notification — including the local ones, because
+`flutter_local_notifications` never claims the delegate at all and only
+implements the callback. The log said the notification was raised and nothing
+appeared.
+
+`allowForegroundNotifications` sets those options, and it runs before the relay
+check rather than as part of enabling push: the delegate is claimed at plugin
+registration, so the suppression exists on a device that never turns push on.
+
 ## Thread switching and the glance
 
 The snapshot carries the threads the watch may switch to, capped at the source
