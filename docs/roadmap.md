@@ -2003,6 +2003,13 @@ Built 2026-09-05:
   visibility: the notifier cannot infer "the user is looking at this" from any
   state it holds. This matches `ChatNotifier`, which notifies only for a thread
   other than the visible one.
+- Suppression needs the app foregrounded as well as the page mounted. The
+  first Leg A attempt saw no notification at all, and this was why:
+  backgrounding does not dispose the page, so a phone left on the Coding tab —
+  the tab a Remote Coding user is obviously on, and the exact state the
+  notification exists to serve — was silenced by its own suppression. Mounted
+  and looked-at are different facts and only their conjunction is a reason to
+  stay quiet.
 - The notification is withdrawn when the approval leaves the client state, so
   answering on the desktop does not leave buttons on the phone that resolve
   nothing. `NotificationService` had no cancel at all; the new one derives its

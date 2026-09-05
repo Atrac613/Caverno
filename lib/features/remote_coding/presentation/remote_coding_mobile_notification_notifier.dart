@@ -89,14 +89,20 @@ final class RemoteCodingMobileNotificationNotifier
   StreamSubscription<String>? _localNotificationTapSubscription;
   bool _operationInProgress = false;
 
-  /// Whether the Remote Coding page is on screen.
+  /// Whether the Remote Coding page is mounted.
   ///
   /// The page raises its own approval sheet, so a notification on top of it
   /// would ask the same question twice. This mirrors `ChatNotifier`, which
   /// notifies only for a thread other than the one being looked at; the
   /// difference is only that a page, not a thread, is the visible surface
   /// here.
-  bool _isRemoteCodingPageVisible = false;
+  ///
+  /// Mounted is not the same as looked at. Backgrounding the app does not
+  /// dispose the page, so this alone silenced a phone left on the Coding
+  /// tab — which is the tab a Remote Coding user is obviously on, and the
+  /// state the notification exists to serve. It is only a suppression signal
+  /// together with the app being foregrounded.
+  bool _isRemoteCodingPageMounted = false;
 
   /// Approvals already raised, so a reconnect does not notify twice.
   ///
@@ -428,13 +434,22 @@ final class RemoteCodingMobileNotificationNotifier
     }
   }
 
-  /// Tells the notifier whether the Remote Coding page is on screen.
+  /// Tells the notifier whether the Remote Coding page is mounted.
   ///
-  /// Called by the page itself rather than inferred, because "is the user
-  /// looking at this" is not derivable from any state this notifier holds.
+  /// Called by the page itself rather than inferred, because no state this
+  /// notifier holds says which screen is on top.
   void setRemoteCodingPageVisible(bool visible) {
-    _isRemoteCodingPageVisible = visible;
+    _isRemoteCodingPageMounted = visible;
   }
+
+  /// Whether the person can already see this approval without a notification.
+  ///
+  /// Both halves are required. The page alone means the sheet is on the screen
+  /// they are looking at; the page while the app is backgrounded means nobody
+  /// is looking at anything.
+  bool get _approvalIsAlreadyVisible =>
+      _isRemoteCodingPageMounted &&
+      !ref.read(appLifecycleServiceProvider).isInBackground;
 
   static const int _maxRememberedApprovalIds = 128;
 
@@ -464,7 +479,7 @@ final class RemoteCodingMobileNotificationNotifier
   }
 
   Future<void> _presentApprovalOnce(RemoteCodingApproval approval) async {
-    if (_isRemoteCodingPageVisible || approval.id.isEmpty) {
+    if (_approvalIsAlreadyVisible || approval.id.isEmpty) {
       return;
     }
     // A dropped connection re-sends the whole snapshot, so the same pending

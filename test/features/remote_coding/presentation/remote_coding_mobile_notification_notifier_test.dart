@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_mobile_notification_gateway.dart';
@@ -14,6 +15,7 @@ import 'package:caverno/features/remote_coding/data/remote_coding_secure_store.d
 import 'package:caverno/features/remote_coding/presentation/remote_coding_mobile_notification_notifier.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -369,6 +371,27 @@ void main() {
       );
     });
 
+    test('a backgrounded app notifies even with the page mounted', () async {
+      // Backgrounding does not dispose the page, so "the page is mounted" and
+      // "the user is looking at it" are different facts. Conflating them meant
+      // a phone left on the Coding tab — the tab a Remote Coding user is
+      // obviously on — never notified at all.
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+      fixture.notifier.setRemoteCodingPageVisible(true);
+      fixture.lifecycle.enterBackground();
+
+      fixture.clientNotifier.emitPendingApproval(approval(), host: host());
+      await _waitUntil(
+        () => fixture.notificationService.shownApprovals.isNotEmpty,
+      );
+
+      expect(fixture.notificationService.shownApprovals, hasLength(1));
+    });
+
     test('leaving the page lets the next approval through', () async {
       final fixture = await _fixture(now);
       addTearDown(fixture.dispose);
@@ -417,6 +440,7 @@ Future<_Fixture> _fixture(
   final relayClient = _FakeRelayClient(now);
   final notificationService = _FakeNotificationService();
   final clientNotifier = _FakeRemoteCodingClientNotifier();
+  final lifecycle = _FakeAppLifecycleService();
   final container = ProviderContainer(
     overrides: [
       remoteCodingRepositoryProvider.overrideWithValue(repository),
@@ -429,6 +453,7 @@ Future<_Fixture> _fixture(
       ),
       notificationServiceProvider.overrideWithValue(notificationService),
       remoteCodingClientProvider.overrideWith(() => clientNotifier),
+      appLifecycleServiceProvider.overrideWithValue(lifecycle),
     ],
   );
   container.read(remoteCodingMobileNotificationProvider);
@@ -439,7 +464,35 @@ Future<_Fixture> _fixture(
     relayClient: relayClient,
     notificationService: notificationService,
     clientNotifier: clientNotifier,
+    lifecycle: lifecycle,
   );
+}
+
+/// Stands in for the observer-backed service so a test can background the app
+/// without a widget binding.
+final class _FakeAppLifecycleService implements AppLifecycleService {
+  bool _isInBackground = false;
+  DateTime? _backgroundSince;
+
+  void enterBackground() {
+    _isInBackground = true;
+    _backgroundSince = DateTime.now();
+  }
+
+  @override
+  bool get isInBackground => _isInBackground;
+
+  @override
+  DateTime? get backgroundSince => _backgroundSince;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {}
+
+  @override
+  void dispose() {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 final class _Fixture {
@@ -450,6 +503,7 @@ final class _Fixture {
     required this.relayClient,
     required this.notificationService,
     required this.clientNotifier,
+    required this.lifecycle,
   });
 
   final ProviderContainer container;
@@ -458,6 +512,7 @@ final class _Fixture {
   final _FakeRelayClient relayClient;
   final _FakeNotificationService notificationService;
   final _FakeRemoteCodingClientNotifier clientNotifier;
+  final _FakeAppLifecycleService lifecycle;
 
   RemoteCodingMobileNotificationNotifier get notifier =>
       container.read(remoteCodingMobileNotificationProvider.notifier);
