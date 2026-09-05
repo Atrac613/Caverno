@@ -2078,12 +2078,23 @@ skipped twice already:
 - `_canResolveInteraction` therefore passes, `_pendingRemoteApproval` puts the
   approval in the snapshot, and the client's listener raises the notification.
 
+Live evidence, 2026-09-05, Mac server and a real iPhone client:
+- A `localCommand` approval from a phone-initiated turn reached the phone and
+  raised the notification naming the host, and the notification was withdrawn
+  when the approval was resolved. The phone's log carried the whole path:
+  `snapshot: connected, pendingApproval=<id>` → `approval <id> (localCommand)
+  is pending` → `raising for <id> on "MacBook-Pro-3.local"` → `withdrawing the
+  notification ...; the approval is gone`.
+- What that log proves is that the raise and the withdrawal were called. It
+  does not prove the notification was visible on the lock screen or that
+  Approve/Deny resolved the turn — those need a person to say what they saw and
+  which surface they answered on. Recorded as still open rather than assumed.
+
 Next action:
-- Verify the case this actually covers: send a coding turn **from the phone**
-  over Remote Coding, move the phone to another screen while the app stays
-  foregrounded, and check that the blocked turn raises the notification naming
-  the host. Starting the turn on the Mac cannot work and is what the first
-  three attempts were doing.
+- Confirm the two things the log cannot: that the notification appears, and
+  that answering it from the notification (not the Mac) moves the desktop turn.
+- Then add the paired watch, which only confirms iOS forwarding — a mechanism
+  WATCH1 already proved.
 - This worktree cannot build the desktop app at all — it holds no
   `.macos-canonical` sentinel — so the Mac side runs from the canonical
   checkout. It needs no change from this branch.
