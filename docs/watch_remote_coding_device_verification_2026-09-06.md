@@ -34,17 +34,34 @@ tool/safe-flutter run -d macos
 Install the iOS app from the same commit, and pair the phone to the desktop
 (Settings > Remote Coding Host > pairing QR).
 
-**A real iPhone, not a simulator.** Pairing is the one step with no non-camera
-path: `QrScannerPage` is 83 lines of `MobileScanner` with no paste or manual
-entry, and a simulator cannot photograph the QR on the Mac's screen. Everything
-downstream of pairing was reachable on simulators for WATCH1-WATCH9 because
-`WCSession` needs no pairing code; nothing in SA-26 is, because all of it runs
-over a paired Remote Coding session. Part 2's soak needs real devices anyway, so
-this is one session on real hardware rather than two.
+**Part 1 runs on a simulator; Part 2 needs real devices.** Pairing was the one
+step with no non-camera path, and a simulator cannot photograph the QR on the
+Mac's screen, so the session used to end before its first check. Debug builds
+now offer a typed alternative on both ends — see below. Part 2's soak still
+needs real hardware: backgrounding, sleep/wake, and an IP change are not
+simulable.
 
-A simulator is still useful for the watch half — the paired iPhone 17 Pro Max
-and Apple Watch Series 11 pair from WATCH2 boots and runs this build — but it
-cannot reach any of the checks below.
+### Pairing a simulator (debug builds only)
+
+`RemoteCodingDebugPairingPolicy` gates both halves, and it is false in release
+*and* profile. Scanning a QR is a proof of proximity — it says the person
+pairing can see the desktop's screen — and pairing confers the desktop's
+execution authority (SA-26), so shipped builds keep the camera as the only way
+in.
+
+1. On the desktop, open the pairing dialog and press **Copy payload (debug)**.
+2. Move it to the simulator's pasteboard:
+
+   ```bash
+   pbpaste | xcrun simctl pbcopy <device-udid> -
+   ```
+
+3. On the phone, **Pair with Desktop** → the paste icon in the app bar → the
+   field is prefilled from the clipboard → **Use code**.
+
+The typed string is the same one the QR encodes and rejoins the scan path at
+the caller, so nothing downstream can tell the difference. The ticket is
+single-use and expires in five minutes either way.
 
 ## Part 1 — SA-26 authority
 

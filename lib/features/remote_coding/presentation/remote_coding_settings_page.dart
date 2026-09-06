@@ -8,6 +8,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/theme/app_tokens.dart';
 import '../domain/remote_coding_audit.dart';
+import '../domain/remote_coding_debug_pairing_policy.dart';
 import '../domain/remote_coding_grant_kinds.dart';
 import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_multi_device_evidence.dart';
@@ -489,11 +490,29 @@ class _RemoteCodingPairingDialogState
         ),
       ),
       actions: [
+        // The other half of the manual-entry path: a simulator cannot
+        // photograph this QR, so verification needs the string it encodes to
+        // leave the app. Same debug-only allowance, stated on
+        // RemoteCodingDebugPairingPolicy, and the ticket it copies is
+        // single-use and expires either way.
+        if (RemoteCodingDebugPairingPolicy.current().allowsManualPairingEntry)
+          TextButton(
+            onPressed: _copyPayload,
+            child: const Text('Copy payload (debug)'),
+          ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
       ],
+    );
+  }
+
+  Future<void> _copyPayload() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    await Clipboard.setData(ClipboardData(text: widget.payload.toQrData()));
+    messenger?.showSnackBar(
+      const SnackBar(content: Text('Pairing payload copied.')),
     );
   }
 
@@ -585,11 +604,29 @@ class _NotificationRelayPairingDialogState
         ),
       ),
       actions: [
+        // The other half of the manual-entry path: a simulator cannot
+        // photograph this QR, so verification needs the string it encodes to
+        // leave the app. Same debug-only allowance, stated on
+        // RemoteCodingDebugPairingPolicy, and the ticket it copies is
+        // single-use and expires either way.
+        if (RemoteCodingDebugPairingPolicy.current().allowsManualPairingEntry)
+          TextButton(
+            onPressed: _copyPayload,
+            child: const Text('Copy payload (debug)'),
+          ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
       ],
+    );
+  }
+
+  Future<void> _copyPayload() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    await Clipboard.setData(ClipboardData(text: widget.payload.toQrData()));
+    messenger?.showSnackBar(
+      const SnackBar(content: Text('Pairing payload copied.')),
     );
   }
 

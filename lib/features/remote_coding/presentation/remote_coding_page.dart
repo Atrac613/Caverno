@@ -10,6 +10,7 @@ import '../../settings/presentation/pages/qr_scanner_page.dart';
 import '../data/remote_coding_connection_messages.dart';
 import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_support_packet.dart';
+import '../domain/remote_coding_debug_pairing_policy.dart';
 import '../domain/remote_coding_models.dart';
 import '../../chat/domain/services/pending_approval_summary.dart';
 import 'remote_coding_client_notifier.dart';
@@ -236,12 +237,16 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     );
   }
 
+  /// Debug-only, and read once so the whole page shares one answer.
+  static final _debugPairingPolicy = RemoteCodingDebugPairingPolicy.current();
+
   Future<void> _scanPairingCode() async {
     final raw = await Navigator.of(context).push<String>(
       MaterialPageRoute(
-        builder: (_) => const QrScannerPage(
+        builder: (_) => QrScannerPage(
           title: 'Scan Pairing Code',
           hint: 'Point your camera at the desktop pairing QR',
+          allowManualEntry: _debugPairingPolicy.allowsManualPairingEntry,
         ),
       ),
     );
@@ -254,9 +259,10 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
   Future<void> _scanNotificationRelayCode() async {
     final raw = await Navigator.of(context).push<String>(
       MaterialPageRoute(
-        builder: (_) => const QrScannerPage(
+        builder: (_) => QrScannerPage(
           title: 'Enable Completion Notifications',
           hint: 'Scan the notification QR shown by the connected desktop',
+          allowManualEntry: _debugPairingPolicy.allowsManualPairingEntry,
         ),
       ),
     );
