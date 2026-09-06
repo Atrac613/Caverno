@@ -285,8 +285,11 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   /// The record is the desktop owner's, so clearing it is theirs to do. It is
   /// not evidence held against them by the app.
   Future<void> clearAuditLog() async {
-    await _repository.clearServerAuditLog();
     state = state.copyWith(auditLog: const <RemoteCodingAuditEntry>[]);
+    // Through the same serialized writer as a recording, not straight to the
+    // repository: a decision already awaiting its write would otherwise land
+    // after the clear and put the cleared entries back.
+    await _persistAuditLog();
   }
 
   Future<void> revokeDevice(String deviceId) async {
@@ -1099,13 +1102,34 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       refusedReason: refusedReason,
       conversationId: conversationId,
     );
-    final entries = appendRemoteCodingAuditEntry(state.auditLog, entry);
-    state = state.copyWith(auditLog: entries);
-    try {
-      await _repository.saveServerAuditLog(entries);
-    } catch (error) {
-      appLog('[RemoteCoding] the audit entry could not be persisted: $error');
-    }
+    state = state.copyWith(
+      auditLog: appendRemoteCodingAuditEntry(state.auditLog, entry),
+    );
+    await _persistAuditLog();
+  }
+
+  Future<void>? _auditWrite;
+
+  /// Writes the audit log, one write at a time.
+  ///
+  /// Each link writes whatever the state holds when it runs, rather than a list
+  /// captured when it was queued. Two decisions resolved in quick succession
+  /// used to start two writes over the same preferences key with their own
+  /// snapshots, so the older one landing second left the store holding the
+  /// shorter list — the newer decision was on screen and absent from disk.
+  ///
+  /// Never throws, for the reason recorded on [_recordAudit]: losing a record
+  /// is bad, refusing to resolve an approval over one is worse.
+  Future<void> _persistAuditLog() {
+    final write = (_auditWrite ?? Future<void>.value()).then((_) async {
+      try {
+        await _repository.saveServerAuditLog(state.auditLog);
+      } catch (error) {
+        appLog('[RemoteCoding] the audit entry could not be persisted: $error');
+      }
+    });
+    _auditWrite = write;
+    return write;
   }
 
   /// The pending approval [approvalId] names, whoever it belongs to.

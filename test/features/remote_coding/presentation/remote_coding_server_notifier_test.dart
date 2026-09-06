@@ -451,7 +451,7 @@ void main() {
         createdAt: DateTime(2026, 8, 24, 10),
         lastSeenAt: DateTime(2026, 8, 24, 10),
       );
-      final repository = RemoteCodingRepository(
+      final repository = _SlowAuditWriteRepository(
         prefs,
         secureStore: _MemorySecureStore(),
       );
@@ -868,6 +868,17 @@ void main() {
           audit.map((entry) => entry.deviceId),
           everyElement(isNotEmpty),
           reason: 'an entry that names no device answers no question',
+        );
+        // What is on screen has to be what is on disk. Each recording used to
+        // write the list it captured when it started, over one preferences
+        // key, so with the writes staggered the older one landing second left
+        // the store holding the shorter list. `_SlowAuditWriteRepository`
+        // staggers them deliberately.
+        await repository.settleAuditWrites();
+        expect(
+          repository.loadServerAuditLog().map((entry) => entry.at),
+          audit.map((entry) => entry.at),
+          reason: 'the persisted audit log must match the one in state',
         );
 
         chatNotifier.setFileApproval(
@@ -1954,4 +1965,41 @@ void main() {
       }
     },
   );
+}
+
+/// A repository that holds the first audit write open until the test releases
+/// it, so that write finishes after every later one.
+///
+/// Timing alone does not reproduce the defect: the resolutions in this test are
+/// separated by socket round-trips, so a millisecond delay never overlaps two
+/// writes. A gate makes the ordering a fact rather than a race — an
+/// implementation that writes the list each recording captured ends with the
+/// store holding the first, shortest one.
+final class _SlowAuditWriteRepository extends RemoteCodingRepository {
+  _SlowAuditWriteRepository(super.prefs, {super.secureStore});
+
+  final Completer<void> _gate = Completer<void>();
+  final List<Future<void>> _writes = <Future<void>>[];
+  var _started = 0;
+
+  @override
+  Future<bool> saveServerAuditLog(List<RemoteCodingAuditEntry> entries) {
+    final held = _started == 0 ? _gate.future : Future<void>.value();
+    _started += 1;
+    final write = held.then((_) => super.saveServerAuditLog(entries));
+    _writes.add(write);
+    return write;
+  }
+
+  /// Drains every write, including the ones a serialized implementation only
+  /// starts once the write ahead of it finishes — those do not exist yet when
+  /// the gate opens, so a single `Future.wait` would return before them.
+  Future<void> settleAuditWrites() async {
+    if (!_gate.isCompleted) _gate.complete();
+    var settled = 0;
+    while (settled != _writes.length) {
+      settled = _writes.length;
+      await Future.wait(_writes.toList());
+    }
+  }
 }
