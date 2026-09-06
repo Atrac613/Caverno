@@ -191,7 +191,7 @@ structurally unmotivated to build:
 | Retrieval | RAG4 | blocked | M | RAG1, RAG3, HOOK1, SEC1, SEC2, agent-kb provenance | Federate agent-kb memories and wiki pages without copying its raw archive or database into Caverno. Blocked upstream: `kb_search` exposes no timestamp, wiki hits carry no confidence or source agent, and archiving rejects any agent outside `{claude, codex}`. |
 | Retrieval | RAG5 | later | S-M | RAG3, RAG4, LL23 | Evaluate deterministic local/agent-kb routing in shadow before automatic retrieval changes prompts or turn cost. |
 | Retrieval | RAG6 | later | S-M | RAG5, COMPAT1, LL39 | Make evidence-backed Go/No-Go decisions for optional reranking and ANN vector search. |
-| Knowledge Currency | KC1 | next | S-M | LL39, LL31 | Cutoff exposure census with a claim oracle: classify version-sensitive prose and code-artifact claims, compare asserted and expected values, and record separate truth (`correct` / `stale` / `unscorable`) and grounding (`supported` / `contradicted` / `absent`) verdicts plus prompt/tool/none provenance. Fixed paired replays report per-class stale/unsupported rates and detector precision/recall; tool presence alone is not a correctness verdict. |
+| Knowledge Currency | KC1 | current | S-M | LL39, LL31 | Cutoff exposure census with a claim oracle: classify version-sensitive prose and code-artifact claims, compare asserted and expected values, and record separate truth (`correct` / `stale` / `unscorable`) and grounding (`supported` / `contradicted` / `absent`) verdicts plus prompt/tool/none provenance. Fixed paired replays report per-class stale/unsupported rates and detector precision/recall; tool presence alone is not a correctness verdict. |
 | Knowledge Currency | KC2 | next | S-M | LL10, LL6, LL22, LL39 | Environment and dependency ground-truth block: preserve the datetime anchor already emitted unconditionally by `SystemPromptBuilder`, then add detected toolchain versions and direct dependency versions only after a shared LL10 inventory attests locked versus installed metadata as exact. Cache by project/metadata fingerprints and emit only in the dynamic tail. Deterministic and offline, so it is **not** gated on KC1, but the baseline artifact must be frozen before KC2 lands. |
 | Knowledge Currency | KC3 | later | S-M | KC1, KC2, LL10 | Installed version-delta evidence as an LL10 extension: return bounded CHANGELOG/migration sections and declared deprecations from the attested local package source. Close the deprecated-but-still-present blind spot without a second resolver or knowledge store; add a public tool name only if discovery evaluation rejects an LL10 query mode. |
 | Knowledge Currency | KC4 | later | M | KC1, KC3, LL11, LL36 | Cutoff-sensitive guard over visible prose, response code blocks, changed dependency-using code, and LL11 deprecation diagnostics. Heuristics and cutoff metadata nominate verification; only KC3/LL10, structured diagnostics, compile/test output, or web evidence renders a verdict. Reuse existing recovery plumbing with a bounded artifact evidence adapter, degrade to annotation when unverifiable, and promote only on measured precision and recall. |
@@ -957,7 +957,13 @@ is gone.
 
 ### KC1: Cutoff Exposure Census
 
-Status: `next`
+Status: `current`
+
+Progress as of 2026-09-05: the paired replay instrument and three measurements
+landed for classes 2 and 4. Class 1 still needs a networked oracle, and class 3
+needs a different verdict shape; the full acceptance gate remains open. See
+[the track design](knowledge_currency_track_design.md) for the measurements
+and [the cross-track index](roadmap.md#active-focus) for the current next action.
 
 Measurement instrument first, per the LL31/LL36 precedent. Ships no production
 behavior.

@@ -54,7 +54,7 @@ const Map<String, int> _lineBudgets = {
   // Then -2: the three identical assistant-message literals became one
   // _newAssistantMessage, which is also what stops the next field being set
   // on one path out of three.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8778,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8745,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 43,
@@ -223,7 +223,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart':
       245,
   'lib/features/chat/domain/services/proposal_option_extraction.dart': 621,
-  'lib/features/chat/domain/services/proposal_parsing_text_utils.dart': 693,
+  // -21: escaped loose scalar decoding moved behind its own bounded parser.
+  'lib/features/chat/domain/services/proposal_parsing_text_utils.dart': 672,
+  'lib/features/chat/domain/services/loose_json_scalar_extractor.dart': 37,
   'lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart': 55,
   // -11: the block payload and the Git working-tree evidence check moved to
   // their own collaborators.
@@ -879,7 +881,8 @@ const Map<String, int> _libraryLineBudgets = {
   // that could not carry it (SA-26); two lines at each of seven construction
   // sites in the parts, less three saved where resolveRemoteApproval stopped
   // keeping a chain of its own.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19744,
+  // The merged task-plan retry extraction reduces the aggregate to 19,712.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19712,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

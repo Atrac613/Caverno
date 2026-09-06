@@ -1596,9 +1596,10 @@ QueuedChatMessage _queuedMessage(String id, String? conversationId) {
 /// Replays the two payloads a plan draft needs — the workflow proposal then
 /// the task proposal — running [onFirstRequest] while the first is in flight.
 class _PlanProposalDataSource implements ChatDataSource {
-  _PlanProposalDataSource(this.onFirstRequest);
+  _PlanProposalDataSource(this.onFirstRequest, {this.truncateTasks = false});
 
   final Future<void> Function() onFirstRequest;
+  final bool truncateTasks;
   final List<String> systemPrompts = [];
   int completions = 0;
 
@@ -1626,6 +1627,15 @@ class _PlanProposalDataSource implements ChatDataSource {
             '"acceptanceCriteria":["The draft survives a thread switch"],'
             '"openQuestions":[]}',
         finishReason: 'stop',
+      );
+    }
+    if (truncateTasks) {
+      return ChatCompletionResult(
+        content:
+            '{"tasks":[{"title":"Incomplete prefix must not be saved",'
+            '"targetFiles":["sample.jsonl"],'
+            '"validationCommand":"test -f sample.jsonl"}]}',
+        finishReason: 'length',
       );
     }
     return ChatCompletionResult(
@@ -8152,6 +8162,31 @@ void main() {
       container.read(chatNotifierProvider).taskProposalError,
       isNull,
       reason: 'presenting a plan and an error at once would be contradictory',
+    );
+  });
+
+  test('truncated task prefixes never become a saved proposal', () async {
+    final source = _PlanProposalDataSource(() async {}, truncateTasks: true);
+    final container = _buildContainer(
+      dataSource: source,
+      toolService: _SwitchingToolService(() async {}),
+      assistantMode: AssistantMode.plan,
+    );
+    addTearDown(container.dispose);
+    container
+        .read(conversationsNotifierProvider.notifier)
+        .createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'project-a',
+        );
+
+    await container.read(chatNotifierProvider.notifier).generatePlanProposal();
+
+    expect(source.completions, 4);
+    final draft = container.read(chatNotifierProvider).taskProposalDraft;
+    expect(
+      draft?.tasks.map((task) => task.title) ?? <String>[],
+      isNot(contains('Incomplete prefix must not be saved')),
     );
   });
 
