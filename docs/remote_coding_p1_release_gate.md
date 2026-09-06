@@ -84,9 +84,11 @@ Required sections:
 - `supportPacket`
 - `multiDevice`
 
-The RC1 transport slice must add required `transportSecurity` and
-`resourceBoundary` sections to the checklist schema, generated template, Dart
-gate, and gate tests. Documentation alone does not satisfy those controls.
+There is deliberately no `transportSecurity` or `resourceBoundary` checklist
+section. Those two requirements are decided by the static gates above, because
+they are properties of the code: a checklist field for them would be a person
+attesting to something they cannot observe in a session. See **Automated Gate
+Coverage**.
 
 Keep real-device screenshots, copied diagnostics, and build logs next to the
 JSON report when preparing a release candidate. Diagnostics must be reviewed to
