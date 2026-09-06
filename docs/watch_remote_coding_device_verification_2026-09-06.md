@@ -283,6 +283,20 @@ code.
    `working_directory: /Users/noguwo/Documents/Workspace/anabasis-probe`, and
    the turn continued.
 
-The desktop-origin case (an approval raised by a turn the desktop started) is
-still unverified; it needs the "Shell commands" grant re-ticked for this device
-on the Mac, which Part 1's withdrawal test removed.
+### Desktop-origin, 21:19-21:21
+
+The case SA-26 exists for, and the one Part 1's withdrawal test had left
+unverified. "Shell commands" was re-granted to this device on the Mac
+(Settings -> Tools -> Remote Coding Host -> the device's shield icon), and the
+turn was started **at the Mac**, not from the phone -- a phone-started turn
+takes the `origin == remote` branch and never consults `desktopOriginKinds`.
+
+The approval reached the phone and the wrist, the card named
+`MacBook-Pro-3.local`, and Approve from the wrist ran it on the Mac
+(`The command executed successfully.`).
+
+What this shows is that the granted path works end to end. It does not by itself
+show the grant is what opened it: the negative control -- untick "Shell
+commands", start another desktop turn, and confirm nothing reaches the phone or
+the wrist -- has not been run. Until it is, `_canResolveInteraction`'s
+local-origin branch is covered by its unit tests and by this positive case only.
