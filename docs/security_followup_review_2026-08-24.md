@@ -640,9 +640,13 @@ separate, and the mapper carries a comment saying so.
 
 - The transcript stays local-only. Two conversations on one wrist screen is a
   separate design problem, and the payload budget cannot carry both.
-- The conversation goal is not yet sourced from a desktop: the Remote Coding
-  snapshot carries no goal, so WATCH9's machinery still has no source on iOS.
-  That needs a field on the Remote Coding wire, not a change here.
+- The conversation goal is deliberately not sourced from a desktop. Carrying it
+  would mean a goal field on the Remote Coding wire — the same privacy-boundary
+  change that blocks WATCH5 — to power a screen that has never run on iOS and
+  whose decision ("this goal is complete") closes work from the surface with the
+  least context. If unattended goal confirmation ever earns a wrist, it should
+  arrive as an `ask_user_question` over the path this milestone just built,
+  rather than as a second mechanism for "something needs your answer".
 
 ## Roadmap Order
 

@@ -138,7 +138,7 @@ promotion gates below still apply. Keep one implementation slice active.
 | Fork | FORK2 | later | Coding conversation fork: reproduce the worktree/git + LL2 file state as of the fork point into an isolated worktree/branch (never shared with the parent), with a non-git snapshot fallback. Gated on FORK1 + LL2 + LL13. | Seed a fresh worktree from the parent's turn commit or LL2 checkpoint; carry `projectId`; assign a new `worktreePath`/branch. |
 | Fork | FORK3 | later | Fork-tree navigation and compare: drawer fork tree, jump-to-parent, and parent-vs-fork diff. | Start after FORK1/FORK2 ship; reuse `TurnDiff` rendering for the compare view. |
 | Watch | WATCH5 | later | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Unblocked by SA-26: a granted device may resolve a desktop-origin approval, so the buttons are legitimate again. Two of three 2026-09-01 blockers survive — the payload is still undefined, and the simulator permission circularity is reduced rather than removed. The native action delegate now exists (WATCH10). |
-| Watch | WATCH11 | current | Show Remote Coding approvals and questions in the companion, labelled with the host that owns them, resolving what the phone is granted. | Approvals and questions shipped 2026-09-06: a second source on `WatchSessionNotifier`, a host label carried and rendered, one card ranked across both sources with ties to local, and resolution routed by an explicit `source`. The trust reading is SA-27. What remains is the goal half — the Remote Coding snapshot carries no goal, so WATCH9's machinery still has no source on iOS, and that needs a field on the Remote Coding wire rather than a change on the watch. |
+| Watch | WATCH11 | done | Show Remote Coding approvals and questions in the companion, labelled with the host that owns them, resolving what the phone is granted. | Approvals and questions shipped 2026-09-06: a second source on `WatchSessionNotifier`, a host label carried and rendered, one card ranked across both sources with ties to local, and resolution routed by an explicit `source`. The trust reading is SA-27. The goal half was withdrawn the same day rather than built: it has never run on iOS so there is no usage to argue from, it would cost a privacy-boundary change on the Remote Coding wire, and questions now reach the wrist — so an unattended completion check belongs on that path if it earns one at all. |
 | Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
 | Anabasis | ANA4 | later | Dedicated Anabasis workspace (`WorkspaceMode`), state panel beside the conversation. | Surface work; deliberately last so the boundary is proven before it gets a UI. |
 
@@ -2262,14 +2262,27 @@ Dependencies:
 - WATCH10, which proves the client-side wiring and the host naming with far
   less machinery.
 
-Added 2026-09-05 — the goal, not only approvals:
-- WATCH9 built the goal projection and `resolveGoal` against `ChatState`, and
-  the paired-simulator run then showed that source can never hold a goal on
-  iOS. The wire model, the attention state, the confirm screen and the resolve
-  path all exist and are tested; what they lack is a source. Pointing them at
-  `remoteCodingClientProvider` alongside the approvals is the same second-input
-  problem this milestone already owns, so it belongs here rather than in a new
-  milestone.
+Added 2026-09-05, withdrawn 2026-09-06 — the goal:
+- The plan was to point WATCH9's goal machinery at `remoteCodingClientProvider`
+  alongside the approvals, since it has a wire model, an attention state, a
+  confirm screen and a resolve path, and no source on iOS. That is dropped.
+- `awaitingConfirmation` arises in two places
+  (`turn_goal_completion_finalizer.dart`): the model reported completion with no
+  mechanical gap found, or the goal hit its budget cap. Both are unattended-run
+  moments, which is a real argument for the wrist — goals do get stuck, and one
+  measured log burned 163k tokens on `update_goal` refused five times.
+- Against it, three things and one alternative. The evidence rule that keeps
+  WATCH12 `later` applies here too, and harder: the goal screen has never once
+  run on iOS, so there is no usage at all to argue from. The cost is a goal
+  field on the Remote Coding wire, which is the same privacy-boundary change
+  that blocks WATCH5. And confirming completion closes a goal that may not be
+  done, from the surface with the least context — the screen's own comment
+  calls that "confirming blind".
+- The alternative costs nothing new: **questions now reach the wrist** (WATCH11,
+  2026-09-06). A desktop that wants a completion confirmed can ask for it as an
+  `ask_user_question`, with options, over the path that already exists. That
+  keeps "something needs your answer" as one mechanism rather than two, and it
+  is where this should go if unattended goal confirmation ever earns a wrist.
 
 Settled 2026-09-06 by SA-26 — what the wrist may do with a remote card:
 - The watch inherits **exactly** the phone's authority and no more. It is the
