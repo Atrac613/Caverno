@@ -2331,11 +2331,22 @@ gates the three above.
 Dependencies:
 - None. WATCH10 supplies the notification path.
 
+Also shipped 2026-09-06, SA-26's T4: the desktop records every decision a
+paired device takes — device, kind, body, outcome, and whether the turn was one
+that device started or one this desktop started under a grant — and lists them
+in Remote Coding settings. Refusals are recorded with their reason, since a
+misconfigured grant leaves no other trace. The log lives under its own
+preferences key rather than in the settings the support packet is built from,
+so command text cannot leave the machine with a diagnostics copy.
+
+The same pass found that the snapshot's change listener still watched three
+approval kinds of eleven, so a turn blocking on an SSH or browser approval
+changed nothing a client could observe until something else broadcast.
+
 Next action:
-- All three slices shipped 2026-09-06. What remains from SA-26 is
-  device-local authentication before a mutating resolution (T1) and the
-  desktop-side audit of what a remote device approved (T4). Neither gates the
-  others; T1 needs a `local_auth` dependency and an iOS usage description.
+- SA-26's T1 is what remains: device-local authentication before a mutating
+  resolution. Needs a `local_auth` dependency and an iOS usage description, so
+  it is a decision rather than a continuation.
 
 ## Anabasis Orchestrator Track
 

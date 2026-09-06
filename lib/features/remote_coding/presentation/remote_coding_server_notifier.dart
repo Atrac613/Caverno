@@ -34,6 +34,7 @@ import '../data/remote_coding_tls_identity.dart';
 import '../data/remote_coding_terminal_notification_mapper.dart';
 import '../data/remote_coding_terminal_notification_delivery.dart';
 import '../domain/remote_coding_listen_policy.dart';
+import '../domain/remote_coding_audit.dart';
 import '../domain/remote_coding_grant_kinds.dart';
 import '../domain/remote_coding_models.dart';
 import '../domain/remote_coding_resource_policy.dart';
@@ -60,6 +61,7 @@ class RemoteCodingServerState {
     this.relayPairingPayload,
     this.activeConnectionCount = 0,
     this.lastNotificationDelivery,
+    this.auditLog = const <RemoteCodingAuditEntry>[],
   });
 
   final RemoteCodingServerSettings settings;
@@ -72,6 +74,9 @@ class RemoteCodingServerState {
   final int activeConnectionCount;
   final RemoteCodingTerminalNotificationDeliveryReport?
   lastNotificationDelivery;
+
+  /// Remote decisions this desktop has recorded, newest first (SA-26, T4).
+  final List<RemoteCodingAuditEntry> auditLog;
 
   String? get activeUrl {
     final host = activeHost;
@@ -95,6 +100,7 @@ class RemoteCodingServerState {
     RemoteCodingNotificationRelayPairingPayload? relayPairingPayload,
     int? activeConnectionCount,
     RemoteCodingTerminalNotificationDeliveryReport? lastNotificationDelivery,
+    List<RemoteCodingAuditEntry>? auditLog,
     bool clearError = false,
     bool clearPairingPayload = false,
     bool clearRelayPairingPayload = false,
@@ -118,6 +124,7 @@ class RemoteCodingServerState {
           activeConnectionCount ?? this.activeConnectionCount,
       lastNotificationDelivery:
           lastNotificationDelivery ?? this.lastNotificationDelivery,
+      auditLog: auditLog ?? this.auditLog,
     );
   }
 }
@@ -160,10 +167,13 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       _broadcastSnapshot('conversationsChanged');
     });
     ref.listen<ChatState>(chatNotifierProvider, (previous, next) {
+      // Compared over every kind, through the same ordering the snapshot
+      // projects from. Watching three of eleven meant a turn blocking on an
+      // SSH or browser approval changed nothing a client could observe until
+      // something else happened to broadcast: SA-26 made those kinds
+      // projectable without making them noticeable.
       final approvalChanged =
-          previous?.pendingFileOperation?.id != next.pendingFileOperation?.id ||
-          previous?.pendingLocalCommand?.id != next.pendingLocalCommand?.id ||
-          previous?.pendingGitCommand?.id != next.pendingGitCommand?.id;
+          _topPendingApprovalId(previous) != _topPendingApprovalId(next);
       final questionChanged =
           previous?.pendingAskUserQuestion?.id !=
           next.pendingAskUserQuestion?.id;
@@ -188,7 +198,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       unawaited(_stopServer());
     });
 
-    final initialState = RemoteCodingServerState(settings: settings);
+    final initialState = RemoteCodingServerState(
+      settings: settings,
+      auditLog: _repository.loadServerAuditLog(),
+    );
     if (_canRunServer && settings.enabled) {
       unawaited(_startServer(settings.port));
     }
@@ -197,6 +210,15 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     }
     return initialState;
   }
+
+  /// The id of the approval a client would currently be shown, or null.
+  ///
+  /// Ownership is deliberately not applied: this decides whether to *tell*
+  /// clients something changed, and each client's snapshot then applies its
+  /// own gate. Filtering here would make a change invisible to the device
+  /// entitled to see it.
+  String? _topPendingApprovalId(ChatState? state) =>
+      state == null ? null : pendingApprovalsByPriority(state).firstOrNull?.id;
 
   bool get _canRunServer =>
       !kIsWeb && (Platform.isMacOS || Platform.isLinux || Platform.isWindows);
@@ -256,6 +278,15 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     // than applied, and a withdrawn grant has to take the approval off the
     // phone's screen now.
     _broadcastSnapshot('snapshot');
+  }
+
+  /// Forgets every recorded remote decision.
+  ///
+  /// The record is the desktop owner's, so clearing it is theirs to do. It is
+  /// not evidence held against them by the app.
+  Future<void> clearAuditLog() async {
+    await _repository.clearServerAuditLog();
+    state = state.copyWith(auditLog: const <RemoteCodingAuditEntry>[]);
   }
 
   Future<void> revokeDevice(String deviceId) async {
@@ -1015,6 +1046,76 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
   }
 
+  /// Records what a paired device did with one of this desktop's
+  /// interactions (SA-26, T4).
+  ///
+  /// Refusals are recorded too: a refused resolution is what a misconfigured
+  /// grant, a stale client, or a device reaching for something it was never
+  /// given all look like, and none of those leave any other trace.
+  ///
+  /// Only for an id that names something real. An unknown id records nothing,
+  /// so a chatty or probing client cannot evict real entries from a bounded
+  /// log by asking about ids that never existed.
+  ///
+  /// Never throws. Losing a record is bad; refusing to resolve an approval
+  /// because the record could not be written would turn an audit into an
+  /// outage.
+  Future<void> _recordAudit({
+    required String? deviceId,
+    required String kind,
+    required ChatInteractionOrigin origin,
+    required RemoteCodingAuditOutcome outcome,
+    required bool approved,
+    required String title,
+    String subtitle = '',
+    String? warning,
+    String? refusedReason,
+    String? conversationId,
+  }) async {
+    final id = deviceId?.trim() ?? '';
+    if (id.isEmpty) return;
+    final device = state.settings.pairedDevices
+        .where((device) => device.id == id)
+        .firstOrNull;
+    final entry = RemoteCodingAuditEntry(
+      at: DateTime.now().toUtc(),
+      deviceId: id,
+      deviceName: device?.name ?? 'Unknown device',
+      kind: kind,
+      origin: origin.name,
+      outcome: outcome,
+      approved: approved,
+      title: RemoteCodingAuditEntry.truncate(title),
+      subtitle: RemoteCodingAuditEntry.truncate(subtitle),
+      warning: warning == null || warning.trim().isEmpty
+          ? null
+          : RemoteCodingAuditEntry.truncate(warning.trim()),
+      refusedReason: refusedReason,
+      conversationId: conversationId,
+    );
+    final entries = appendRemoteCodingAuditEntry(state.auditLog, entry);
+    state = state.copyWith(auditLog: entries);
+    try {
+      await _repository.saveServerAuditLog(entries);
+    } catch (error) {
+      appLog('[RemoteCoding] the audit entry could not be persisted: $error');
+    }
+  }
+
+  /// The pending approval [approvalId] names, whoever it belongs to.
+  ///
+  /// Permission-independent on purpose: this is what a refusal has to describe,
+  /// and a refusal happens exactly when the permission check said no.
+  PendingApprovalSummary? _describeApprovalById(
+    ChatState chatState,
+    String approvalId,
+  ) {
+    for (final request in pendingApprovalsByPriority(chatState)) {
+      if (request.id == approvalId) return describePendingApproval(request);
+    }
+    return null;
+  }
+
   void _handleResolveApproval(
     _RemoteCodingSocketClient client,
     RemoteCodingProtocolMessage message,
@@ -1022,7 +1123,26 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     final approvalId = (message.payload['approvalId'] as String?)?.trim() ?? '';
     final approved = message.payload['approved'] == true;
     final chatState = ref.read(chatNotifierProvider);
+    final summary = _describeApprovalById(chatState, approvalId);
     if (!_canResolveApproval(chatState, approvalId, client.deviceId)) {
+      if (summary != null) {
+        unawaited(
+          _recordAudit(
+            deviceId: client.deviceId,
+            kind: summary.kind,
+            origin: summary.origin,
+            outcome: RemoteCodingAuditOutcome.refused,
+            approved: approved,
+            title: summary.title,
+            subtitle: summary.subtitle,
+            warning: summary.warning,
+            refusedReason: summary.isSimpleDecision
+                ? 'not_permitted'
+                : 'needs_structured_input',
+            conversationId: summary.conversationId,
+          ),
+        );
+      }
       client.sendError(
         id: message.id,
         code: 'approval_not_found',
@@ -1044,6 +1164,21 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       return;
     }
 
+    if (summary != null) {
+      unawaited(
+        _recordAudit(
+          deviceId: client.deviceId,
+          kind: summary.kind,
+          origin: summary.origin,
+          outcome: RemoteCodingAuditOutcome.resolved,
+          approved: approved,
+          title: summary.title,
+          subtitle: summary.subtitle,
+          warning: summary.warning,
+          conversationId: summary.conversationId,
+        ),
+      );
+    }
     client.send(
       type: 'approvalResolved',
       id: message.id,
@@ -1068,6 +1203,20 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
           authenticatedDeviceId: client.deviceId,
           kind: RemoteCodingGrantKinds.question,
         )) {
+      if (pending != null && pending.id == questionId) {
+        unawaited(
+          _recordAudit(
+            deviceId: client.deviceId,
+            kind: RemoteCodingGrantKinds.question,
+            origin: pending.origin,
+            outcome: RemoteCodingAuditOutcome.refused,
+            approved: false,
+            title: pending.question,
+            refusedReason: 'not_permitted',
+            conversationId: pending.conversationId,
+          ),
+        );
+      }
       client.sendError(
         id: message.id,
         code: 'question_not_found',
@@ -1081,6 +1230,20 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         ? null
         : _parseRemoteQuestionAnswer(pending, message.payload);
     chatNotifier.resolveAskUserQuestion(id: questionId, answer: answer);
+    unawaited(
+      _recordAudit(
+        deviceId: client.deviceId,
+        kind: RemoteCodingGrantKinds.question,
+        origin: pending.origin,
+        outcome: RemoteCodingAuditOutcome.resolved,
+        // A question authorizes nothing, so "approved" reads as "answered"
+        // rather than as consent; a cancellation is the one that did neither.
+        approved: !cancelled,
+        title: pending.question,
+        subtitle: cancelled ? 'Cancelled' : '',
+        conversationId: pending.conversationId,
+      ),
+    );
 
     client.send(
       type: 'questionResolved',

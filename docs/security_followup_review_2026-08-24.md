@@ -482,7 +482,7 @@ controls are the ones that act at the moment of consequence.
 | T1 | A stolen, unlocked phone is a bearer of the desktop's execution authority | Device-local authentication (Face ID / passcode) immediately before a mutating resolution is sent |
 | T2 | Blind approval: the notification's Approve button resolves without the command ever being read | Make the surface where the decision is taken carry the whole question — see the correction below |
 | T3 | Confused deputy: the model at the Mac proposes something dangerous and a small screen rubber-stamps it | The per-device grant is per kind, so the dangerous kinds are opt-in rather than implied; optionally, offer desktop-origin approvals only once the Mac is idle or locked |
-| T4 | No record on the desktop of what a remote device approved | Audit every remote resolution with device id, kind, body, and timestamp, and surface it in the desktop UI |
+| T4 | No record on the desktop of what a remote device approved | Audit every remote resolution with device id, kind, body, and timestamp, and surface it in the desktop UI — **shipped 2026-09-06**, see below |
 
 T2's control is a prerequisite for the grant in T3, not a parallel nicety: a
 grant of authority over a command the holder cannot be shown to have read is
@@ -547,6 +547,31 @@ two predicates, not a loosened one.
 
 Device-local authentication (T1) and the audit surface (T4) follow. Neither
 gates the first three.
+
+**T4 shipped 2026-09-06.** `RemoteCodingAuditEntry` records every decision a
+paired device takes on one of this desktop's interactions: when, which device
+(by the name it had at the time, since a device can be renamed or revoked),
+which kind, the body it was shown, the decision, and whether the turn was one
+the device started (`remote`) or one this desktop started under a grant
+(`local`). The desktop's Remote Coding settings list them newest first.
+
+Three choices worth stating:
+
+- **Refusals are recorded too**, with why. A refused resolution is what a
+  misconfigured grant, a stale client, and a device reaching for something it
+  was never given all look like, and none of them leave any other trace.
+- **Only for an id that names something real.** An unknown id records nothing,
+  so a probing client cannot evict real entries from a bounded log by asking
+  about ids that never existed.
+- **Not part of the diagnostics, and therefore not in the support packet.**
+  Entries carry command text and paths; the support packet exists to be copied
+  out of the machine. It lives under its own preferences key rather than in the
+  server settings the packet is built from, which is a structural guarantee
+  rather than a redaction rule someone has to remember.
+
+Recording never fails a resolution: losing a record is bad, but refusing to
+resolve an approval because the record could not be written would turn an audit
+into an outage.
 
 ### What does not change
 

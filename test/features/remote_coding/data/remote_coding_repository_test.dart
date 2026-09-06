@@ -5,6 +5,8 @@ import 'package:caverno/features/remote_coding/data/remote_coding_notification_r
 import 'package:caverno/features/remote_coding/data/remote_coding_secure_store.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_security.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_tls_identity.dart';
+import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_audit.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,6 +23,79 @@ void main() {
     expect(settings.enabled, isFalse);
     expect(settings.port, 8767);
     expect(settings.pairedDevices, isEmpty);
+  });
+
+  group('server audit log', () {
+    RemoteCodingAuditEntry entry(String title) => RemoteCodingAuditEntry(
+      at: DateTime.utc(2026, 9, 6, 12),
+      deviceId: 'device-1',
+      deviceName: 'Phone',
+      kind: PendingApprovalKinds.localCommand,
+      origin: 'local',
+      outcome: RemoteCodingAuditOutcome.resolved,
+      approved: true,
+      title: title,
+    );
+
+    test('round-trips, and clears', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repository = RemoteCodingRepository(prefs);
+
+      expect(repository.loadServerAuditLog(), isEmpty);
+      await repository.saveServerAuditLog([entry('rm -rf build')]);
+      expect(repository.loadServerAuditLog().single.title, 'rm -rf build');
+
+      await repository.clearServerAuditLog();
+      expect(repository.loadServerAuditLog(), isEmpty);
+    });
+
+    test('is stored apart from the server settings', () async {
+      // The audit carries command text and paths. Settings are what the
+      // diagnostics and the support packet are built from, and the support
+      // packet exists to be copied out of the machine.
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repository = RemoteCodingRepository(prefs);
+
+      await repository.saveServerAuditLog([entry('rm -rf build')]);
+
+      expect(
+        prefs.getString('remote_coding_server_settings'),
+        isNull,
+        reason: 'writing the audit must not touch the server settings',
+      );
+      expect(repository.loadServerSettings().pairedDevices, isEmpty);
+    });
+
+    test('an unreadable log does not take the server down with it', () async {
+      SharedPreferences.setMockInitialValues({
+        'remote_coding_server_audit_log': '{not-json',
+      });
+      final prefs = await SharedPreferences.getInstance();
+
+      expect(RemoteCodingRepository(prefs).loadServerAuditLog(), isEmpty);
+    });
+
+    test('is bounded when written', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repository = RemoteCodingRepository(prefs);
+
+      await repository.saveServerAuditLog([
+        for (
+          var index = 0;
+          index < RemoteCodingAuditEntry.maxEntries + 25;
+          index++
+        )
+          entry('cmd-$index'),
+      ]);
+
+      expect(
+        repository.loadServerAuditLog(),
+        hasLength(RemoteCodingAuditEntry.maxEntries),
+      );
+    });
   });
 
   test('invalid persisted mobile host is ignored on startup', () async {

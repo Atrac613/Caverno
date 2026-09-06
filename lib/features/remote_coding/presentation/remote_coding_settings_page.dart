@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../../core/theme/app_tokens.dart';
+import '../domain/remote_coding_audit.dart';
 import '../domain/remote_coding_grant_kinds.dart';
 import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_multi_device_evidence.dart';
@@ -159,6 +161,8 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
                 ),
               ),
             ),
+          const SizedBox(height: 24),
+          _AuditLogSection(state: state, notifier: notifier),
         ],
       ),
     );
@@ -682,6 +686,127 @@ class _DesktopOriginGrantDialogState extends State<_DesktopOriginGrantDialog> {
           onPressed: () => Navigator.pop(context, _granted),
           child: const Text('Save'),
         ),
+      ],
+    );
+  }
+}
+
+/// What paired devices have decided on this desktop (SA-26, T4).
+///
+/// A paired device can approve commands that change this machine. Until this
+/// existed the machine kept no account of which device approved what, so
+/// "did I approve that, or the phone in my bag?" had no answer.
+class _AuditLogSection extends StatelessWidget {
+  const _AuditLogSection({required this.state, required this.notifier});
+
+  static const int _visibleEntries = 20;
+
+  final RemoteCodingServerState state;
+  final RemoteCodingServerNotifier notifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final entries = state.auditLog;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Remote decisions',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            if (entries.isNotEmpty)
+              TextButton(
+                onPressed: notifier.clearAuditLog,
+                child: const Text('Clear'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (entries.isEmpty)
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.history),
+              title: Text('No paired device has answered anything yet'),
+            ),
+          )
+        else ...[
+          for (final entry in entries.take(_visibleEntries))
+            Card(
+              child: ListTile(
+                leading: Icon(
+                  switch (entry.outcome) {
+                    RemoteCodingAuditOutcome.refused => Icons.block,
+                    RemoteCodingAuditOutcome.resolved when entry.approved =>
+                      Icons.check_circle_outline,
+                    RemoteCodingAuditOutcome.resolved =>
+                      Icons.do_not_disturb_on_outlined,
+                  },
+                  color: entry.outcome == RemoteCodingAuditOutcome.refused
+                      ? theme.colorScheme.error
+                      : null,
+                ),
+                title: Text(
+                  entry.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontFamily: kMonoFontFamily),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${entry.deviceName} · '
+                      '${RemoteCodingGrantKinds.label(entry.kind)} · '
+                      '${entry.at.toLocal()}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    // The line worth reading: a decision on a turn this Mac
+                    // started is the authority SA-26 widened, and the only one
+                    // that required a grant.
+                    if (entry.isDesktopOrigin)
+                      Text(
+                        "Answered this Mac's own request",
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    if (entry.refusedReason != null)
+                      Text(
+                        'Refused: ${entry.refusedReason}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    if (entry.warning != null)
+                      Text(
+                        entry.warning!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                  ],
+                ),
+                isThreeLine: entry.isDesktopOrigin || entry.warning != null,
+              ),
+            ),
+          if (entries.length > _visibleEntries)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '${entries.length - _visibleEntries} older decisions kept but '
+                'not shown.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+        ],
       ],
     );
   }

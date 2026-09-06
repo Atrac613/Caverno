@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:caverno/features/remote_coding/domain/remote_coding_audit.dart';
 import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
@@ -840,6 +841,34 @@ void main() {
           description: 'the reconnected owner question resolution',
         );
         expect(chatNotifier.state.pendingAskUserQuestion, isNull);
+
+        // SA-26 T4: the desktop keeps its own account of what paired devices
+        // decided, because a paired device can approve commands that change
+        // this machine and nothing else recorded which one did.
+        final audit = container.read(remoteCodingServerProvider).auditLog;
+        final grantedDecision = audit.firstWhere(
+          (entry) =>
+              entry.isDesktopOrigin &&
+              entry.outcome == RemoteCodingAuditOutcome.resolved,
+          orElse: () => throw StateError('no desktop-origin decision recorded'),
+        );
+        expect(grantedDecision.deviceId, ownerDevice.id);
+        expect(grantedDecision.deviceName, ownerDevice.name);
+        expect(grantedDecision.kind, PendingApprovalKinds.file);
+        expect(grantedDecision.approved, isTrue);
+        expect(
+          audit.where(
+            (entry) => entry.outcome == RemoteCodingAuditOutcome.refused,
+          ),
+          isNotEmpty,
+          reason:
+              'a refused attempt is the half nothing else leaves a trace of',
+        );
+        expect(
+          audit.map((entry) => entry.deviceId),
+          everyElement(isNotEmpty),
+          reason: 'an entry that names no device answers no question',
+        );
 
         chatNotifier.setFileApproval(
           origin: ChatInteractionOrigin.remote,

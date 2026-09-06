@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../settings/presentation/providers/settings_notifier.dart';
+import '../domain/remote_coding_audit.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_notification_relay_contract.dart';
 import 'remote_coding_secure_store.dart';
@@ -19,6 +20,7 @@ class RemoteCodingRepository {
     : _secureStore = secureStore ?? const FlutterRemoteCodingSecureStore();
 
   static const _serverSettingsKey = 'remote_coding_server_settings';
+  static const _serverAuditLogKey = 'remote_coding_server_audit_log';
   static const _mobileHostKey = 'remote_coding_mobile_host';
   static const _mobileTokenPrefix = 'caverno.remote_coding.token.';
   static const _desktopTlsIdentityKey = 'caverno.remote_coding.tls.identity';
@@ -59,6 +61,48 @@ class RemoteCodingRepository {
     if (!saved) {
       throw StateError('Remote coding server settings could not be saved.');
     }
+  }
+
+  /// The desktop's record of remote decisions, newest first (SA-26, T4).
+  ///
+  /// Its own key rather than a field of the settings: it grows with use, it is
+  /// cleared independently of a pairing, and a decode failure here must not
+  /// take the server's configuration down with it.
+  List<RemoteCodingAuditEntry> loadServerAuditLog() {
+    final raw = _prefs.getString(_serverAuditLogKey);
+    if (raw == null || raw.isEmpty) {
+      return const <RemoteCodingAuditEntry>[];
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const <RemoteCodingAuditEntry>[];
+      return [
+        for (final entry in decoded)
+          if (entry is Map<String, dynamic>)
+            RemoteCodingAuditEntry.fromJson(entry),
+      ];
+    } catch (_) {
+      return const <RemoteCodingAuditEntry>[];
+    }
+  }
+
+  /// Writes the audit log, bounded to [RemoteCodingAuditEntry.maxEntries].
+  ///
+  /// A failure to persist is logged by the caller rather than thrown: losing a
+  /// record is bad, but refusing to resolve an approval because the record
+  /// could not be written would turn an audit into an outage.
+  Future<bool> saveServerAuditLog(List<RemoteCodingAuditEntry> entries) {
+    return _prefs.setString(
+      _serverAuditLogKey,
+      jsonEncode([
+        for (final entry in entries.take(RemoteCodingAuditEntry.maxEntries))
+          entry.toJson(),
+      ]),
+    );
+  }
+
+  Future<void> clearServerAuditLog() async {
+    await _prefs.remove(_serverAuditLogKey);
   }
 
   RemoteCodingHost? loadMobileHost() {
