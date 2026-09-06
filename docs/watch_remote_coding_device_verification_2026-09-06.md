@@ -233,3 +233,56 @@ three.
   separation from the server settings has been broken.
 - **A soak failure** — resilience, not authority; it blocks promotion but not
   the SA-26 work.
+
+## WATCH11 on the wrist — 2026-09-06 20:15–20:40
+
+Run because the milestone had only Dart unit tests, a Swift build, and the wire
+contract behind it. The contract proves the two sides agree on a data format; it
+cannot prove a card appears or that an answer lands.
+
+### What it found: attention indicators were unreachable on the wrist
+
+The phone held a Remote Coding approval (`uptime` on `MacBook-Pro-3.local`,
+warned as host-wide filesystem access). The watch showed the transcript with no
+sign of it.
+
+Everything upstream of the screen was correct. The watch's own decoded state,
+read out of the App Group where `WatchSessionClient.publishGlance` writes it:
+
+```json
+{ "needsAttention": true, "status": "waitingApproval", "busyThreadCount": 0 }
+```
+
+So the Dart projection, the 16 KB payload, the transport, and the Swift decode
+all worked. The frame said "waiting for an approval" and the wrist showed
+nothing to reach it.
+
+`TranscriptView` declared four `ToolbarItem`s at `.topBarTrailing`: approval,
+question, and goal — carefully ranked against each other — plus the thread
+picker, which was not part of that ranking. watchOS renders one item per
+placement. The picker appears whenever the phone has more than one thread, so on
+any ordinarily-used watch it took the slot and every attention indicator was
+invisible. This predates WATCH11: it hid local approvals too, and the earlier
+device sessions passed because they ran against a single thread.
+
+Fixed by pinning one attention affordance above the compose bar, ranked the same
+way, where it cannot collide and cannot scroll away. The picker keeps the
+toolbar. `test/features/watch/presentation/watch_transcript_toolbar_test.dart`
+fails if any placement is claimed twice or if a blocked-turn destination goes
+back into the toolbar; both assertions were mutation-tested against the original
+code.
+
+### What then verified
+
+1. The banner renders on the wrist: orange triangle, the command (`uptime`), a
+   chevron.
+2. Opening it shows the kind (`Shell command`) and, above the command,
+   **`MacBook-Pro-3.local`** — the host label WATCH11 exists to provide.
+3. Approve from the wrist closed the phone's sheet and reached the desktop,
+   which ran `local_execute_command` with `command: uptime` and
+   `working_directory: /Users/noguwo/Documents/Workspace/anabasis-probe`, and
+   the turn continued.
+
+The desktop-origin case (an approval raised by a turn the desktop started) is
+still unverified; it needs the "Shell commands" grant re-ticked for this device
+on the Mac, which Part 1's withdrawal test removed.
