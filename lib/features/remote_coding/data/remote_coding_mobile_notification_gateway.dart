@@ -196,8 +196,7 @@ RemoteCodingNotificationPermission _mapAuthorizationStatus(
     // longer surface a permission prompt. The remedy is identical to a plain
     // denial here -- the user has to re-enable notifications in system
     // settings -- and that is exactly what the denied copy already says.
-    AuthorizationStatus.denied ||
-    AuthorizationStatus.deniedPermanently =>
+    AuthorizationStatus.denied || AuthorizationStatus.deniedPermanently =>
       RemoteCodingNotificationPermission.denied,
     AuthorizationStatus.notDetermined =>
       RemoteCodingNotificationPermission.notDetermined,

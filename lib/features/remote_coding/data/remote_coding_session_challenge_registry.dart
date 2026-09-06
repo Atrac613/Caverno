@@ -10,7 +10,10 @@ enum RemoteCodingSessionChallengeConsumeStatus {
 }
 
 class RemoteCodingSessionChallengeConsumeResult {
-  const RemoteCodingSessionChallengeConsumeResult._(this.status, this.challenge);
+  const RemoteCodingSessionChallengeConsumeResult._(
+    this.status,
+    this.challenge,
+  );
 
   const RemoteCodingSessionChallengeConsumeResult.accepted(
     RemoteCodingSessionChallenge challenge,

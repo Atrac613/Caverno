@@ -18,10 +18,7 @@ class RemoteCodingSecurity {
     return sha256.convert(utf8.encode(token.trim())).toString();
   }
 
-  static String hmacSha256Hex({
-    required String key,
-    required String message,
-  }) {
+  static String hmacSha256Hex({required String key, required String message}) {
     final hmac = Hmac(sha256, utf8.encode(key));
     return hmac.convert(utf8.encode(message)).toString();
   }

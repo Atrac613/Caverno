@@ -19,6 +19,7 @@ import '../data/remote_coding_protocol.dart';
 import '../data/remote_coding_repository.dart';
 import '../data/remote_coding_security.dart';
 import '../data/remote_coding_websocket_connector.dart';
+import '../domain/remote_coding_error_policy.dart';
 import '../domain/remote_coding_models.dart';
 import '../domain/remote_coding_session_policy.dart';
 import '../domain/remote_coding_transport_policy.dart';
@@ -370,9 +371,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     final pending = _pendingAuthChallenge;
     _pendingAuthChallenge = null;
     if (pending != null && !pending.isCompleted) {
-      pending.completeError(
-        const RemoteCodingAuthChallengeRequiredException(),
-      );
+      pending.completeError(const RemoteCodingAuthChallengeRequiredException());
     }
   }
 
@@ -620,15 +619,22 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     if (!ref.mounted) {
       return;
     }
-    state = state.copyWith(
-      status: RemoteCodingConnectionStatus.error,
-      error: (payload['message'] as String?) ?? 'Remote coding error.',
-      isLoading: false,
-      queuedCount: 0,
-      snapshotSequence: 0,
-      clearPendingApproval: true,
-      clearSnapshotGeneratedAt: true,
-    );
+    final message = (payload['message'] as String?) ?? 'Remote coding error.';
+    if (RemoteCodingErrorPolicy.endsTheSession(code)) {
+      state = state.copyWith(
+        status: RemoteCodingConnectionStatus.error,
+        error: message,
+        isLoading: false,
+        queuedCount: 0,
+        snapshotSequence: 0,
+        clearPendingApproval: true,
+        clearSnapshotGeneratedAt: true,
+      );
+      return;
+    }
+    // A declined command, over a socket that is still open. Say so and change
+    // nothing else; see RemoteCodingErrorPolicy for what that used to cost.
+    state = state.copyWith(error: message, isLoading: false);
   }
 
   void _handleRunTerminal(Map<String, dynamic> payload) {
