@@ -87,7 +87,6 @@ promotion gates below still apply. Keep one implementation slice active.
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
 | Anabasis | ANA2 | current | Delegate ready tasks through the existing subagent and worktree runners. | Mapping, premise briefs, and contradiction policies landed in `6218b6440`; the parent prompt consumes the queue. Observe a planned coding thread with non-empty candidates before closing the integration evidence gap. Free-form delegation alone does not exercise that queue. |
 | Anabasis | ANA3 | current | Separate produced, verified, and accepted results with explicit ownership and evidence. | PR 1 and PR 2a landed: mechanical/evidence audit plus the acceptance record and parent acceptance gate. Next is PR 2b: give the parent one guarded write path for its semantic judgment; inspect the three file-size budgets before implementation. Stored execution-state separation remains PR 3. |
-| Watch | WATCH13 | current | Give a paired phone desktop-equivalent authority over existing threads, granted per device on a surface that states the whole question. | Decided twice on 2026-09-06. SA-25 said see-yes/resolve-no; measuring `_handleSendMessage` refuted its premise — pairing already confers the desktop's execution authority — and **SA-26 supersedes it**. Three slices in order: carry every approval kind for turns the phone already owns, bind a resolution to the displayed body, then grant per device. |
 
 ### Ready Candidates
 
@@ -139,6 +138,7 @@ promotion gates below still apply. Keep one implementation slice active.
 | Fork | FORK3 | later | Fork-tree navigation and compare: drawer fork tree, jump-to-parent, and parent-vs-fork diff. | Start after FORK1/FORK2 ship; reuse `TurnDiff` rendering for the compare view. |
 | Watch | WATCH5 | later | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Unblocked by SA-26: a granted device may resolve a desktop-origin approval, so the buttons are legitimate again. Two of three 2026-09-01 blockers survive — the payload is still undefined, and the simulator permission circularity is reduced rather than removed. The native action delegate now exists (WATCH10). |
 | Watch | WATCH11 | done | Show Remote Coding approvals and questions in the companion, labelled with the host that owns them, resolving what the phone is granted. | Approvals and questions shipped 2026-09-06: a second source on `WatchSessionNotifier`, a host label carried and rendered, one card ranked across both sources with ties to local, and resolution routed by an explicit `source`. The trust reading is SA-27. The goal half was withdrawn the same day rather than built: it has never run on iOS so there is no usage to argue from, it would cost a privacy-boundary change on the Remote Coding wire, and questions now reach the wrist — so an unattended completion check belongs on that path if it earns one at all. |
+| Watch | WATCH13 | done | Give a paired phone desktop-equivalent authority over existing threads, granted per device on a surface that states the whole question. | All three slices plus SA-26's T4 audit shipped 2026-09-06, and both halves of the authority decision are now observed on hardware: a granted desktop-origin approval reaches the phone and the wrist and runs on the Mac, and with the grant withdrawn the same turn reaches neither. SA-26's T1 — device-local authentication before a mutating resolution — is the open follow-up and is tracked as a security item, not a WATCH13 slice. |
 | Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
 | Anabasis | ANA4 | later | Dedicated Anabasis workspace (`WorkspaceMode`), state panel beside the conversation. | Surface work; deliberately last so the boundary is proven before it gets a UI. |
 
@@ -2323,7 +2323,7 @@ Next action:
 
 ### WATCH13: Desktop-Equivalent Authority On A Paired Phone
 
-Status: `current`
+Status: `done`
 
 A blocked desktop turn does not reach the phone, and WATCH10 proved the reason
 is policy rather than plumbing: `_canResolveInteraction` requires
@@ -2430,6 +2430,32 @@ behaved as designed. Four defects surfaced on the way and were fixed — pairing
 was camera-only so no simulator could reach any of this, a declined command
 looked like a disconnection, sheets were never taken away when the interaction
 stopped being pending, and the read-only sheet had no way out.
+
+Closed 2026-09-06 after a second hardware session took the remaining two
+observations. WATCH11's card was verified on the wrist for both origins: a
+desktop-origin approval, granted, reached the watch labelled
+`MacBook-Pro-3.local` and Approve from the wrist ran it on the Mac; with the
+grant withdrawn, the same desktop-started turn reached neither the phone nor the
+wrist. The grant is therefore what opens that path, and
+`_canResolveInteraction`'s local-origin branch refuses on a device the way its
+unit tests say it does.
+
+That session also found two defects no test could have: every attention
+indicator on the watch was unreachable whenever the phone had more than one
+thread (four `ToolbarItem`s sharing `.topBarTrailing`, which watchOS renders one
+of), and the compose bar was clipped by the display edge. Both are recorded in
+`docs/watch_remote_coding_device_verification_2026-09-06.md`.
+
+Open follow-up, tracked as SA-26's T1 rather than a WATCH13 slice:
+device-local authentication before a mutating resolution. It is unstarted —
+`local_auth` is not a dependency — and WATCH11 gave it a new question to answer
+first. `WatchSessionNotifier._handleResolveApproval` calls
+`RemoteCodingClientNotifier.resolveApproval` directly, so an authentication gate
+placed on the phone's approval sheet would not be on the path a wrist tap takes.
+Either the gate lives in the client notifier where both surfaces cross it, or
+the watch is a documented exemption on the argument that watchOS wrist-detection
+already authenticates it — which is only true when the user has set a watch
+passcode.
 
 Next action:
 - Part 2 is down to one gate. `support_packet_review` and
