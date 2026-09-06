@@ -34,6 +34,18 @@ tool/safe-flutter run -d macos
 Install the iOS app from the same commit, and pair the phone to the desktop
 (Settings > Remote Coding Host > pairing QR).
 
+**A real iPhone, not a simulator.** Pairing is the one step with no non-camera
+path: `QrScannerPage` is 83 lines of `MobileScanner` with no paste or manual
+entry, and a simulator cannot photograph the QR on the Mac's screen. Everything
+downstream of pairing was reachable on simulators for WATCH1-WATCH9 because
+`WCSession` needs no pairing code; nothing in SA-26 is, because all of it runs
+over a paired Remote Coding session. Part 2's soak needs real devices anyway, so
+this is one session on real hardware rather than two.
+
+A simulator is still useful for the watch half — the paired iPhone 17 Pro Max
+and Apple Watch Series 11 pair from WATCH2 boots and runs this build — but it
+cannot reach any of the checks below.
+
 ## Part 1 — SA-26 authority
 
 **0. The refusal.** With the phone still on an older build, connect. It must
