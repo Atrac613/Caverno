@@ -63,6 +63,20 @@ The typed string is the same one the QR encodes and rejoins the scan path at
 the caller, so nothing downstream can tell the difference. The ticket is
 single-use and expires in five minutes either way.
 
+Walked on a simulator 2026-09-06, with two things worth knowing:
+
+- **Deny the camera prompt.** `MobileScanner` asks on first open; the paste
+  action sits in the app bar and works without it, which is the point.
+- **iOS asks for paste consent every time** ("Caverno would like to paste from
+  CoreSimulatorBridge"), so the flow is one extra tap. It cannot be
+  pre-answered from `simctl`.
+
+A payload with the wrong `kind` is rejected by the same validation a bad scan
+meets — "This QR code is not a Caverno Remote Coding pairing code" — and a
+correctly shaped one reaches "Pairing with desktop…" against the host it names.
+Both were observed, which is what says the typed path is the scan path and not
+a second one.
+
 ## Part 1 — SA-26 authority
 
 **0. The refusal.** With the phone still on an older build, connect. It must
