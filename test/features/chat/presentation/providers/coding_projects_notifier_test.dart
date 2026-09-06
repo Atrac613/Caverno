@@ -12,9 +12,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _FakeSecurityScopedBookmarkService extends SecurityScopedBookmarkService {
   final Map<String, String?> createdBookmarks = {};
   final Map<String, SecurityScopedBookmarkAccessResult> accessResults = {};
+  var createCalls = 0;
 
   @override
   Future<String?> createBookmark(String path) async {
+    createCalls += 1;
     return createdBookmarks[path];
   }
 
@@ -72,6 +74,22 @@ void main() {
     final state = container.read(codingProjectsNotifierProvider);
     expect(state.projects.single.securityScopedBookmark, 'bookmark-1');
   });
+
+  test(
+    'addProject uses a picker-provided bookmark without creating another',
+    () async {
+      const projectPath = '/Users/test/Documents/sample_project';
+      bookmarkService.createdBookmarks[projectPath] = 'should-not-be-used';
+
+      final project = await container
+          .read(codingProjectsNotifierProvider.notifier)
+          .addProject(projectPath, bookmark: 'panel-bookmark');
+
+      expect(project, isNotNull);
+      expect(project!.securityScopedBookmark, 'panel-bookmark');
+      expect(bookmarkService.createCalls, 0);
+    },
+  );
 
   test(
     'ensureTerminalProject persists and reuses the terminal project',

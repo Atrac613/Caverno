@@ -111,10 +111,12 @@ class CodingProjectsNotifier extends Notifier<CodingProjectsState> {
     return project;
   }
 
-  Future<CodingProject?> addProject(String rootPath) async {
+  Future<CodingProject?> addProject(String rootPath, {String? bookmark}) async {
     final normalizedPath = rootPath.trim();
     if (normalizedPath.isEmpty) return null;
-    final bookmark = await _bookmarkService.createBookmark(normalizedPath);
+    final resolvedBookmark = (bookmark != null && bookmark.isNotEmpty)
+        ? bookmark
+        : await _bookmarkService.createBookmark(normalizedPath);
 
     final existingProject = state.projects
         .where((project) => project.normalizedRootPath == normalizedPath)
@@ -123,7 +125,7 @@ class CodingProjectsNotifier extends Notifier<CodingProjectsState> {
     if (existingProject != null) {
       final updatedProject = await _updateProjectBookmarkIfNeeded(
         existingProject,
-        bookmark,
+        resolvedBookmark,
       );
       await _restoreAccessForProject(updatedProject);
       state = state.copyWith(selectedProjectId: updatedProject.id);
@@ -135,7 +137,7 @@ class CodingProjectsNotifier extends Notifier<CodingProjectsState> {
       id: _uuid.v4(),
       name: _displayNameFromPath(normalizedPath),
       rootPath: normalizedPath,
-      securityScopedBookmark: bookmark,
+      securityScopedBookmark: resolvedBookmark,
       createdAt: now,
       updatedAt: now,
     );

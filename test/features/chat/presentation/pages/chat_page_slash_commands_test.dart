@@ -443,7 +443,7 @@ class _SlashCodingProjectsNotifier extends CodingProjectsNotifier {
   }
 
   @override
-  Future<CodingProject?> addProject(String rootPath) async {
+  Future<CodingProject?> addProject(String rootPath, {String? bookmark}) async {
     final normalizedRootPath = rootPath.trim();
     if (normalizedRootPath.isEmpty) return null;
     for (final project in state.projects) {
@@ -457,6 +457,7 @@ class _SlashCodingProjectsNotifier extends CodingProjectsNotifier {
       id: 'project-${state.projects.length + 1}',
       name: normalizedRootPath.split('/').last,
       rootPath: normalizedRootPath,
+      securityScopedBookmark: bookmark,
       createdAt: now,
       updatedAt: now,
     );
