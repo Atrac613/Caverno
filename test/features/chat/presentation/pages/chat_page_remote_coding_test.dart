@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/security_scoped_bookmark_service.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
@@ -22,8 +23,8 @@ import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -122,6 +123,23 @@ class _CodingWorkspaceConversationsNotifier extends ConversationsNotifier {
   }
 }
 
+class _FakeDirectoryPickerBookmarkService
+    extends SecurityScopedBookmarkService {
+  _FakeDirectoryPickerBookmarkService(this.directoryPath);
+
+  final String directoryPath;
+  var pickCalls = 0;
+
+  @override
+  Future<DirectoryPickResult> pickDirectory({String? initialDirectory}) async {
+    pickCalls += 1;
+    return DirectoryPickResult.picked(
+      directoryPath,
+      bookmark: 'panel-bookmark',
+    );
+  }
+}
+
 class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
   @override
   CodingProjectsState build() => CodingProjectsState.initial();
@@ -135,7 +153,7 @@ class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
   }
 
   @override
-  Future<CodingProject?> addProject(String rootPath) async {
+  Future<CodingProject?> addProject(String rootPath, {String? bookmark}) async {
     final normalizedPath = rootPath.trim();
     if (normalizedPath.isEmpty) return null;
 
@@ -146,6 +164,7 @@ class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
           .where((segment) => segment.isNotEmpty)
           .last,
       rootPath: normalizedPath,
+      securityScopedBookmark: bookmark,
       createdAt: DateTime(2026, 6, 3, 12),
       updatedAt: DateTime(2026, 6, 3, 12),
     );
@@ -638,33 +657,22 @@ void main() {
         projectRoot.deleteSync(recursive: true);
       }
     });
-    var directoryPickerCalls = 0;
-    const filePickerChannel = MethodChannel(
-      'miguelruivo.flutter.plugins.filepicker',
+    final picker = _FakeDirectoryPickerBookmarkService(projectRoot.path);
+    final container = await _pumpCodingWorkspace(
+      tester,
+      bookmarkService: picker,
     );
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      filePickerChannel,
-      (call) async {
-        expect(call.method, 'dir');
-        directoryPickerCalls += 1;
-        return projectRoot.path;
-      },
-    );
-    addTearDown(() {
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        filePickerChannel,
-        null,
-      );
-    });
-
-    final container = await _pumpCodingWorkspace(tester);
 
     await tester.tap(find.byTooltip('Add Project'));
     await tester.pumpAndSettle();
-    expect(directoryPickerCalls, 1);
+    expect(picker.pickCalls, 1);
 
     final projectsState = container.read(codingProjectsNotifierProvider);
     expect(projectsState.projects.single.rootPath, projectRoot.path);
+    expect(
+      projectsState.projects.single.securityScopedBookmark,
+      'panel-bookmark',
+    );
     expect(projectsState.selectedProjectId, 'project-1');
 
     final conversationsState = container.read(conversationsNotifierProvider);
@@ -770,6 +778,7 @@ Future<ProviderContainer> _pumpCodingWorkspace(
   WidgetTester tester, {
   Size size = const Size(1200, 900),
   bool connectRemoteClient = false,
+  SecurityScopedBookmarkService? bookmarkService,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -793,6 +802,10 @@ Future<ProviderContainer> _pumpCodingWorkspace(
       if (connectRemoteClient)
         remoteCodingClientProvider.overrideWith(
           _ConnectedRemoteCodingClientNotifier.new,
+        ),
+      if (bookmarkService != null)
+        securityScopedBookmarkServiceProvider.overrideWithValue(
+          bookmarkService,
         ),
     ],
   );

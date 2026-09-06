@@ -48,7 +48,8 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     securityScopedBookmarkChannel = SecurityScopedBookmarkChannel(
-      messenger: flutterViewController.engine.binaryMessenger
+      messenger: flutterViewController.engine.binaryMessenger,
+      window: self
     )
     computerUseChannel = MacosComputerUseChannel(
       messenger: flutterViewController.engine.binaryMessenger
@@ -362,9 +363,12 @@ final class MacosSparkleUpdateController {
 
 final class SecurityScopedBookmarkChannel {
   private let channel: FlutterMethodChannel
+  private weak var window: NSWindow?
   private var activeUrls: [String: URL] = [:]
+  private var isPickingDirectory = false
 
-  init(messenger: FlutterBinaryMessenger) {
+  init(messenger: FlutterBinaryMessenger, window: NSWindow? = nil) {
+    self.window = window
     channel = FlutterMethodChannel(
       name: "com.caverno/security_scoped_bookmarks",
       binaryMessenger: messenger
@@ -384,9 +388,24 @@ final class SecurityScopedBookmarkChannel {
       handleCreateBookmark(call, result: result)
     case "startAccessingBookmark":
       handleStartAccessingBookmark(call, result: result)
+    case "pickDirectory":
+      handlePickDirectory(call, result: result)
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+
+  @discardableResult
+  private func startAccessingIfNeeded(_ url: URL) -> Bool {
+    let path = url.path
+    if activeUrls[path] != nil {
+      return true
+    }
+    let accessStarted = url.startAccessingSecurityScopedResource()
+    if accessStarted {
+      activeUrls[path] = url
+    }
+    return accessStarted
   }
 
   private func handleCreateBookmark(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -445,15 +464,7 @@ final class SecurityScopedBookmarkChannel {
       )
 
       let path = url.path
-      let accessStarted: Bool
-      if activeUrls[path] != nil {
-        accessStarted = true
-      } else {
-        accessStarted = url.startAccessingSecurityScopedResource()
-        if accessStarted {
-          activeUrls[path] = url
-        }
-      }
+      let accessStarted = startAccessingIfNeeded(url)
 
       var response: [String: Any] = [
         "accessStarted": accessStarted,
@@ -482,6 +493,89 @@ final class SecurityScopedBookmarkChannel {
           details: error.localizedDescription
         )
       )
+    }
+  }
+
+  private func handlePickDirectory(
+    _ call: FlutterMethodCall,
+    result: @escaping FlutterResult
+  ) {
+    let presentOnMain = { [weak self] in
+      guard let self else {
+        result(
+          FlutterError(
+            code: "picker_unavailable",
+            message: "Directory picker is no longer available.",
+            details: nil
+          )
+        )
+        return
+      }
+      self.presentDirectoryPicker(call, result: result)
+    }
+    if Thread.isMainThread {
+      presentOnMain()
+    } else {
+      DispatchQueue.main.async(execute: presentOnMain)
+    }
+  }
+
+  private func presentDirectoryPicker(
+    _ call: FlutterMethodCall,
+    result: @escaping FlutterResult
+  ) {
+    if isPickingDirectory {
+      result(
+        FlutterError(
+          code: "picker_busy",
+          message: "A directory picker is already open.",
+          details: nil
+        )
+      )
+      return
+    }
+
+    let dialog = NSOpenPanel()
+    dialog.canChooseFiles = false
+    dialog.canChooseDirectories = true
+    dialog.allowsMultipleSelection = false
+    dialog.canCreateDirectories = true
+    dialog.showsHiddenFiles = false
+
+    if let arguments = call.arguments as? [String: Any],
+       let initialDirectory = arguments["initialDirectory"] as? String,
+       !initialDirectory.isEmpty {
+      dialog.directoryURL = URL(fileURLWithPath: initialDirectory)
+    }
+
+    isPickingDirectory = true
+    let complete: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+      defer { self?.isPickingDirectory = false }
+      guard response == .OK, let url = dialog.url else {
+        result(nil)
+        return
+      }
+
+      self?.startAccessingIfNeeded(url)
+
+      var payload: [String: Any] = ["path": url.path]
+      do {
+        let bookmarkData = try url.bookmarkData(
+          options: [.withSecurityScope],
+          includingResourceValuesForKeys: nil,
+          relativeTo: nil
+        )
+        payload["bookmark"] = bookmarkData.base64EncodedString()
+      } catch {
+        payload["bookmarkError"] = error.localizedDescription
+      }
+      result(payload)
+    }
+
+    if let window = window ?? NSApp.keyWindow ?? NSApp.mainWindow {
+      dialog.beginSheetModal(for: window, completionHandler: complete)
+    } else {
+      complete(dialog.runModal())
     }
   }
 }

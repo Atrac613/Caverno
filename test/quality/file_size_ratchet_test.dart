@@ -451,7 +451,9 @@ const Map<String, int> _lineBudgets = {
   // +3 for three widget imports. This file grows by one line per widget the
   // page renders, so its ceiling follows rather than forcing an extraction
   // that would only move an import somewhere it does not belong.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1857,
+  // -2: project directory picking moved to coding_project_picker.dart so the
+  // macOS NSOpenPanel path is not inlined on the page.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1855,
   'lib/features/chat/presentation/widgets/plan/task_precondition_notice.dart':
       57,
   'lib/features/chat/presentation/widgets/anabasis_speaker_header.dart': 59,
@@ -922,7 +924,9 @@ const Map<String, int> _libraryLineBudgets = {
   // -38 further, to 8,607: ANA1's "waiting on" lines cost five lines in the
   // task card, paid for by the task menu -- a pure function of a status and
   // two permissions -- leaving for workflow_task_menu_items.dart.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8607,
+  // -2 matching the primary file: project directory picking left this library
+  // for coding_project_picker.dart.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8605,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };

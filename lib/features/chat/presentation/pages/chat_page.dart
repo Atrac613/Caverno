@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:easy_localization/easy_localization.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -13,6 +12,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/browser_session_service.dart';
 import '../../../../core/services/coding_terminal_service.dart';
+import '../../../../core/services/security_scoped_bookmark_service.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../dashboard/presentation/widgets/dashboard_view.dart';
@@ -51,6 +51,7 @@ import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../coordinators/chat_page_composer_runtime_coordinator.dart';
 import '../coordinators/chat_page_workspace_navigation_coordinator.dart';
+import '../coordinators/coding_project_picker.dart';
 import '../coordinators/feedback_slash_command_coordinator.dart';
 import '../coordinators/goal_slash_command_coordinator.dart';
 import '../coordinators/plan_review_action_coordinator.dart';
@@ -371,16 +372,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  Future<void> _pickAndActivateProject() async {
-    final selectedDirectory = await FilePicker.getDirectoryPath();
-    if (selectedDirectory == null || !mounted) return;
-
-    final project = await ref
-        .read(codingProjectsNotifierProvider.notifier)
-        .addProject(selectedDirectory);
-    if (project == null || !mounted) return;
-
-    await _activateCodingProject(project.id, createFreshOnFirstOpen: true);
+  Future<void> _pickAndActivateProject() {
+    return pickAndActivateCodingProject(
+      bookmarks: ref.read(securityScopedBookmarkServiceProvider),
+      projects: ref.read(codingProjectsNotifierProvider.notifier),
+      isMounted: () => mounted,
+      activate: _activateCodingProject,
+    );
   }
 
   Future<void> _selectDrawerConversation(String conversationId) =>
