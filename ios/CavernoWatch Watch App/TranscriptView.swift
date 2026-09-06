@@ -105,7 +105,11 @@ struct TranscriptView: View {
       )
       .background(Color.black)
     }
-    .ignoresSafeArea(edges: .bottom)
+    // No `.ignoresSafeArea(edges: .bottom)`. It extended the compose bar past
+    // the bottom inset, where the watch's rounded display clipped the input
+    // capsule's lower edge. The scroll view sits above the bar and never
+    // reached that edge anyway, so ignoring the inset bought nothing and cost
+    // the one control the screen exists to offer.
     .sheet(isPresented: $showsActions) {
       ComposeActionsView(isStreaming: snapshot.status == .streaming)
     }

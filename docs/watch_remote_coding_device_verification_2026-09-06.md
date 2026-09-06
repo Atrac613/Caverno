@@ -295,8 +295,22 @@ The approval reached the phone and the wrist, the card named
 `MacBook-Pro-3.local`, and Approve from the wrist ran it on the Mac
 (`The command executed successfully.`).
 
-What this shows is that the granted path works end to end. It does not by itself
-show the grant is what opened it: the negative control -- untick "Shell
-commands", start another desktop turn, and confirm nothing reaches the phone or
-the wrist -- has not been run. Until it is, `_canResolveInteraction`'s
-local-origin branch is covered by its unit tests and by this positive case only.
+### The negative control, 21:24
+
+"Shell commands" was unticked and another turn started at the Mac. Nothing
+reached the phone or the wrist. The grant is therefore what opens the path, not
+merely something that happened to be set while it worked, and
+`_canResolveInteraction`'s local-origin branch refuses on a real device the way
+its unit tests say it does.
+
+Both halves of SA-26's authority decision are now observed on hardware.
+
+### One more defect the same session found: the compose bar was clipped
+
+`.ignoresSafeArea(edges: .bottom)` on the transcript's root stack extended the
+compose bar past the bottom inset, and the watch's rounded display cut off the
+lower edge of the input capsule -- the only control the screen offers. The
+scroll view sits above the bar and never reached that edge, so the modifier
+bought nothing. Removed, and guarded in
+`test/features/watch/presentation/watch_transcript_layout_test.dart` alongside
+the toolbar check.
