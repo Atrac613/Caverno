@@ -143,9 +143,29 @@ through `simctl pbcopy` and a long-press paste; and building macOS outside the
 canonical worktree produced a running app whose Dart code was a day old, because
 the DevFS attach failed and debug builds ship their Dart over that channel.
 
-Still unobserved from Part 1: the read-only rendering of a structured-input
-kind, immediate withdrawal of a grant while an approval is on screen, and
-revocation.
+A second pass the same evening closed the rest of Part 1:
+
+| | Observed |
+|---|---|
+| Read-only rendering | An `ssh_connect` reached the phone as "SSH connection / atrac@192.168.100.241 / Credentials are required." with "This request needs input that only the desktop can collect" and no answer |
+| A resolved interaction takes its sheet away | Cancelling the SSH dialog at the Mac closed the phone's sheet; before that evening's fix it stayed |
+| Withdrawing a grant takes effect | With Shell commands unticked, the same Mac-side turn's approval no longer reached the phone while the Mac sat blocked on it |
+| Revocation | "This mobile device was revoked on the desktop", the saved host cleared, and only Pair with Desktop left |
+
+Two more defects surfaced by running it, both fixed the same evening: the page
+opened approval and question sheets and never closed one, so answering at the
+desktop or withdrawing a grant left the phone still asking; and the read-only
+sheet had no way out, because the modal is deliberately not dismissible and
+that kind offers no answer.
+
+**A grant cannot be withdrawn while the desktop is blocked on its own
+approval.** The desktop's approval dialog is modal, so settings are
+unreachable until it is answered — which is the moment someone would most want
+to narrow a device. Recorded as an observation, not a defect: the modality is
+what stops a stray click from resolving a shell command. The sheet-dismissal
+half of that behaviour is covered by
+`remote_coding_page_notification_suppression_test.dart` instead, where the
+withdrawal can be driven directly.
 
 ## Part 2 — P1 evidence, collected in the same session
 
