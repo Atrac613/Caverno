@@ -303,6 +303,12 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         tokenHash: '',
         relayCredentialState:
             RemoteCodingRelayCredentialState.pendingRevocation,
+        // A revoked device keeps its row until the relay credential is cleaned
+        // up, and it must not keep its authority with it. The entry can never
+        // authenticate again, so the grant is inert -- but it would still read
+        // as "granted" in settings, which is the wrong answer to "what may
+        // this device do".
+        desktopOriginKinds: const <String>{},
       );
       final disabledSettings = state.settings.copyWith(
         pairedDevices: [

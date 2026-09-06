@@ -93,6 +93,17 @@ void main() {
       expect(parsed.desktopOriginKinds, {PendingApprovalKinds.gitCommand});
     });
 
+    test('is cleared by a revocation', () {
+      // A revoked device keeps its row until relay cleanup finishes. The entry
+      // can never authenticate again, so a retained grant is inert — but it
+      // would still read as "granted" in settings.
+      final revoked = device(kinds: {PendingApprovalKinds.localCommand})
+          .copyWith(tokenHash: '', desktopOriginKinds: const <String>{});
+
+      expect(revoked.desktopOriginKinds, isEmpty);
+      expect(revoked.toJson().containsKey('desktopOriginKinds'), isFalse);
+    });
+
     test('survives dropping the notification relay', () {
       // withoutNotificationRelay builds a fresh device rather than copying
       // one, so a field added to the class is silently lost there unless it is
