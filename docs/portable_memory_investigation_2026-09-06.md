@@ -1,7 +1,9 @@
 # Portable Memory And Model Continuity
 
-Date: 2026-09-06  
-Status: Investigation complete; implementation proposed  
+Date: 2026-09-06
+
+Status: Investigation complete; implementation proposed
+
 Code baseline: `012ee320b`
 
 ## Goal And Recommendation
