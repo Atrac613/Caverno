@@ -2,7 +2,8 @@
 
 Status: High severity remediation complete; defense-in-depth queue open.
 SA-24 added 2026-09-02 for the Apple Watch resolution channel.
-SA-25 added 2026-09-06 for a desktop's own approval on its owner's phone.
+SA-25 added 2026-09-06 for a desktop's own approval on its owner's phone,
+and superseded the same day by SA-26 after its premise was measured wrong.
 
 Reviewed revision: `a3d35fc9e592`.
 
@@ -310,8 +311,13 @@ Opened 2026-09-06 as WATCH13. This is a policy question SEC4.5g never answered,
 not a finding: nothing is currently exposed, and the milestone exists because
 the *absence* of exposure is itself a product problem.
 
-Decision: **a paired device may see the desktop's own pending approval; it may
-not resolve one.** Settled 2026-09-06.
+Decision: **superseded by SA-26 on 2026-09-06.** As written below, a paired
+device may see the desktop's own pending approval and may not resolve one. The
+reasoning rests on a claim about marginal authority that measurement refuted
+within the day — a paired phone already holds the desktop's execution authority
+through `sendMessage`. The entry is kept because the mistake is instructive:
+the argument below is sound about iOS and answers a question nobody asked, and
+nothing in it was checked against what a remote turn actually runs.
 
 ### The question
 
@@ -412,6 +418,108 @@ mistake this decision for a refusal to ever consider it.
   desktop owner's own phone.
 - A revoked device sees neither.
 - The watch snapshot is unchanged by the presence of a desktop-origin approval.
+
+## SA-26: Desktop-Equivalent Authority On A Paired Phone
+
+Opened 2026-09-06. **Supersedes SA-25**, which was decided one day earlier on a
+premise this entry retracts. SA-25 is left in place above rather than deleted,
+because the mistake is the useful part of the record.
+
+Decision: **a paired device may hold desktop-equivalent authority over threads
+that already exist, including approvals raised by the desktop's own turns.**
+Project creation stays off the phone. The authority is granted per device by
+the desktop owner, is bound to what the phone actually displayed, and is
+audited. Cross-device isolation is untouched.
+
+### What SA-25 got wrong
+
+SA-25 argued that letting a phone resolve the desktop's own approval would give
+it "authority it structurally cannot hold", because file, shell, and git
+approvals are gated behind `isDesktopPlatform` and cannot arise on iOS.
+
+That is true about iOS and irrelevant to the question. The turn does not run on
+the phone. `_handleSendMessage`
+(`remote_coding_server_notifier.dart`) hands the message to the **desktop's**
+`ChatNotifier` with `origin: ChatInteractionOrigin.remote` and the phone's
+device id, and that turn carries the desktop's entire tool catalogue. Any
+`PendingLocalCommand` it raises is stamped with that phone as owner, projected
+to it, and resolvable by it.
+
+So a paired phone can already make the Mac execute an arbitrary shell command:
+send a message asking for it, then approve the request it provokes. **Pairing
+already confers the desktop's execution authority.** That is the design, not an
+oversight — but it means the marginal authority in answering a desktop-origin
+approval is not new, and is strictly weaker than what `sendMessage` grants: the
+phone answers a question rather than authoring the request.
+
+The gate SA-25 declined to widen was therefore not holding back the authority
+it was described as holding back.
+
+### Where the boundary actually is
+
+Pairing. It is well built, and the review of 2026-09-06 found nothing to fix in
+it:
+
+- TLS with the certificate pin carried in the pairing payload,
+  `SecurityContext(withTrustedRoots: false)` on both ends so every certificate
+  reaches the pin check, and `ensureConfidentialBeforeCredentials` refusing to
+  send credentials over a transport that is not confidential. Release builds
+  fail closed before a plaintext bind (`remote_coding_listen_policy.dart`).
+- A pairing ticket that lives five minutes, is single-use, carries a 24-byte
+  random secret, is consumed through a challenge-response, and exists only
+  because a human asked for it at the Mac.
+- A 32-byte device token, stored as a SHA-256 hash on the desktop and compared
+  in constant time, held in the phone's secure storage.
+- Revocation that clears the token and closes that device's live sockets.
+
+### The four residual threats, and what answers each
+
+Because the boundary is pairing rather than the origin gate, the useful
+controls are the ones that act at the moment of consequence.
+
+| | Threat | Control |
+|---|---|---|
+| T1 | A stolen, unlocked phone is a bearer of the desktop's execution authority | Device-local authentication (Face ID / passcode) immediately before a mutating resolution is sent |
+| T2 | Blind approval: the notification's Approve button resolves without the command ever being read | Bind the decision to what was displayed — the resolution carries a digest of the rendered body and the desktop rejects a mismatch |
+| T3 | Confused deputy: the model at the Mac proposes something dangerous and a small screen rubber-stamps it | The per-device grant is per kind, so the dangerous kinds are opt-in rather than implied; optionally, offer desktop-origin approvals only once the Mac is idle or locked |
+| T4 | No record on the desktop of what a remote device approved | Audit every remote resolution with device id, kind, body, and timestamp, and surface it in the desktop UI |
+
+T2's control is a prerequisite for the grant in T3, not a parallel nicety: a
+grant of authority over a command the holder cannot be shown to have read is
+not a grant, it is an accident waiting for a plausible-looking payload.
+
+### What this authorizes, in order
+
+1. **Carry every approval kind, for turns the phone already owns.** Eleven
+   kinds exist in `PendingApprovalKinds`; only four carry `origin` /
+   `remoteDeviceId`, and `RemoteCodingApprovalKind` knows three. A remote turn
+   that raises an SSH, browser, BLE, serial, computer-use, or participant-tool
+   approval therefore blocks the desktop with nothing shown on the phone and
+   nobody able to answer. That is a live defect in the case SEC4.5g already
+   permits, and it carries no policy question at all. Fix it by threading
+   origin through the remaining pending types and projecting through the
+   existing `describePendingApproval` flattener rather than the bespoke
+   three-kind switch.
+2. **Bind a resolution to the body that was displayed.**
+3. **Grant desktop-equivalent authority per device**, defaulting to what a
+   device has today, with the widening — including desktop-origin approvals —
+   as an explicit per-device opt-in.
+
+Device-local authentication (T1) and the audit surface (T4) follow. Neither
+gates the first three.
+
+### What does not change
+
+- **SEC4.5g's actual property.** Paired device A still may not see or resolve
+  paired device B's turn. Nothing here widens the principal set between paired
+  devices; it changes what a device may do with the *desktop's* own
+  interactions, and only when the desktop owner grants it.
+- **Project creation stays off the phone.** `capabilities.projectManagement`
+  remains false.
+- **Structured-input kinds stay read-only on compact surfaces.** SSH
+  credentials and computer-use smoke arming need a gesture a notification or a
+  watch cannot represent honestly; `PendingApprovalSummary.isSimpleDecision`
+  already says which those are, and it must reach the wire.
 
 ## Roadmap Order
 
