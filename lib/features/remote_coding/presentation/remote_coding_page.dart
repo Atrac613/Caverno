@@ -432,23 +432,42 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
                   // rather than showing a button that would be rejected or,
                   // worse, one that answers a question it did not ask.
                   if (!approval.isSimpleDecision)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 18,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'This request needs input that only the desktop '
-                            'can collect. Finish it there.',
-                            style: theme.textTheme.bodySmall?.copyWith(
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 18,
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
-                          ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'This request needs input that only the '
+                                'desktop can collect. Finish it there.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // Without this the sheet is a trap: it offers no
+                        // answer, the modal is not dismissible by design so a
+                        // stray tap cannot resolve an approval, and the phone
+                        // then waits on the desktop to act before it can do
+                        // anything else. Closing resolves nothing -- the
+                        // caller returns early for a kind it cannot answer --
+                        // and the sheet comes back if it is still pending when
+                        // the page is next shown.
+                        OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close),
+                          label: const Text('Close'),
                         ),
                       ],
                     )

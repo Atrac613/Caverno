@@ -143,6 +143,60 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('a read-only approval can still be closed', (tester) async {
+    // It offers no answer, and the modal is deliberately not dismissible so a
+    // stray tap cannot resolve an approval. Without a close button that
+    // combination is a trap: the phone waits on the desktop before it can do
+    // anything else.
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        remoteCodingRepositoryProvider.overrideWithValue(
+          RemoteCodingRepository(preferences, secureStore: _NoSecureStore()),
+        ),
+        remoteCodingMobileNotificationGatewayProvider.overrideWithValue(
+          _UnsupportedGateway(),
+        ),
+        remoteCodingNotificationRelayClientProvider.overrideWithValue(null),
+        remoteCodingNotificationReceiptStoreProvider.overrideWithValue(
+          RemoteCodingNotificationReceiptStore(preferences),
+        ),
+        notificationServiceProvider.overrideWithValue(_SilentNotifications()),
+        remoteCodingClientProvider.overrideWith(_ConnectedClient.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: RemoteCodingPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    (container.read(remoteCodingClientProvider.notifier) as _ConnectedClient)
+        .offerStructuredInput();
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('SSH connection'),
+      findsWidgets,
+      reason: 'the structured-input approval has to be on screen',
+    );
+    expect(
+      find.widgetWithText(FilledButton, 'Approve'),
+      findsNothing,
+      reason: 'a kind the phone cannot finish must offer no answer',
+    );
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Close'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Credentials are required.'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 final class _DisconnectedClient extends RemoteCodingClientNotifier {
@@ -171,6 +225,19 @@ final class _ConnectedClient extends RemoteCodingClientNotifier {
   /// answer: it answers it itself, or the grant that let this device see it is
   /// withdrawn. Either way the next snapshot carries no approval.
   void withdraw() => state = state.copyWith(clearPendingApproval: true);
+
+  /// A kind that needs input no phone can collect, so the sheet carries no
+  /// answer at all.
+  void offerStructuredInput() => state = state.copyWith(
+    pendingApproval: const RemoteCodingApproval(
+      id: 'ssh-connect-1',
+      kind: PendingApprovalKinds.sshConnect,
+      title: 'SSH connection',
+      subtitle: 'deploy@build-box',
+      detail: 'Credentials are required.',
+      isSimpleDecision: false,
+    ),
+  );
 }
 
 final class _SilentNotifications extends NotificationService {
