@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:caverno/features/remote_coding/domain/remote_coding_audit.dart';
+import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
@@ -115,6 +117,98 @@ void main() {
       encoded,
       isNot(contains(RemoteCodingSecurity.hashToken('mobile-token'))),
     );
+  });
+
+  testWidgets('desktop settings show remote decisions, and never copy them', (
+    tester,
+  ) async {
+    String? clipboardText;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          final data = Map<String, dynamic>.from(
+            call.arguments as Map<dynamic, dynamic>,
+          );
+          clipboardText = data['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final repository = RemoteCodingRepository(preferences);
+    await repository.saveServerSettings(
+      RemoteCodingServerSettings(
+        pairedDevices: [
+          RemoteCodingPairedDevice(
+            id: 'device-1',
+            name: 'Phone',
+            tokenHash: RemoteCodingSecurity.hashToken('mobile-token'),
+            createdAt: DateTime(2026, 9, 6, 12),
+            lastSeenAt: DateTime(2026, 9, 6, 12, 30),
+          ),
+        ],
+      ),
+    );
+    await repository.saveServerAuditLog([
+      RemoteCodingAuditEntry(
+        at: DateTime.utc(2026, 9, 6, 12, 30),
+        deviceId: 'device-1',
+        deviceName: 'Phone',
+        kind: PendingApprovalKinds.localCommand,
+        origin: 'local',
+        outcome: RemoteCodingAuditOutcome.resolved,
+        approved: true,
+        title: 'rm -rf /Users/dev/scratch',
+        subtitle: '/Users/dev/caverno',
+      ),
+    ]);
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        remoteCodingRepositoryProvider.overrideWithValue(repository),
+        codingProjectsNotifierProvider.overrideWith(
+          _TestCodingProjectsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: RemoteCodingSettingsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('rm -rf /Users/dev/scratch'), findsOneWidget);
+    expect(
+      find.text("Answered this Mac's own request"),
+      findsOneWidget,
+      reason: 'a decision on a turn this Mac started is the widened authority',
+    );
+
+    // The structural half: the audit lives outside the server settings the
+    // support packet is built from, so a diagnostics copy cannot carry the
+    // command text off the machine.
+    await tester.tap(find.text('Copy Support Packet'));
+    await tester.pump();
+
+    expect(clipboardText, isNotNull);
+    expect(clipboardText, isNot(contains('rm -rf')));
+    expect(clipboardText, isNot(contains('/Users/dev/scratch')));
   });
 
   testWidgets('desktop settings copy multi-device P1 evidence', (tester) async {
