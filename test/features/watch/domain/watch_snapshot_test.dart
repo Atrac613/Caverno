@@ -41,6 +41,9 @@ void main() {
       ),
       status: WatchTurnStatus.waitingApproval,
       lastAssistantText: fill * 40000,
+      // Remote, with a host as wide as any other capped field: WATCH11's
+      // fields are the newest thing in the frame, so a budget test that only
+      // ever built a local card would not have priced them.
       approval: WatchApproval(
         id: 'approval-1',
         kind: 'localCommand',
@@ -48,8 +51,12 @@ void main() {
         subtitle: fill * 4000,
         detail: fill * 40000,
         canResolveOnWatch: true,
+        source: WatchInteractionSource.remote,
+        host: fill * 4000,
       ),
       question: WatchQuestion(
+        source: WatchInteractionSource.remote,
+        host: fill * 4000,
         id: 'question-1',
         question: fill * 4000,
         options: List.generate(
@@ -483,5 +490,4 @@ void main() {
       );
     });
   });
-
 }

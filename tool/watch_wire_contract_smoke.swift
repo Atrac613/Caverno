@@ -90,11 +90,19 @@ enum WatchWireContractSmoke {
     expect(approval.kind == "localCommand", "approval.kind")
     expect(approval.subtitle == "dart analyze", "approval.subtitle")
     expect(approval.canResolveOnWatch, "approval.canResolveOnWatch")
+    // WATCH11: which machine is asking has to survive the boundary, or the
+    // wrist offers Approve on a command whose host it cannot name.
+    expect(approval.source == .remote, "approval.source")
+    expect(approval.host == "MacBook-Pro-3.local", "approval.host")
 
     guard let question = snapshot.question else {
       fatalError("question did not decode")
     }
     expect(question.id == "question-1", "question.id")
+    // Absent on the wire for a local interaction, so this also proves the
+    // default rather than only the present case.
+    expect(question.source == .local, "question.source defaults to local")
+    expect(question.host.isEmpty, "question.host")
     expect(question.options.count == 2, "question.options.count")
     expect(question.allowMultiple, "question.allowMultiple")
     expect(question.allowOther, "question.allowOther")

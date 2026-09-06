@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
+import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/core/services/watch_bridge_service.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
@@ -25,6 +28,66 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Stands in for the `WCSession` bridge so the command path can be driven
 /// without an iOS host.
+void _registerRemoteCodingTests({
+  required ProviderContainer Function() containerOf,
+  required Future<WatchSessionNotifier> Function() notifierOf,
+  required _FakeWatchBridge Function() bridgeOf,
+}) {
+  group('Remote Coding on the wrist (WATCH11)', () {
+    const approval = RemoteCodingApproval(
+      id: 'remote-1',
+      kind: PendingApprovalKinds.localCommand,
+      title: 'rm -rf build',
+      subtitle: '/repo',
+      detail: 'Clean the build directory.',
+      isSimpleDecision: true,
+    );
+
+    test('a desktop approval reaches the wrist naming its host', () async {
+      final watch = await notifierOf();
+      (containerOf().read(remoteCodingClientProvider.notifier)
+              as _FakeRemoteCodingClient)
+          .offerApproval(approval);
+      await Future<void>.delayed(Duration.zero);
+
+      final card = watch
+          .buildSnapshot(containerOf().read(chatNotifierProvider))
+          .approval;
+
+      expect(card, isNotNull);
+      expect(card!.id, 'remote-1');
+      expect(card.source, WatchInteractionSource.remote);
+      expect(card.host, 'MacBook-Pro-3.local');
+    });
+
+    test('answering it goes back to the desktop, not this phone', () async {
+      // The defect this catches is silent: routed to the chat notifier, the
+      // resolution finds nothing, changes nothing, and still reports success.
+      final watch = await notifierOf();
+      final remote =
+          containerOf().read(remoteCodingClientProvider.notifier)
+              as _FakeRemoteCodingClient;
+      remote.offerApproval(approval);
+      await Future<void>.delayed(Duration.zero);
+
+      await watch.handleCommandForTest(
+        const WatchCommand(
+          id: 'cmd-1',
+          type: WatchCommand.resolveApproval,
+          payload: {'approvalId': 'remote-1', 'approved': true},
+        ),
+      );
+
+      expect(remote.resolvedApprovals, [(id: 'remote-1', approved: true)]);
+      expect(
+        bridgeOf().results.last.ok,
+        isTrue,
+        reason: 'the wrist is told the desktop took it',
+      );
+    });
+  });
+}
+
 class _FakeWatchBridge implements WatchBridgeService {
   _FakeWatchBridge({this.available = true});
 
@@ -93,6 +156,7 @@ void main() {
           // several Hive boxes the watch bridge has no interest in.
           mcpToolServiceProvider.overrideWithValue(_StubMcpToolService()),
           watchBridgeServiceProvider.overrideWithValue(watchBridge),
+          remoteCodingClientProvider.overrideWith(_FakeRemoteCodingClient.new),
         ],
       );
 
@@ -103,6 +167,12 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     return instance;
   }
+
+  _registerRemoteCodingTests(
+    containerOf: () => container,
+    notifierOf: notifier,
+    bridgeOf: () => bridge,
+  );
 
   setUp(() async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -1090,4 +1160,52 @@ class _StubMcpToolService extends McpToolService {
   @override
   List<Map<String, dynamic>> getOpenAiToolDefinitions() =>
       const <Map<String, dynamic>>[];
+}
+
+/// A connected desktop whose pending interaction the wrist can be shown.
+///
+/// Records what it is asked to resolve, because the defect worth testing is
+/// silent: routing a desktop's approval to this phone's chat notifier resolves
+/// nothing and still reports success to the watch.
+final class _FakeRemoteCodingClient extends RemoteCodingClientNotifier {
+  final List<({String id, bool approved})> resolvedApprovals = [];
+  final List<String> resolvedQuestions = [];
+
+  @override
+  RemoteCodingClientState build() => const RemoteCodingClientState();
+
+  void offerApproval(RemoteCodingApproval approval) {
+    state = state.copyWith(
+      status: RemoteCodingConnectionStatus.connected,
+      host: RemoteCodingHost(
+        id: 'host-1',
+        name: 'MacBook-Pro-3.local',
+        host: '192.168.100.5',
+        port: 8767,
+        createdAt: DateTime.utc(2026, 9, 6),
+        updatedAt: DateTime.utc(2026, 9, 6),
+        certificatePin: 'pin',
+      ),
+      pendingApproval: approval,
+    );
+  }
+
+  @override
+  Future<void> resolveApproval({
+    required String approvalId,
+    required bool approved,
+  }) async {
+    resolvedApprovals.add((id: approvalId, approved: approved));
+    state = state.copyWith(clearPendingApproval: true);
+  }
+
+  @override
+  Future<void> resolveQuestion({
+    required String questionId,
+    List<String> selectedOptionIds = const <String>[],
+    String otherText = '',
+    bool cancelled = false,
+  }) async {
+    resolvedQuestions.add(questionId);
+  }
 }
