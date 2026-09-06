@@ -2408,10 +2408,22 @@ The same pass found that the snapshot's change listener still watched three
 approval kinds of eleven, so a turn blocking on an SSH or browser approval
 changed nothing a client could observe until something else broadcast.
 
+Verified on hardware 2026-09-06. Part 1 of
+`docs/watch_remote_coding_device_verification_2026-09-06.md` was walked end to
+end: an ungranted desktop-origin approval was withheld while the Mac sat blocked
+on it, and a granted one arrived, was answered from the phone, and closed the
+desktop's own sheet. Read-only rendering, grant withdrawal, and revocation all
+behaved as designed. Four defects surfaced on the way and were fixed — pairing
+was camera-only so no simulator could reach any of this, a declined command
+looked like a disconnection, sheets were never taken away when the interaction
+stopped being pending, and the read-only sheet had no way out.
+
 Next action:
-- SA-26's T1 is what remains: device-local authentication before a mutating
-  resolution. Needs a `local_auth` dependency and an iOS usage description, so
-  it is a decision rather than a continuation.
+- Part 2 needs real devices: the LAN soak, the support-packet review, and the
+  multi-device household check are the three P1 gates still open.
+- SA-26's T1 remains a decision rather than a continuation: device-local
+  authentication before a mutating resolution needs a `local_auth` dependency
+  and an iOS usage description.
 
 ## Anabasis Orchestrator Track
 
