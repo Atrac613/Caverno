@@ -10,6 +10,8 @@ import '../../settings/presentation/pages/qr_scanner_page.dart';
 import '../data/remote_coding_connection_messages.dart';
 import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_support_packet.dart';
+import '../../chat/presentation/pages/approval_dialog_presenter.dart';
+import '../../chat/presentation/widgets/approval/approval_dialog_route.dart';
 import '../domain/remote_coding_debug_pairing_policy.dart';
 import '../domain/remote_coding_models.dart';
 import '../../chat/domain/services/pending_approval_summary.dart';
@@ -38,8 +40,12 @@ class _RemoteQuestionResult {
 class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
-  final Set<String> _presentedApprovalIds = <String>{};
-  final Set<String> _presentedQuestionIds = <String>{};
+
+  /// Opens each sheet once and closes it again when the interaction is
+  /// answered or withdrawn elsewhere. Shared with the chat page rather than
+  /// reimplemented: it already pops by route name, which is what stops a
+  /// mistimed dismissal from closing an unrelated screen.
+  final ApprovalDialogPresenter _approvalDialogs = ApprovalDialogPresenter();
   final Set<String> _handledNotificationTapEventIds = <String>{};
 
   /// Captured while the page is mounted, because `ref` cannot be read from
@@ -82,22 +88,30 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     }
   }
 
+  /// Opens a sheet for something that was already pending when this page
+  /// appeared. `previous: null` because there is nothing to dismiss on this
+  /// path; the listeners in `build` own the closing half, and the presenter
+  /// opens each id once whichever path reaches it first.
   void _scheduleApprovalSheet(RemoteCodingApproval approval) {
-    if (!_presentedApprovalIds.add(approval.id)) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        unawaited(_showApprovalSheet(approval));
-      }
-    });
+    _approvalDialogs.sync<RemoteCodingApproval>(
+      context: context,
+      previous: null,
+      next: approval,
+      idOf: (approval) => approval.id,
+      present: _showApprovalSheet,
+      isMounted: () => mounted,
+    );
   }
 
   void _scheduleQuestionSheet(RemoteCodingQuestion question) {
-    if (!_presentedQuestionIds.add(question.id)) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        unawaited(_showQuestionSheet(question));
-      }
-    });
+    _approvalDialogs.sync<RemoteCodingQuestion>(
+      context: context,
+      previous: null,
+      next: question,
+      idOf: (question) => question.id,
+      present: _showQuestionSheet,
+      isMounted: () => mounted,
+    );
   }
 
   void _scheduleNotificationTap(RemoteCodingMobileNotificationState state) {
@@ -133,21 +147,32 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Opening and closing both go through the presenter the watch already
+    // needed (WATCH6). This page only opened: nothing took a sheet away when
+    // the interaction it asks about stopped being pending, so answering at the
+    // desktop, or withdrawing the grant that let this device see it at all,
+    // left the phone still asking — and answering it then was refused.
     ref.listen<RemoteCodingApproval?>(
       remoteCodingClientProvider.select((state) => state.pendingApproval),
-      (previous, next) {
-        if (next != null) {
-          _scheduleApprovalSheet(next);
-        }
-      },
+      (previous, next) => _approvalDialogs.sync<RemoteCodingApproval>(
+        context: context,
+        previous: previous,
+        next: next,
+        idOf: (approval) => approval.id,
+        present: _showApprovalSheet,
+        isMounted: () => mounted,
+      ),
     );
     ref.listen<RemoteCodingQuestion?>(
       remoteCodingClientProvider.select((state) => state.pendingQuestion),
-      (previous, next) {
-        if (next != null) {
-          _scheduleQuestionSheet(next);
-        }
-      },
+      (previous, next) => _approvalDialogs.sync<RemoteCodingQuestion>(
+        context: context,
+        previous: previous,
+        next: next,
+        idOf: (question) => question.id,
+        present: _showQuestionSheet,
+        isMounted: () => mounted,
+      ),
     );
     ref.listen<int>(
       remoteCodingClientProvider.select((state) => state.messages.length),
@@ -308,6 +333,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
   Future<void> _showApprovalSheet(RemoteCodingApproval approval) async {
     final approved = await showModalBottomSheet<bool>(
       context: context,
+      routeSettings: RouteSettings(name: approvalDialogRouteName(approval.id)),
       isDismissible: false,
       enableDrag: false,
       isScrollControlled: true,
@@ -471,6 +497,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     final otherController = TextEditingController();
     final result = await showModalBottomSheet<_RemoteQuestionResult>(
       context: context,
+      routeSettings: RouteSettings(name: approvalDialogRouteName(question.id)),
       isDismissible: false,
       enableDrag: false,
       isScrollControlled: true,
