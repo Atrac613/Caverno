@@ -30,11 +30,15 @@ P1 covers these release-hardening requirements:
 - Soak evidence: iOS and Android must pass a user-operated LAN soak with
   background/resume, desktop sleep/wake, and desktop IP change recovery.
 
-The current P1 checker predates the first two requirements and does not yet
-accept or validate `transportSecurity` or `resourceBoundary` checklist
-sections. Until the RC1/SEC4.5 implementation updates the checker and focused
-tests in the same change, a passing P1 report is not final Remote Coding product
-promotion evidence. See `docs/security_audit_2026-08-14.md` SA-06 and SA-10.
+The first two requirements are covered as of 2026-09-06, by the static gates
+`transport_security` and `resource_boundary`. They were originally specified as
+`transportSecurity` and `resourceBoundary` manual checklist sections, and are
+deliberately not that: a person ticking "the transport is secure" proves
+nothing, and the checker had no such sections at all, so a passing report said
+nothing about the two requirements RC1 exists for. Each gate now reads the
+implementation *and* the name of the test that proves it, so neither the code
+nor its coverage can be removed while the gate stays green. See
+`docs/security_audit_2026-08-14.md` SA-06 and SA-10.
 
 ## Command
 
@@ -59,6 +63,18 @@ dart run tool/remote_coding_p1_release_gate.dart \
 
 The command exits non-zero until every automated static gate and every
 user-operated checklist field is ready.
+
+## Automated Gate Coverage
+
+| Gate | Requirement | How it is decided |
+|------|-------------|-------------------|
+| `transport_security` | Transport security | Pinned WSS with platform roots disabled, credentials refused on a non-confidential transport, a release policy that refuses a plaintext LAN bind, and a channel-bound short-lived session — each with the test that names it |
+| `resource_boundary` | Resource boundaries | Authentication deadline, per-source and total occupancy, inbound frame size, and message-rate windows, enforced before the WebSocket upgrade — each with the test that names it |
+
+These two are static rather than user-operated because they are properties of
+the code, not of a session anyone can watch. What a person still has to
+observe — that a real LAN session survives backgrounding, sleep/wake, and an IP
+change — stays in `resilienceSoak`.
 
 ## Checklist Evidence
 

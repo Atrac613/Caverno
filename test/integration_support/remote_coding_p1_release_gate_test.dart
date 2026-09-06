@@ -20,6 +20,31 @@ void main() {
     expect(result.toMarkdown(), contains('Remote Coding P1 Release Gate'));
   });
 
+  test('the two requirements P1 names first are decided automatically', () {
+    // They were specified as `transportSecurity` and `resourceBoundary` manual
+    // checklist sections and the checker had neither, so a passing report said
+    // nothing about the transport security and resource boundaries RC1 exists
+    // for. They are static rather than user-operated because a person ticking
+    // "the transport is secure" proves nothing: each gate reads the
+    // implementation and the name of the test that proves it, so the code and
+    // its coverage both have to be there.
+    final result = buildRemoteCodingP1ReleaseGate(
+      repoRoot: Directory.current,
+      generatedAt: DateTime(2026, 5, 26, 12),
+    );
+
+    for (final id in const ['transport_security', 'resource_boundary']) {
+      final gate = result.staticGates.where((gate) => gate.id == id);
+      expect(gate, hasLength(1), reason: '$id must be a P1 gate');
+      expect(gate.single.isReady, isTrue, reason: '$id must be satisfied');
+      expect(
+        gate.single.userOperated,
+        isFalse,
+        reason: '$id is a property of the code, not of a session to watch',
+      );
+    }
+  });
+
   test('passes when static checks and complete manual checklist are ready', () {
     final root = Directory.systemTemp.createTempSync(
       'remote_coding_p1_gate_test_',

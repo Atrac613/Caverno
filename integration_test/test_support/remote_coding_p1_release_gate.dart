@@ -173,6 +173,46 @@ List<RemoteCodingP1Gate> _buildStaticGates(Directory repoRoot) {
     repoRoot,
     'lib/features/remote_coding/presentation/remote_coding_server_notifier.dart',
   );
+  final transportPolicy = _read(
+    repoRoot,
+    'lib/features/remote_coding/domain/remote_coding_transport_policy.dart',
+  );
+  final listenPolicy = _read(
+    repoRoot,
+    'lib/features/remote_coding/domain/remote_coding_listen_policy.dart',
+  );
+  final sessionPolicy = _read(
+    repoRoot,
+    'lib/features/remote_coding/domain/remote_coding_session_policy.dart',
+  );
+  final resourcePolicy = _read(
+    repoRoot,
+    'lib/features/remote_coding/domain/remote_coding_resource_policy.dart',
+  );
+  final websocketConnector = _read(
+    repoRoot,
+    'lib/features/remote_coding/data/remote_coding_websocket_connector.dart',
+  );
+  final transportPolicyTest = _read(
+    repoRoot,
+    'test/features/remote_coding/domain/remote_coding_transport_policy_test.dart',
+  );
+  final listenPolicyTest = _read(
+    repoRoot,
+    'test/features/remote_coding/domain/remote_coding_listen_policy_test.dart',
+  );
+  final sessionPolicyTest = _read(
+    repoRoot,
+    'test/features/remote_coding/domain/remote_coding_session_policy_test.dart',
+  );
+  final resourcePolicyTest = _read(
+    repoRoot,
+    'test/features/remote_coding/domain/remote_coding_resource_policy_test.dart',
+  );
+  final serverNotifierTest = _read(
+    repoRoot,
+    'test/features/remote_coding/presentation/remote_coding_server_notifier_test.dart',
+  );
   final diagnostics = _read(
     repoRoot,
     'lib/features/remote_coding/data/remote_coding_diagnostics.dart',
@@ -277,6 +317,79 @@ List<RemoteCodingP1Gate> _buildStaticGates(Directory repoRoot) {
           'Restore mobile diagnostics copy support and redaction coverage.',
     ),
     _staticGate(
+      id: 'transport_security',
+      label:
+          'Credentials travel only over a pinned confidential transport, and a '
+          'session is channel-bound and short-lived.',
+      ready:
+          transportPolicy.contains('ensureConfidentialBeforeCredentials') &&
+          transportPolicy.contains('pinForDer') &&
+          websocketConnector.contains('withTrustedRoots: false') &&
+          websocketConnector.contains(
+            'RemoteCodingTransportPolicy.ensureConfidentialBeforeCredentials',
+          ) &&
+          serverNotifier.contains('HttpServer.bindSecure') &&
+          listenPolicy.contains('RemoteCodingPlaintextLanForbiddenException') &&
+          sessionPolicy.contains('challengeLifetime') &&
+          sessionPolicy.contains('challengeRejectedCode') &&
+          transportPolicyTest.contains(
+            'refuses credentials on plaintext or a missing pin',
+          ) &&
+          listenPolicyTest.contains(
+            'release policy refuses a plaintext non-loopback bind address',
+          ) &&
+          sessionPolicyTest.contains(
+            'session auth payload is not the reusable device token',
+          ) &&
+          serverNotifierTest.contains(
+            'session auth requires a live challenge bound to that socket',
+          ),
+      evidence: const [
+        'Pinned WSS with platform roots disabled, a release policy that refuses '
+            'a plaintext LAN bind, and a channel-bound challenge, each named by a '
+            'test.',
+      ],
+      nextAction:
+          'Restore pinned confidential transport, plaintext-bind refusal, and '
+          'channel-bound session authorization with their tests.',
+    ),
+    _staticGate(
+      id: 'resource_boundary',
+      label:
+          'Unauthenticated connections expire, and connection, frame, and '
+          'message rates are bounded per source.',
+      ready:
+          resourcePolicy.contains('authenticationDeadline') &&
+          resourcePolicy.contains('maxConnections') &&
+          resourcePolicy.contains('maxConnectionsPerAddress') &&
+          resourcePolicy.contains('maxInboundFrameBytes') &&
+          resourcePolicy.contains('maxUnauthenticatedMessagesPerWindow') &&
+          resourcePolicy.contains('frameTooLargeCode') &&
+          resourcePolicy.contains('messageRateExceededCode') &&
+          serverNotifier.contains('_resourcePolicy.evaluateConnection') &&
+          serverNotifier.contains('_resourcePolicy.authenticationDeadline') &&
+          serverNotifier.contains('_resourcePolicy.acceptsInboundFrame') &&
+          resourcePolicyTest.contains(
+            'rejects a connection when the peer limit is reached',
+          ) &&
+          resourcePolicyTest.contains(
+            'sliding-window limiter recovers only after the window',
+          ) &&
+          serverNotifierTest.contains(
+            'rejects excess sockets from the same peer before upgrade',
+          ) &&
+          serverNotifierTest.contains(
+            'rejects excess total sockets before upgrade',
+          ),
+      evidence: const [
+        'Occupancy, frame-size, and rate limits are enforced at the server and '
+            'rejected before the WebSocket upgrade, each named by a test.',
+      ],
+      nextAction:
+          'Restore the connection, frame, and message-rate boundaries and the '
+          'tests that name them.',
+    ),
+    _staticGate(
       id: 'host_snapshot_metadata',
       label:
           'Host snapshots advertise protocol and Remote Coding capabilities.',
@@ -325,7 +438,9 @@ List<RemoteCodingP1Gate> _buildStaticGates(Directory repoRoot) {
           docs.contains('Remote Coding P1 Release Gate') &&
           docs.contains('resilienceSoak') &&
           docs.contains('supportPacket') &&
-          docs.contains('multiDevice'),
+          docs.contains('multiDevice') &&
+          docs.contains('transport_security') &&
+          docs.contains('resource_boundary'),
       evidence: const [
         'P1 documentation names the automated gate and manual evidence sections.',
       ],
